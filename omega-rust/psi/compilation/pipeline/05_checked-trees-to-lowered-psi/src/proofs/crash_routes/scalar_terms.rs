@@ -69,7 +69,7 @@ pub(crate) fn checked_boolean_scalar_term(
                 return unsupported("crash comparison operand is not an integer");
             };
             checked_integer_comparison(*kind, integer_type, left, right)
-            .map_err(LoweringError::InvalidCrashPredicate)?
+                .map_err(LoweringError::InvalidCrashPredicate)?
         }
         CheckedBooleanExpression::ScalarIeeeFloatComparison { .. } => {
             return unsupported("scalar IEEE equality is an atomic proposition, not a scalar term");
@@ -97,9 +97,7 @@ pub(super) fn checked_integer_comparison(
     right: ScalarTerm,
 ) -> Result<ScalarTerm, semantic_vocabulary::PropositionError> {
     match kind {
-        CheckedIntegerComparisonKind::Equal => {
-            ScalarTerm::integer_equal(integer_type, left, right)
-        }
+        CheckedIntegerComparisonKind::Equal => ScalarTerm::integer_equal(integer_type, left, right),
         CheckedIntegerComparisonKind::LessThan => {
             ScalarTerm::integer_less_than(integer_type, left, right)
         }

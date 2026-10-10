@@ -242,7 +242,7 @@ impl EntryOperands<'_> {
             CheckedBooleanExpression::Local { .. }
             | CheckedBooleanExpression::IntegerMathComparison { .. } => return None,
             CheckedBooleanExpression::Not(operand) => self.boolean(operand)?,
-            facts::checked_boolean_triple_pattern!(left,right, ..) => {
+            facts::checked_boolean_triple_pattern!(left, right, ..) => {
                 self.boolean(left)?;
                 self.boolean(right)?;
             }

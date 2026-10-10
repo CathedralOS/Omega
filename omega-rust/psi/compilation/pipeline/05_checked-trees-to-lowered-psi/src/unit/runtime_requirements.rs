@@ -49,7 +49,7 @@ fn validate_namespace(expression: &CheckedBooleanExpression) -> Result<(), Lower
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => Ok(()),
         CheckedBooleanExpression::Not(operand) => validate_namespace(operand),
-        facts::checked_boolean_triple_pattern!(left,right, ..) => {
+        facts::checked_boolean_triple_pattern!(left, right, ..) => {
             validate_namespace(left)?;
             validate_namespace(right)
         }
@@ -144,7 +144,9 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
             validate_integer_namespace(left)?;
             validate_integer_namespace(right)
         }
-        checked_trees::integer_widen_triple_pattern!(primitive_type,operand, ..) if *primitive_type != PrimitiveType::Addr => {
+        checked_trees::integer_widen_triple_pattern!(primitive_type, operand, ..)
+            if *primitive_type != PrimitiveType::Addr =>
+        {
             integer_scalar_type(*primitive_type)?;
             validate_integer_namespace(operand)
         }
