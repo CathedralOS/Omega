@@ -18,12 +18,11 @@
 //! `ElementViewLength`), its final operation, and its diagnostic wording.
 use super::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees, LoweringError,
-    OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralFieldId,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
-    ValueDeclaration, ValueId, allocate_dense, direct_expression_contains_short_circuit,
-    emit_direct_expression, emit_u64_coordinate, obligation_id, terminal_scalar_type, unsupported,
-    validate_direct_parameter_types, value_id,
+    OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralFieldId, StructuralFieldType,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeId, StructuralTypeShape, ValueDeclaration, ValueId, allocate_dense,
+    direct_expression_contains_short_circuit, emit_direct_expression, emit_u64_coordinate,
+    obligation_id, terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -55,11 +54,9 @@ pub(crate) struct IndexedWriteLeaf<'a> {
 /// lowered storage its indexed carrier resolves in.
 #[derive(Clone, Copy)]
 pub(crate) enum IndexedWriteTarget<'a> {
-    /// A whole `&mut` byte-view parameter, named by authored position, which
-    /// `destination` resolves in the frame's authored parameter roster.
-    ByteView(&'a CheckedStorePlan),
-    /// An established bounded owner, resolved in the frame's local namespace.
-    OwnedBytes {
+    /// The frame resolves the admitted root once, whether its backing is an
+    /// owned home or a mutable borrowed view. Both use the same byte operation.
+    Bytes {
         store: &'a CheckedStorePlan,
         place: PlaceId,
         structural_type: StructuralTypeId,
@@ -178,14 +175,14 @@ enum DestinationShape {
 impl<'a> IndexedWriteTarget<'a> {
     fn store(self) -> &'a CheckedStorePlan {
         match self {
-            Self::ByteView(store) | Self::ByteField(store) => store,
-            Self::OwnedBytes { store, .. } | Self::ElementView { store, .. } => store,
+            Self::ByteField(store) => store,
+            Self::Bytes { store, .. } | Self::ElementView { store, .. } => store,
         }
     }
 
     fn wording(self) -> &'static Wording {
         match self {
-            Self::ByteView(_) | Self::OwnedBytes { .. } => &BYTE_VIEW,
+            Self::Bytes { .. } => &BYTE_VIEW,
             Self::ByteField(_) => &BYTE_FIELD,
             Self::ElementView { .. } => &ELEMENT_VIEW,
         }
@@ -235,52 +232,19 @@ impl<'a> IndexedWriteTarget<'a> {
     ) -> Result<Destination, LoweringError> {
         let operands = self.wording().operands;
         match self {
-            Self::OwnedBytes {
+            Self::Bytes {
                 place,
                 structural_type,
                 ..
             } => {
                 if !structural_types.iter().any(|declaration| {
                     declaration.id == structural_type
-                        && declaration.is_bounded_owned_byte_sequence()
+                        && matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
                 }) {
-                    return unsupported("byte write local is not a bounded owner");
+                    return unsupported("byte write root has no byte carrier");
                 }
                 Ok(Destination {
                     place,
-                    value_type: terminal_scalar_type(PrimitiveType::U8)?,
-                    shape: DestinationShape::ByteView,
-                })
-            }
-            Self::ByteView(store) => {
-                let Some(position) = store.destination.root.parameter_position() else {
-                    return unsupported("byte-view write destination has no parameter root");
-                };
-                let (_, parameter) = parameters
-                    .iter()
-                    .find(|(authored, _)| *authored == position)
-                    .ok_or(LoweringError::Unsupported(
-                        "byte-view write destination is absent",
-                    ))?;
-                if parameter.access != StructuralAccess::MutableBorrow
-                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                    || !parameter.projected_qualifications.is_empty()
-                    || !structural_types.iter().any(|declaration| {
-                        declaration.id == parameter.structural_type
-                            && matches!(
-                                declaration.shape,
-                                StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                                        | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
-                                        | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                )
-                            )
-                    })
-                {
-                    return unsupported(operands);
-                }
-                Ok(Destination {
-                    place: parameter.place,
                     value_type: terminal_scalar_type(PrimitiveType::U8)?,
                     shape: DestinationShape::ByteView,
                 })

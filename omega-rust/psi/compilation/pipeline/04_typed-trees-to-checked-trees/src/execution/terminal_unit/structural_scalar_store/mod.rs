@@ -375,7 +375,7 @@ fn plan_assignment(
             Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
         ))
     {
-        return byte_stores::view_write(
+        return byte_stores::byte_write(
             program,
             facts,
             machine,

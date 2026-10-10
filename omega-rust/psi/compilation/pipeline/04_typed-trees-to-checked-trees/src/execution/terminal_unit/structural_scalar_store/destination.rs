@@ -231,17 +231,23 @@ pub(super) fn resolve<'a>(
     if destinations.next().is_some() {
         return None;
     }
-    let TypeReferenceNode::Reference { referee, .. } = program
-        .type_reference_table
-        .type_reference(parameter.type_reference)
-    else {
-        return None;
+    let root_type = match plan.access {
+        CheckedStructuralAccess::Owned => parameter.type_reference,
+        _ => {
+            let TypeReferenceNode::Reference { referee, .. } = program
+                .type_reference_table
+                .type_reference(parameter.type_reference)
+            else {
+                return None;
+            };
+            *referee
+        }
     };
     // A borrowed fixed-array root has no record owner of its
     // own: its element record resolves through the first carrier
     // `FixedIndex` hop, so an unresolved owner stays admissible only
     // behind an index segment.
-    let root_owner = validation::field_domains::data_definition_for_field_type(program, *referee);
+    let root_owner = validation::field_domains::data_definition_for_field_type(program, root_type);
     Some(Destination {
         root: Root::Parameter { plan, parameter },
         place,
@@ -249,7 +255,7 @@ pub(super) fn resolve<'a>(
         recast_view,
         view_loan: false,
         selectors,
-        root_type: *referee,
+        root_type,
         root_owner,
         operators: &facts.operators,
     })

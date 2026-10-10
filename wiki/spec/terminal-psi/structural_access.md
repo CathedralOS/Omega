@@ -519,7 +519,7 @@ unit, charged before execution.
 | `StructuralByteViewFieldStore` | Destination root, path, optional final shared borrowed-view field (absent with an empty path: the whole declared descriptor home), established readable descriptor source, and optional exact byte-predicate obligation. No length, capacity or bytes are retained: the slot takes the source's backing and extent. |
 | `ByteSequenceStore` | Whole bounded-owned destination parameter, whole immutable source, exact dominating source-length observation, and capacity obligation. The destination's primitive byte qualifications remain required after replacement. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
-| `ByteSequenceWrite` | Whole mutable borrowed view or established bounded-owned byte local, exact runtime `u64` index, `u8` value, current same-place length observation, and index/predicate obligation. It needs no synthetic record or field identity. |
+| `ByteSequenceWrite` | Whole mutable borrowed view or established bounded-owned byte home (entry, state parameter or local), exact runtime `u64` index, `u8` value, current same-place length observation, and index/predicate obligation. Owned source bindings must be mutable; immutable literal descriptors never supply write authority. It needs no synthetic record or field identity. |
 
 These are non-observing Unit operations. Their names describe effects: a mutable
 borrow may perform a non-observing store without first discarding read authority.

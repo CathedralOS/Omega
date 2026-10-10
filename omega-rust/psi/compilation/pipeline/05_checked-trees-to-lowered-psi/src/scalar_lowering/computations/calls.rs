@@ -24,8 +24,7 @@ enum Operand {
         argument: checked_trees::CheckedUnitStructuralArgumentPlan,
         slot: subslices::Slot,
     },
-    /// An exact byte literal established into its reserved place before the
-    /// call reads it through a shared borrow.
+    /// Exact byte materialization at the operand, before subsequent arguments.
     ByteLiteral(literals::Slot),
     Scalar(Argument),
     /// A selector call's dispatch operand: evaluated first, then named by the
@@ -312,7 +311,7 @@ impl Expansion<'_> {
                         .find(|slot| {
                             slot.source_call == source_call
                                 && slot.argument_ordinal == structural_ordinal
-                                && slot.bytes.as_slice() == bytes
+                                && slot.literal.bytes.as_slice() == bytes
                         })
                         .ok_or(LoweringError::Unsupported(
                             "computed literal has no reserved place",
@@ -323,7 +322,7 @@ impl Expansion<'_> {
                 if matches!(
                     argument,
                     CheckedScalarComputationStructuralArgument::Place(argument)
-                        if !matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. })
+                        if !matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. } | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. })
                 ) && parameter.access == checked_trees::CheckedStructuralAccess::Owned
                     && parameter.multiplicity == language_semantics::Multiplicity::Unrestricted
                 {
@@ -569,11 +568,9 @@ impl Expansion<'_> {
                     erased_formal_types: Vec::new(),
                     erased_proof_formals: Vec::new(),
                     bindings: Vec::new(),
-                    structural_effects: vec![LoweredScalarEffect::EstablishByteSequenceLiteral {
-                        place: slot.place,
-                        structural_type: slot.structural_type,
-                        bytes: slot.bytes.clone(),
-                    }],
+                    structural_effects: vec![LoweredScalarEffect::EstablishByteSequenceLiteral(
+                        slot.literal.clone(),
+                    )],
                     terminator: LoweredScalarBranchTerminator::jump(
                         continuation,
                         super::parameters(prefix),

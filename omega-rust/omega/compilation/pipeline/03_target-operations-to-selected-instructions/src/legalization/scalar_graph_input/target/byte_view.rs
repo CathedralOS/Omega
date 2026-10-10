@@ -143,10 +143,7 @@ impl Checker<'_> {
     }
 
     pub(super) fn mutable_byte_view(&self, view: &TargetByteView, source: PlaceId) -> bool {
-        (optimization_unit_semantics::structural_place_access(self.optimized, source)
-            == Some(terminal_psi::StructuralAccess::MutableBorrow)
-            || super::super::byte_views::owned_byte_result(self.optimized, source, self.types)
-                .is_some())
+        super::super::byte_views::writable_bytes(self.optimized, source, self.types)
             && self.byte_view(view, source, &[])
     }
 

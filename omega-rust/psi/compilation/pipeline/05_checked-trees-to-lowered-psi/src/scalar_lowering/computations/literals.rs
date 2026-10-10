@@ -2,20 +2,18 @@
 //! position. Each checked call operand owns its establishment, even when two
 //! operands contain identical bytes.
 use super::{CheckedTrees, LoweringError, unsupported};
+use crate::emission::structural_byte_sequence_store::ByteLiteral;
 use checked_trees::{
     CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::StructuralTypeDeclaration;
 
 #[derive(Clone)]
 pub(crate) struct Slot {
     pub(crate) source_call: arena::Handle<checked_trees::FlowCallFact>,
     pub(crate) argument_ordinal: usize,
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) place: PlaceId,
-    pub(crate) structural_type: StructuralTypeId,
+    pub(crate) literal: ByteLiteral,
 }
 
 /// A `ByteSequenceLiteral` source carries its exact payload; anything else is
@@ -70,16 +68,11 @@ pub(crate) fn prepare(
                 ).ok_or(
                     LoweringError::Unsupported("computed literal has no structural type namespace"),
                 )?;
-            if !matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
-            ) {
-                return unsupported("computed literal is not a borrowed byte view");
-            }
             if let Some(existing) = slots.iter().find(|slot| {
                 slot.source_call == source_call && slot.argument_ordinal == argument_ordinal
             }) {
-                if existing.structural_type != declaration.id || existing.bytes.as_slice() != bytes
+                if existing.literal.structural_type != declaration.id
+                    || existing.literal.bytes.as_slice() != bytes
                 {
                     return unsupported("computed literal occurrence has conflicting types");
                 }
@@ -88,9 +81,7 @@ pub(crate) fn prepare(
             slots.push(Slot {
                 source_call,
                 argument_ordinal,
-                bytes: bytes.to_vec(),
-                place: super::super::place_id(super::super::allocate_dense(next_place)?),
-                structural_type: declaration.id,
+                literal: ByteLiteral::reserve(bytes, declaration.id, types, next_place)?,
             });
         }
     }
@@ -106,34 +97,37 @@ pub(crate) fn retain_declarations<'a>(
     declarations: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
 ) -> Result<(), LoweringError> {
     for operation in operations {
-        let terminal_psi::OperationKind::EstablishByteSequenceLiteral {
-            destination,
-            bytes,
-            qualifications,
-        } = &operation.kind
+        if let Some(result) = operation.result.structural() {
+            if slots.iter().any(|slot| slot.literal.place == result.place) {
+                declarations.push(terminal_psi::StructuralPlaceDeclaration {
+                    id: result.place,
+                    kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer: operation.id,
+                        structural_type: result.structural_type,
+                    },
+                });
+            }
+            continue;
+        }
+        let terminal_psi::OperationKind::EstablishByteSequenceLiteral { destination, .. } =
+            &operation.kind
         else {
             continue;
         };
-        let Some(slot) = slots.iter().find(|slot| slot.place == *destination) else {
+        let Some(structural_type) = slots
+            .iter()
+            .find_map(|slot| slot.literal.literal_type(*destination))
+        else {
             // Ordinary call operands and named locals publish their own slots.
             continue;
         };
-        if operation.result != terminal_psi::OperationResult::Unit
-            || *bytes != slot.bytes
-            || !qualifications.is_empty()
-            || declarations
-                .iter()
-                .any(|declaration| declaration.id == *destination)
-        {
-            return unsupported("computed literal establishment disagrees with its reservation");
-        }
         let declaration_ordinal =
             crate::emission::next_byte_sequence_literal_ordinal(declarations)?;
         declarations.push(terminal_psi::StructuralPlaceDeclaration {
-            id: slot.place,
+            id: *destination,
             kind: semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
                 declaration_ordinal,
-                structural_type: slot.structural_type,
+                structural_type,
             },
         });
     }

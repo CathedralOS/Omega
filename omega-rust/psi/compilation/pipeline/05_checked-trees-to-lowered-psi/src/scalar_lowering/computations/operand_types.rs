@@ -7,11 +7,17 @@ use checked_trees::{
     CheckedScalarComputationStructuralArgument as Argument,
 };
 
-pub(crate) fn type_roots(
+pub(crate) struct OperandTypeRequirements {
+    pub(crate) identities: Vec<typed_trees::type_identity::TypeIdentityId>,
+    pub(crate) literal_view: bool,
+}
+
+pub(crate) fn type_requirements(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-) -> Result<Vec<typed_trees::type_identity::TypeIdentityId>, LoweringError> {
+) -> Result<OperandTypeRequirements, LoweringError> {
     let mut types = super::cases::type_roots(checked, &[machine])?;
+    let mut literal_view = false;
     types.extend(super::fields::type_roots(checked, machine)?);
     let plans = &checked.facts.values.scalar_computations;
     for handle in super::machine_computation_handles(checked, machine)? {
@@ -30,6 +36,12 @@ pub(crate) fn type_roots(
                     if let Argument::Place(subject) = argument {
                         types.push(subject.type_identity);
                         types.extend(subject.borrowed_root_type_identity());
+                        // An owned literal copies immutable image bytes into
+                        // its reserved bounded home. Keep that input carrier
+                        // in the shared catalog before any emitter borrows it.
+                        literal_view |= subject.access
+                            == checked_trees::CheckedStructuralAccess::Owned
+                            && subject.byte_sequence_literal().is_some();
                     }
                 }
             }
@@ -46,5 +58,8 @@ pub(crate) fn type_roots(
     }
     types.sort();
     types.dedup();
-    Ok(types)
+    Ok(OperandTypeRequirements {
+        identities: types,
+        literal_view,
+    })
 }

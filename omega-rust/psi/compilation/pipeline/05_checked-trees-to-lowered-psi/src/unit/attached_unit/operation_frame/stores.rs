@@ -575,43 +575,42 @@ impl OperationFrame<'_, '_> {
         Ok(())
     }
 
-    /// The carrier a byte element's store writes through: a whole `&mut`
-    /// byte-view parameter, an established bounded owner local, or a bounded
-    /// byte field below a parameter.
+    /// Resolve the store's existing home, independently of how that home was
+    /// established. Source checking owns its write authority; emission carries
+    /// the retained root, type, index and predicate decisions into one write.
     fn byte_element_target<'s>(
         &self,
         store: &'s CheckedStorePlan,
     ) -> Result<IndexedWriteTarget<'s>, LoweringError> {
-        Ok(match store.destination.root {
-            checked_trees::CheckedStoreRoot::Parameter { .. }
-                if store.destination.path.is_empty() =>
-            {
-                IndexedWriteTarget::ByteView(store)
+        if !store.destination.path.is_empty() {
+            return match store.destination.root {
+                checked_trees::CheckedStoreRoot::Parameter { .. } => {
+                    Ok(IndexedWriteTarget::ByteField(store))
+                }
+                checked_trees::CheckedStoreRoot::Local { .. } => {
+                    unsupported("a local byte field element has no store route")
+                }
+            };
+        }
+        let (place, structural_type) = match store.destination.root {
+            checked_trees::CheckedStoreRoot::Parameter { position } => {
+                let root = store_parameter(&self.evaluation.structural_parameters, position)?;
+                (root.place, root.structural_type)
             }
-            checked_trees::CheckedStoreRoot::Parameter { .. } => {
-                IndexedWriteTarget::ByteField(store)
-            }
-            checked_trees::CheckedStoreRoot::Local { symbol }
-                if store.destination.path.is_empty() =>
-            {
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
                 let root = crate::emission::store_destination::local_store_root(
                     symbol,
                     &self.evaluation.structural_locals,
                     self.evaluation.structural_root_parameters(),
                     self.operations,
                 )?;
-                if root.argument.access != StructuralAccess::Owned {
-                    return unsupported("byte write local is not an owned home");
-                }
-                IndexedWriteTarget::OwnedBytes {
-                    store,
-                    place: root.argument.place,
-                    structural_type: root.structural_type,
-                }
+                (root.argument.place, root.structural_type)
             }
-            checked_trees::CheckedStoreRoot::Local { .. } => {
-                return unsupported("a local byte field element has no store route");
-            }
+        };
+        Ok(IndexedWriteTarget::Bytes {
+            store,
+            place,
+            structural_type,
         })
     }
 

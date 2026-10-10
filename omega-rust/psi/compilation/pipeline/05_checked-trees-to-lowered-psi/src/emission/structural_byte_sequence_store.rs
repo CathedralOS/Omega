@@ -19,6 +19,148 @@ use terminal_psi::control_flow::ByteSequenceOperand;
 
 const LITERAL_VIEW_IDENTITY: &str = "compiler(byte-sequence-literal-view)";
 
+/// Physical homes for one literal occurrence, reserved independently of when
+/// its operand is evaluated. Both call schedules consume this materializer.
+/// Image descriptors stay immutable; an owned carrier gets fresh backing from
+/// ordinary concatenation, with observed lengths and a capacity obligation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ByteLiteral {
+    pub(crate) place: semantic_vocabulary::PlaceId,
+    pub(crate) structural_type: StructuralTypeId,
+    pub(crate) bytes: Vec<u8>,
+    storage: LiteralStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LiteralStorage {
+    Borrowed,
+    Owned {
+        source: semantic_vocabulary::PlaceId,
+        empty: semantic_vocabulary::PlaceId,
+        view_type: StructuralTypeId,
+    },
+}
+
+impl ByteLiteral {
+    pub(crate) fn reserve(
+        bytes: &[u8],
+        structural_type: StructuralTypeId,
+        types: &[StructuralTypeDeclaration],
+        next_place: &mut u64,
+    ) -> Result<Self, LoweringError> {
+        let storage = match terminal_psi::find_structural_type(types, structural_type)
+            .map(|declaration| &declaration.shape)
+        {
+            Some(StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+            )) => LiteralStorage::Borrowed,
+            Some(StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+            )) => {
+                if u64::try_from(bytes.len()).map_or(true, |length| length > *capacity) {
+                    return unsupported("byte literal exceeds its declared capacity");
+                }
+                LiteralStorage::Owned {
+                    source: place_id(allocate_dense(next_place)?),
+                    empty: place_id(allocate_dense(next_place)?),
+                    view_type: existing_literal_view_type(types)?,
+                }
+            }
+            _ => return unsupported("byte literal has neither an owned nor a borrowed carrier"),
+        };
+        Ok(Self {
+            place: place_id(allocate_dense(next_place)?),
+            structural_type,
+            bytes: bytes.to_vec(),
+            storage,
+        })
+    }
+
+    /// Unit literal operations have no typed result. Their reserved physical
+    /// inputs supply the declaration namespace, not another semantic check.
+    pub(crate) fn literal_type(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+    ) -> Option<StructuralTypeId> {
+        match self.storage {
+            LiteralStorage::Borrowed if place == self.place => Some(self.structural_type),
+            LiteralStorage::Owned {
+                source,
+                empty,
+                view_type,
+            } if place == source || place == empty => Some(view_type),
+            _ => None,
+        }
+    }
+
+    fn declare_views(
+        &self,
+        places: &mut Vec<StructuralPlaceDeclaration>,
+    ) -> Result<(), LoweringError> {
+        let (views, structural_type): (&[_], _) = match self.storage {
+            LiteralStorage::Borrowed => (&[self.place], self.structural_type),
+            LiteralStorage::Owned {
+                source,
+                empty,
+                view_type,
+            } => (&[source, empty], view_type),
+        };
+        for &place in views {
+            let declaration_ordinal = super::next_byte_sequence_literal_ordinal(places)?;
+            places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal,
+                    structural_type,
+                },
+            });
+        }
+        Ok(())
+    }
+
+    pub(crate) fn emit(
+        &self,
+        qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+        next_value: &mut u64,
+        next_obligation: &mut u64,
+        operations: &mut OperationBuffer,
+    ) -> Result<(semantic_vocabulary::OperationId, OperationResult), LoweringError> {
+        let LiteralStorage::Owned { source, empty, .. } = self.storage else {
+            let id = emit_literal(self.place, &self.bytes, qualifications, operations);
+            return Ok((id, OperationResult::Unit));
+        };
+        let mut operand = |place, bytes: &[u8]| -> Result<ByteSequenceOperand, LoweringError> {
+            emit_literal(place, bytes, Vec::new(), operations);
+            let length = value_id(allocate_dense(next_value)?);
+            operations.push_leaf(
+                scalar_result_declaration(length, terminal_scalar_type(PrimitiveType::U64)?),
+                OperationKind::ByteSequenceLength {
+                    source: terminal_psi::StructuralArgument::whole(
+                        place,
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                    ),
+                },
+            );
+            Ok(ByteSequenceOperand::Whole {
+                source: place,
+                length,
+            })
+        };
+        let left = operand(source, &self.bytes)?;
+        let right = operand(empty, &[])?;
+        let (producer, result) = emit_concatenation(
+            self.place,
+            left,
+            right,
+            self.structural_type,
+            qualifications,
+            next_obligation,
+            operations,
+        )?;
+        Ok((producer, OperationResult::Structural(result)))
+    }
+}
+
 /// The ordered frame supplies a real formal or a previously produced local
 /// reference or owned home. Keeping these distinct prevents manufacturing parameter custody
 /// for a call result; source replay and Terminal verify the loan independently.
@@ -578,6 +720,16 @@ pub(crate) fn emit_literal_view(
             structural_type,
         },
     });
+    emit_literal(source, bytes, qualifications, operations);
+    Ok(source)
+}
+
+fn emit_literal(
+    destination: semantic_vocabulary::PlaceId,
+    bytes: &[u8],
+    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    operations: &mut OperationBuffer,
+) -> semantic_vocabulary::OperationId {
     let id = operations.allocate();
     operations.push(Operation {
         id,
@@ -585,12 +737,12 @@ pub(crate) fn emit_literal_view(
         suspension_crossing: None,
         result: OperationResult::Unit,
         kind: OperationKind::EstablishByteSequenceLiteral {
-            destination: source,
+            destination,
             bytes: bytes.to_vec(),
             qualifications,
         },
     });
-    Ok(source)
+    id
 }
 
 /// Establish an owned bounded byte local from its checked initializer.
@@ -672,27 +824,26 @@ pub(crate) fn emit_owned_literal(
     ),
     LoweringError,
 > {
-    let Some(StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
-        capacity,
-    })) = terminal_psi::find_structural_type(structural_types, structural_type)
-        .map(|declaration| declaration.shape.clone())
-    else {
+    let literal = ByteLiteral::reserve(bytes, structural_type, structural_types, next_place)?;
+    if !matches!(literal.storage, LiteralStorage::Owned { .. }) {
         return unsupported("owned literal local carrier is not a bounded byte owner");
-    };
-    if u64::try_from(bytes.len()).map_or(true, |length| length > capacity) {
-        return unsupported("owned literal local exceeds its declared capacity");
     }
-    let mut emission = ByteEmission {
-        structural_types,
-        places: literal_places,
-        next_place,
-        next_value,
-        next_obligation,
-        operations,
+    literal.declare_views(literal_places)?;
+    let (producer, result) =
+        literal.emit(qualifications, next_value, next_obligation, operations)?;
+    let OperationResult::Structural(result) = result else {
+        return unsupported("owned literal materialization has no owned result");
     };
-    let (literal, _) = emission.literal(bytes)?;
-    let (empty, _) = emission.literal(&[])?;
-    emission.concatenate(literal, empty, structural_type, qualifications)
+    Ok((
+        StructuralPlaceDeclaration {
+            id: literal.place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            },
+        },
+        result,
+    ))
 }
 
 /// Materialize one literal at its exact call carrier. Borrowed views lend
@@ -712,54 +863,29 @@ pub(crate) fn emit_call_literal(
     next_obligation: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let shape =
-        terminal_psi::find_structural_type(structural_types, structural_type).map(|row| &row.shape);
-    // The formal's carrier selects the materialization; stage 04 pairs an
-    // owned formal with a bounded owner and a shared one with a view.
-    let declaration = match shape {
-        Some(StructuralTypeShape::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-        )) => {
-            emit_owned_literal(
-                bytes,
-                structural_type,
-                qualifications,
-                structural_types,
-                places,
-                next_place,
-                next_value,
-                next_obligation,
-                operations,
-            )?
-            .0
+    let literal = ByteLiteral::reserve(bytes, structural_type, structural_types, next_place)?;
+    let declaration_ordinal = super::next_byte_sequence_literal_ordinal(places)?;
+    literal.declare_views(places)?;
+    let (producer, result) =
+        literal.emit(qualifications, next_value, next_obligation, operations)?;
+    let kind = if matches!(result, OperationResult::Structural(_)) {
+        StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
         }
-        Some(StructuralTypeShape::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-        )) => {
-            let declaration = StructuralPlaceDeclaration {
-                id: place_id(allocate_dense(next_place)?),
-                kind: StructuralPlaceKind::ByteSequenceLiteral {
-                    declaration_ordinal: super::next_byte_sequence_literal_ordinal(places)?,
-                    structural_type,
-                },
-            };
-            operations.push_leaf(
-                OperationResult::Unit,
-                OperationKind::EstablishByteSequenceLiteral {
-                    destination: declaration.id,
-                    bytes: bytes.to_vec(),
-                    qualifications,
-                },
-            );
-            declaration
-        }
-        _ => {
-            return unsupported(
-                "literal call argument carrier is neither a bounded owner nor a borrowed view",
-            );
+    } else {
+        StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal,
+            structural_type,
         }
     };
-    places.push(declaration);
+    let declaration = StructuralPlaceDeclaration {
+        id: literal.place,
+        kind,
+    };
+    if matches!(result, OperationResult::Structural(_)) {
+        places.push(declaration);
+    }
     Ok(declaration)
 }
 
@@ -829,7 +955,15 @@ impl ByteEmission<'_> {
         LoweringError,
     > {
         let source = place_id(allocate_dense(self.next_place)?);
-        let id = self.operations.allocate();
+        let (id, result) = emit_concatenation(
+            source,
+            left,
+            right,
+            structural_type,
+            qualifications,
+            self.next_obligation,
+            self.operations,
+        )?;
         let declaration = StructuralPlaceDeclaration {
             id: source,
             kind: StructuralPlaceKind::OperationResult {
@@ -837,28 +971,50 @@ impl ByteEmission<'_> {
                 structural_type,
             },
         };
-        let result = terminal_psi::StructuralOperationResult {
-            place: source,
-            structural_type,
-            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-            qualifications,
-            projected_qualifications: Vec::new(),
-            qualification_establishments: Vec::new(),
-            claims: Vec::new(),
-        };
-        self.operations.push(Operation {
-            id,
-            static_reach_binding: None,
-            suspension_crossing: None,
-            result: OperationResult::Structural(result.clone()),
-            kind: OperationKind::EstablishByteSequenceConcatenation {
-                left,
-                right,
-                capacity_obligation: obligation_id(allocate_dense(self.next_obligation)?),
-            },
-        });
         Ok((declaration, result))
     }
+}
+
+/// Establish concatenation in a reserved home. Namespace allocation belongs
+/// to the enclosing schedule, while this producer owns its exact result and
+/// capacity obligation for both immediate and deferred materialization.
+fn emit_concatenation(
+    place: semantic_vocabulary::PlaceId,
+    left: ByteSequenceOperand,
+    right: ByteSequenceOperand,
+    structural_type: StructuralTypeId,
+    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    next_obligation: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<
+    (
+        semantic_vocabulary::OperationId,
+        terminal_psi::StructuralOperationResult,
+    ),
+    LoweringError,
+> {
+    let id = operations.allocate();
+    let result = terminal_psi::StructuralOperationResult {
+        place,
+        structural_type,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        qualifications,
+        projected_qualifications: Vec::new(),
+        qualification_establishments: Vec::new(),
+        claims: Vec::new(),
+    };
+    operations.push(Operation {
+        id,
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Structural(result.clone()),
+        kind: OperationKind::EstablishByteSequenceConcatenation {
+            left,
+            right,
+            capacity_obligation: obligation_id(allocate_dense(next_obligation)?),
+        },
+    });
+    Ok((id, result))
 }
 
 struct ValueEmitter<'input> {

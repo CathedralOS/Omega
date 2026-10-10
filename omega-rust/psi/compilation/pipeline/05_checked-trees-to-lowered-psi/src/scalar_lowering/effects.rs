@@ -1,8 +1,8 @@
 //! A branch state's non-scalar effects consume completed operands without
 //! adding value slots.
 use super::{
-    LoweringError, OperationKind, OperationResult, ValueDeclaration,
-    emit_direct_expression, lookup_machine_id, lower_checked_crash_route_buckets, unsupported,
+    LoweringError, OperationKind, OperationResult, ValueDeclaration, emit_direct_expression,
+    lookup_machine_id, lower_checked_crash_route_buckets, unsupported,
     validate_direct_parameter_types,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
@@ -117,19 +117,13 @@ pub(crate) fn emit(
                     case, values, next_value, operations, calls,
                 )?
             }
-            LoweredScalarEffect::EstablishByteSequenceLiteral {
-                place,
-                structural_type: _,
-                bytes,
-            } => {
-                operations.push_leaf(
-                    OperationResult::Unit,
-                    OperationKind::EstablishByteSequenceLiteral {
-                        destination: *place,
-                        bytes: bytes.clone(),
-                        qualifications: Vec::new(),
-                    },
-                );
+            LoweredScalarEffect::EstablishByteSequenceLiteral(literal) => {
+                literal.emit(
+                    Vec::new(),
+                    next_value,
+                    &mut calls.next_obligation_identity,
+                    operations,
+                )?;
             }
             LoweredScalarEffect::EstablishScalarArray(array) => {
                 crate::scalar_lowering::computations::arrays::emit(

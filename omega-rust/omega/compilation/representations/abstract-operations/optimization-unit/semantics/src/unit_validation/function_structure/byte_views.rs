@@ -282,6 +282,7 @@ pub(super) fn validate_source(
                 let permitted = match operation {
                     AbstractOperation::ByteSequenceWrite { .. } => {
                         parameter.access == StructuralAccess::MutableBorrow
+                            || owned && parameter.access == StructuralAccess::Owned
                     }
                     AbstractOperation::ByteSequenceLength { .. } => {
                         matches!(
@@ -442,7 +443,12 @@ pub(super) fn validate_source(
                 matches!(
                     contract.access,
                     terminal_psi::mutating_access_pair_pattern!()
-                )
+                ) || contract.access == StructuralAccess::Owned
+                    && structural_type
+                        .and_then(|identity| structural_types.get(&identity))
+                        .is_some_and(|declaration| {
+                            declaration.shape.is_bounded_owned_byte_sequence()
+                        })
             });
     if !valid || !exact_length || !valid_result || !writable {
         return Err(

@@ -47,7 +47,7 @@ pub(crate) fn prepare(
         if !arguments.iter().any(|argument| {
             matches!(argument, CheckedScalarComputationStructuralArgument::Place(argument)
                 if argument.access == CheckedStructuralAccess::Owned
-                    && !matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }))
+                    && !matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. } | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }))
         }) {
             continue;
         }
@@ -71,6 +71,7 @@ pub(crate) fn prepare(
                 || matches!(
                     argument.source,
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
+                        | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
                 )
             {
                 continue;

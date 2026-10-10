@@ -324,10 +324,13 @@ pub(super) fn lower_unit_structural_types_including(
     LoweringError,
 > {
     let mut roots = additional_roots.to_vec();
+    let mut literal_view = false;
     for symbol in closure {
-        roots.extend(
-            crate::scalar_lowering::computations::operand_types::type_roots(checked, *symbol)?,
-        );
+        let operands = crate::scalar_lowering::computations::operand_types::type_requirements(
+            checked, *symbol,
+        )?;
+        roots.extend(operands.identities);
+        literal_view |= operands.literal_view;
         let body = UnitBody::find(plans, *symbol)?;
         if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
             && let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()?
@@ -403,6 +406,9 @@ pub(super) fn lower_unit_structural_types_including(
     }
     let (mut declarations, mut identities, referents) =
         lower_unit_structural_type_roots(checked, plans, &roots)?;
+    if literal_view {
+        crate::emission::structural_byte_sequence_store::literal_view_type(&mut declarations)?;
+    }
     // A captured coordinate is compiler-owned primitive storage, even when
     // its source is an inline field and no authored signature roots u64.
     // Publish its ordinary carrier before any emission route borrows this
@@ -503,7 +509,6 @@ pub(crate) fn lower_unit_structural_type_roots(
     LoweringError,
 > {
     fn collect<'a>(
-        checked: &'a CheckedTrees,
         plans: UnitPlans<'a>,
         identity: TypeIdentityId,
         active: &mut Vec<TypeIdentityId>,
@@ -535,7 +540,6 @@ pub(crate) fn lower_unit_structural_type_roots(
                 checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
                 | checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
             ) => collect(
-                checked,
                 plans,
                 byte_view_element_identity(plans.structural_types()).ok_or(
                     LoweringError::Unsupported(
@@ -555,26 +559,26 @@ pub(crate) fn lower_unit_structural_type_roots(
             CheckedUnitStructuralTypeShape::BorrowedSliceView {
                 element_type_identity,
             } => {
-                collect(checked, plans, *element_type_identity, active, selected)?;
+                collect(plans, *element_type_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::Record { fields, .. } => {
                 for type_identity in fields.iter().flat_map(
                     checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
                 ) {
-                    collect(checked, plans, type_identity, active, selected)?;
+                    collect(plans, type_identity, active, selected)?;
                 }
             }
             CheckedUnitStructuralTypeShape::FixedArray {
                 element_type_identity,
                 ..
             } => {
-                collect(checked, plans, *element_type_identity, active, selected)?;
+                collect(plans, *element_type_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 for type_identity in cases.iter().flat_map(|case| &case.fields).flat_map(
                     checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
                 ) {
-                    collect(checked, plans, type_identity, active, selected)?;
+                    collect(plans, type_identity, active, selected)?;
                 }
             }
             CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
@@ -585,7 +589,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                         checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
                     )
                 {
-                    collect(checked, plans, type_identity, active, selected)?;
+                    collect(plans, type_identity, active, selected)?;
                 }
             }
         }
@@ -597,7 +601,7 @@ pub(crate) fn lower_unit_structural_type_roots(
     let mut selected = Vec::new();
     let mut active = Vec::new();
     for identity in roots {
-        collect(checked, plans, *identity, &mut active, &mut selected)?;
+        collect(plans, *identity, &mut active, &mut selected)?;
     }
     selected.sort_by(|left, right| left.identity.cmp(&right.identity));
     let referent_names = selected

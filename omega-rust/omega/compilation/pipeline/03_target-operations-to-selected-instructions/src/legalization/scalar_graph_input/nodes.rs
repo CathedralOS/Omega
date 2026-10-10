@@ -543,9 +543,7 @@ pub(super) fn validate(
         {
             if result.is_some()
                 || !node.definitions.is_empty()
-                || (super::byte_views::mutable_parameter(optimized, *destination).is_none()
-                    && super::byte_views::owned_byte_result(optimized, *destination, types)
-                        .is_none())
+                || !super::byte_views::writable_bytes(optimized, *destination, types)
                 || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                 || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
                 || value_type(optimized, *value) != Some(ScalarType::Integer(u8_type()))

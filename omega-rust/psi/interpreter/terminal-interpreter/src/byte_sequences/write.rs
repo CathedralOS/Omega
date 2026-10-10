@@ -1,4 +1,4 @@
-//! Fixed-extent byte mutation through an exact mutable loan or fresh owned result.
+//! Fixed-extent byte mutation through an exact mutable loan or established owner.
 
 use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId, ValueId};
 use terminal_psi::{
@@ -33,16 +33,21 @@ impl TerminalExecution<'_> {
         let result = machine
             .structural_place(place)
             .and_then(|declaration| declaration.kind.as_operation_result());
+        let owned_type = machine
+            .structural_parameter(place)
+            .filter(|parameter| parameter.access == StructuralAccess::Owned)
+            .map(|parameter| parameter.structural_type)
+            .or_else(|| result.map(|(_, structural_type)| structural_type));
+        if owned_type.is_some_and(|structural_type| {
+            self.program
+                .structural_types()
+                .get(&structural_type)
+                .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
+        }) {
+            return self.owned_byte_sequence_storage(place);
+        }
         let (structural_type, qualifications, projected_qualifications) =
             if let Some((producer, structural_type)) = result {
-                if self
-                    .program
-                    .structural_types()
-                    .get(&structural_type)
-                    .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
-                {
-                    return self.owned_byte_sequence_storage(place);
-                }
                 let operation = machine.operation(producer).ok_or_else(malformed)?;
                 let result = operation.result.structural().ok_or_else(malformed)?;
                 if !matches!(
@@ -159,25 +164,50 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
-        let declaration = machine.structural_place(place).ok_or_else(malformed)?;
-        let (producer, structural_type) = declaration
-            .kind
-            .as_operation_result()
-            .ok_or_else(malformed)?;
-        let operation = machine.operation(producer).ok_or_else(malformed)?;
-        let result = operation.result.structural().ok_or_else(malformed)?;
+        // Owned parameters and completed owned results both bind activation
+        // storage. Mutation must detach that home's payload, never an immutable
+        // literal descriptor or another activation's backing.
+        let (structural_type, qualifications, projected_qualifications, multiplicity) =
+            if let Some(parameter) = machine.structural_parameter(place) {
+                if parameter.access != StructuralAccess::Owned {
+                    return Err(malformed());
+                }
+                (
+                    parameter.structural_type,
+                    &parameter.qualifications,
+                    &parameter.projected_qualifications,
+                    parameter.multiplicity,
+                )
+            } else {
+                let declaration = machine.structural_place(place).ok_or_else(malformed)?;
+                let (producer, structural_type) = declaration
+                    .kind
+                    .as_operation_result()
+                    .ok_or_else(malformed)?;
+                let operation = machine.operation(producer).ok_or_else(malformed)?;
+                let result = operation.result.structural().ok_or_else(malformed)?;
+                if !matches!(
+                    operation.kind,
+                    OperationKind::EstablishByteSequenceConcatenation { .. }
+                ) || result.place != place
+                    || result.structural_type != structural_type
+                    || !result.qualification_establishments.is_empty()
+                    || !result.claims.is_empty()
+                {
+                    return Err(malformed());
+                }
+                (
+                    structural_type,
+                    &result.qualifications,
+                    &result.projected_qualifications,
+                    result.multiplicity,
+                )
+            };
         let value = self.structural_values.get(&place).ok_or_else(malformed)?;
-        if !matches!(
-            operation.kind,
-            OperationKind::EstablishByteSequenceConcatenation { .. }
-        ) || result.place != place
-            || result.structural_type != structural_type
-            || result.multiplicity != StructuralMultiplicity::Unrestricted
-            || !result.projected_qualifications.is_empty()
-            || !result.qualification_establishments.is_empty()
-            || !result.claims.is_empty()
+        if multiplicity != StructuralMultiplicity::Unrestricted
+            || !projected_qualifications.is_empty()
             || value.structural_type != structural_type
-            || value.qualifications != result.qualifications
+            || &value.qualifications != qualifications
             || !value.path.is_empty()
             || self
                 .live_claims
@@ -187,7 +217,7 @@ impl TerminalExecution<'_> {
             || terminal_semantics::byte_qualification_predicates_in(
                 self.program.catalogs.structural_domains.iter(),
                 structural_type,
-                &result.qualifications,
+                qualifications,
             )
             .is_none()
         {

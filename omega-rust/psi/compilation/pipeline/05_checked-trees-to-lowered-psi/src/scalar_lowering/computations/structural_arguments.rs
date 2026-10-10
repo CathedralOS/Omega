@@ -72,6 +72,27 @@ pub(super) fn lower(
                         },
                     });
             }
+            if let Some(bytes) = literals::source_bytes(argument) {
+                let slot = literals.iter().find(|slot| {
+                    slot.source_call == source_call
+                        && slot.argument_ordinal == argument_ordinal
+                        && slot.literal.bytes.as_slice() == bytes
+                }).ok_or(LoweringError::Unsupported("computed literal has no reserved place"))?;
+                if !argument.path.is_empty() {
+                    return unsupported("computed literal cannot project its materialization");
+                }
+                return Ok(PreparedStructuralArgument {
+                    selector_positions: Vec::new(),
+                    place: slot.literal.place,
+                    root_type: Some(slot.literal.structural_type),
+                    path: Vec::new(),
+                    access: match argument.access {
+                        checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
+                        checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+                        _ => return unsupported("computed literal admits ownership or shared lending"),
+                    },
+                });
+            }
             if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
                 let source = bindings.owned_argument_home(argument)?;
                 let selected_root = bindings.structural_argument_type(&source).ok_or(
@@ -104,30 +125,6 @@ pub(super) fn lower(
                         root_type: Some(slot.structural_type),
                         path: Vec::new(),
                         access,
-                    });
-                }
-                if parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-                    && let Some(bytes) = literals::source_bytes(argument)
-                {
-                    let slot = literals
-                        .iter()
-                        .find(|slot| {
-                            slot.source_call == source_call
-                                && slot.argument_ordinal == argument_ordinal
-                                && slot.bytes.as_slice() == bytes
-                        })
-                        .ok_or(LoweringError::Unsupported(
-                            "computed literal has no reserved place",
-                        ))?;
-                    if !argument.path.is_empty() {
-                        return unsupported("computed literal cannot project its view");
-                    }
-                    return Ok(PreparedStructuralArgument {
-                        selector_positions: Vec::new(),
-                        place: slot.place,
-                        root_type: Some(slot.structural_type),
-                        path: Vec::new(),
-                        access: StructuralAccess::SharedBorrow,
                     });
                 }
                 let source = bindings.borrowed_structural_home(argument, caller_machine, caller_parameters)?;

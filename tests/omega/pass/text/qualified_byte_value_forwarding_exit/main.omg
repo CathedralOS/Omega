@@ -2,6 +2,8 @@ use omega_language_std::console;
 use omega::language::core::binding;
 
 domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 16]::Ascii(bytes) requires ascii_only(bytes);
 data Main { console: Binding<Console>; }
 
 machine identity(value: [u8; 16] in Utf8) -> [u8; 16] in Utf8 { value }
@@ -10,11 +12,33 @@ machine forward(value: [u8; 16] in Utf8) -> [u8; 16] in Utf8 {
     state arrived(value: [u8; 16] in Utf8) -> [u8; 16] in Utf8 { value }
 }
 
+machine matches_text(value: [u8; 16] in Utf8, shared: &[u8] in Utf8) -> bool {
+    transition { _ -> arrived(value, shared) }
+    state arrived(value: [u8; 16] in Utf8, shared: &[u8] in Utf8) -> bool {
+        value == "éGate" && shared == "éGate" && value.len == 6 && shared.len == 6
+    }
+}
+
+machine independent(mut first: [u8; 16] in Ascii, second: [u8; 16] in Ascii) -> bool {
+    transition first.len == 4 && second.len == 4 {
+        true -> rewrite(first, second)
+        _ -> false
+    }
+    state rewrite(mut first: [u8; 16] in Ascii, second: [u8; 16] in Ascii) -> bool
+    requires first.len == 4 && second.len == 4;
+    {
+        first[0] = 65;
+        first == "Aate" && second == "gate"
+    }
+}
+
 machine Main::main(main: &mut Main) reaches Console {
     let captured: [u8; 16] in Utf8 = identity("éGate");
     let forwarded: [u8; 16] in Utf8 = forward(captured);
+    let direct: bool = matches_text("éGate", "éGate");
+    let separate: bool = independent("gate", "gate");
     transition captured == "éGate" && forwarded == "éGate"
-        && captured.len == 6 && forwarded.len == 6 {
+        && captured.len == 6 && forwarded.len == 6 && direct && separate {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }

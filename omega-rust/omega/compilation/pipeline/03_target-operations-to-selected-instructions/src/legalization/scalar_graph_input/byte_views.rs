@@ -107,23 +107,53 @@ pub(super) fn validate(
     Ok(call_plan.clone())
 }
 
-/// Mutable custody is independent of whole-carrier predicates. Source and
-/// operation admission establish their preservation; a qualified owner uses
-/// the same writable address as its unqualified carrier.
-pub(super) fn mutable_parameter(
+/// A write needs a live byte home, not a particular establishment family.
+/// Resolve the declaration and actual access independently: an owned bounded
+/// home and a mutable byte descriptor both write their original backing.
+/// Predicate preservation and currentness remain the operation's obligations.
+pub(super) fn writable_bytes(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
-) -> Option<&terminal_psi::StructuralParameterDeclaration> {
-    function
-        .structural_parameters
-        .iter()
-        .chain(function.block_structural_parameters())
-        .find(|parameter| {
-            parameter.place == place
-                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-                && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                && parameter.projected_qualifications.is_empty()
-        })
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
+    let (structural_type, multiplicity, projected) =
+        if let Some(parameter) = function.arrival_parameter(place) {
+            (
+                parameter.structural_type,
+                parameter.multiplicity,
+                &parameter.projected_qualifications,
+            )
+        } else {
+            let Ok((_, result)) = super::structural_case::source_result(function, place) else {
+                return false;
+            };
+            if !result.claims.is_empty() || !result.qualification_establishments.is_empty() {
+                return false;
+            }
+            (
+                result.structural_type,
+                result.multiplicity,
+                &result.projected_qualifications,
+            )
+        };
+    if multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted || !projected.is_empty() {
+        return false;
+    }
+    let Some(declaration) = terminal_psi::find_structural_type(types, structural_type) else {
+        return false;
+    };
+    match optimization_unit_semantics::structural_place_access(function, place) {
+        Some(terminal_psi::StructuralAccess::MutableBorrow) => {
+            matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ByteSequence(_)
+            )
+        }
+        Some(terminal_psi::StructuralAccess::Owned) => {
+            declaration.shape.is_bounded_owned_byte_sequence()
+        }
+        _ => false,
+    }
 }
 
 /// Geometry follows the exact current declaration. Producer contracts,

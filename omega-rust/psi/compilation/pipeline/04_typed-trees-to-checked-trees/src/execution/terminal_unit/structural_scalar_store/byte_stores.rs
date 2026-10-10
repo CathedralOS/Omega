@@ -1,5 +1,5 @@
 //! Byte-sequence leaves: a whole borrowed byte view, an established mutable
-//! bounded byte local, or a bounded-owned field below an exclusive root. One
+//! bounded byte home, or a bounded-owned field below an exclusive root. One
 //! indexed byte is a `ByteElement` store leaf and replaced live contents a
 //! `ByteContents` leaf; the destination and the `u8` value are resolved by
 //! the same owners as every other store.
@@ -14,13 +14,14 @@ use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, structural_access_for_type_reference, terminal_field_identity,
 };
 
-/// `view[index] = byte` through a whole mutable borrowed view or owned local.
+/// `view[index] = byte` through a whole mutable borrowed view or owned home.
 /// Replacing a byte observes the current length, so a borrowed root needs an
 /// ordinary unrestricted mutable borrow rather than write-only authority.
 /// Byte predicates stay attached to the owner and become store obligations;
 /// borrowing its backing does not turn it into an unqualified byte view.
-/// An owned root retains its exact mutable local establishment.
-pub(super) fn view_write(
+/// Entry, state and local owners retain their declared binding mutability;
+/// where the home was established does not change the byte operation.
+pub(super) fn byte_write(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
@@ -36,29 +37,28 @@ pub(super) fn view_write(
     if !destination.place.segments.is_empty() {
         return None;
     }
-    match destination.root {
+    let declared_type = match destination.root {
         Root::Parameter { plan, parameter } => {
-            if plan.access != CheckedStructuralAccess::MutableBorrow
+            let writable = match plan.access {
+                CheckedStructuralAccess::MutableBorrow => true,
+                CheckedStructuralAccess::Owned => {
+                    parameter.is_mutable
+                        && !parameter.is_const
+                        && matches!(
+                            byte_sequence_carrier(program, parameter.type_reference, &[]),
+                            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+                        )
+                }
+                _ => false,
+            };
+            if !writable
                 || plan.multiplicity != Multiplicity::Unrestricted
                 || plan.binding_carrier.is_some()
                 || byte_sequence_carrier(program, parameter.type_reference, &[]).is_none()
             {
                 return None;
             }
-            let domains = validation::field_domains::domain_constraint_symbols(
-                program,
-                parameter.type_reference,
-            );
-            if !domains.into_iter().all(|symbol| {
-                typed_trees::domain::domain_by_symbol(program, symbol).is_some_and(|domain| {
-                    domain.establishment_routes.is_empty()
-                        && domain.semantic_roles == Default::default()
-                        && typed_trees::byte_predicates::domain_byte_predicate(program, symbol)
-                            .is_some()
-                })
-            }) {
-                return None;
-            }
+            parameter.type_reference
         }
         Root::Local { symbol } => {
             // Destination resolution independently rejoined the earlier literal
@@ -76,7 +76,18 @@ pub(super) fn view_write(
             {
                 return None;
             }
+            local.type_reference
         }
+    };
+    let domains = validation::field_domains::domain_constraint_symbols(program, declared_type);
+    if !domains.into_iter().all(|symbol| {
+        typed_trees::domain::domain_by_symbol(program, symbol).is_some_and(|domain| {
+            domain.establishment_routes.is_empty()
+                && domain.semantic_roles == Default::default()
+                && typed_trees::byte_predicates::domain_byte_predicate(program, symbol).is_some()
+        })
+    }) {
+        return None;
     }
     let indexed = indexed_byte_value(
         program,
@@ -222,9 +233,7 @@ pub(super) fn field_store(
         )?;
         return Some(indexed.store(statement_index, store_root, field_path));
     }
-    let Some(capacity) = capacity else {
-        return None;
-    };
+    let capacity = capacity?;
     if !domains.iter().all(|symbol| plain_domain(*symbol, false)) {
         return None;
     }

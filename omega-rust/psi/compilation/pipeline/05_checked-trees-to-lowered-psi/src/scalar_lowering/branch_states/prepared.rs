@@ -288,13 +288,9 @@ pub(crate) enum LoweredScalarEffect {
     EstablishScalarArray(LoweredScalarArrayConstruction),
     EstablishElementView(crate::unit::attached_unit::view_ranges::CollectionView),
     EstablishScalarCase(computations::cases::Construction),
-    /// Establish an immutable byte-view literal in its reserved place ahead of
-    /// the computed call that borrows it.
-    EstablishByteSequenceLiteral {
-        place: PlaceId,
-        structural_type: StructuralTypeId,
-        bytes: Vec<u8>,
-    },
+    /// Establish a literal's reserved image descriptor or fresh owned backing
+    /// at its authored operand position, before later arguments evaluate.
+    EstablishByteSequenceLiteral(crate::emission::structural_byte_sequence_store::ByteLiteral),
     /// Narrow either descriptor family through the same captured operand schedule.
     ViewSubslice {
         source: crate::unit::attached_unit::view_ranges::ViewRangeSource,
