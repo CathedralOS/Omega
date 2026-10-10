@@ -173,10 +173,10 @@ pub(super) fn lower_call(
             ordinary_contract(&call, declaration, callee_function, function, target, types)?
         }
     };
-    // Check the whole roster before preparing any argument. Carrier moves
-    // commit only after all operands have retained their exact storage.
-    let moved =
-        super::references::call_arguments(function, types, live, call.structural_arguments)?;
+    // Retain descriptor origins before preparing operands. Psi has checked
+    // their ownership; commit the native metadata move only after every
+    // operand has retained its exact storage and ABI placement.
+    let moved = super::references::moved_argument_leaves(live, call.structural_arguments);
     let scalar_arguments = call
         .scalar_arguments
         .iter()

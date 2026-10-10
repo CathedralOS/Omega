@@ -4,9 +4,9 @@
 //! Production enters through `lower_optimized_to_target_operations`
 //! (`lowering/optimized.rs`). It takes a validated optimized abstract plan and
 //! its admitted settlements, lowers it, joins the provider installation, and
-//! seals the result with the settlement-aware translation validation, which
-//! replays every target row independently (`validation`;
-//! `validate_abstract_to_target_translation` is its settlement-free form).
+//! retains the lowered program beside those inputs. Provider installation
+//! identity is joined before publication; translation replay belongs to the
+//! independent audit, not this producer's default route.
 //! `lower_to_target_operations` (`lowering.rs`) is the unvalidated lowering
 //! core that entrance calls; tests use it directly. Beneath it,
 //! `lowering/coordination.rs` binds settlements and lowers each function by
@@ -14,12 +14,14 @@
 //! `placed_view_inputs` route is the in-progress direct-entry placed-view
 //! slice (TASKS.md PLAN-LAID-VIEWS).
 //!
-//! Nonescaping scalar observations consume Psi's admitted access; they do not
-//! form or transfer shared loans. Native lowering joins their current storage
-//! and ordered reference crossings, without replaying source compatibility as
-//! a loan-formation rule. New loans, moves and writes retain their distinct
-//! custody requirements. This follows pipeline.md's verification placement:
-//! source permission is judged by Psi, not re-proved by a native stage.
+//! Operation dispatch does not preflight borrow legality, and calls transport
+//! the existing descriptor leaves of owned operands rather than reconstructing
+//! their permissions from types. Storage owners still join current homes,
+//! ordered pointer crossings and ABI placements; the stage 03 corpus audit
+//! independently exercises custody. Reference formation, release, edge and
+//! return lowering still contain local custody restrictions, so this is not
+//! yet a claim that every native borrow replay has been removed. Source
+//! permission belongs to Psi, not a second source checker in native lowering.
 
 mod lowering;
 mod validation;
@@ -34,8 +36,8 @@ pub use lowering::optimized::{
 };
 pub use lowering::placed_view_inputs;
 pub(crate) use lowering::{TargetLoweringRequest, lower_to_target_operations};
-pub(crate) use validation::{  AbstractToTargetTranslationValidationError};
+pub(crate) use validation::AbstractToTargetTranslationValidationError;
 
 // Receiving stages reconstruct ABI classes from their own declaration inputs,
 // using the same boundary classification rather than a second type roster.
-pub use validation::structural_shapes::{ classified_boundary_shape};
+pub use validation::structural_shapes::classified_boundary_shape;

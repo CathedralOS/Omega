@@ -5,11 +5,16 @@
 //! all possible immediate parents. A further reborrow names that descriptor,
 //! not its grandparents; movement preserves the roster, and release waits for
 //! every child. Choosing one parent here would detach the unselected lineage.
+//!
+//! Calls transport the existing metadata for owned carrier storage, without
+//! replaying alias and suspension judgments across the argument roster. This
+//! metadata still supplies returned-reference origins; it never selects the
+//! runtime pointer. Formation, release and edge/return lowering retain local
+//! custody restrictions until their storage relationships can replace them.
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::call_source;
-use optimization_unit_semantics::CallRegion;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -1186,311 +1191,32 @@ pub(super) fn check_projected_shared_access(
     )
 }
 
-pub(super) fn check_operation_access(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    operation: &AbstractOperation,
-    place: PlaceId,
-) -> bool {
-    match operation {
-        AbstractOperation::StructuralLeafCopy {
-            psi_operation,
-            result,
-            source,
-            path,
-        } => {
-            // Descriptor copies are observations of carrier storage, not owned
-            // accesses to its suspended referent. The copy owner authenticates
-            // every selected shared leaf before publishing fresh occurrences.
-            if contains_reference(types, result.structural_type) {
-                return copied_leaves(function, types, live, result, *source, path, *psi_operation)
-                    .is_err();
-            }
-            match path {
-                abstract_operations::StructuralCopyPath::Ordinary(path) => {
-                    check_projected_shared_access(function, live, types, place, path, None)
-                }
-                abstract_operations::StructuralCopyPath::Case(_) => check_root_access(live, place),
-            }
-        }
-        // Atomic mutation is sanctioned shared access to the original cell,
-        // not replacement of its enclosing record or stored descriptors.
-        AbstractOperation::AtomicEvent { event, .. } => event.location().is_some_and(|location| {
-            check_projected_shared_access(
-                function,
-                live,
-                types,
-                location.root,
-                &location.path,
-                Some(location.field),
-            )
-        }),
-        AbstractOperation::WriteOnlyPrimitiveStore { path, .. }
-            if path.contains(&StructuralPathSegment::Referent) =>
-        {
-            access_paths::access_reference_custody(
-                function,
-                live,
-                types,
-                &StructuralArgument {
-                    place,
-                    path: path.clone(),
-                    access: StructuralAccess::WriteOnlyBorrow,
-                },
-            )
-            .is_err()
-        }
-        AbstractOperation::PrimitiveScalarRead { path, .. }
-            if path.contains(&StructuralPathSegment::Referent) =>
-        {
-            access_paths::access_reference_custody(
-                function,
-                live,
-                types,
-                &StructuralArgument {
-                    place,
-                    path: path.clone(),
-                    access: StructuralAccess::SharedBorrow,
-                },
-            )
-            .is_err()
-        }
-        // An admitted nonescaping observation produces a scalar, not another
-        // loan. Psi owns its compatibility judgment; applying shared-loan
-        // formation rules here would invent a stricter source requirement.
-        // Storage owners still join the live root and exact physical path,
-        // and explicit reference crossings retain the custody walk above.
-        abstract_operations::scalar_read_membership_triple_pattern!(..) => false,
-        AbstractOperation::WriteOnlyPrimitiveStore { path, .. } => {
-            check_projected_access(function, live, types, place, path, None)
-        }
-        AbstractOperation::StructuralScalarFieldStore { path, field, .. } => {
-            check_projected_access(function, live, types, place, path, Some(*field))
-        }
-        AbstractOperation::MoveStructuralField { path, field, .. }
-        | AbstractOperation::StoreStructuralField { path, field, .. } => {
-            // A storage transfer carries its descriptor leaves with it. It
-            // must not detach a suspended parent or touch borrowed backing,
-            // but a live descriptor in a disjoint sibling is not a whole-root
-            // loan. Use the same regional transfer judgment as owned operands.
-            let Some(contract) = source_contract(function, live, place) else {
-                return true;
-            };
-            let Some(projection) = terminal_semantics::structural_window_projection(
-                types.values().copied(),
-                contract,
-                path,
-                *field,
-            ) else {
-                return true;
-            };
-            owned_transfers_are_suspended(
-                function,
-                live,
-                types,
-                std::iter::once(&StructuralArgument {
-                    place,
-                    path: projection.path,
-                    access: StructuralAccess::Owned,
-                }),
-            )
-        }
-        _ => check_root_access(live, place),
-    }
-}
-
-/// Validate every structural call argument under reference custody. Owned
-/// carriers move their complete live leaf roster; a suspended root may only be
-/// spelled through a `.., Referent` projection; two reference-touching
-/// arguments cannot share one root unless both are shared borrows. Returns the
-/// moved leaves keyed by their current carrier path; the caller commits the
-/// removal after every other call check succeeds.
-pub(super) fn call_arguments(
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
+/// Transport existing descriptor metadata for owned call operands. Psi owns
+/// whether these operands may move or alias; native lowering needs only the
+/// leaves whose carrier storage actually moves. Borrowing a carrier or crossing
+/// its pointer does not consume that carrier's descriptor storage.
+///
+/// Select the live metadata by its exact prefix instead of reconstructing a
+/// type-wide roster. Case-qualified paths stay conditional; a call cannot
+/// manufacture an occurrence for an inactive payload.
+pub(super) fn moved_argument_leaves(
     live: &LiveDefinitions,
     arguments: &[StructuralArgument],
-) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceCustody>, LoweringError> {
-    let mut normalized = Vec::new();
-    let mut dependencies = Vec::new();
+) -> BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceCustody> {
     let mut moved = BTreeMap::new();
-    for (argument_position, argument) in arguments.iter().enumerate() {
-        if argument.path.contains(&StructuralPathSegment::Referent) {
-            let resolved = access_paths::call_reference_custody(function, live, types, argument)?;
-            dependencies.push((argument_position, resolved.dependencies));
-            normalized.push((
-                argument_position,
-                resolved.origins,
-                argument.access,
-                CallRegion::Referent,
-            ));
+    for argument in arguments {
+        if argument.access != StructuralAccess::Owned
+            || argument.path.contains(&StructuralPathSegment::Referent)
+        {
             continue;
         }
-        if source_contract(function, live, argument.place)
-            .is_some_and(|contract| contains_reference(types, contract))
-        {
-            let authority = function
-                .arrival_parameter(argument.place)
-                .map(|parameter| parameter.access)
-                .or_else(|| {
-                    live.structural_homes
-                        .get(&argument.place)
-                        .map(|home| home.access())
-                })
-                .unwrap_or(StructuralAccess::Owned);
-            if !access_covers(authority, argument.access) {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
+        for ((carrier, path), leaf) in &live.references {
+            if *carrier == argument.place && path.starts_with(&argument.path) {
+                moved.insert((*carrier, path.clone()), leaf.clone());
             }
-            if !argument
-                .path
-                .iter()
-                .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-            let contract = source_contract(function, live, argument.place)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let selected = leaf_type(types, contract, &argument.path)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let paths = leaf_paths(types, selected, live.references.len())
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            if paths.len()
-                != live
-                    .references
-                    .keys()
-                    .filter(|(carrier, path)| {
-                        *carrier == argument.place && path.starts_with(&argument.path)
-                    })
-                    .count()
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-            let storage = ReferenceRoot::Ingress(argument.place, argument.path.clone());
-            if live.references.iter().any(|((carrier, path), leaf)| {
-                !(*carrier == argument.place && path.starts_with(&argument.path))
-                    && roots_overlap(&storage, &leaf.root)
-            }) {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-            normalized.push((
-                argument_position,
-                vec![storage],
-                argument.access,
-                CallRegion::CarrierStorage,
-            ));
-            for path in paths {
-                let permission = leaf_type(types, selected, &path)
-                    .and_then(|leaf| types.get(&leaf).map(|declaration| &declaration.shape))
-                    .and_then(|shape| match shape {
-                        StructuralTypeShape::Reference { access, .. } => Some(*access),
-                        _ => None,
-                    })
-                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                let mut carrier_path = argument.path.clone();
-                carrier_path.extend(path);
-                let leaf = live
-                    .references
-                    .get(&(argument.place, carrier_path.clone()))
-                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                // Abstract callee ingress promises independently available
-                // leaves. A type cannot describe an unknown suspended parent
-                // or a parent/child pair packed into the same incoming record.
-                if live
-                    .references
-                    .values()
-                    .any(|child| child.parents.contains(&leaf.identity))
-                    || (argument.access == StructuralAccess::Owned
-                        && moved
-                            .insert((argument.place, carrier_path), leaf.clone())
-                            .is_some())
-                {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
-                normalized.push((
-                    argument_position,
-                    vec![leaf.root.clone()],
-                    if access_covers(argument.access, permission) {
-                        permission
-                    } else {
-                        argument.access
-                    },
-                    CallRegion::Referent,
-                ));
-            }
-            continue;
-        }
-        // Direct storage arguments use the same exact projection as reference
-        // formation. A loan of one field does not suspend its disjoint sibling;
-        // collapsing both to the containing place loses that distinction and
-        // also makes pairwise call-argument checks compare the wrong regions.
-        let (root, _) = normalized_source(function, live, types, argument)?;
-        normalized.push((
-            argument_position,
-            vec![root],
-            argument.access,
-            if live
-                .borrowed_reference_sources
-                .contains_key(&argument.place)
-            {
-                CallRegion::Referent
-            } else {
-                CallRegion::OrdinaryStorage
-            },
-        ));
-    }
-    for (position, (argument_position, roots, access, reference_access)) in
-        normalized.iter().enumerate()
-    {
-        if normalized[position + 1..].iter().any(
-            |(other_position, others, other_access, other_reference_access)| {
-                (*reference_access != CallRegion::OrdinaryStorage
-                    || *other_reference_access != CallRegion::OrdinaryStorage)
-                    && (argument_position != other_position
-                        || (*reference_access == CallRegion::Referent
-                            && *other_reference_access == CallRegion::Referent))
-                    && roots
-                        .iter()
-                        .any(|root| others.iter().any(|other| roots_overlap(root, other)))
-                    && (*access != StructuralAccess::SharedBorrow
-                        || *other_access != StructuralAccess::SharedBorrow)
-            },
-        ) {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
-    // Resolving an inner descriptor borrows all intermediate storage for the
-    // duration of the call, even when the final referent is disjoint.
-    for (argument_position, roots) in dependencies {
-        // Owned carrier arguments normalize to their referents above, but
-        // consuming their descriptor storage also conflicts with this read.
-        if arguments.iter().enumerate().any(|(other_position, other)| {
-            other_position != argument_position
-                && other.access != StructuralAccess::SharedBorrow
-                && !other.path.contains(&StructuralPathSegment::Referent)
-                && roots.iter().any(|root| {
-                    roots_overlap(
-                        root,
-                        &ReferenceRoot::Ingress(other.place, other.path.clone()),
-                    )
-                })
-        }) {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        if normalized
-            .iter()
-            .any(|(other_position, others, access, _)| {
-                *other_position != argument_position
-                    && *access != StructuralAccess::SharedBorrow
-                    && roots
-                        .iter()
-                        .any(|root| others.iter().any(|other| roots_overlap(root, other)))
-            })
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-    }
-    Ok(moved)
+    moved
 }
 
 /// Apply the staged argument moves once every other call check succeeded.

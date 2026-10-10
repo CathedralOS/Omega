@@ -1,21 +1,12 @@
 //! Follow nonescaping accesses through their current live descriptors.
-//! Every inner coordinate must rejoin concrete typed storage, while intermediate
-//! descriptor dependencies remain separate from the final borrowed origins.
+//! Every inner coordinate must rejoin concrete typed storage. The remaining
+//! local crossing checks retain ancestors, not a second call-alias roster.
 
 use super::{
-    AbstractFunction, LiveDefinitions, LoweringError, ReferenceRoot, StructuralAccess,
-    StructuralArgument, StructuralPathSegment, StructuralTypeId, StructuralTypeLookup,
-    StructuralTypeShape, leaf_type, shared_source_compatible, source_contract,
+    AbstractFunction, LiveDefinitions, LoweringError, StructuralAccess, StructuralArgument,
+    StructuralPathSegment, StructuralTypeId, StructuralTypeLookup, StructuralTypeShape, leaf_type,
+    shared_source_compatible, source_contract,
 };
-
-/// A nonescaping access follows live descriptor custody at every crossing.
-/// Intermediate origins become concrete cursors only after their current
-/// storage contract matches the declared referent. Opaque ingress permissions
-/// remain valid final origins, but cannot invent another stored descriptor.
-pub(super) struct AccessReferenceCustody {
-    pub(super) origins: Vec<ReferenceRoot>,
-    pub(super) dependencies: Vec<ReferenceRoot>,
-}
 
 /// Calls keep their static structural endpoint grammar. Scalar observations
 /// have their own endpoint operation and use the same custody walk below.
@@ -24,7 +15,7 @@ pub(super) fn call_reference_custody(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     argument: &StructuralArgument,
-) -> Result<AccessReferenceCustody, LoweringError> {
+) -> Result<(), LoweringError> {
     let mut current = source_contract(function, live, argument.place)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     for (position, segment) in argument.path.iter().enumerate() {
@@ -61,12 +52,15 @@ pub(super) fn call_reference_custody(
     access_reference_custody(function, live, types, argument)
 }
 
+/// Follow live descriptors at every crossing. Intermediate origins become
+/// concrete cursors only after their storage contract matches the referent.
+/// Opaque ingress cannot invent another stored descriptor.
 pub(super) fn access_reference_custody(
     function: &AbstractFunction,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     argument: &StructuralArgument,
-) -> Result<AccessReferenceCustody, LoweringError> {
+) -> Result<(), LoweringError> {
     if argument.access == StructuralAccess::Owned {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -93,7 +87,6 @@ pub(super) fn access_reference_custody(
         .len()
         .checked_mul(argument.path.len())
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let mut dependencies = Vec::new();
     let mut prefix_start = 0;
     for (position, segment) in argument.path.iter().enumerate() {
         if *segment != StructuralPathSegment::Referent {
@@ -126,7 +119,7 @@ pub(super) fn access_reference_custody(
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        let mut origins = Vec::new();
+        let mut found_descriptor = false;
         let mut next_cursors = Vec::new();
         for (place, mut selected_path, ancestors) in cursors {
             selected_path.extend_from_slice(prefix);
@@ -198,10 +191,8 @@ pub(super) fn access_reference_custody(
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                dependencies.push(ReferenceRoot::Ingress(place, path));
-                origins.push(leaf.root.clone());
+                found_descriptor = true;
                 if further_crossing {
-                    dependencies.push(leaf.root.clone());
                     let mut ancestors = ancestors.clone();
                     ancestors.push(leaf.identity.clone());
                     for origin in leaf.root.origins() {
@@ -230,13 +221,10 @@ pub(super) fn access_reference_custody(
             // The access operation independently validates final endpoint
             // geometry. Custody never invents a primitive structural type for
             // an inline field or drops an earlier runtime selector.
-            if origins.is_empty() {
+            if !found_descriptor {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            return Ok(AccessReferenceCustody {
-                origins,
-                dependencies,
-            });
+            return Ok(());
         }
         cursors = next_cursors;
         current = referent;

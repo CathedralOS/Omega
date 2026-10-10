@@ -45,10 +45,11 @@ function roster, structural signatures, and selected settlements. This receipt
 does not establish body correctness; there is no whole-function family catalog.
 
 The target-to-selected
-[receiving checker](../03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input.rs)
-independently rejoins every graph to its source and optimized operations before
-legalized/selected graph construction. Source order, value
-identity, exact ABI, proof, call, and cleanup obligations remain checked.
+[independent audit](../03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input.rs)
+rejoins every graph to its source and optimized operations. The direct-native
+corpus invokes it on the retained artifact, outside graph construction;
+the default compile does not replay it. The audit checks source order, value
+identity, exact ABI, proof, call, and cleanup obligations.
 Root/roster custody alone never establishes body correctness.
 
 Natural-ranked and unranked cycles use the same graph and native route, with
@@ -65,8 +66,9 @@ scalar and structural results and any admitted scalar/structural argument mix.
 Its `TargetCallResult` identifies the exact scalar home or structural result,
 declaration, storage and returned custody. Bare references retain their original
 referents without inventing a physical result home; aggregates retain their
-exact storage. Only Unit has no result. The receiving checker reconstructs the
-result against pre-call custody before publishing it to later operations.
+exact storage. Only Unit has no result. The independent audit reconstructs the
+result against pre-call custody; production retains the resulting origins for
+later storage joins.
 One [direct-call lowering](src/lowering/control_flow/direct_calls.rs) produces
 every such row: it resolves the callee contract and each operand's storage,
 then commits moves and publishes the result. The result kind does not choose
@@ -76,6 +78,16 @@ standalone ABI contract. Validation replays those rows through one
 Source-specific semantic restrictions remain checked independently. Foreign
 calls still have their own carriers; this is not a claim that the full call
 inventory is normalized.
+
+Operation dispatch has no whole-operation borrow preflight. Ordinary calls
+select the existing descriptor metadata beneath each owned operand's exact
+carrier prefix, retain it while lowering addresses, then commit its relocation.
+They do not rebuild a type-wide leaf roster or recheck pairwise argument aliasing
+and suspension. This preserves case namespaces without manufacturing metadata
+for an inactive payload; source legality belongs to Psi. Formation, release,
+edges and returns still have local native custody restrictions, including the
+unfinished reference-bearing sum ingress. Their removal requires replacing the
+storage relationship, not skipping the independent corpus audit.
 
 [Structural signatures](src/lowering/structural_signature.rs) derive placement
 from structural declarations and referent layout. Every borrowed access uses

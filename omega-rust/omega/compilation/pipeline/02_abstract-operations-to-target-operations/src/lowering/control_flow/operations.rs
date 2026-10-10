@@ -53,73 +53,10 @@ pub(super) fn lower_operation(
     let operation = resolved
         .as_ref()
         .map_or(operation, |(operation, _)| operation);
-    // Reference custody joins storage and explicit crossings. Observations
-    // consume source-admitted access rather than form another loan; writes,
-    // establishments and transfers keep their separate custody rules.
-    // Call-shaped operations use custody-aware argument lowering below.
-    let (accessed_root, referent_access) = match operation {
-        AbstractOperation::AtomicEvent { event, .. } => (event.place(), false),
-        // Observation does not form a loan. Primitive reference crossings
-        // still traverse current lineage before their address is selected.
-        abstract_operations::scalar_read_membership_triple_pattern!(source, ..) => (Some(*source), false),
-        AbstractOperation::StructuralCase { source, path, .. } => {
-            // Explicit reference crossings use the case lowerer's general
-            // live descriptor walk, not the whole root's owned-access rule.
-            // A descriptor's source arrangement never grants read authority.
-            (
-                Some(*source),
-                path.contains(&terminal_psi::StructuralPathSegment::Referent),
-            )
-        }
-        AbstractOperation::StructuralLeafCopy { source, .. } => (Some(*source), false),
-        AbstractOperation::PrimitiveLocalStore { destination, .. } => (Some(*destination), false),
-        AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } => {
-            (Some(destination.place()), false)
-        }
-        AbstractOperation::StructuralScalarFieldStore {
-            destination, path, ..
-        } => (
-            Some(destination.place()),
-            super::references::writable_referent_destination(
-                live,
-                structural_types,
-                destination.place(),
-                path,
-            )
-            .is_some(),
-        ),
-        AbstractOperation::EstablishPrimitiveLocal { result, .. } => (Some(result.place), false),
-        AbstractOperation::EstablishStructuralLocal { result, .. } => (Some(result.place), false),
-        AbstractOperation::MoveStructuralField {
-            source: root, path, ..
-        }
-        | AbstractOperation::StoreStructuralField {
-            destination: root,
-            path,
-            ..
-        } => (
-            Some(root.place()),
-            super::borrowed_windows::window_referent(function, live, structural_types, root, path)?
-                .is_some(),
-        ),
-        _ => (None, false),
-    };
-    if !referent_access
-        && accessed_root.is_some_and(|place| {
-            super::references::check_operation_access(
-                function,
-                live,
-                structural_types,
-                operation,
-                place,
-            )
-        })
-    {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    // A foreign borrowed argument has the same live-loan contract as an
-    // ordinary call. Its evaluated ABI owns pointer compatibility; permission
-    // carriers themselves cannot be moved into an opaque foreign counterparty.
+    // Opaque foreign ABI calls cannot consume reference-carrier storage. This
+    // is a native representation restriction, not a second borrow judgment.
+    // Ordinary operations go straight to their storage/address owner below;
+    // Psi owns access legality and the corpus independently audits custody.
     let boundary_arguments: &[terminal_psi::StructuralArgument] = match operation {
         AbstractOperation::BoundaryCall {
             structural_arguments,
@@ -127,9 +64,7 @@ pub(super) fn lower_operation(
         } => structural_arguments.as_slice(),
         _ => &[],
     };
-    if !super::references::call_arguments(function, structural_types, live, boundary_arguments)?
-        .is_empty()
-    {
+    if !super::references::moved_argument_leaves(live, boundary_arguments).is_empty() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let first_output = operations.len();
