@@ -684,11 +684,7 @@ impl IntegerType {
     }
 
     fn bit_mask(self) -> u128 {
-        if self.bits == 128 {
-            u128::MAX
-        } else {
-            (1_u128 << self.bits) - 1
-        }
+        bit_width_mask(self.bits)
     }
 
     fn signed_from_bits(self, bits: u128) -> i128 {
@@ -950,5 +946,14 @@ fn wrapping_shift_count(width: u16, count: IntegerValue) -> Option<u32> {
             let width = i128::try_from(width).ok()?;
             u32::try_from(count.rem_euclid(width)).ok()
         }
+    }
+}
+
+/// The all-ones mask for `bits` significant bits (128 is the full `u128`).
+pub(crate) fn bit_width_mask(bits: u16) -> u128 {
+    if bits == 128 {
+        u128::MAX
+    } else {
+        (1_u128 << bits) - 1
     }
 }

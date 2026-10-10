@@ -159,11 +159,7 @@ impl IntegerType {
     }
 
     fn bit_range_mask(self) -> u128 {
-        if self.bits == 128 {
-            u128::MAX
-        } else {
-            (1_u128 << self.bits) - 1
-        }
+        super::bit_width_mask(self.bits)
     }
 
     fn bit_range_value(self, bits: u128) -> IntegerValue {
