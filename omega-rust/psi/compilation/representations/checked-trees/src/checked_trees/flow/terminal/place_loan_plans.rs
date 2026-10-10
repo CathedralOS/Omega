@@ -31,6 +31,13 @@ pub struct CheckedPlaceLoanPlan {
     /// For a recast (`&place as &View`), the loaned place's own declared type,
     /// which the view reinterprets; the zero handle for a plain loan.
     pub recast_source: TypeReferenceHandle,
+    /// `true` when the recast admission at formation proved the byte window:
+    /// `index + view footprint <= region length` for an indexed `[u8; N]`
+    /// source. Byte-view stores through the loan then discharge their emitted
+    /// runtime obligations (`base + byte_offset` representability and the
+    /// index's `index < extent` requirement) from that admission rather than
+    /// a fresh runtime check.
+    pub decided_byte_view_store: bool,
 }
 
 /// The storage a silent place loan names.

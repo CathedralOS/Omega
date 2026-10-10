@@ -234,6 +234,9 @@ struct CapturedPlaceSubject {
     view_container: bool,
     /// Terminal segments below the runtime index, inside the element.
     element_suffix: Vec<terminal_psi::StructuralPathSegment>,
+    /// `true` when the loan's formation admission proved its byte window;
+    /// stores through it carry that decision to their emitted obligations.
+    decided_byte_view_store: bool,
 }
 
 /// The silent place loans the plan records for `state`: the single-state
@@ -599,6 +602,7 @@ fn captured_place_subject(
         runtime_index,
         view_container,
         element_suffix,
+        decided_byte_view_store: loan.decided_byte_view_store,
     }))
 }
 
@@ -607,6 +611,10 @@ pub(crate) struct LoanedStore {
     pub source: LoanedSource,
     pub path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     pub byte_overlay: Option<ByteOverlayField>,
+    /// `true` when the loan's formation admission proved its byte window —
+    /// the recast's `index + view footprint <= region length` — so the byte
+    /// store's emitted obligations are source-checked rather than re-proven.
+    pub decided_byte_view_store: bool,
 }
 
 /// Rejoin a field store to the same captured place used by observations.
@@ -668,6 +676,7 @@ pub(crate) fn loaned_store(
         source: loan.source,
         path,
         byte_overlay,
+        decided_byte_view_store: loan.decided_byte_view_store,
     }))
 }
 
@@ -706,6 +715,7 @@ pub(crate) fn loaned_primitive_store(
         source: loan.source,
         path: captured_store_path(identities, &loan)?,
         byte_overlay: Some(overlay.scalar_path(checked, path, scalar_type)?),
+        decided_byte_view_store: loan.decided_byte_view_store,
     }))
 }
 

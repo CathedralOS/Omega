@@ -992,6 +992,32 @@ fn place_loan(
         None if recast_source.is_valid() => return Some(PlaceLoan::Unnamed),
         None => return None,
     };
+    // A mutable indexed recast's admission already proved the byte window —
+    // `index + view footprint <= region length` — through
+    // `interior_byte_region_source`. The same predicates the borrow ledger
+    // asked decide each store's emitted obligations once, here, so lowering
+    // consumes this row instead of re-walking the proof.
+    let decided_byte_view_store = access == CheckedStructuralAccess::MutableBorrow
+        && (validation::validate_literal_indexed_recast_footprint(
+            program,
+            machine,
+            state,
+            statement,
+            local.initial_value,
+            referee,
+            language_core::ReferenceAccess::Mutable,
+        )
+        .is_some()
+            || validation::validate_runtime_indexed_recast_source(
+                program,
+                machine,
+                state,
+                statement,
+                local.initial_value,
+                referee,
+                language_core::ReferenceAccess::Mutable,
+            )
+            .is_some());
     Some(PlaceLoan::Captured(checked_trees::CheckedPlaceLoanPlan {
         statement_index,
         symbol: local.symbol,
@@ -1001,6 +1027,7 @@ fn place_loan(
         root_type,
         path,
         recast_source,
+        decided_byte_view_store,
     }))
 }
 

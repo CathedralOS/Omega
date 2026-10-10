@@ -732,6 +732,7 @@ impl OperationFrame<'_, '_> {
             root_type,
             &loan.path,
             captured_index,
+            loan.decided_byte_view_store,
             self.checked,
             self.machine,
             self.state,

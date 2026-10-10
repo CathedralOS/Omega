@@ -179,6 +179,7 @@ pub(crate) fn emit(
                 parameter.structural_type,
                 &store.destination.path,
                 None,
+                false,
                 checked,
                 machine,
                 state,
@@ -225,6 +226,11 @@ pub(crate) struct ByteStoreDestination {
     prefix_path: Vec<StructuralPathSegment>,
     index: ByteStoreIndex,
     capacity: u64,
+    /// `true` when the destination's byte window was decided at source
+    /// checking — a recast loan's formation admission proved
+    /// `index + view footprint <= region length` — so the per-byte
+    /// obligations emitted below are source-checked rather than re-proven.
+    decided: bool,
 }
 
 enum ByteStoreIndex {
@@ -378,23 +384,32 @@ impl ByteStoreDestination {
                         next_value,
                         operations,
                     );
+                    let add_obligation =
+                        obligation_id(allocate_dense(&mut calls.next_obligation_identity)?);
+                    // `base + offset < base + footprint <= capacity`: the
+                    // byte offset stays inside the admitted window, so the
+                    // add is representable already.
+                    if self.decided {
+                        operations.source_checked_obligations.push(add_obligation);
+                    }
                     emit_scalar_leaf(
                         OperationKind::ExactIntegerAdd {
                             left: base,
                             right: step,
-                            obligation: obligation_id(allocate_dense(
-                                &mut calls.next_obligation_identity,
-                            )?),
+                            obligation: add_obligation,
                         },
                         count_scalar,
                         next_value,
                         operations,
                     )
                 };
-                path.push(StructuralPathSegment::RuntimeIndex {
-                    index,
-                    obligation: calls.allocate_requirement()?,
-                });
+                let obligation = calls.allocate_requirement()?;
+                // The selected byte lies below `base + footprint`, which the
+                // formation admission bounded by the region length.
+                if self.decided {
+                    operations.source_checked_obligations.push(obligation);
+                }
+                path.push(StructuralPathSegment::RuntimeIndex { index, obligation });
             } else {
                 let ByteStoreIndex::Fixed(fixed_index) = self.index else {
                     return unsupported("byte representation store lost its coordinate");
@@ -451,6 +466,7 @@ pub(crate) fn prepare_byte_destination(
     root_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     captured_index: Option<ValueId>,
+    decided: bool,
     checked: &CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -525,6 +541,7 @@ pub(crate) fn prepare_byte_destination(
             None => ByteStoreIndex::Fixed(fixed_index),
         },
         capacity,
+        decided,
     })
 }
 
