@@ -521,10 +521,7 @@ fn emit_word(
     })
 }
 
-fn sign_extend(value: u32, bits: u32) -> i32 {
-    let shift = 32 - bits;
-    ((value << shift) as i32) >> shift
-}
+use super::compare_byte_sequences::sign_extend;
 
 fn decode_word(word: u32, position: usize) -> Result<Decoded, Aarch64SelectedFormEncodingError> {
     let register = (word & 31) as u8;

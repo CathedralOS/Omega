@@ -220,7 +220,7 @@ fn emit_word(
     })
 }
 
-fn sign_extend(value: u32, bits: u32) -> i32 {
+pub(super) fn sign_extend(value: u32, bits: u32) -> i32 {
     let shift = 32 - bits;
     ((value << shift) as i32) >> shift
 }
