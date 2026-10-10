@@ -1,0 +1,62 @@
+// Machine-parameter constraints by named trait requirement, and
+// effect-carrying contracts: `traverse` accepts any `Step` that
+// satisfies `StepContract::step`, whose requirement itself declares
+// `reaches Sink terminates` — and `quiet` satisfies it while reaching
+// NOTHING (an implementation may reach a subset of the declared
+// effects).
+//
+//   * `pub boundary trait Sink { }` — empty boundary trait: names an
+//     effect with no machines.
+//   * `trait StepContract { machine step -> u64 reaches Sink
+//     terminates; }` — requirements carry effect clauses.
+//   * `machine quiet satisfies StepContract::step terminates` —
+//     satisfies a reaches-bearing requirement with no reaches.
+//   * `machine traverse<machine Step> where machine Step satisfies
+//     StepContract::step` — machine param constrained by a named
+//     requirement; `Step(value)` calls the parameter.
+//   * `data Buffer { bytes: [u8; length()] }` — const-eval runs the
+//     whole generic chain at type position.
+//
+// Compile-checked only: no standard-library dependency, no ProcessExit
+// provider.
+
+pub boundary trait Sink {
+}
+
+pub trait StepContract {
+    machine step(value: u64) -> u64 reaches Sink terminates;
+}
+
+machine quiet(value: u64) -> u64 satisfies StepContract::step terminates {
+    value
+}
+
+pub machine traverse<machine Step>(value: u64) -> u64
+where machine Step satisfies StepContract::step;
+terminates;
+{
+    Step(value)
+}
+
+machine length() -> u64 {
+    traverse<quiet>(7)
+}
+
+data Buffer {
+    bytes: [u8; length()];
+}
+
+data Main {
+    buffer: Buffer;
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    transition traverse<quiet>(70) == 70 && main.buffer.bytes.len == 7 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
