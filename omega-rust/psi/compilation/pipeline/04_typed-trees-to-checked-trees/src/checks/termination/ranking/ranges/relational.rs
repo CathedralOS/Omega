@@ -15,9 +15,14 @@ mod state_edges;
 /// edge that fails descent takes diagnostic priority over an earlier-phase
 /// decline from another attempt. This does not certify other arrivals or a
 /// complete assignment; neither failure supplies an admitted coordinate.
-pub(super) enum RankArrivalFailure {
+pub(in crate::checks::termination) enum RankArrivalFailure {
     RangeOrFormation,
-    StrictDecrease,
+    /// The recurrent edge whose formed arrival did not strictly decrease,
+    /// by its source and destination states, so the refusal can name it.
+    StrictDecrease {
+        source: symbols::SymbolHandle,
+        destination: symbols::SymbolHandle,
+    },
 }
 
 #[derive(Clone)]
@@ -333,7 +338,10 @@ fn prove_edges<'program>(
             return None;
         }
         if !proof.strictly_decreases {
-            *failure = RankArrivalFailure::StrictDecrease;
+            *failure = RankArrivalFailure::StrictDecrease {
+                source: root.symbol,
+                destination: root.symbol,
+            };
             return None;
         }
         root_edges.push(checked_trees::CheckedRankArrivalEdge {

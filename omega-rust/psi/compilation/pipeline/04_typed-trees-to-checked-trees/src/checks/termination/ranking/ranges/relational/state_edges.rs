@@ -176,7 +176,10 @@ pub(super) fn select<'program>(
                             return validation::RankArrivalCompatibility::Refuted;
                         }
                         if cyclic && !proof.strictly_decreases {
-                            *failure = RankArrivalFailure::StrictDecrease;
+                            *failure = RankArrivalFailure::StrictDecrease {
+                                source: source.symbol,
+                                destination: target.symbol,
+                            };
                             return validation::RankArrivalCompatibility::Refuted;
                         }
                         let Ok(statement_ordinal) = u32::try_from(edge.statement_ordinal) else {

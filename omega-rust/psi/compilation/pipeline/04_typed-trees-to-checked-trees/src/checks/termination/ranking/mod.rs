@@ -161,17 +161,25 @@ pub(super) fn machine_decrease_outcome_with(
         }
     }
 
-    if witness.rank_range.is_none()
-        && let Some(arrival) = ranges::admit_relational_decrease(
+    // A relational descent failure names its recurrent edge. Later provers may
+    // still succeed, so it only replaces the bare refusal at the end.
+    let mut blocked_edge = None;
+    if witness.rank_range.is_none() {
+        match ranges::admit_relational_decrease(
             program,
             machine,
             &order,
             measure,
             call_frames,
             accept,
-        )
-    {
-        return DecreaseOutcome::Proven(Some(arrival));
+        ) {
+            Ok(arrival) => return DecreaseOutcome::Proven(Some(arrival)),
+            Err(ranges::RankArrivalFailure::StrictDecrease {
+                source,
+                destination,
+            }) => blocked_edge = Some((source, destination)),
+            Err(ranges::RankArrivalFailure::RangeOrFormation) => {}
+        }
     }
 
     let adjacency = graph::machine_adjacency(program, machine);
@@ -242,7 +250,12 @@ pub(super) fn machine_decrease_outcome_with(
         });
     }
 
-    DecreaseOutcome::Unproven
+    match blocked_edge {
+        Some((source, destination)) => DecreaseOutcome::Rejected(
+            ranges::strict_decrease_message(program, source, destination),
+        ),
+        None => DecreaseOutcome::Unproven,
+    }
 }
 
 /// TPR3 slice 4: the RESOLVED view's explicit spelling for the checked

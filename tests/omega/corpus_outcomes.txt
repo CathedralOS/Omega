@@ -4855,20 +4855,20 @@ fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts rejected 
 	cannot prove requires contract for call accept from bad: value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/control_flow/bounded_mutable_scalar_store_outside_range rejected 219ms expected @83ed80e91feb
 	cannot prove assignment value `5` satisfies bounded target `value` in `replace.entry`; expected 0..=4
-fail/termination/rank_arrival_formal_does_not_replace_subject rejected 489ms expected @83ed80e91feb
-	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival
+fail/termination/rank_arrival_formal_does_not_replace_subject rejected 1003ms expected @627f55ca50e5+wt
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/termination/rank_arrival_opaque_child_does_not_prove_subject_absent rejected 490ms expected @83ed80e91feb
 	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
 fail/termination/rank_arrival_opaque_operand_does_not_prove_subject_absent rejected 494ms expected @83ed80e91feb
 	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
-fail/termination/rank_arrival_sibling_does_not_replace_subject rejected 495ms expected @83ed80e91feb
-	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival
-fail/termination/rank_arrival_unrelated_field_step rejected 512ms expected @83ed80e91feb
-	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival
+fail/termination/rank_arrival_sibling_does_not_replace_subject rejected 859ms expected @627f55ca50e5+wt
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/rank_arrival_unrelated_field_step rejected 999ms expected @627f55ca50e5+wt
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/termination/rank_state_dependent_bound_prefix_write rejected 518ms expected @83ed80e91feb
 	terminating machine walk: cannot prove rank range `0..=9` for the rank produced by the selected view
-fail/termination/self_call_rank_reset_before_descent rejected 440ms expected @83ed80e91feb
-	terminating machine reset: cannot prove strict rank decrease on a recurrent arrival
+fail/termination/self_call_rank_reset_before_descent rejected 872ms expected @627f55ca50e5+wt
+	terminating machine reset: cannot prove strict rank decrease on a recurrent arrival: the transition from `reset` to `step` is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 pass/control_flow/runtime_bounded_scalar_storage_exit checked 3281ms check-target:macos_arm64 @83ed80e91feb
 pass/control_flow/runtime_completed_readonly_home_replacement_exit checked 3388ms check-target:macos_arm64 @83ed80e91feb
 pass/storage/runtime_bounded_effectful_initializer_exit checked 3180ms check-target:macos_arm64 @83ed80e91feb
@@ -4885,3 +4885,5 @@ fail/borrows/generic_result_keeps_lifetime_source rejected 497ms expected @32f04
 	machine `invalid` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
 fail/borrows/generic_result_retains_lifetime_candidates rejected 503ms expected @32f04773833e
 	statement 3 mutates `second` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/termination/forwarding_state_in_ranked_loop rejected 830ms expected @627f55ca50e5+wt
+	terminating machine argmax: cannot prove strict rank decrease on a recurrent arrival: the transition from `argmax` to `step` is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step

@@ -6,7 +6,7 @@ use typed_trees::machine::Machine;
 
 mod relational;
 
-pub(in crate::checks::termination) use relational::RankArrivalAdmission;
+pub(in crate::checks::termination) use relational::{RankArrivalAdmission, RankArrivalFailure};
 
 pub(super) fn check(
     program: &dyn ::validation::CheckingInput,
@@ -21,8 +21,12 @@ pub(super) fn check(
         Ok(arrival) => return Ok(arrival),
         Err(failure) => failure,
     };
-    if matches!(failure, relational::RankArrivalFailure::StrictDecrease) {
-        return Err("cannot prove strict rank decrease on a recurrent arrival".to_string());
+    if let relational::RankArrivalFailure::StrictDecrease {
+        source,
+        destination,
+    } = failure
+    {
+        return Err(strict_decrease_message(program, source, destination));
     }
     // Diagnostics use the retained expression tree. Normalized witness labels
     // deliberately cover a smaller subset and may spell arithmetic as "value".
@@ -60,6 +64,28 @@ pub(super) fn admit_relational_decrease(
     measure: DecreaseMeasure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     accept: &mut dyn FnMut(&RankArrivalAdmission) -> bool,
-) -> Option<RankArrivalAdmission> {
-    relational::admit(program, machine, measure, order, call_frames, accept).ok()
+) -> Result<RankArrivalAdmission, RankArrivalFailure> {
+    relational::admit(program, machine, measure, order, call_frames, accept)
+}
+
+/// Decision 23 requires every transition inside a loop to strictly decrease
+/// the rank. Naming the transition matters most for a guard state that
+/// forwards its counter unchanged, which an author rarely reads as the cause.
+pub(in crate::checks::termination) fn strict_decrease_message(
+    program: &dyn ::validation::CheckingInput,
+    source: symbols::SymbolHandle,
+    destination: symbols::SymbolHandle,
+) -> String {
+    let label = |state| crate::labels::call_target_label(program, state);
+    let transition = if source == destination {
+        format!("the transition from `{}` back to itself", label(source))
+    } else {
+        format!("the transition from `{}` to `{}`", label(source), label(destination))
+    };
+    format!(
+        "cannot prove strict rank decrease on a recurrent arrival: {transition} is not \
+         shown to strictly decrease the rank, and every transition inside a loop must \
+         (decision 23) -- update the ranked value on that transition, or merge the states \
+         so the loop has no forwarding step"
+    )
 }
