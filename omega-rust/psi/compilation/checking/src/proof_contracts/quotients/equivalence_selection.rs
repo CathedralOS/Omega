@@ -165,14 +165,13 @@ pub(crate) fn validate_equivalence_selection(
             )));
             continue;
         };
-        crate::proof_contracts::contract_entailment::check_law_conformance(
-            program,
+        crate::proof_contracts::contract_entailment::check_law_conformance(program,
             machine,
             Some(selection.conformance_name.as_str()),
             &application,
             requirement,
             diagnostics,
-        );
+        &mut Vec::new());
         if !row_has_exact_equivalence_premises(
             program,
             machine,

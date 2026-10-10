@@ -37,26 +37,8 @@ use crate::proof_contracts::contract_entailment::law_conformance::slot_bindings:
     carrier_slot_bindings, rewrite_slot_applications,
 };
 
-pub(crate) fn check_law_conformance(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    conformance_alias: Option<&str>,
-    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
-    requirement: &StateSignature,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    check_law_conformance_with_matches(
-        program,
-        machine,
-        conformance_alias,
-        application,
-        requirement,
-        diagnostics,
-        &mut Vec::new(),
-    );
-}
 
-fn check_law_conformance_with_matches(
+pub(crate) fn check_law_conformance(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     conformance_alias: Option<&str>,

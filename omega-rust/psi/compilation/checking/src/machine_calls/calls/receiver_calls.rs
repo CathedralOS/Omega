@@ -3,7 +3,7 @@
 
 use super::{
     CallScope, boundary_trait_call_signature, call_gates, declared_receiver_type_reference,
-    machine_state_by_symbol, validate_call_arguments_handles,
+    machine_state_by_symbol, validate_call_arguments,
     validate_resolved_target_type_parameter_bounds, validate_result_use,
 };
 use diagnostics::Diagnostic;
@@ -103,7 +103,7 @@ fn validate_signature_result_and_arguments(
         signature.return_type,
         diagnostics,
     );
-    validate_call_arguments_handles(
+    validate_call_arguments(
         program,
         current_machine,
         current_state,
@@ -111,8 +111,14 @@ fn validate_signature_result_and_arguments(
         arguments,
         &signature.name,
         program.state_signature_parameters(signature),
-        None,
         writable_roots,
+        false,
+        &[],
+        |argument, required| {
+            crate::value_custody::expression_types::argument_matches_carrier(
+                program, argument, required,
+            )
+        },
         diagnostics,
     );
 }

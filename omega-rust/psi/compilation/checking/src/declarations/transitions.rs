@@ -1,5 +1,5 @@
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
-use crate::machine_calls::calls::validate_call_arguments_with_environments;
+use crate::machine_calls::calls::validate_call_arguments;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
@@ -160,7 +160,7 @@ pub(crate) fn validate_transition_target_node(
     }
 
     if let Some(signature) = program.machine_parameter_signature_in(current_machine, path.symbol) {
-        validate_call_arguments_with_environments(
+        validate_call_arguments(
             program,
             current_machine,
             current_state,
@@ -171,6 +171,11 @@ pub(crate) fn validate_transition_target_node(
             writable_roots,
             false,
             argument_environments,
+            |argument, required| {
+                crate::value_custody::expression_types::argument_matches_carrier(
+                    program, argument, required,
+                )
+            },
             diagnostics,
         );
         return;
@@ -265,7 +270,7 @@ fn validate_transition_arguments_handles(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_call_arguments_with_environments(
+    validate_call_arguments(
         program,
         current_machine,
         current_state,
@@ -276,6 +281,11 @@ fn validate_transition_arguments_handles(
         writable_roots,
         false,
         argument_environments,
+        |argument, required| {
+            crate::value_custody::expression_types::argument_matches_carrier(
+                program, argument, required,
+            )
+        },
         diagnostics,
     );
 }

@@ -2,7 +2,7 @@ use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_proof_facts};
 use crate::value_custody::type_references::{
     TypeReferenceOwner, type_reference_label, type_references_match,
-    validate_generic_instance_argument_bounds, validate_type_reference_handle_with_type_parameters,
+    validate_generic_instance_argument_bounds, validate_type_reference_handle,
 };
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
@@ -59,7 +59,7 @@ pub(crate) fn validate_data_field_types(
             };
 
             for field in payload_fields {
-                validate_type_reference_handle_with_type_parameters(
+                validate_type_reference_handle(
                     program,
                     field.type_reference,
                     symbols,

@@ -3,7 +3,7 @@
 
 use super::{StatementOutputs, StatementScope};
 use crate::value_custody::type_references::TypeReferenceOwner;
-use crate::value_custody::type_references::validate_type_reference_handle_with_type_parameters;
+use crate::value_custody::type_references::validate_type_reference_handle;
 use crate::{
     machine_calls::calls, proof_contracts::arithmetic_domains, proof_contracts::domain_weakening,
     value_custody::expression_types, value_custody::struct_literals,
@@ -35,7 +35,7 @@ pub(super) fn validate(
         .machine_type_reference_scope(machine, |existing, parameter| {
             existing.symbol == parameter.symbol
         });
-    validate_type_reference_handle_with_type_parameters(
+    validate_type_reference_handle(
         program,
         local_data.type_reference,
         symbols,

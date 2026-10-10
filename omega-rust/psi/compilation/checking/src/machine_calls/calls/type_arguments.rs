@@ -192,7 +192,7 @@ pub(super) fn validate_resolved_call_arguments(
         )));
         return;
     };
-    validate_call_arguments_with_type_correspondence(
+    validate_call_arguments(
         program,
         caller,
         state,

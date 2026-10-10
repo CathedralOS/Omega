@@ -1,7 +1,7 @@
 use super::trait_definition_by_symbol;
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::value_custody::type_references::{
-    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+    TypeReferenceOwner, validate_type_reference_handle,
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -88,7 +88,7 @@ pub(crate) fn validate_trait_requirements(
                 if parameter.kind == typed_trees::data::TypeParameterKind::Implementation {
                     continue;
                 }
-                validate_type_reference_handle_with_type_parameters(
+                validate_type_reference_handle(
                     program,
                     *argument,
                     symbols,

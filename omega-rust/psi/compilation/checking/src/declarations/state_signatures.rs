@@ -5,7 +5,7 @@
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_proof_facts};
 use crate::value_custody::type_references::{
-    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+    TypeReferenceOwner, validate_type_reference_handle,
 };
 use diagnostics::Diagnostic;
 use std::fmt;
@@ -259,7 +259,7 @@ fn validate_state_signature_types<'program>(
                 )));
             }
 
-            validate_type_reference_handle_with_type_parameters(
+            validate_type_reference_handle(
                 program,
                 parameter.type_reference,
                 symbols,
@@ -276,7 +276,7 @@ fn validate_state_signature_types<'program>(
         }
 
         if signature.return_type.is_valid() {
-            validate_type_reference_handle_with_type_parameters(
+            validate_type_reference_handle(
                 program,
                 signature.return_type,
                 symbols,

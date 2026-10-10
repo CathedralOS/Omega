@@ -1,7 +1,7 @@
 //! Type references: whether a written type is well formed where it appears,
 //! and the declared ranges other stages read from a type.
 //!
-//! The check entrance is `validate_type_reference_handle_with_type_parameters`.
+//! The check entrance is `validate_type_reference_handle`.
 //! Declaration validators call it with a `TypeReferenceOwner` that names where
 //! the type is written: data fields (`value_custody::data`), machine-owned
 //! data (`machine_calls::machine_data`), state parameters and returns
@@ -419,7 +419,7 @@ pub fn validate_static_type_argument(
             data.lifetime_parameters.as_ref(),
         ),
     };
-    validate_type_reference_handle_with_type_parameters(
+    validate_type_reference_handle(
         program,
         type_reference,
         symbols,
@@ -433,7 +433,7 @@ pub fn validate_static_type_argument(
     );
 }
 
-pub(crate) fn validate_type_reference_handle_with_type_parameters(
+pub(crate) fn validate_type_reference_handle(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -453,7 +453,7 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
         owner,
         diagnostics,
     );
-    validate_type_reference_handle_with_context(
+    validate_type_reference_node(
         program,
         type_reference,
         symbols,
@@ -621,7 +621,7 @@ pub(crate) fn validate_generic_instance_argument_bounds(
     );
 }
 
-fn validate_type_reference_handle_with_context(
+fn validate_type_reference_node(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -634,7 +634,7 @@ fn validate_type_reference_handle_with_context(
     // application owner's custody.
     let validate_generic_argument =
         |argument: TypeReferenceHandle, diagnostics: &mut Vec<Diagnostic>| {
-            validate_type_reference_handle_with_context(
+            validate_type_reference_node(
                 program,
                 argument,
                 symbols,
@@ -665,7 +665,7 @@ fn validate_type_reference_handle_with_context(
                     lifetime.as_str()
                 )));
             }
-            validate_type_reference_handle_with_context(
+            validate_type_reference_node(
                 program,
                 *referee,
                 symbols,
@@ -679,7 +679,7 @@ fn validate_type_reference_handle_with_context(
             base_type,
             constraints,
         } => {
-            validate_type_reference_handle_with_context(
+            validate_type_reference_node(
                 program,
                 *base_type,
                 symbols,
@@ -716,7 +716,7 @@ fn validate_type_reference_handle_with_context(
                 owner,
                 diagnostics,
             );
-            validate_type_reference_handle_with_context(
+            validate_type_reference_node(
                 program,
                 *element_type,
                 symbols,
@@ -727,7 +727,7 @@ fn validate_type_reference_handle_with_context(
             );
         }
         TypeReferenceNode::Slice { element_type } => {
-            validate_type_reference_handle_with_context(
+            validate_type_reference_node(
                 program,
                 *element_type,
                 symbols,

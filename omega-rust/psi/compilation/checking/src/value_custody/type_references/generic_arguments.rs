@@ -989,7 +989,7 @@ pub(crate) fn validate_const_binder_carriers(
         else {
             continue;
         };
-        super::validate_type_reference_handle_with_type_parameters(
+        super::validate_type_reference_handle(
             program,
             carrier,
             symbols,

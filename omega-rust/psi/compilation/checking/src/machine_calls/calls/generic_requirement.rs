@@ -5,7 +5,7 @@
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, StateParameter, ValueEnvironment,
     WritableRoots, argument_matches_carrier, declared_place_type, declared_reference_access,
-    validate_call_arguments_with_type_correspondence,
+    validate_call_arguments,
 };
 /// The requirement already selected its trait telescope. Raw signature handles
 /// still name that telescope (`&mut Message`, not the caller's `&mut M`), so a
@@ -22,7 +22,7 @@ pub(super) fn validate_requirement_call_arguments(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_call_arguments_with_type_correspondence(
+    validate_call_arguments(
         program,
         machine,
         state,

@@ -1,6 +1,6 @@
 //! Matched machine law guarantees.
 
-use crate::proof_contracts::contract_entailment::law_conformance::check_law_conformance_with_matches;
+use crate::proof_contracts::contract_entailment::law_conformance::check_law_conformance;
 use crate::proof_contracts::contract_entailment::law_conformance::operator_contracts::is_equality_conjunction;
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::collect_equality_conjuncts;
 use crate::proof_contracts::contract_entailment::{
@@ -64,7 +64,7 @@ pub fn matched_machine_law_guarantees(
         ) else {
             continue;
         };
-        check_law_conformance_with_matches(
+        check_law_conformance(
             program,
             machine,
             conformance.alias.as_ref().map(|alias| alias.as_str()),

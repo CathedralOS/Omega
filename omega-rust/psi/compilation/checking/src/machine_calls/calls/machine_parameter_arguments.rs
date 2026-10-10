@@ -18,7 +18,7 @@ pub(super) fn validate_machine_parameter_arguments(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_call_arguments_with_type_correspondence(
+    validate_call_arguments(
         program,
         machine,
         state,

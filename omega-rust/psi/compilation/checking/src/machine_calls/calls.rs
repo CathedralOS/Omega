@@ -188,7 +188,7 @@ pub(crate) fn validate_call_node(
 /// mismatch so callers skip the per-argument checks (which zip the two and
 /// would misalign). Every parameter corresponds to an authored argument.
 /// This is the common arity contract for the statement-position
-/// (`validate_call_arguments_handles`) and value-position
+/// (`validate_call_arguments`) and value-position
 /// (`validate_value_call_argument_classes`) paths.
 pub(crate) fn report_argument_count_mismatch(
     target_name: &str,
@@ -385,38 +385,6 @@ fn validate_literal_argument_destination(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_call_arguments_handles(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
-    current_state: Option<&State>,
-    value_environment: &ValueEnvironment,
-    arguments: &[ExpressionHandle],
-    target_name: &str,
-    parameters: &[StateParameter],
-    callee_state: Option<&State>,
-    writable_roots: &WritableRoots<'_, '_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let retains_float_result_policy = callee_state.is_some_and(|state| {
-        machine_state_by_symbol(program, state.symbol).is_some_and(|(machine, _)| {
-            selected_float_operation_retains_argument_policy(program, machine.symbol)
-        })
-    });
-    validate_call_arguments_with_environments(
-        program,
-        current_machine,
-        current_state,
-        value_environment,
-        arguments,
-        target_name,
-        parameters,
-        writable_roots,
-        retains_float_result_policy,
-        &[],
-        diagnostics,
-    );
-}
 
 /// A selected sealed float operation retains each evaluated operand policy
 /// through its result adapter. Spelled arithmetic and named requirements use
@@ -443,40 +411,11 @@ pub(crate) fn selected_float_operation_retains_argument_policy(
         is_sealed_toolchain_float_operator(program, operator)
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_call_arguments_with_environments(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
-    current_state: Option<&State>,
-    value_environment: &ValueEnvironment,
-    arguments: &[ExpressionHandle],
-    target_name: &str,
-    parameters: &[StateParameter],
-    writable_roots: &WritableRoots<'_, '_>,
-    retains_float_result_policy: bool,
-    argument_environments: &[ValueEnvironment],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    validate_call_arguments_with_type_correspondence(
-        program,
-        current_machine,
-        current_state,
-        value_environment,
-        arguments,
-        target_name,
-        parameters,
-        writable_roots,
-        retains_float_result_policy,
-        argument_environments,
-        |argument, required| argument_matches_carrier(program, argument, required),
-        diagnostics,
-    );
-}
 
 /// The selected requirement owns type substitution; permission and value/domain
 /// validation remain common to ordinary and bounded calls.
 #[allow(clippy::too_many_arguments)]
-fn validate_call_arguments_with_type_correspondence(
+pub(crate) fn validate_call_arguments(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&State>,
@@ -628,7 +567,7 @@ fn validate_call_arguments_with_type_correspondence(
 /// Reject a single ARGUMENT whose scalar class conflicts with its `parameter`'s
 /// primitive type -- a `bool`/text value passed where a numeric parameter is
 /// expected (or vice versa), which the backend would otherwise read as garbage.
-/// Shared by the statement/transition path (`validate_call_arguments_handles`)
+/// Shared by the statement/transition path (`validate_call_arguments`)
 /// and the value-position path (`validate_value_call_argument_classes`). Returns
 /// `true` if it reported. A non-primitive parameter (a data reference, a struct)
 /// or an unresolvable argument class yields `false` -- no report.
@@ -661,7 +600,7 @@ fn report_cross_class_argument(
 /// Reject cross-class scalar ARGUMENTS at a VALUE-position call site
 /// (`let r = self.f(self.bool_field)`). The value-position path validates only
 /// type-parameter bounds, so the same cross-class hole the statement/transition
-/// paths had applies here. Unlike `validate_call_arguments_handles` there is no
+/// paths had applies here. Unlike `validate_call_arguments` there is no
 /// shape gate ahead of this, so it also covers literal arguments.
 #[allow(clippy::too_many_arguments)]
 fn validate_value_call_argument_classes(
@@ -683,7 +622,7 @@ fn validate_value_call_argument_classes(
     // alone could not do.)
 
     // Arity: value-position calls (`let r = self.pick(1)`) reach only this path,
-    // never `validate_call_arguments_handles`, so without this a wrong argument
+    // never `validate_call_arguments`, so without this a wrong argument
     // count compiled silently (a missing arg then read its ZII default). Safe here
     // because this function runs only on a RESOLVED callee -- the resolver's blind
     // spots fall through earlier without reaching it.
@@ -776,7 +715,7 @@ fn validate_value_call_argument_classes(
         );
         // Narrowing is checked only when the numeric classes agree, so a
         // cross-class argument is not reported twice. This matches the
-        // statement/transition path in `validate_call_arguments_handles`.
+        // statement/transition path in `validate_call_arguments`.
         if !crate::value_custody::expression_types::report_view_element_argument_mismatch(
             program,
             current_machine,
@@ -820,7 +759,7 @@ fn validate_value_call_argument_classes(
             diagnostics,
         );
         // Scalar-vs-data shape guard -- safe at the argument position (see the twin
-        // call in `validate_call_arguments_handles`): fires only on scalar-vs-DATA
+        // call in `validate_call_arguments`): fires only on scalar-vs-DATA
         // crossings, which `&buffer`/`addr`/text args never are.
         crate::value_custody::expression_types::report_scalar_data_shape_mismatch(
             program,
@@ -844,7 +783,7 @@ fn validate_value_call_argument_classes(
             diagnostics,
         );
         // (No array/scalar shape check here -- see the note in
-        // `validate_call_arguments_handles`: `&buffer`-into-`addr` and text/byte args
+        // `validate_call_arguments`: `&buffer`-into-`addr` and text/byte args
         // make the argument position a false-positive minefield.)
     }
 }

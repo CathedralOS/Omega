@@ -15,7 +15,7 @@ use crate::proof_contracts::properties::{
 };
 use crate::value_custody::type_references::{
     TypeReferenceOwner, type_reference_label, type_references_match,
-    validate_type_reference_handle_with_type_parameters,
+    validate_type_reference_handle,
 };
 use diagnostics::Diagnostic;
 use facts::FactPlan;
@@ -34,7 +34,7 @@ pub(crate) fn validate_domain_definitions(
     validate_capacity_normalized_domain_agreement(program, fact_plan, diagnostics);
 
     for domain in program.domain_definitions() {
-        validate_type_reference_handle_with_type_parameters(
+        validate_type_reference_handle(
             program,
             domain.target_type,
             symbols,

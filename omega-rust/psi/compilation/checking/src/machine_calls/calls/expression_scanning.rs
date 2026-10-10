@@ -7,7 +7,7 @@
 use super::{
     free_machine_entry_state, machine_state_by_symbol, register_read_mnemonic,
     selected_float_operation_retains_argument_policy, user_asm_contract,
-    validate_asm_operand_constraint, validate_call_arguments_with_environments,
+    validate_asm_operand_constraint, validate_call_arguments,
     validate_machine_call_type_parameter_bounds, validate_value_call_argument_classes,
 };
 use crate::declarations::symbols::TopLevelSymbols;
@@ -451,7 +451,7 @@ fn validate_expression_call_bounds(
             Ok(_) => {}
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
-        validate_call_arguments_with_environments(
+        validate_call_arguments(
             program,
             current_machine,
             Some(current_state),
@@ -462,6 +462,11 @@ fn validate_expression_call_bounds(
             writable_roots,
             selected_float_operation_retains_argument_policy(program, operator.symbol),
             &[],
+            |argument, required| {
+                crate::value_custody::expression_types::argument_matches_carrier(
+                    program, argument, required,
+                )
+            },
             diagnostics,
         );
         validate_named_float_to_integer_call(
@@ -549,7 +554,7 @@ fn validate_expression_call_bounds(
         // A result's scalar/structural use does not change the requirement's
         // argument contract. Apply the same custody, type and bound checks
         // as statement-position boundary calls before execution planning.
-        super::validate_call_arguments_handles(
+        super::validate_call_arguments(
             program,
             current_machine,
             Some(current_state),
@@ -557,8 +562,14 @@ fn validate_expression_call_bounds(
             arguments,
             signature.name.as_str(),
             program.state_signature_parameters(signature),
-            None,
             writable_roots,
+            false,
+            &[],
+            |argument, required| {
+                crate::value_custody::expression_types::argument_matches_carrier(
+                    program, argument, required,
+                )
+            },
             diagnostics,
         );
         return;

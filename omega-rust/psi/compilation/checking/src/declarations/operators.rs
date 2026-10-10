@@ -30,7 +30,7 @@ pub use applications::{
 
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::value_custody::type_references::{
-    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+    TypeReferenceOwner, validate_type_reference_handle,
 };
 use diagnostics::Diagnostic;
 use signatures::{operator_name, operator_operand_key, operator_signature_key};
@@ -101,7 +101,7 @@ fn validate_operator_types(
     }
     let type_parameters = program.operator_type_parameters(operator);
     for parameter in program.operator_parameters(operator) {
-        validate_type_reference_handle_with_type_parameters(
+        validate_type_reference_handle(
             program,
             parameter.type_reference,
             symbols,
@@ -116,7 +116,7 @@ fn validate_operator_types(
         );
     }
     if operator.return_type.is_valid() {
-        validate_type_reference_handle_with_type_parameters(
+        validate_type_reference_handle(
             program,
             operator.return_type,
             symbols,

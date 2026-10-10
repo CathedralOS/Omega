@@ -3,7 +3,7 @@ use crate::value_custody::expression_types::{
     argument_matches_type_reference_handle, expression_type_name_handle,
 };
 use crate::value_custody::type_references::{
-    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+    TypeReferenceOwner, validate_type_reference_handle,
 };
 use diagnostics::Diagnostic;
 use std::fmt;
@@ -18,7 +18,7 @@ pub(crate) fn validate_owned_data(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for owned_data in program.machine_owned_data(machine) {
-        validate_type_reference_handle_with_type_parameters(
+        validate_type_reference_handle(
             program,
             owned_data.type_reference,
             symbols,
