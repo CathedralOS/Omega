@@ -4,7 +4,6 @@
 use language_core::BindingRelevance;
 use language_semantics::{Multiplicity, SemanticDomainId};
 use symbols::SymbolHandle;
-use typed_trees::name::Identifier;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::PrimitiveType;
 

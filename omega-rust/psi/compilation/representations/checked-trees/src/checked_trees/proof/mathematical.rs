@@ -1,7 +1,6 @@
 use proof_admission::{Declaration, TermArena};
 use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityId;
-use typed_trees::type_identity::CallableIdentityId;
 
 /// A checked top-level mathematical declaration: the checked proof surface a
 /// parsed `let`/`boundary let` elaborates into under PROOF-CONTRACT-MIGRATION
