@@ -804,6 +804,23 @@ pub(crate) fn build_checked_unit_effect_plans(
         })
         .collect::<Vec<_>>();
     retained_type_identities.extend(stored_operand_identities.iter().copied());
+    // A successor's retained address owns a descriptor independently of its
+    // borrowed referent parameter. Keep that declaration through the same
+    // transitive type roster as ordinary reference formations.
+    retained_type_identities.extend(
+        composed_machines
+            .iter()
+            .flat_map(|machine| &machine.states)
+            .flat_map(|state| state.successors())
+            .flat_map(|edge| &edge.transfers)
+            .filter_map(|transfer| match &transfer.source {
+                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                    carrier_type_identity,
+                    ..
+                } if carrier_type_identity.is_valid() => Some(*carrier_type_identity),
+                _ => None,
+            }),
+    );
     shapes.retain_transitive(&retained_type_identities);
 
     CheckedUnitEffectPlans {

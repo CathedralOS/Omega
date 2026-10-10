@@ -205,6 +205,8 @@ impl StateGraphEmission<'_, '_> {
                     parameter
                 })
                 .collect();
+            root.structural_parameters
+                .extend(self.captured_loans.declarations(position));
             // The authored state's own erased roster rides on its root block;
             // a plain entry's formals already live on the machine contract.
             root.erased_scalar_formals = self.state_erased[position].clone();

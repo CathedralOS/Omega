@@ -1,0 +1,1 @@
+Run `omega run --both tests/omega/pass/control_flow/runtime_parameter_index_state_loan_exit/main.omg`. Both engines must exit 0. Source and Build are byte-identical to the frozen state_parameter_entry_selection witness; its observable assertions remain unchanged.

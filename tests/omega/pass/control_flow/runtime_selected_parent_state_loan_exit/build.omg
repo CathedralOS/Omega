@@ -1,0 +1,4 @@
+machine build(builder:&mut Build){
+ Build::application(builder,"state_computed_entry_borrow");
+ Build::bind(builder,linux_x86_64::ProgramEntry,main);
+}

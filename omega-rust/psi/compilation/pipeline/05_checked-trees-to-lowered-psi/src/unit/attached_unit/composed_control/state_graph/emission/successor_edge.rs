@@ -95,6 +95,7 @@ impl StateGraphEmission<'_, '_> {
         let mut arguments = Vec::new();
         let mut structural_arguments = Vec::new();
         let mut capture_parameters = Vec::new();
+        let mut captured_loans = Vec::new();
         let target_state = &plan.states[target];
         // Signature rows carry authored parameter positions, which go sparse
         // the moment a slot contributes no runtime operand: a borrowed `self`
@@ -192,6 +193,7 @@ impl StateGraphEmission<'_, '_> {
                 }
                 let mut argument_path = Vec::new();
                 let mut completed_binding = None;
+                let mut captured_backing = None;
                 let place = match transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { ref operands, ref establishment } => {
                             // The edge performs its ordinary establishment
@@ -267,6 +269,8 @@ impl StateGraphEmission<'_, '_> {
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                             ref subject,
+                            formation_expression,
+                            carrier_type_identity,
                         } => {
                             let (root, root_type) = match subject.source {
                                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
@@ -343,13 +347,42 @@ impl StateGraphEmission<'_, '_> {
                                     Some(&mut calls),
                                 )?;
                             self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-                            // Every borrowed successor binds the selected
-                            // subtree directly, including write-only access.
-                            // The target's declared access limits the loan;
-                            // a stored-reference operation would invent a
-                            // different carrier and an extra dereference.
-                            argument_path = path;
-                            root
+                            if carrier_type_identity.is_valid() {
+                                let carrier_type = crate::terminal_identities::lookup_type_id(
+                                    &self.catalogs.type_ids, &carrier_type_identity,
+                                )?;
+                                captured_backing = Some((root, path.clone()));
+                                let (source_place, source_path) = match subject.source {
+                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
+                                        if let Some(parent) = self.captured_loans.parent_carrier(position, parameter_index) => {
+                                            let mut parent_path = vec![terminal_psi::StructuralPathSegment::Referent];
+                                            parent_path.extend(path);
+                                            (parent, parent_path)
+                                        }
+                                    _ => (root, path),
+                                };
+                                let source = StructuralArgument {
+                                    place: source_place, path: source_path,
+                                    access: crate::expression_preparation::bindings::structural_paths::terminal_access(subject.access),
+                                };
+                                let carrier = crate::unit::attached_unit::reference_results::emit_carrier(
+                                    crate::unit::attached_unit::reference_results::Formation {
+                                        checked, state: state.state,
+                                        statement_index: edge.statement_ordinal as usize,
+                                        expression: formation_expression,
+                                    },
+                                    carrier_type, source, None, &mut self.catalogs.next_place, operations,
+                                )?;
+                                let group = self.captured_loans.group(target, target_index as u32)
+                                    .ok_or(LoweringError::Unsupported("state loan capture has no receiving owner"))?;
+                                captured_loans.push((group, carrier.id));
+                                self.structural_places.push(carrier);
+                                argument_path = vec![terminal_psi::StructuralPathSegment::Referent];
+                                carrier.id
+                            } else {
+                                argument_path = path;
+                                root
+                            }
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                             ref subject, ref case_identity, ref field_identity, ref path,
@@ -532,6 +565,7 @@ impl StateGraphEmission<'_, '_> {
                                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
                                 ..
                             },
+                            ..
                         }
                         | checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => {
                             Some(case_emission::result(state, *binding_ordinal, operations)?)
@@ -541,13 +575,22 @@ impl StateGraphEmission<'_, '_> {
                     if let Some(result) = lender {
                         if !result.claims().is_empty()
                             || !result.path().is_empty()
-                            || !argument_path.is_empty()
+                            || !captured_backing
+                                .as_ref()
+                                .map_or(&argument_path, |(_, path)| path)
+                                .is_empty()
                         {
                             return unsupported(
                                 "Unit graph state loan chain home is not plain whole storage",
                             );
                         }
-                        self.loan_chains.lend(target, target_index as u32, place)?;
+                        self.loan_chains.lend(
+                            target,
+                            target_index as u32,
+                            captured_backing
+                                .as_ref()
+                                .map_or(place, |(backing, _)| *backing),
+                        )?;
                     }
                 }
                 // Shared loan subjects keep their backing local's storage
@@ -610,7 +653,12 @@ impl StateGraphEmission<'_, '_> {
                             );
                         }
                         let homes = (result.multiplicity() == StructuralMultiplicity::Affine)
-                            .then_some((binding_ordinal, place))
+                            .then_some((
+                                binding_ordinal,
+                                captured_backing
+                                    .as_ref()
+                                    .map_or(place, |(backing, _)| *backing),
+                            ))
                             .into_iter()
                             .chain(backing.map(|(backing, home)| {
                                 (
@@ -962,6 +1010,19 @@ impl StateGraphEmission<'_, '_> {
         } else {
             None
         };
+        let owner_arguments =
+            self.captured_loans
+                .arrivals(position, target, edge, &captured_loans)?;
+        for (argument, mut declaration) in owner_arguments
+            .iter()
+            .zip(self.captured_loans.declarations(target))
+        {
+            declaration.place = argument.place;
+            declaration.position = u32::try_from(capture_parameters.len())
+                .map_err(|_| LoweringError::Unsupported("state capture roster exceeds u32"))?;
+            capture_parameters.push(declaration);
+        }
+        structural_arguments.extend(owner_arguments);
         let target = self.state_ids[target];
         // All operands and rank observations are already captured. Transfer
         // projected structural custody before selected cleanup can retire the

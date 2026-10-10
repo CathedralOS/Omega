@@ -21,6 +21,7 @@ use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use std::collections::BTreeMap;
 
+mod captured_loans;
 mod conditional_return;
 mod guarded_chain;
 mod loan_chains;
@@ -70,6 +71,7 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     loaned_local_homes: BTreeMap<u32, semantic_vocabulary::PlaceId>,
     /// Exclusive loan chains a later state's local backs.
     loan_chains: loan_chains::LoanChains,
+    captured_loans: captured_loans::CapturedLoans,
     occurrences: super::super::ComposedOccurrences,
     block_ranks: BTreeMap<BlockId, ValueId>,
     rank_edges: BTreeMap<EdgeId, (ValueId, terminal_psi::TerminalNaturalRankComparison)>,
@@ -529,6 +531,15 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             block: *block,
         })
         .collect();
+    let captured_loans = captured_loans::CapturedLoans::plan(
+        plan,
+        &admitted.live,
+        &state_views,
+        &state_ids,
+        &admitted.entry_aliases,
+        catalogs,
+        &mut structural_places,
+    )?;
     let block_ranks = std::collections::BTreeMap::new();
     let rank_edges = std::collections::BTreeMap::new();
     let mut emission = StateGraphEmission {
@@ -556,6 +567,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         blocks,
         loaned_local_homes: BTreeMap::new(),
         loan_chains,
+        captured_loans,
         occurrences,
         scalar_block_invariants: Vec::new(),
         qualification_coercions: Vec::new(),
@@ -591,6 +603,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         mut qualification_coercions,
         loaned_local_homes,
         loan_chains,
+        captured_loans,
         mut occurrences,
         mut block_ranks,
         mut rank_edges,
@@ -782,6 +795,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
+    captured_loans.finish(&mut machine, &state_ids)?;
     loaned_local_homes::finish(
         &mut machine,
         &loaned_local_homes,

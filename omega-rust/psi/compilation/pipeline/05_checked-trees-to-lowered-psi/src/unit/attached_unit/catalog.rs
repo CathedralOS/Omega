@@ -343,6 +343,23 @@ pub(super) fn lower_unit_structural_types_including(
             roots.push(result.type_identity);
         }
         roots.extend(body.attachment());
+        if let UnitBody::Composed(machine) = body {
+            roots.extend(
+                machine
+                    .states
+                    .iter()
+                    .flat_map(|state| state.successors())
+                    .flat_map(|edge| &edge.transfers)
+                    .filter_map(|transfer| {
+                        match &transfer.source {
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                        carrier_type_identity, ..
+                    } if carrier_type_identity.is_valid() => Some(*carrier_type_identity),
+                    _ => None,
+                }
+                    }),
+            );
+        }
         roots.extend(
             body.structural_parameters()
                 .map(|parameter| parameter.type_identity),

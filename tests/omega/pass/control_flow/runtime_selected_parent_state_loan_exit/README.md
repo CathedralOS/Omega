@@ -1,0 +1,1 @@
+Run `omega run --both tests/omega/pass/control_flow/runtime_selected_parent_state_loan_exit/main.omg`. Both engines must exit 0. Source and Build are byte-identical to the frozen state_selected_parent_both_arms witness; its observable assertions remain unchanged.

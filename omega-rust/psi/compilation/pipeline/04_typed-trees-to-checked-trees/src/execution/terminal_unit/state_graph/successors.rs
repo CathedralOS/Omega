@@ -21,6 +21,7 @@ use super::{
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control;
 use crate::execution::terminal_unit::types::ShapeCollector;
+use checked_trees::expression::ExpressionHandle;
 
 /// The terminator family an edge is built for. The trace names the guard
 /// that declined the edge beneath that family's phase; the edge's statement
@@ -744,6 +745,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 machine.symbol,
                                 source.symbol,
                                 ordinal,
+                                expression,
                                 &place,
                                 CheckedUnitStructuralArgumentSourcePlan::Parameter {
                                     parameter_index: u32::try_from(source_index).ok()?,
@@ -803,6 +805,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                             return Some(CheckedStructuralControlTransferPlan {
                                 source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                                     subject,
+                                    formation_expression: expression,
+                                    carrier_type_identity: Default::default(),
                                 },
                                 target_parameter_index: u32::try_from(target_index).ok()?,
                             });
@@ -840,6 +844,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 machine.symbol,
                                 source.symbol,
                                 ordinal,
+                                expression,
                                 &place,
                                 CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                                     binding_ordinal: result.binding_ordinal,
@@ -1140,6 +1145,7 @@ fn projected_loan_transfer(
     machine: symbols::SymbolHandle,
     source: symbols::SymbolHandle,
     ordinal: u32,
+    formation_expression: ExpressionHandle,
     place: &validation::CanonicalPlace,
     subject_source: CheckedUnitStructuralArgumentSourcePlan,
     borrowed_identity: Option<typed_trees::type_identity::TypeIdentityId>,
@@ -1164,7 +1170,7 @@ fn projected_loan_transfer(
         let primitive = computations.nodes.get(root.root).primitive_type;
         (primitive.is_fixed_integer()
             && computations.is_authored_root(root, machine, expression, primitive))
-            .then_some(CheckedUnitStructuralPathSegment::ComputedIndex(root.root))
+        .then_some(CheckedUnitStructuralPathSegment::ComputedIndex(root.root))
     };
     let (projected_type, path) = calls::projected_evaluated_path(
         program,
@@ -1208,11 +1214,11 @@ fn projected_loan_transfer(
     if identity.is_some_and(|identity| declared_contains_reference(shapes, identity)) {
         return None;
     }
-    // Successor operands carry the root and path directly under their declared
-    // loan access. No reference value is stored, so registering a reference
-    // shell here would impose unrelated carrier-construction restrictions.
+    let carrier_type_identity = shapes.add_reference_type(target_type_reference, &[])?;
     Some(CheckedStructuralControlTransferPlan {
         source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+            formation_expression,
+            carrier_type_identity,
             subject: CheckedUnitStructuralArgumentPlan {
                 source: subject_source,
                 path,
