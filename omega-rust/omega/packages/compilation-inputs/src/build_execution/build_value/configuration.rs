@@ -143,13 +143,20 @@ impl X86DeploymentClaim {
     /// Admit the claim for one realized profile. `None` is the generic SSE2
     /// baseline and grants no FMA route; the admitted carrier retains the
     /// canonical semantic cancellation-vector admission only, not a native
-    /// differential execution receipt.
+    /// differential execution receipt. The claim describes x86 deployments
+    /// only, so one Build may bind AArch64 targets beside it: their realization
+    /// admits nothing and keeps its baseline FMA route.
     pub fn admit_for(
         self,
         profile: Option<target::TargetProfile>,
     ) -> Result<Option<target::AdmittedX86ScalarFmaProvider>, String> {
         match (self, profile) {
             (Self::Baseline, _) | (Self::AvxFma3, None) => Ok(None),
+            (Self::AvxFma3, Some(profile))
+                if profile.native_target().architecture != target::Architecture::X86_64 =>
+            {
+                Ok(None)
+            }
             (Self::AvxFma3, Some(profile)) => {
                 target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
                     profile,
