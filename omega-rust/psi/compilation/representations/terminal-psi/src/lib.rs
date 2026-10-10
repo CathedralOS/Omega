@@ -113,7 +113,7 @@ pub use terminal_module::{
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
     control_flow, field_by_identity, find_boundary_machine, find_structural_case,
     find_structural_type, float_meaning_equality_proposition_id, identity,
-    is_bounded_structural_scalar_store_path, is_static_structural_path,
+    is_static_structural_path, is_static_structural_scalar_store_path,
     is_structural_scalar_store_path, live_field, live_field_by_id, live_field_by_identity,
     live_field_entry, observation, ownership,
     program_local_root_introduction_compatibility_report_identity, proof,

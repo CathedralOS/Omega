@@ -90,6 +90,7 @@ impl<'program> RangeCallContext<'program> {
             self.state.symbol,
             statement_index,
             self.borrows,
+            self.flow,
             &place,
             self.flow
                 .contexts

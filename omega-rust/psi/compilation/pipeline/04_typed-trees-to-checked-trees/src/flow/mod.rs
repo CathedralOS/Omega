@@ -47,7 +47,9 @@ mod exits;
 mod expression;
 mod operand_contexts;
 mod operand_values;
-pub(crate) use operand_values::{CapturedValue, captured_operand_values, captured_value_places};
+pub(crate) use operand_values::{
+    CapturedValue, captured_operand_values, captured_value_places, project_captured_view_place,
+};
 mod operator_calls;
 pub(crate) use operand_contexts::{
     entry_origin_is_stable, operand_bindings_agree, operand_binds_live_view, operand_contexts,

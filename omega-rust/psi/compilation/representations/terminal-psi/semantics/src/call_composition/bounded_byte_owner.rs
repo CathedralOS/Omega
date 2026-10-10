@@ -87,7 +87,7 @@ pub fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
     } else {
         if !actual.qualifications.is_empty()
             || !actual.projected_qualifications.is_empty()
-            || !terminal_psi::is_bounded_structural_scalar_store_path(&argument.path)
+            || !terminal_psi::is_static_structural_scalar_store_path(&argument.path)
         {
             return None;
         }

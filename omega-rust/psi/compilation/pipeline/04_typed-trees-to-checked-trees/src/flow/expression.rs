@@ -9,6 +9,9 @@
 //! remain tied to the existing live contexts, never a second operand evaluation.
 //! Stores bind their destination carrier before evaluating children and retain
 //! that completed tree; later transfers must not reconstruct it from syntax.
+//! Indexed addresses retain each selector's own completion facts. A produced
+//! empty referent span is unresolved evidence, not permission to reconstruct
+//! an address from an initializer or later selector value.
 
 use validation::CallSite;
 use validation::CanonicalPlace;
@@ -36,6 +39,7 @@ mod constructed_values;
 mod dispatch;
 mod result_facts;
 mod transitions;
+mod view_referents;
 
 struct Invocation<'a> {
     call: &'a BorrowCallFact,
@@ -154,6 +158,7 @@ pub(super) fn append_statement_calls<'plans>(
                 contexts,
                 constraints,
                 &mut HandleSpan::empty(),
+                &mut None,
             );
         }
         StatementNode::LocalData(local) => {
@@ -400,17 +405,23 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         destination: TypeReferenceHandle,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
-    ) -> (Option<bool>, HandleSpan<checked_trees::FlowOperandChild>) {
+    ) -> (
+        Option<bool>,
+        HandleSpan<checked_trees::FlowOperandChild>,
+        Option<HandleSpan<checked_trees::FlowOperandReferent>>,
+    ) {
         let mut children = HandleSpan::empty();
+        let mut referents = None;
         let value = self.evaluate_expression(
             expression,
             destination,
             contexts,
             constraints,
             &mut children,
+            &mut referents,
         );
         self.append_result_facts(expression, contexts, constraints);
-        (value, children)
+        (value, children, referents)
     }
 
     /// Capture the completed evaluation itself, including nested constructed
@@ -437,14 +448,19 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) -> EvaluatedOperand {
         let first_write = self.operand_writes.len();
-        let (boolean, children) =
+        let (boolean, children, referents) =
             self.expression_result(expression, destination, contexts, constraints);
-        let mut capture = self.capture_operand(expression, first_write, *contexts, *constraints);
+        let referents = referents.unwrap_or_else(|| {
+            if destination.is_valid() && self.is_view_type(destination) {
+                self.reference_operand_referents(expression)
+            } else {
+                self.operand_referents(expression)
+            }
+        });
+        let mut capture =
+            self.capture_operand(expression, first_write, *contexts, *constraints, referents);
         capture.children = children;
         capture.type_reference = destination;
-        if destination.is_valid() && self.is_view_type(destination) {
-            capture.referents = self.reference_operand_referents(expression);
-        }
         EvaluatedOperand { boolean, capture }
     }
 
@@ -490,6 +506,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         first_write: usize,
         contexts: HandleSpan<FlowSemanticContextRef>,
         constraints: HandleSpan<FlowConstraintRef>,
+        referents: HandleSpan<checked_trees::FlowOperandReferent>,
     ) -> checked_trees::FlowOperandFact {
         let changed = self.changed_operand_sources(&[(expression, first_write)]);
         let mut captured_contexts = contexts;
@@ -504,7 +521,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             entry_origin_writes: self.entry_origin_writes,
             entry_origin_unknown_write: self.entry_origin_unknown_write,
             constraints: captured_constraints,
-            referents: self.operand_referents(expression),
+            referents,
         }
     }
 
@@ -632,6 +649,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     }
 
     fn is_view_type(&self, mut reference: typed_trees::types::TypeReferenceHandle) -> bool {
+        if !reference.is_valid() {
+            return false;
+        }
         loop {
             match self.program.type_reference_table.type_reference(reference) {
                 TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
@@ -647,6 +667,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         &mut self,
         expression: ExpressionHandle,
     ) -> HandleSpan<checked_trees::FlowOperandReferent> {
+        if let Some(referents) = self.stored_view_referents(expression) {
+            return referents;
+        }
         let Some(referents) = crate::flow::reference_expression_storage_places(
             self.program,
             self.state.symbol,
@@ -810,6 +833,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
         children: &mut HandleSpan<checked_trees::FlowOperandChild>,
+        referents: &mut Option<HandleSpan<checked_trees::FlowOperandReferent>>,
     ) -> Option<bool> {
         if !self
             .program
@@ -1054,6 +1078,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let end_operand = self
                         .evaluated_operand(range.end, contexts, constraints)
                         .capture;
+                    *referents = Some(self.capture_indexed_referents(
+                        expression,
+                        &collection_operand,
+                        &start_operand,
+                        Some(&end_operand),
+                    ));
                     // `self.expression(indexed.index)` would publish the
                     // range node's own result tags after evaluating both
                     // bounds; keep that publication now that the bounds were
@@ -1069,6 +1099,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let index_operand = self
                         .evaluated_operand(indexed.index, contexts, constraints)
                         .capture;
+                    *referents = Some(self.capture_indexed_referents(
+                        expression,
+                        &collection_operand,
+                        &index_operand,
+                        None,
+                    ));
                     self.record_operator_invocation(
                         expression,
                         checked_trees::CheckedOperatorOccurrence::Expression,
@@ -1090,7 +1126,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 self.expression(cast.value, contexts, constraints);
             }
             ExpressionNode::Borrow(borrow) => {
-                self.expression(borrow.target, contexts, constraints);
+                let evaluated = self.evaluated_operand(borrow.target, contexts, constraints);
+                *referents = Some(evaluated.capture.referents);
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(unary.operand, contexts, constraints);

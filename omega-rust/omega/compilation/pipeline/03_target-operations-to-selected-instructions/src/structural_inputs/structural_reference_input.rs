@@ -2579,7 +2579,7 @@ pub(crate) fn byte_field_length(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u32)> {
-    if !terminal_psi::is_bounded_structural_scalar_store_path(path) {
+    if !terminal_psi::is_static_structural_scalar_store_path(path) {
         return None;
     }
     plain_record_shape(structural_type, declarations)?;

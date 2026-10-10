@@ -80,40 +80,50 @@ pub(crate) fn captured_value_places(
                     .to_vec(),
             };
             let storage = place.clone();
-            for (position, &segment) in value.projection.remaining.iter().enumerate() {
-                // Declaration rows use this range to mean every element of a
-                // slice, not an address interval of usize::MAX elements. A
-                // captured window supplies its own frozen extent before address
-                // composition. Otherwise declaration-derived array geometry
-                // remains available to the ordinary field-domain prover.
-                let segment = match (position, place.segments.last(), segment) {
-                    (
-                        0,
-                        Some(PlaceSegment::FixedRange { start, end }),
-                        PlaceSegment::FixedRange {
-                            start: 0,
-                            end: usize::MAX,
-                        },
-                    ) => PlaceSegment::FixedRange {
-                        start: 0,
-                        end: end.checked_sub(*start)?,
-                    },
-                    _ => segment,
-                };
-                place.segments.push(segment);
-                // Only the boundary between the address and the projected
-                // value shares a collection dimension. Subsequent pointwise
-                // ranges describe distinct nested array dimensions.
-                if position == 0 {
-                    super::compose_captured_view_segments(&mut place.segments)?;
-                }
-            }
+            place = project_captured_view_place(place, &value.projection.remaining)?;
             Some(CapturedValuePlace {
                 storage,
                 projected: place,
             })
         })
         .collect()
+}
+
+/// Project once across the captured address/value boundary. The later path
+/// dimensions are pointwise nested data, not additional address windows.
+pub(crate) fn project_captured_view_place(
+    mut place: validation::CanonicalPlace,
+    path: &[PlaceSegment],
+) -> Option<validation::CanonicalPlace> {
+    for (position, &segment) in path.iter().enumerate() {
+        // Declaration rows use this range to mean every element of a
+        // slice, not an address interval of usize::MAX elements. A
+        // captured window supplies its own frozen extent before address
+        // composition. Otherwise declaration-derived array geometry
+        // remains available to the ordinary field-domain prover.
+        let segment = match (position, place.segments.last(), segment) {
+            (
+                0,
+                Some(PlaceSegment::FixedRange { start, end }),
+                PlaceSegment::FixedRange {
+                    start: 0,
+                    end: usize::MAX,
+                },
+            ) => PlaceSegment::FixedRange {
+                start: 0,
+                end: end.checked_sub(*start)?,
+            },
+            _ => segment,
+        };
+        place.segments.push(segment);
+        // Only the boundary between the address and the projected
+        // value shares a collection dimension. Subsequent pointwise
+        // ranges describe distinct nested array dimensions.
+        if position == 0 {
+            super::compose_captured_view_segments(&mut place.segments)?;
+        }
+    }
+    Some(place)
 }
 
 /// A dynamic selector can produce several candidates. Consumers must prove

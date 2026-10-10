@@ -117,7 +117,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         }
         (parameter.structural_type, path.as_slice())
     };
-    if !is_bounded_structural_scalar_store_path(carrier_path)
+    if !is_static_structural_scalar_store_path(carrier_path)
         || machine
             .entry_claims
             .iter()

@@ -224,7 +224,7 @@ pub(crate) fn validate_structural_root_operations(
                             path,
                         )
                         .filter(|(_, storage_path)| {
-                            terminal_psi::is_bounded_structural_scalar_store_path(storage_path)
+                            terminal_psi::is_static_structural_scalar_store_path(storage_path)
                         })
                     } else {
                         super::byte_field_freshness::byte_field_root(function, *source)

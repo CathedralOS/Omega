@@ -425,12 +425,8 @@ helper that passes does not close an item.
     at exit 0: exact immediate lineage and every sibling's closure must remain
     independent of projection compatibility. Unknown index pairs and use of
     the parent before its last child ends must still reject.
-    Builtin whole and partial record views now transport field obligations
-    through captured backing places, including explicit collection metadata
-    endpoints. Finish the remaining formation-time correspondence for copied
-    scalar endpoints and nested-array view carriers; never recover it by
-    replaying an initializer. The imported declared range operator still needs
-    evaluate-once omitted-end normalization before `as_slice_views` can migrate
+    Finish evaluate-once omitted-end normalization for the imported declared
+    range operator before `as_slice_views` can migrate
     to `&main.entries[..]`; do not bypass its selected declaration.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on its other declared targets.

@@ -285,34 +285,17 @@ pub(crate) fn captured_arithmetic_observation(
             }
         }
         validation::ArithmeticCallObservation::CollectionLength(_) => {
-            // The live operand's loan owns its captured descriptor geometry.
-            // A mutation of its elements cannot erase a fixed extent, and no
-            // state-wide initializer scan may supply a replaced descriptor.
-            if let Some(mut place) = validation::canonical_place_from_expression_in_state(
+            // Range operands and stored descriptors retain one formed address.
+            // Element writes cannot resize it; endpoint variables are not read
+            // again at invocation. Borrow admission remains independent.
+            if let Some(length) = crate::checks::collection_extents::from_captured_value(
                 program,
-                state.state_symbol,
-                captured.operand.statement_index,
-                captured.observation_projection.expression,
+                &facts.flow,
+                &captured,
             ) {
-                place
-                    .segments
-                    .extend_from_slice(&captured.observation_projection.remaining);
-                if let Some(length) = crate::checks::collection_extents::from_live_loans(
-                    program,
-                    state.state_symbol,
-                    captured.operand.statement_index,
-                    &facts.borrow,
-                    &place,
-                    facts
-                        .flow
-                        .contexts
-                        .constraint_refs
-                        .span_or_empty(captured.observation.constraints),
-                ) {
-                    return Some(numerics::bignum::BigInt::from_u64(
-                        u64::try_from(length).ok()?,
-                    ));
-                }
+                return Some(numerics::bignum::BigInt::from_u64(
+                    u64::try_from(length).ok()?,
+                ));
             }
             // This closes produced geometry only: the empty-symbol length
             // engine has no live descriptor/formal length hypotheses. Stored

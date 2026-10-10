@@ -87,7 +87,7 @@ pub(super) fn validate(
                                 .ok_or_else(invalid)?;
                         if source.access != StructuralAccess::SharedBorrow
                             || access == StructuralAccess::WriteOnlyBorrow
-                            || !terminal_psi::is_bounded_structural_scalar_store_path(&source.path)
+                            || !terminal_psi::is_static_structural_scalar_store_path(&source.path)
                         {
                             return Err(invalid());
                         }

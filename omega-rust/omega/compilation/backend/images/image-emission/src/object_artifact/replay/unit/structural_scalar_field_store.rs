@@ -53,7 +53,7 @@ fn validate_store(
         || store.destination_placement != home.source
         || Some(store.parameter_home_byte_offset) != home.location.stack_byte_offset()
         || store.parameter_home_indirect != home.indirect
-        || !terminal_psi::is_bounded_structural_scalar_store_path(&store.path)
+        || !terminal_psi::is_static_structural_scalar_store_path(&store.path)
         || !function
             .provenance
             .operations

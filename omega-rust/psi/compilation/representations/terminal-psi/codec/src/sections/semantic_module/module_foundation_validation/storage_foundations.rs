@@ -14,7 +14,7 @@ pub(super) use element_views::*;
 pub(super) use structural_fields::*;
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
-    StructuralTypeShape, TerminalMachine, TerminalModule, is_bounded_structural_scalar_store_path,
+    StructuralTypeShape, TerminalMachine, TerminalModule, is_static_structural_scalar_store_path,
 };
 
 /// Resolve only the reference shell's declared geometry. Origin, live loan

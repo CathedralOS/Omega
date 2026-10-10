@@ -38,6 +38,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
     borrow_state: &StateBorrowFact,
 ) -> arena::HandleSpan<FlowCallFact> {
     let mut state_calls = arena::HandleSpan::empty();
+    build.state_statements_start = build.control.statements.len();
     let borrow_calls = borrow.calls.span_or_empty(borrow_state.calls);
     let borrow_loans = borrow.loans.span_or_empty(borrow_state.loans);
     let mut call_index = 0usize;
@@ -47,6 +48,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         .statement_table
         .indexed_statements(state.statement_nodes)
     {
+        let operand_capture_start = build.control.operands.len();
         append_proof_output_ensures(
             proof,
             semantic,
@@ -208,12 +210,34 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 borrow_state.loans.start().generation(),
             );
 
+            let formation_value = {
+                let mut captures = build
+                    .control
+                    .operands
+                    .iter()
+                    .skip(operand_capture_start)
+                    .filter(|(_, operand)| {
+                        operand.expression == loan.formation_expression
+                            && operand.state_symbol == state.symbol
+                            && operand.statement_index == statement_index
+                    });
+                let first = captures
+                    .next()
+                    .map(|(handle, _)| handle)
+                    .unwrap_or_default();
+                if captures.next().is_none() {
+                    first
+                } else {
+                    Handle::invalid()
+                }
+            };
             build
                 .borrow_lifetimes
                 .activations
                 .append(FlowBorrowActivationFact {
                     source: FlowInvalidationSource::Statement { statement_index },
                     loan: loan_handle,
+                    formation_value,
                 });
 
             append_constraint_ref(

@@ -179,6 +179,19 @@ fn binding_overwrite(
     segments.len() <= place.segments.len() && contents_overlap(program, place, segments)
 }
 
+/// A stored view's descriptor survives writes to its referent's descendants.
+/// Unknown writes and replacement of the descriptor or its enclosing owner
+/// stop the retained address; this grants no access to the backing contents.
+pub(super) fn binding_origin_is_stable(
+    program: &dyn ::validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    unknown: bool,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    entry_origin_is_stable_when(program, control, writes, unknown, place, binding_overwrite)
+}
+
 type SourceWriteRelation = fn(
     &dyn ::validation::CheckingInput,
     &validation::CanonicalPlace,

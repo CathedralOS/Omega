@@ -161,7 +161,7 @@ pub(in crate::legalization) fn replacement(
             resolved.path,
         )
     };
-    if !terminal_psi::is_bounded_structural_scalar_store_path(&path)
+    if !terminal_psi::is_static_structural_scalar_store_path(&path)
         || source == Some(*destination)
         || function
             .entry_claim_declarations

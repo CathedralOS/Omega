@@ -172,28 +172,13 @@ pub fn is_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
     })
 }
 
-/// Whether a carrier path is within the bounded projection grammar the
-/// byte-sequence field stores and structural call arguments currently
-/// execute: record fields, optionally followed by one literal fixed-array
-/// index. (The Omega backend executes scalar field stores over the general
-/// `is_structural_scalar_store_path` carrier.) A bare fixed-array root has no
-/// record-field owner, so its carrier path is the literal element index
-/// alone. Anything after the first index -- a second index or a further
-/// field -- is excluded by the grammar itself, not by path resolution, and
-/// `Referent` crossings are outside the store contract. The scalar field
-/// store's own grammar is `is_structural_scalar_store_path`.
-pub fn is_bounded_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
-    let first_index = path
-        .iter()
-        .position(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
-        .unwrap_or(path.len());
-    let index_count = path.len() - first_index;
-    path[..first_index].iter().all(
-        |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_absent()),
-    ) && path[first_index..]
-        .iter()
-        .all(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
-        && index_count <= 1
+/// Static storage uses the same field/array projection grammar as scalar
+/// stores. Successive indices and fields after indices are ordinary storage,
+/// not different custody. Operations that do not carry runtime selectors
+/// additionally require static paths; type, extent and access resolution
+/// remain independent. Reference crossings and byte windows stay excluded.
+pub fn is_static_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
+    is_static_structural_path(path) && is_structural_scalar_store_path(path)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -574,7 +559,7 @@ fn map_byte_sequence_operand(
 #[cfg(test)]
 mod tests {
     use super::{
-        StructuralPathSegment, is_bounded_structural_scalar_store_path,
+        StructuralPathSegment, is_static_structural_scalar_store_path,
         is_structural_scalar_store_path,
     };
     use crate::{
@@ -736,12 +721,8 @@ mod tests {
         }
     }
 
-    fn field(identity: &str) -> StructuralPathSegment {
-        let index = match identity {
-            "record" => 1,
-            _ => 0,
-        };
-        StructuralPathSegment::Field(crate::TerminalIdentityIndex(index))
+    fn field(identity: u32) -> StructuralPathSegment {
+        StructuralPathSegment::Field(crate::TerminalIdentityIndex(identity))
     }
 
     fn runtime() -> StructuralPathSegment {
@@ -755,20 +736,16 @@ mod tests {
     fn field_store_carriers_compose_fields_and_elements_in_any_order() {
         for path in [
             vec![],
-            vec![field("items"), StructuralPathSegment::FixedIndex(2)],
-            vec![field("items"), runtime(), field("pos")],
-            vec![
-                field("grid"),
-                runtime(),
-                StructuralPathSegment::FixedIndex(1),
-            ],
-            vec![StructuralPathSegment::FixedIndex(0), field("nested")],
+            vec![field(1), StructuralPathSegment::FixedIndex(2)],
+            vec![field(1), runtime(), field(2)],
+            vec![field(3), runtime(), StructuralPathSegment::FixedIndex(1)],
+            vec![StructuralPathSegment::FixedIndex(0), field(4)],
         ] {
             assert!(is_structural_scalar_store_path(&path), "{path:?}");
         }
         for path in [
             vec![StructuralPathSegment::Referent],
-            vec![field("record"), StructuralPathSegment::Referent],
+            vec![field(1), StructuralPathSegment::Referent],
             vec![StructuralPathSegment::FixedByteRange { start: 0, end: 1 }],
             vec![StructuralPathSegment::Field(crate::TerminalIdentityIndex(
                 0,
@@ -779,42 +756,36 @@ mod tests {
     }
 
     #[test]
-    fn bounded_carrier_paths_are_fields_then_one_literal_index() {
+    fn static_store_paths_compose_fields_and_literal_indices() {
         for path in [
             vec![],
-            vec![field("record")],
-            vec![field("outer"), field("inner")],
+            vec![field(1)],
+            vec![field(2), field(3)],
             vec![StructuralPathSegment::FixedIndex(0)],
-            vec![field("items"), StructuralPathSegment::FixedIndex(2)],
-        ] {
-            assert!(is_bounded_structural_scalar_store_path(&path), "{path:?}");
-        }
-        for path in [
-            // A second index and a field after the index are outside the
-            // grammar even where a resolver could still walk them.
+            vec![field(4), StructuralPathSegment::FixedIndex(2)],
             vec![
                 StructuralPathSegment::FixedIndex(0),
                 StructuralPathSegment::FixedIndex(1),
             ],
-            vec![StructuralPathSegment::FixedIndex(0), field("nested")],
-            vec![
-                field("items"),
-                StructuralPathSegment::FixedIndex(0),
-                field("nested"),
-            ],
+            vec![StructuralPathSegment::FixedIndex(0), field(5)],
+            vec![field(4), StructuralPathSegment::FixedIndex(0), field(5)],
+        ] {
+            assert!(is_static_structural_scalar_store_path(&path), "{path:?}");
+        }
+        for path in [
             // A runtime element is outside the bounded grammar.
-            vec![field("items"), runtime()],
+            vec![field(4), runtime()],
             // Borrowing through another borrow's boundary is different
             // custody, not a projection.
             vec![StructuralPathSegment::Referent],
-            vec![field("record"), StructuralPathSegment::Referent],
-            vec![StructuralPathSegment::Referent, field("record")],
+            vec![field(1), StructuralPathSegment::Referent],
+            vec![StructuralPathSegment::Referent, field(1)],
             // An empty identity names no record field.
             vec![StructuralPathSegment::Field(crate::TerminalIdentityIndex(
                 0,
             ))],
         ] {
-            assert!(!is_bounded_structural_scalar_store_path(&path), "{path:?}");
+            assert!(!is_static_structural_scalar_store_path(&path), "{path:?}");
         }
     }
 }
