@@ -1,0 +1,32 @@
+// Provably-disjoint mutable windows: `items[0..2]` ends where
+// `items[2..4]` begins, so two live `&mut` subslices of the same
+// base borrow at once.
+//
+//   * `let a: &mut [i32] = items[0..2]` + `let b: &mut [i32] =
+//     items[2..4]` coexist; writes through both windows.
+//   * `hits` records the reached arm.
+//
+// Compile-checked only: no standard-library dependency, no ProcessExit
+// provider.
+
+data Main {
+    entries: [i32; 4];
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    main.entries = [10, 20, 30, 40];
+    let items: &mut [i32] = &mut main.entries[..];
+    let a: &mut [i32] = items[0..2];
+    let b: &mut [i32] = items[2..4];
+    a[0] = 11;
+    b[1] = 41;
+    transition a.len == 2 && b.len == 2 && main.entries[0] == 11
+        && main.entries[3] == 41 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
