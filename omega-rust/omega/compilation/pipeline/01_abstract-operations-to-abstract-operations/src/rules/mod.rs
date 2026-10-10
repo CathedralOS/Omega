@@ -46,6 +46,23 @@ fn representation_specialization_contract(identity: &'static [u8]) -> Optimizati
 /// contract plus a proposal that forwards unit, analyses and the contract
 /// into a shared propose helper with the rule's classify extras. One
 /// declarative row per rule type expands that impl; rules whose proposal
+/// One rule's named type plus its static contract body: the unit-struct
+/// declaration and the inherent `contract()` that handwritten or delegated
+/// impls forward into. Rules expanding this keep only their propose path.
+macro_rules! psi_rule_contract {
+    ($(#[$meta:meta])* $name:ident, $contract:expr $(,)?) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, Default)]
+        pub(crate) struct $name;
+
+        impl $name {
+            pub fn contract() -> OptimizationRuleContract {
+                $contract
+            }
+        }
+    };
+}
+
 /// does its own analysis plumbing keep their handwritten impl.
 macro_rules! psi_optimization_rule_delegate {
     ($name:ident, propose = $propose:ident, contract = $contract:expr $(, $extra:expr)*) => {

@@ -8,17 +8,13 @@ use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerType, OperationId,
 use crate::rules::proof_check_elision::identity_rewrite::propose_proof_certified_integer_constants;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct LiveProofCertifiedIntegerSelfDivideEliminationRule;
-
-impl LiveProofCertifiedIntegerSelfDivideEliminationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        super::proof_check_elision_rule_contract(
-            b"omega.psi-rule.live-proof-certified-integer-self-divide-elimination.v1",
-            AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-        )
-    }
-}
+psi_rule_contract!(
+    LiveProofCertifiedIntegerSelfDivideEliminationRule,
+    super::proof_check_elision_rule_contract(
+                b"omega.psi-rule.live-proof-certified-integer-self-divide-elimination.v1",
+                AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+            ),
+);
 
 psi_optimization_rule_delegate!(
     LiveProofCertifiedIntegerSelfDivideEliminationRule,

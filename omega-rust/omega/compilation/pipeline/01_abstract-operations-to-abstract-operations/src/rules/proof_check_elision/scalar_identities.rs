@@ -91,21 +91,17 @@ fn proof_certified_scalar_identity_shapes(
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct LiveProofCertifiedIntegerIdentityEliminationRule;
-
-impl LiveProofCertifiedIntegerIdentityEliminationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        super::proof_check_elision_rule_contract(
-            b"omega.psi-rule.live-proof-certified-integer-identity-elimination.v1",
-            AnalysisSet::new([
-                AnalysisKind::ScalarConstants,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-        )
-    }
-}
+psi_rule_contract!(
+    LiveProofCertifiedIntegerIdentityEliminationRule,
+    super::proof_check_elision_rule_contract(
+                b"omega.psi-rule.live-proof-certified-integer-identity-elimination.v1",
+                AnalysisSet::new([
+                    AnalysisKind::ScalarConstants,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+            ),
+);
 
 psi_optimization_rule_delegate!(
     LiveProofCertifiedIntegerIdentityEliminationRule,

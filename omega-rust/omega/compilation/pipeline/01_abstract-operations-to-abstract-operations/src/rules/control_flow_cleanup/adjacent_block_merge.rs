@@ -22,33 +22,29 @@ use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substit
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_witness;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct AdjacentBlockMergeRule;
-
-impl AdjacentBlockMergeRule {
-    pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.adjacent-single-predecessor-block-merge.v5",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            5,
-            AnalysisSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::Dominators,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::OwnershipFrontiers,
-            ]),
-            AnalysisInvalidationSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-            OptimizationSafetyClass::StructuralIdentity,
-        )
-        .expect("built-in rule has nonzero version")
-    }
-}
+psi_rule_contract!(
+    AdjacentBlockMergeRule,
+    OptimizationRuleContract::new(
+                OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.adjacent-single-predecessor-block-merge.v5",
+                ),
+                OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
+                5,
+                AnalysisSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::Dominators,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::OwnershipFrontiers,
+                ]),
+                AnalysisInvalidationSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+                OptimizationSafetyClass::StructuralIdentity,
+            )
+            .expect("built-in rule has nonzero version"),
+);
 
 impl PsiOptimizationRule for AdjacentBlockMergeRule {
     fn contract(&self) -> OptimizationRuleContract {

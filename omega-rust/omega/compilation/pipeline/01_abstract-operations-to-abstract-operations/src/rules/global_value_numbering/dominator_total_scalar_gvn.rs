@@ -7,17 +7,13 @@ use super::expression_keys::total_scalar_expression;
 use crate::rules::global_value_numbering::dominating_contract;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct DominatorTotalScalarGvnRule;
-
-impl DominatorTotalScalarGvnRule {
-    pub fn contract() -> OptimizationRuleContract {
-        dominating_contract(
-            b"omega.psi-rule.dominator-obligation-free-total-scalar-gvn.v1",
-            OptimizationSafetyClass::ExactOperationSemantics,
-        )
-    }
-}
+psi_rule_contract!(
+    DominatorTotalScalarGvnRule,
+    dominating_contract(
+                b"omega.psi-rule.dominator-obligation-free-total-scalar-gvn.v1",
+                OptimizationSafetyClass::ExactOperationSemantics,
+            ),
+);
 
 impl PsiOptimizationRule for DominatorTotalScalarGvnRule {
     fn contract(&self) -> OptimizationRuleContract {

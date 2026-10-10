@@ -10,17 +10,13 @@ use semantic_vocabulary::{IntegerType, OperationId, ValueId};
 use crate::rules::proof_check_elision::identity_rewrite::propose_proof_certified_integer_constants;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct LiveProofCertifiedExactIntegerSelfSubtractEliminationRule;
-
-impl LiveProofCertifiedExactIntegerSelfSubtractEliminationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        super::proof_check_elision_rule_contract(
-            b"omega.psi-rule.live-proof-certified-exact-integer-self-subtract-elimination.v1",
-            AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-        )
-    }
-}
+psi_rule_contract!(
+    LiveProofCertifiedExactIntegerSelfSubtractEliminationRule,
+    super::proof_check_elision_rule_contract(
+                b"omega.psi-rule.live-proof-certified-exact-integer-self-subtract-elimination.v1",
+                AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+            ),
+);
 
 psi_optimization_rule_delegate!(
     LiveProofCertifiedExactIntegerSelfSubtractEliminationRule,

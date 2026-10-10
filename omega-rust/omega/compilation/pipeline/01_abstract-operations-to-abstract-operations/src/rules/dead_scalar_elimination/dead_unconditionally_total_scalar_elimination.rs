@@ -13,27 +13,23 @@ use crate::rules::DEAD_PURE_SCALAR_PASS_NAME;
 use crate::rules::node_elision::{DeadScalarShape, propose_unproved_dead_scalar_nodes};
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct DeadUnconditionallyTotalScalarEliminationRule;
-
-impl DeadUnconditionallyTotalScalarEliminationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.dead-unused-unconditionally-total-scalar-elimination.v1",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(DEAD_PURE_SCALAR_PASS_NAME),
-            1,
-            AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
-            AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-            OptimizationSafetyClass::ExactOperationSemantics,
-        )
-        .expect("built-in rule has nonzero version")
-    }
-}
+psi_rule_contract!(
+    DeadUnconditionallyTotalScalarEliminationRule,
+    OptimizationRuleContract::new(
+                OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.dead-unused-unconditionally-total-scalar-elimination.v1",
+                ),
+                OptimizationPassIdentity::from_canonical_bytes(DEAD_PURE_SCALAR_PASS_NAME),
+                1,
+                AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
+                AnalysisInvalidationSet::new([
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+                OptimizationSafetyClass::ExactOperationSemantics,
+            )
+            .expect("built-in rule has nonzero version"),
+);
 
 psi_optimization_rule_delegate!(
     DeadUnconditionallyTotalScalarEliminationRule,

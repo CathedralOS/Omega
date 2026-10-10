@@ -9,17 +9,13 @@ use semantic_vocabulary::ScalarType;
 use crate::rules::node_elision::{DeadScalarShape, propose_proof_certified_dead_scalar_nodes};
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct ProofCertifiedDeadScalarEliminationRule;
-
-impl ProofCertifiedDeadScalarEliminationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        super::proof_check_elision_rule_contract(
-            b"omega.psi-rule.dead-unused-proof-certified-scalar-elimination.v1",
-            AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
-        )
-    }
-}
+psi_rule_contract!(
+    ProofCertifiedDeadScalarEliminationRule,
+    super::proof_check_elision_rule_contract(
+                b"omega.psi-rule.dead-unused-proof-certified-scalar-elimination.v1",
+                AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
+            ),
+);
 
 psi_optimization_rule_delegate!(
     ProofCertifiedDeadScalarEliminationRule,

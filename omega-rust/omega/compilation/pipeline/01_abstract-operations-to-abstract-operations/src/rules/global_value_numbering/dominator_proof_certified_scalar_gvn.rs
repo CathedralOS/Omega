@@ -8,17 +8,13 @@ use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::global_value_numbering::dominating_contract;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct DominatorProofCertifiedScalarGvnRule;
-
-impl DominatorProofCertifiedScalarGvnRule {
-    pub fn contract() -> OptimizationRuleContract {
-        dominating_contract(
-            b"omega.psi-rule.dominator-proof-certified-total-scalar-gvn.v1",
-            OptimizationSafetyClass::ProofCertified,
-        )
-    }
-}
+psi_rule_contract!(
+    DominatorProofCertifiedScalarGvnRule,
+    dominating_contract(
+                b"omega.psi-rule.dominator-proof-certified-total-scalar-gvn.v1",
+                OptimizationSafetyClass::ProofCertified,
+            ),
+);
 
 impl PsiOptimizationRule for DominatorProofCertifiedScalarGvnRule {
     fn contract(&self) -> OptimizationRuleContract {

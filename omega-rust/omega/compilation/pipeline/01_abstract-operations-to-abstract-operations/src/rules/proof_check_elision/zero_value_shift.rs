@@ -48,21 +48,17 @@ fn proof_certified_exact_integer_zero_value_shift_shapes(
     )]
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule;
-
-impl LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        super::proof_check_elision_rule_contract(
-            b"omega.psi-rule.live-proof-certified-exact-integer-zero-value-shift-elimination.v1",
-            AnalysisSet::new([
-                AnalysisKind::ScalarConstants,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-        )
-    }
-}
+psi_rule_contract!(
+    LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,
+    super::proof_check_elision_rule_contract(
+                b"omega.psi-rule.live-proof-certified-exact-integer-zero-value-shift-elimination.v1",
+                AnalysisSet::new([
+                    AnalysisKind::ScalarConstants,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+            ),
+);
 
 psi_optimization_rule_delegate!(
     LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,

@@ -18,29 +18,25 @@ use crate::{
     AnalysisProduct, CallGraphAnalysis, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
 };
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct UnreachablePrivateMachinePruneRule;
-
-impl UnreachablePrivateMachinePruneRule {
-    pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.unreachable-private-machine-pruning.v1",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            1,
-            AnalysisSet::new([AnalysisKind::CallGraph]),
-            AnalysisInvalidationSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::CallGraph,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-            OptimizationSafetyClass::StructuralIdentity,
-        )
-        .expect("built-in rule has nonzero version")
-    }
-}
+psi_rule_contract!(
+    UnreachablePrivateMachinePruneRule,
+    OptimizationRuleContract::new(
+                OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.unreachable-private-machine-pruning.v1",
+                ),
+                OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
+                1,
+                AnalysisSet::new([AnalysisKind::CallGraph]),
+                AnalysisInvalidationSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::CallGraph,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+                OptimizationSafetyClass::StructuralIdentity,
+            )
+            .expect("built-in rule has nonzero version"),
+);
 
 impl PsiOptimizationRule for UnreachablePrivateMachinePruneRule {
     fn contract(&self) -> OptimizationRuleContract {

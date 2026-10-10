@@ -9,25 +9,21 @@ use crate::{
     representation_specialization,
 };
 
-/// Folds a `StructuralCaseMembership` observation to a `BooleanConstant`
-/// carrying the verdict the unit itself proves: an `EstablishCase`
-/// producer on the observed operation-result place, or a declared closed
-/// `Sum`/`Mixed` roster of exactly one case at the position the
-/// observation's path resolves to. Each folded node keeps its operation
-/// custody identity, result value, successors, definitions, uses, ownership
-/// events, and fuel settlement; only the operation and the recomputed unit
-/// identity differ. Machines holding an authenticated cyclic component stay
-/// frozen.
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct CaseMembershipSpecializationRule;
-
-impl CaseMembershipSpecializationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        crate::rules::representation_specialization_contract(
-            b"omega.psi-rule.case-membership-specialization.v1",
-        )
-    }
-}
+psi_rule_contract!(
+    /// Folds a `StructuralCaseMembership` observation to a `BooleanConstant`
+    /// carrying the verdict the unit itself proves: an `EstablishCase`
+    /// producer on the observed operation-result place, or a declared closed
+    /// `Sum`/`Mixed` roster of exactly one case at the position the
+    /// observation's path resolves to. Each folded node keeps its operation
+    /// custody identity, result value, successors, definitions, uses, ownership
+    /// events, and fuel settlement; only the operation and the recomputed unit
+    /// identity differ. Machines holding an authenticated cyclic component stay
+    /// frozen.
+CaseMembershipSpecializationRule,
+    crate::rules::representation_specialization_contract(
+                b"omega.psi-rule.case-membership-specialization.v1",
+            ),
+);
 
 impl PsiOptimizationRule for CaseMembershipSpecializationRule {
     fn contract(&self) -> OptimizationRuleContract {

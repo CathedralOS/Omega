@@ -38,21 +38,17 @@ fn proof_certified_exact_signed_integer_negative_one_shift_right_shapes(
     )]
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule;
-
-impl LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        super::proof_check_elision_rule_contract(
-            b"omega.psi-rule.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1",
-            AnalysisSet::new([
-                AnalysisKind::ScalarConstants,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-        )
-    }
-}
+psi_rule_contract!(
+    LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule,
+    super::proof_check_elision_rule_contract(
+                b"omega.psi-rule.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1",
+                AnalysisSet::new([
+                    AnalysisKind::ScalarConstants,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+            ),
+);
 
 impl PsiOptimizationRule
     for LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule

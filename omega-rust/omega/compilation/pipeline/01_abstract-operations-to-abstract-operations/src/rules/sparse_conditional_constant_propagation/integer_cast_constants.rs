@@ -16,17 +16,13 @@ use crate::rules::sparse_conditional_constant_propagation::{
 };
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct ExactIntegerCastConstantsRule;
-
-impl ExactIntegerCastConstantsRule {
-    pub fn contract() -> OptimizationRuleContract {
-        constant_evaluation_contract(
-            b"omega.psi-rule.exact-integer-cast-constants.v1",
-            OptimizationSafetyClass::ProofCertified,
-        )
-    }
-}
+psi_rule_contract!(
+    ExactIntegerCastConstantsRule,
+    constant_evaluation_contract(
+                b"omega.psi-rule.exact-integer-cast-constants.v1",
+                OptimizationSafetyClass::ProofCertified,
+            ),
+);
 
 psi_optimization_rule_delegate!(
     ExactIntegerCastConstantsRule,

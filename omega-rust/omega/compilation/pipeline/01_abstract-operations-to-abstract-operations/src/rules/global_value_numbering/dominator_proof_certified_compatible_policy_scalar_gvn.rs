@@ -12,17 +12,13 @@ use crate::rules::global_value_numbering::dominating_contract;
 use crate::rules::node_elision::node_elision_accounting;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct DominatorProofCertifiedCompatiblePolicyScalarGvnRule;
-
-impl DominatorProofCertifiedCompatiblePolicyScalarGvnRule {
-    pub fn contract() -> OptimizationRuleContract {
-        dominating_contract(
-            b"omega.psi-rule.dominator-proof-certified-compatible-policy-scalar-gvn.v1",
-            OptimizationSafetyClass::ProofCertified,
-        )
-    }
-}
+psi_rule_contract!(
+    DominatorProofCertifiedCompatiblePolicyScalarGvnRule,
+    dominating_contract(
+                b"omega.psi-rule.dominator-proof-certified-compatible-policy-scalar-gvn.v1",
+                OptimizationSafetyClass::ProofCertified,
+            ),
+);
 
 impl PsiOptimizationRule for DominatorProofCertifiedCompatiblePolicyScalarGvnRule {
     fn contract(&self) -> OptimizationRuleContract {

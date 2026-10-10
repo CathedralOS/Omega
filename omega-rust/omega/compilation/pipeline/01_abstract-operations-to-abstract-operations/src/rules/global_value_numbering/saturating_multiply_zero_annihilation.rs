@@ -11,16 +11,12 @@ use crate::rules::global_value_numbering::total_scalar_identities::{
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct SaturatingMultiplyZeroAnnihilationRule;
-
-impl SaturatingMultiplyZeroAnnihilationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        exact_total_scalar_identity(
-            b"omega.psi-rule.live-obligation-free-saturating-integer-multiply-zero-annihilation.v1",
-        )
-    }
-}
+psi_rule_contract!(
+    SaturatingMultiplyZeroAnnihilationRule,
+    exact_total_scalar_identity(
+                b"omega.psi-rule.live-obligation-free-saturating-integer-multiply-zero-annihilation.v1",
+            ),
+);
 
 psi_optimization_rule_delegate!(
     SaturatingMultiplyZeroAnnihilationRule,

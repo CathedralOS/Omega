@@ -17,32 +17,28 @@ use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct SharedJumpFusionRule;
-
-impl SharedJumpFusionRule {
-    pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.shared-terminal-jump-fusion.v2",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            2,
-            AnalysisSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::OwnershipFrontiers,
-                AnalysisKind::PostDominators,
-            ]),
-            AnalysisInvalidationSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-            OptimizationSafetyClass::StructuralIdentity,
-        )
-        .expect("built-in rule has nonzero version")
-    }
-}
+psi_rule_contract!(
+    SharedJumpFusionRule,
+    OptimizationRuleContract::new(
+                OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.shared-terminal-jump-fusion.v2",
+                ),
+                OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
+                2,
+                AnalysisSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::OwnershipFrontiers,
+                    AnalysisKind::PostDominators,
+                ]),
+                AnalysisInvalidationSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+                OptimizationSafetyClass::StructuralIdentity,
+            )
+            .expect("built-in rule has nonzero version"),
+);
 
 impl PsiOptimizationRule for SharedJumpFusionRule {
     fn contract(&self) -> OptimizationRuleContract {

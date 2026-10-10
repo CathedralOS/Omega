@@ -11,16 +11,12 @@ use crate::rules::global_value_numbering::total_scalar_identities::{
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct WrappingNeutralArithmeticIdentityRule;
-
-impl WrappingNeutralArithmeticIdentityRule {
-    pub fn contract() -> OptimizationRuleContract {
-        exact_total_scalar_identity(
-            b"omega.psi-rule.live-obligation-free-wrapping-integer-neutral-arithmetic-identity-elimination.v1",
-        )
-    }
-}
+psi_rule_contract!(
+    WrappingNeutralArithmeticIdentityRule,
+    exact_total_scalar_identity(
+                b"omega.psi-rule.live-obligation-free-wrapping-integer-neutral-arithmetic-identity-elimination.v1",
+            ),
+);
 
 psi_optimization_rule_delegate!(
     WrappingNeutralArithmeticIdentityRule,

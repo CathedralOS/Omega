@@ -52,21 +52,17 @@ fn proof_certified_integer_divide_by_one_shapes(
     )]
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct LiveProofCertifiedIntegerDivideByOneEliminationRule;
-
-impl LiveProofCertifiedIntegerDivideByOneEliminationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        super::proof_check_elision_rule_contract(
-            b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1",
-            AnalysisSet::new([
-                AnalysisKind::ScalarConstants,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-        )
-    }
-}
+psi_rule_contract!(
+    LiveProofCertifiedIntegerDivideByOneEliminationRule,
+    super::proof_check_elision_rule_contract(
+                b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1",
+                AnalysisSet::new([
+                    AnalysisKind::ScalarConstants,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+            ),
+);
 
 psi_optimization_rule_delegate!(
     LiveProofCertifiedIntegerDivideByOneEliminationRule,

@@ -21,32 +21,28 @@ use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
 };
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct LinearEmptyBlockThreadRule;
-
-impl LinearEmptyBlockThreadRule {
-    pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.linear-empty-block-thread.v2",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            2,
-            AnalysisSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::OwnershipFrontiers,
-            ]),
-            AnalysisInvalidationSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-            OptimizationSafetyClass::StructuralIdentity,
-        )
-        .expect("built-in rule has nonzero version")
-    }
-}
+psi_rule_contract!(
+    LinearEmptyBlockThreadRule,
+    OptimizationRuleContract::new(
+                OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.linear-empty-block-thread.v2",
+                ),
+                OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
+                2,
+                AnalysisSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::OwnershipFrontiers,
+                ]),
+                AnalysisInvalidationSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+                OptimizationSafetyClass::StructuralIdentity,
+            )
+            .expect("built-in rule has nonzero version"),
+);
 
 impl PsiOptimizationRule for LinearEmptyBlockThreadRule {
     fn contract(&self) -> OptimizationRuleContract {

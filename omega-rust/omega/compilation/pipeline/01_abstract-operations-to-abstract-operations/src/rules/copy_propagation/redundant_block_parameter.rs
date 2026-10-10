@@ -16,31 +16,27 @@ use crate::rules::COPY_PROPAGATION_PASS_NAME;
 use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct RedundantBlockParameterRule;
-
-impl RedundantBlockParameterRule {
-    pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.redundant-block-parameter.v1",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(COPY_PROPAGATION_PASS_NAME),
-            1,
-            AnalysisSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::Dominators,
-                AnalysisKind::UseDefinition,
-            ]),
-            AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-            OptimizationSafetyClass::StructuralIdentity,
-        )
-        .expect("built-in rule has nonzero version")
-    }
-}
+psi_rule_contract!(
+    RedundantBlockParameterRule,
+    OptimizationRuleContract::new(
+                OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.redundant-block-parameter.v1",
+                ),
+                OptimizationPassIdentity::from_canonical_bytes(COPY_PROPAGATION_PASS_NAME),
+                1,
+                AnalysisSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::Dominators,
+                    AnalysisKind::UseDefinition,
+                ]),
+                AnalysisInvalidationSet::new([
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+                OptimizationSafetyClass::StructuralIdentity,
+            )
+            .expect("built-in rule has nonzero version"),
+);
 
 psi_optimization_rule_delegate!(
     RedundantBlockParameterRule,

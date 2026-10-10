@@ -53,21 +53,17 @@ fn proof_certified_integer_zero_dividend_shapes(
     )]
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct LiveProofCertifiedIntegerZeroDividendEliminationRule;
-
-impl LiveProofCertifiedIntegerZeroDividendEliminationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        super::proof_check_elision_rule_contract(
-            b"omega.psi-rule.live-proof-certified-integer-zero-dividend-elimination.v1",
-            AnalysisSet::new([
-                AnalysisKind::ScalarConstants,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-        )
-    }
-}
+psi_rule_contract!(
+    LiveProofCertifiedIntegerZeroDividendEliminationRule,
+    super::proof_check_elision_rule_contract(
+                b"omega.psi-rule.live-proof-certified-integer-zero-dividend-elimination.v1",
+                AnalysisSet::new([
+                    AnalysisKind::ScalarConstants,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+            ),
+);
 
 psi_optimization_rule_delegate!(
     LiveProofCertifiedIntegerZeroDividendEliminationRule,

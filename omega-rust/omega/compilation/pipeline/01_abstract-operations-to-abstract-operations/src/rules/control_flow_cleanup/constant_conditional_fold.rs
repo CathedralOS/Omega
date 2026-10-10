@@ -18,32 +18,28 @@ use crate::rules::control_flow_cleanup::{provenance_proven_unreachable_at, prove
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct ConstantConditionalFoldRule;
-
-impl ConstantConditionalFoldRule {
-    pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.constant-conditional-fold.v5",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            5,
-            AnalysisSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::ScalarConstants,
-            ]),
-            AnalysisInvalidationSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::CallGraph,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-            OptimizationSafetyClass::ExactOperationSemantics,
-        )
-        .expect("built-in rule has nonzero version")
-    }
-}
+psi_rule_contract!(
+    ConstantConditionalFoldRule,
+    OptimizationRuleContract::new(
+                OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.constant-conditional-fold.v5",
+                ),
+                OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
+                5,
+                AnalysisSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::ScalarConstants,
+                ]),
+                AnalysisInvalidationSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::CallGraph,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+                OptimizationSafetyClass::ExactOperationSemantics,
+            )
+            .expect("built-in rule has nonzero version"),
+);
 
 impl PsiOptimizationRule for ConstantConditionalFoldRule {
     fn contract(&self) -> OptimizationRuleContract {

@@ -7,17 +7,13 @@ use super::expression_keys::total_scalar_expression;
 use crate::rules::global_value_numbering::same_block_contract;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct SameBlockTotalScalarCseRule;
-
-impl SameBlockTotalScalarCseRule {
-    pub fn contract() -> OptimizationRuleContract {
-        same_block_contract(
-            b"omega.psi-rule.same-block-obligation-free-total-scalar-cse.v1",
-            OptimizationSafetyClass::ExactOperationSemantics,
-        )
-    }
-}
+psi_rule_contract!(
+    SameBlockTotalScalarCseRule,
+    same_block_contract(
+                b"omega.psi-rule.same-block-obligation-free-total-scalar-cse.v1",
+                OptimizationSafetyClass::ExactOperationSemantics,
+            ),
+);
 
 impl PsiOptimizationRule for SameBlockTotalScalarCseRule {
     fn contract(&self) -> OptimizationRuleContract {

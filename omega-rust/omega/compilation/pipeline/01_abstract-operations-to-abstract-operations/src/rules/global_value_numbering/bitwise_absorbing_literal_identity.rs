@@ -12,16 +12,12 @@ use crate::rules::global_value_numbering::total_scalar_identities::{
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct BitwiseAbsorbingLiteralIdentityRule;
-
-impl BitwiseAbsorbingLiteralIdentityRule {
-    pub fn contract() -> OptimizationRuleContract {
-        exact_total_scalar_identity(
-            b"omega.psi-rule.live-obligation-free-integer-bitwise-absorbing-literal-elimination.v1",
-        )
-    }
-}
+psi_rule_contract!(
+    BitwiseAbsorbingLiteralIdentityRule,
+    exact_total_scalar_identity(
+                b"omega.psi-rule.live-obligation-free-integer-bitwise-absorbing-literal-elimination.v1",
+            ),
+);
 
 psi_optimization_rule_delegate!(
     BitwiseAbsorbingLiteralIdentityRule,

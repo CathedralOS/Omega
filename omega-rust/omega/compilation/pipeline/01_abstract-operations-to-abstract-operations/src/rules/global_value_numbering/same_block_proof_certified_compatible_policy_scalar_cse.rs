@@ -15,17 +15,13 @@ use crate::rules::global_value_numbering::same_block_contract;
 use crate::rules::node_elision::node_elision_accounting;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct SameBlockProofCertifiedCompatiblePolicyScalarCseRule;
-
-impl SameBlockProofCertifiedCompatiblePolicyScalarCseRule {
-    pub fn contract() -> OptimizationRuleContract {
-        same_block_contract(
-            b"omega.psi-rule.same-block-proof-certified-compatible-policy-scalar-cse.v1",
-            OptimizationSafetyClass::ProofCertified,
-        )
-    }
-}
+psi_rule_contract!(
+    SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
+    same_block_contract(
+                b"omega.psi-rule.same-block-proof-certified-compatible-policy-scalar-cse.v1",
+                OptimizationSafetyClass::ProofCertified,
+            ),
+);
 
 impl PsiOptimizationRule for SameBlockProofCertifiedCompatiblePolicyScalarCseRule {
     fn contract(&self) -> OptimizationRuleContract {

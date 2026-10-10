@@ -12,47 +12,43 @@ use crate::{
     AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError, state_specialization,
 };
 
-/// Binds the proven constant on an incoming edge — an unconditional `Jump`
-/// successor or one arm of a `Conditional` predecessor — to a
-/// `Conditional`-terminated dispatch block's parameter and fuses the resolved
-/// arm, keeping both edges' provenance and fuel settlements on the fused
-/// traversal. The condition reads the parameter directly (a Boolean
-/// argument) or through an in-block `parameter CMP literal` integer
-/// comparison against a pure scalar-constant prefix (an integer argument).
-/// Machines holding an authenticated cyclic component stay frozen.
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct StateArgumentSpecializationRule;
-
-impl StateArgumentSpecializationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.state-argument-specialization.v1",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(STATE_SPECIALIZATION_PASS_NAME),
-            1,
-            AnalysisSet::new([
-                AnalysisKind::ScalarConstants,
-                AnalysisKind::StronglyConnectedComponents,
-            ]),
-            AnalysisInvalidationSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::Dominators,
-                AnalysisKind::PostDominators,
-                AnalysisKind::LoopForest,
-                AnalysisKind::StronglyConnectedComponents,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::ExecutableEdges,
-                AnalysisKind::ScalarConstants,
-                AnalysisKind::ValueRanges,
-                AnalysisKind::EffectSummaries,
-                AnalysisKind::ValueLiveness,
-            ]),
-            OptimizationSafetyClass::StructuralIdentity,
-        )
-        .expect("built-in rule has nonzero version")
-    }
-}
+psi_rule_contract!(
+    /// Binds the proven constant on an incoming edge — an unconditional `Jump`
+    /// successor or one arm of a `Conditional` predecessor — to a
+    /// `Conditional`-terminated dispatch block's parameter and fuses the resolved
+    /// arm, keeping both edges' provenance and fuel settlements on the fused
+    /// traversal. The condition reads the parameter directly (a Boolean
+    /// argument) or through an in-block `parameter CMP literal` integer
+    /// comparison against a pure scalar-constant prefix (an integer argument).
+    /// Machines holding an authenticated cyclic component stay frozen.
+StateArgumentSpecializationRule,
+    OptimizationRuleContract::new(
+                OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.state-argument-specialization.v1",
+                ),
+                OptimizationPassIdentity::from_canonical_bytes(STATE_SPECIALIZATION_PASS_NAME),
+                1,
+                AnalysisSet::new([
+                    AnalysisKind::ScalarConstants,
+                    AnalysisKind::StronglyConnectedComponents,
+                ]),
+                AnalysisInvalidationSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::Dominators,
+                    AnalysisKind::PostDominators,
+                    AnalysisKind::LoopForest,
+                    AnalysisKind::StronglyConnectedComponents,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::ExecutableEdges,
+                    AnalysisKind::ScalarConstants,
+                    AnalysisKind::ValueRanges,
+                    AnalysisKind::EffectSummaries,
+                    AnalysisKind::ValueLiveness,
+                ]),
+                OptimizationSafetyClass::StructuralIdentity,
+            )
+            .expect("built-in rule has nonzero version"),
+);
 
 impl PsiOptimizationRule for StateArgumentSpecializationRule {
     fn contract(&self) -> OptimizationRuleContract {

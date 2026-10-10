@@ -14,17 +14,13 @@ use crate::rules::global_value_numbering::phi_translated_accounting::collect_phi
 use crate::rules::global_value_numbering::phi_translated_contract;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule;
-
-impl PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule {
-    pub fn contract() -> OptimizationRuleContract {
-        phi_translated_contract(
-            b"omega.psi-rule.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1",
-            OptimizationSafetyClass::ProofCertified,
-        )
-    }
-}
+psi_rule_contract!(
+    PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
+    phi_translated_contract(
+                b"omega.psi-rule.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1",
+                OptimizationSafetyClass::ProofCertified,
+            ),
+);
 
 impl PsiOptimizationRule for PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule {
     fn contract(&self) -> OptimizationRuleContract {
