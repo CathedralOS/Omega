@@ -13,7 +13,7 @@
 //! - local data lowers its written type with
 //!   `lower_type_reference_handle_from_table`. An inferred local whose
 //!   declared type is the `Unit` sentinel, and whose initializer is not a
-//!   place marker, first asks `hoist_temp_type` for a type derived from its
+//!   pattern marker, first asks `hoist_temp_type` for a type derived from its
 //!   initializer.
 
 mod arguments;
@@ -112,29 +112,13 @@ pub(crate) fn lower_statement_node(
             // Resolution retains whether the binding had an annotation. A
             // source-authored `()` is not an inference sentinel; destructured
             // and proof-output bindings may have authored names but no type.
-            // A pattern marker that names a place (`let __destructure#x#y =
-            // self.pair;`, `__arm_destructure#V=.. = self.read`) carries
-            // compile-time facts about that place, not a runtime local:
-            // typing it as the place's type would read as a move out of it.
-            // It keeps the sentinel while the per-field locals it accompanies
-            // are inferred. A marker capturing a computed subject
-            // (`__transition_subject#.. = self.make()`) is real storage and
-            // is typed like any temp. `#` never occurs in an authored name.
-            let is_place_marker = local_data.name.as_str().contains('#')
-                && matches!(
-                    lowerer
-                        .source_trees
-                        .tables
-                        .bodies
-                        .expressions
-                        .expression(local_data.initial_value),
-                    resolved::expression::ExpressionNode::Member(_)
-                        | resolved::expression::ExpressionNode::Name(_)
-                );
+            // Pattern coverage is metadata about a place, not a snapshot that
+            // moves it. Parsing retains that role across copies; computed
+            // subject captures and per-field bindings remain ordinary values.
             let type_reference = if declared_is_unit
                 && local_data.initial_value.is_valid()
                 && local_data.type_is_inferred
-                && !is_place_marker
+                && local_data.role == language_core::LocalBindingRole::Value
             {
                 infer_hoist_temp_type(lowerer, attached_data, state, local_data.initial_value)?
             } else {
@@ -146,6 +130,7 @@ pub(crate) fn lower_statement_node(
             };
             Ok(typed::statement::StatementNode::LocalData(
                 typed::statement::TableLocalData {
+                    role: local_data.role,
                     symbol: local_data.symbol,
                     name: crate::lowerer::name::lower_name(&local_data.name),
                     type_reference,

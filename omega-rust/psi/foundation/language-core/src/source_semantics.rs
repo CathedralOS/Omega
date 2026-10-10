@@ -7,6 +7,17 @@ pub mod contract_result;
 pub mod place_root;
 pub mod receiver_binding;
 
+/// The parser's purpose for a local, independent of its diagnostic name and
+/// relevance. Pattern markers retain coverage metadata but do not capture an
+/// owned runtime value; their per-field bindings are ordinary values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LocalBindingRole {
+    #[default]
+    Value,
+    RecordPattern,
+    ArmPattern,
+}
+
 /// First-class usage multiplicity. `[copy]` maps to `Unrestricted`, ordinary
 /// data defaults to `Affine`, and `[linear]` maps to `Linear`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]

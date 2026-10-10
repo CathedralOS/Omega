@@ -222,6 +222,7 @@ pub struct TableCall {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TableLocalData {
+    pub role: language_core::LocalBindingRole,
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub initial_value: crate::expression::ExpressionHandle,

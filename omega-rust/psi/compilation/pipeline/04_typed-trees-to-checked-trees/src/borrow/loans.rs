@@ -169,6 +169,7 @@ pub(crate) fn returned_value_loans(
         })
         .collect();
     let returned_value = checked_trees::statement::TableLocalData {
+        role: language_core::LocalBindingRole::Value,
         symbol: state.symbol,
         name: state.name.clone(),
         type_reference: state.return_type,
@@ -299,6 +300,7 @@ fn assignment_borrow_loans(
         return Vec::new();
     }
     let synthetic_local = checked_trees::statement::TableLocalData {
+        role: language_core::LocalBindingRole::Value,
         symbol: target.root_symbol,
         name: owner_name.clone(),
         type_reference: target_type,

@@ -3102,8 +3102,12 @@ of a check the same flow already performed, not the check itself.
   `omega run tests/omega/pass/generics/runtime_inherited_composite_requirement_exit/main.omg`
   and conflicting-mutation/distinct-region controls in that qualification;
   the bounded operator, algebra-law and returned-loan cohort does not replace it.
-  The std-dependent setter and const-container gates also depend on
-  **PSI-TARGET-FAMILIES** under **PIPELINE-ARCHITECTURE-ENFORCEMENT**.
+  Full check qualification remains red on macOS arm64 at `d749f2f8697`
+  (`python3 tools/corpus_gate.py`): the dominant positive-fixture refusal is
+  the portable Console target-family contract. Attribute remaining non-family
+  moves before claiming qualification; do not repin these refusals. The
+  std-dependent setter and const-container gates share the
+  **PSI-TARGET-FAMILIES** dependency under **PIPELINE-ARCHITECTURE-ENFORCEMENT**.
   Tuple bounds use the actual binding declaration, not an authored trait
   requirement. Only live private-graph roots own admission work. Universal
   template commitments use the retained authored graph, never a concrete

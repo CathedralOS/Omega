@@ -167,6 +167,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     for (name, initial_value) in subject_captures {
         let capture = syntax_trees.statements.insert(StatementNode::LocalData(
             syntax_trees::statement::TableLocalData {
+                role: language_core::LocalBindingRole::Value,
                 name,
                 type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
                 initial_value,
@@ -186,6 +187,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     for (marker_name, subject_place) in pattern_markers {
         let marker = syntax_trees.statements.insert(StatementNode::LocalData(
             syntax_trees::statement::TableLocalData {
+                role: language_core::LocalBindingRole::ArmPattern,
                 name: syntax_trees::identifier::Identifier::generated(marker_name),
                 type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
                 initial_value: subject_place,

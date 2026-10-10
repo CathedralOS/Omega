@@ -212,6 +212,7 @@ impl SyntaxCopy<'_> {
                 StatementNode::Expression(self.copy_expression_handle(other, *value))
             }
             StatementNode::LocalData(local_data) => StatementNode::LocalData(TableLocalData {
+                role: local_data.role,
                 name: local_data.name.clone(),
                 type_reference: self.copy_type_reference_handle(other, local_data.type_reference),
                 initial_value: self.copy_expression_handle(other, local_data.initial_value),

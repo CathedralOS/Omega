@@ -212,7 +212,7 @@ pub fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
     matches!(
         statement,
         StatementNode::LocalData(local)
-            if local.name.as_str().starts_with("__arm_destructure#")
+            if local.role == language_core::LocalBindingRole::ArmPattern
     )
 }
 

@@ -41,6 +41,7 @@ pub(crate) fn lower_local_declaration(
         symbol: SymbolHandle::invalid(),
         name: crate::lowering::name::lower_name(&local.name),
         storage: LocalDataStorage {
+            role: local.role,
             type_reference,
             initial_value: symbol_resolved_trees::expression::ExpressionHandle::invalid(),
             is_mutable: local.is_mutable,

@@ -261,6 +261,7 @@ impl StatementTable {
                         target_expressions.copy_from(source_expressions, local.initial_value)
                     });
                     StatementNode::LocalData(TableLocalData {
+                        role: local.role,
                         symbol: local.symbol,
                         name: local.name.clone(),
                         type_reference: type_reference
@@ -791,6 +792,7 @@ pub struct TableCall {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableLocalData {
+    pub role: language_core::LocalBindingRole,
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -808,6 +810,7 @@ pub struct TableLocalData {
 impl Default for TableLocalData {
     fn default() -> Self {
         Self {
+            role: language_core::LocalBindingRole::Value,
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             type_reference: crate::types::TypeReferenceHandle::invalid(),

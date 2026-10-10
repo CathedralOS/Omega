@@ -241,7 +241,9 @@ fn push_once(diagnostics: &mut Vec<Diagnostic>, message: String) {
 fn is_operational(statement: &StatementNode) -> bool {
     match statement {
         StatementNode::AssemblyFact(_) => false,
-        StatementNode::LocalData(local) => !local.name.as_str().starts_with("__arm_destructure#"),
+        StatementNode::LocalData(local) => {
+            local.role != language_core::LocalBindingRole::ArmPattern
+        }
         _ => true,
     }
 }

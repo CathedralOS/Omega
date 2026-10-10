@@ -119,6 +119,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
     let marker = syntax_trees
         .statements
         .insert(StatementNode::LocalData(TableLocalData {
+            role: language_core::LocalBindingRole::RecordPattern,
             name: syntax_trees::identifier::Identifier::generated(marker_name),
             type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
             initial_value: value,
@@ -143,6 +144,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
         let statement = syntax_trees
             .statements
             .insert(StatementNode::LocalData(TableLocalData {
+                role: language_core::LocalBindingRole::Value,
                 name: binding,
                 type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
                 initial_value: member,

@@ -298,6 +298,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
         );
         program.statement_table.statements_mut(statements)[index] =
             StatementNode::LocalData(TableLocalData {
+                role: language_core::LocalBindingRole::Value,
                 symbol,
                 name: typed_trees::name::Identifier::generated(generated_name),
                 type_reference,

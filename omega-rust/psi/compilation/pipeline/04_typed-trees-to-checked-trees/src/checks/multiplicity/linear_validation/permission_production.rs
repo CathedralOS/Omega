@@ -37,7 +37,7 @@ pub(crate) fn apply_statement_permission_production(
 ) -> Result<Vec<StorageEstablishment>, diagnostics::Diagnostic> {
     // Destructure coverage markers are proof-only reads synthesized by the
     // parser; they neither transfer a value nor establish user storage.
-    if matches!(statement, StatementNode::LocalData(local) if local.name.as_str().starts_with("__arm_destructure#"))
+    if matches!(statement, StatementNode::LocalData(local) if local.role == language_core::LocalBindingRole::ArmPattern)
     {
         return Ok(Vec::new());
     }

@@ -140,6 +140,7 @@ pub(crate) fn parse_local_data<'tokens, 'source>(
 
     Ok((
         TableLocalData {
+            role: language_core::LocalBindingRole::Value,
             name,
             type_reference,
             initial_value,

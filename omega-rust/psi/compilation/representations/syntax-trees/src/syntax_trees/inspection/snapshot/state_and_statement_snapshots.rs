@@ -104,6 +104,7 @@ pub enum StatementSnapshot {
         value: ExpressionSnapshot,
     },
     LocalData {
+        role: String,
         name: IdentifierSnapshot,
         type_reference: TypeReferenceSnapshot,
         initial_value: ExpressionSnapshot,
@@ -341,6 +342,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
             value: snapshot_expression_handle(syntax_trees, *value),
         },
         StatementNode::LocalData(value) => StatementSnapshot::LocalData {
+            role: format!("{:?}", value.role),
             name: snapshot_identifier(&value.name),
             type_reference: snapshot_type_reference_handle(syntax_trees, value.type_reference),
             initial_value: snapshot_expression_handle(syntax_trees, value.initial_value),

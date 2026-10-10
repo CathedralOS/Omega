@@ -118,6 +118,7 @@ pub struct LocalData {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LocalDataStorage {
+    pub role: language_core::LocalBindingRole,
     pub type_reference: crate::types::TypeReference,
     pub initial_value: crate::expression::ExpressionHandle,
     /// `let mut` -- see the syntax-tree twin.
@@ -532,6 +533,7 @@ impl StatementTable {
                     crate::expression::ExpressionHandle::invalid()
                 };
                 self.insert(StatementNode::LocalData(TableLocalData {
+                    role: local_data.role,
                     symbol: local_data.symbol,
                     name: local_data.name.clone(),
                     type_reference,
@@ -744,6 +746,7 @@ pub struct TableCall {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TableLocalData {
+    pub role: language_core::LocalBindingRole,
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub type_reference: crate::types::TypeReferenceHandle,

@@ -149,14 +149,14 @@ fn erased_alias_locals(
 /// pattern's bindings are its per-field locals, each an ordinary re-read of
 /// the same place, so the marker declares no storage and plans no operation.
 fn is_record_pattern_marker(local: &typed_trees::statement::TableLocalData) -> bool {
-    local.name.as_str().starts_with("__destructure#")
+    local.role == language_core::LocalBindingRole::RecordPattern
 }
 
 /// A case arm's payload marker (`let __arm_destructure#V=..`) precedes that
 /// arm's transition; the arm, not the sequence, binds its fields.
 fn is_arm_destructure_marker(statement: &StatementNode) -> bool {
     matches!(statement, StatementNode::LocalData(local)
-        if local.name.as_str().starts_with("__arm_destructure#V="))
+        if local.role == language_core::LocalBindingRole::ArmPattern)
 }
 
 /// The machine an assignment's right-hand side calls, when it is a direct call.
@@ -770,8 +770,7 @@ fn scalar_computation_local_at(
 )> {
     let role = CheckedScalarExpressionRole::LocalInitializer { binding_ordinal };
     let computations = &facts.values.scalar_computations;
-    let mut roots =
-        computations.roots_for_statement_role(state.symbol, statement_index, role);
+    let mut roots = computations.roots_for_statement_role(state.symbol, statement_index, role);
     let Some(root) = roots.next() else {
         trace.phase("statement sequence: local data: scalar local: pure initializer");
         trace.statement(Some(statement_index));

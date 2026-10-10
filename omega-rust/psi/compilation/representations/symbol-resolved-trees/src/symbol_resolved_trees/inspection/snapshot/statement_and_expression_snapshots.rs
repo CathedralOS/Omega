@@ -67,6 +67,7 @@ pub enum StatementSnapshot {
         value: ExpressionSnapshot,
     },
     LocalData {
+        role: String,
         name: String,
         type_reference: TypeReferenceSnapshot,
         initial_value: Option<ExpressionSnapshot>,
@@ -293,6 +294,7 @@ pub(crate) fn statement_snapshot(
             value: statement_expression_snapshot(program, *expression),
         },
         Statement::LocalData(local_data) => StatementSnapshot::LocalData {
+            role: format!("{:?}", local_data.role),
             name: local_data.name.to_string(),
             type_reference: type_reference_snapshot(program, &local_data.type_reference),
             type_is_inferred: local_data.type_is_inferred,

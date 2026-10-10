@@ -1,10 +1,18 @@
-//! Retype compiler-inferred temporaries from their exact selected call result.
+//! Settle compiler-inferred temporaries before their consumers select calls.
 //!
 //! A known static tuple need not be closed: forwarding caller binders already
 //! determines the result's scope. Use the original selection for that result;
 //! closedness controls executable specialization, not whether an inferred local
 //! may retain foreign callee binders. Checking consumes the resulting type and
 //! must not reconstruct the initializer to recover its lost substitutions.
+//!
+//! Resolved-tree normalization also captures computations before their result
+//! type is available. A remaining Unit sentinel is not the computation's type:
+//! read its existing result through the shared expression-type owner. Otherwise
+//! a captured cast, for example, hides its explicit carrier from operator
+//! selection. Preserve already-derived ranges and projection types; only call
+//! results must follow subsequent specialization. Pattern place markers carry
+//! proof bookkeeping, not owned snapshots, and retain their sentinel.
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -28,7 +36,7 @@ pub(super) fn refresh_generic_call_results(
                 let Some(local) = statement.as_local_data() else {
                     continue;
                 };
-                if !local.type_is_inferred {
+                if !local.type_is_inferred || local.role != language_core::LocalBindingRole::Value {
                     continue;
                 }
                 let Some(selection) = selections.iter().find(|selection| {
@@ -189,19 +197,44 @@ pub(super) fn refresh(program: &mut TypedTrees) -> Vec<SymbolHandle> {
             program
                 .machine_states(machine)
                 .iter()
-                .map(move |state| (machine.symbol, state.statement_nodes))
+                .map(move |state| (machine, state))
         })
         .collect::<Vec<_>>();
     let mut updates = Vec::new();
-    for (owner, body) in bodies {
+    for (machine, state) in bodies {
+        let owner = machine.symbol;
+        let body = state.statement_nodes;
         for (offset, statement) in program.statement_table.indexed_statements(body) {
             let Some(local) = statement.as_local_data() else {
                 continue;
             };
-            if !local.type_is_inferred {
+            if !local.type_is_inferred || local.role != language_core::LocalBindingRole::Value {
                 continue;
             }
             let Some(call) = program.expression_table.call_node(local.initial_value) else {
+                if !matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(local.type_reference),
+                    typed_trees::types::TypeReferenceNode::Unit
+                ) {
+                    continue;
+                }
+                if let Some(return_type) = validation::expression_result_type_reference(
+                    program,
+                    machine,
+                    state,
+                    local.initial_value,
+                ) {
+                    updates.push((
+                        owner,
+                        body,
+                        offset,
+                        SymbolHandle::invalid(),
+                        Vec::new(),
+                        return_type,
+                    ));
+                }
                 continue;
             };
             if call.target_symbol.is_valid()
