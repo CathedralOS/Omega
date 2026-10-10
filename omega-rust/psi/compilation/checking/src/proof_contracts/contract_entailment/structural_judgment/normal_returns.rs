@@ -106,7 +106,7 @@ impl<'program> StructuralJudge<'program> {
         ) {
             return value;
         }
-        for (left, right) in &self.normal_guarantees {
+        for (left, right) in &self.captured_result_equations {
             for (pattern, replacement) in [(left, right), (right, left)] {
                 if pattern == &value
                     && replacement != &value
@@ -769,6 +769,8 @@ impl<'program> StructuralJudge<'program> {
         }
         self.normal_results.push((expression, captured));
         for (left, right) in equations {
+            self.captured_result_equations
+                .push((left.clone(), right.clone()));
             self.normal_guarantees.push((left.clone(), right.clone()));
             self.intake_equation(left, right, 0);
         }

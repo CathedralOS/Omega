@@ -195,6 +195,9 @@ pub(super) struct StructuralJudge<'program> {
     normal_results: Vec<(ExpressionHandle, StructuralTerm)>,
     capture_sequence: usize,
     pub(super) normal_guarantees: Vec<(StructuralTerm, StructuralTerm)>,
+    // Producer identity comes only from the captured public result contract.
+    // Selected branch equalities remain ordinary normal-path proof facts.
+    captured_result_equations: Vec<(StructuralTerm, StructuralTerm)>,
     resolve_applications: bool,
     runtime_body_values: bool,
     case_facts_only: bool,
@@ -229,6 +232,7 @@ impl Clone for StructuralJudge<'_> {
             normal_results: self.normal_results.clone(),
             capture_sequence: self.capture_sequence,
             normal_guarantees: self.normal_guarantees.clone(),
+            captured_result_equations: self.captured_result_equations.clone(),
             resolve_applications: self.resolve_applications,
             runtime_body_values: self.runtime_body_values,
             case_facts_only: self.case_facts_only,
@@ -342,6 +346,7 @@ impl<'program> StructuralJudge<'program> {
             normal_results: Vec::new(),
             capture_sequence: 0,
             normal_guarantees: Vec::new(),
+            captured_result_equations: Vec::new(),
             resolve_applications,
             runtime_body_values: false,
             case_facts_only: false,
