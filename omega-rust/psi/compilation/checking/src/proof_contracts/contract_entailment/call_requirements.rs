@@ -202,7 +202,35 @@ fn structural_requirement_at_prefix(
                     )
                 })))
     {
+        if super::struct_trace() {
+            eprintln!(
+                "STRUCT runtime-prefix declined caller={} state={:?} goal={} premises={:?}",
+                machine.name,
+                state,
+                program.expression_table.display_name(expression),
+                requires
+                    .iter()
+                    .map(|fact| (
+                        program.expression_table.display_name(*fact),
+                        runtime_equality_fact(
+                            program,
+                            machine,
+                            if state_prefix { caller_state } else { entry },
+                            *fact
+                        )
+                    ))
+                    .collect::<Vec<_>>()
+            );
+        }
         return false;
+    }
+    if super::struct_trace() {
+        eprintln!(
+            "STRUCT runtime-prefix entered caller={} state={:?} statement={statement_index} goal={}",
+            machine.name,
+            state,
+            program.expression_table.display_name(expression)
+        );
     }
     let mut requirement = CallRequirement {
         state,
@@ -250,6 +278,16 @@ fn structural_requirement_at_prefix(
             Some(&mut requirement),
         )
     };
+    if super::struct_trace() {
+        eprintln!(
+            "STRUCT runtime-prefix completed caller={} recognized={} seen={} proven={} diagnostics={}",
+            machine.name,
+            recognized.is_some(),
+            requirement.seen,
+            requirement.proven,
+            diagnostics.len()
+        );
+    }
     recognized.is_some() && diagnostics.is_empty() && requirement.seen && requirement.proven
 }
 

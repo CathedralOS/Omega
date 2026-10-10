@@ -339,7 +339,14 @@ impl<'program> StructuralJudge<'program> {
         {
             let machine = program.machine(scope.0.symbol)?;
             let writes = crate::machine_calls::calls::CallFrameResolver::new(program)?
-                .expression_may_write_paths(machine, expression)?;
+                .expression_may_write_paths(machine, expression);
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT normal-write-frame caller={} expression={expression:?} writes={writes:?}",
+                    scope.0.name
+                );
+            }
+            let writes = writes?;
             // Case-only judging starts after the caller proved its whole
             // reachable body tag-preserving (scalar and atomic writes only),
             // so a write cannot change a tag it reads. Value judges refuse.
@@ -592,6 +599,12 @@ impl<'program> StructuralJudge<'program> {
             return;
         };
         let parameters = parameter_scope.as_ref();
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT normal-capture entry expression={expression:?} owner={:?} arguments={actuals:?}",
+                owner_symbol(&owner)
+            );
+        }
         if parameters.iter().any(|parameter| parameter.is_mutable) {
             return;
         }
@@ -699,10 +712,23 @@ impl<'program> StructuralJudge<'program> {
                     case: "true".to_owned(),
                     fields: Vec::new(),
                 };
-                if !matches!(
-                    self.judge_equation(self.resolve(required), truth, 0),
-                    StructuralJudgment::Proven
-                ) {
+                if super::super::struct_trace() {
+                    eprintln!(
+                        "STRUCT normal-capture requires expression={expression:?} required={required:?}"
+                    );
+                }
+                let judgment = self.judge_equation(self.resolve(required), truth, 0);
+                if super::super::struct_trace() {
+                    let verdict = match &judgment {
+                        StructuralJudgment::Proven => "proven",
+                        StructuralJudgment::Refuted => "refuted",
+                        StructuralJudgment::Unknown => "unknown",
+                    };
+                    eprintln!(
+                        "STRUCT normal-capture entry-verdict expression={expression:?} judgment={verdict}"
+                    );
+                }
+                if !matches!(judgment, StructuralJudgment::Proven) {
                     return;
                 }
             }
