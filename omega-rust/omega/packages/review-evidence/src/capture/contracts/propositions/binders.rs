@@ -65,7 +65,11 @@ pub(crate) fn project_proposition_binder_argument(
                     )
                     .ok_or_else(missing_exact_toolchain_type_owner)?;
                 PackageReviewPropositionBinderValue::Type(PackageReviewTypeIdentity {
-                    canonical: identity.into_string(),
+                    canonical: compilation
+                        .checking_input
+                        .typed_program()
+                        .type_identity_text(identity)
+                        .unwrap_or_default(),
                 })
             }
             typed_trees::proposition::PropositionBinderArgumentKind::Machine => {

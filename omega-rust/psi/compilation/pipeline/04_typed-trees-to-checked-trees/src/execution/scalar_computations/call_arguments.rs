@@ -245,7 +245,7 @@ impl Builder<'_, '_> {
                                         discards = Some(vec![checked_trees::CheckedUnitPartialAffineDiscardPlan {
                                             source: argument_plan.source.clone(),
                                             path: Vec::new(),
-                                            type_identity: self.program.normalized_type_identity(owner_type).into_string(),
+                                            type_identity: self.program.normalized_type_identity_text(owner_type),
                                             case_conditions: Default::default(),
                                         }]);
                                     }

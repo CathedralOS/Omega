@@ -97,9 +97,7 @@ pub(super) fn argument_type_reference(
                 ))
             })?;
             let value = CanonicalConstValue::new(
-                program
-                    .normalized_type_identity(declaration.declared_type)
-                    .into_string(),
+                program.normalized_type_identity_text(declaration.declared_type),
                 encoding,
                 "",
             );

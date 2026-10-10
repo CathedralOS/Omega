@@ -249,7 +249,7 @@ fn validate_nested_record_at_path(
             "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{path}` requires one authored ordinary projection record, but `{}` has type `{}`",
             program.symbols.display_path(conformance.symbol, "::"),
             canonical_path(custody, custody_field),
-            program.normalized_type_identity(custody_field.type_reference),
+            program.normalized_type_identity_text(custody_field.type_reference),
         )));
         return;
     };
@@ -365,6 +365,10 @@ fn validate_custody_leaf(
     let expected_type = program.normalized_type_identity(schema_field.type_reference);
     let actual_type = program.normalized_type_identity(custody_field.type_reference);
     if actual_type != expected_type {
+        let expected_type = program
+            .type_identity_text(expected_type)
+            .unwrap_or_default();
+        let actual_type = program.type_identity_text(actual_type).unwrap_or_default();
         diagnostics.push(Diagnostic::error(format!(
             "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
             program.symbols.display_path(conformance.symbol, "::"),
@@ -433,7 +437,7 @@ fn push_missing_custody_path(
     diagnostics.push(Diagnostic::error(format!(
         "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{}` and multiplicity {:?}, but `{}` omits canonical field path `{path}`",
         program.symbols.display_path(conformance.symbol, "::"),
-        program.normalized_type_identity(field.type_reference),
+        program.normalized_type_identity_text(field.type_reference),
         program.type_multiplicity(field.type_reference),
         custody.name,
     )));

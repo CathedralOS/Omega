@@ -183,17 +183,16 @@ pub(crate) fn specialize_operator_candidates(
                     .iter()
                     .map(|binding| {
                         source
-                            .normalized_type_identity(binding.expect("complete selected type"))
-                            .into_string()
+                            .normalized_type_identity_text(binding.expect("complete selected type"))
                     })
                     .collect(),
                 const_arguments: candidate
                     .const_bindings
                     .iter()
                     .map(|binding| {
-                        source
-                            .normalized_type_identity(binding.expect("complete selected const"))
-                            .into_string()
+                        source.normalized_type_identity_text(
+                            binding.expect("complete selected const"),
+                        )
                     })
                     .collect(),
                 machine_arguments: Vec::new(),
@@ -287,11 +286,9 @@ fn materialized_application(
             (
                 TypeParameterKind::Type,
                 ClosedOperatorApplicationArgument::Type { type_reference, .. },
-            ) => key.type_arguments.push(
-                program
-                    .normalized_type_identity(*type_reference)
-                    .into_string(),
-            ),
+            ) => key
+                .type_arguments
+                .push(program.normalized_type_identity_text(*type_reference)),
             (
                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
                 ClosedOperatorApplicationArgument::Const { value, .. },
@@ -300,7 +297,7 @@ fn materialized_application(
                     return false;
                 };
                 key.const_arguments
-                    .push(program.normalized_type_identity(reference).into_string());
+                    .push(program.normalized_type_identity_text(reference));
             }
             _ => return false,
         }

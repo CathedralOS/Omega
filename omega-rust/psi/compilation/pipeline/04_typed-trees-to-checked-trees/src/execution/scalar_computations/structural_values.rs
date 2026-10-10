@@ -424,10 +424,7 @@ impl Builder<'_, '_> {
             CheckedStructuralValueKind::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
                 source: self.structural_source(symbol),
                 path: Vec::new(),
-                type_identity: self
-                    .program
-                    .normalized_type_identity(expected)
-                    .into_string(),
+                type_identity: self.program.normalized_type_identity_text(expected),
                 access: checked_trees::CheckedStructuralAccess::Owned,
             })
         } else if let Some(borrowed) = self.borrowed_place(expression, expected) {

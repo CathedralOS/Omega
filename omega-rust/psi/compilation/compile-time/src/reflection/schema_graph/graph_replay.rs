@@ -372,8 +372,7 @@ pub(crate) fn check_subject_application(
             .generic_instance
             .map(|instance| {
                 typed
-                    .package_qualified_type_identity(instance)
-                    .into_string()
+                    .package_qualified_type_identity_text(instance)
             })
             .ok_or_else(|| {
                 format!(

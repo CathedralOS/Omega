@@ -270,7 +270,7 @@ fn checked_evidence_producer(
         .type_reference_table
         .type_reference_handles(conformance.arguments)
         .iter()
-        .map(|argument| program.normalized_type_identity(*argument).into_string())
+        .map(|argument| program.normalized_type_identity(*argument))
         .collect::<Vec<_>>();
     if evidence_trait.symbol != expected_interface.trait_symbol
         || arguments != expected_interface.arguments

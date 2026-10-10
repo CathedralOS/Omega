@@ -135,7 +135,10 @@ pub(super) fn derive(
     // empty dimensions; a zero byte count never excuses an invalid element.
     // Erased qualification establishment remains an independent installed
     // occurrence obligation; this correspondence supplies no Bound authority.
-    if structural_type.identity != owned_receiver_type_identity.as_str()
+    if structural_type.identity
+        != checked
+            .type_identity_text(owned_receiver_type_identity)
+            .unwrap_or_default()
         || !zero_valid_record_storage(
             checked,
             &module.structural_types,
@@ -175,10 +178,10 @@ pub(super) fn derive(
     }
     Some(
         CheckedProgramEntryReceiverEligibility::new(
+            checked.normalized_type_identity_text(receiver.type_reference),
             checked
-                .normalized_type_identity(receiver.type_reference)
-                .into_string(),
-            owned_receiver_type_identity.into_string(),
+                .type_identity_text(owned_receiver_type_identity)
+                .unwrap_or_default(),
             projection,
             terminal_receiver_type,
             fused_service_fields,
@@ -224,7 +227,7 @@ fn ordinary_context_terminal_position(
     let (position, parameter) = matching.next()?;
     if matching.next().is_some()
         || parameter.access != checked_trees::CheckedStructuralAccess::MutableBorrow
-        || parameter.type_identity != checked.normalized_type_identity(referent).as_str()
+        || parameter.type_identity != checked.normalized_type_identity_text(referent)
     {
         return None;
     }
@@ -517,9 +520,8 @@ fn zero_valid_node(
         return false;
     };
     let source = source_reference.and_then(|reference| {
-        source_record(checked, reference).filter(|_| {
-            declaration.identity == checked.normalized_type_identity(reference).into_string()
-        })
+        source_record(checked, reference)
+            .filter(|_| declaration.identity == checked.normalized_type_identity_text(reference))
     });
     visiting.push(structural_type);
     let valid = zero_valid_shape(
@@ -776,7 +778,9 @@ fn nullary_determined_evidence(
     let mut declarations = checked.data_definitions().iter().filter(|definition| {
         checked
             .normalized_nominal_type_identity(definition.symbol)
-            .is_some_and(|identity| identity.into_string() == type_identity)
+            .is_some_and(|identity| {
+                checked.type_identity_text(identity).unwrap_or_default() == type_identity
+            })
     });
     let Some(evidence) = declarations.next() else {
         return false;
@@ -874,7 +878,7 @@ fn zero_valid_byte_field(
         &checked.typed,
         reference,
         &[],
-        validation::ContentsRequirement::StableObservation
+        validation::ContentsRequirement::StableObservation,
     ) {
         return false;
     }

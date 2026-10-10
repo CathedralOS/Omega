@@ -314,11 +314,9 @@ pub(crate) fn lower_proof_term(
                 .type_reference_table
                 .find_named_type_reference(literal.type_symbol)
                 .map(|reference| {
-                    program
-                        .type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
-                            reference,
-                        ))
-                        .into_string()
+                    program.type_identity_request_text(
+                        typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
+                    )
                 })?;
             Some(CheckedProofTerm::Construction {
                 data_symbol: literal.type_symbol,

@@ -83,23 +83,15 @@ pub(crate) fn task_specialization_commitment(
     for parameter in requirement_parameters {
         strong.byte(u8::from(parameter.is_mutable));
         strong.byte(u8::from(parameter.is_const));
-        strong.string(
-            program
-                .type_identity(TypeIdentityRequest {
-                    binders: &requirement_binders,
-                    ..TypeIdentityRequest::package_qualified(parameter.type_reference)
-                })
-                .as_str(),
-        );
+        strong.string(&program.type_identity_request_text(TypeIdentityRequest {
+            binders: &requirement_binders,
+            ..TypeIdentityRequest::package_qualified(parameter.type_reference)
+        }));
     }
-    strong.string(
-        program
-            .type_identity(TypeIdentityRequest {
-                binders: &requirement_binders,
-                ..TypeIdentityRequest::package_qualified(requirement.return_type)
-            })
-            .as_str(),
-    );
+    strong.string(&program.type_identity_request_text(TypeIdentityRequest {
+        binders: &requirement_binders,
+        ..TypeIdentityRequest::package_qualified(requirement.return_type)
+    }));
     strong.byte(match selection.operation {
         TaskStartOperation::Start => 1,
         TaskStartOperation::TryStart => 2,
@@ -273,17 +265,9 @@ impl ExactSpecializationEncoder {
         for parameter in parameters {
             self.byte(u8::from(parameter.is_mutable));
             self.byte(u8::from(parameter.is_const));
-            self.string(
-                program
-                    .package_qualified_type_identity(parameter.type_reference)
-                    .as_str(),
-            );
+            self.string(&program.package_qualified_type_identity_text(parameter.type_reference));
         }
-        self.string(
-            program
-                .package_qualified_type_identity(state.return_type)
-                .as_str(),
-        );
+        self.string(&program.package_qualified_type_identity_text(state.return_type));
     }
 
     fn finish(self) -> TaskSpecializationCommitment {

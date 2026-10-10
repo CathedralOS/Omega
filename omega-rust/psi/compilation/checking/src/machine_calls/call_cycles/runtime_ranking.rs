@@ -104,9 +104,7 @@ fn dispatched_implementations(
             let mut implementations = selections
                 .iter()
                 .filter(|selection| {
-                    program
-                        .normalized_type_identity(selection.selector_type)
-                        .as_str()
+                    program.normalized_type_identity_text(selection.selector_type)
                         == slot.interface_identity
                 })
                 .filter_map(|selection| program.conformance_by_symbol(selection.implementation))

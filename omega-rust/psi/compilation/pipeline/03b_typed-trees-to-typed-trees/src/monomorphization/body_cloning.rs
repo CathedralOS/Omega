@@ -43,8 +43,7 @@ fn bound_type_identities(
         .map(|binding| {
             source
                 .unwrap_or(program)
-                .normalized_type_identity(binding.expect("complete specialization"))
-                .into_string()
+                .normalized_type_identity_text(binding.expect("complete specialization"))
         })
         .collect()
 }

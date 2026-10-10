@@ -11,9 +11,7 @@ use typed_trees::expression::{StaticMachineArgument, StaticSymbolApplication};
 use typed_trees::machine::GenericConformanceBound;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-use super::conformance_applications::{
-    close_conformance_application, substituted_type_identity,
-};
+use super::conformance_applications::{close_conformance_application, substituted_type_identity};
 
 pub(super) fn validate_trait_implementation_arguments(
     program: &dyn crate::CheckingInput,
@@ -33,7 +31,7 @@ pub(super) fn validate_trait_implementation_arguments(
             .map(|(parameter, argument)| {
                 (
                     parameter.symbol,
-                    program.normalized_type_identity(*argument).into_string(),
+                    program.normalized_type_identity_text(*argument),
                 )
             })
             .collect::<Vec<_>>();

@@ -450,7 +450,11 @@ pub(crate) fn lower_evidence_interface(
     requirements.dedup();
     Ok(EvidenceInterfaceIdentity {
         trait_identity: checked.symbols.display_path(interface.trait_symbol, "::"),
-        arguments: interface.arguments.to_vec(),
+        arguments: interface
+            .arguments
+            .iter()
+            .map(|argument| checked.type_identity_text(*argument).unwrap_or_default())
+            .collect(),
         requirements,
     })
 }

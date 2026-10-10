@@ -108,8 +108,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
     let receiver_parameter = context.parameter;
     let owner = context.definition;
     if checked
-        .normalized_type_identity(receiver_parameter.type_reference)
-        .as_str()
+        .normalized_type_identity_text(receiver_parameter.type_reference)
         != receiver_identity
     {
         return Err(vec![Diagnostic::error(
@@ -183,7 +182,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
         let parameter = matching.next()?;
         if matching.next().is_some()
             || parameter.access != checked_trees::CheckedStructuralAccess::MutableBorrow
-            || parameter.type_identity != checked.normalized_type_identity(*referee).as_str()
+            || parameter.type_identity != checked.normalized_type_identity_text(*referee)
         {
             return None;
         }
@@ -297,8 +296,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
             continue;
         };
         let carrier_type_identity = checked
-            .normalized_type_identity(field.type_reference)
-            .into_string();
+            .normalized_type_identity_text(field.type_reference);
         if provider_type_identity != &carrier_type_identity
             || receipt.requirement != carrier.requirement
         {
@@ -521,6 +519,5 @@ fn unconstrained_type_identity(
         type_reference = *base_type;
     }
     checked
-        .normalized_type_identity(type_reference)
-        .into_string()
+        .normalized_type_identity_text(type_reference)
 }

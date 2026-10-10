@@ -100,8 +100,7 @@ pub fn proof_obligation_key(
                 atom(
                     "base",
                     program
-                        .package_qualified_type_identity(obligation.base_type)
-                        .as_str(),
+                        .package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 binary_operands_identity(program, &obligation.binary_operands),
@@ -142,8 +141,7 @@ pub fn proof_obligation_key(
                 atom(
                     "base",
                     program
-                        .package_qualified_type_identity(obligation.base_type)
-                        .as_str(),
+                        .package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 compound(
@@ -165,8 +163,7 @@ pub fn proof_obligation_key(
                 atom(
                     "base",
                     program
-                        .package_qualified_type_identity(obligation.base_type)
-                        .as_str(),
+                        .package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
             ],
@@ -184,8 +181,7 @@ pub fn proof_obligation_key(
                 atom(
                     "base",
                     program
-                        .package_qualified_type_identity(obligation.base_type)
-                        .as_str(),
+                        .package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 binary_operands_identity(program, &obligation.binary_operands),
@@ -198,8 +194,7 @@ pub fn proof_obligation_key(
                 atom(
                     "base",
                     program
-                        .package_qualified_type_identity(obligation.base_type)
-                        .as_str(),
+                        .package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
             ],
@@ -224,8 +219,7 @@ pub fn proof_obligation_key(
                 atom(
                     "base",
                     program
-                        .package_qualified_type_identity(obligation.base_type)
-                        .as_str(),
+                        .package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 guard_identity(program, &obligation.guard),
@@ -602,8 +596,7 @@ fn expression_identity(
                 atom(
                     "target",
                     program
-                        .package_qualified_type_identity(node.target_type)
-                        .as_str(),
+                        .package_qualified_type_identity_text(node.target_type),
                 ),
                 atom("domain", node.domain.name()),
                 atom(
@@ -618,8 +611,7 @@ fn expression_identity(
                         .iter()
                         .map(|type_reference| {
                             program
-                                .package_qualified_type_identity(*type_reference)
-                                .as_str()
+                                .package_qualified_type_identity_text(*type_reference)
                                 .to_owned()
                         }),
                 ),
@@ -708,8 +700,7 @@ fn expression_identity(
         ExpressionNode::ZeroValue(type_reference) => atom(
             "zero",
             program
-                .package_qualified_type_identity(*type_reference)
-                .as_str(),
+                .package_qualified_type_identity_text(*type_reference),
         ),
     }
 }
@@ -839,8 +830,7 @@ fn static_argument_identity(
                 atom(
                     "type",
                     program
-                        .package_qualified_type_identity(argument.type_reference)
-                        .as_str(),
+                        .package_qualified_type_identity_text(argument.type_reference),
                 )
             } else {
                 "type:none".to_owned()

@@ -213,10 +213,7 @@ fn normalize_projection_subject(
             .ok_or_else(|| {
                 "the projected structural place has no resolved carrier type".to_owned()
             })?;
-    let carrier_identity = context
-        .program
-        .normalized_type_identity(carrier)
-        .into_string();
+    let carrier_identity = context.program.normalized_type_identity_text(carrier);
     if carrier_identity != projection.carrier_identity {
         return Err(format!(
             "projection `{}` expects carrier `{}`, but the selected structural place has `{carrier_identity}`",

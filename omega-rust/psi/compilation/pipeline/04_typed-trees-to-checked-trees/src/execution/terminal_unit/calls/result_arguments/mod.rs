@@ -320,9 +320,7 @@ fn argument_contract(
                     parameter.type_reference,
                 )
                 && result.type_identity
-                    == program
-                        .normalized_type_identity(parameter.type_reference)
-                        .as_str()))
+                    == program.normalized_type_identity_text(parameter.type_reference)))
         && let Some(view_symbol) = place.root.as_symbol()
     {
         let Some(StatementNode::LocalData(local)) = program
@@ -429,11 +427,11 @@ fn argument_contract(
         && (projected
             || !(validation::is_closed_primitive_array_type(program, formal_type)
                 || validation::has_contents(
-        program,
-        formal_type,
-        &[],
-        validation::ContentsRequirement::RepresentedOwned
-    )))
+                    program,
+                    formal_type,
+                    &[],
+                    validation::ContentsRequirement::RepresentedOwned,
+                )))
     {
         return None;
     }
@@ -636,11 +634,11 @@ fn argument_contract(
                 // descendant claims cross through the call's custody plan.
                 // Exact source/formal correspondence retains qualifications.
                 let owned_contents = validation::has_contents(
-        program,
-        local.type_reference,
-        &[],
-        validation::ContentsRequirement::BorrowFree
-    );
+                    program,
+                    local.type_reference,
+                    &[],
+                    validation::ContentsRequirement::BorrowFree,
+                );
                 // A loan retains the complete owner's claims and disposal debt.
                 // Captured access authorizes this observation, and the exact
                 // declaration below authenticates its home. Only an owned
@@ -679,13 +677,12 @@ fn argument_contract(
                                 program,
                                 local.type_reference,
                             ) || validation::has_contents(
-        program,
-        local.type_reference,
-        &[],
-        validation::ContentsRequirement::RepresentedOwned
-    )))
-                        || base_type_identity(program, local.type_reference, &[],
-        &[])?
+                                program,
+                                local.type_reference,
+                                &[],
+                                validation::ContentsRequirement::RepresentedOwned,
+                            )))
+                        || base_type_identity(program, local.type_reference, &[], &[])?
                             != result.type_identity)
                 {
                     return None;

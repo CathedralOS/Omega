@@ -3,9 +3,7 @@
 
 use crate::execution::terminal_unit::calls::call_operations::ExpectedCallValueResult;
 use crate::execution::terminal_unit::types::is_unit;
-use crate::execution::terminal_unit::types::{
-    base_type_identity, substituted_formal_type,
-};
+use crate::execution::terminal_unit::types::{base_type_identity, substituted_formal_type};
 use crate::execution::terminal_unit::{
     Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode, is_reference,
 };
@@ -80,13 +78,13 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
         .iter()
         .find(|parameter| (parameter.symbol == root) && !parameter.relevance.is_erased())?;
     let (reference, _) = super::argument_paths::projected_argument_path(
-            program,
-            state.symbol,
-            statement_index,
-            &place,
-            None,
-            None
-        )?;
+        program,
+        state.symbol,
+        statement_index,
+        &place,
+        None,
+        None,
+    )?;
     // A Binding member identifies the requirement through its own carrier.
     // Provider selection and entry establishment are realization obligations.
     typed_trees::service::classify_exact_service_parameter_carrier(program, reference)
@@ -141,8 +139,8 @@ pub(crate) fn fixed_array_slice_view_is_admitted(
     else {
         return false;
     };
-    program.normalized_type_identity(*element_type).as_str()
-        == program.normalized_type_identity(*target_element).as_str()
+    program.normalized_type_identity_text(*element_type)
+        == program.normalized_type_identity_text(*target_element)
         && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
 }
 

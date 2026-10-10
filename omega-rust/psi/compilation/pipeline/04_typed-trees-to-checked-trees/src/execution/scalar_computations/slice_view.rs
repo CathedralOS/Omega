@@ -152,7 +152,7 @@ impl Builder<'_, '_> {
             self.statement_index,
             &place,
             None,
-            None
+            None,
         )?;
         // A slice descriptor already carries its backing. An array endpoint
         // instead lends its referee's storage, including a borrowed array
@@ -184,9 +184,7 @@ impl Builder<'_, '_> {
             } else {
                 (
                     source,
-                    self.program
-                        .normalized_type_identity(projected)
-                        .into_string(),
+                    self.program.normalized_type_identity_text(projected),
                 )
             };
         // Ordinary collection openers retain their exact element identity.

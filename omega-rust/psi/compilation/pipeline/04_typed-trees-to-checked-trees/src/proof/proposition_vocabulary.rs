@@ -180,11 +180,7 @@ pub(crate) fn lower_checked_evidence_interface(
 ) -> checked_trees::CheckedEvidenceInterfaceIdentity {
     checked_trees::CheckedEvidenceInterfaceIdentity {
         trait_symbol: interface.trait_symbol,
-        arguments: interface
-            .arguments
-            .iter()
-            .map(|argument| argument.as_str().to_owned())
-            .collect(),
+        arguments: interface.arguments.clone(),
         requirements: interface
             .requirements
             .iter()

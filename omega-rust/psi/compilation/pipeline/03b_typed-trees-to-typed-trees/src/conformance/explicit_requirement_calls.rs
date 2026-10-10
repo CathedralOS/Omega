@@ -173,9 +173,7 @@ impl ExplicitApplication<'_> {
         let program = self.program;
         let application = close_conformance_application(program, self.implementation)
             .map_err(|diagnostic| diagnostic.message)?;
-        let Some(conformance) = program
-            .conformance_by_symbol(application.declaration)
-        else {
+        let Some(conformance) = program.conformance_by_symbol(application.declaration) else {
             return Err(format!(
                 "`{}` does not name an implementation",
                 self.implementation.display_name()
@@ -264,7 +262,7 @@ impl ExplicitApplication<'_> {
         let declared = bound
             .arguments
             .iter()
-            .map(|argument| program.normalized_type_identity(*argument).into_string())
+            .map(|argument| program.normalized_type_identity_text(*argument))
             .collect::<Vec<_>>();
         let Some(expected) = self.declaring_application(bound.trait_symbol, declared) else {
             return Err(self.wrong_trait(&bounded));
@@ -366,12 +364,7 @@ impl ExplicitApplication<'_> {
                     .type_reference_handles(parent.arguments)
                     .iter()
                     .map(|argument| {
-                        substituted_type_identity(
-                            program,
-                            *argument,
-                            &substitutions,
-                            &[],
-                        )
+                        substituted_type_identity(program, *argument, &substitutions, &[])
                     })
                     .collect();
                 pending.push((parent.symbol, parent_arguments));

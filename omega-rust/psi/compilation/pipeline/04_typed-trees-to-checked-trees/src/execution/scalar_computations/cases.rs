@@ -100,16 +100,16 @@ impl Builder<'_, '_> {
             let inspected =
                 validation::unwrapped_type_reference(self.program, local.type_reference)?;
             if !(validation::has_contents(
-        self.program,
-        inspected,
-        &[],
-        validation::ContentsRequirement::NumericOwned
-    ) || validation::has_contents(
-        self.program,
-        inspected,
-        &[],
-        validation::ContentsRequirement::OwnedOrSharedView
-    )) {
+                self.program,
+                inspected,
+                &[],
+                validation::ContentsRequirement::NumericOwned,
+            ) || validation::has_contents(
+                self.program,
+                inspected,
+                &[],
+                validation::ContentsRequirement::OwnedOrSharedView,
+            )) {
                 return None;
             }
             local.symbol
@@ -132,8 +132,7 @@ impl Builder<'_, '_> {
                 path,
                 type_identity: self
                     .program
-                    .normalized_type_identity(projected)
-                    .as_str()
+                    .normalized_type_identity_text(projected)
                     .to_owned(),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,
             },

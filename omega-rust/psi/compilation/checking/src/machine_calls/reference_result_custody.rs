@@ -134,11 +134,11 @@ pub fn is_reference_record(
             return Some(true);
         }
         if crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
-    ) {
+            program,
+            reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        ) {
             return Some(false);
         }
         if let TypeReferenceNode::FixedArray { element_type, .. } =
@@ -216,7 +216,7 @@ pub fn initializer_source(
                 parameter_index: u32::try_from(position).ok()?,
             },
             path: Vec::new(),
-            type_identity: program.normalized_type_identity(referent).into_string(),
+            type_identity: program.normalized_type_identity_text(referent),
             access,
         });
     }
@@ -444,7 +444,7 @@ pub fn borrowed_initializer_source(
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
         source,
         path: segments,
-        type_identity: program.normalized_type_identity(referent).into_string(),
+        type_identity: program.normalized_type_identity_text(referent),
         access,
     })
 }
@@ -477,8 +477,7 @@ pub fn returned_record_sources(
     if !is_reference_record(program, state.return_type) {
         return None;
     }
-    returned_reference_sources(program, state,
-        None)
+    returned_reference_sources(program, state, None)
 }
 
 /// The expression producing a state's returned value: the tail expression
@@ -535,7 +534,7 @@ fn expression_sources(
         program,
         reference,
         &[],
-        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
+        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
     ) {
         return Some(Vec::new());
     }
@@ -913,10 +912,10 @@ fn call_sources(
             // projected declaration and its final referent type. Substitution
             // requires the actual to supply that exact formal referent; its
             // existing backing path then precedes the callee's projection.
-            let identity = program.normalized_type_identity(referent);
+            let identity = program.normalized_type_identity_text(referent);
             if actual_sources.iter().any(|actual| {
                 !actual.path.is_empty()
-                    || actual.source.type_identity != identity.as_str()
+                    || actual.source.type_identity != identity
                     || !reference_access_can_supply(actual.source.access, access)
             }) {
                 return None;
@@ -1099,7 +1098,7 @@ fn whole_reference_sources(
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
             path,
-            type_identity: program.normalized_type_identity(referent).into_string(),
+            type_identity: program.normalized_type_identity_text(referent),
             access,
         };
         sources.push(checked_trees::CheckedReferenceResultSourcePlan {
@@ -1189,7 +1188,6 @@ fn returned_sources(
     has_normal_completion.then_some(sources)
 }
 
-
 /// Borrow an already prepared compilation resolver through every substituted
 /// origin query. Standalone consumers prepare their own resolver; source
 /// checks must not rebuild whole-program symbol tables for each returned view.
@@ -1213,7 +1211,7 @@ pub fn terminal_call_reference_sources(
     if call.authored_expression.is_valid()
         || call.statement_index != result.statement_index as usize
         || stored_loan_parts(program, state.return_type).is_none()
-        || result.type_identity != program.normalized_type_identity(state.return_type).as_str()
+        || result.type_identity != program.normalized_type_identity_text(state.return_type)
     {
         return None;
     }
@@ -1289,7 +1287,7 @@ pub fn record_carrier_sources(
                 source: checked_trees::CheckedUnitStructuralArgumentPlan {
                     source: carrier.clone(),
                     path: path.clone(),
-                    type_identity: program.normalized_type_identity(reference).into_string(),
+                    type_identity: program.normalized_type_identity_text(reference),
                     access: CheckedStructuralAccess::SharedBorrow,
                 },
             });
@@ -1303,18 +1301,18 @@ pub fn record_carrier_sources(
                 source: checked_trees::CheckedUnitStructuralArgumentPlan {
                     source: carrier.clone(),
                     path: source_path,
-                    type_identity: program.normalized_type_identity(referent).into_string(),
+                    type_identity: program.normalized_type_identity_text(referent),
                     access,
                 },
             });
             return Some(());
         }
         if crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
-    ) {
+            program,
+            reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        ) {
             return Some(());
         }
         if let TypeReferenceNode::FixedArray {
@@ -1361,11 +1359,11 @@ pub fn record_carrier_sources(
     if !reference_origin_expansion_is_bounded(program, reference)
         || (!is_reference_record(program, reference)
             && !crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::OwnedOrSharedView
-    ))
+                program,
+                reference,
+                &[],
+                crate::value_custody::storage_contents::ContentsRequirement::OwnedOrSharedView,
+            ))
     {
         return None;
     }
@@ -2224,8 +2222,7 @@ pub fn record_argument(
         .as_local_data()?;
     if result.type_identity
         != program
-            .normalized_type_identity(local.type_reference)
-            .as_str()
+            .normalized_type_identity_text(local.type_reference)
         // Source reference uses are reusable, but each materialized descriptor
         // owns affine lifetime custody, including descriptors in fixed arrays.
         || result.multiplicity != result_multiplicity(program, local.type_reference)
@@ -2255,7 +2252,7 @@ pub fn record_argument(
         result.statement_index,
     )?;
     let (source, _) = loans.iter().find(|(source, _)| source.path == path)?;
-    if source.source.type_identity != program.normalized_type_identity(referent).as_str() {
+    if source.source.type_identity != program.normalized_type_identity_text(referent) {
         return None;
     }
     path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
@@ -2335,8 +2332,8 @@ fn state_reference_custody(
 ) -> StateReferenceCustodyRow {
     StateReferenceCustodyRow {
         tail_return_expression: tail_return_expression(program, state).unwrap_or_default(),
-        returns_complete_reference_origins: returned_reference_sources(program, state,
-        None).is_some(),
+        returns_complete_reference_origins: returned_reference_sources(program, state, None)
+            .is_some(),
         tail_names_source_parameter: source_parameter(program, state).is_some(),
         tail_selects_source_leaf: source_leaf(program, state).is_some(),
     }

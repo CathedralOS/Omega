@@ -432,9 +432,7 @@ fn close_const_argument(
         )?;
     }
     let value = CanonicalConstIdentity {
-        type_name: program
-            .normalized_type_identity(declaration.declared_type)
-            .into_string(),
+        type_name: program.normalized_type_identity_text(declaration.declared_type),
         encoding: encoding.to_owned(),
     };
     let substitution_identity =
@@ -465,9 +463,7 @@ pub fn type_argument_identity(
     argument: &StaticMachineArgument,
 ) -> String {
     if argument.type_reference.is_valid() {
-        return program
-            .normalized_type_identity(argument.type_reference)
-            .into_string();
+        return program.normalized_type_identity_text(argument.type_reference);
     }
     program
         .type_reference_table
@@ -475,7 +471,7 @@ pub fn type_argument_identity(
         .find(|(_, symbol, _)| *symbol == argument.symbol)
         .map_or_else(
             || argument.display_name(),
-            |(handle, _, _)| program.normalized_type_identity(handle).into_string(),
+            |(handle, _, _)| program.normalized_type_identity_text(handle),
         )
 }
 
@@ -489,7 +485,7 @@ pub fn substituted_type_identity(
         TypeReferenceNode::Named { symbol, .. } => substitutions
             .iter()
             .find_map(|(parameter, identity)| (*parameter == *symbol).then(|| identity.clone()))
-            .unwrap_or_else(|| program.normalized_type_identity(handle).into_string()),
+            .unwrap_or_else(|| program.normalized_type_identity_text(handle)),
         TypeReferenceNode::Reference {
             referee,
             access,
@@ -507,20 +503,10 @@ pub fn substituted_type_identity(
                 format!("'{lifetime} ")
             }),
             access.borrow_modifier(),
-            substituted_type_identity(
-                program,
-                *referee,
-                substitutions,
-                lifetime_substitutions,
-            )
+            substituted_type_identity(program, *referee, substitutions, lifetime_substitutions,)
         ),
         TypeReferenceNode::Constrained { base_type, .. } => {
-            substituted_type_identity(
-                program,
-                *base_type,
-                substitutions,
-                lifetime_substitutions,
-            )
+            substituted_type_identity(program, *base_type, substitutions, lifetime_substitutions)
         }
         TypeReferenceNode::FixedArray {
             element_type,
@@ -590,7 +576,7 @@ pub fn substituted_type_identity(
             );
             format!("{}<{}>", base_name.as_str(), rendered.join(","))
         }
-        _ => program.normalized_type_identity(handle).into_string(),
+        _ => program.normalized_type_identity_text(handle),
     }
 }
 
@@ -649,13 +635,11 @@ fn application_identity(
                 bytes.push(0);
                 append(
                     &mut bytes,
-                    program
-                        .normalized_type_identity(*parameter_carrier)
-                        .as_str(),
+                    &program.normalized_type_identity_text(*parameter_carrier),
                 );
                 append(
                     &mut bytes,
-                    program.normalized_type_identity(*declared_carrier).as_str(),
+                    &program.normalized_type_identity_text(*declared_carrier),
                 );
                 append(&mut bytes, value.type_name.as_str());
                 append(&mut bytes, value.encoding.as_str());
@@ -668,13 +652,11 @@ fn application_identity(
                 bytes.push(1);
                 append(
                     &mut bytes,
-                    program
-                        .normalized_type_identity(*parameter_carrier)
-                        .as_str(),
+                    &program.normalized_type_identity_text(*parameter_carrier),
                 );
                 append(
                     &mut bytes,
-                    program.normalized_type_identity(*binder_carrier).as_str(),
+                    &program.normalized_type_identity_text(*binder_carrier),
                 );
                 append(
                     &mut bytes,

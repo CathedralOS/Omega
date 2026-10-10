@@ -164,8 +164,7 @@ fn application_satisfied(
         .iter()
         .map(|argument| {
             typed
-                .package_qualified_type_identity(*argument)
-                .into_string()
+                .package_qualified_type_identity_text(*argument)
         })
         .collect();
     carried == demanded.type_argument_identities

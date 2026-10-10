@@ -144,8 +144,7 @@ pub fn call_type_arguments(
         }
     }
     for (parameter, selected) in const_selections {
-        let Some(actual) = crate::substitutions::actual_for(&bindings, parameter.symbol)
-        else {
+        let Some(actual) = crate::substitutions::actual_for(&bindings, parameter.symbol) else {
             // An unused const has no carrier occurrence to instantiate. Its
             // retained authored operand remains with static-call admission.
             continue;
@@ -163,7 +162,7 @@ fn const_selection_matches(
     actual: TypeReferenceHandle,
 ) -> bool {
     if let Some(identity) = program.static_const_argument_identity(selected) {
-        return program.normalized_type_identity(actual).as_str() == identity;
+        return program.normalized_type_identity_text(actual) == identity;
     }
     matches!(program.type_reference_table.type_reference(actual),
         TypeReferenceNode::Named { symbol, .. }

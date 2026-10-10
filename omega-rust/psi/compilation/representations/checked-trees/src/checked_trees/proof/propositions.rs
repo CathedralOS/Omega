@@ -48,7 +48,7 @@ pub struct CheckedPropositionApplication {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedEvidenceInterfaceIdentity {
     pub trait_symbol: SymbolHandle,
-    pub arguments: Vec<String>,
+    pub arguments: Vec<typed_trees::type_identity::TypeIdentityId>,
     pub requirements: Vec<CheckedEvidenceRequirementIdentity>,
 }
 

@@ -96,7 +96,7 @@ pub(crate) fn applicable_projection_plans<'facts>(
     let Some(carrier) = program.unwrapped_type_reference(type_reference) else {
         return Vec::new();
     };
-    let carrier_identity = program.normalized_type_identity(carrier).into_string();
+    let carrier_identity = program.normalized_type_identity_text(carrier);
     facts
         .qualifications
         .content

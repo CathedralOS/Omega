@@ -123,9 +123,13 @@ pub(crate) fn reserve(
     place: PlaceId,
 ) -> Result<Slot, LoweringError> {
     let identity = checked.normalized_type_identity(source.type_reference);
-    let declaration = terminal_psi::structural_type_by_identity(types, identity.as_str()).ok_or(
-        LoweringError::Unsupported("computed case has no structural type namespace"),
-    )?;
+    let declaration = terminal_psi::structural_type_by_identity(
+        types,
+        &checked.type_identity_text(identity).unwrap_or_default(),
+    )
+    .ok_or(LoweringError::Unsupported(
+        "computed case has no structural type namespace",
+    ))?;
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return unsupported("computed case requires a plain sum");
     };
@@ -243,9 +247,7 @@ pub(crate) fn type_roots(
     let mut types = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
         for subject in constructions(checked, &plans.nodes.get(handle).kind)? {
-            let identity = checked
-                .normalized_type_identity(subject.type_reference)
-                .into_string();
+            let identity = checked.normalized_type_identity_text(subject.type_reference);
             if !types.contains(&identity) {
                 types.push(identity);
             }

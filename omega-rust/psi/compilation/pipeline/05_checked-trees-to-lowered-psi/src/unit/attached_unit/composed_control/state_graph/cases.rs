@@ -196,7 +196,7 @@ fn result_source<'a>(
     if !matches!(
         checked.type_multiplicity(reference),
         Multiplicity::Affine | Multiplicity::Unrestricted
-    ) || checked.normalized_type_identity(reference).as_str() != subject.type_identity
+    ) || checked.normalized_type_identity_text(reference) != subject.type_identity
         || !(crate::content_classes::plain_owned_with_numeric_constraints(checked,
             reference) || validation::has_contents(
         &checked.typed,

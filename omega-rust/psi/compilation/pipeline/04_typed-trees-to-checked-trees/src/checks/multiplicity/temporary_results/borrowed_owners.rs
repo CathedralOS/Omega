@@ -36,7 +36,7 @@ pub(in crate::checks::multiplicity) fn append_borrow(
             let PermissionEventSource::Call { target_symbol, .. } = owner.consumer else { continue; };
             diagnostics.push(Diagnostic::error(format!(
                 "cannot automatically dispose borrowed temporary `{}` after call `{}` at statement {}: every contained linear obligation needs its owner-authorized terminal disposition",
-                program.normalized_type_identity(owner.type_reference),
+                program.normalized_type_identity_text(owner.type_reference),
                 program.symbols.name(target_symbol), statement_index,
             )));
             continue;

@@ -113,13 +113,9 @@ fn collect_value_roots(
                         {
                             view = *referee;
                         }
-                        roots.push(
-                            checked
-                                .type_identity(
-                                    typed_trees::type_identity::TypeIdentityRequest::ordinary(view),
-                                )
-                                .into_string(),
-                        );
+                        roots.push(checked.type_identity_request_text(
+                            typed_trees::type_identity::TypeIdentityRequest::ordinary(view),
+                        ));
                     }
                     collect_value_roots(checked, nested, roots)?;
                 }

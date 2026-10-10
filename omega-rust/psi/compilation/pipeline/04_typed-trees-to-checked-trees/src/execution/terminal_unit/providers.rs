@@ -199,7 +199,7 @@ pub(super) fn checked_provider_attachment_requirements(
                 let Some(reference) = validation::unwrapped_type_reference(program, source.type_reference) else {
                     return false;
                 };
-                if program.normalized_type_identity(reference).as_str() != attachment_type_identity
+                if program.normalized_type_identity_text(reference) != attachment_type_identity
                     || program.closed_data_definition(reference).is_none_or(|owner| owner.symbol != attached.symbol)
                 {
                     return false;

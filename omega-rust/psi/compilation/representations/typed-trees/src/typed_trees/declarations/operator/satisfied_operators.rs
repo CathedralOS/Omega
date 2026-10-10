@@ -72,7 +72,8 @@ fn resolve_satisfied_operator_for_conformance<'program>(
     }
     if candidates.iter().any(|candidate| {
         program
-            .machine_token_binding_by_symbol(candidate.symbol).is_some()
+            .machine_token_binding_by_symbol(candidate.symbol)
+            .is_some()
     }) {
         // A token-bearing requirement is a machine overload. Apply the
         // clause's ordinary source visibility to the signature-matched set;
@@ -303,23 +304,17 @@ pub fn boundary_operator_requirement_identity(
     program: &TypedTrees,
     operator: &OperatorDefinition,
 ) -> String {
-    let path = program
-        .operator_path_string(operator.name);
+    let path = program.operator_path_string(operator.name);
     let parameters = program
         .operator_parameters(operator)
         .iter()
-        .map(|parameter| {
-            program
-                .normalized_type_identity(parameter.type_reference)
-                .into_string()
-        })
+        .map(|parameter| program.normalized_type_identity_text(parameter.type_reference))
         .collect::<Vec<_>>()
         .join(",");
-    let result = operator.return_type.is_valid().then(|| {
-        program
-            .normalized_type_identity(operator.return_type)
-            .into_string()
-    });
+    let result = operator
+        .return_type
+        .is_valid()
+        .then(|| program.normalized_type_identity_text(operator.return_type));
     format!(
         "operator::{path}({parameters})->{}",
         result.as_deref().unwrap_or("unit")

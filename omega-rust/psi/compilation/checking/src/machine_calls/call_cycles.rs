@@ -1074,9 +1074,7 @@ fn proof_rank_parameter(
     Some((
         parameter.symbol,
         parameter.type_reference,
-        program
-            .package_qualified_type_identity(parameter.type_reference)
-            .into_string(),
+        program.package_qualified_type_identity_text(parameter.type_reference),
     ))
 }
 
@@ -1116,9 +1114,8 @@ fn proof_edge_decrease_witness(
         .iter()
         .enumerate()
         .find(|(_, parameter)| parameter.name.as_str() == callee_subject.as_str())?;
-    let callee_rank_type_identity = program
-        .package_qualified_type_identity(callee_parameter.type_reference)
-        .into_string();
+    let callee_rank_type_identity =
+        program.package_qualified_type_identity_text(callee_parameter.type_reference);
     if callee_rank_type_identity != caller_rank_type_identity {
         return None;
     }

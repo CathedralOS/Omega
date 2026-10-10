@@ -204,7 +204,7 @@ pub(crate) fn reserve_owner_places(
     if places.iter().any(|place| place.root == root) {
         return;
     }
-    let name = program.normalized_type_identity(type_reference).to_string();
+    let name = program.normalized_type_identity_text(type_reference);
     let claims = linear_claim_frontier(program, type_reference);
     if claims.is_empty()
         && validation::reference_result_custody::binding_multiplicity(program, type_reference)

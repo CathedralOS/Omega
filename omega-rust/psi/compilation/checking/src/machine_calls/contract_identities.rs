@@ -52,12 +52,10 @@ pub fn canonical_template_contract_bytes(
         match &parameter.kind {
             TypeParameterKind::Const { type_reference }
             | TypeParameterKind::Value { type_reference } => encode_identity_text(
-                program
-                    .type_identity(TypeIdentityRequest {
-                        binders: &binders,
-                        ..TypeIdentityRequest::ordinary(*type_reference)
-                    })
-                    .as_str(),
+                &program.type_identity_request_text(TypeIdentityRequest {
+                    binders: &binders,
+                    ..TypeIdentityRequest::ordinary(*type_reference)
+                }),
                 &mut bytes,
             ),
             TypeParameterKind::Machine { contract } => match program
@@ -104,12 +102,10 @@ pub fn canonical_template_contract_bytes(
                 for parameter in proposition_parameters {
                     bytes.push(u8::from(parameter.is_mutable));
                     encode_identity_text(
-                        program
-                            .type_identity(TypeIdentityRequest {
-                                binders: &proposition_binders,
-                                ..TypeIdentityRequest::ordinary(parameter.type_reference)
-                            })
-                            .as_str(),
+                        &program.type_identity_request_text(TypeIdentityRequest {
+                            binders: &proposition_binders,
+                            ..TypeIdentityRequest::ordinary(parameter.type_reference)
+                        }),
                         &mut bytes,
                     );
                 }
@@ -125,12 +121,10 @@ pub fn canonical_template_contract_bytes(
         encoded.push(0);
         for argument in &bound.arguments {
             encode_identity_text(
-                program
-                    .type_identity(TypeIdentityRequest {
-                        binders: &binders,
-                        ..TypeIdentityRequest::ordinary(*argument)
-                    })
-                    .as_str(),
+                &program.type_identity_request_text(TypeIdentityRequest {
+                    binders: &binders,
+                    ..TypeIdentityRequest::ordinary(*argument)
+                }),
                 &mut encoded,
             );
             encoded.push(0);
@@ -537,12 +531,10 @@ fn encode_state_signature(
         encode_parameter(program, parameter, &contract_binders, output);
     }
     encode_identity_text(
-        program
-            .type_identity(TypeIdentityRequest {
-                binders: &contract_binders,
-                ..TypeIdentityRequest::ordinary(signature.return_type)
-            })
-            .as_str(),
+        &program.type_identity_request_text(TypeIdentityRequest {
+            binders: &contract_binders,
+            ..TypeIdentityRequest::ordinary(signature.return_type)
+        }),
         output,
     );
     for service in program
@@ -619,12 +611,10 @@ fn encode_state_shape(
         encode_parameter(program, parameter, &contract_binders, output);
     }
     encode_identity_text(
-        program
-            .type_identity(TypeIdentityRequest {
-                binders: &contract_binders,
-                ..TypeIdentityRequest::ordinary(state.return_type)
-            })
-            .as_str(),
+        &program.type_identity_request_text(TypeIdentityRequest {
+            binders: &contract_binders,
+            ..TypeIdentityRequest::ordinary(state.return_type)
+        }),
         output,
     );
     let contracts = contract_structure::declared_contracts(
@@ -650,12 +640,10 @@ fn encode_parameter(
         language_core::BindingRelevance::Erased => 1,
     });
     encode_identity_text(
-        program
-            .type_identity(TypeIdentityRequest {
-                binders,
-                ..TypeIdentityRequest::ordinary(parameter.type_reference)
-            })
-            .as_str(),
+        &program.type_identity_request_text(TypeIdentityRequest {
+            binders,
+            ..TypeIdentityRequest::ordinary(parameter.type_reference)
+        }),
         output,
     );
 }

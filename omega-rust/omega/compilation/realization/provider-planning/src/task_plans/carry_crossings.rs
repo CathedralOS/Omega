@@ -264,11 +264,7 @@ fn live_type_identity(
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x54);
-    hash.string_terminated(
-        program
-            .normalized_type_identity(live.type_reference)
-            .as_str(),
-    );
+    hash.string_terminated(&program.normalized_type_identity_text(live.type_reference));
     hash.finish_normalized()
 }
 

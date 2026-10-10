@@ -5,24 +5,61 @@
 //! program revision in `callable_identity.rs` and named by a handle, so no
 //! carrier holds its path and parameter signature as rendered text.
 
-use std::fmt;
+/// Handle into the program-owned [`TypeIdentityTable`]. Zero is the absence
+/// state; no consumer wraps this handle in an `Option`. Equality and hashing
+/// are handle comparisons inside one program's table — two tables each mint
+/// their own handle space, so joins across programs rehydrate through text.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TypeIdentityId(u32);
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NormalizedTypeIdentity(pub(crate) String);
-
-impl NormalizedTypeIdentity {
-    pub fn as_str(&self) -> &str {
-        &self.0
+impl TypeIdentityId {
+    /// Whether this handle names a slot. The zero handle does not.
+    pub fn is_valid(self) -> bool {
+        self.0 != 0
     }
 
-    pub fn into_string(self) -> String {
-        self.0
+    fn slot(self) -> Option<usize> {
+        (self.0 != 0).then(|| self.0 as usize - 1)
+    }
+
+    fn from_slot(slot: usize) -> Self {
+        Self(slot as u32 + 1)
     }
 }
 
-impl fmt::Display for NormalizedTypeIdentity {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(formatter)
+/// The identity type stages 04, 05 and checking previously compared as
+/// rendered text. It is the interned handle now: comparisons are integer
+/// equality and rendering is a program query, not a carrier payload.
+pub type NormalizedTypeIdentity = TypeIdentityId;
+
+/// One program's hash-consed structural type keys. Records are append-only
+/// within a revision, so a handle stays valid for as long as the table it
+/// came from; the rendered text is the structural key, so the map needs no
+/// revision guard of its own.
+#[derive(Clone, Default)]
+pub struct TypeIdentityTable {
+    texts: Vec<Box<str>>,
+    slots: std::collections::HashMap<Box<str>, TypeIdentityId, symbols::BuildSymbolHasher>,
+}
+
+impl TypeIdentityTable {
+    /// The canonical handle for one rendered structural key, minting a slot
+    /// the first time that key appears.
+    pub fn intern(&mut self, text: &str) -> TypeIdentityId {
+        if let Some(interned) = self.slots.get(text) {
+            return *interned;
+        }
+        let interned = TypeIdentityId::from_slot(self.texts.len());
+        let text: Box<str> = text.into();
+        self.texts.push(text.clone());
+        self.slots.insert(text, interned);
+        interned
+    }
+
+    /// The retained rendering of one handle: diagnostics and artifact
+    /// encoding only.
+    pub fn text(&self, identity: TypeIdentityId) -> Option<&str> {
+        identity.slot().map(|slot| self.texts[slot].as_ref())
     }
 }
 
@@ -44,7 +81,6 @@ impl NormalizedDomainExpression {
     pub fn is_empty(&self) -> bool {
         self.terms.is_empty()
     }
-
 }
 
 /// The canonical set of domains that may select a named-machine or

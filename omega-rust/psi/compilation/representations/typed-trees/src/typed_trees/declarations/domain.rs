@@ -94,7 +94,7 @@ pub fn indexed_domain_instance_name(
         match parameter.kind {
             crate::data::TypeParameterKind::Type => identities.push(format!(
                 "type:{}",
-                program.normalized_type_identity(*argument)
+                program.normalized_type_identity_text(*argument)
             )),
             crate::data::TypeParameterKind::Const { type_reference } => {
                 let expected = const_index_type_name(program, type_reference)?;
@@ -198,7 +198,7 @@ fn closed_domain_argument_identity(
             // when the instance identities are refreshed a second time.
             return Ok(format!(
                 "expression:{expected}:{}",
-                program.normalized_type_identity(argument)
+                program.normalized_type_identity_text(argument)
             ));
         }
         return Err(Diagnostic::error(

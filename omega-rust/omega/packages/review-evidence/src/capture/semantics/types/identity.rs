@@ -22,7 +22,11 @@ pub(crate) fn review_type_identity_with_binders(
         })
         .ok_or_else(missing_exact_toolchain_type_owner)?;
     Ok(PackageReviewTypeIdentity {
-        canonical: identity.into_string(),
+        canonical: compilation
+            .checking_input
+            .typed_program()
+            .type_identity_text(identity)
+            .unwrap_or_default(),
     })
 }
 
@@ -42,7 +46,11 @@ pub(crate) fn review_type_identity_with_binders_and_substitutions(
         })
         .ok_or_else(missing_exact_toolchain_type_owner)?;
     Ok(PackageReviewTypeIdentity {
-        canonical: identity.into_string(),
+        canonical: compilation
+            .checking_input
+            .typed_program()
+            .type_identity_text(identity)
+            .unwrap_or_default(),
     })
 }
 
@@ -132,8 +140,8 @@ pub(crate) fn signature_type_identity(
             substitutions,
             exact_toolchain_sources,
         })
-        .ok_or_else(missing_exact_toolchain_type_owner)?
-        .into_string();
+        .ok_or_else(missing_exact_toolchain_type_owner)?;
+    let runtime = program.type_identity_text(runtime).unwrap_or_default();
     let lifetime = review_lifetime_topology_with_substitutions(
         program,
         exact_toolchain_sources,

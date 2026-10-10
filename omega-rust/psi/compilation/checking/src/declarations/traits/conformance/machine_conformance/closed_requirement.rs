@@ -119,10 +119,7 @@ fn retains_application_tuple(
         let matches = match argument {
             ClosedOperatorApplicationArgument::Type { type_reference, .. } => {
                 types.next().is_some_and(|identity| {
-                    *identity
-                        == program
-                            .normalized_type_identity(*type_reference)
-                            .into_string()
+                    *identity == program.normalized_type_identity_text(*type_reference)
                 })
             }
             ClosedOperatorApplicationArgument::Const { value, .. } => {
@@ -140,7 +137,7 @@ fn retains_application_tuple(
                     .find(|(_, symbol, name)| !symbol.is_valid() && *name == value);
                 reference.is_some_and(|(reference, _, _)| {
                     constants.next().is_some_and(|identity| {
-                        *identity == program.normalized_type_identity(reference).into_string()
+                        *identity == program.normalized_type_identity_text(reference)
                     })
                 })
             }

@@ -104,19 +104,14 @@ pub fn from_typed_operator(
             parameter_type_identities: program
                 .operator_parameters(operator)
                 .iter()
-                .map(|parameter| {
-                    program
-                        .normalized_type_identity(parameter.type_reference)
-                        .into_string()
-                })
+                .map(|parameter| program.normalized_type_identity_text(parameter.type_reference))
                 .collect(),
             entry_claims: Vec::new(),
             has_result: operator.return_type.is_valid(),
-            result_type_identity: operator.return_type.is_valid().then(|| {
-                program
-                    .normalized_type_identity(operator.return_type)
-                    .into_string()
-            }),
+            result_type_identity: operator
+                .return_type
+                .is_valid()
+                .then(|| program.normalized_type_identity_text(operator.return_type)),
             result_claims: Vec::new(),
             service_reach: Vec::new(),
             synchronous_invocations: Vec::new(),
@@ -240,19 +235,14 @@ pub fn from_typed_boundary_requirement(
             parameter_count: parameters.iter().count(),
             parameter_type_identities: parameters
                 .iter()
-                .map(|parameter| {
-                    program
-                        .normalized_type_identity(parameter.type_reference)
-                        .into_string()
-                })
+                .map(|parameter| program.normalized_type_identity_text(parameter.type_reference))
                 .collect(),
             entry_claims: Vec::new(),
             has_result: entry.return_type.is_valid(),
-            result_type_identity: entry.return_type.is_valid().then(|| {
-                program
-                    .normalized_type_identity(entry.return_type)
-                    .into_string()
-            }),
+            result_type_identity: entry
+                .return_type
+                .is_valid()
+                .then(|| program.normalized_type_identity_text(entry.return_type)),
             result_claims: Vec::new(),
             service_reach: service_reach_row_names(program, requirement.service_reach_row),
             synchronous_invocations: machine_synchronous_invocation_names(program, requirement),
@@ -325,19 +315,14 @@ fn collect_service_methods(
             parameter_type_identities: program
                 .state_signature_parameters(signature)
                 .iter()
-                .map(|parameter| {
-                    program
-                        .normalized_type_identity(parameter.type_reference)
-                        .into_string()
-                })
+                .map(|parameter| program.normalized_type_identity_text(parameter.type_reference))
                 .collect(),
             entry_claims: service_entry_claims(program, trait_definition, signature),
             has_result: signature.return_type.is_valid(),
-            result_type_identity: signature.return_type.is_valid().then(|| {
-                program
-                    .normalized_type_identity(signature.return_type)
-                    .into_string()
-            }),
+            result_type_identity: signature
+                .return_type
+                .is_valid()
+                .then(|| program.normalized_type_identity_text(signature.return_type)),
             result_claims: service_result_claims(program, trait_definition, signature),
             service_reach: service_reach_names(program, trait_definition, signature),
             synchronous_invocations: synchronous_invocation_names(program, signature),
@@ -620,9 +605,7 @@ fn append_routed_entry_claims(
                 {
                     claims.push(ServiceEntryClaim {
                         parameter_index,
-                        carrier_identity: program
-                            .normalized_type_identity(*base_type)
-                            .into_string(),
+                        carrier_identity: program.normalized_type_identity_text(*base_type),
                         domain: domain
                             .semantic_id
                             .is_valid()

@@ -173,7 +173,7 @@ fn normalize_evidence_interface(
         .collect::<Vec<_>>();
     let root_arguments = arguments
         .iter()
-        .map(|argument| argument.as_str().to_owned())
+        .map(|argument| program.type_identity_text(*argument).unwrap_or_default())
         .collect::<Vec<_>>();
     Some((
         label,
@@ -230,12 +230,10 @@ fn normalized_evidence_requirements(
                 .type_reference_handles(parent.arguments)
                 .iter()
                 .map(|argument| {
-                    program
-                        .type_identity(TypeIdentityRequest {
-                            binders: &substitutions,
-                            ..TypeIdentityRequest::ordinary(*argument)
-                        })
-                        .into_string()
+                    program.type_identity_request_text(TypeIdentityRequest {
+                        binders: &substitutions,
+                        ..TypeIdentityRequest::ordinary(*argument)
+                    })
                 })
                 .collect::<Vec<_>>();
             collect(

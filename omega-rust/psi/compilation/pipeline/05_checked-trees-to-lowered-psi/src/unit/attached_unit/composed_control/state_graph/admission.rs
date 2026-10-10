@@ -418,7 +418,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             "Unit graph boundary has no normalized nominal owner",
                         ))?
                 };
-                if identity.as_str() != retained {
+                if checked.type_identity_text(identity).unwrap_or_default() != *retained {
                     return unsupported(
                         "Unit graph boundary attachment disagrees with its authored nominal identity",
                     );

@@ -345,8 +345,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 .iter()
                 .find(|(symbol, _)| *symbol == path.symbol)
             {
-                if binding.type_identity
-                    != program.normalized_type_identity(state.return_type).as_str()
+                if binding.type_identity != program.normalized_type_identity_text(state.return_type)
                 {
                     return None;
                 }
@@ -395,7 +394,9 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             ))
     {
         result.reference_sources =
-            super::super::super::reference_results::returned_reference_sources(program, state, None)?;
+            super::super::super::reference_results::returned_reference_sources(
+                program, state, None,
+            )?;
     }
     // Release each returned carrier at its actual checked weakening boundary,
     // before any scalar completion or following statement can reuse the parent.

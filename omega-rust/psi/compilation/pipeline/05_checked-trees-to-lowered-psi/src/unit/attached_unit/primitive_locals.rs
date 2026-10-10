@@ -395,8 +395,7 @@ impl super::argument_evaluation::Evaluation {
             ))?;
             let identity = checked
                 .typed
-                .normalized_type_identity(parameter.type_reference)
-                .into_string();
+                .normalized_type_identity_text(parameter.type_reference);
             let mut carriers = types.iter().filter(|actual| actual.identity == identity);
             let carrier = carriers.next().ok_or(LoweringError::Unsupported(
                 "primitive ingress has no original storage carrier",

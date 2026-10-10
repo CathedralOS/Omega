@@ -211,8 +211,7 @@ pub(crate) fn structural_call_arguments(
             .unwrap_or_else(|| authored_place.clone());
         // Byte carriers and `&[T]` views name their own carriers under the
         // same structural identity rule as every other formal.
-        let target_identity = base_type_identity(program, target.type_reference, &[],
-        &[])?;
+        let target_identity = base_type_identity(program, target.type_reference, &[], &[])?;
         arm("call operation: structural arguments: caller structural result");
         if let Some((result, _)) = caller_structural_results
             .iter()
@@ -730,9 +729,7 @@ pub(crate) fn exact_structural_argument_access(
             let result = CheckedUnitStructuralResultBindingPlan {
                 statement_index: u32::try_from(call.statement_index).ok()?,
                 binding_ordinal: 0,
-                type_identity: program
-                    .normalized_type_identity(local.type_reference)
-                    .into_string(),
+                type_identity: program.normalized_type_identity_text(local.type_reference),
                 multiplicity: Multiplicity::Affine,
                 local: Default::default(),
             };

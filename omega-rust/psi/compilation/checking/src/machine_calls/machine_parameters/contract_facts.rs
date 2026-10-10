@@ -202,9 +202,7 @@ fn normalized_facts(
                                 .type_reference_table
                                 .type_reference_handles(membership.domain_arguments)
                                 .iter()
-                                .map(|argument| program
-                                    .normalized_type_identity(*argument)
-                                    .to_string())
+                                .map(|argument| program.normalized_type_identity_text(*argument))
                                 .collect::<Vec<_>>()
                                 .join(",")
                         )

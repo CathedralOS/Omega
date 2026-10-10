@@ -250,10 +250,10 @@ pub(in crate::execution) fn build_call_operation(
                     program,
                     target_state.return_type,
                 );
-                let shelled = program.normalized_type_identity(target_state.return_type);
+                let shelled = program.normalized_type_identity_text(target_state.return_type);
                 expected.multiplicity != multiplicity
                     || (peeled.as_deref() != Some(expected.type_identity.as_str())
-                        && shelled.as_str() != expected.type_identity)
+                        && shelled != expected.type_identity)
             }
             Some(ExpectedCallValueResult::Structural(expected))
                 if crate::execution::terminal_unit::reference_results::mutable_borrowed_parts(
@@ -263,9 +263,7 @@ pub(in crate::execution) fn build_call_operation(
                 .is_some() =>
             {
                 expected.multiplicity != Multiplicity::Affine
-                    || program
-                        .normalized_type_identity(target_state.return_type)
-                        .as_str()
+                    || program.normalized_type_identity_text(target_state.return_type)
                         != expected.type_identity
             }
             Some(ExpectedCallValueResult::Structural(expected))
@@ -282,15 +280,12 @@ pub(in crate::execution) fn build_call_operation(
                 // views, the bound side keeps its `ref-mut` shell — the
                 // `Reference` shape is the custody it loans; the peeled
                 // referent spelling stays accepted for anonymous results.
-                let peeled = program
-                    .type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
-                        referee,
-                    ))
-                    .into_string();
-                let shelled = program.normalized_type_identity(target_state.return_type);
+                let peeled = program.type_identity_request_text(
+                    typed_trees::type_identity::TypeIdentityRequest::ordinary(referee),
+                );
+                let shelled = program.normalized_type_identity_text(target_state.return_type);
                 expected.multiplicity != Multiplicity::Affine
-                    || (peeled.as_str() != expected.type_identity
-                        && shelled.as_str() != expected.type_identity)
+                    || (peeled != expected.type_identity && shelled != expected.type_identity)
             }
             Some(expected @ ExpectedCallValueResult::Structural(_)) => {
                 !boundary_value_result_matches(program, target_state.return_type, expected, &[])

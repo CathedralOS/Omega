@@ -435,6 +435,7 @@ impl Lowerer<'_> {
             // Typing precedes every build-time evaluation deferral, so no
             // pending endpoint mark can exist here to carry forward.
             pending_const_range_endpoints: _,
+            type_identities: _,
         } = self.typed_trees;
 
         let mut trees = TypedTrees::with_roots(roots, tables, symbols);

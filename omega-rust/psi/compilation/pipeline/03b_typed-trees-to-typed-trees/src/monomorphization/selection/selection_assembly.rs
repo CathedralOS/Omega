@@ -271,18 +271,14 @@ pub(crate) fn unique_complete_selections(
                 .type_bindings
                 .iter()
                 .map(|binding| {
-                    program
-                        .normalized_type_identity(binding.expect("complete selection"))
-                        .into_string()
+                    program.normalized_type_identity_text(binding.expect("complete selection"))
                 })
                 .collect(),
             const_arguments: selection
                 .const_bindings
                 .iter()
                 .map(|binding| {
-                    program
-                        .normalized_type_identity(binding.expect("complete selection"))
-                        .into_string()
+                    program.normalized_type_identity_text(binding.expect("complete selection"))
                 })
                 .collect(),
             machine_arguments: selection

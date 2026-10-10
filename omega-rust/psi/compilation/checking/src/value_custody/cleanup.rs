@@ -17,7 +17,6 @@ use typed_trees::statement::TransitionTargetNode;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-
 pub fn type_graph_requires_nominal_drop(
     program: &dyn crate::CheckingInput,
     mut type_reference: TypeReferenceHandle,
@@ -42,12 +41,10 @@ pub fn type_graph_requires_nominal_drop(
         }
     }
 
-    let identity = program
-        .type_identity(TypeIdentityRequest {
-            substitutions,
-            ..TypeIdentityRequest::ordinary(type_reference)
-        })
-        .into_string();
+    let identity = program.type_identity_request_text(TypeIdentityRequest {
+        substitutions,
+        ..TypeIdentityRequest::ordinary(type_reference)
+    });
     if !visited.insert(identity) {
         return false;
     }
@@ -55,32 +52,17 @@ pub fn type_graph_requires_nominal_drop(
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => false,
         TypeReferenceNode::Constrained { base_type, .. } => {
-            type_graph_requires_nominal_drop(
-                program,
-                *base_type,
-                substitutions,
-                visited,
-            )
+            type_graph_requires_nominal_drop(program, *base_type, substitutions, visited)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_graph_requires_nominal_drop(
-                program,
-                *element_type,
-                substitutions,
-                visited,
-            )
+            type_graph_requires_nominal_drop(program, *element_type, substitutions, visited)
         }
         TypeReferenceNode::Named { symbol, name } => program
             .data_definitions()
             .iter()
             .find(|data| data.symbol == *symbol || data.name.as_str() == name.as_str())
             .is_some_and(|data| {
-                data_graph_requires_nominal_drop(
-                    program,
-                    data,
-                    substitutions,
-                    visited,
-                )
+                data_graph_requires_nominal_drop(program, data, substitutions, visited)
             }),
         TypeReferenceNode::Generic {
             base_symbol,
@@ -106,12 +88,7 @@ pub fn type_graph_requires_nominal_drop(
                     .zip(arguments)
                     .map(|(parameter, argument)| (parameter.symbol, *argument)),
             );
-            data_graph_requires_nominal_drop(
-                program,
-                data,
-                &nested_substitutions,
-                visited,
-            )
+            data_graph_requires_nominal_drop(program, data, &nested_substitutions, visited)
         }
         TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::DynamicTrait { .. }

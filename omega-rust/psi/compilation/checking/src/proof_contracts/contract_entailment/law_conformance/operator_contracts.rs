@@ -70,9 +70,7 @@ pub(crate) fn checked_operator_contract_snapshot(
                     output,
                 );
                 append_debug(
-                    &program
-                        .package_qualified_type_identity(cast.target_type)
-                        .into_string(),
+                    &program.package_qualified_type_identity_text(cast.target_type),
                     output,
                 );
                 for argument in program
@@ -80,9 +78,7 @@ pub(crate) fn checked_operator_contract_snapshot(
                     .type_reference_handles(cast.semantic_domain_arguments)
                 {
                     append_debug(
-                        &program
-                            .package_qualified_type_identity(*argument)
-                            .into_string(),
+                        &program.package_qualified_type_identity_text(*argument),
                         output,
                     );
                 }
@@ -138,9 +134,7 @@ pub(crate) fn checked_operator_contract_snapshot(
             | ExpressionNode::String(_) => {}
             ExpressionNode::ZeroValue(type_reference) => {
                 append_debug(
-                    &program
-                        .package_qualified_type_identity(*type_reference)
-                        .into_string(),
+                    &program.package_qualified_type_identity_text(*type_reference),
                     output,
                 );
             }

@@ -207,9 +207,7 @@ pub fn build_content_projection_plans(
                     Some(ContentProjectionPlan {
                         domain: domain.symbol,
                         semantic_domain: candidate.semantic_domain,
-                        carrier_identity: program
-                            .normalized_type_identity(subject.carrier)
-                            .into_string(),
+                        carrier_identity: program.normalized_type_identity_text(subject.carrier),
                         machine: machine.symbol,
                         algebra,
                         expression,
@@ -278,7 +276,7 @@ fn selected_content_algebra(
     else {
         return None;
     };
-    let identity = program.normalized_type_identity(*identity).into_string();
+    let identity = program.normalized_type_identity_text(*identity);
     match base_name.as_str().rsplit("::").next() {
         Some("IntervalSet") => Some(ContentAlgebraIdentity::IntervalSet {
             coordinate_space: identity,

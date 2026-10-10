@@ -25,12 +25,10 @@ pub fn operator_operand_signature(program: &TypedTrees, operator: &OperatorDefin
     let binders = normalizer.bindings();
     normalized_operand_parameters(parameters)
         .map(|parameter| {
-            program
-                .type_identity(TypeIdentityRequest {
-                    binders: &binders,
-                    ..TypeIdentityRequest::ordinary(parameter.type_reference)
-                })
-                .into_string()
+            program.type_identity_request_text(TypeIdentityRequest {
+                binders: &binders,
+                ..TypeIdentityRequest::ordinary(parameter.type_reference)
+            })
         })
         .collect::<Vec<_>>()
         .join(", ")

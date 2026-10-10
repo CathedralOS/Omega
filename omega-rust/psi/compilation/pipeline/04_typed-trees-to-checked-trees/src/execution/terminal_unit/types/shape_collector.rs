@@ -358,12 +358,11 @@ impl<'program> ShapeCollector<'program> {
     ) -> Option<String> {
         let identity = self
             .program
-            .type_identity(TypeIdentityRequest {
+            .type_identity_request_text(TypeIdentityRequest {
                 binders,
                 substitutions,
                 ..TypeIdentityRequest::ordinary(reference)
-            })
-            .into_string();
+            });
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
             no_code_affine_cleanup: false,
@@ -449,11 +448,11 @@ impl<'program> ShapeCollector<'program> {
             substitutions,
         );
         let no_code_affine_cleanup = validation::has_contents(
-        self.program,
-        validation::structural_identity_type(self.program, type_reference, substitutions),
-        substitutions,
-        validation::ContentsRequirement::RepresentedOwned
-    );
+            self.program,
+            validation::structural_identity_type(self.program, type_reference, substitutions),
+            substitutions,
+            validation::ContentsRequirement::RepresentedOwned,
+        );
         if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
             // Byte views and bounded byte carriers spell their implicit
             // element through the collection establishment operation. The
@@ -921,24 +920,22 @@ impl<'program> ShapeCollector<'program> {
             CheckedUnitStructuralFieldType::Erased {
                 type_identity: self
                     .program
-                    .type_identity(TypeIdentityRequest {
+                    .type_identity_request_text(TypeIdentityRequest {
                         binders,
                         substitutions,
                         ..TypeIdentityRequest::ordinary(field_type_reference)
-                    })
-                    .into_string(),
+                    }),
             }
         } else if let Some((binding_carrier, provider_node)) =
             provider_backed_field(self.program, field_type_reference)
         {
-            let provider_type_identity = self
-                .program
-                .type_identity(TypeIdentityRequest {
-                    binders,
-                    substitutions,
-                    ..TypeIdentityRequest::ordinary(provider_node)
-                })
-                .into_string();
+            let provider_type_identity =
+                self.program
+                    .type_identity_request_text(TypeIdentityRequest {
+                        binders,
+                        substitutions,
+                        ..TypeIdentityRequest::ordinary(provider_node)
+                    });
             match binding_carrier {
                 Some(receipt) => {
                     self.add_binding_carrier_type(provider_node, binders)?;
@@ -1050,11 +1047,10 @@ impl<'program> ShapeCollector<'program> {
             .ok()??;
         let identity = self
             .program
-            .type_identity(TypeIdentityRequest {
+            .type_identity_request_text(TypeIdentityRequest {
                 binders,
                 ..TypeIdentityRequest::ordinary(type_reference)
-            })
-            .into_string();
+            });
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
             no_code_affine_cleanup: false,
@@ -1097,13 +1093,12 @@ impl<'program> ShapeCollector<'program> {
             type_identity,
             checked_trees::CheckedBindingParameterReceipt {
                 source_parameter,
-                carrier_type_identity: self
-                    .program
-                    .type_identity(TypeIdentityRequest {
+                carrier_type_identity: self.program.type_identity_request_text(
+                    TypeIdentityRequest {
                         binders,
                         ..TypeIdentityRequest::ordinary(type_reference)
-                    })
-                    .into_string(),
+                    },
+                ),
                 requirement: carrier.requirement,
             },
         ))

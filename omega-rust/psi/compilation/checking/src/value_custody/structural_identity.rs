@@ -94,17 +94,15 @@ pub fn structural_type_identity(
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> String {
-    program
-        .type_identity(TypeIdentityRequest {
-            binders,
+    program.type_identity_request_text(TypeIdentityRequest {
+        binders,
+        substitutions,
+        ..TypeIdentityRequest::ordinary(structural_identity_type(
+            program,
+            type_reference,
             substitutions,
-            ..TypeIdentityRequest::ordinary(structural_identity_type(
-                program,
-                type_reference,
-                substitutions,
-            ))
-        })
-        .into_string()
+        ))
+    })
 }
 
 /// Whether a stored value of `type_reference` keeps its loan as a `Reference`
@@ -132,13 +130,11 @@ pub fn stored_structural_type_identity(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> String {
     if stores_reference_shape(program, type_reference, substitutions) {
-        return program
-            .type_identity(TypeIdentityRequest {
-                binders,
-                substitutions,
-                ..TypeIdentityRequest::ordinary(type_reference)
-            })
-            .into_string();
+        return program.type_identity_request_text(TypeIdentityRequest {
+            binders,
+            substitutions,
+            ..TypeIdentityRequest::ordinary(type_reference)
+        });
     }
     structural_type_identity(program, type_reference, binders, substitutions)
 }

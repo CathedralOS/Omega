@@ -44,7 +44,7 @@ pub struct OpenIndexOperationSelection {
 
 impl OpenIndexOperationSelection {
     pub fn operation_contract_identity(&self, program: &crate::TypedTrees) -> String {
-        let subject = program.normalized_type_identity(self.operand_type);
+        let subject = program.normalized_type_identity_text(self.operand_type);
         format!(
             "trait::{}::{}({subject},{subject})->{subject}",
             program.symbols.display_path(self.algebra_trait, "::"),

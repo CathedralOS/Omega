@@ -503,7 +503,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 target_parameters.get(target.position as usize)?,
             ) {
                 let multiplicity = if target.access == CheckedStructuralAccess::Owned {
-                    if program.normalized_type_identity(root.type_reference).as_str()
+                    if program.normalized_type_identity_text(root.type_reference)
                         != target.type_identity
                     {
                         return None;

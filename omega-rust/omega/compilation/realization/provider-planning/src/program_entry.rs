@@ -434,8 +434,7 @@ fn validate_selected_program_entry_shape(
         |context| program_entry_plan::ProgramEntryReceiverSignature::ProvisionedMutable {
             source_position: context.source_position,
             normalized_type_identity: typed
-                .normalized_type_identity(context.parameter.type_reference)
-                .into_string(),
+                .normalized_type_identity_text(context.parameter.type_reference),
         },
     );
     let visible_parameters = visible
@@ -463,8 +462,7 @@ fn validate_selected_program_entry_shape(
                 role,
                 index,
                 typed
-                    .normalized_type_identity(parameter.type_reference)
-                    .into_string(),
+                    .normalized_type_identity_text(parameter.type_reference),
                 value_shape,
                 extent_value_layout,
                 parameter.is_const,
@@ -501,8 +499,8 @@ fn validate_selected_program_entry_shape(
             vec![Diagnostic::error(
                 "selected program entry has no exact declaration owner",
             )]
-        })?
-        .into_string();
+        })?;
+    let declaration = typed.type_identity_text(declaration).unwrap_or_default();
     let declaration = terminal_psi::NominalDeclarationIdentity::new(declaration)
         .map_err(|message| vec![Diagnostic::error(message)])?;
     let signature = program_entry_plan::SelectedProgramEntrySignature::from_checked_declaration(
@@ -866,9 +864,15 @@ pub fn validate_selected_program_entry_calling_plan(
         physical
             .parameters
             .into_iter()
-            .map(|parameter| parameter.identity.into_string())
+            .map(|parameter| {
+                typed
+                    .type_identity_text(parameter.identity)
+                    .unwrap_or_default()
+            })
             .collect(),
-        result_type_identity.into_string(),
+        typed
+            .type_identity_text(result_type_identity)
+            .unwrap_or_default(),
         validated_physical_plan.contract_report_fingerprint(),
         physical_realization.boundary_entry_plan.clone(),
     )

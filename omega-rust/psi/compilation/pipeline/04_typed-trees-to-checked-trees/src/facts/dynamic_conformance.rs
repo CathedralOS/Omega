@@ -6,9 +6,7 @@ pub(crate) fn build_dynamic_conformance_facts(
     let mut selections = Vec::new();
     let mut diagnostics = Vec::new();
     for selection in validation::collect_dynamic_implementation_selections(program)? {
-        let Some(implementation) = program
-            .conformance_by_symbol(selection.implementation)
-        else {
+        let Some(implementation) = program.conformance_by_symbol(selection.implementation) else {
             diagnostics.push(diagnostics::Diagnostic::error(
                 "dynamic selection names no exact implementation",
             ));
@@ -61,8 +59,7 @@ pub(crate) fn build_dynamic_conformance_facts(
             implementation: selection.implementation,
             target_trait: selection.target_trait,
             interface_identity: program
-                .normalized_type_identity(selection.selector_type)
-                .as_str()
+                .normalized_type_identity_text(selection.selector_type)
                 .to_owned(),
             rows,
         });

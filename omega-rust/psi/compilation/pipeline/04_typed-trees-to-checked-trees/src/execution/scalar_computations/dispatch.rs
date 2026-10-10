@@ -265,8 +265,7 @@ impl Builder<'_, '_> {
                 )?;
                 let type_identity = self
                     .program
-                    .normalized_type_identity(type_reference)
-                    .as_str()
+                    .normalized_type_identity_text(type_reference)
                     .to_owned();
                 Some(self.insert(
                     PrimitiveType::Bool,
@@ -292,8 +291,7 @@ impl Builder<'_, '_> {
             } => {
                 let type_identity = self
                     .program
-                    .normalized_type_identity(*type_reference)
-                    .as_str()
+                    .normalized_type_identity_text(*type_reference)
                     .to_owned();
                 Some(self.insert(
                     PrimitiveType::Bool,

@@ -120,7 +120,9 @@ pub(super) fn retain(
             .exact_owner_nominal_identity(application.requirement_symbol, exact_toolchain_sources)
             .ok_or("boundary requirement has no exact package or toolchain owner")?;
         let requirement = BoundaryOperatorRequirement::new(
-            NominalDeclarationIdentity::new(declaration.into_string())?,
+            NominalDeclarationIdentity::new(
+                checked.type_identity_text(declaration).unwrap_or_default(),
+            )?,
             application.requirement_identity.clone(),
             checked
                 .symbols
@@ -174,7 +176,6 @@ fn application_occurrence(
     })
 }
 
-
 fn project_application(
     checked: &CheckedTrees,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
@@ -192,7 +193,7 @@ fn project_application(
                 exact_toolchain_sources,
             })
             .ok_or("boundary application type has no exact package or toolchain owner")?;
-        BoundaryTypeIdentity::new(identity.into_string())
+        BoundaryTypeIdentity::new(checked.type_identity_text(identity).unwrap_or_default())
     };
     let mut arguments = Vec::with_capacity(application.arguments.len());
     for (ordinal, argument) in application.arguments.iter().enumerate() {

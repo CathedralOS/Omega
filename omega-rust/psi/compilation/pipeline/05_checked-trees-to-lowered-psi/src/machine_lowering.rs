@@ -102,7 +102,9 @@ fn nominal_cleanup_subject_from_types<'types>(
             ))?
     };
     let (_, subject) = types
-        .find(|(candidate, _)| *candidate == identity.as_str())
+        .find(|(candidate, _)| {
+            *candidate == checked.type_identity_text(identity).unwrap_or_default()
+        })
         .ok_or(LoweringError::Unsupported(
             "owner-designated cleanup lost its exact structural declaration",
         ))?;

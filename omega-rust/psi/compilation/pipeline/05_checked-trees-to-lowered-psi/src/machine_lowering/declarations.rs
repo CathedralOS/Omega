@@ -15,7 +15,11 @@ pub(super) fn identity(
         checked
             .exact_owner_nominal_identity(symbol, sources)
             .ok_or("checked machine has no exact declaration owner")
-            .and_then(|identity| NominalDeclarationIdentity::new(identity.into_string()))
+            .and_then(|identity| {
+                NominalDeclarationIdentity::new(
+                    checked.type_identity_text(identity).unwrap_or_default(),
+                )
+            })
     };
     let declaration = checked
         .machine(machine)

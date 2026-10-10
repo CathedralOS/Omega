@@ -219,9 +219,7 @@ pub fn collect_dynamic_slot_demands(
 ) -> Result<Vec<DynamicSlotDemand>, Vec<Diagnostic>> {
     let mut demands: Vec<(String, DynamicSlotDemand)> = Vec::new();
     let mut push = |demand: DynamicSlotDemand| {
-        let identity = program
-            .normalized_type_identity(demand.selector_type)
-            .into_string();
+        let identity = program.normalized_type_identity_text(demand.selector_type);
         if !demands.iter().any(|(existing, known)| {
             *existing == identity && known.requirement == demand.requirement
         }) {

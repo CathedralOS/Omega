@@ -88,9 +88,7 @@ pub fn canonical_closed_operator_realization_bytes(
                 ) if *binder_symbol == parameter.symbol && type_reference.is_valid() => {
                     bytes.push(0);
                     encode_application_text(
-                        program
-                            .package_qualified_type_identity(*type_reference)
-                            .as_str(),
+                        &program.package_qualified_type_identity_text(*type_reference),
                         &mut bytes,
                     );
                 }
@@ -119,9 +117,7 @@ pub fn canonical_closed_operator_realization_bytes(
                     })?;
                     bytes.push(1);
                     encode_application_text(
-                        program
-                            .package_qualified_type_identity(*declared_carrier)
-                            .as_str(),
+                        &program.package_qualified_type_identity_text(*declared_carrier),
                         &mut bytes,
                     );
                     encode_application_text(&value.type_name, &mut bytes);

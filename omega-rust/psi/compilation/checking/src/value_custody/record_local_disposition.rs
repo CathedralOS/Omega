@@ -38,11 +38,11 @@ pub fn record_local_disposition(
             .state_local_declaration(source, local.symbol)
             .is_none()
         || !crate::has_contents(
-        program,
-        local.type_reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
-    )
+            program,
+            local.type_reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        )
     {
         return None;
     }
@@ -272,9 +272,7 @@ fn initializer_transfer(
                     || argument.access != CheckedStructuralAccess::Owned
                     || !argument.path.is_empty()
                     || argument.type_identity
-                        != program
-                            .normalized_type_identity(source.type_reference)
-                            .as_str()
+                        != program.normalized_type_identity_text(source.type_reference)
                 {
                     return None;
                 }

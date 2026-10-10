@@ -95,16 +95,12 @@ pub(super) fn selected_instance<'program>(
     let type_arguments = selection
         .type_bindings
         .iter()
-        .map(|binding| {
-            binding.map(|binding| source.normalized_type_identity(binding).into_string())
-        })
+        .map(|binding| binding.map(|binding| source.normalized_type_identity_text(binding)))
         .collect::<Option<Vec<_>>>()?;
     let const_arguments = selection
         .const_bindings
         .iter()
-        .map(|binding| {
-            binding.map(|binding| source.normalized_type_identity(binding).into_string())
-        })
+        .map(|binding| binding.map(|binding| source.normalized_type_identity_text(binding)))
         .collect::<Option<Vec<_>>>()?;
     let machine_arguments = selection
         .machine_bindings

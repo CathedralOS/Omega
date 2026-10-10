@@ -278,7 +278,7 @@ pub(crate) fn prepare_place_observations(
         let identity = checked.normalized_type_identity(loan.referee);
         if !primitive
             && !types.iter().any(|declaration| {
-                declaration.identity == identity.as_str()
+                declaration.identity == checked.type_identity_text(identity).unwrap_or_default()
                     && matches!(declaration.shape, StructuralTypeShape::Record { .. })
             })
         {
@@ -333,13 +333,15 @@ fn carrier_identity(
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> Result<String, LoweringError> {
     match checked.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } if *symbol == machine.symbol => Ok(checked
-            .normalized_nominal_type_identity(machine.attached_data_symbol)
-            .ok_or(LoweringError::Unsupported(
-                "record loan's attached carrier has no identity",
-            ))?
-            .into_string()),
-        _ => Ok(checked.normalized_type_identity(reference).into_string()),
+        TypeReferenceNode::Named { symbol, .. } if *symbol == machine.symbol => {
+            let identity = checked
+                .normalized_nominal_type_identity(machine.attached_data_symbol)
+                .ok_or(LoweringError::Unsupported(
+                    "record loan's attached carrier has no identity",
+                ))?;
+            Ok(checked.type_identity_text(identity).unwrap_or_default())
+        }
+        _ => Ok(checked.normalized_type_identity_text(reference)),
     }
 }
 

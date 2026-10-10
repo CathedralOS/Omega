@@ -78,8 +78,7 @@ fn collect_nominal_expectations(
      -> Result<(), String> {
         let (owner_identity, _) = exact_symbol_identity(typed, symbol)?;
         let application_identity = typed
-            .package_qualified_type_identity(application)
-            .into_string();
+            .package_qualified_type_identity_text(application);
         let is_self_edge = owner_identity == root_owner_identity
             && match root_application_identity {
                 Some(root_application) => application_identity == root_application,
@@ -192,8 +191,7 @@ pub(crate) fn describe_field(
             stable_number: field.identity,
             erased: field.relevance.is_erased(),
             qualified_type: typed
-                .package_qualified_type_identity(field.type_reference)
-                .into_string(),
+                .package_qualified_type_identity_text(field.type_reference),
             nominal_references: Vec::new(),
             owner_case,
         },
@@ -218,8 +216,7 @@ pub(crate) fn describe_type_parameter(
         kind,
         type_identity: type_reference.map(|reference| {
             typed
-                .package_qualified_type_identity(reference)
-                .into_string()
+                .package_qualified_type_identity_text(reference)
         }),
         bounds: format!("{:?}", parameter.bounds),
     }
@@ -292,8 +289,7 @@ pub fn construct_semantic_schema_graph(
     }
     let application_identity = data.generic_instance.map(|instance| {
         typed
-            .package_qualified_type_identity(instance)
-            .into_string()
+            .package_qualified_type_identity_text(instance)
     });
 
     let mut nodes = vec![SchemaNode::Invalid, SchemaNode::Invalid];

@@ -216,6 +216,10 @@ pub struct TypedTrees {
     /// memoized identity rather than answering from a shape the program no
     /// longer has. See `type_identity::callable_identity`.
     pub callable_identities: OwnedIndex<crate::type_identity::CallableIdentityTable>,
+    /// The hash-consed structural type keys minted on demand by the type
+    /// identity queries. A handle minted here compares by integer; its text
+    /// stays inside the table for diagnostics and artifact encoding.
+    pub type_identities: OwnedIndex<crate::type_identity::TypeIdentityTable>,
 }
 
 /// A package-scoped declaration whose consumer role supplies its completion
@@ -462,6 +466,7 @@ impl TypedTrees {
             ranking_expression_custody: Vec::new(),
             pending_const_range_endpoints: std::collections::HashSet::new(),
             callable_identities: OwnedIndex::default(),
+            type_identities: OwnedIndex::default(),
         }
     }
 

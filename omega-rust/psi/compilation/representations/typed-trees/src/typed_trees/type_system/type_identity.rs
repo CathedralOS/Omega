@@ -34,10 +34,25 @@ pub use language_semantics::type_identity::{
 };
 pub use normalized_identities::{
     NormalizedDomainExpression, NormalizedDomainTerm, NormalizedResultDispatchSet,
-    NormalizedTypeIdentity,
+    NormalizedTypeIdentity, TypeIdentityId, TypeIdentityTable,
 };
 
 use crate::TypedTrees;
+
+/// Mint or rejoin the canonical handle for one rendered structural key. All
+/// rendering happens outside the interner: producers compute their text,
+/// then intern it here.
+fn program_intern_type_identity(program: &TypedTrees, identity: String) -> TypeIdentityId {
+    // The rendered text is the structural key, so the same key always mints
+    // the same handle; the revision marker only bounds when the table's own
+    // storage was initialized, mirroring the callable interner.
+    let revision = program.structural_fingerprint();
+    program
+        .type_identities
+        .with_mut(revision, TypeIdentityTable::default, |table| {
+            table.intern(&identity)
+        })
+}
 use crate::typed_trees::type_system::type_identity::constraint_identity::atom;
 use crate::typed_trees::type_system::type_identity::constraint_identity::compound;
 use crate::typed_trees::type_system::type_identity::identity_context::SubstitutionSemantics;
@@ -93,7 +108,7 @@ pub fn applied_type_identity(
             ..TypeIdentityContext::default()
         },
     );
-    (!invalid.get()).then_some(NormalizedTypeIdentity(identity))
+    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
 }
 
 /// Compare static indices and local fact operands through the same licensed
@@ -455,6 +470,23 @@ impl TypedTrees {
         self.type_identity(TypeIdentityRequest::ordinary(type_reference))
     }
 
+    /// The retained rendering of one interned type identity: diagnostics
+    /// and artifact encoding only. Identity comparisons read the handle.
+    pub fn type_identity_text(&self, identity: TypeIdentityId) -> Option<String> {
+        let revision = self.structural_fingerprint();
+        self.type_identities
+            .with(revision, TypeIdentityTable::default, |table| {
+                table.text(identity).map(str::to_owned)
+            })
+    }
+
+    /// Convenience render of the ordinary identity for boundary encoding
+    /// and diagnostics: one query instead of a handle plus a lookup.
+    pub fn normalized_type_identity_text(&self, type_reference: TypeReferenceHandle) -> String {
+        self.type_identity_text(self.normalized_type_identity(type_reference))
+            .unwrap_or_default()
+    }
+
     /// The ordinary named-type identity of an exact resolved nominal symbol,
     /// including owners that have no occurrence in the type-reference arena.
     /// Applied owners must normalize their complete type application instead.
@@ -465,16 +497,19 @@ impl TypedTrees {
         if !symbol.is_valid() || self.symbols.display_path(symbol, "::").is_empty() {
             return None;
         }
-        Some(NormalizedTypeIdentity(compound(
-            "named",
-            [identity_context::normalize_const_or_nominal_name(
-                self,
-                symbol,
-                "",
-                "name",
-                &TypeIdentityContext::default(),
-            )],
-        )))
+        Some(program_intern_type_identity(
+            self,
+            compound(
+                "named",
+                [identity_context::normalize_const_or_nominal_name(
+                    self,
+                    symbol,
+                    "",
+                    "name",
+                    &TypeIdentityContext::default(),
+                )],
+            ),
+        ))
     }
 
     /// Canonical type identity for a package graph. Every non-binder nominal
@@ -489,6 +524,15 @@ impl TypedTrees {
         self.type_identity(TypeIdentityRequest::package_qualified(type_reference))
     }
 
+    /// The package-qualified identity rendered for boundary encoding.
+    pub fn package_qualified_type_identity_text(
+        &self,
+        type_reference: TypeReferenceHandle,
+    ) -> String {
+        self.type_identity_text(self.package_qualified_type_identity(type_reference))
+            .unwrap_or_default()
+    }
+
     /// The one binder- and substitution-aware identity entry. A binder symbol
     /// is replaced before serialization, so renaming the source binder cannot
     /// change the normalized contract while concrete declaration paths remain
@@ -496,6 +540,12 @@ impl TypedTrees {
     /// with concrete type references first. Binder substitutions are applied
     /// before owner qualification, preserving alpha-normalization without
     /// falsely assigning a package owner to a local telescope variable.
+    /// The request identity rendered for boundary encoding or diagnostics.
+    pub fn type_identity_request_text(&self, request: TypeIdentityRequest<'_>) -> String {
+        self.type_identity_text(self.type_identity(request))
+            .unwrap_or_default()
+    }
+
     pub fn type_identity(&self, request: TypeIdentityRequest<'_>) -> NormalizedTypeIdentity {
         self.type_identity_with_substitution_semantics(
             request,
@@ -540,21 +590,24 @@ impl TypedTrees {
         substitution_semantics: SubstitutionSemantics,
         substitution_scope_starts: &[usize],
     ) -> NormalizedTypeIdentity {
-        NormalizedTypeIdentity(normalize_type_reference(
+        program_intern_type_identity(
             self,
-            request.type_reference,
-            &TypeIdentityContext {
-                binders: request.binders,
-                substitutions: request.substitutions,
-                substitution_semantics,
-                substitution_scope_starts,
-                active_const_substitutions: &[],
-                exact_toolchain_sources: &[],
-                missing_exact_nominal_owner: None,
-                qualification: request.qualification,
-                ..TypeIdentityContext::default()
-            },
-        ))
+            normalize_type_reference(
+                self,
+                request.type_reference,
+                &TypeIdentityContext {
+                    binders: request.binders,
+                    substitutions: request.substitutions,
+                    substitution_semantics,
+                    substitution_scope_starts,
+                    active_const_substitutions: &[],
+                    exact_toolchain_sources: &[],
+                    missing_exact_nominal_owner: None,
+                    qualification: request.qualification,
+                    ..TypeIdentityContext::default()
+                },
+            ),
+        )
     }
 
     /// Package-review identity that replaces the generic toolchain marker
@@ -567,20 +620,23 @@ impl TypedTrees {
         request: ExactOwnerTypeIdentityRequest<'_>,
     ) -> Option<NormalizedTypeIdentity> {
         let missing_exact_nominal_owner = Cell::new(false);
-        let identity = NormalizedTypeIdentity(normalize_type_reference(
+        let identity = program_intern_type_identity(
             self,
-            request.type_reference,
-            &TypeIdentityContext {
-                binders: request.binders,
-                substitutions: request.substitutions,
-                substitution_semantics: SubstitutionSemantics::Transitive,
-                active_const_substitutions: &[],
-                exact_toolchain_sources: request.exact_toolchain_sources,
-                missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
-                qualification: TypeIdentityQualification::PackageQualified,
-                ..TypeIdentityContext::default()
-            },
-        ));
+            normalize_type_reference(
+                self,
+                request.type_reference,
+                &TypeIdentityContext {
+                    binders: request.binders,
+                    substitutions: request.substitutions,
+                    substitution_semantics: SubstitutionSemantics::Transitive,
+                    active_const_substitutions: &[],
+                    exact_toolchain_sources: request.exact_toolchain_sources,
+                    missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
+                    qualification: TypeIdentityQualification::PackageQualified,
+                    ..TypeIdentityContext::default()
+                },
+            ),
+        );
         (!missing_exact_nominal_owner.get()).then_some(identity)
     }
 
@@ -600,7 +656,8 @@ impl TypedTrees {
             return None;
         }
         let missing_exact_nominal_owner = Cell::new(false);
-        let identity = NormalizedTypeIdentity(
+        let identity = program_intern_type_identity(
+            self,
             TypeIdentityContext {
                 binders: &[],
                 substitutions: &[],
@@ -801,11 +858,10 @@ impl TypedTrees {
                     [
                         atom("mutable", if parameter.is_mutable { "yes" } else { "no" }),
                         atom("const", if parameter.is_const { "yes" } else { "no" }),
-                        self.type_identity(TypeIdentityRequest {
+                        self.type_identity_request_text(TypeIdentityRequest {
                             binders: &binders,
                             ..TypeIdentityRequest::ordinary(parameter.type_reference)
-                        })
-                        .into_string(),
+                        }),
                     ],
                 )
             })

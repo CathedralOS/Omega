@@ -124,9 +124,7 @@ pub(super) fn binding_arguments_match(
             || argument.access != target_access
             || !access_preserved(source_plan.access, argument.access)
             || argument.type_identity
-                != program
-                    .normalized_type_identity(target_carrier.carrier_type)
-                    .into_string()
+                != program.normalized_type_identity_text(target_carrier.carrier_type)
         {
             return false;
         }
@@ -137,9 +135,7 @@ pub(super) fn binding_arguments_match(
             if receipt.source_parameter != source.symbol
                 || receipt.requirement != source_carrier.carrier.requirement
                 || receipt.carrier_type_identity
-                    != program
-                        .normalized_type_identity(source.type_reference)
-                        .into_string()
+                    != program.normalized_type_identity_text(source.type_reference)
             {
                 return false;
             }

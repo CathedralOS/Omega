@@ -533,7 +533,7 @@ fn expression_symbol_trace(
             "{}:{:?}:{}",
             trace(value.value),
             value.semantic_domain_symbol,
-            program.normalized_type_identity(value.target_type)
+            program.normalized_type_identity_text(value.target_type)
         ),
         ExpressionNode::Indexed(value) => {
             format!("{}|{}", trace(value.collection), trace(value.index))
@@ -557,7 +557,7 @@ fn expression_symbol_trace(
         ),
         ExpressionNode::Unary(value) => trace(value.operand),
         ExpressionNode::ZeroValue(value) => {
-            format!("zero:{}", program.normalized_type_identity(*value))
+            format!("zero:{}", program.normalized_type_identity_text(*value))
         }
         ExpressionNode::Boolean(value) => boolean_trace(*value),
         ExpressionNode::Integer(value) => value.landing().map_or_else(

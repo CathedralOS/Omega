@@ -56,7 +56,7 @@ impl CheckedTrees {
             return Ok(None);
         };
 
-        let carrier_type_identity = self.normalized_type_identity(type_reference).into_string();
+        let carrier_type_identity = self.normalized_type_identity_text(type_reference);
         let (base_type_identity, qualifications) =
             self.service_base_and_qualifications(carrier.carrier_type);
         Ok(Some(CheckedServiceParameterCarrier {
@@ -93,7 +93,7 @@ impl CheckedTrees {
             type_reference = *base_type;
         }
         (
-            self.normalized_type_identity(type_reference).into_string(),
+            self.normalized_type_identity_text(type_reference),
             qualifications,
         )
     }

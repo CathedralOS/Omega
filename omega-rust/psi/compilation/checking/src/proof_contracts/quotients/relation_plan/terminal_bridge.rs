@@ -837,11 +837,11 @@ fn canonical_type(
     program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Result<String, String> {
-    let identity = program.package_qualified_type_identity(type_reference);
-    if identity.as_str().is_empty() || identity.as_str().contains("unresolved-owner") {
+    let identity = program.package_qualified_type_identity_text(type_reference);
+    if identity.is_empty() || identity.contains("unresolved-owner") {
         return Err("type identity is not hermetic".to_owned());
     }
-    Ok(identity.into_string())
+    Ok(identity)
 }
 
 fn fact_coordinate(

@@ -18,7 +18,7 @@ pub(crate) fn canonical_plan_laid_data_identity(
             definition.generic_instance.map(|origin| {
                 format!(
                     "closed-data-instance::{}",
-                    program.package_qualified_type_identity(origin)
+                    program.package_qualified_type_identity_text(origin)
                 )
             })
         })

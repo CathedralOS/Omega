@@ -69,11 +69,11 @@ pub(in crate::execution::terminal_unit) fn boundary_borrowed_referent(
     (!is_reference(program, *referee)
         && program.type_multiplicity(*referee) != Multiplicity::Linear
         && has_contents(
-        program,
-        *referee,
-        &[],
-        validation::ContentsRequirement::BorrowedStorage
-    ))
+            program,
+            *referee,
+            &[],
+            validation::ContentsRequirement::BorrowedStorage,
+        ))
     .then_some(*referee)
 }
 
@@ -200,12 +200,10 @@ pub(in crate::execution::terminal_unit) fn closed_data_identity(
     // and every ordinary field/reference use must retain the same original
     // generic application identity, including the exact argument tuple.
     if let Some(application) = data.generic_instance {
-        return program
-            .type_identity(TypeIdentityRequest {
-                binders,
-                ..TypeIdentityRequest::ordinary(application)
-            })
-            .into_string();
+        return program.type_identity_request_text(TypeIdentityRequest {
+            binders,
+            ..TypeIdentityRequest::ordinary(application)
+        });
     }
     let path = program.symbols.display_path(data.symbol, "::");
     format!("named({})", normalized_atom("name", &path))

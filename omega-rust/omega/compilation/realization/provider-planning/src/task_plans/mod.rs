@@ -274,7 +274,7 @@ fn signature_layout_report_fingerprint(
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x51);
     for (type_reference, layout) in layouts {
-        hash.string_terminated(program.normalized_type_identity(*type_reference).as_str());
+        hash.string_terminated(&program.normalized_type_identity_text(*type_reference));
         hash.usize(layout.size);
         hash.usize(layout.alignment);
         hash.byte(0xff);
@@ -293,14 +293,10 @@ fn entry_report_fingerprint(
     hash.string_terminated(entry.name.as_str());
     for parameter in program.state_parameters(entry) {
         hash.byte(u8::from(parameter.is_mutable));
-        hash.string_terminated(
-            program
-                .normalized_type_identity(parameter.type_reference)
-                .as_str(),
-        );
+        hash.string_terminated(&program.normalized_type_identity_text(parameter.type_reference));
     }
     hash.byte(0xfe);
-    hash.string_terminated(program.normalized_type_identity(entry.return_type).as_str());
+    hash.string_terminated(&program.normalized_type_identity_text(entry.return_type));
     hash.finish_normalized()
 }
 

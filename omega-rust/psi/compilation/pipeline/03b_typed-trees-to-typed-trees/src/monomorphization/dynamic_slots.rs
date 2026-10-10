@@ -45,9 +45,7 @@ pub(crate) fn instantiate_dynamic_slots(program: &mut TypedTrees) -> Result<(), 
         return Ok(());
     };
     for demand in demands {
-        let interface_identity = program
-            .normalized_type_identity(demand.selector_type)
-            .into_string();
+        let interface_identity = program.normalized_type_identity_text(demand.selector_type);
         if program
             .dynamic_slot(&interface_identity, demand.requirement)
             .is_none()
@@ -253,8 +251,8 @@ fn slot_for(
     demand: Option<validation::DynamicSlotDemand>,
 ) -> Option<(SymbolHandle, Identifier)> {
     let demand = demand?;
-    let identity = program.normalized_type_identity(demand.selector_type);
-    let slot = program.dynamic_slot(identity.as_str(), demand.requirement)?;
+    let identity = program.normalized_type_identity_text(demand.selector_type);
+    let slot = program.dynamic_slot(&identity, demand.requirement)?;
     Some((
         slot.symbol,
         Identifier::generated(program.symbols.name(slot.symbol).to_owned()),

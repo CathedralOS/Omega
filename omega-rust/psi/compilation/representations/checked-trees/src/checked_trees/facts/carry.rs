@@ -231,11 +231,7 @@ pub fn canonical_suspension_crossing_id(
     hash.string(&symbol_identity(program, crossing.target)?);
     hash.policy(crossing.effective);
     for live in &crossing.live_values {
-        hash.string(
-            program
-                .normalized_type_identity(live.type_reference)
-                .as_str(),
-        );
+        hash.string(&program.normalized_type_identity_text(live.type_reference));
         hash.byte(match live.storage {
             SuspensionCrossingStorage::Parameter => 2,
             SuspensionCrossingStorage::Local => 3,

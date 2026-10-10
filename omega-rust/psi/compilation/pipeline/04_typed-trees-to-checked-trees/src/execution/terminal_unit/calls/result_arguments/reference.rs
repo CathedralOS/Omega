@@ -44,10 +44,7 @@ pub(crate) fn argument(
         || (carrier_access != CheckedStructuralAccess::MutableBorrow && carrier_access != access)
         || place.root != facts::PlaceRoot::Symbol(local.symbol)
         || result.multiplicity != Multiplicity::Affine
-        || result.type_identity
-            != program
-                .normalized_type_identity(local.type_reference)
-                .as_str()
+        || result.type_identity != program.normalized_type_identity_text(local.type_reference)
     {
         return None;
     }
@@ -60,8 +57,7 @@ pub(crate) fn argument(
         path.extend(suffix);
         selected
     };
-    if base_type_identity(program, selected, &[],
-        &[])? != target_identity {
+    if base_type_identity(program, selected, &[], &[])? != target_identity {
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {
