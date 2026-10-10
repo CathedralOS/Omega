@@ -874,7 +874,7 @@ impl TerminalExecution<'_> {
         let field_type = selected.structural_type;
         let hole = StructuralRuntimePlace::from(&selected);
         let (required, projected_required) =
-            self.structural_window_requirements(destination, path, field)?;
+            self.structural_window_requirements(operation, destination, path, field)?;
         let mut frontier = self.live_affine_frontier.clone();
         frontier.retain(|entry| entry.place != value.place);
         self.restore_store_frontier(&mut frontier, destination, path, &hole, field_type)?;
@@ -944,6 +944,7 @@ impl TerminalExecution<'_> {
     /// contract and declaration path independently of the live payload below.
     fn structural_window_requirements(
         &self,
+        operation: &terminal_psi::Operation,
         root: semantic_vocabulary::PlaceId,
         path: &[StructuralPathSegment],
         field: Option<semantic_vocabulary::StructuralFieldId>,
@@ -955,6 +956,22 @@ impl TerminalExecution<'_> {
         TerminalInterpretError,
     > {
         let machine = self.program.verified_machine(self.current_machine)?;
+        // Runtime dispatch has already bounded and concretized every selector.
+        // Type geometry still uses the authored operation's captured selector
+        // coordinates: a concrete index alone cannot establish a view's extent.
+        let declared = machine.operation(operation.id).ok_or_else(malformed)?;
+        let OperationKind::StoreStructuralField {
+            destination,
+            path: declared_path,
+            field: declared_field,
+            ..
+        } = &declared.kind
+        else {
+            return Err(malformed());
+        };
+        if *destination != root || *declared_field != field || declared_path.len() != path.len() {
+            return Err(malformed());
+        }
         let (root_type, whole, projected) =
             if let Some(parameter) = machine.structural_parameter(root) {
                 (
@@ -974,13 +991,20 @@ impl TerminalExecution<'_> {
                     result.projected_qualifications.as_slice(),
                 )
             };
-        let projection = terminal_semantics::structural_window_projection(
+        let mut projection = terminal_semantics::structural_window_projection(
             self.program.structural_types().values(),
             root_type,
-            path,
+            declared_path,
             field,
         )
         .ok_or_else(malformed)?;
+        // Memberships belong to the actual selected cells. Keep the resolved
+        // declaration-local field suffix while substituting concrete indexes.
+        projection
+            .path
+            .get_mut(..path.len())
+            .ok_or_else(malformed)?
+            .clone_from_slice(path);
         terminal_psi::StructuralPathQualification::select_restorable(
             whole,
             projected,

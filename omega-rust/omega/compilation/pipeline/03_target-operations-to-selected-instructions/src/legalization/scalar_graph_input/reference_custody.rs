@@ -952,10 +952,12 @@ fn call_arguments(
                 source_contract(function, custody, argument.place).ok_or_else(|| invalid())?;
             let selected = leaf_type(types, contract, &argument.path).ok_or_else(|| invalid())?;
             let storage = Root::Ingress(argument.place, argument.path.clone());
-            if custody.leaves.iter().any(|((carrier, path), leaf)| {
-                !(*carrier == argument.place && path.starts_with(&argument.path))
-                    && roots_overlap(&storage, &leaf.root)
-            }) {
+            // An ingress descriptor names external backing, not the carrier
+            // bytes being transferred. Use the same declaration-derived
+            // storage judgment as disposition instead of treating a copied
+            // descriptor's origin slot as a loan into its former owner.
+            if is_suspended_storage_region(function, custody, types, argument.place, &argument.path)
+            {
                 return Err(invalid());
             }
             normalized.push((
@@ -1141,17 +1143,17 @@ fn call_results(
     {
         return Err(invalid());
     }
-    // Stage the complete result before publication. Independent leaves cannot
-    // duplicate an exclusive origin, even through distinct actual argument
-    // spellings. Borrowing a result does not move its parent loan.
+    // Reconstruct every declared result path before auditing target rows.
+    // Case guards are alternative residences of transported permissions, not
+    // simultaneous copies. Semantic custody has checked exclusivity; this
+    // independent join retains exact actual origins for each signature slot
+    // instead of imposing a second, unguarded identity-overlap policy.
     let mut established = Vec::new();
-    let mut roots = Vec::new();
-    let mut identities = BTreeSet::new();
     let mut reference_results = Vec::new();
     for mapping in &callee_result.reference_sources {
         let expected =
             leaf_referent(types, result.structural_type, &mapping.path).ok_or_else(|| invalid())?;
-        let result_access = validate_result_sources(mapping, result.structural_type, types)?;
+        validate_result_sources(mapping, result.structural_type, types)?;
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
             let source = call_source(
@@ -1225,16 +1227,6 @@ fn call_results(
             leaf.identity = (result.place, mapping.path.clone());
             leaf.reform(psi_operation, result);
         }
-        if !identities.insert(leaf.identity.clone())
-            || roots.iter().any(|(root, prior_access)| {
-                roots_overlap(root, &leaf.root)
-                    && (result_access != StructuralAccess::SharedBorrow
-                        || *prior_access != StructuralAccess::SharedBorrow)
-            })
-        {
-            return Err(invalid());
-        }
-        roots.push((leaf.root.clone(), result_access));
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             origins: leaf.root.origins(),
@@ -1978,11 +1970,14 @@ fn apply_cleanup_actions(
     for action in actions {
         let place = match action {
             TerminalAffineCleanupAction::RetireHome(place) => {
-                if source_contract(function, custody, place).is_none()
-                    || custody.leaves.keys().any(|(carrier, _)| *carrier == place)
-                {
+                if source_contract(function, custody, place).is_none() {
                     return Err(invalid());
                 }
+                // The checked partition has disposed resident obligations.
+                // Signature slots for inactive cases can remain in this
+                // conservative roster after the active payload moved. Retire
+                // only this carrier's metadata, never origins at other homes.
+                custody.leaves.retain(|(carrier, _), _| *carrier != place);
                 continue;
             }
             TerminalAffineCleanupAction::DiscardRoot(place) => place,
@@ -2280,22 +2275,9 @@ fn entry(
         if !contains_reference(types, parameter.structural_type) {
             continue;
         }
-        // Borrowing lends the carrier roster without transferring its permissions.
-        if parameter.multiplicity
-            != if parameter.access == StructuralAccess::Owned {
-                StructuralMultiplicity::Affine
-            } else {
-                StructuralMultiplicity::Unrestricted
-            }
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || function
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == parameter.place)
-        {
-            return Err(invalid());
-        }
+        // Reconstruct descriptor permissions independently of the carrier's
+        // owned claims and refinements. Borrowing lends this roster without
+        // transferring its permissions; each leaf keeps its exact ingress.
         let paths = leaf_paths(
             types,
             parameter.structural_type,

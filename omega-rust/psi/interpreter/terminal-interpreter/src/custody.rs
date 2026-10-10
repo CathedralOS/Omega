@@ -145,16 +145,16 @@ pub(crate) fn commit_cleanup_action(
             )?;
             let root = crate::custody::verified_structural_place(structural_values, cleanup.place)?;
             let value = project_structural_value(structural_types, root, &cleanup.path)?;
-            // The selected nominal owner cannot die beneath an outstanding
-            // reference; disjoint siblings retain their own storage and loans.
-            if reference_referents.iter().any(|(carrier, referent)| {
-                (carrier.opaque_identity == value.opaque_identity
-                    && terminal_semantics::structural_paths_may_overlap(&carrier.path, &value.path))
-                    || (referent.view.opaque_identity == value.opaque_identity
-                        && terminal_semantics::structural_paths_may_overlap(
-                            &referent.view.path,
-                            &value.path,
-                        ))
+            // A loan into the selected owner prevents its disposition. An
+            // owned descriptor inside it is instead a descendant: the parent
+            // hook borrows the intact carrier before the ordered child actions
+            // dispose those descriptors, never their external referents.
+            if reference_referents.values().any(|referent| {
+                referent.view.opaque_identity == value.opaque_identity
+                    && terminal_semantics::structural_paths_may_overlap(
+                        &referent.view.path,
+                        &value.path,
+                    )
             }) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }

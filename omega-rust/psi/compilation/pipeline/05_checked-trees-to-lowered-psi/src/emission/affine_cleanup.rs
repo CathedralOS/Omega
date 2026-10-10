@@ -63,6 +63,8 @@ pub(crate) fn complete(
     blocks: &mut [Block],
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LoweringError> {
+    let extractions =
+        projected_transfers::owned_extractions(entry_parameters, local_places, blocks, types)?;
     complete_carriers(
         parameters,
         no_code_types,
@@ -70,8 +72,16 @@ pub(crate) fn complete(
         entry,
         blocks,
         types,
+        &extractions,
     )?;
-    projected_transfers::complete(entry_parameters, entry, blocks, types)
+    projected_transfers::complete(
+        entry_parameters,
+        local_places,
+        entry,
+        blocks,
+        types,
+        &extractions,
+    )
 }
 
 fn complete_carriers(
@@ -81,6 +91,10 @@ fn complete_carriers(
     entry: BlockId,
     blocks: &mut [Block],
     types: &[terminal_psi::StructuralTypeDeclaration],
+    extractions: &[(
+        semantic_vocabulary::OperationId,
+        terminal_psi::StructuralArgument,
+    )],
 ) -> Result<(), LoweringError> {
     let affine = parameters
         .iter()
@@ -99,7 +113,10 @@ fn complete_carriers(
         .collect::<Vec<_>>();
     // A partial transfer retains root storage and its independently selected
     // residual disposal. The whole-home solver must not replace that schedule.
-    let mut partial_transfers = Vec::new();
+    let mut partial_transfers = extractions
+        .iter()
+        .map(|(_, argument)| argument.place)
+        .collect::<Vec<_>>();
     for block in blocks.iter() {
         let operands = block
             .operations

@@ -175,9 +175,11 @@ pub(super) fn cleanup(
             terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
                 // Disposal selects an exact region; home retirement is a
                 // separate action even when that region covers the root.
-                discardable(discard.place)
-                    && owner(discard.place).and_then(|(root, _)| selected_type(root))
-                        == Some(discard.structural_type)
+                // A linear parent can contain this residual after its hook
+                // settles its claim. Rejoin the selected region's geometry,
+                // not the containing owner's original disposal category.
+                owner(discard.place).and_then(|(root, _)| selected_type(root))
+                    == Some(discard.structural_type)
             }
             terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
                 owner(cleanup.place).is_some_and(|(structural_type, multiplicity)| {

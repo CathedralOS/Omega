@@ -9,12 +9,12 @@
 //! transferred subtree to make the remaining partition fit.
 use super::{LoweringError, block_position, unsupported};
 use crate::direct_calls::call_structural_arguments;
-use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
+use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeSet, VecDeque};
 use terminal_psi::{
     Block, OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
-    TerminalAffineCleanupAction, Terminator,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, Terminator,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -24,13 +24,102 @@ struct MovedRoot {
 }
 type Frontier = Vec<MovedRoot>;
 
+/// Extraction moves cells without an explicit owned operand. Retain that
+/// transfer once for both whole-home lifetime and residual completion. An owned
+/// descriptor does not own its referent or view elements: only inline storage
+/// selected from an owned declaration belongs to this home's complement.
+pub(super) fn owned_extractions(
+    parameters: &[StructuralParameterDeclaration],
+    local_places: &[StructuralPlaceDeclaration],
+    blocks: &[Block],
+    types: &[StructuralTypeDeclaration],
+) -> Result<Vec<(OperationId, StructuralArgument)>, LoweringError> {
+    let roots = parameters
+        .iter()
+        .chain(blocks.iter().flat_map(|block| &block.structural_parameters))
+        .map(|parameter| (parameter.place, parameter.structural_type, parameter.access))
+        .chain(
+            blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| {
+                    operation.result.structural().map(|result| {
+                        (
+                            result.place,
+                            result.structural_type,
+                            StructuralAccess::Owned,
+                        )
+                    })
+                }),
+        )
+        .chain(local_places.iter().filter_map(|local| match local.kind {
+            StructuralPlaceKind::TrivialAffineLocal {
+                structural_type, ..
+            } => Some((local.id, structural_type, StructuralAccess::Owned)),
+            _ => None,
+        }))
+        .collect::<Vec<_>>();
+    let mut extractions = Vec::new();
+    for operation in blocks.iter().flat_map(|block| &block.operations) {
+        let OperationKind::MoveStructuralField {
+            source,
+            path,
+            field,
+        } = &operation.kind
+        else {
+            continue;
+        };
+        let mut declarations = roots.iter().filter(|(place, _, _)| place == source);
+        let (_, root_type, access) = declarations.next().ok_or(LoweringError::Unsupported(
+            "extraction source has no storage declaration",
+        ))?;
+        if declarations
+            .any(|(_, other_type, other_access)| other_type != root_type || other_access != access)
+        {
+            return unsupported("extraction source has inconsistent storage declarations");
+        }
+        if *access != StructuralAccess::Owned || path.contains(&StructuralPathSegment::Referent) {
+            continue;
+        }
+        if types.iter().any(|declaration| {
+            declaration.id == *root_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                )
+        }) {
+            continue;
+        }
+        let projection = terminal_semantics::structural_window_projection(
+            types.iter(),
+            *root_type,
+            path,
+            *field,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "owned extraction has no exact storage projection",
+        ))?;
+        extractions.push((
+            operation.id,
+            StructuralArgument {
+                place: *source,
+                path: projection.path,
+                access: StructuralAccess::Owned,
+            },
+        ));
+    }
+    Ok(extractions)
+}
+
 pub(super) fn complete(
     parameters: &[StructuralParameterDeclaration],
+    local_places: &[StructuralPlaceDeclaration],
     entry: BlockId,
     blocks: &mut [Block],
     types: &[StructuralTypeDeclaration],
+    extractions: &[(OperationId, StructuralArgument)],
 ) -> Result<(), LoweringError> {
-    if !blocks.iter().any(|block| {
+    if extractions.is_empty() && !blocks.iter().any(|block| {
         block.operations.iter().any(|operation| {
             matches!(&operation.kind, OperationKind::ReleaseReference { path, .. } if !path.is_empty())
                 || operands(&operation.kind).any(|argument| {
@@ -63,6 +152,12 @@ pub(super) fn complete(
                         .map(|result| (result.place, result.structural_type))
                 }),
         )
+        .chain(local_places.iter().filter_map(|local| match local.kind {
+            StructuralPlaceKind::TrivialAffineLocal {
+                structural_type, ..
+            } => Some((local.id, structural_type)),
+            _ => None,
+        }))
         .collect::<Vec<_>>();
     let mut incoming = vec![None; blocks.len()];
     let entry = block_position(blocks, entry)?;
@@ -79,6 +174,27 @@ pub(super) fn complete(
             for argument in operands(&operation.kind) {
                 transfer(&mut frontier, argument)?;
             }
+            if let Some((_, extraction)) = extractions
+                .iter()
+                .find(|(identity, _)| *identity == operation.id)
+            {
+                // Unlike a whole operand transfer, whole extraction leaves an
+                // empty but allocated home until restoration or retirement.
+                if extraction.path.is_empty() {
+                    if frontier.iter().any(|root| root.place == extraction.place) {
+                        return unsupported(
+                            "whole extraction consumes a partially transferred root",
+                        );
+                    }
+                    frontier.push(MovedRoot {
+                        place: extraction.place,
+                        paths: BTreeSet::from([Vec::new()]),
+                    });
+                    frontier.sort_by_key(|root| root.place);
+                } else {
+                    transfer(&mut frontier, extraction)?;
+                }
+            }
             if let OperationKind::ReleaseReference { source, path } = &operation.kind {
                 remove_path(&mut frontier, *source, path)?;
             }
@@ -90,14 +206,26 @@ pub(super) fn complete(
                 field,
                 ..
             } = &operation.kind
+                && frontier.iter().any(|root| root.place == *destination)
             {
-                let mut stored = path.clone();
-                if let Some(field) = field {
-                    stored.push(StructuralPathSegment::Field(
-                        crate::structural_types::field_identity(types, *field)?,
-                    ));
-                }
-                restore_path(&mut frontier, *destination, &stored);
+                let root_type = roots
+                    .iter()
+                    .find_map(|(place, structural_type)| {
+                        (*place == *destination).then_some(*structural_type)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "restoration root has no storage declaration",
+                    ))?;
+                let restored = terminal_semantics::structural_window_projection(
+                    types.iter(),
+                    root_type,
+                    path,
+                    *field,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "restoration has no exact storage projection",
+                ))?;
+                restore_path(&mut frontier, *destination, &restored.path);
             }
             if let Some(result) = operation.result.structural() {
                 frontier.retain(|root| root.place != result.place);
@@ -265,6 +393,11 @@ fn residuals(
     roots: &[(PlaceId, StructuralTypeId)],
     types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<StructuralAffineDiscard>, LoweringError> {
+    // A whole extraction vacates all cells but retains their allocation. No
+    // residual can be disposed; only the already scheduled retirement remains.
+    if root.paths.contains(&Vec::new()) {
+        return Ok(Vec::new());
+    }
     let mut matching = roots.iter().filter(|(place, _)| *place == root.place);
     let (_, root_type) = matching.next().ok_or(LoweringError::Unsupported(
         "projected cleanup root has no exact declaration",

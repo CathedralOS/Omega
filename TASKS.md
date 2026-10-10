@@ -623,8 +623,8 @@ defines the complete product bar.
     and `runtime_nested_projected_claim_return_exit` (0) for selected-claim
     relocation, retained siblings and by-path call binding. Keep
     `runtime_borrowed_case_result_restore_exit` (0) for ordinary success/failure
-    sums restoring a detached linear token on both arms through selected
-    control-flow cleanup, and `runtime_linear_case_payload_forward_exit` (0)
+    sums restoring a detached linear token and its original reference backing
+    on both arms through selected cleanup, and `runtime_linear_case_payload_forward_exit` (0)
     for unexamined sums and projected aggregate arguments. Keep
     `fail/ownership/linear_case_result_second_transfer` for exact-once returned
     payload custody. These four result programs still need Windows x86-64 and

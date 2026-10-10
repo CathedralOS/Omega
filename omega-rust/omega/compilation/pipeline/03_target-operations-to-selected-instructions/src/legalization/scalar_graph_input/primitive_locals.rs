@@ -1,4 +1,7 @@
 //! Input-only primitive storage identity; whole-unit custody owns loan and SSA dominance.
+//! A primitive observation leaves the carrier's claims and refinements intact.
+//! Validate its readable declaration and exact leaf geometry, independently of
+//! whole-carrier copying. Primitive local establishment keeps its own contract.
 use super::{AbstractOperation, PsiOptimizationFunction, ScalarType, scalar_shape};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::value_type;
@@ -47,28 +50,25 @@ pub(super) fn valid_result(
     result: &StructuralOperationResult,
 ) -> bool {
     result.multiplicity == StructuralMultiplicity::Unrestricted
-        && valid_owned_result(function, operation, result)
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty()
+        && has_owned_result_declaration(function, operation, result)
 }
 
-fn valid_owned_result(
+fn has_owned_result_declaration(
     function: &PsiOptimizationFunction,
     operation: OperationId,
     result: &StructuralOperationResult,
 ) -> bool {
-    matches!(
-        result.multiplicity,
-        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty()
-        && function.structural_places.iter().any(|place| {
-            place.id == result.place
-                && place.kind
-                    == StructuralPlaceKind::OperationResult {
-                        producer: operation,
-                        structural_type: result.structural_type,
-                    }
-        })
+    function.structural_places.iter().any(|place| {
+        place.id == result.place
+            && place.kind
+                == StructuralPlaceKind::OperationResult {
+                    producer: operation,
+                    structural_type: result.structural_type,
+                }
+    })
 }
 /// The parameter a primitive read's root names, independent of its native
 /// carrier. Access, multiplicity and path rules stay with each
@@ -142,10 +142,11 @@ pub(super) fn validate(
                 } else if let Ok((operation, local)) =
                     super::structural_case::source_result(function, *source)
                 {
-                    // An aggregate establishment owns the original referent.
-                    // Its declaration, restrictions and complete projection
-                    // remain independently checked just like a parameter's.
-                    if path.is_empty() || !valid_owned_result(function, operation, local) {
+                    // The read observes this exact established carrier. Its
+                    // claim roster describes ownership, not copy eligibility
+                    // of the scalar leaf; geometry checks the complete path.
+                    if path.is_empty() || !has_owned_result_declaration(function, operation, local)
+                    {
                         return Err(LegalizationError::custody());
                     }
                     local.structural_type
@@ -155,13 +156,7 @@ pub(super) fn validate(
                     if !(matches!(
                         parameter.access,
                         terminal_psi::reading_borrow_pair_pattern!()
-                    ) || (parameter.access == StructuralAccess::Owned && !path.is_empty()))
-                        || parameter.multiplicity == StructuralMultiplicity::Linear
-                        || (path.is_empty()
-                            && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
-                        || !parameter.qualifications.is_empty()
-                        || !parameter.projected_qualifications.is_empty()
-                        || !function.entry_claims.is_empty()
+                    ) || parameter.access == StructuralAccess::Owned)
                     {
                         return Err(LegalizationError::custody());
                     }

@@ -258,7 +258,8 @@ impl TerminalExecution<'_> {
     /// Borrowed entry and state arrivals retain descriptor storage without an
     /// affine owner entry in this frame. Its declared authority bounds every
     /// reference crossing. Owned carrier availability follows its declared
-    /// multiplicity: only affine storage has a disposal frontier.
+    /// multiplicity: affine storage has a disposal frontier; linear storage
+    /// remains resident under its exact live claim.
     fn reference_carrier_access(
         &self,
         place: PlaceId,
@@ -309,17 +310,23 @@ impl TerminalExecution<'_> {
         // A partial owner retains authority over each live residual subtree.
         // Only the prefix before the first pointer crossing is carrier storage;
         // the suffix is governed by that descriptor's captured loan.
+        // Linear regions are excluded from the affine disposal frontier, not
+        // from observation. Their live claim authenticates the same prefix;
+        // neither roster permits reading a detached or consumed sibling.
         let prefix = &path[..path
             .iter()
             .position(|segment| *segment == StructuralPathSegment::Referent)
             .unwrap_or(path.len())];
-        self.live_affine_frontier
-            .iter()
-            .any(|entry| {
-                entry.place == place
-                    && prefix.starts_with(&entry.path)
-                    && (!entry.path.is_empty() || entry.structural_type == owner.structural_type)
-            })
+        let resident = self.live_affine_frontier.iter().any(|entry| {
+            entry.place == place
+                && prefix.starts_with(&entry.path)
+                && (!entry.path.is_empty() || entry.structural_type == owner.structural_type)
+        }) || self.live_claims.values().any(|claim| {
+            claim.place == Some(place)
+                && claim.multiplicity == Some(StructuralMultiplicity::Linear)
+                && prefix.starts_with(&claim.path)
+        });
+        resident
             .then_some(StructuralAccess::Owned)
             .ok_or_else(malformed)
     }

@@ -149,6 +149,18 @@ impl Query<'_> {
         if let Some(call) = operation.call() {
             output.append(self.call(call));
         }
+        // A window extraction transfers the selected value to its detached
+        // holder just like an explicit operand. Its old aggregate keeps only
+        // the complement; ending a loan cannot dispose the moved cells again.
+        if let CheckedUnitEffectOperationPlan::MoveStructuralField { source, result, .. } =
+            operation
+            && self.belongs(source)
+        {
+            output.append(self.leaf(
+                source.path.clone(),
+                Destination::Holder(result.clone(), Vec::new()),
+            ));
+        }
         if let Some(value) = operation.installed_value()
             && self.belongs(value)
         {
