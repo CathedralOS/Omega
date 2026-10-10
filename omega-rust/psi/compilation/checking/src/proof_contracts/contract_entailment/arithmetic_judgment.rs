@@ -1330,7 +1330,9 @@ fn member_receiver_root_symbol(
 
 /// A transient normalization key, never artifact identity. Resolved source
 /// symbols, selected casts and operator structure remain distinct. Unsupported
-/// source forms use occurrence identity rather than guessing equivalence.
+/// source forms and calls without established value identity use occurrence
+/// identity rather than guessing equivalence. A declared result carrier grants
+/// standing bounds on one observation, not equality between two invocations.
 fn integer_source_identity(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
@@ -1362,18 +1364,30 @@ fn integer_source_identity(
             integer_source_identity(program, indexed.collection),
             integer_source_identity(program, indexed.index)
         ),
-        ExpressionNode::Call(call) if call.target_symbol.is_valid() => format!(
-            "call:{:?}:{:?}:{}:{:?}",
-            call.target_symbol,
-            call.machine_arguments,
-            integer_source_identity(program, call.receiver),
-            program
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .map(|argument| integer_source_identity(program, *argument))
-                .collect::<Vec<_>>(),
-        ),
+        ExpressionNode::Call(call) if call.target_symbol.is_valid() => {
+            let plans = crate::machine_calls::calls::operand_call_plans(program, None);
+            if !crate::machine_calls::denotational_calls::expression_values_have_call_identity(
+                program,
+                expression,
+                &plans.0,
+                &plans.1,
+                &|_| false,
+            ) {
+                return format!("occurrence:{expression:?}");
+            }
+            format!(
+                "call:{:?}:{:?}:{}:{:?}",
+                call.target_symbol,
+                call.machine_arguments,
+                integer_source_identity(program, call.receiver),
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .map(|argument| integer_source_identity(program, *argument))
+                    .collect::<Vec<_>>(),
+            )
+        }
         _ => format!("occurrence:{expression:?}"),
     }
 }
