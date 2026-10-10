@@ -41,6 +41,15 @@ pub(crate) fn substitute_cloned_type_parameters(
             binding.expect("complete specialization"),
             &[],
         );
+        let owner = source
+            .unwrap_or(program)
+            .expression_table
+            .static_machine_application(candidate.binding_application)
+            .lexical_owner;
+        program
+            .type_reference_table
+            .retain_operand_lifetime_owner(replacement_handle, owner)
+            .map_err(Diagnostic::error)?;
         for occurrence in occurrences {
             program
                 .type_reference_table

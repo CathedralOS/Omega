@@ -13,6 +13,18 @@ impl CallableApplication {
         let type_parameters = program.state_signature_type_parameters(declared).to_vec();
         let parameters = program.state_signature_parameters(declared).to_vec();
         let previous_symbols = self.symbols.len();
+        let previous_lifetimes = self.lifetimes.len();
+        let selected_lifetime_telescope = declared.symbol == self.lifetime_declaration;
+        if !selected_lifetime_telescope {
+            // A nested callable introduces its own fresh binders. The outer
+            // captured application must not rewrite a same-spelled local.
+            self.lifetimes.extend(
+                declared
+                    .lifetime_parameters
+                    .iter()
+                    .map(|parameter| (parameter.clone(), parameter.clone())),
+            );
+        }
         // Mint the complete local scope before copying any payload: later
         // binders and value subjects may occur in earlier bounds or predicates.
         for (symbol, name) in type_parameters
@@ -33,6 +45,14 @@ impl CallableApplication {
             }
         }
         let mut applied = declared.clone();
+        if selected_lifetime_telescope {
+            applied.lifetime_parameters.retain(|parameter| {
+                !self
+                    .lifetimes
+                    .iter()
+                    .any(|(supplied, _)| supplied == parameter)
+            });
+        }
         applied.symbol = self.symbol(declared.symbol);
         let mut applied_parameters = Vec::with_capacity(type_parameters.len());
         for mut parameter in type_parameters {
@@ -82,6 +102,7 @@ impl CallableApplication {
             }
         }
         self.symbols.truncate(previous_symbols);
+        self.lifetimes.truncate(previous_lifetimes);
         Ok(applied)
     }
 

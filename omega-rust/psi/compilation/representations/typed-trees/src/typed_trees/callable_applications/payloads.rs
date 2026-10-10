@@ -15,6 +15,31 @@ impl CallableApplication {
         if !original.is_valid() {
             return Ok(original);
         }
+        let owner = program
+            .type_reference_table
+            .operand_lifetime_owner(original);
+        if owner.is_valid()
+            && program.lifetime_declaration_owner(owner)
+                != program.lifetime_declaration_owner(self.region_scope)
+        {
+            // Region custody does not imply closed Type/Const payloads.
+            // Keep symbol-identified substitutions, but do not rebind the
+            // supplying declaration's region names in a foreign telescope.
+            let lifetimes = std::mem::take(&mut self.lifetimes);
+            let elided_lifetimes = std::mem::take(&mut self.elided_lifetimes);
+            let applied = self.type_payload(program, original);
+            self.lifetimes = lifetimes;
+            self.elided_lifetimes = elided_lifetimes;
+            return applied;
+        }
+        self.type_payload(program, original)
+    }
+
+    fn type_payload(
+        &mut self,
+        program: &mut TypedTrees,
+        original: types::TypeReferenceHandle,
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
         let node = match program
             .type_reference_table
             .type_reference(original)
@@ -51,7 +76,10 @@ impl CallableApplication {
             } => types::TypeReferenceNode::Reference {
                 referee: self.type_reference(program, referee)?,
                 access,
-                lifetime,
+                lifetime: lifetime
+                    .as_ref()
+                    .filter(|lifetime| !self.elided_lifetimes.contains(lifetime))
+                    .map(|lifetime| self.lifetime(lifetime)),
             },
             types::TypeReferenceNode::Constrained {
                 base_type,
@@ -157,12 +185,25 @@ impl CallableApplication {
                 base_name,
                 lifetime_arguments,
                 arguments,
-            } => types::TypeReferenceNode::Generic {
-                base_symbol: self.symbol(base_symbol),
-                base_name,
-                lifetime_arguments,
-                arguments: self.type_arguments(program, arguments)?,
-            },
+            } => {
+                if lifetime_arguments
+                    .iter()
+                    .any(|lifetime| self.elided_lifetimes.contains(lifetime))
+                {
+                    return Err(
+                        "elided result region requires an anonymous nominal lifetime representation",
+                    );
+                }
+                types::TypeReferenceNode::Generic {
+                    base_symbol: self.symbol(base_symbol),
+                    base_name,
+                    lifetime_arguments: lifetime_arguments
+                        .iter()
+                        .map(|lifetime| self.lifetime(lifetime))
+                        .collect(),
+                    arguments: self.type_arguments(program, arguments)?,
+                }
+            }
             types::TypeReferenceNode::DynamicTrait {
                 symbol,
                 name,
@@ -185,6 +226,12 @@ impl CallableApplication {
         program
             .type_reference_table
             .attach_constant_origins(applied, origins)?;
+        let owner = program
+            .type_reference_table
+            .operand_lifetime_owner(original);
+        program
+            .type_reference_table
+            .retain_operand_lifetime_owner(applied, owner)?;
         Ok(applied)
     }
 
@@ -284,6 +331,20 @@ impl CallableApplication {
                     self.static_arguments(program, &mut call.machine_arguments)?;
                     let application = call.authored_machine_application;
                     if application.is_valid() {
+                        let lifetimes = program
+                            .expression_table
+                            .static_machine_application_lifetimes(application)
+                            .iter()
+                            .map(
+                                |binding| static_applications::StaticMachineLifetimeBinding {
+                                    parameter: binding.parameter.clone(),
+                                    argument: self.lifetime(&binding.argument),
+                                },
+                            )
+                            .collect::<Vec<_>>();
+                        program
+                            .expression_table
+                            .set_static_machine_application_lifetimes(application, &lifetimes);
                         let mut arguments = program
                             .expression_table
                             .static_machine_application_arguments(application)
@@ -435,6 +496,9 @@ impl CallableApplication {
                 argument.type_reference = self.type_reference(program, argument.type_reference)?;
             }
             if let Some(application) = &mut argument.application {
+                for lifetime in &mut application.lifetime_arguments {
+                    *lifetime = self.lifetime(lifetime);
+                }
                 self.static_arguments(program, &mut application.arguments)?;
             }
         }

@@ -142,11 +142,10 @@ fn proposal(
         .collect::<Vec<_>>();
     if !machine_arguments.iter().any(|argument| {
         program.machines().iter().any(|machine| {
-            machine.has_specialization_parameters()
-                && program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == argument.symbol)
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == argument.symbol)
         })
     }) {
         return None;

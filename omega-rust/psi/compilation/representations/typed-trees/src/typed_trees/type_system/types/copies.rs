@@ -119,6 +119,10 @@ impl TypeReferenceTable {
         *self.constant_origin_spans.get_mut(target_owner) = self
             .constant_origins
             .insert_many(source.constant_origins.span_or_empty(span).iter().copied());
+        *self.operand_lifetime_owners.get_mut(Handle::from_parts(
+            copied.arena_index(),
+            copied.generation(),
+        )) = source.operand_lifetime_owner(type_reference);
         copied
     }
 

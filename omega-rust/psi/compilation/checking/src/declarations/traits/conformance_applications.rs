@@ -303,6 +303,10 @@ fn validate_type_argument(
     parameter: &str,
     argument: &StaticMachineArgument,
 ) -> Result<(), Diagnostic> {
+    if argument.type_reference.is_valid() {
+        return crate::static_arguments::validate_structural_type_operand(program, argument)
+            .map_err(Diagnostic::error);
+    }
     if argument.const_literal.is_some()
         || argument.evidence_projection.is_some()
         || !matches!(

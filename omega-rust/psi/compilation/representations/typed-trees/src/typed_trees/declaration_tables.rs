@@ -7,6 +7,26 @@ use arena::{Handle, HandleSpan};
 use symbols::JoinedPath;
 
 impl TypedTrees {
+    /// Executable copying does not create new authored lifetime binders.
+    /// Cyclic or malformed specialization custody has no declaration owner.
+    pub fn lifetime_declaration_owner(
+        &self,
+        mut owner: symbols::SymbolHandle,
+    ) -> symbols::SymbolHandle {
+        let mut visited = Vec::new();
+        while let Some(application) = self
+            .machine_specializations
+            .iter()
+            .find(|application| application.instance == owner)
+        {
+            if visited.contains(&owner) {
+                return symbols::SymbolHandle::invalid();
+            }
+            visited.push(owner);
+            owner = application.template;
+        }
+        owner
+    }
     super::typed_tree_table! {
         const_declarations => const_declarations(crate::constant::ConstDeclaration) [push_const_declaration];
         data_definitions => data_definitions(data::DataDefinition) [push_data_definition], inline;

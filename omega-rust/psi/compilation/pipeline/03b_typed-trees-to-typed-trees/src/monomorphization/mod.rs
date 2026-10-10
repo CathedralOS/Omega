@@ -188,7 +188,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
     loop {
         // Provider clones may restore old inferred types even when this round
         // discovers no further ordinary specialization.
-        changed_owners.extend(result_locals::refresh(program));
+        changed_owners.extend(result_locals::refresh(program)?);
         materialize_static_argument_types(program);
         changed_owners.extend(contextual_calls::close(program)?);
         crate::constructed_results::retain_borrow_result_types(program);

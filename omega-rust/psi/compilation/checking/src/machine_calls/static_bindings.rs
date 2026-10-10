@@ -80,6 +80,34 @@ pub fn validate_static_machine_bindings(
         let bindings = program
             .expression_table
             .static_machine_application_bindings(handle);
+        let lifetimes = program
+            .expression_table
+            .static_machine_application_lifetimes(handle);
+        if !lifetimes.is_empty() {
+            let declared = program.machine_by_symbol(application.binding_declaration);
+            let owner = program.machine_by_symbol(application.lexical_owner);
+            if declared.zip(owner).is_none_or(|(declared, owner)| {
+                // Ordinary calls may infer only the used part of a lifetime
+                // telescope. Applied provider views separately require a
+                // complete explicitly selected tuple, including unused slots.
+                lifetimes.iter().enumerate().any(|(ordinal, binding)| {
+                    !declared
+                        .lifetime_parameters
+                        .iter()
+                        .any(|parameter| parameter == &binding.parameter)
+                        || lifetimes[..ordinal]
+                            .iter()
+                            .any(|previous| previous.parameter == binding.parameter)
+                        || !owner
+                            .lifetime_parameters
+                            .iter()
+                            .any(|parameter| parameter == &binding.argument)
+                })
+            }) {
+                diagnostics.push(Diagnostic::error("static lifetime tuple does not retain its complete declaration and lexical region custody"));
+                continue;
+            }
+        }
         if bindings.is_empty() {
             continue;
         }

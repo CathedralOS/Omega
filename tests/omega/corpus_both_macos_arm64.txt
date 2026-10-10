@@ -756,3 +756,9 @@ pass/slices/runtime_mutable_record_slice_result_reborrow_exit built 4333ms exit:
 pass/slices/runtime_mutable_slice_result_nested_reborrow_exit built 4030ms exit:0 interpreter-exit:0 interpreter:agrees @edb462c792f9
 pass/drops/runtime_selected_partial_owner_cleanup_exit built 3649ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @70cafb4c5975+wt
 pass/borrows/runtime_measured_range_record_domains_exit built 3691ms exit:0 interpreter-exit:0 interpreter:agrees @160a8c7f13c4
+pass/generics/contextual_static_machine_captured_operand_scope_exit built 6378ms exit:0 interpreter-exit:0 interpreter:agrees @4d861e0d5cee+wt
+pass/generics/contextual_static_machine_elided_result_region_exit built 6673ms exit:0 interpreter-exit:0 interpreter:agrees @4d861e0d5cee+wt
+pass/generics/contextual_static_machine_explicit_lifetime_application_exit built 6560ms exit:0 interpreter-exit:0 interpreter:agrees @4d861e0d5cee+wt
+pass/generics/contextual_static_machine_lifetime_result_sources_exit built 6475ms exit:0 interpreter-exit:0 interpreter:agrees @4d861e0d5cee+wt
+pass/generics/contextual_static_machine_universal_lifetime_application_exit built 6443ms exit:0 interpreter-exit:0 interpreter:agrees @4d861e0d5cee+wt
+pass/traits/applied_qualified_signature_region_scope_exit built 6255ms exit:0 interpreter-exit:0 interpreter:agrees @4d861e0d5cee+wt

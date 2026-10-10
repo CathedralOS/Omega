@@ -59,6 +59,22 @@ impl TypedTrees {
                 _ => None,
             })
             .collect::<Vec<_>>();
+        let lifetimes = self
+            .expression_table
+            .static_machine_application_lifetimes(provider)
+            .iter()
+            .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
+            .collect::<Vec<_>>();
+        if !lifetimes.is_empty()
+            && (lifetimes.len() != machine.lifetime_parameters.len()
+                || machine
+                    .lifetime_parameters
+                    .iter()
+                    .zip(&lifetimes)
+                    .any(|(parameter, (supplied, _))| parameter != supplied))
+        {
+            return Err("applied machine callable has an incomplete lifetime tuple");
+        }
         if self
             .machine_type_parameters(machine)
             .iter()
@@ -98,13 +114,23 @@ impl TypedTrees {
             ..signature::StateSignature::default()
         };
         let signature = CallableApplication {
+            region_scope: application.binding_declaration,
+            lifetime_declaration: selected,
+            lifetimes,
             types: substitutions,
             static_arguments,
             ..CallableApplication::default()
         }
         .signature(self, &declared)?;
         let source_required = required.clone();
+        let caller_lifetimes = self
+            .expression_table
+            .static_machine_application_lifetimes(invocation)
+            .iter()
+            .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
+            .collect::<Vec<_>>();
         let required = CallableApplication {
+            lifetimes: caller_lifetimes,
             types: caller_substitutions.to_vec(),
             ..CallableApplication::default()
         }
@@ -117,6 +143,13 @@ impl TypedTrees {
                         actual: *actual,
                     }
                 }));
+        let caller_lifetimes = self
+            .expression_table
+            .static_machine_application_lifetimes(invocation)
+            .to_vec();
+        let caller_lifetimes = self
+            .callable_lifetime_substitutions
+            .insert_many(caller_lifetimes);
         let prepared = AppliedCallableSignature {
             owner: AppliedCallableOwner::MachineSelection {
                 invocation,
@@ -126,6 +159,7 @@ impl TypedTrees {
                 required,
                 source_required,
                 caller_operands,
+                caller_lifetimes,
             },
             signature,
         };

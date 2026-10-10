@@ -172,6 +172,28 @@ pub fn is_runtime_value_subject(
             ))
 }
 
+/// A structural Type operand has exactly one custody lane. Sharing this
+/// judgment keeps conformance and machine telescopes from interpreting an
+/// already-lowered applied Type as an absent named symbol.
+pub(crate) fn validate_structural_type_operand(
+    program: &dyn crate::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> Result<(), &'static str> {
+    if !argument.type_reference.is_valid()
+        || !program
+            .type_reference_table
+            .contains_type_reference(argument.type_reference)
+        || !argument.path.is_empty()
+        || argument.symbol.is_valid()
+        || argument.const_literal.is_some()
+        || argument.application.is_some()
+        || argument.evidence_projection.is_some()
+    {
+        return Err("structural static type argument has invalid or mixed argument custody");
+    }
+    Ok(())
+}
+
 fn validate_arguments(
     program: &dyn crate::CheckingInput,
     template: &typed_trees::machine::Machine,
@@ -210,19 +232,7 @@ fn validate_arguments(
             }
         }
         if argument.type_reference.is_valid() {
-            if !program
-                .type_reference_table
-                .contains_type_reference(argument.type_reference)
-                || !argument.path.is_empty()
-                || argument.symbol.is_valid()
-                || argument.const_literal.is_some()
-                || argument.application.is_some()
-                || argument.evidence_projection.is_some()
-            {
-                return Err(Diagnostic::error(
-                    "structural static type argument has invalid or mixed argument custody",
-                ));
-            }
+            validate_structural_type_operand(program, argument).map_err(Diagnostic::error)?;
             continue;
         }
         // An unused type binder is still a type, not an unsupplied data

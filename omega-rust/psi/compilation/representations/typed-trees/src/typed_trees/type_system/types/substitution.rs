@@ -22,6 +22,14 @@ impl TypeReferenceTable {
         let origins = self.constant_origins(replacement)?.to_vec();
         let node = self.type_reference(replacement).clone();
         self.attach_constant_origins(occurrence, origins)?;
+        let owner = self.operand_lifetime_owner(replacement);
+        // The previous root payload is gone. Whole replacement transfers its
+        // supplying scope, including an absent scope; first-wins forwarding
+        // would falsely bind the new operand under the removed node's owner.
+        *self.operand_lifetime_owners.get_mut(Handle::from_parts(
+            occurrence.arena_index(),
+            occurrence.generation(),
+        )) = owner;
         self.substitute_node(occurrence, node);
         Ok(())
     }

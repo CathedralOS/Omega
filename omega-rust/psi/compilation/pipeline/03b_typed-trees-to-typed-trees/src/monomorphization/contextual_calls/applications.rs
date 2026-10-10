@@ -9,13 +9,31 @@ use typed_trees::{
 pub(super) fn retain_view(
     program: &mut TypedTrees,
     provider: &Candidate<'_>,
-    state: &State,
     invocation: StaticMachineApplicationHandle,
     ordinal: usize,
     selected: SymbolHandle,
     expected: &StateSignature,
     caller_types: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Result<(), Vec<Diagnostic>> {
+    program
+        .prepare_applied_machine_callable(
+            invocation,
+            ordinal,
+            provider.binding_application,
+            selected,
+            expected,
+            caller_types,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+pub(super) fn retain_provider(
+    program: &mut TypedTrees,
+    provider: &Candidate<'_>,
+    state: &State,
+    invocation: StaticMachineApplicationHandle,
+    lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
+) -> StaticMachineApplicationHandle {
     let owner = program
         .expression_table
         .static_machine_application(invocation)
@@ -35,13 +53,7 @@ pub(super) fn retain_view(
         .expression_table
         .set_static_machine_application_bindings(retained, &bindings);
     program
-        .prepare_applied_machine_callable(
-            invocation,
-            ordinal,
-            retained,
-            selected,
-            expected,
-            caller_types,
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])
+        .expression_table
+        .set_static_machine_application_lifetimes(retained, lifetimes);
+    retained
 }

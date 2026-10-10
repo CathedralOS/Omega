@@ -3,18 +3,29 @@
 //! Fixed arrays share one element-type traversal; only actual reference leaves
 //! are expanded into per-element paths. View-free storage therefore costs work
 //! proportional to its type structure, not its physical element count.
+use super::data_definition;
 use super::{SymbolHandle, TypeReferenceHandle, TypeReferenceNode};
-use crate::borrow::BorrowOwnerSegment;
-use crate::borrow::view_link::data_definition;
+use checked_trees::BorrowLoanOwnerSegment as BorrowOwnerSegment;
 
+#[derive(Clone)]
 pub(super) struct CarriedLifetime {
+    pub(super) reference: TypeReferenceHandle,
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
-    pub(super) lifetime: Option<String>,
+    pub(super) lifetime: Option<RegionIdentity>,
     pub(super) access: language_semantics::ReferenceAccess,
 }
 
+/// Flow queries retain declaration spellings; callable refinement resolves
+/// them to fresh ordinals or captured declaration identities before walking.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum RegionIdentity {
+    Declared(String),
+    Fresh(usize),
+    Captured(SymbolHandle, usize),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DeclarationLifetimeFrontier {
+pub enum DeclarationLifetimeFrontier {
     Complete { has_borrows: bool },
     TemplateDependent { has_borrows: bool },
     Incomplete,
@@ -24,16 +35,18 @@ pub(crate) enum DeclarationLifetimeFrontier {
 struct TemplateFrontier<'a> {
     parameters: &'a [SymbolHandle],
     dependent: bool,
+    scoped_regions: bool,
 }
 
 /// Each generic telescope binds simultaneously. Its actual operands belong
 /// to the outer scope, even when another application uses the same declaration.
 #[derive(Clone, Copy, Default)]
 struct TypeScope<'scope> {
+    declaration: SymbolHandle,
     bindings: &'scope [(SymbolHandle, TypeReferenceHandle)],
     starts: &'scope [usize],
     outer: Option<&'scope TypeScope<'scope>>,
-    argument_lifetimes: &'scope [(String, String)],
+    argument_lifetimes: &'scope [(String, RegionIdentity)],
 }
 
 struct DataVisit {
@@ -43,14 +56,15 @@ struct DataVisit {
 
 /// A declaration may describe a type parameter without knowing its carried
 /// references. This is not a complete frontier and never supplies a loan.
-pub(crate) fn declaration_lifetime_frontier(
-    program: &dyn ::validation::CheckingInput,
+pub fn declaration_lifetime_frontier(
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     parameters: &[SymbolHandle],
 ) -> DeclarationLifetimeFrontier {
     let mut template = TemplateFrontier {
         parameters,
         dependent: false,
+        scoped_regions: false,
     };
     let mut leaves = Vec::new();
     let complete = collect_type(
@@ -78,7 +92,7 @@ pub(crate) fn declaration_lifetime_frontier(
 }
 
 pub(super) fn carried_lifetimes(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<CarriedLifetime>> {
     let mut output = Vec::new();
@@ -98,7 +112,7 @@ pub(super) fn carried_lifetimes(
 
 /// Every substitution maps to a valid, registered type reference.
 fn substitutions_are_registered(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
     !substitutions.iter().any(|(_, reference)| {
@@ -112,8 +126,8 @@ fn substitutions_are_registered(
 /// Exact call substitutions may prove that a formerly dependent result has
 /// no carried views. A closed nonempty frontier still requires per-call loan
 /// attribution and cannot use this deliberately narrower result.
-pub(crate) fn substituted_result_is_view_free(
-    program: &dyn ::validation::CheckingInput,
+pub fn substituted_result_is_view_free(
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -143,8 +157,8 @@ pub(crate) fn substituted_result_is_view_free(
 /// every instantiated leaf still borrows an exact caller input, which is the
 /// caller-side loan relation `resolve_substituted_view_return_source`
 /// carries. An unresolved structure is never a complete frontier.
-pub(crate) fn substituted_result_frontier_is_complete(
-    program: &dyn ::validation::CheckingInput,
+pub fn substituted_result_frontier_is_complete(
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     scope_starts: &[usize],
@@ -174,26 +188,71 @@ pub(crate) fn substituted_result_frontier_is_complete(
 /// resolved through the call's own closed bindings. `None` means the
 /// instantiated frontier cannot be enumerated completely.
 pub(super) fn substituted_carried_lifetimes(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     scope_starts: &[usize],
+) -> Option<Vec<CarriedLifetime>> {
+    symbolic_carried_lifetimes(program, reference, substitutions, scope_starts, &[])
+}
+
+/// Known region leaves of a universal callable. Opaque type operands are
+/// compared by the caller's complete type-correspondence judgment, not
+/// asserted view-free. Flow queries pass an empty roster and still require
+/// complete concrete loan frontiers before attribution.
+pub(super) fn symbolic_carried_lifetimes(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
+    symbolic_parameters: &[SymbolHandle],
+) -> Option<Vec<CarriedLifetime>> {
+    scoped_carried_lifetimes(
+        program,
+        reference,
+        substitutions,
+        scope_starts,
+        symbolic_parameters,
+        &[],
+        &[],
+        SymbolHandle::invalid(),
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn scoped_carried_lifetimes(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
+    symbolic_parameters: &[SymbolHandle],
+    lifetimes: &[(String, RegionIdentity)],
+    argument_lifetimes: &[(String, RegionIdentity)],
+    declaration: SymbolHandle,
+    scoped_regions: bool,
 ) -> Option<Vec<CarriedLifetime>> {
     let mut output = Vec::new();
     collect_type(
         program,
         reference,
-        &[],
+        lifetimes,
         TypeScope {
+            declaration,
             bindings: substitutions,
             starts: scope_starts,
+            argument_lifetimes,
             ..TypeScope::default()
         },
         &[],
         &mut Vec::new(),
         &mut output,
         false,
-        &mut TemplateFrontier::default(),
+        &mut TemplateFrontier {
+            parameters: symbolic_parameters,
+            dependent: false,
+            scoped_regions,
+        },
     )
     .then_some(output)
 }
@@ -203,7 +262,7 @@ pub(super) fn substituted_carried_lifetimes(
 /// no projected frontier is published. Explicit lifetimes or substitutions
 /// require the ordinary complete contract and cannot use this fallback.
 pub(super) fn whole_elided_result_accesses(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<language_semantics::ReferenceAccess>> {
     let mut output = Vec::new();
@@ -222,9 +281,9 @@ pub(super) fn whole_elided_result_accesses(
 }
 
 fn collect_type(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
-    lifetimes: &[(String, String)],
+    lifetimes: &[(String, RegionIdentity)],
     types: TypeScope<'_>,
     owner_path: &[BorrowOwnerSegment],
     visiting: &mut Vec<DataVisit>,
@@ -232,6 +291,35 @@ fn collect_type(
     whole_elided_contract: bool,
     template: &mut TemplateFrontier<'_>,
 ) -> bool {
+    let operand_owner = if template.scoped_regions {
+        program
+            .type_reference_table
+            .operand_lifetime_owner(reference)
+    } else {
+        SymbolHandle::invalid()
+    };
+    let operand_lifetimes = super::callable_refinement::captured_lifetimes(program, operand_owner);
+    let lifetimes = if operand_owner.is_valid() {
+        &operand_lifetimes[..]
+    } else {
+        lifetimes
+    };
+    let types = if operand_owner.is_valid() {
+        let mut scope = Some(types);
+        let mut supplying_scope = TypeScope::default();
+        while let Some(frame) = scope {
+            if program.lifetime_declaration_owner(frame.declaration)
+                == program.lifetime_declaration_owner(operand_owner)
+            {
+                supplying_scope = frame;
+                break;
+            }
+            scope = frame.outer.copied();
+        }
+        supplying_scope
+    } else {
+        types
+    };
     // Zero remains the ordinary absence/Unit convention. A stale nonzero
     // generational handle resolving to the same dummy node is not a type.
     if reference.is_valid()
@@ -252,6 +340,7 @@ fn collect_type(
                 return false;
             }
             output.push(CarriedLifetime {
+                reference,
                 owner_path: owner_path.to_vec(),
                 lifetime: lifetime.as_ref().map(|lifetime| {
                     lifetimes
@@ -260,7 +349,7 @@ fn collect_type(
                         .find_map(|(parameter, argument)| {
                             (parameter == lifetime.as_str()).then_some(argument.clone())
                         })
-                        .unwrap_or_else(|| lifetime.as_str().to_owned())
+                        .unwrap_or_else(|| RegionIdentity::Declared(lifetime.as_str().to_owned()))
                 }),
                 access: *access,
             });
@@ -317,6 +406,7 @@ fn collect_type(
                     path.push(BorrowOwnerSegment::FixedIndex(element_index));
                     path.extend_from_slice(&leaf.owner_path);
                     output.push(CarriedLifetime {
+                        reference: leaf.reference,
                         owner_path: path,
                         lifetime: leaf.lifetime.clone(),
                         access: leaf.access,
@@ -334,16 +424,23 @@ fn collect_type(
             if whole_elided_contract {
                 return false;
             }
-            // Preparation owns closed field substitution. Read its exact view
-            // without replaying the declaration telescope or rebinding actual
-            // operands under another application of the same nominal head.
-            if let Some(definition) = program.data_application_definition(reference) {
+            // Preparation owns the nominal field substitution. Its fields
+            // already live in the application's supplying scope: retain the
+            // incoming call bindings without replaying the nominal telescope.
+            // An open prepared field can still name an evidence-bound Type;
+            // clearing those bindings would erase its aggregate result loan.
+            // Copied fields have lost the operand's lexical lifetime scope.
+            // Scoped callable queries traverse the original declaration and
+            // simultaneous application instead of the prepared carrier view.
+            if !template.scoped_regions
+                && let Some(definition) = program.data_application_definition(reference)
+            {
                 return collect_data(
                     program,
                     reference,
                     definition,
                     lifetimes,
-                    TypeScope::default(),
+                    types,
                     owner_path,
                     visiting,
                     output,
@@ -374,7 +471,7 @@ fn collect_type(
                         .find_map(|(outer, concrete)| {
                             (outer == argument.as_str()).then_some(concrete.clone())
                         })
-                        .unwrap_or_else(|| argument.as_str().to_owned());
+                        .unwrap_or_else(|| RegionIdentity::Declared(argument.as_str().to_owned()));
                     (parameter.as_str().to_owned(), argument)
                 })
                 .collect::<Vec<_>>();
@@ -389,6 +486,7 @@ fn collect_type(
                 definition,
                 &nested_lifetimes,
                 TypeScope {
+                    declaration: definition.symbol,
                     bindings: &nested_types,
                     starts: &[0],
                     outer: Some(&types),
@@ -484,10 +582,10 @@ fn collect_type(
 }
 
 fn collect_data(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     definition: &typed_trees::data::DataDefinition,
-    lifetimes: &[(String, String)],
+    lifetimes: &[(String, RegionIdentity)],
     types: TypeScope<'_>,
     owner_path: &[BorrowOwnerSegment],
     visiting: &mut Vec<DataVisit>,

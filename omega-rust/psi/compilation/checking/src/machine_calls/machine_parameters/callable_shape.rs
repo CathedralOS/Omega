@@ -11,6 +11,7 @@ use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContract, StateParameter};
 use typed_trees::state::State;
+use typed_trees::typed_trees::AppliedMachineCallable;
 use typed_trees::types::TypeReferenceHandle;
 
 mod nominal_inputs;
@@ -19,6 +20,8 @@ mod nominal_inputs;
 /// parameter's requirement: a machine entry, a forwarded machine parameter or
 /// a nested machine contract all reduce to these parts.
 pub(super) struct CallableParts<'a> {
+    pub(super) lexical_owner: SymbolHandle,
+    pub(super) lifetime_parameters: &'a [typed_trees::name::Identifier],
     pub(super) type_parameters: &'a [TypeParameter],
     pub(super) parameters: &'a [StateParameter],
     pub(super) return_type: TypeReferenceHandle,
@@ -34,6 +37,8 @@ impl<'a> CallableParts<'a> {
         signature: &'a typed_trees::signature::StateSignature,
     ) -> Self {
         Self {
+            lexical_owner: crate::borrow_contracts::lexical_region_owner(program, signature.symbol),
+            lifetime_parameters: &signature.lifetime_parameters,
             type_parameters: program.state_signature_type_parameters(signature),
             parameters: program.state_signature_parameters(signature),
             return_type: signature.return_type,
@@ -72,7 +77,11 @@ pub(super) fn validate_selected_callable_shape(
                 &label,
                 parameter,
                 applied.required,
-                &CallableParts::of_signature(program, applied.selected),
+                &CallableParts {
+                    lexical_owner: applied.lexical_owner,
+                    ..CallableParts::of_signature(program, applied.selected)
+                },
+                Some(&applied),
                 generic_types,
                 bindings,
                 &mut Vec::new(),
@@ -143,6 +152,8 @@ fn validate_callable_shape(
         parameter,
         requirement,
         &CallableParts {
+            lexical_owner: actual_machine.symbol,
+            lifetime_parameters: &actual_machine.lifetime_parameters,
             type_parameters: program.machine_type_parameters(actual_machine),
             parameters: program.state_parameters(actual_state),
             return_type: actual_state.return_type,
@@ -154,6 +165,7 @@ fn validate_callable_shape(
             ),
             contracts: program.machine_contracts(actual_machine),
         },
+        None,
         generic_types,
         bindings,
         &mut Vec::new(),
@@ -180,6 +192,7 @@ fn validate_callable_parts(
         parameter,
         requirement,
         actual,
+        None,
         generic_types,
         bindings,
         binder_bindings,
@@ -208,6 +221,7 @@ fn validate_callable_formation(
     parameter: &TypeParameter,
     requirement: &typed_trees::signature::StateSignature,
     actual: &CallableParts<'_>,
+    applied: Option<&AppliedMachineCallable<'_>>,
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,
     binder_bindings: &mut Vec<BinderBinding>,
@@ -302,6 +316,25 @@ fn validate_callable_formation(
         return;
     }
 
+    let substitutions = bindings
+        .iter()
+        .map(|binding| (binding.symbol, binding.actual))
+        .collect::<Vec<_>>();
+    if let Err(message) = validate_callable_regions(
+        program,
+        requirement,
+        actual,
+        applied,
+        &substitutions,
+        &formation_binders,
+    ) {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} does not refine `{}`: {message}",
+            parameter.name
+        )));
+        return;
+    }
+
     if requirement.termination_guarantee.promises_termination() && !actual.terminates {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: the requirement guarantees termination",
@@ -319,6 +352,109 @@ fn validate_callable_formation(
         actual_parameters,
         diagnostics,
     );
+}
+
+fn validate_callable_regions(
+    program: &dyn crate::CheckingInput,
+    requirement: &typed_trees::signature::StateSignature,
+    actual: &CallableParts<'_>,
+    applied: Option<&AppliedMachineCallable<'_>>,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    binder_bindings: &[BinderBinding],
+) -> Result<(), &'static str> {
+    use crate::borrow_contracts::CallableBorrowContract;
+    let binders = binder_bindings
+        .iter()
+        .enumerate()
+        .flat_map(|(ordinal, binding)| {
+            let name = format!("$formation{ordinal}");
+            [(binding.required, name.clone()), (binding.actual, name)]
+        })
+        .collect::<Vec<_>>();
+    let mut required = CallableBorrowContract {
+        lexical_owner: crate::borrow_contracts::lexical_region_owner(program, requirement.symbol),
+        lifetime_parameters: &requirement.lifetime_parameters,
+        parameters: program.state_signature_parameters(requirement),
+        return_type: requirement.return_type,
+        substitutions,
+        binders: &binders,
+        lifetime_bindings: &[],
+        argument_owner: actual.lexical_owner,
+        supplied_telescope: false,
+    };
+    let mut selected = CallableBorrowContract {
+        lexical_owner: actual.lexical_owner,
+        lifetime_parameters: actual.lifetime_parameters,
+        parameters: actual.parameters,
+        return_type: actual.return_type,
+        substitutions,
+        binders: &binders,
+        lifetime_bindings: &[],
+        argument_owner: actual.lexical_owner,
+        supplied_telescope: false,
+    };
+    let caller_substitutions;
+    let provider_substitutions;
+    if let Some(applied) = applied {
+        // Applied carriers serve full formation. Region proof instead uses
+        // the source declarations and separately scoped simultaneous operands.
+        let source = program
+            .expression_table
+            .static_machine_application(applied.provider);
+        let machine = program
+            .machine_by_symbol(source.binding_declaration)
+            .ok_or("applied callable lost its original machine declaration")?;
+        let state = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == source.registration_operation)
+            .ok_or("applied callable lost its original entry state")?;
+        caller_substitutions = applied
+            .caller_operands
+            .iter()
+            .map(|operand| (operand.parameter, operand.actual))
+            .collect::<Vec<_>>();
+        provider_substitutions = program
+            .expression_table
+            .static_machine_application_bindings(applied.provider)
+            .iter()
+            .filter_map(|binding| match binding.value {
+                typed_trees::static_applications::StaticMachineBindingValue::Type(reference)
+                | typed_trees::static_applications::StaticMachineBindingValue::Const(reference) => {
+                    Some((binding.parameter, reference))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        required = CallableBorrowContract {
+            lexical_owner: crate::borrow_contracts::lexical_region_owner(
+                program,
+                applied.source_required.symbol,
+            ),
+            lifetime_parameters: &applied.source_required.lifetime_parameters,
+            parameters: program.state_signature_parameters(applied.source_required),
+            return_type: applied.source_required.return_type,
+            substitutions: &caller_substitutions,
+            binders: &binders,
+            lifetime_bindings: applied.caller_lifetimes,
+            argument_owner: applied.lexical_owner,
+            supplied_telescope: false,
+        };
+        selected = CallableBorrowContract {
+            lexical_owner: machine.symbol,
+            lifetime_parameters: &machine.lifetime_parameters,
+            parameters: program.state_parameters(state),
+            return_type: state.return_type,
+            substitutions: &provider_substitutions,
+            binders: &binders,
+            lifetime_bindings: program
+                .expression_table
+                .static_machine_application_lifetimes(applied.provider),
+            argument_owner: applied.lexical_owner,
+            supplied_telescope: true,
+        };
+    }
+    crate::borrow_contracts::validate_callable_borrow_refinement(program, required, selected)
 }
 
 #[allow(clippy::too_many_arguments)]

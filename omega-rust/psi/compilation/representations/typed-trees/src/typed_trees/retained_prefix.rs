@@ -129,6 +129,7 @@ impl TypedTreeTables {
             trait_machine_signatures,
             applied_callable_signatures,
             callable_substitutions,
+            callable_lifetime_substitutions,
             signature_invokes,
             signature_contracts,
             wire_schemas,
@@ -174,6 +175,10 @@ impl TypedTreeTables {
                 &self.applied_callable_signatures,
             )
             && arena_is_exact_prefix(callable_substitutions, &self.callable_substitutions)
+            && arena_is_exact_prefix(
+                callable_lifetime_substitutions,
+                &self.callable_lifetime_substitutions,
+            )
             && arena_is_exact_prefix(signature_invokes, &self.signature_invokes)
             && arena_is_exact_prefix(signature_contracts, &self.signature_contracts)
             && arena_is_exact_prefix(wire_schemas, &self.wire_schemas)

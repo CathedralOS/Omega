@@ -115,7 +115,7 @@ pub(crate) fn lower_static_machine_argument(
     } else {
         typed::types::TypeReferenceHandle::invalid()
     };
-    Ok(typed::expression::StaticMachineArgument {
+    let mut selected = typed::expression::StaticMachineArgument {
         type_reference,
         path: argument
             .path
@@ -153,5 +153,24 @@ pub(crate) fn lower_static_machine_argument(
             }
         }),
         symbol: argument.symbol,
-    })
+    };
+    // Nominal type selections retain the whole operand. Looking up a bare
+    // named carrier later would erase its lifetime/type application before
+    // both ordinary call admission and contextual provider formation.
+    if !selected.type_reference.is_valid()
+        && selected.symbol.is_valid()
+        && target.symbols.get(selected.symbol).kind == symbols::SymbolKind::Data
+        && selected.application.is_some()
+    {
+        let type_reference = target
+            .static_operand_type_reference(&selected)
+            .map_err(Diagnostic::error)?;
+        // Static operands have one custody form, not parallel named and
+        // structural authorities for the same selection.
+        selected = typed::expression::StaticMachineArgument {
+            type_reference,
+            ..typed::expression::StaticMachineArgument::default()
+        };
+    }
+    Ok(selected)
 }

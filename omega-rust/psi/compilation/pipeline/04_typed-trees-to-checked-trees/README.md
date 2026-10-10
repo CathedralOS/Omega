@@ -515,7 +515,7 @@ the indexed form rather than becoming an element-sized loan.
 ## Lifetime source correspondence
 
 [Source lifetimes](../../../../../wiki/spec/language/lifetimes.md) owns the contract.
-[view_link.rs](src/borrow/view_link.rs) supplies one shared result-source query
+[borrow_contracts.rs](../../checking/src/borrow_contracts.rs) supplies one shared result-source query
 to declaration checks and loan attribution. It maps explicit result lifetimes
 to the input parameters carrying the same lifetime and their complete matching
 structural leaves, retaining each result/source path and access. One lifetime

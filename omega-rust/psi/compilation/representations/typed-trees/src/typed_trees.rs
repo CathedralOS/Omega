@@ -31,7 +31,7 @@ pub(crate) use typed_tree_table;
 
 mod authored_targets;
 mod callable_applications;
-pub use callable_applications::AppliedMachineCallable;
+pub use callable_applications::{AppliedMachineCallable, CallableSubstitution};
 pub mod calls;
 mod commitments;
 mod frozen;
@@ -328,6 +328,8 @@ pub struct TypedTreeTables {
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub(crate) applied_callable_signatures: Arena<callable_applications::AppliedCallableSignature>,
     pub(crate) callable_substitutions: Arena<callable_applications::CallableSubstitution>,
+    pub(crate) callable_lifetime_substitutions:
+        Arena<crate::static_applications::StaticMachineLifetimeBinding>,
     pub signature_invokes: Arena<signature::AuthoredInvocation>,
     pub signature_contracts: Arena<signature::SignatureContract>,
     pub expression_table: expression::ExpressionTable,

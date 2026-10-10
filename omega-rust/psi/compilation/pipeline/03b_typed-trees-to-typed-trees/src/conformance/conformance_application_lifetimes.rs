@@ -556,6 +556,38 @@ pub(crate) fn collect_lifetime_bindings(
     bindings: &mut Vec<(String, String)>,
     conflict: &mut bool,
 ) {
+    visit_lifetime_bindings(
+        program,
+        required,
+        actual,
+        parameters,
+        &mut |required, actual| {
+            if let Some(actual) = actual {
+                bind_lifetime(bindings, required.as_str(), actual.as_str(), conflict);
+            }
+        },
+    );
+}
+
+/// Read simultaneous parameter-position region operands, including reference
+/// elision. The consumer owns conflict detection and whether elision is legal.
+pub(crate) fn visit_lifetime_bindings(
+    program: &dyn ::validation::CheckingInput,
+    required: TypeReferenceHandle,
+    actual: TypeReferenceHandle,
+    parameters: &[Identifier],
+    visit: &mut impl FnMut(&Identifier, Option<&Identifier>),
+) {
+    // A supplied Type operand is already in its caller's lexical region
+    // scope. Its coincident spellings are not occurrences of this callee's
+    // fresh lifetime parameters, even in recursive or same-owner selections.
+    if program
+        .type_reference_table
+        .operand_lifetime_owner(required)
+        .is_valid()
+    {
+        return;
+    }
     match (
         program.type_reference_table.type_reference(required),
         program.type_reference_table.type_reference(actual),
@@ -572,27 +604,26 @@ pub(crate) fn collect_lifetime_bindings(
                 ..
             },
         ) => {
-            if let (Some(required), Some(actual)) = (required_lifetime, actual_lifetime)
+            if let Some(required) = required_lifetime
                 && parameters
                     .iter()
                     .any(|parameter| parameter.as_str() == required.as_str())
             {
-                bind_lifetime(bindings, required.as_str(), actual.as_str(), conflict);
+                visit(required, actual_lifetime.as_ref());
             }
-            collect_lifetime_bindings(
+            visit_lifetime_bindings(
                 program,
                 *required_referee,
                 *actual_referee,
                 parameters,
-                bindings,
-                conflict,
+                visit,
             );
         }
         typed_trees::constrained_type_reference_pair!(required, actual) => {
-            collect_lifetime_bindings(program, *required, *actual, parameters, bindings, conflict)
+            visit_lifetime_bindings(program, *required, *actual, parameters, visit)
         }
         (TypeReferenceNode::Constrained { base_type, .. }, _) => {
-            collect_lifetime_bindings(program, *base_type, actual, parameters, bindings, conflict)
+            visit_lifetime_bindings(program, *base_type, actual, parameters, visit)
         }
         (
             TypeReferenceNode::Generic {
@@ -613,7 +644,7 @@ pub(crate) fn collect_lifetime_bindings(
                     .iter()
                     .any(|parameter| parameter.as_str() == required.as_str())
                 {
-                    bind_lifetime(bindings, required.as_str(), actual.as_str(), conflict);
+                    visit(required, Some(actual));
                 }
             }
             for (required, actual) in program
@@ -626,9 +657,7 @@ pub(crate) fn collect_lifetime_bindings(
                         .type_reference_handles(*actual_arguments),
                 )
             {
-                collect_lifetime_bindings(
-                    program, *required, *actual, parameters, bindings, conflict,
-                );
+                visit_lifetime_bindings(program, *required, *actual, parameters, visit);
             }
         }
         (
@@ -648,7 +677,7 @@ pub(crate) fn collect_lifetime_bindings(
                 element_type: actual,
                 ..
             },
-        ) => collect_lifetime_bindings(program, *required, *actual, parameters, bindings, conflict),
+        ) => visit_lifetime_bindings(program, *required, *actual, parameters, visit),
         _ => {}
     }
 }

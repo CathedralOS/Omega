@@ -2619,20 +2619,23 @@ crash and native exit behavior.
     custody, including claims reseated into owned fields; native custody joins
     the complete selected call graph rather than its pointer-only mirror.
     It supplies no provider grant or boundary issuance.
-    The remaining source-selection frontier is an explicit invocation-lifetime
-    selection inside a nested callback application. On macOS ARM64,
-    `omega run --both tests/omega/pending/generics/contextual_static_machine_explicit_lifetime_application_exit/main.omg`
-    refuses `probe<'item, Kind, Evidence>` until its applied region mapping is
-    represented. In Stage 03b's `monomorphization/contextual_calls/`, retain and
-    admit the selected lifetime separately from type and evidence substitutions;
-    transport it through the signature, retained tuple and executable identity.
-    Keeping the provider's original universal lifetime telescope must not
-    discard an explicit choice. This is engineering work under the existing
-    application rules. Nested machine/runtime operands also must not enter an
+    Nested machine/runtime operands must not enter an
     applied view or executable cache before their complete admission. Preserve
     the explicit refusal of unjoined evidence member references in signature
     payloads until their namespace and member-local telescope are represented;
-    generic specification-call denotation is a separate prerequisite. Preserve
+    generic specification-call denotation is a separate prerequisite.
+    Remaining returned-view frontier on macOS ARM64:
+    `omega run --both tests/omega/pending/generics/contextual_static_machine_captured_operand_return_exit/main.omg`
+    refuses the generic Context inputs' incomplete structural lifetime frontiers
+    and attributes Callback's result to a hoisted local. Stage04's declaration
+    judgment must retain template-dependent source obligations and settle exact
+    instantiated input loans, not assert Context is view-free. The consumer's
+    output explicitly relates to its item; the elided variant must still reject
+    its two candidate inputs. Preserve the explicit/universal lifetime, captured
+    operand, two-source result and elided-result callback fixtures through both
+    engines. Fresh/captured identity (including phantom and reference-descendant
+    regions), complete tuples and exact result sources remain independent
+    checking obligations; executable carrier sharing grants none. Preserve
     `generics/contextual_static_machine_conformance_application_exit` and
     `generics/contextual_static_machine_evidence_scopes_exit` through both
     engines; forwarded evidence must guarantee the exact demanded application,

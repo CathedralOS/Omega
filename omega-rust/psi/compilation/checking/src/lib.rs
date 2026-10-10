@@ -388,7 +388,9 @@ pub use proof_contracts::proof_embeddings::{
     ValidatedIntegerEmbeddingCall, integer_embedding_argument,
 };
 
+pub mod borrow_contracts;
 mod declarations;
+mod type_regions;
 pub(crate) use optimization::digest_encoder;
 pub mod expression_traversal;
 mod frozen_program;

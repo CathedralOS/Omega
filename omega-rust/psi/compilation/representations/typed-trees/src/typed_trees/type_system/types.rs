@@ -28,6 +28,9 @@ pub struct TypeReferenceTable {
     constraints: Arena<TypeConstraintNode>,
     constant_origin_spans: Arena<HandleSpan<TypeConstantOrigin>>,
     constant_origins: Arena<TypeConstantOrigin>,
+    /// A substituted operand retains its original lifetime environment after
+    /// copying into a private declaration. Zero means ordinary lexical lookup.
+    operand_lifetime_owners: Arena<SymbolHandle>,
     named_rows: NamedRowIndex,
 }
 
@@ -41,6 +44,7 @@ impl std::fmt::Debug for TypeReferenceTable {
             .field("constraints", &self.constraints)
             .field("constant_origin_spans", &self.constant_origin_spans)
             .field("constant_origins", &self.constant_origins)
+            .field("operand_lifetime_owners", &self.operand_lifetime_owners)
             .finish()
     }
 }
@@ -69,6 +73,7 @@ impl TypeReferenceTable {
             constraints,
             constant_origin_spans,
             constant_origins,
+            operand_lifetime_owners,
             named_rows: _,
         } = base;
         crate::typed_trees::retained_prefix::arena_is_exact_prefix(
@@ -86,6 +91,9 @@ impl TypeReferenceTable {
         ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
             constant_origins,
             &self.constant_origins,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            operand_lifetime_owners,
+            &self.operand_lifetime_owners,
         )
     }
 
@@ -96,6 +104,7 @@ impl TypeReferenceTable {
             constraints: Arena::new(),
             constant_origin_spans: Arena::new(),
             constant_origins: Arena::new(),
+            operand_lifetime_owners: Arena::new(),
             named_rows: NamedRowIndex::default(),
         }
     }
@@ -109,6 +118,7 @@ impl TypeReferenceTable {
             .wrapping_add(self.constraints.revision())
             .wrapping_add(self.constant_origins.revision())
             .wrapping_add(self.constant_origin_spans.revision())
+            .wrapping_add(self.operand_lifetime_owners.revision())
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
@@ -118,12 +128,43 @@ impl TypeReferenceTable {
         };
         let handle = self.type_references.insert(type_reference);
         let origins = self.constant_origin_spans.insert(HandleSpan::empty());
+        let lifetime_owner = self.operand_lifetime_owners.insert(SymbolHandle::invalid());
+        debug_assert_eq!(handle.arena_index(), lifetime_owner.arena_index());
         debug_assert_eq!(handle.arena_index(), origins.arena_index());
         debug_assert_eq!(handle.generation(), origins.generation());
         if let Some(symbol) = named {
             self.note_named_row(symbol, handle);
         }
         handle
+    }
+
+    /// Record the supplying declaration before a simultaneous operand is
+    /// copied into a callee. An already retained origin remains authoritative;
+    /// moving the same operand again does not rebind its lifetime names.
+    pub fn retain_operand_lifetime_owner(
+        &mut self,
+        reference: TypeReferenceHandle,
+        owner: SymbolHandle,
+    ) -> Result<(), &'static str> {
+        if !self.contains_type_reference(reference) {
+            return Err("substituted operand has no registered type row");
+        }
+        let row = Handle::from_parts(reference.arena_index(), reference.generation());
+        let retained = self.operand_lifetime_owners.get_mut(row);
+        if !retained.is_valid() {
+            *retained = owner;
+        }
+        Ok(())
+    }
+
+    pub fn operand_lifetime_owner(&self, reference: TypeReferenceHandle) -> SymbolHandle {
+        if !self.contains_type_reference(reference) {
+            return SymbolHandle::invalid();
+        }
+        *self.operand_lifetime_owners.get(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        ))
     }
 
     /// Preserve the original selected declaration at its actual receiving type

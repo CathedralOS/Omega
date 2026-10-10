@@ -5062,3 +5062,37 @@ fail/slices/declared_window_does_not_inherit_builtin_extent rejected 518ms expec
 fail/slices/record_length_field_is_not_collection_extent rejected 517ms expected @160a8c7f13c4
 	cannot prove requires contract for call require_all from Main::main: prefix.len == 3 (needs fact `bytes.len == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 pass/borrows/runtime_measured_range_record_domains_exit checked 3655ms check-target:macos_arm64 @160a8c7f13c4
+pass/generics/contextual_static_machine_captured_operand_scope_exit checked 5370ms check-target:macos_arm64 @4d861e0d5cee+wt
+pass/generics/contextual_static_machine_elided_result_region_exit checked 5718ms check-target:macos_arm64 @4d861e0d5cee+wt
+pass/generics/contextual_static_machine_explicit_lifetime_application_exit checked 5327ms check-target:macos_arm64 @4d861e0d5cee+wt
+pass/generics/contextual_static_machine_lifetime_result_sources_exit checked 5390ms check-target:macos_arm64 @4d861e0d5cee+wt
+pass/generics/contextual_static_machine_universal_lifetime_application_exit checked 6780ms check-target:macos_arm64 @4d861e0d5cee+wt
+pass/traits/applied_qualified_signature_region_scope_exit checked 6566ms check-target:macos_arm64 @4d861e0d5cee+wt
+fail/generics/contextual_static_machine_ambiguous_carried_result rejected 979ms expected @4d861e0d5cee+wt
+	machine `pick` returns a view whose input `context` has an incomplete structural lifetime frontier
+	machine `apply` returns a view whose input `context` has an incomplete structural lifetime frontier
+	machine `Callback` returns a view whose input `context` has an incomplete structural lifetime frontier
+	machine `apply$specialized$5cd7674055cbcc11$0` returns a view but takes 2 candidate ref inputs (`context carried source [Field(Handle { arena_index: 295, generation: 1 })]`, `item carried source []`); cannot infer which input the returned view borrows — annotate the return type with the lifetime of the input it borrows, e.g. `-> &'a T` matching an input `&'a T`
+	machine `apply` returns a view borrowing the local `__hoist_14`, which does not outlive the call; return a borrow of an input parameter or `self` instead
+	machine `relay` returns a view borrowing the local `__hoist_15`, which does not outlive the call; return a borrow of an input parameter or `self` instead
+fail/generics/contextual_static_machine_captured_not_universal rejected 2161ms expected @4d861e0d5cee+wt
+	machine argument `probe` for `apply` does not refine `Callback`: fresh invocation lifetime telescope is not universally refined
+	machine argument `probe$specialized$466cb62ad759bb7a$0` for `apply` does not refine `Callback`: fresh invocation lifetime telescope is not universally refined
+fail/generics/contextual_static_machine_captured_operand_not_fresh rejected 2096ms expected @4d861e0d5cee+wt
+	machine argument `pick` for `apply` does not refine `Callback`: callable input does not preserve its captured region identity
+fail/generics/contextual_static_machine_captured_operand_not_fresh_renamed rejected 1903ms expected @4d861e0d5cee+wt
+	machine argument `pick` for `apply` does not refine `Callback`: callable input does not preserve its captured region identity
+fail/generics/contextual_static_machine_elided_referee_region rejected 1777ms expected @4d861e0d5cee+wt
+	machine argument `selected` for `accept` does not refine `Callback`: callable type does not preserve its region identity
+fail/generics/contextual_static_machine_lifetime_overflow rejected 1492ms expected @4d861e0d5cee+wt
+	nested machine lifetime arguments do not match its complete declared telescope
+fail/generics/contextual_static_machine_nested_reference_regions rejected 1463ms expected @4d861e0d5cee+wt
+	call result has conflicting lifetime operands
+fail/generics/contextual_static_machine_phantom_region_not_fresh rejected 1833ms expected @4d861e0d5cee+wt
+	machine argument `pick` for `apply` does not refine `Callback`: callable type does not preserve its region identity
+fail/generics/contextual_static_machine_undeclared_lifetime rejected 1494ms expected @4d861e0d5cee+wt
+	nested machine lifetime argument is not declared in its lexical owner
+fail/generics/contextual_static_machine_unused_lifetime rejected 1488ms expected @4d861e0d5cee+wt
+	nested machine lifetime arguments do not match its complete declared telescope
+fail/generics/contextual_static_machine_wrong_lifetime_result_source rejected 1717ms expected @4d861e0d5cee+wt
+	machine argument `choose` for `apply` does not refine `Callback`: callable returned view has a different input-source relation

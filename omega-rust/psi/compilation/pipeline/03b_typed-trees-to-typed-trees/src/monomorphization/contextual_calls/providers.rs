@@ -3,6 +3,7 @@
 //! telescopes are universal schemas, never permission to choose one instance.
 
 mod explicit_arguments;
+mod lifetime_arguments;
 
 use super::super::{
     CallSite, Diagnostic, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees,
@@ -21,27 +22,26 @@ pub(super) fn close(
     ordinal: usize,
 ) -> Result<Option<SymbolHandle>, Vec<Diagnostic>> {
     let selected = selection.symbol;
-    if selection
-        .application
-        .as_ref()
-        .is_some_and(|application| !application.lifetime_arguments.is_empty())
-    {
-        // Invocation-lifetime families are not ordinary type operands. Until
-        // this selection owns an applied region mapping, preserving the
-        // declaration's telescope would silently discard an authored choice.
-        return Err(vec![Diagnostic::error(
-            "explicit nested machine lifetime selections require an applied region mapping before callable admission",
-        )]);
-    }
+    // Executable rewriting consumes nested tuples. Admission always reads
+    // the occurrence's retained authored provider, including erased regions,
+    // rather than treating a private instance as a new source declaration.
+    let source_selection = program
+        .expression_table
+        .static_machine_application_arguments(application)
+        .iter()
+        .filter(|argument| super::invocations::is_machine(program, argument.symbol))
+        .nth(ordinal)
+        .cloned()
+        .unwrap_or_else(|| selection.clone());
+    let source_selected = source_selection.symbol;
     if !program.state_signature_type_parameters(expected).is_empty() {
         return Ok(None);
     }
     let Some(machine_index) = program.machines().iter().position(|machine| {
-        machine.has_specialization_parameters()
-            && program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == selected)
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == source_selected)
     }) else {
         return Ok(None);
     };
@@ -52,17 +52,19 @@ pub(super) fn close(
     let state = program
         .machine_states(&program.machines()[machine_index])
         .iter()
-        .find(|state| state.symbol == selected)
+        .find(|state| state.symbol == source_selected)
         .cloned();
     let Some(state) = state else {
         return Ok(None);
     };
-    if let Some(explicit) = &selection.application {
+    let lifetimes =
+        lifetime_arguments::bind(program, source_selected, &source_selection, application)?;
+    if let Some(explicit) = &source_selection.application {
         explicit_arguments::bind(
             program,
             &mut provider,
             &state,
-            selected,
+            source_selected,
             site,
             &explicit.arguments,
         )?;
@@ -88,7 +90,7 @@ pub(super) fn close(
         .zip(expected_types.into_iter().chain([expected.return_type]))
     {
         let required = program
-            .apply_callable_type(required, caller_types)
+            .apply_callable_type(required, caller_types, &[], expected.symbol)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         super::super::infer_static_bindings(
             program,
@@ -134,6 +136,39 @@ pub(super) fn close(
     {
         return Ok(None);
     }
+    let bindings = super::super::applications::candidate_bindings(&provider);
+    if program.applied_machine_callable_matches(
+        application,
+        ordinal,
+        selected,
+        &bindings,
+        &lifetimes,
+        expected,
+        caller_types,
+    ) {
+        return Ok(None);
+    }
+    if !program.machines()[machine_index].has_specialization_parameters() {
+        // A declaration with no static operands still needs occurrence-scoped
+        // checking custody, but never needs a private executable clone.
+        provider.binding_application = super::applications::retain_provider(
+            program,
+            &provider,
+            &state,
+            application,
+            &lifetimes,
+        );
+        super::applications::retain_view(
+            program,
+            &provider,
+            application,
+            ordinal,
+            selected,
+            expected,
+            caller_types,
+        )?;
+        return Ok(Some(source_selected));
+    }
     // Admission consumes the complete determined symbolic tuple, not the
     // original universal declaration. Executable instances still require closed
     // operands; a caller's const binder is not a cache key or a concrete value.
@@ -154,21 +189,16 @@ pub(super) fn close(
                 .is_err()
         })
     {
-        let bindings = super::super::applications::candidate_bindings(&provider);
-        if program.applied_machine_callable_matches(
-            application,
-            ordinal,
-            selected,
-            &bindings,
-            expected,
-            caller_types,
-        ) {
-            return Ok(None);
-        }
-        super::applications::retain_view(
+        provider.binding_application = super::applications::retain_provider(
             program,
             &provider,
             &state,
+            application,
+            &lifetimes,
+        );
+        super::applications::retain_view(
+            program,
+            &provider,
             application,
             ordinal,
             selected,
@@ -177,6 +207,8 @@ pub(super) fn close(
         )?;
         return Ok(Some(selected));
     }
+    provider.binding_application =
+        super::applications::retain_provider(program, &provider, &state, application, &lifetimes);
     let existing = saved_calls::candidate_instance(program, program, &provider)
         .map(|instance| instance.instance);
     if let Some(existing) = existing {
@@ -184,7 +216,7 @@ pub(super) fn close(
             .template
             .state_symbols
             .iter()
-            .position(|symbol| *symbol == selected);
+            .position(|symbol| *symbol == source_selected);
         let entry = program
             .machine_by_symbol(existing)
             .and_then(|machine| {
@@ -195,7 +227,6 @@ pub(super) fn close(
             super::applications::retain_view(
                 program,
                 &provider,
-                &state,
                 application,
                 ordinal,
                 entry,
@@ -227,13 +258,12 @@ pub(super) fn close(
     )?;
     let entry = states
         .into_iter()
-        .find(|(original, _)| *original == selected)
+        .find(|(original, _)| *original == source_selected)
         .map(|(_, concrete)| concrete);
     if let Some(entry) = entry {
         super::applications::retain_view(
             program,
             &provider,
-            &state,
             application,
             ordinal,
             entry,

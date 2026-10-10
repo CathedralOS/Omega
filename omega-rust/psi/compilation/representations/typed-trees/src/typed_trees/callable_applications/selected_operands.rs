@@ -6,6 +6,17 @@
 use super::CallableApplication;
 use crate::{TypedTrees, expression, types};
 
+impl TypedTrees {
+    /// Project the complete static operand into a type payload without
+    /// selecting evidence or discarding its lifetime application.
+    pub fn static_operand_type_reference(
+        &mut self,
+        selected: &expression::StaticMachineArgument,
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        CallableApplication::selected_argument_reference(self, selected)
+    }
+}
+
 impl CallableApplication {
     pub(super) fn selected_argument_reference(
         program: &mut TypedTrees,

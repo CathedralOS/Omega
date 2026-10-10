@@ -111,6 +111,7 @@ impl TypeIdentityContext<'_> {
             .application_scopes
             .last()
             .map_or(self.application_owner, |scope| scope.declaration);
+        let owner = program.lifetime_declaration_owner(owner);
         let parameters = program
             .machine_by_symbol(owner)
             .map(|owner| &owner.lifetime_parameters)
@@ -427,6 +428,27 @@ pub(crate) fn normalize_type_reference(
     type_reference: TypeReferenceHandle,
     context: &TypeIdentityContext<'_>,
 ) -> String {
+    let operand_owner = program
+        .type_reference_table
+        .operand_lifetime_owner(type_reference);
+    let scoped_context;
+    let context = if context.invalid_application.is_some() && operand_owner.is_valid() {
+        scoped_context = TypeIdentityContext {
+            application_owner: operand_owner,
+            application_scopes: context
+                .application_scopes
+                .iter()
+                .rposition(|scope| {
+                    program.lifetime_declaration_owner(scope.declaration)
+                        == program.lifetime_declaration_owner(operand_owner)
+                })
+                .map_or(&[][..], |ordinal| &context.application_scopes[..=ordinal]),
+            ..*context
+        };
+        &scoped_context
+    } else {
+        context
+    };
     if let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(type_reference)
         && let Some((argument, outer)) = context.applied_argument(*symbol)

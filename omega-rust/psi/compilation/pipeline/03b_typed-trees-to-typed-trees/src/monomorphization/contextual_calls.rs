@@ -45,24 +45,34 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                 continue;
             };
             argument.symbol = entry;
-            if program
-                .machine_specializations
-                .iter()
-                .any(|specialization| {
-                    program
-                        .machine_by_symbol(specialization.instance)
-                        .is_some_and(|machine| {
-                            program
-                                .machine_states(machine)
-                                .iter()
-                                .any(|state| state.symbol == entry)
-                        })
-                })
+            let region_only_selection = program.machines().iter().any(|machine| {
+                !machine.has_specialization_parameters()
+                    && program
+                        .machine_states(machine)
+                        .iter()
+                        .any(|state| state.symbol == entry)
+            });
+            if region_only_selection
+                || program
+                    .machine_specializations
+                    .iter()
+                    .any(|specialization| {
+                        program
+                            .machine_by_symbol(specialization.instance)
+                            .is_some_and(|machine| {
+                                program
+                                    .machine_states(machine)
+                                    .iter()
+                                    .any(|state| state.symbol == entry)
+                            })
+                    })
             {
                 // The authored recursive tuple stays in the retained source
                 // application. The executable roster names its closed entry,
                 // so outer specialization never keys a nested tuple by base
-                // symbol alone.
+                // symbol alone. A region-only application already names its
+                // original executable; erased regions are checking operands,
+                // not another runtime specialization tuple.
                 argument.application = None;
             }
             replaced = true;

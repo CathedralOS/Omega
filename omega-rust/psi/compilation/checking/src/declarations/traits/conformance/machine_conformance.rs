@@ -356,6 +356,7 @@ fn validate_machine_top_level_requirement_conformance(
                 &requirement.lifetime_parameters,
                 machine,
                 &identity_application,
+                &type_bindings,
             ) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{label} parameter {index} does not realize the requirement's declared lifetime telescope"
@@ -369,6 +370,7 @@ fn validate_machine_top_level_requirement_conformance(
             &requirement.lifetime_parameters,
             machine,
             &identity_application,
+            &type_bindings,
         ) {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} return type does not realize the requirement's declared lifetime telescope"

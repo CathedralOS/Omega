@@ -8,6 +8,7 @@
 //! realization's namespace.
 
 mod callable_parameters;
+mod region_application;
 
 use crate::value_custody::type_references::{type_reference_label, type_references_match};
 use diagnostics::Diagnostic;
@@ -433,6 +434,7 @@ pub(crate) fn validate_applied_trait_signature(
                 &trait_definition.lifetime_parameters,
                 callable_machine,
                 trait_lifetime_arguments,
+                &type_bindings,
             ) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` state `{}` does not satisfy trait `{}` machine `{}` parameter {}: lifetime application does not match the declared `satisfies` edge",
@@ -471,6 +473,7 @@ pub(crate) fn validate_applied_trait_signature(
             &trait_definition.lifetime_parameters,
             callable_machine,
             trait_lifetime_arguments,
+            &type_bindings,
         )
     {
         diagnostics.push(Diagnostic::error(format!(
@@ -815,123 +818,30 @@ pub(crate) fn type_reference_lifetimes_match_requirement_application(
     target_lifetimes: &[typed_trees::name::Identifier],
     machine: &Machine,
     raw_application: &[u32],
+    bindings: &[TraitTypeBinding],
 ) -> bool {
-    if !actual.is_valid() || !required.is_valid() {
-        return actual.is_valid() == required.is_valid();
-    }
-    match (
-        program.type_reference_table.type_reference(actual),
-        program.type_reference_table.type_reference(required),
-    ) {
-        (
-            TypeReferenceNode::Reference {
-                referee: actual_referee,
-                lifetime: actual_lifetime,
-                ..
-            },
-            TypeReferenceNode::Reference {
-                referee: required_referee,
-                lifetime: required_lifetime,
-                ..
-            },
-        ) => {
-            requirement_lifetime_matches(
-                actual_lifetime.as_ref(),
-                required_lifetime.as_ref(),
-                target_lifetimes,
-                machine,
-                raw_application,
-            ) && type_reference_lifetimes_match_requirement_application(
-                program,
-                *actual_referee,
-                *required_referee,
-                target_lifetimes,
-                machine,
-                raw_application,
-            )
-        }
-        typed_trees::constrained_type_reference_pair!(actual_base, required_base) => {
-            type_reference_lifetimes_match_requirement_application(
-                program,
-                *actual_base,
-                *required_base,
-                target_lifetimes,
-                machine,
-                raw_application,
-            )
-        }
-        (
-            TypeReferenceNode::FixedArray {
-                element_type: actual_element,
-                ..
-            },
-            TypeReferenceNode::FixedArray {
-                element_type: required_element,
-                ..
-            },
-        )
-        | (
-            TypeReferenceNode::Slice {
-                element_type: actual_element,
-            },
-            TypeReferenceNode::Slice {
-                element_type: required_element,
-            },
-        ) => type_reference_lifetimes_match_requirement_application(
-            program,
-            *actual_element,
-            *required_element,
-            target_lifetimes,
-            machine,
-            raw_application,
-        ),
-        (
-            TypeReferenceNode::Generic {
-                lifetime_arguments: actual_lifetimes,
-                arguments: actual_arguments,
-                ..
-            },
-            TypeReferenceNode::Generic {
-                lifetime_arguments: required_lifetimes,
-                arguments: required_arguments,
-                ..
-            },
-        ) => {
-            actual_lifetimes.len() == required_lifetimes.len()
-                && actual_lifetimes.iter().zip(required_lifetimes).all(
-                    |(actual_lifetime, required_lifetime)| {
-                        requirement_lifetime_matches(
-                            Some(actual_lifetime),
-                            Some(required_lifetime),
-                            target_lifetimes,
-                            machine,
-                            raw_application,
-                        )
-                    },
+    let required_scope = region_application::RegionApplicationScope::requirement(bindings);
+    let actual_scope = region_application::RegionApplicationScope::provider(bindings);
+    crate::type_regions::type_reference_regions_match(
+        program,
+        actual,
+        required,
+        actual_scope,
+        required_scope,
+        &|_, required_scope, _, actual, required| {
+            if required_scope.is_provider() {
+                required.is_none_or(|required| actual == Some(required))
+            } else {
+                requirement_lifetime_matches(
+                    actual,
+                    required,
+                    target_lifetimes,
+                    machine,
+                    raw_application,
                 )
-                && actual_arguments.count() == required_arguments.count()
-                && program
-                    .type_reference_table
-                    .type_reference_handles(*actual_arguments)
-                    .iter()
-                    .zip(
-                        program
-                            .type_reference_table
-                            .type_reference_handles(*required_arguments),
-                    )
-                    .all(|(actual_argument, required_argument)| {
-                        type_reference_lifetimes_match_requirement_application(
-                            program,
-                            *actual_argument,
-                            *required_argument,
-                            target_lifetimes,
-                            machine,
-                            raw_application,
-                        )
-                    })
-        }
-        _ => true,
-    }
+            }
+        },
+    )
 }
 
 fn requirement_lifetime_matches(

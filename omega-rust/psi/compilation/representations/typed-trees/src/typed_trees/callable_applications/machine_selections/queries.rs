@@ -27,6 +27,9 @@ impl TypedTrees {
                     selected: entry,
                     provider,
                     required,
+                    source_required,
+                    caller_operands,
+                    caller_lifetimes,
                     ..
                 } = &prepared.owner
                 else {
@@ -34,9 +37,20 @@ impl TypedTrees {
                 };
                 (*source == invocation && *position == ordinal && *entry == selected).then_some(
                     AppliedMachineCallable {
+                        lexical_owner: self
+                            .expression_table
+                            .static_machine_application(*provider)
+                            .lexical_owner,
                         provider: *provider,
                         required,
                         selected: &prepared.signature,
+                        source_required,
+                        caller_operands: self
+                            .callable_substitutions
+                            .span_or_empty(*caller_operands),
+                        caller_lifetimes: self
+                            .callable_lifetime_substitutions
+                            .span_or_empty(*caller_lifetimes),
                     },
                 )
             })
@@ -48,6 +62,7 @@ impl TypedTrees {
         ordinal: usize,
         selected: SymbolHandle,
         provider_bindings: &[StaticMachineBinding],
+        provider_lifetimes: &[crate::static_applications::StaticMachineLifetimeBinding],
         required: &signature::StateSignature,
         caller_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> bool {
@@ -61,12 +76,17 @@ impl TypedTrees {
                     provider,
                     source_required,
                     caller_operands,
+                    caller_lifetimes,
                     ..
                 } = &prepared.owner
                 else {
                     return false;
                 };
                 let operands = self.callable_substitutions.span_or_empty(*caller_operands);
+                let owner = self
+                    .expression_table
+                    .static_machine_application(invocation)
+                    .lexical_owner;
                 let previous_bindings = self
                     .expression_table
                     .static_machine_application_bindings(*provider);
@@ -74,6 +94,24 @@ impl TypedTrees {
                     && *position == ordinal
                     && *entry == selected
                     && source_required == required
+                    && self
+                        .callable_lifetime_substitutions
+                        .span_or_empty(*caller_lifetimes)
+                        == self
+                            .expression_table
+                            .static_machine_application_lifetimes(invocation)
+                    && self
+                        .expression_table
+                        .static_machine_application(*provider)
+                        .lexical_owner
+                        == self
+                            .expression_table
+                            .static_machine_application(invocation)
+                            .lexical_owner
+                    && self
+                        .expression_table
+                        .static_machine_application_lifetimes(*provider)
+                        == provider_lifetimes
                     && previous_bindings.len() == provider_bindings.len()
                     && previous_bindings
                         .iter()
@@ -88,7 +126,7 @@ impl TypedTrees {
                                     | (
                                         StaticMachineBindingValue::Const(left),
                                         StaticMachineBindingValue::Const(right),
-                                    ) => self.same_callable_operand(*left, *right),
+                                    ) => self.same_callable_operand(*left, *right, owner),
                                     _ => previous.value == current.value,
                                 }
                         })
@@ -96,15 +134,29 @@ impl TypedTrees {
                     && operands.iter().zip(caller_substitutions).all(
                         |(operand, (parameter, actual))| {
                             operand.parameter == *parameter
-                                && self.same_callable_operand(operand.actual, *actual)
+                                && self.same_callable_operand(operand.actual, *actual, owner)
                         },
                     )
             })
     }
 
-    fn same_callable_operand(&self, left: TypeReferenceHandle, right: TypeReferenceHandle) -> bool {
-        let identity = self.normalized_type_identity(left);
-        left == right || (identity.is_valid() && identity == self.normalized_type_identity(right))
+    fn same_callable_operand(
+        &self,
+        left: TypeReferenceHandle,
+        right: TypeReferenceHandle,
+        owner: SymbolHandle,
+    ) -> bool {
+        // Checking views retain embedded regions even though executable
+        // specialization intentionally shares equal erased carriers.
+        left == right
+            || crate::type_identity::applied_type_identity(self, left, owner, &[])
+                .zip(crate::type_identity::applied_type_identity(
+                    self,
+                    right,
+                    owner,
+                    &[],
+                ))
+                .is_some_and(|(left, right)| left == right)
     }
 
     pub fn applied_machine_callables(
@@ -118,15 +170,27 @@ impl TypedTrees {
                     invocation: source,
                     provider,
                     required,
+                    source_required,
+                    caller_operands,
+                    caller_lifetimes,
                     ..
                 } = &prepared.owner
                 else {
                     return None;
                 };
                 (*source == invocation).then_some(AppliedMachineCallable {
+                    lexical_owner: self
+                        .expression_table
+                        .static_machine_application(*provider)
+                        .lexical_owner,
                     provider: *provider,
                     required,
                     selected: &prepared.signature,
+                    source_required,
+                    caller_operands: self.callable_substitutions.span_or_empty(*caller_operands),
+                    caller_lifetimes: self
+                        .callable_lifetime_substitutions
+                        .span_or_empty(*caller_lifetimes),
                 })
             })
     }

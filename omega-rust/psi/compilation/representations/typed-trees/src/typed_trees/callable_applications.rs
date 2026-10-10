@@ -38,24 +38,34 @@ enum AppliedCallableOwner {
         required: signature::StateSignature,
         source_required: signature::StateSignature,
         caller_operands: arena::HandleSpan<CallableSubstitution>,
+        caller_lifetimes:
+            arena::HandleSpan<crate::static_applications::StaticMachineLifetimeBinding>,
     },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct CallableSubstitution {
-    parameter: SymbolHandle,
-    actual: types::TypeReferenceHandle,
+pub struct CallableSubstitution {
+    pub parameter: SymbolHandle,
+    pub actual: types::TypeReferenceHandle,
 }
 
 /// A symbolic application is a checking view, not an executable instance.
 pub struct AppliedMachineCallable<'a> {
+    pub lexical_owner: SymbolHandle,
     pub provider: crate::static_applications::StaticMachineApplicationHandle,
     pub required: &'a signature::StateSignature,
     pub selected: &'a signature::StateSignature,
+    pub source_required: &'a signature::StateSignature,
+    pub caller_operands: &'a [CallableSubstitution],
+    pub caller_lifetimes: &'a [crate::static_applications::StaticMachineLifetimeBinding],
 }
 
 #[derive(Default)]
 struct CallableApplication {
+    region_scope: SymbolHandle,
+    lifetime_declaration: SymbolHandle,
+    lifetimes: Vec<(crate::name::Identifier, crate::name::Identifier)>,
+    elided_lifetimes: Vec<crate::name::Identifier>,
     types: Vec<(SymbolHandle, types::TypeReferenceHandle)>,
     static_arguments: Vec<(SymbolHandle, crate::expression::StaticMachineArgument)>,
     symbols: Vec<(SymbolHandle, SymbolHandle)>,
@@ -63,6 +73,14 @@ struct CallableApplication {
 }
 
 impl CallableApplication {
+    fn lifetime(&self, original: &crate::name::Identifier) -> crate::name::Identifier {
+        self.lifetimes
+            .iter()
+            .rev()
+            .find(|(parameter, _)| parameter == original)
+            .map_or_else(|| original.clone(), |(_, actual)| actual.clone())
+    }
+
     fn symbol(&self, original: SymbolHandle) -> SymbolHandle {
         self.symbols
             .iter()
@@ -119,6 +137,31 @@ impl CallableApplication {
 }
 
 impl TypedTrees {
+    /// Instantiate an inferred result's reference regions in the caller.
+    /// Elision retains the call's separate loan-source contract; it never
+    /// rewrites the authored declaration or supplies an anonymous nominal tag.
+    pub fn apply_callable_result_type(
+        &mut self,
+        original: types::TypeReferenceHandle,
+        lifetimes: &[(crate::name::Identifier, Option<crate::name::Identifier>)],
+        declaration: SymbolHandle,
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        let mut application = CallableApplication {
+            region_scope: declaration,
+            ..CallableApplication::default()
+        };
+        for (parameter, argument) in lifetimes {
+            if let Some(argument) = argument {
+                application
+                    .lifetimes
+                    .push((parameter.clone(), argument.clone()));
+            } else {
+                application.elided_lifetimes.push(parameter.clone());
+            }
+        }
+        application.type_reference(self, original)
+    }
+
     /// Apply an invocation's known operands to a callable carrier, including
     /// domain, extent and expression payloads. Arguments keep their caller
     /// scope: substitution is simultaneous, not a sequence of textual rewrites.
@@ -127,9 +170,13 @@ impl TypedTrees {
         &mut self,
         original: types::TypeReferenceHandle,
         substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+        lifetimes: &[(crate::name::Identifier, crate::name::Identifier)],
+        declaration: SymbolHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
         CallableApplication {
+            region_scope: declaration,
             types: substitutions.to_vec(),
+            lifetimes: lifetimes.to_vec(),
             ..CallableApplication::default()
         }
         .type_reference(self, original)

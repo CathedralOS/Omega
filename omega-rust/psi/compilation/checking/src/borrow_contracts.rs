@@ -1,4 +1,7 @@
-//! Lifetimes stage 2: resolving which input a returned view borrows.
+//! Declaration-owned borrow relations shared by callable admission and flow.
+//! Applying a callback must preserve the same result/input relation that loan
+//! attribution records. Keeping this query in one checking owner prevents
+//! formation from accepting a region-erased shape that flow cannot implement.
 //!
 //! A machine that returns a view (`-> &T`, `-> &mut T`, `-> &string`, a slice
 //! view, …) must have an unambiguous source for the returned borrow. Two
@@ -31,11 +34,11 @@ use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-use super::tracker::BorrowOwnerSegment;
+use checked_trees::BorrowLoanOwnerSegment as BorrowOwnerSegment;
 
 /// Where a returned view's borrow comes from.
 #[derive(Debug, Clone)]
-pub(crate) enum ViewReturnSource {
+pub enum ViewReturnSource {
     /// The return type is not a view, or there is nothing to link (an elided
     /// output with zero ref inputs). No loan, no diagnostic.
     NotApplicable,
@@ -51,17 +54,17 @@ pub(crate) enum ViewReturnSource {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ViewReturnFieldSource {
-    pub(crate) owner_path: Vec<BorrowOwnerSegment>,
-    pub(crate) source_path: Vec<BorrowOwnerSegment>,
-    pub(crate) source_type: TypeReferenceHandle,
-    pub(crate) parameter_index: usize,
-    pub(crate) kind: checked_trees::BorrowAccessKind,
+pub struct ViewReturnFieldSource {
+    pub owner_path: Vec<BorrowOwnerSegment>,
+    pub source_path: Vec<BorrowOwnerSegment>,
+    pub source_type: TypeReferenceHandle,
+    pub parameter_index: usize,
+    pub kind: checked_trees::BorrowAccessKind,
 }
 
 /// Why a view-returning signature could not be resolved to a single input.
 #[derive(Debug, Clone)]
-pub(crate) enum ViewReturnAmbiguity {
+pub enum ViewReturnAmbiguity {
     /// A declaration cannot supply a complete structural lifetime frontier.
     IncompleteStructure { subject: String },
     /// Source access cannot supply the result's access without escalation.
@@ -73,8 +76,8 @@ pub(crate) enum ViewReturnAmbiguity {
 }
 
 /// Resolve the source of a state's returned view from its signature alone.
-pub(crate) fn resolve_view_return_source(
-    program: &dyn ::validation::CheckingInput,
+pub fn resolve_view_return_source(
+    program: &dyn crate::CheckingInput,
     state: &State,
 ) -> ViewReturnSource {
     resolve_signature_view_return_source(
@@ -127,8 +130,8 @@ fn lifetime_return_source(
 /// Resolve the same lifetime/source relation for a bodyless callable
 /// signature. Boundary-trait requirements and compile-time machine parameters
 /// have no `State`, but their returned views create the same caller-side loans.
-pub(crate) fn resolve_signature_view_return_source(
-    program: &dyn ::validation::CheckingInput,
+pub fn resolve_signature_view_return_source(
+    program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
 ) -> ViewReturnSource {
@@ -160,13 +163,13 @@ pub(crate) fn resolve_signature_view_return_source(
         // A direct result can forward a reference carried by an owned input.
         // It has an empty output path but the same structural input lifetime
         // frontier as a reference returned inside another carrier.
-        return structural_view_return_source(program, parameters, return_type, &[], &[]);
+        return structural_view_return_source(program, parameters, return_type, &[], &[], &[]);
     }
 
     lifetime_return_source(
         &ref_parameters,
         reference_lifetime(program, return_type),
-        || structural_view_return_source(program, parameters, return_type, &[], &[]),
+        || structural_view_return_source(program, parameters, return_type, &[], &[], &[]),
     )
 }
 
@@ -178,8 +181,8 @@ pub(crate) fn resolve_signature_view_return_source(
 /// Carrier results resolve leaf by leaf through the shared complete-frontier
 /// query. A relation that cannot close stays ambiguous rather than reading
 /// as an empty frontier.
-pub(crate) fn resolve_substituted_view_return_source(
-    program: &dyn ::validation::CheckingInput,
+pub fn resolve_substituted_view_return_source(
+    program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -208,6 +211,7 @@ pub(crate) fn resolve_substituted_view_return_source(
             return_type,
             substitutions,
             scope_starts,
+            &[],
         );
     }
 
@@ -235,13 +239,14 @@ pub(crate) fn resolve_substituted_view_return_source(
                 return_type,
                 substitutions,
                 scope_starts,
+                &[],
             )
         },
     )
 }
 
 fn substituted_is_reference_type(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -261,8 +266,8 @@ fn substituted_is_reference_type(
     }
 }
 
-pub(in crate::borrow) fn substituted_returns_borrow(
-    program: &dyn ::validation::CheckingInput,
+pub fn substituted_returns_borrow(
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     scope_starts: &[usize],
@@ -272,7 +277,7 @@ pub(in crate::borrow) fn substituted_returns_borrow(
 }
 
 fn substituted_reference_lifetime<'p>(
-    program: &'p dyn ::validation::CheckingInput,
+    program: &'p dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<&'p str> {
@@ -298,7 +303,7 @@ fn substituted_reference_lifetime<'p>(
 /// `Constrained` wrapper (e.g. `&'buf string[a..=b]`). `None` for an elided
 /// reference or a non-reference type.
 fn reference_lifetime(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&str> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -310,24 +315,34 @@ fn reference_lifetime(
     }
 }
 
+mod callable_refinement;
 mod carried_lifetimes;
+mod region_correspondence;
 
-pub(crate) use carried_lifetimes::{
+pub(crate) use callable_refinement::lexical_region_owner;
+pub use callable_refinement::{CallableBorrowContract, validate_callable_borrow_refinement};
+
+pub use carried_lifetimes::{
     DeclarationLifetimeFrontier, declaration_lifetime_frontier,
     substituted_result_frontier_is_complete, substituted_result_is_view_free,
 };
 use carried_lifetimes::{carried_lifetimes, substituted_carried_lifetimes};
 
 fn structural_view_return_source(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     scope_starts: &[usize],
+    symbolic_parameters: &[SymbolHandle],
 ) -> ViewReturnSource {
-    let Some(outputs) =
-        substituted_carried_lifetimes(program, return_type, substitutions, scope_starts)
-    else {
+    let Some(outputs) = carried_lifetimes::symbolic_carried_lifetimes(
+        program,
+        return_type,
+        substitutions,
+        scope_starts,
+        symbolic_parameters,
+    ) else {
         if substitutions.is_empty()
             && let Some(source) = whole_elided_result_source(program, parameters, return_type)
         {
@@ -350,11 +365,12 @@ fn structural_view_return_source(
         ) {
             continue;
         }
-        let Some(leaves) = substituted_carried_lifetimes(
+        let Some(leaves) = carried_lifetimes::symbolic_carried_lifetimes(
             program,
             parameter.type_reference,
             substitutions,
             scope_starts,
+            symbolic_parameters,
         ) else {
             return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::IncompleteStructure {
                 subject: format!("input `{}`", parameter.name),
@@ -364,6 +380,13 @@ fn structural_view_return_source(
             inputs.push((index, parameter, leaf));
         }
     }
+    structural_frontier_return_source(outputs, &inputs)
+}
+
+fn structural_frontier_return_source(
+    outputs: Vec<carried_lifetimes::CarriedLifetime>,
+    inputs: &[(usize, &StateParameter, carried_lifetimes::CarriedLifetime)],
+) -> ViewReturnSource {
     // Retain historical source-free output handling. A carrier input containing
     // one reference is now the same single-source elision case as a bare ref.
     if inputs.is_empty() && outputs.iter().all(|output| output.lifetime.is_none()) {
@@ -382,7 +405,11 @@ fn structural_view_return_source(
             .collect::<Vec<_>>();
         let Some(first) = matching.first() else {
             return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::LifetimeMatchesNoInput {
-                lifetime: output.lifetime.unwrap_or_else(|| "elided".to_owned()),
+                lifetime: match output.lifetime {
+                    Some(carried_lifetimes::RegionIdentity::Declared(name)) => name,
+                    Some(identity) => format!("{identity:?}"),
+                    None => "elided".to_owned(),
+                },
             });
         };
         if output.lifetime.is_none() && matching.len() != 1 {
@@ -430,7 +457,7 @@ fn structural_view_return_source(
 }
 
 fn whole_elided_result_source(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
 ) -> Option<ViewReturnSource> {
@@ -468,8 +495,8 @@ fn whole_elided_result_source(
 
 /// Whether a type reference is a view (a reference, possibly under a
 /// `Constrained` wrapper).
-pub(crate) fn is_reference_type(
-    program: &dyn ::validation::CheckingInput,
+pub fn is_reference_type(
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -483,8 +510,8 @@ pub(crate) fn is_reference_type(
 /// bare reference, OR a borrow-carrying `data` value (a `data` type with a
 /// reference-typed field — `data Msg<'buf> { body: &'buf string }`). Both make a
 /// machine's result outlive-bounded by one of its inputs (decision 15 stage 2).
-pub(crate) fn returns_borrow(
-    program: &dyn ::validation::CheckingInput,
+pub fn returns_borrow(
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     is_reference_type(program, type_reference) || is_borrow_carrying_data(program, type_reference)
@@ -498,8 +525,8 @@ pub(crate) fn returns_borrow(
 /// `None` means the frontier cannot be enumerated completely (currently an
 /// unresolved fixed-array length or a view-bearing recursive cycle), so callers
 /// must fail closed unless the whole source place already has static provenance.
-pub(crate) fn borrow_carrying_owner_paths(
-    program: &dyn ::validation::CheckingInput,
+pub fn borrow_carrying_owner_paths(
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<Vec<Vec<BorrowOwnerSegment>>> {
     carried_lifetimes(program, type_reference)
@@ -510,8 +537,8 @@ pub(crate) fn borrow_carrying_owner_paths(
 /// An unresolved structure is not evidence of absent loans. Consumers must
 /// retain the obligation until admission supplies its complete instantiated
 /// frontier; a second symbol-only walk previously lost finite nested heads.
-pub(crate) fn is_borrow_carrying_data(
-    program: &dyn ::validation::CheckingInput,
+pub fn is_borrow_carrying_data(
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     carried_lifetimes(program, type_reference).is_none_or(|leaves| !leaves.is_empty())
@@ -519,8 +546,8 @@ pub(crate) fn is_borrow_carrying_data(
 
 /// Whether a data value carries an exclusive leaf, conservatively retaining
 /// that obligation when its complete structural frontier is not available.
-pub(crate) fn is_mutably_borrow_carrying_data(
-    program: &dyn ::validation::CheckingInput,
+pub fn is_mutably_borrow_carrying_data(
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     carried_lifetimes(program, type_reference)
@@ -528,7 +555,7 @@ pub(crate) fn is_mutably_borrow_carrying_data(
 }
 
 fn data_definition(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     program.data_definition_by_symbol(symbol)

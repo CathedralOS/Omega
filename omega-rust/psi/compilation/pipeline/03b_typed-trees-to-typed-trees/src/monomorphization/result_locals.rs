@@ -21,6 +21,8 @@ use typed_trees::statement::StatementNode;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
 
+mod region_application;
+
 pub(super) fn refresh_generic_call_results(
     program: &mut TypedTrees,
     candidates: &[super::Candidate],
@@ -127,13 +129,22 @@ pub(super) fn refresh_generic_call_results(
         // an already-materialized endpoint or binder sentinel out of the sweep.
         let type_start = program.type_reference_table.type_reference_count() + 1;
         let expression_start = program.expression_table.iter_expressions().count() + 1;
+        let lifetimes = program
+            .expression_table
+            .static_machine_application_lifetimes(candidate.binding_application)
+            .iter()
+            .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
+            .collect::<Vec<_>>();
         // Copy the declaration result before substitution. An open caller's
         // result uses this call's exact constants or caller binders, never the
         // callee's unbound parameters or the inferred destination as evidence.
+        let selected_return = program
+            .apply_callable_type(return_type, &[], &lifetimes, selection.callee_symbol)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
         let selected_return = crate::monomorphization::body_cloning::copy_type_reference(
             None,
             program,
-            return_type,
+            selected_return,
             &forwarded_symbols,
         );
         let evidence_rewrites =
@@ -182,14 +193,26 @@ pub(super) fn refresh_generic_call_results(
     Ok(changed_owners)
 }
 
-pub(super) fn refresh(program: &mut TypedTrees) -> Vec<SymbolHandle> {
-    let selected_returns = program
+pub(super) fn refresh(
+    program: &mut TypedTrees,
+) -> Result<Vec<SymbolHandle>, Vec<diagnostics::Diagnostic>> {
+    let mut selected_returns = program
         .machines()
         .iter()
         .filter(|machine| !machine.has_specialization_parameters())
         .flat_map(|machine| program.machine_states(machine))
         .map(|state| (state.symbol, state.return_type))
         .collect::<Vec<_>>();
+    selected_returns.extend(
+        program
+            .data_type_parameters
+            .iter()
+            .filter_map(|(_, parameter)| {
+                program
+                    .machine_parameter_signature(parameter.symbol)
+                    .map(|(_, signature)| (signature.symbol, signature.return_type))
+            }),
+    );
     let bodies = program
         .machines()
         .iter()
@@ -233,6 +256,7 @@ pub(super) fn refresh(program: &mut TypedTrees) -> Vec<SymbolHandle> {
                         SymbolHandle::invalid(),
                         Vec::new(),
                         return_type,
+                        Vec::new(),
                     ));
                 }
                 continue;
@@ -255,23 +279,53 @@ pub(super) fn refresh(program: &mut TypedTrees) -> Vec<SymbolHandle> {
                         .expression_handles(call.arguments)
                         .to_vec(),
                     *return_type,
+                    region_application::bindings(program, machine, state, call)?,
                 ));
             }
         }
     }
     let mut changed_owners = Vec::new();
-    for (owner, body, offset, target, arguments, return_type) in updates {
+    for (owner, body, offset, target, arguments, return_type, lifetimes) in updates {
+        let return_type = if lifetimes.is_empty() {
+            return_type
+        } else {
+            // Inferred destinations live in the caller, not in the selected
+            // executable's declaration telescope. Regions use the same deep
+            // simultaneous application as all other signature payloads.
+            program
+                .apply_callable_result_type(return_type, &lifetimes, target)
+                .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?
+        };
         let return_type =
             substitute_runtime_bound_result_bounds(program, target, &arguments, return_type);
+        let Some(local) = program.statement_table.statements(body)[offset].as_local_data() else {
+            continue;
+        };
+        if local.type_reference == return_type
+            || typed_trees::type_identity::applied_type_identity(
+                program,
+                local.type_reference,
+                owner,
+                &[],
+            )
+            .zip(typed_trees::type_identity::applied_type_identity(
+                program,
+                return_type,
+                owner,
+                &[],
+            ))
+            .is_some_and(|(previous, current)| previous == current)
+        {
+            continue;
+        }
         if let StatementNode::LocalData(local) =
             &mut program.statement_table.statements_mut(body)[offset]
-            && local.type_reference != return_type
         {
             local.type_reference = return_type;
             changed_owners.push(owner);
         }
     }
-    changed_owners
+    Ok(changed_owners)
 }
 
 /// A specialized callee's result range can name the realized trailing
