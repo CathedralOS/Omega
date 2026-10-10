@@ -428,18 +428,19 @@ impl VerifiedComponent {
                     selected_provider: plan.provider_type.clone(),
                 });
             }
+            let machine_identity = plan.identity_text(*machine_identity);
             let exact = for_provider
                 .iter()
                 .filter(|candidate| {
                     self.module.identities.text(candidate.candidate_identity)
-                        == Some(machine_identity.as_str())
+                        == Some(machine_identity)
                 })
                 .collect::<Vec<_>>();
             match exact.as_slice() {
                 [] => {
                     return Err(IndependentRealizationMismatch::MachineMismatch {
                         requirement_identity: row.requirement_identity.clone(),
-                        selected_machine: machine_identity.clone(),
+                        selected_machine: machine_identity.to_owned(),
                     });
                 }
                 [_] => {}

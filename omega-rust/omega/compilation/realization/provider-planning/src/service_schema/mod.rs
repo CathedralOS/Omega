@@ -10,9 +10,9 @@
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::planning_context::ProviderPlanningContext;
 use effects::provider_plan::{
-    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
-    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
-    ServiceResultClaim, ServiceSchema,
+    ProviderIdentityTable, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
+    ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind, ServiceProgressPremise,
+    ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
 };
 
 /// Whether retained declaration provenance belongs to the product frontier.
@@ -53,6 +53,7 @@ pub(crate) fn from_typed_instance(
     }
     let mut methods = Vec::new();
     let mut visited = Vec::new();
+    let mut identities = ProviderIdentityTable::default();
     collect_service_methods(
         program,
         calling_plans,
@@ -61,12 +62,14 @@ pub(crate) fn from_typed_instance(
         boundary_arguments,
         &mut visited,
         &mut methods,
+        &mut identities,
     );
     Some(ServiceSchema {
-        trait_name: program.trait_declaration_path(trait_definition),
+        trait_name: identities.intern(&program.trait_declaration_path(trait_definition)),
         trait_package_identity: program
             .symbols
             .symbol_package_identity(trait_definition.symbol),
+        identities,
         methods,
     })
 }
@@ -80,14 +83,18 @@ pub fn from_typed_operator(
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Option<ServiceSchema> {
     let program = context.typed;
-    if !context.contains(operator.symbol) {
+    if !context.contains(operator.symbol) || !operator.is_boundary {
         return None;
     }
-    operator.is_boundary.then(|| ServiceSchema {
-        trait_name: typed_trees::operator::boundary_operator_requirement_identity(
+    let mut identities = ProviderIdentityTable::default();
+    let requirement_identity = identities
+        .intern(&typed_trees::operator::boundary_operator_requirement_identity(
             program, operator,
-        ),
+        ));
+    Some(ServiceSchema {
+        trait_name: requirement_identity,
         trait_package_identity: program.symbols.symbol_package_identity(operator.symbol),
+        identities,
         methods: vec![ServiceMethod {
             completion: validation::boundary_requirement_completion(program, operator.symbol),
             name: "realize".to_owned(),
@@ -97,9 +104,7 @@ pub fn from_typed_operator(
             requirement_owner_package_identity: program
                 .symbols
                 .symbol_package_identity(operator.symbol),
-            requirement_identity: typed_trees::operator::boundary_operator_requirement_identity(
-                program, operator,
-            ),
+            requirement_identity,
             parameter_count: program.operator_parameters(operator).len(),
             parameter_type_identities: program
                 .operator_parameters(operator)
@@ -142,7 +147,7 @@ pub fn schema_binds_exact_boundary_operator(
     context.contains(operator.symbol)
         && operator.is_boundary
         && typed_trees::operator::boundary_operator_requirement_identity(program, operator)
-            == schema.trait_name
+            == schema.identity_text(schema.trait_name)
         && program.symbols.symbol_package_identity(operator.symbol) == schema.trait_package_identity
 }
 
@@ -157,7 +162,8 @@ pub fn schema_binds_exact_boundary_trait(
     let program = context.typed;
     context.contains(trait_definition.symbol)
         && trait_definition.is_boundary
-        && program.trait_declaration_path(trait_definition) == schema.trait_name
+        && program.trait_declaration_path(trait_definition)
+            == schema.identity_text(schema.trait_name)
         && program
             .symbols
             .symbol_package_identity(trait_definition.symbol)
@@ -215,23 +221,26 @@ pub fn from_typed_boundary_requirement(
     let published_termination = requirement.termination_plan.interface.published()?;
     let package_identity = program.symbols.symbol_package_identity(requirement.symbol);
 
+    let mut identities = ProviderIdentityTable::default();
+    let requirement_identity_id = identities.intern(&requirement_identity);
     Some(ServiceSchema {
         // A token family contains separate overloaded requirement slots. Its
         // Build selection covers all coordinates atomically, but each row
         // installs one exact callable signature, not whichever overload shares
         // the path. Untokened requirements retain their ordinary named slot.
         trait_name: if requirement.spelling.is_some() {
-            requirement_identity.clone()
+            requirement_identity_id
         } else {
-            requirement_path.clone()
+            identities.intern(&requirement_path)
         },
         trait_package_identity: package_identity,
+        identities,
         methods: vec![ServiceMethod {
             completion: validation::boundary_requirement_completion(program, requirement.symbol),
             name: method_name.to_owned(),
             requirement_owner: requirement_owner.to_owned(),
             requirement_owner_package_identity: package_identity,
-            requirement_identity,
+            requirement_identity: requirement_identity_id,
             parameter_count: parameters.iter().count(),
             parameter_type_identities: parameters
                 .iter()
@@ -253,6 +262,7 @@ pub fn from_typed_boundary_requirement(
                 program,
                 published_termination,
                 parameters,
+                &mut identities,
             ),
             calling_plan_report_fingerprint: None,
             calling_plan_commitment: None,
@@ -268,6 +278,7 @@ fn collect_service_methods(
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
     visited: &mut Vec<symbols::SymbolHandle>,
     methods: &mut Vec<ServiceMethod>,
+    identities: &mut ProviderIdentityTable,
 ) {
     if visited.contains(&trait_definition.symbol) {
         return;
@@ -286,12 +297,14 @@ fn collect_service_methods(
             boundary_arguments,
             visited,
             methods,
+            identities,
         );
     }
 
     for signature in program.trait_machine_signatures(trait_definition) {
-        let requirement_identity =
-            program.trait_requirement_callable_identity_text(trait_definition, signature);
+        let requirement_identity = identities.intern(
+            &program.trait_requirement_callable_identity_text(trait_definition, signature),
+        );
         if methods
             .iter()
             .any(|method| method.requirement_identity == requirement_identity)
@@ -329,7 +342,7 @@ fn collect_service_methods(
             may_suspend: signature.suspends,
             may_block: signature.blocks,
             terminates_guarantee: signature.termination_guarantee.promises_termination(),
-            termination_premises: service_progress_premises(program, signature),
+            termination_premises: service_progress_premises(program, signature, identities),
             calling_plan_report_fingerprint: calling_plan
                 .map(|identity| identity.report_fingerprint),
             calling_plan_commitment: calling_plan.map(|identity| identity.commitment),
@@ -340,11 +353,13 @@ fn collect_service_methods(
 fn service_progress_premises(
     program: &typed_trees::TypedTrees,
     signature: &typed_trees::signature::StateSignature,
+    identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceProgressPremise> {
     service_progress_premises_for_parameters(
         program,
         &signature.termination_guarantee,
         program.state_signature_parameters(signature),
+        identities,
     )
 }
 
@@ -352,6 +367,7 @@ fn service_progress_premises_for_parameters(
     program: &typed_trees::TypedTrees,
     guarantee: &language_semantics::TerminationGuarantee,
     parameters: &[typed_trees::signature::StateParameter],
+    identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceProgressPremise> {
     let language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
         return Vec::new();
@@ -380,6 +396,7 @@ fn service_progress_premises_for_parameters(
                 establishment_routes: service_progress_establishment_routes(
                     program,
                     premise.profile,
+                    identities,
                 ),
             }
         })
@@ -389,6 +406,7 @@ fn service_progress_premises_for_parameters(
 fn service_progress_establishment_routes(
     program: &typed_trees::TypedTrees,
     profile: language_semantics::SemanticDomainId,
+    identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceProgressEstablishmentRoute> {
     let domain = program
         .domain_definitions()
@@ -431,12 +449,21 @@ fn service_progress_establishment_routes(
             };
             ServiceProgressEstablishmentRoute {
                 kind,
-                requirement_identity: program
-                    .trait_requirement_callable_identity_text(owner, requirement),
+                requirement_identity: identities.intern(
+                    &program.trait_requirement_callable_identity_text(owner, requirement),
+                ),
             }
         })
         .collect::<Vec<_>>();
-    routes.sort();
+    // Interned ids mint in encounter order; the canonical premise order is
+    // kind-then-text, which the digest encoder also enforces on encode.
+    routes.sort_by(|left, right| {
+        left.kind.cmp(&right.kind).then_with(|| {
+            identities
+                .text(left.requirement_identity)
+                .cmp(identities.text(right.requirement_identity))
+        })
+    });
     routes.dedup();
     routes
 }

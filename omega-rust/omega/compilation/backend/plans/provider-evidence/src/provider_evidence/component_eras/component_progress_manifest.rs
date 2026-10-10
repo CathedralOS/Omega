@@ -37,6 +37,15 @@ pub struct CheckedComponentProgressDemand {
     pub call_ordinal: usize,
 }
 
+/// One bound establishment route in canonical text form: the schema's
+/// interned identity projected at bind time so the manifest record carries
+/// no process-local mint order.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ManifestProgressRoute {
+    pub kind: crate::provider_plan::ServiceProgressEstablishmentRouteKind,
+    pub requirement_identity: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ComponentBuildBoundProgressDemand {
     pub provider_service_identity: String,
@@ -45,7 +54,7 @@ pub struct ComponentBuildBoundProgressDemand {
     pub requirement_owner_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub profile_identity: String,
     pub subject_projections: Vec<String>,
-    pub establishment_routes: Vec<crate::provider_plan::ServiceProgressEstablishmentRoute>,
+    pub establishment_routes: Vec<ManifestProgressRoute>,
     /// Non-authoritative coordinate for the exact selected plan committed by
     /// `provider_plan_digest` and the enclosing selected-closure digest.
     pub provider_plan_report_identity: u64,
@@ -97,7 +106,10 @@ impl ComponentProgressManifest {
                 .plans()
                 .iter()
                 .filter(|plan| {
-                    plan.schema.trait_name == demand.provider_service_identity
+                    plan.schema
+                        .identities
+                        .id_at(&demand.provider_service_identity)
+                        == Some(plan.schema.trait_name)
                         && plan.schema.trait_package_identity
                             == demand.provider_service_package_identity
                 })
@@ -114,7 +126,10 @@ impl ComponentProgressManifest {
                 .methods
                 .iter()
                 .filter(|method| {
-                    method.requirement_identity == demand.requirement_identity
+                    plan.schema
+                        .identities
+                        .id_at(&demand.requirement_identity)
+                        == Some(method.requirement_identity)
                         && method.requirement_owner_package_identity
                             == demand.requirement_owner_package_identity
                 })
@@ -145,7 +160,20 @@ impl ComponentProgressManifest {
                     plan.name
                 ));
             };
-            let mut establishment_routes = premise.establishment_routes.clone();
+            // The manifest record keeps the canonical text the schema's
+            // interner produced; order stays kind-then-text so this render
+            // matches the premise's schema ordering exactly.
+            let mut establishment_routes = premise
+                .establishment_routes
+                .iter()
+                .map(|route| ManifestProgressRoute {
+                    kind: route.kind,
+                    requirement_identity: plan
+                        .schema
+                        .identity_text(route.requirement_identity)
+                        .to_owned(),
+                })
+                .collect::<Vec<_>>();
             establishment_routes.sort();
             establishment_routes.dedup();
             pending.push(ComponentBuildBoundProgressDemand {

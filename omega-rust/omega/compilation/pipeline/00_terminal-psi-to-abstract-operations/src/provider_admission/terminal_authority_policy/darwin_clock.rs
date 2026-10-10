@@ -58,7 +58,7 @@ pub(crate) enum UnsettledDarwinClockRequirement {
 fn reviewed_symbol(schema: &ServiceSchema, method: &ServiceMethod) -> Option<&'static [u8]> {
     // The requirement owner is the trait's declaration path; an inherited
     // requirement of another boundary is not a cohort member.
-    if schema.trait_name != DARWIN_CLOCK_TRAIT
+    if schema.identity_text(schema.trait_name) != DARWIN_CLOCK_TRAIT
         || method.requirement_owner.rsplit("::").next() != Some(DARWIN_CLOCK_TRAIT)
     {
         return None;

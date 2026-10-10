@@ -63,7 +63,7 @@ impl<'a> Reviewer<'a> {
                 machine_package_identity,
             } => {
                 if selected_plan.provider_type.is_empty()
-                    || machine_identity.is_empty()
+                    || !machine_identity.is_valid()
                     || *machine_package_identity != selected_plan.origin_package_identity
                 {
                     return Err(format!(
@@ -78,7 +78,7 @@ impl<'a> Reviewer<'a> {
                 // binding retains the authored generic provider template.
                 let realization_identity = specialization
                     .map(|row| row.machine_identity.as_str())
-                    .unwrap_or(machine_identity.as_str());
+                    .unwrap_or(selected_plan.identity_text(*machine_identity));
                 let candidate = self
                     .context
                     .installed_candidates

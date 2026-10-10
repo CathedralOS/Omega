@@ -19,6 +19,7 @@
 mod digest_encoder;
 pub(crate) use digest_encoder::DigestFeed;
 mod evaluated_bindings;
+mod identity_table;
 mod service_schemas;
 
 pub use evaluated_bindings::{
@@ -26,6 +27,7 @@ pub use evaluated_bindings::{
     EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
     EvaluatedForeignImport, EvaluatedForeignSyscall, evaluated_syscall_identity_digest,
 };
+pub use identity_table::{ProviderIdentityId, ProviderIdentityTable};
 pub use service_schemas::BoundaryCallingPlanCommitment;
 pub use service_schemas::{
     ProviderPlanDigest, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
@@ -74,8 +76,9 @@ pub enum ProviderBinding {
     /// its transitive effects must fit inside the satisfied requirement's
     /// declared ceiling.
     CheckedAdapter {
-        /// Canonical typed machine-overload identity, never a short name.
-        machine_identity: String,
+        /// Canonical typed machine-overload identity, never a short name,
+        /// interned into the owning [`ProviderPlan::identities`].
+        machine_identity: ProviderIdentityId,
         /// Exact package owning the checked adapter. `None` is retained only
         /// for toolchain, standalone, and focused source-free programs.
         machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -102,7 +105,7 @@ pub struct ProviderPlanRow {
 /// INPUT to admission (a package can never self-grant); the legacy readable
 /// `origin_package` is display data only. The admission verdict itself lives
 /// in the chapter-10 receipts, never here.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ProviderPlan {
     /// The plan's own name (`omega::host::standard::console`, the future
     /// slot-selection key).
@@ -120,6 +123,9 @@ pub struct ProviderPlan {
     pub target: String,
     /// The schema served.
     pub schema: ServiceSchema,
+    /// Interned canonical identities this plan's binding fields point into.
+    /// Schema-owned identities intern into `schema.identities` instead.
+    pub identities: ProviderIdentityTable,
     /// One row per bound method.
     pub rows: Vec<ProviderPlanRow>,
     /// Exact package that authored the realizing machine(s). `None` means the
@@ -180,7 +186,68 @@ fn push_package_identity(
     }
 }
 
+impl PartialEq for ProviderPlan {
+    /// Semantic equality: field values plus the interned text each binding
+    /// resolves, never the process-local mint order that produced the ids.
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.provider_type == other.provider_type
+            && self.provider_type_package_identity == other.provider_type_package_identity
+            && self.target == other.target
+            && self.schema == other.schema
+            && self.rows.len() == other.rows.len()
+            && self
+                .rows
+                .iter()
+                .zip(&other.rows)
+                .all(|(left, right)| left.eq_in(&self.identities, right, &other.identities))
+            && self.origin_package_identity == other.origin_package_identity
+            && self.origin_package == other.origin_package
+    }
+}
+
+impl Eq for ProviderPlan {}
+
+impl ProviderPlanRow {
+    /// Semantic equality given the tables each row's binding identities were
+    /// interned into; `CheckedAdapter` machine identities compare by
+    /// resolved text so mint order never decides equality.
+    fn eq_in(
+        &self,
+        left_table: &ProviderIdentityTable,
+        other: &Self,
+        right_table: &ProviderIdentityTable,
+    ) -> bool {
+        self.method == other.method
+            && self.requirement_identity == other.requirement_identity
+            && self.requirement_lifetime_partition == other.requirement_lifetime_partition
+            && match (&self.binding, &other.binding) {
+                (
+                    ProviderBinding::CheckedAdapter {
+                        machine_identity: left_identity,
+                        machine_package_identity: left_package,
+                    },
+                    ProviderBinding::CheckedAdapter {
+                        machine_identity: right_identity,
+                        machine_package_identity: right_package,
+                    },
+                ) => {
+                    left_table.text(*left_identity) == right_table.text(*right_identity)
+                        && left_package == right_package
+                }
+                (left, right) => left == right,
+            }
+    }
+}
+
 impl ProviderPlan {
+    /// The canonical identity text one of this plan's interned fields names.
+    /// Projects the empty string for the zero id, matching the empty-field
+    /// rendering the encoder wrote before interning.
+    pub fn identity_text(&self, identity: ProviderIdentityId) -> &str {
+        self.identities.text(identity)
+    }
+
     /// Domain-separated SHA-256 commitment to the complete normalized plan
     /// structure. Unlike [`Self::report_fingerprint`], this includes exact
     /// normalized foreign-locator coordinates and is suitable for retained
@@ -198,18 +265,20 @@ impl ProviderPlan {
         encoder.string(&self.provider_type);
         encoder.package_identity(self.provider_type_package_identity);
         encoder.string(&self.target);
-        encoder.string(&self.schema.trait_name);
+        encoder.string(self.schema.identity_text(self.schema.trait_name));
         encoder.package_identity(self.schema.trait_package_identity);
 
         let mut methods = self.schema.methods.iter().collect::<Vec<_>>();
         methods.sort_by(|left, right| {
-            left.name
-                .cmp(&right.name)
-                .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+            left.name.cmp(&right.name).then_with(|| {
+                self.schema
+                    .identity_text(left.requirement_identity)
+                    .cmp(self.schema.identity_text(right.requirement_identity))
+            })
         });
         encoder.len(methods.len());
         for method in methods {
-            encoder.service_method(method);
+            encoder.service_method(method, &self.schema.identities);
         }
 
         let mut rows = self.rows.iter().collect::<Vec<_>>();
@@ -230,7 +299,7 @@ impl ProviderPlan {
             for ordinal in &row.requirement_lifetime_partition {
                 encoder.u64(u64::from(*ordinal));
             }
-            encoder.provider_binding(&row.binding);
+            encoder.provider_binding(&row.binding, &self.identities);
         }
         encoder.package_identity(self.origin_package_identity);
         ProviderPlanDigest::from_digest(encoder.finish())
@@ -245,7 +314,10 @@ impl ProviderPlan {
     pub fn report_fingerprint(&self) -> u64 {
         let mut rendered = format!(
             "{}\n{}\n{}\n{}",
-            self.name, self.provider_type, self.target, self.schema.trait_name
+            self.name,
+            self.provider_type,
+            self.target,
+            self.schema.identity_text(self.schema.trait_name)
         );
         push_package_identity(
             &mut rendered,
@@ -282,7 +354,7 @@ impl ProviderPlan {
             rendered.push_str(&format!(
                 "\nm:{}/{}/{}/{}/services:{}/invokes:{}/suspend:{}/block:{}/terminates:{}",
                 method.name,
-                method.requirement_identity,
+                self.schema.identity_text(method.requirement_identity),
                 method.parameter_count,
                 method.has_result,
                 method.service_reach.join("+"),
@@ -310,12 +382,18 @@ impl ProviderPlan {
                 ));
                 let mut establishment_routes =
                     premise.establishment_routes.iter().collect::<Vec<_>>();
-                establishment_routes.sort();
+                establishment_routes.sort_by(|left, right| {
+                    left.kind.cmp(&right.kind).then_with(|| {
+                        self.schema
+                            .identity_text(left.requirement_identity)
+                            .cmp(self.schema.identity_text(right.requirement_identity))
+                    })
+                });
                 for route in establishment_routes {
                     rendered.push_str(&format!(
                         "\nmtr:{}/{}",
                         route.kind.as_str(),
-                        route.requirement_identity,
+                        self.schema.identity_text(route.requirement_identity),
                     ));
                 }
             }
@@ -382,7 +460,10 @@ impl ProviderPlan {
                     machine_identity,
                     machine_package_identity,
                 } => {
-                    let mut identity = format!("CheckedAdapter:{machine_identity}");
+                    let mut identity = format!(
+                        "CheckedAdapter:{}",
+                        self.identity_text(*machine_identity)
+                    );
                     push_package_identity(
                         &mut identity,
                         "checked-adapter-package",
@@ -441,7 +522,9 @@ impl ProviderPlan {
             if count == 0 {
                 errors.push(format!(
                     "plan `{}` does not bind `{}::{}`",
-                    self.name, self.schema.trait_name, method.name
+                    self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name
                 ));
             }
         }
@@ -458,7 +541,7 @@ impl ProviderPlan {
         if self.name.is_empty() {
             errors.push("provider plan has no exact selection name".to_owned());
         }
-        if self.schema.trait_name.is_empty() {
+        if !self.schema.identity_text(self.schema.trait_name).is_empty() {
             errors.push(format!(
                 "plan `{}` schema has no exact boundary-slot identity",
                 self.name
@@ -470,7 +553,9 @@ impl ProviderPlan {
             {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` must retain its calling-plan report coordinate and strong commitment together",
-                    self.name, self.schema.trait_name, method.name,
+                    self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name,
                 ));
             }
             if method
@@ -479,25 +564,31 @@ impl ProviderPlan {
             {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` retains an empty calling-plan commitment",
-                    self.name, self.schema.trait_name, method.name,
+                    self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name,
                 ));
             }
             if method.name.is_empty() {
                 errors.push(format!(
                     "plan `{}` schema `{}` has a method with no readable drift name",
-                    self.name, self.schema.trait_name,
+                    self.name, self.schema.identity_text(self.schema.trait_name),
                 ));
             }
             if method.requirement_owner.is_empty() {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` has no exact requirement owner",
-                    self.name, self.schema.trait_name, method.name
+                    self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name
                 ));
             }
-            if method.requirement_identity.is_empty() {
+            if !method.requirement_identity.is_valid() {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` has no exact requirement identity",
-                    self.name, self.schema.trait_name, method.name
+                    self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name
                 ));
             } else if let Some(previous_index) = self.schema.methods[..method_index]
                 .iter()
@@ -505,14 +596,14 @@ impl ProviderPlan {
             {
                 errors.push(format!(
                     "plan `{}` schema methods at indexes {previous_index} and {method_index} repeat exact requirement identity `{}`",
-                    self.name, method.requirement_identity,
+                    self.name, self.schema.identity_text(method.requirement_identity),
                 ));
             }
             if method.parameter_type_identities.len() != method.parameter_count {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` declares {} parameters but retains {} exact parameter type identities",
                     self.name,
-                    self.schema.trait_name,
+                    self.schema.identity_text(self.schema.trait_name),
                     method.name,
                     method.parameter_count,
                     method.parameter_type_identities.len(),
@@ -523,7 +614,7 @@ impl ProviderPlan {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` parameter {} has no exact semantic type identity",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         parameter_index,
                     ));
@@ -533,20 +624,24 @@ impl ProviderPlan {
                 if !method.terminates_guarantee {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` retains a progress premise without a termination guarantee",
-                        self.name, self.schema.trait_name, method.name,
+                        self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name,
                     ));
                 }
                 if premise.profile.is_empty() {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` has a progress premise with no exact profile identity",
-                        self.name, self.schema.trait_name, method.name,
+                        self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name,
                     ));
                 }
                 if premise.establishment_routes.is_empty() {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` progress premise `{}` has no authorized establishment route",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         premise.profile,
                     ));
@@ -554,12 +649,12 @@ impl ProviderPlan {
                 if premise
                     .establishment_routes
                     .iter()
-                    .any(|route| route.requirement_identity.is_empty())
+                    .any(|route| !route.requirement_identity.is_valid())
                 {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` progress premise `{}` has an establishment route with no exact requirement identity",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         premise.profile,
                     ));
@@ -570,19 +665,25 @@ impl ProviderPlan {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` progress premise `{}` has a non-boundary establishment route",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         premise.profile,
                     ));
                 }
                 let mut normalized_routes = premise.establishment_routes.clone();
-                normalized_routes.sort();
+                normalized_routes.sort_by(|left, right| {
+                    left.kind.cmp(&right.kind).then_with(|| {
+                        self.schema
+                            .identity_text(left.requirement_identity)
+                            .cmp(self.schema.identity_text(right.requirement_identity))
+                    })
+                });
                 normalized_routes.dedup();
                 if normalized_routes.len() != premise.establishment_routes.len() {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` progress premise `{}` repeats an establishment route",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         premise.profile,
                     ));
@@ -593,7 +694,7 @@ impl ProviderPlan {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` progress premise names out-of-range parameter {index} of {}",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         method.parameter_count,
                     ));
@@ -605,7 +706,9 @@ impl ProviderPlan {
                 {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` progress premise has an empty subject projection identity",
-                        self.name, self.schema.trait_name, method.name,
+                        self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name,
                     ));
                 }
             }
@@ -614,7 +717,7 @@ impl ProviderPlan {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` entry claim names out-of-range parameter {} of {}",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         claim.parameter_index,
                         method.parameter_count,
@@ -624,7 +727,7 @@ impl ProviderPlan {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` entry claim for parameter {} has no exact semantic domain identity",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         claim.parameter_index,
                     ));
@@ -633,7 +736,7 @@ impl ProviderPlan {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` entry claim for parameter {} has no exact carrier identity",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         claim.parameter_index,
                     ));
@@ -642,7 +745,7 @@ impl ProviderPlan {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` entry claim for parameter {} and domain `{}` is not born-strict",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         claim.parameter_index,
                         claim.domain,
@@ -664,7 +767,7 @@ impl ProviderPlan {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` entry claims are not strictly increasing at indexes {index} and {}",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         index + 1,
                     ));
@@ -677,13 +780,15 @@ impl ProviderPlan {
             {
                 errors.push(format!(
                     "plan `{}` external completion requirement `{}` declares a normal result",
-                    self.name, method.requirement_identity
+                    self.name, self.schema.identity_text(method.requirement_identity)
                 ));
             }
             if method.has_result != method.result_type_identity.is_some() {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` result presence disagrees with its exact result type identity",
-                    self.name, self.schema.trait_name, method.name,
+                    self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name,
                 ));
             }
             if method
@@ -693,26 +798,34 @@ impl ProviderPlan {
             {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` result has no exact semantic type identity",
-                    self.name, self.schema.trait_name, method.name,
+                    self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name,
                 ));
             }
             for claim in &method.result_claims {
                 if !method.has_result || method.result_type_identity.is_none() {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` retains a result claim without a real result",
-                        self.name, self.schema.trait_name, method.name,
+                        self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name,
                     ));
                 }
                 if claim.domain.is_empty() {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` result claim has no exact semantic domain identity",
-                        self.name, self.schema.trait_name, method.name,
+                        self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name,
                     ));
                 }
                 if claim.effective_carry != language_semantics::CarryPolicy::STRICT {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` result claim for domain `{}` is not born-strict",
-                        self.name, self.schema.trait_name, method.name, claim.domain,
+                        self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name, claim.domain,
                     ));
                 }
             }
@@ -721,7 +834,7 @@ impl ProviderPlan {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` result claims are not strictly increasing at indexes {index} and {}",
                         self.name,
-                        self.schema.trait_name,
+                        self.schema.identity_text(self.schema.trait_name),
                         method.name,
                         index + 1,
                     ));
@@ -738,7 +851,9 @@ impl ProviderPlan {
                     if identity.is_empty() {
                         errors.push(format!(
                             "plan `{}` schema method `{}::{}` {axis} identity at index {index} is empty",
-                            self.name, self.schema.trait_name, method.name,
+                            self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name,
                         ));
                     }
                 }
@@ -747,7 +862,7 @@ impl ProviderPlan {
                         errors.push(format!(
                             "plan `{}` schema method `{}::{}` {axis} identities are not strictly increasing at indexes {index} and {}",
                             self.name,
-                            self.schema.trait_name,
+                            self.schema.identity_text(self.schema.trait_name),
                             method.name,
                             index + 1,
                         ));
@@ -788,7 +903,7 @@ impl ProviderPlan {
                     if u32::try_from(*number).is_err() {
                         errors.push(format!(
                             "provider binding `{}::{}` has syscall number {number}, but the target syscall plan requires a value in 0..={}",
-                            self.schema.trait_name,
+                            self.schema.identity_text(self.schema.trait_name),
                             row.method,
                             u32::MAX,
                         ));
@@ -815,9 +930,9 @@ impl ProviderPlan {
                     if table.is_empty() {
                         errors.push(format!(
                             "external leaf for `{}::{}` uses a table field without an attached provider data type; declare it as `machine TableType::leaf(...) satisfies {}::{} via Binding::...`",
-                            self.schema.trait_name,
+                            self.schema.identity_text(self.schema.trait_name),
                             row.method,
-                            self.schema.trait_name,
+                            self.schema.identity_text(self.schema.trait_name),
                             row.method,
                         ));
                     } else if self.provider_type.is_empty() {
@@ -842,7 +957,7 @@ impl ProviderPlan {
                     machine_identity,
                     machine_package_identity,
                 } => {
-                    if machine_identity.is_empty() {
+                    if !machine_identity.is_valid() {
                         errors.push(format!(
                             "plan `{}` row `{}` checked adapter has no exact machine identity",
                             self.name, row.method,
@@ -850,10 +965,11 @@ impl ProviderPlan {
                     }
                     if self.provider_type.is_empty() {
                         errors.push(format!(
-                            "checked adapter `{machine_identity}` for `{}::{}` has no nominal provider type; attach it as an ordinary checked machine satisfying {}::{}` and select that provider for the boundary slot",
-                            self.schema.trait_name,
+                            "checked adapter `{}` for `{}::{}` has no nominal provider type; attach it as an ordinary checked machine satisfying {}::{}` and select that provider for the boundary slot",
+                            self.identity_text(*machine_identity),
+                            self.schema.identity_text(self.schema.trait_name),
                             row.method,
-                            self.schema.trait_name,
+                            self.schema.identity_text(self.schema.trait_name),
                             row.method,
                         ));
                     }
@@ -875,7 +991,9 @@ impl ProviderPlan {
             if count > 1 {
                 errors.push(format!(
                     "plan `{}` binds `{}::{}` {count} times; one row per method",
-                    self.name, self.schema.trait_name, method.name
+                    self.name,
+                    self.schema.identity_text(self.schema.trait_name),
+                    method.name
                 ));
             }
         }
@@ -888,7 +1006,9 @@ impl ProviderPlan {
             {
                 errors.push(format!(
                     "plan `{}` binds `{}`, which is not a `{}` method",
-                    self.name, row.method, self.schema.trait_name
+                    self.name,
+                    row.method,
+                    self.schema.identity_text(self.schema.trait_name)
                 ));
             }
         }

@@ -372,7 +372,7 @@ fn boundary_realization_coverage(
                     } => {
                         let realization_identity = specialization
                             .map(|row| row.machine_identity.as_str())
-                            .unwrap_or(machine_identity.as_str());
+                            .unwrap_or_else(|| plan.identity_text(*machine_identity));
                         let mut matched = false;
                         for candidate in candidates.iter().filter(|candidate| {
                             module.identities.text(candidate.requirement_identity)

@@ -5,6 +5,9 @@ use super::DigestFeed;
 use crate::provider_evidence::evidence_digest;
 use crate::provider_evidence::providers::provider_plan::ProviderPlanRow;
 use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
+use crate::provider_evidence::providers::provider_plan::identity_table::{
+    ProviderIdentityId, ProviderIdentityTable,
+};
 /// Exact evaluated calling-application identity. This is realization evidence,
 /// not a typed-source declaration or permission to execute an application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,10 +51,16 @@ evidence_digest!(
 /// reified from the typed `TraitDefinition` (today that read is scattered
 /// -- parameter-count walks in the compiler pipeline, Console detection in
 /// the interpreter; the schema type is the one honest carrier).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ServiceSchema {
-    /// The boundary trait's name (`Console`, `FilesystemHost`).
-    pub trait_name: String,
+    /// The boundary trait's identity (`Console`, `FilesystemHost`) interned
+    /// into `identities`; read the canonical text through
+    /// [`Self::identity_text`] rather than holding another rendering.
+    pub trait_name: ProviderIdentityId,
+    /// Interned canonical identities this schema's fields point into.
+    /// Projection, not payload: equality and digests join on the interned
+    /// text, and mint order is never compared.
+    pub identities: ProviderIdentityTable,
     /// Exact package owning the selected boundary trait/operator declaration.
     /// `None` is explicit for toolchain, standalone, or source-free trees.
     pub trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -72,9 +81,10 @@ pub struct ServiceMethod {
     /// differ from the selected schema owner. `None` is never repaired from
     /// the readable owner or overload identity.
     pub requirement_owner_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    /// Stable named-callable identity of the exact requirement overload.
-    /// Provider schemas are never name-only, including singleton schemas.
-    pub requirement_identity: String,
+    /// Stable named-callable identity of the exact requirement overload,
+    /// interned into the schema's `identities`. Provider schemas are never
+    /// name-only, including singleton schemas.
+    pub requirement_identity: ProviderIdentityId,
     /// Declared parameter count (excluding any receiver) -- the same count
     /// the vtable-field encoder compares against call operands.
     pub parameter_count: usize,
@@ -129,21 +139,112 @@ pub struct ServiceMethod {
     pub calling_plan_commitment: Option<BoundaryCallingPlanCommitment>,
 }
 
+impl ServiceMethod {
+    /// Semantic equality given the tables each method's identities were
+    /// interned into: interned fields compare by resolved text, and a
+    /// process-local mint order never decides equality.
+    fn eq_in(
+        &self,
+        left_table: &ProviderIdentityTable,
+        other: &Self,
+        right_table: &ProviderIdentityTable,
+    ) -> bool {
+        self.completion == other.completion
+            && self.name == other.name
+            && self.requirement_owner == other.requirement_owner
+            && self.requirement_owner_package_identity == other.requirement_owner_package_identity
+            && left_table.text(self.requirement_identity)
+                == right_table.text(other.requirement_identity)
+            && self.parameter_count == other.parameter_count
+            && self.parameter_type_identities == other.parameter_type_identities
+            && self.entry_claims == other.entry_claims
+            && self.has_result == other.has_result
+            && self.result_type_identity == other.result_type_identity
+            && self.result_claims == other.result_claims
+            && self.service_reach == other.service_reach
+            && self.synchronous_invocations == other.synchronous_invocations
+            && self.may_suspend == other.may_suspend
+            && self.may_block == other.may_block
+            && self.terminates_guarantee == other.terminates_guarantee
+            && self.termination_premises.len() == other.termination_premises.len()
+            && self
+                .termination_premises
+                .iter()
+                .zip(&other.termination_premises)
+                .all(|(left, right)| {
+                    left.eq_in(left_table, right, right_table)
+                })
+            && self.calling_plan_report_fingerprint == other.calling_plan_report_fingerprint
+            && self.calling_plan_commitment == other.calling_plan_commitment
+    }
+}
+
+impl ServiceProgressPremise {
+    /// As [`ServiceMethod::eq_in`], for the nested progress premises.
+    fn eq_in(
+        &self,
+        left_table: &ProviderIdentityTable,
+        other: &Self,
+        right_table: &ProviderIdentityTable,
+    ) -> bool {
+        self.profile == other.profile
+            && self.subject == other.subject
+            && self.subject_projections == other.subject_projections
+            && self.establishment_routes.len() == other.establishment_routes.len()
+            && self
+                .establishment_routes
+                .iter()
+                .zip(&other.establishment_routes)
+                .all(|(left, right)| {
+                    left.kind == right.kind
+                        && left_table.text(left.requirement_identity)
+                            == right_table.text(right.requirement_identity)
+                })
+    }
+}
+
+impl PartialEq for ServiceSchema {
+    /// Semantic equality: field values plus the interned text each field
+    /// resolves, never the process-local mint order that produced the ids.
+    fn eq(&self, other: &Self) -> bool {
+        self.trait_package_identity == other.trait_package_identity
+            && self.methods.len() == other.methods.len()
+            && self.identity_text(self.trait_name) == other.identity_text(other.trait_name)
+            && self
+                .methods
+                .iter()
+                .zip(&other.methods)
+                .all(|(left, right)| {
+                    left.eq_in(&self.identities, right, &other.identities)
+                })
+    }
+}
+
+impl Eq for ServiceSchema {}
+
 impl ServiceSchema {
+    /// The canonical identity text one of this schema's fields names.
+    /// Projects the empty string for the zero id, matching the empty-field
+    /// rendering the encoder wrote before interning.
+    pub fn identity_text(&self, identity: ProviderIdentityId) -> &str {
+        self.identities.text(identity)
+    }
+
     /// Domain-separated SHA-256 commitment to the complete normalized schema.
     pub fn identity_digest(&self) -> ServiceSchemaDigest {
         let mut encoder = ProviderPlanDigestEncoder::for_service_schema();
-        encoder.string(&self.trait_name);
+        encoder.string(self.identity_text(self.trait_name));
         encoder.package_identity(self.trait_package_identity);
         let mut methods = self.methods.iter().collect::<Vec<_>>();
         methods.sort_by(|left, right| {
-            left.name
-                .cmp(&right.name)
-                .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+            left.name.cmp(&right.name).then_with(|| {
+                self.identity_text(left.requirement_identity)
+                    .cmp(self.identity_text(right.requirement_identity))
+            })
         });
         encoder.len(methods.len());
         for method in methods {
-            encoder.service_method(method);
+            encoder.service_method(method, &self.identities);
         }
         ServiceSchemaDigest::from_digest(encoder.finish())
     }
@@ -161,10 +262,12 @@ pub struct ServiceProgressPremise {
     pub establishment_routes: Vec<ServiceProgressEstablishmentRoute>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceProgressEstablishmentRoute {
     pub kind: ServiceProgressEstablishmentRouteKind,
-    pub requirement_identity: String,
+    /// Interned into the owning schema's `identities`; route order is fixed
+    /// by kind then canonical text so plan digests never see mint order.
+    pub requirement_identity: ProviderIdentityId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -240,7 +343,8 @@ impl ServiceSchema {
     pub fn row_binds_method(&self, row: &ProviderPlanRow, method: &ServiceMethod) -> bool {
         !row.requirement_identity.is_empty()
             && row.method == method.name
-            && row.requirement_identity == method.requirement_identity
+            && self.identities.id_at(&row.requirement_identity)
+                == Some(method.requirement_identity)
     }
 
     pub fn method_for_row(&self, row: &ProviderPlanRow) -> Option<&ServiceMethod> {

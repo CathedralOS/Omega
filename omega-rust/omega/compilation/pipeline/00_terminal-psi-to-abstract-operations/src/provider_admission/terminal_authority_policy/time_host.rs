@@ -52,6 +52,7 @@ pub(crate) fn settled_time_host_cohort(name: &str) -> bool {
 /// supplied schema commitment and the method's complete normalized
 /// requirement identity, and grants the explicit empty disposition.
 pub(crate) fn time_host_permission_row(
+    schema: &ServiceSchema,
     service_schema: ServiceSchemaDigest,
     method: &ServiceMethod,
 ) -> Result<ServiceTerminalAuthorityPermission, UnsettledTimeHostRequirement> {
@@ -60,7 +61,7 @@ pub(crate) fn time_host_permission_row(
     }
     Ok(ServiceTerminalAuthorityPermission::new(
         service_schema,
-        method.requirement_identity.clone(),
+        schema.identity_text(method.requirement_identity).to_owned(),
         TerminalAuthorityDisposition::from_classes([]),
     ))
 }
@@ -75,7 +76,7 @@ pub fn time_host_permission_rows(
     schema
         .methods
         .iter()
-        .map(|method| time_host_permission_row(digest, method))
+        .map(|method| time_host_permission_row(schema, digest, method))
         .collect()
 }
 

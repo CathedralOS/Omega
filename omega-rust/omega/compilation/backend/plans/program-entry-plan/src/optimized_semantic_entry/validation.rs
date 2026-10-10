@@ -26,6 +26,9 @@ pub(super) struct ValidatedSemanticEntryInputs {
     pub(super) source: SelectedProgramEntrySignature,
     pub(super) boundary: ValidatedBoundaryEntryPlan,
     pub(super) method: ServiceMethod,
+    /// Canonical text the method's interned requirement identity names in
+    /// `selected.schema()`; the contract record keeps text, not the id.
+    pub(super) requirement_identity: String,
     pub(super) semantic_application_report_fingerprint: u64,
     pub(super) semantic_application_commitment: BoundaryCallingPlanCommitment,
     pub(super) physical_contract: ProgramEntryPhysicalContractPlan,
@@ -114,7 +117,8 @@ pub(super) fn validate(
     let validated_physical = semantic_application.admitted_physical_entry_plan();
     if physical_contract.boundary_entry_plan() != validated_physical.plan()
         || physical_contract.target_slot() != slot
-        || physical_contract.requirement_identity() == method.requirement_identity
+        || physical_contract.requirement_identity()
+            == selected.schema().identity_text(method.requirement_identity)
         || physical_contract.calling_plan_report_fingerprint()
             != validated_physical.contract_report_fingerprint()
         || physical_contract.calling_plan_report_fingerprint()
@@ -137,6 +141,10 @@ pub(super) fn validate(
         source: source.clone(),
         boundary: boundary.clone(),
         method: method.clone(),
+        requirement_identity: selected
+            .schema()
+            .identity_text(method.requirement_identity)
+            .to_owned(),
         semantic_application_report_fingerprint: semantic_application.report_fingerprint(),
         semantic_application_commitment: semantic_application.commitment(),
         physical_contract: physical_contract.clone(),
@@ -150,7 +158,13 @@ fn selected_method(
         .schema()
         .methods
         .iter()
-        .filter(|method| method.requirement_identity == selected.requirement_identity())
+        .filter(|method| {
+            selected
+                .schema()
+                .identities
+                .id_at(selected.requirement_identity())
+                == Some(method.requirement_identity)
+        })
         .collect::<Vec<_>>();
     let [method] = matches.as_slice() else {
         return Err(ProgramStorageEntryDiagnostic(format!(
