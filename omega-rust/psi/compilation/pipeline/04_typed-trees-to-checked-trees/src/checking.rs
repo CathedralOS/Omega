@@ -177,9 +177,9 @@ fn check_program(
     // resolver presence; certificate construction and the check replay share
     // one lazily-filled table instead of rebuilding it per entry.
     let incoming_guard_index = checks::IncomingGuardIndexCache::default();
-    // Validation already judged each checked body's contract entailment on
-    // this program; the exit checks read those proved postconditions
-    // instead of rejudging every machine.
+    // Validation judges each checked body's contract entailment once; the
+    // stage-04 prover reads those proved postconditions at its own
+    // decision point — nobody rejudges them.
     let proven_machine_contracts =
         std::mem::take(&mut validated.validation_facts.proven_machine_contracts);
     // The range checker bounds indexes with the intervals the same

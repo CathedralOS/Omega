@@ -47,8 +47,8 @@ use typed_trees::statement::StatementNode;
 mod contract_queries;
 mod statements;
 pub use contract_queries::{
-    checked_operator_contract_snapshot, proven_machine_contract_expressions,
-    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
+    checked_operator_contract_snapshot, validate_checked_operator_realization_contract,
+    validate_generic_machine_contract_entailment,
 };
 use statements::validate_state_statement_node;
 
@@ -106,10 +106,9 @@ pub struct ProgramValidationFacts {
     /// semantic predecessors do not authorize structural induction hypotheses.
     pub self_call_descents: Vec<crate::ValidatedSelfCallDescent>,
     /// For each checked-body machine whose contract entailment this pass
-    /// judged, the postconditions it proved: what
-    /// [`crate::proven_machine_contract_expressions`] would rejudge for the
-    /// same program, empty when the machine's entailment raised a diagnostic
-    /// or does not cover every exit.
+    /// judged, the postconditions it proved — the one judgment over bodies,
+    /// consumed by the stage-04 prover. Empty when the machine's entailment
+    /// raised a diagnostic or does not cover every exit.
     pub proven_machine_contracts: Vec<(symbols::SymbolHandle, Vec<ExpressionHandle>)>,
 }
 
@@ -341,6 +340,8 @@ fn validate(
         // Pristine templates remain in the frozen roster. Judge their declared
         // abstract envelope here, alongside concrete bodies; preparation cannot
         // grant a blanket prevalidated exemption to either declaration.
+        // This is the one judgment over bodies: the stage-04 prover consumes
+        // the retained postconditions below — no second site rejudges them.
         {
             let mut machine_diagnostics = Vec::new();
             let mut proven = Vec::new();
@@ -350,9 +351,6 @@ fn validate(
                 &mut machine_diagnostics,
                 &mut proven,
             );
-            // The same judgment `proven_machine_contract_expressions` makes:
-            // a checked body's proved postconditions count only when its
-            // entailment raised nothing and covers every exit.
             if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
                 && !proven_machine_contracts
                     .iter()

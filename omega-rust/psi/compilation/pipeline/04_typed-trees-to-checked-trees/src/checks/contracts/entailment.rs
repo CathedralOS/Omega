@@ -10,7 +10,7 @@ pub(super) struct ProvenExitExpressions<'program, 'frames> {
     program: &'program dyn ::validation::CheckingInput,
     classification: &'program typed_trees::proof_only::ProofOnlyClassification,
     resolver: Option<&'frames validation::CallFrameResolver<'program>>,
-    /// Postconditions validation already proved on this program, by machine.
+    /// Postconditions the one judgment proved on this program, by machine.
     validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
     machines: Vec<MachineEntailmentOutcome>,
 }
@@ -40,6 +40,8 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
         }
     }
 
+    /// The one judgment over a checked body is validation's retained row;
+    /// this read is the prover's decision point — nothing rejudges it.
     pub(super) fn for_machine(
         &mut self,
         facts: &checked_trees::CheckFacts,
@@ -58,17 +60,11 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
                     self.resolver,
                 );
                 let mut expressions = if entry_premises_preserved {
-                    match self
-                        .validated
+                    self.validated
                         .iter()
                         .find(|(symbol, _)| *symbol == machine_symbol)
-                    {
-                        Some((_, proven)) => proven.clone(),
-                        None => validation::proven_machine_contract_expressions(
-                            self.program,
-                            machine_symbol,
-                        ),
-                    }
+                        .map(|(_, proven)| proven.clone())
+                        .unwrap_or_default()
                 } else {
                     Vec::new()
                 };
