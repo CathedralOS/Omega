@@ -2411,6 +2411,16 @@ fail/slices/overlapping_mut_subslice_windows_rejected rejected 525ms expected @8
 	statement 3 reads `a.unknown` while local borrow `b` is still active (borrowed at statement 2)
 fail/slices/result_length_contract_requires_returned_view rejected 663ms expected @1152c1496b39
 	cannot prove ensures contract for exit from bogus at statement 0: result.len == 2
+fail/slices/scalar_copy_invalidated_domain rejected 1226ms expected @72f9cbd4156c+wt
+	cannot prove assignment value `101` satisfies bounded target `items[1]` in `copy.entry`; expected 0..=100
+fail/slices/scalar_copy_missing_bounds rejected 1598ms expected @72f9cbd4156c+wt
+	cannot prove index `1` is within unknown slice length of `items` in copy::entry
+fail/slices/scalar_copy_missing_domain rejected 1486ms expected @72f9cbd4156c+wt
+	cannot prove scalar result domain for return from copy at statement 0: i32::Small
+fail/slices/scalar_copy_partial_domain_coverage rejected 4951ms expected @72f9cbd4156c+wt
+	cannot prove default-domain field requirement for call copy from main::entry: parameter items[0..18446744073709551615] requires i32::Positive
+fail/slices/scalar_dynamic_store_missing_range rejected 3046ms expected @72f9cbd4156c+wt
+	cannot prove assignment value `value` satisfies bounded target `items[__hoist_14]` in `write.entry`; expected 0..=100
 fail/slices/shared_subslice_state_cannot_lend_mutable rejected 540ms expected @0582eca912a4+wt
 	argument `items` for state `forwarded` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/signed_slice_index_upper_only rejected 567ms expected @2d8ed253669f
@@ -4289,6 +4299,8 @@ pass/slices/runtime_call_endpoint_view_exit checked 1625ms check-target:macos_ar
 pass/slices/runtime_direct_view_requires_index_exit checked 4270ms check-target:macos_arm64 @b5d8c6882a8
 pass/slices/runtime_dynamic_record_subslice_state_forwarding_exit checked 7406ms check-target:macos_arm64 @0582eca912a4+wt
 pass/slices/runtime_element_view_requires_index_exit checked 1657ms check-target:macos_arm64 @0991904fed3b+wt
+pass/slices/runtime_empty_qualified_scalar_array_exit checked 7305ms check-target:macos_arm64 @72f9cbd4156c+wt
+pass/slices/runtime_erased_field_record_copy_exit checked 7261ms check-target:macos_arm64 @72f9cbd4156c+wt
 pass/slices/runtime_forwarded_view_runtime_index_exit checked 1613ms check-target:macos_arm64 @0facec44bc8b+wt
 pass/slices/runtime_guarded_view_copy_cycle_exit checked 2015ms check-target:macos_arm64 @6ba9c43af356+wt
 pass/slices/runtime_inclusive_call_endpoint_order_exit checked 1689ms check-target:macos_arm64 @dd31f301c60c+wt
@@ -4306,6 +4318,11 @@ pass/slices/runtime_nested_subslice_fixed_index_exit checked 1425ms check-target
 pass/slices/runtime_policy_element_view_tail_recursion_exit checked 732ms check-target:macos_arm64 @de74b73e1452+wt
 pass/slices/runtime_published_view_length_bounds_cast_exit checked 2982ms check-target:macos_arm64 @1152c1496b39
 pass/slices/runtime_qualified_record_copy_local_exit checked 8465ms check-target:macos_arm64 @cfe60a3a242
+pass/slices/runtime_range_qualified_fixed_scalar_snapshot_exit checked 7201ms check-target:macos_arm64 @72f9cbd4156c+wt
+pass/slices/runtime_range_qualified_scalar_copy_exit checked 7407ms check-target:macos_arm64 @72f9cbd4156c+wt
+pass/slices/runtime_range_qualified_scalar_copy_local_exit checked 9152ms check-target:macos_arm64 @72f9cbd4156c+wt
+pass/slices/runtime_range_qualified_scalar_dynamic_store_exit checked 9520ms check-target:macos_arm64 @72f9cbd4156c+wt
+pass/slices/runtime_range_qualified_scalar_store_phi_exit checked 10037ms check-target:macos_arm64 @72f9cbd4156c+wt
 pass/slices/runtime_saturating_array_element_guard_exit checked 1543ms check-target:macos_arm64 @2d8ed253669f
 pass/slices/runtime_shared_subslice_return_exit checked 4670ms check-target:macos_arm64 @cfe60a3a242
 pass/slices/runtime_shared_whole_view_return_exit checked 4805ms check-target:macos_arm64 @cfe60a3a242
