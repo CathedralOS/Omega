@@ -1,0 +1,12 @@
+// A trait requirement may cite its sibling member machine in its own
+// requires/ensures: `law` speaks denotationally about `value`'s result.
+trait SelectedValue {
+    machine value(input: f32) -> u8 in Saturating terminates;
+    machine law(input: f32)
+    requires value(input) == value(input)
+    ensures value(input) == value(input);
+}
+data Main { hits: i32 in Wrapping; }
+machine Main::main(main: &mut Main) {
+    main.hits = main.hits + 1;
+}
