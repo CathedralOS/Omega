@@ -6121,7 +6121,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     stores affecting case-specific `where` facts. Represent storage origins
     for returned references, reference fields and selected reference values;
     nonempty writes through an unknown origin must remain refused rather
-    than acquire independent storage facts. **Q4**,
+    than acquire independent storage facts. Track payload paths on held-loan
+    rows so projected carriers retain only their own backing loans; the
+    current root-based transfer conservatively retains sibling loans. **Q4**,
     `executable-numeric-builtins`, governs `clamp` and the related numeric
     functions and the bounds subsequent narrowing conversions require.
     **Q9**, `store-evaluation-order`, governs when checking and ownership

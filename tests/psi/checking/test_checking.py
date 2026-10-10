@@ -2674,6 +2674,96 @@ def main() -> None:
         "LoanEscapes",
         b"captured!2",
     )
+    rejected(
+        program,
+        "reference-carrier-self-assignment-retains-loan",
+        b"data Holder [copy] { value: &u64; }\n"
+        b"machine run() -> u64 { let mut first: u64 = 1; "
+        b"let mut holder: Holder = Holder { value: &first }; "
+        b"holder = holder; first = 2; holder.value }",
+        "LoanConflict",
+        b"first!3",
+    )
+    rejected(
+        program,
+        "reference-carrier-assignment-captures-source-loans",
+        b"data Holder [copy] { value: &u64; }\n"
+        b"machine run() -> u64 { let mut first: u64 = 1; let second: u64 = 9; "
+        b"let source: Holder = Holder { value: &first }; "
+        b"let mut holder: Holder = Holder { value: &second }; "
+        b"holder = source; first = 2; holder.value }",
+        "LoanConflict",
+        b"first!3",
+    )
+    accepted(
+        program,
+        "reference-carrier-loan-ends-after-copied-value-use",
+        b"data Holder [copy] { value: &u64; }\n"
+        b"machine run() -> u64 { let mut first: u64 = 1; let second: u64 = 9; "
+        b"let mut holder: Holder = Holder { value: &first }; "
+        b"let captured: Holder = holder; holder = Holder { value: &second }; "
+        b"let observed: u64 = captured.value; first = 2; holder.value }",
+    )
+    rejected(
+        program,
+        "conditional-reference-carrier-retains-either-source-loan",
+        b"data Holder [copy] { value: &u64; }\n"
+        b"machine run(choice: bool) -> u64 { let mut first: u64 = 1; let second: u64 = 9; "
+        b"let source: Holder = Holder { value: &first }; "
+        b"let mut holder: Holder = Holder { value: &second }; "
+        b"holder = match choice { true -> source, false -> holder }; first = 2; holder.value }",
+        "LoanConflict",
+        b"first!3",
+    )
+    rejected(
+        program,
+        "reference-carrier-cannot-escape-owned-backing",
+        b"data Holder [copy] { value: &u64; }\n"
+        b"machine run() -> Holder { let first: u64 = 1; "
+        b"let holder: Holder = Holder { value: &first }; holder }",
+        "LoanEscapes",
+        b"holder!2",
+    )
+    rejected(
+        program,
+        "copied-reference-carrier-cannot-escape-owned-backing",
+        b"data Holder [copy] { value: &u64; }\n"
+        b"machine run() -> Holder { let first: u64 = 1; "
+        b"let holder: Holder = Holder { value: &first }; let copied: Holder = holder; copied }",
+        "LoanEscapes",
+        b"copied!2",
+    )
+    accepted(
+        program,
+        "projected-and-copied-reference-carrier-can-return-parameter-loan",
+        b"data Holder [copy] { value: &u64; }\n"
+        b"data Outer { inner: Holder; }\n"
+        b"machine run(value: &u64) -> Holder { "
+        b"let outer: Outer = Outer { inner: Holder { value: value } }; "
+        b"let holder: Holder = outer.inner; let copied: Holder = holder; copied }",
+    )
+    rejected(
+        program,
+        "projected-reference-carrier-retains-backing-loan",
+        b"data Holder [copy] { value: &u64; }\n"
+        b"data Outer { inner: Holder; }\n"
+        b"machine run() -> u64 { let mut first: u64 = 1; let second: u64 = 9; "
+        b"let source: Outer = Outer { inner: Holder { value: &first } }; "
+        b"let mut holder: Holder = Holder { value: &second }; "
+        b"holder = source.inner; first = 2; holder.value }",
+        "LoanConflict",
+        b"first!3",
+    )
+    rejected(
+        program,
+        "projected-reference-carrier-cannot-escape-owned-backing",
+        b"data Holder [copy] { value: &u64; }\n"
+        b"data Outer { inner: Holder; }\n"
+        b"machine run() -> Holder { let first: u64 = 1; "
+        b"let outer: Outer = Outer { inner: Holder { value: &first } }; outer.inner }",
+        "LoanEscapes",
+        b"outer.inner",
+    )
 
     accepted(
         program,

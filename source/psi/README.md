@@ -444,6 +444,10 @@ same origin, and replacing a mutable shared-reference binding does not
 redirect an earlier alias. Shared-reference copies retain their captured
 loans; assignment captures the replacement's loans before retiring the old
 binding's loans, preserving independent aliases and referent restrictions.
+Reference-bearing local values and their owned projections transport the
+root carrier's captured loans, and escape checks reject captured backing
+owned by the body. Projection currently retains all root loans, including
+sibling loans, because held-loan rows do not distinguish payload paths.
 Origins reset for each body and state. Returned
 references, reference fields and selected reference values have no modeled
 origin yet; a nonempty write through one rejects `UnsupportedCheck`. A
