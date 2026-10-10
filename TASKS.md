@@ -2934,7 +2934,10 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   separate. This is large: land it per client, each commit deleting that
   client's private engine. Acceptance: no private integer interval type
   remains outside `arithmetic_domains`; corpus `--filter ranges,arithmetic/,
-  collections/,slices/,termination/,contracts` unchanged.
+  collections/,slices/,termination/,contracts` unchanged. Preserve signed-minimum
+  divisor magnitudes and both remainder extrema at every migrated client;
+  `arithmetic/{remainder_signed_minimum_underbound_rejected,runtime_signed_minimum_remainder_exit}`
+  constrain this interval meaning independently of divisor definedness.
 
 - **ONE-ENSURES-PROVER.** (new-scope) Exit guarantees are decided twice:
   program validation's contract entailment

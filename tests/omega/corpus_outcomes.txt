@@ -163,6 +163,8 @@ fail/arithmetic/qualified_float_cast_specification_fraction_rejected rejected 58
 	Exact numeric cast in proposition `fractional` to `u8` is not provably denotation preserving; prove source integrality and exact representability independently or use a named numeric conversion
 fail/arithmetic/qualified_float_cast_specification_rounding_rejected rejected 587ms expected @cba4ef8c9ab1
 	Exact numeric cast in proposition `rounded` to `f32` is not provably denotation preserving; prove source integrality and exact representability independently or use a named numeric conversion
+fail/arithmetic/remainder_signed_minimum_underbound_rejected rejected 577ms expected @1e7d4009e238
+	machine `remainder` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
 fail/arithmetic/saturating_shift_count_unproven rejected 267ms expected @2d8ed253669f
 	shift count in machine `Main::main` state `main` local `shifted` is not provably below the operand width for `u32` (`Saturating` governs value overflow, not count validity -- its count obligation is Exact's): exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
 fail/arithmetic/short_circuit_cast_fact_escapes rejected 426ms expected @fa71a470ad1
@@ -2692,6 +2694,7 @@ pass/arithmetic/runtime_returned_constructor_operation_exit checked 1708ms check
 pass/arithmetic/runtime_shift_count_domain_exit checked 1358ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_shl_saturating_exit checked 3352ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_short_circuit_cast_decisions_exit checked 2659ms check-target:macos_arm64 @fa71a470ad1
+pass/arithmetic/runtime_signed_minimum_remainder_exit checked 6945ms check-target:macos_arm64 @1e7d4009e238
 pass/arithmetic/runtime_signed_modulo_shift_edges_exit checked 1366ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_transition_arg_false_arm_narrowing_exit checked 1429ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_transitive_bit_value_exit checked 1831ms check-target:macos_arm64 @04ef5a694099+wt

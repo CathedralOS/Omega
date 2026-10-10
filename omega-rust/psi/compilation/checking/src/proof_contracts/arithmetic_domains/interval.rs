@@ -151,14 +151,22 @@ impl Interval {
     /// finite magnitude bound; otherwise unbounded (as before). This is what lets
     /// `self.seed % 100` feed exact arithmetic (`% 100` is in `[-99, 99]`)
     /// instead of poisoning the enclosing op with an unbounded operand. The
-    /// result interval can only SHRINK relative to the old unbounded value, so it
-    /// is strictly permissive for any enclosing overflow check (never a new
-    /// rejection).
+    /// divisor magnitude must remain exact even at the signed minimum; an
+    /// underestimated magnitude would authorize false bounds in enclosing
+    /// arithmetic and declared results.
     pub(super) fn modulo(self, divisor: Self) -> Self {
         let Some(magnitude) = divisor.nonzero_magnitude_bound() else {
             return Interval::UNBOUNDED;
         };
-        let bound = magnitude.saturating_sub(1);
+        // A signed MIN divisor has magnitude 2^63. Keep that unsigned
+        // magnitude until subtracting one: saturating abs would exclude the
+        // valid remainders +/- i64::MAX from every consumer of this interval.
+        let Some(bound) = magnitude
+            .checked_sub(1)
+            .and_then(|bound| i64::try_from(bound).ok())
+        else {
+            return Interval::UNBOUNDED;
+        };
         // Remainder sign follows the dividend: a provably non-negative dividend
         // yields a non-negative remainder, a non-positive one a non-positive
         // remainder, an unknown-sign dividend either sign.
@@ -252,10 +260,12 @@ impl Interval {
     /// excludes 0 -- either entirely positive (`low >= 1`) or entirely negative
     /// (`high <= -1`). `None` otherwise (the divisor may be 0 or is unbounded, so
     /// `%`/`/` cannot be magnitude-bounded soundly).
-    pub(super) fn nonzero_magnitude_bound(self) -> Option<i64> {
+    /// Magnitude is unsigned so the signed minimum remains exact; a result
+    /// bound can return to the signed interval only after its arithmetic.
+    pub(super) fn nonzero_magnitude_bound(self) -> Option<u64> {
         let (low, high) = (self.low?, self.high?);
         if low >= 1 || high <= -1 {
-            Some(low.saturating_abs().max(high.saturating_abs()))
+            Some(low.unsigned_abs().max(high.unsigned_abs()))
         } else {
             None
         }
