@@ -152,7 +152,7 @@ pub(super) fn emit(
             checked,
             plan,
             state,
-            super::cleanup::destination(checked, state, &guard.destination)?,
+            super::cleanup::destination(state, &guard.destination)?,
             &return_values[position],
             catalogs,
             parameters,
@@ -189,7 +189,6 @@ pub(super) fn emit(
         operations.length_observations.clear();
     }
     let fallback_exit = super::cleanup::destination(
-        checked,
         state,
         fallback.as_ref().ok_or(LoweringError::Unsupported(
             "ordered return lost its fallback destination",
@@ -257,8 +256,8 @@ pub(super) fn emit_return(
         operations,
     )?;
     complete_structural_return(
-        checked, state, exit, operation, catalogs, parameters, evaluation, values, next_value, next_block,
-        next_edge, operations,
+        checked, state, exit, operation, catalogs, parameters, evaluation, values, next_value,
+        next_block, next_edge, operations,
     )
 }
 
@@ -298,8 +297,7 @@ pub(super) fn complete_structural_return(
     // by path.
     returned_claims.sort_by_key(|binding| binding.claim);
     let mut regions = super::cleanup::for_exit_regions(
-        checked,
-        state, exit, catalogs, parameters, evaluation, operations,
+        checked, state, exit, catalogs, parameters, evaluation, operations,
     )?;
     super::cleanup::selection(state, evaluation, operations, &mut regions)?;
     let completion = Terminator::ReturnStructural {
@@ -313,8 +311,7 @@ pub(super) fn complete_structural_return(
     // contract and its residual ownership. Use the ordinary return transport,
     // independent of whether a conditional or ordered guard selected the exit.
     let (completion, arrival) = super::returns::projected::materialize(
-        checked,
-        &binding, source, completion, regions, catalogs, evaluation, values, next_value,
+        checked, &binding, source, completion, regions, catalogs, evaluation, values, next_value,
         next_block, next_edge, operations,
     )?;
     if let Some(arrival) = arrival {

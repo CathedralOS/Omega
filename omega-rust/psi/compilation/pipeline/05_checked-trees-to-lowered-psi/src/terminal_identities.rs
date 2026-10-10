@@ -88,18 +88,6 @@ pub(crate) fn byte_view_element_identity<'a>(
     primitive_scalar_identity(plans, typed_trees::types::PrimitiveType::U8)
 }
 
-pub(crate) fn lookup_type_id_by_text(
-    ids: &[(String, StructuralTypeId)],
-    identity: &str,
-) -> Result<StructuralTypeId, LoweringError> {
-    ids.iter()
-        .find(|(candidate, _)| candidate == identity)
-        .map(|(_, id)| *id)
-        .ok_or(LoweringError::Unsupported(
-            "structural type lost its identity mapping",
-        ))
-}
-
 pub(crate) fn lookup_type_id(
     ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     identity: &typed_trees::type_identity::TypeIdentityId,

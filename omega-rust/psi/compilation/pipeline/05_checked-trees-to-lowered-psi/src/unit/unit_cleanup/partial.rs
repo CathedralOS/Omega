@@ -4,7 +4,7 @@
 use super::super::{StructuralAffineDiscard, lower_structural_path};
 use super::{
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, LoweringError, Terminator,
-    lookup_type_id, unsupported,
+    unsupported,
 };
 use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};

@@ -18,7 +18,6 @@ mod case_capture;
 pub(super) use case_capture::retire_captured_subjects;
 
 pub(super) fn destination(
-    checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     destination: &CheckedScalarBranchDestination,
 ) -> Result<FlowClaimJoinExit, LoweringError> {
@@ -61,7 +60,7 @@ pub(super) fn scalar_returns(
                 is_continuation: cleanup.exit.kind == FlowClaimJoinExitKind::TransitionContinuation,
             };
             let mut actions = for_exit_regions(
-            checked,
+                checked,
                 state,
                 cleanup.exit,
                 catalogs,

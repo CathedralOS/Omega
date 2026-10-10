@@ -404,31 +404,6 @@ pub(crate) fn emit_establishment_claims(
     Ok(emitted)
 }
 
-/// Rebase one completed-establishment claim occurrence onto this body's claim
-/// namespace. An identity the caller already holds — an entry claim, or a
-/// binding an earlier establishment minted — resolves through the grown
-/// table. A claim the checker established at this body's own statement mints
-/// its caller binding here instead: the identity's establishment coordinate
-/// is exactly that statement, so the minted `ClaimId` is that claim's only
-/// caller binding, and every later receipt, transfer and custody join
-/// resolves it the same way. Any other identity is custody this caller never
-/// held — the body cannot mint a binding for a claim some other point owns.
-pub(crate) fn resolve_established_claim(
-    claims: &mut ClaimBindings<'_>,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    statement_index: usize,
-    event: &checked_trees::FlowPermissionEventFact,
-) -> Result<ClaimId, LoweringError> {
-    if let Ok(bound) = lookup_claim_id(claims.bindings(), event.claim_identity) {
-        return Ok(bound);
-    }
-    if !claim_established_here(machine, state, statement_index, event) {
-        return lookup_claim_id(claims.bindings(), event.claim_identity);
-    }
-    claims.mint(event.claim_identity)
-}
-
 /// Reserve the namespace identity authenticated at this completion. A fresh
 /// construction has establishment provenance; a returned child has a checked
 /// call-join provenance with the same occurrence ordinal. Both reserve names,
