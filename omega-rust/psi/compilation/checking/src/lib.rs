@@ -390,6 +390,7 @@ mod frozen_program;
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;
+pub mod substitutions;
 mod value_custody;
 
 // The front-end pipeline the tests run, shared with the `suite` integration

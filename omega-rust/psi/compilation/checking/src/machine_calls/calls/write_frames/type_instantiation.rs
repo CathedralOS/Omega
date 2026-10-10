@@ -38,14 +38,10 @@ pub(super) fn substituted_head(
         else {
             return reference;
         };
-        let Some((_, bound)) = bindings
-            .iter()
-            .rev()
-            .find(|(parameter, _)| parameter == symbol)
-        else {
+        let Some(bound) = crate::substitutions::actual_for(bindings, *symbol) else {
             return reference;
         };
-        reference = *bound;
+        reference = bound;
     }
     reference
 }

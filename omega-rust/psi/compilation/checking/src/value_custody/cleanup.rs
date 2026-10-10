@@ -43,17 +43,14 @@ fn type_graph_requires_nominal_drop_with_substitutions(
             TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return false,
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => {
-                let Some((_, replacement)) = substitutions
-                    .iter()
-                    .rev()
-                    .find(|(parameter, _)| parameter == symbol)
+                let Some(replacement) = crate::substitutions::actual_for(substitutions, *symbol)
                 else {
                     break;
                 };
-                if *replacement == type_reference {
+                if replacement == type_reference {
                     return false;
                 }
-                type_reference = *replacement;
+                type_reference = replacement;
             }
             _ => break,
         }

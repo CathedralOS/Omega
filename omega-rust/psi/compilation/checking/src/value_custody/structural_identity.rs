@@ -72,14 +72,10 @@ pub fn structural_identity_type(
                                     language_semantics::value_domain::ValueDomain::Finite)))) => return reference,
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => {
-                match substitutions
-                    .iter()
-                    .rev()
-                    .find(|(parameter, _)| parameter == symbol)
-                {
+                match crate::substitutions::actual_for(substitutions, *symbol) {
                     // A substitution can bind a parameter to its own
                     // reference; rewriting it again only loops.
-                    Some((_, actual)) if *actual != reference => reference = *actual,
+                    Some(actual) if actual != reference => reference = actual,
                     _ => return reference,
                 }
             }

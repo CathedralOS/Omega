@@ -99,17 +99,14 @@ fn peel_carrier_shells(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => {
-                let Some((_, replacement)) = substitutions
-                    .iter()
-                    .rev()
-                    .find(|(parameter, _)| parameter == symbol)
+                let Some(replacement) = crate::substitutions::actual_for(substitutions, *symbol)
                 else {
                     return Some(reference);
                 };
-                if *replacement == reference {
+                if replacement == reference {
                     return None;
                 }
-                reference = *replacement;
+                reference = replacement;
             }
             _ => return Some(reference),
         }
@@ -134,19 +131,16 @@ pub fn byte_sequence_carrier(
     loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Named { symbol, .. } => {
-                let Some((_, replacement)) = substitutions
-                    .iter()
-                    .rev()
-                    .find(|(parameter, _)| parameter == symbol)
+                let Some(replacement) = crate::substitutions::actual_for(substitutions, *symbol)
                 else {
                     break;
                 };
                 // A substitution can bind a parameter to its own reference;
                 // rewriting it again only loops.
-                if *replacement == type_reference {
+                if replacement == type_reference {
                     break;
                 }
-                type_reference = *replacement;
+                type_reference = replacement;
             }
             TypeReferenceNode::Constrained {
                 base_type,

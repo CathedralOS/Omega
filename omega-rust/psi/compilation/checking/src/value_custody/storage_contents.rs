@@ -391,12 +391,8 @@ fn resolve(
     }
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => {
-            if let Some((_, argument)) = arguments
-                .iter()
-                .rev()
-                .find(|(parameter, _)| parameter == symbol)
-            {
-                return Some(argument.clone());
+            if let Some(argument) = crate::substitutions::actual_for(arguments, *symbol) {
+                return Some(argument);
             }
             if let Some(primitive) = program.primitive_type_reference(reference) {
                 let atomic = match program.symbols.builtin_type_atom(*symbol) {
