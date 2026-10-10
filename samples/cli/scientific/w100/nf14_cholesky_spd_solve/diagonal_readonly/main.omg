@@ -1,0 +1,64 @@
+// Expected exit: 0. Frozen diagonal SPD fixture: column-major 3-by-3 backing.
+// This independent mathematical example does not replace the pending NF01 API.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    matrix: [f64; 9];
+    factor: [f64; 9];
+    rhs: [f64; 3];
+    forward: [f64; 3];
+    solution: [f64; 3];
+}
+
+// Fixed-size fixture: source is borrowed readonly, factor is separate storage.
+machine diagonal_fixture(source: &[f64; 9], factor: &mut [f64; 9]) {
+    factor[0] = F64::square_root(source[0]);
+    factor[4] = F64::square_root(source[4]);
+    factor[8] = F64::square_root(source[8]);
+    factor[1] = 0.0; factor[2] = 0.0; factor[3] = 0.0;
+    factor[5] = 0.0; factor[6] = 0.0; factor[7] = 0.0;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.matrix[0] = 4.0; main.matrix[1] = 0.0; main.matrix[2] = 0.0;
+    main.matrix[3] = 0.0; main.matrix[4] = 9.0; main.matrix[5] = 0.0;
+    main.matrix[6] = 0.0; main.matrix[7] = 0.0; main.matrix[8] = 16.0;
+    main.rhs[0] = 4.0; main.rhs[1] = -18.0; main.rhs[2] = 48.0;
+    diagonal_fixture(&main.matrix, &mut main.factor);
+    main.forward[0] = main.rhs[0] / main.factor[0];
+    main.forward[1] = main.rhs[1] / main.factor[4];
+    main.forward[2] = main.rhs[2] / main.factor[8];
+    main.solution[0] = main.forward[0] / main.factor[0];
+    main.solution[1] = main.forward[1] / main.factor[4];
+    main.solution[2] = main.forward[2] / main.factor[8];
+    transition main.factor[0] == 2.0 && main.factor[4] == 3.0 && main.factor[8] == 4.0 {
+        true -> check_solution(main)
+        _ -> bad(main)
+    }
+    state check_solution(main: &mut Main) {
+        transition main.solution[0] == 1.0 && main.solution[1] == -2.0 && main.solution[2] == 3.0 {
+            true -> check_residual(main)
+            _ -> bad(main)
+        }
+    }
+    state check_residual(main: &mut Main) {
+        let r0: f64 = main.matrix[0] * main.solution[0] - main.rhs[0];
+        let r1: f64 = main.matrix[4] * main.solution[1] - main.rhs[1];
+        let r2: f64 = main.matrix[8] * main.solution[2] - main.rhs[2];
+        transition r0 == 0.0 && r1 == 0.0 && r2 == 0.0 {
+            true -> check_source(main)
+            _ -> bad(main)
+        }
+    }
+    state check_source(main: &mut Main) {
+        transition main.matrix[0] == 4.0 && main.matrix[4] == 9.0 && main.matrix[8] == 16.0 {
+            true -> good(main)
+            _ -> bad(main)
+        }
+    }
+    state good(main: &mut Main) { main.console.exit_process(0); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
+}

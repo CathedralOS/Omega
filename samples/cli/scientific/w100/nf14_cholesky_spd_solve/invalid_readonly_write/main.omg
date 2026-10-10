@@ -1,0 +1,19 @@
+// Intended rejection: mutation through readonly borrowed matrix storage.
+// This is a type/ownership invalid-source control, not a non-SPD data error.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    matrix: [f64; 9];
+}
+
+machine overwrite_readonly(source: &[f64; 9]) {
+    source[0] = 4.0;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    overwrite_readonly(&main.matrix);
+    main.console.exit_process(0);
+}
