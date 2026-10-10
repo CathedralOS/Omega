@@ -477,10 +477,11 @@ impl<'a> Admission<'a> {
             })?;
         if is_reference(self.program, reference)
             || !validation::has_contents(
-                self.program,
-                reference,
-                validation::ContentsRequirement::CleanupOwned,
-            )
+        self.program,
+        reference,
+        &[],
+        validation::ContentsRequirement::CleanupOwned
+    )
         {
             return None;
         }

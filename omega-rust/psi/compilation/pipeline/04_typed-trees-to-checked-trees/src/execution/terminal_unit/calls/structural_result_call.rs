@@ -88,10 +88,11 @@ pub(super) fn build(
     // travels with the owned result without retaining an operand loan.
     let represented_copy_result = result.multiplicity == Multiplicity::Unrestricted
         && validation::has_contents(
-            program,
-            target_state.return_type,
-            validation::ContentsRequirement::RepresentedOwned,
-        );
+        program,
+        target_state.return_type,
+        &[],
+        validation::ContentsRequirement::RepresentedOwned
+    );
     // Operand preparation already admitted source identity, declared types,
     // projections and exact access. Do not apply a second source-family
     // whitelist here: a named home's current value is not its initializer.
@@ -129,8 +130,11 @@ pub(super) fn build(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
             ) && validation::has_contents(
-                program,
-                target_state.return_type, validation::ContentsRequirement::StructuralConstruction))
+        program,
+        target_state.return_type,
+        &[],
+        validation::ContentsRequirement::StructuralConstruction
+    ))
             || (result.multiplicity == Multiplicity::Unrestricted
                 && validation::is_closed_primitive_array_type(
                     program,
@@ -145,8 +149,11 @@ pub(super) fn build(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
             ) && validation::has_contents(
-                program,
-                target_state.return_type, validation::ContentsRequirement::OwnedOrSharedView))
+        program,
+        target_state.return_type,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
+    ))
             // Shared descriptors and materialized reference carriers borrow
             // storage but retain their distinct result-custody obligations.
             || (result.multiplicity

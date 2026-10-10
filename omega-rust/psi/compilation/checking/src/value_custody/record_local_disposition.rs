@@ -38,10 +38,11 @@ pub fn record_local_disposition(
             .state_local_declaration(source, local.symbol)
             .is_none()
         || !crate::has_contents(
-            program,
-            local.type_reference,
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        )
+        program,
+        local.type_reference,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
+    )
     {
         return None;
     }

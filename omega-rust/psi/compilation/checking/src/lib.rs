@@ -103,7 +103,7 @@ pub use value_custody::scalar_case_constructor::{
 pub use value_custody::scalar_representation_range::scalar_representation_range;
 pub use value_custody::source_liveness::statement_uses_symbol;
 pub use value_custody::storage_contents::{
-    ContentsRequirement, data_has_contents, has_contents, has_contents_with_substitutions,
+    ContentsRequirement, data_has_contents, has_contents,
     has_owned_or_shared_view_fields,
 };
 pub use value_custody::struct_literals::selected_construction_field_type;

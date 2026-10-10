@@ -675,10 +675,11 @@ pub(super) fn build_traced(
                     let source_parameter =
                         &program.state_parameters(state)[parameter.position as usize];
                     let view_carrier = validation::has_contents(
-                        program,
-                        reference(),
-                        validation::ContentsRequirement::OwnedOrSharedView,
-                    )
+        program,
+        reference(),
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
+    )
                         && validation::reference_result_custody::stored_carrier_ingress_is_complete(
                             program,
                             facts,
@@ -701,7 +702,12 @@ pub(super) fn build_traced(
                             validation::ContentsRequirement::StructuralConstruction,
                         ]
                         .into_iter()
-                        .any(|requirement| validation::has_contents(program, reference(), requirement))
+                        .any(|requirement| validation::has_contents(
+        program,
+        reference(),
+        &[],
+        requirement
+    ))
                         && !view_carrier
                         // Stored-reference carriers use the ordinary call
                         // contract. State edges move their descriptors and
@@ -761,7 +767,11 @@ pub(super) fn build_traced(
                                 borrowed_carrier.map(|carrier| program.type_reference_table.type_reference(carrier)),
                                 Some(TypeReferenceNode::FixedArray { .. })
                             ) && validation::has_contents(
-                                program, shell.referee, validation::ContentsRequirement::NumericOwned)
+        program,
+        shell.referee,
+        &[],
+        validation::ContentsRequirement::NumericOwned
+    )
                     ) && matches!(
                         shapes
                             .types

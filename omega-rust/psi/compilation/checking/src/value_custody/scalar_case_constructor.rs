@@ -55,7 +55,8 @@ fn is_case_value(
     if !crate::has_contents(
         program,
         reference,
-        crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::PlainOwned
     ) {
         return false;
     }
@@ -181,16 +182,18 @@ fn case_constructor_parts(
     // Erased members retain their semantic type but produce no runtime storage.
     let contents = if erased_member_owner {
         crate::has_contents(
-            program,
-            reference,
-            crate::value_custody::storage_contents::ContentsRequirement::StructuralConstruction,
-        )
+        program,
+        reference,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::StructuralConstruction
+    )
     } else {
         crate::has_contents(
-            program,
-            reference,
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        )
+        program,
+        reference,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
+    )
     };
     // Common members obey the same recursive contents and establishment
     // rules as payload members. The structural producer retains omitted

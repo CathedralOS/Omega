@@ -448,12 +448,12 @@ impl<'program> ShapeCollector<'program> {
             binders,
             substitutions,
         );
-        let no_code_affine_cleanup = validation::has_contents_with_substitutions(
-            self.program,
-            validation::structural_identity_type(self.program, type_reference, substitutions),
-            substitutions,
-            validation::ContentsRequirement::RepresentedOwned,
-        );
+        let no_code_affine_cleanup = validation::has_contents(
+        self.program,
+        validation::structural_identity_type(self.program, type_reference, substitutions),
+        substitutions,
+        validation::ContentsRequirement::RepresentedOwned
+    );
         if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
             // Byte views and bounded byte carriers spell their implicit
             // element through the collection establishment operation. The

@@ -429,10 +429,11 @@ fn argument_contract(
         && (projected
             || !(validation::is_closed_primitive_array_type(program, formal_type)
                 || validation::has_contents(
-                    program,
-                    formal_type,
-                    validation::ContentsRequirement::RepresentedOwned,
-                )))
+        program,
+        formal_type,
+        &[],
+        validation::ContentsRequirement::RepresentedOwned
+    )))
     {
         return None;
     }
@@ -562,19 +563,39 @@ fn argument_contract(
             && !unrestricted
             && !linear
             && !owned_reference_record
-            && !validation::has_contents(program, referent, validation::ContentsRequirement::LinearOwned)
+            && !validation::has_contents(
+        program,
+        referent,
+        &[],
+        validation::ContentsRequirement::LinearOwned
+    )
             // A nominal-cleanup result is discharged by the consuming call's
             // own transfer edge, replayed below through its exact permission
             // event, so cleanup-owned contents admit the same whole move.
-            && !validation::has_contents(program, referent, validation::ContentsRequirement::CleanupOwned)
+            && !validation::has_contents(
+        program,
+        referent,
+        &[],
+        validation::ContentsRequirement::CleanupOwned
+    )
             // Moving a record that carries shared view descriptors preserves
             // those views' independently retained referent loans.
-            && !validation::has_contents(program, referent, validation::ContentsRequirement::OwnedOrSharedView)
+            && !validation::has_contents(
+        program,
+        referent,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
+    )
             // The value is already established. Finite owned storage retains
             // its member predicates regardless of its producer; this query
             // grants no construction authority. Exact type correspondence and
             // the consuming call's custody plan carry those obligations.
-            && !validation::has_contents(program, referent, validation::ContentsRequirement::BorrowFree))
+            && !validation::has_contents(
+        program,
+        referent,
+        &[],
+        validation::ContentsRequirement::BorrowFree
+    ))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
@@ -615,10 +636,11 @@ fn argument_contract(
                 // descendant claims cross through the call's custody plan.
                 // Exact source/formal correspondence retains qualifications.
                 let owned_contents = validation::has_contents(
-                    program,
-                    local.type_reference,
-                    validation::ContentsRequirement::BorrowFree,
-                );
+        program,
+        local.type_reference,
+        &[],
+        validation::ContentsRequirement::BorrowFree
+    );
                 // A loan retains the complete owner's claims and disposal debt.
                 // Captured access authorizes this observation, and the exact
                 // declaration below authenticates its home. Only an owned
@@ -657,11 +679,13 @@ fn argument_contract(
                                 program,
                                 local.type_reference,
                             ) || validation::has_contents(
-                                program,
-                                local.type_reference,
-                                validation::ContentsRequirement::RepresentedOwned,
-                            )))
-                        || base_type_identity(program, local.type_reference, &[], &[])?
+        program,
+        local.type_reference,
+        &[],
+        validation::ContentsRequirement::RepresentedOwned
+    )))
+                        || base_type_identity(program, local.type_reference, &[],
+        &[])?
                             != result.type_identity)
                 {
                     return None;

@@ -278,11 +278,17 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     ) != parameter.type_identity
                     || (parameter.multiplicity != Multiplicity::Linear
                         && !validation::has_contents(
-                            &checked.typed,
-                            source.type_reference, validation::ContentsRequirement::StructuralConstruction)
+        &checked.typed,
+        source.type_reference,
+        &[],
+        validation::ContentsRequirement::StructuralConstruction
+    )
                         && !validation::has_contents(
-                            &checked.typed,
-                            source.type_reference, validation::ContentsRequirement::CleanupOwned)
+        &checked.typed,
+        source.type_reference,
+        &[],
+        validation::ContentsRequirement::CleanupOwned
+    )
                         && !crate::content_classes::plain_owned_with_represented_constraints(checked,
                             crate::unit::attached_unit::parameters::structural_carrier_type(
                                 checked,
@@ -293,11 +299,14 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         // affine descriptor, a copy for an unrestricted one —
                         // and its views keep their source loans' lineage.
                         && !validation::has_contents(
-                            &checked.typed,
-                            crate::unit::attached_unit::parameters::structural_carrier_type(
+        &checked.typed,
+        crate::unit::attached_unit::parameters::structural_carrier_type(
                                 checked,
                                 source.type_reference,
-                            )?, validation::ContentsRequirement::OwnedOrSharedView)
+                            )?,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
+    )
                         && !crate::reference_custody::is_reference_record(
                             checked,
                             source.type_reference,

@@ -980,16 +980,16 @@ fn observation_requires_write_scan(
             referee,
             ..
         } => has_contents(
-            program,
-            *referee,
-            validation::ContentsRequirement::StableObservation,
-        )
+        program,
+        *referee,
+        &[],
+        validation::ContentsRequirement::StableObservation)
         .then_some(true),
         _ => has_contents(
-            program,
-            type_reference,
-            validation::ContentsRequirement::StableObservation,
-        )
+        program,
+        type_reference,
+        &[],
+        validation::ContentsRequirement::StableObservation)
         .then_some(false),
     };
     if stable.is_some() || field_path.is_empty() {

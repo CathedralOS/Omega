@@ -282,7 +282,8 @@ pub(super) fn projection_requires_write_scan(
     validation::has_contents(
         program,
         endpoint,
-        validation::ContentsRequirement::StableObservation,
+        &[],
+        validation::ContentsRequirement::StableObservation
     )
     .then_some(mutable)
 }
@@ -299,14 +300,16 @@ fn traversed_storage_requires_write_scan(
             Some(nested || *access == language_core::ReferenceAccess::Mutable)
         }
         _ => (validation::has_contents(
-            program,
-            reference,
-            validation::ContentsRequirement::BorrowedStorage,
-        ) || validation::has_contents(
-            program,
-            reference,
-            validation::ContentsRequirement::StableObservation,
-        ))
+        program,
+        reference,
+        &[],
+        validation::ContentsRequirement::BorrowedStorage
+    ) || validation::has_contents(
+        program,
+        reference,
+        &[],
+        validation::ContentsRequirement::StableObservation
+    ))
         .then_some(false),
     }
 }

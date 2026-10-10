@@ -69,10 +69,11 @@ pub(in crate::execution::terminal_unit) fn boundary_borrowed_referent(
     (!is_reference(program, *referee)
         && program.type_multiplicity(*referee) != Multiplicity::Linear
         && has_contents(
-            program,
-            *referee,
-            validation::ContentsRequirement::BorrowedStorage,
-        ))
+        program,
+        *referee,
+        &[],
+        validation::ContentsRequirement::BorrowedStorage
+    ))
     .then_some(*referee)
 }
 

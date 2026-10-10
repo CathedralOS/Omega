@@ -296,11 +296,13 @@ fn projected_read_retains_parent(
     ) || !(validation::has_contents(
         program,
         payload,
-        validation::ContentsRequirement::NumericOwned,
+        &[],
+        validation::ContentsRequirement::NumericOwned
     ) || validation::has_contents(
         program,
         payload,
-        validation::ContentsRequirement::OwnedOrSharedView,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
     )) || super::terminal_unit::types::type_graph_requires_nominal_drop(
         program, payload, &[], &mut std::collections::BTreeSet::new())
     {

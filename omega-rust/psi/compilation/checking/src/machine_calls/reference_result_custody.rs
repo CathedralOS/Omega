@@ -134,10 +134,11 @@ pub fn is_reference_record(
             return Some(true);
         }
         if crate::has_contents(
-            program,
-            reference,
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        ) {
+        program,
+        reference,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
+    ) {
             return Some(false);
         }
         if let TypeReferenceNode::FixedArray { element_type, .. } =
@@ -533,7 +534,8 @@ fn expression_sources_with_calls(
     if crate::has_contents(
         program,
         reference,
-        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
     ) {
         return Some(Vec::new());
     }
@@ -1308,10 +1310,11 @@ pub fn record_carrier_sources(
             return Some(());
         }
         if crate::has_contents(
-            program,
-            reference,
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        ) {
+        program,
+        reference,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
+    ) {
             return Some(());
         }
         if let TypeReferenceNode::FixedArray {
@@ -1358,10 +1361,11 @@ pub fn record_carrier_sources(
     if !reference_origin_expansion_is_bounded(program, reference)
         || (!is_reference_record(program, reference)
             && !crate::has_contents(
-                program,
-                reference,
-                crate::value_custody::storage_contents::ContentsRequirement::OwnedOrSharedView,
-            ))
+        program,
+        reference,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::OwnedOrSharedView
+    ))
     {
         return None;
     }

@@ -325,9 +325,24 @@ impl Builder<'_, '_> {
             // establish those domains anew. Whole transfer preserves cleanup.
             // Shared descriptor leaves keep their loans without owning the backing;
             // neither transport grants no-code disposal of the moved value.
-            || !(validation::has_contents(self.program, expected, validation::ContentsRequirement::StructuralConstruction)
-                    || validation::has_contents(self.program, expected, validation::ContentsRequirement::LinearOwned)
-                || validation::has_contents(self.program, expected, validation::ContentsRequirement::OwnedOrSharedView)
+            || !(validation::has_contents(
+        self.program,
+        expected,
+        &[],
+        validation::ContentsRequirement::StructuralConstruction
+    )
+                    || validation::has_contents(
+        self.program,
+        expected,
+        &[],
+        validation::ContentsRequirement::LinearOwned
+    )
+                || validation::has_contents(
+        self.program,
+        expected,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
+    )
                 || validation::reference_result_custody::is_reference_record(self.program, expected)
                 || validation::reference_result_custody::stored_loan_parts(self.program, expected).is_some()
                 || validation::borrowed_slice_view_result(self.program, expected))
@@ -379,18 +394,21 @@ impl Builder<'_, '_> {
         if validation::stored_structural_type_identity(self.program, reference, &[], &[])
             != validation::stored_structural_type_identity(self.program, expected, &[], &[])
             || !(validation::has_contents(
-                self.program,
-                reference,
-                validation::ContentsRequirement::StructuralConstruction,
-            ) || validation::has_contents(
-                self.program,
-                reference,
-                validation::ContentsRequirement::LinearOwned,
-            ) || validation::has_contents(
-                self.program,
-                reference,
-                validation::ContentsRequirement::OwnedOrSharedView,
-            ) || validation::reference_result_custody::is_reference_record(
+        self.program,
+        reference,
+        &[],
+        validation::ContentsRequirement::StructuralConstruction
+    ) || validation::has_contents(
+        self.program,
+        reference,
+        &[],
+        validation::ContentsRequirement::LinearOwned
+    ) || validation::has_contents(
+        self.program,
+        reference,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
+    ) || validation::reference_result_custody::is_reference_record(
                 self.program,
                 reference,
             ) || validation::reference_result_custody::stored_loan_parts(

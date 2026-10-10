@@ -94,10 +94,11 @@ pub(crate) fn checked_copied_result_type(
     }
     if crate::checks::type_multiplicity(program, result_type) != Multiplicity::Unrestricted
         || !validation::has_contents(
-            program,
-            result_type,
-            validation::ContentsRequirement::RepresentedOwned,
-        )
+        program,
+        result_type,
+        &[],
+        validation::ContentsRequirement::RepresentedOwned
+    )
         || !parameter_qualifications(program, shapes, result_type, binders)?.is_empty()
     {
         return None;
@@ -198,10 +199,11 @@ pub(crate) fn checked_structural_result_type(
     if multiplicity == Multiplicity::Unrestricted
         && validation::bounded_byte_buffer_capacity(program, result_type).is_some()
         && validation::has_contents(
-            program,
-            result_type,
-            validation::ContentsRequirement::RepresentedOwned,
-        )
+        program,
+        result_type,
+        &[],
+        validation::ContentsRequirement::RepresentedOwned
+    )
     {
         return Some(CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
@@ -215,7 +217,12 @@ pub(crate) fn checked_structural_result_type(
         || program.primitive_type_reference(result_type).is_some()
         || is_reference(program, result_type)
         || (multiplicity != Multiplicity::Linear
-            && (!(validation::has_contents(program, result_type, validation::ContentsRequirement::BorrowFree)
+            && (!(validation::has_contents(
+        program,
+        result_type,
+        &[],
+        validation::ContentsRequirement::BorrowFree
+    )
                 || validation::is_closed_primitive_array_type(program, result_type)
                 || validation::reference_result_custody::is_reference_record(
                     program,
@@ -225,7 +232,12 @@ pub(crate) fn checked_structural_result_type(
                 // sum whose payloads are plain records or view-carrying
                 // records — `DecodeResult<Relayed<M>>` — binds the same
                 // result shape the bare record already did.
-                || validation::has_contents(program, result_type, validation::ContentsRequirement::OwnedOrSharedView))
+                || validation::has_contents(
+        program,
+        result_type,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
+    ))
                 || !qualifications.is_empty()))
     {
         return None;

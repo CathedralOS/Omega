@@ -340,10 +340,10 @@ pub(crate) fn nested_structural_call_return_type(
                                 == language_semantics::MachineSupplyMode::CheckedBody
                                 && target.return_type.is_valid()
                                 && validation::has_contents(
-                                    program,
-                                    target.return_type,
-                                    validation::ContentsRequirement::RepresentedOwned,
-                                )))
+        program,
+        target.return_type,
+        &[],
+        validation::ContentsRequirement::RepresentedOwned)))
                 }))
             .then_some(())
         };
@@ -409,7 +409,11 @@ pub(crate) fn nested_structural_call_return_type(
             language_semantics::Multiplicity::Affine => true,
             language_semantics::Multiplicity::Linear => ordinary,
             language_semantics::Multiplicity::Unrestricted => false,
-        } && (validation::has_contents(program, return_type, validation::ContentsRequirement::BorrowFree)
+        } && (validation::has_contents(
+        program,
+        return_type,
+        &[],
+        validation::ContentsRequirement::BorrowFree)
                 // A checked-body record carrying borrowed referents is affine
                 // through its captured leaf loans; the caller's own operand
                 // scheduling still has to replay that custody exactly.
@@ -424,7 +428,11 @@ pub(crate) fn nested_structural_call_return_type(
                 // Fresh and returned values use the same owned storage
                 // classification. Qualifications remain separate checked
                 // obligations, not a byte-only exception to result discovery.
-                && (validation::has_contents(program, return_type, validation::ContentsRequirement::StructuralConstruction)
+                && (validation::has_contents(
+        program,
+        return_type,
+        &[],
+        validation::ContentsRequirement::StructuralConstruction)
                     // A checked-body `&[u8]`/`&'a V` borrowed-view result
                     // lends caller-frame storage through a shared loan;
                     // the caller's operand scheduling replays that custody

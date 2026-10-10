@@ -499,10 +499,11 @@ pub(crate) fn borrowed_storage_argument(
     // same exact loan applies to whole and projected established referents.
     let structural_referent = structural_root
         && validation::has_contents(
-            program,
-            reference,
-            validation::ContentsRequirement::BorrowedStorage,
-        );
+        program,
+        reference,
+        &[],
+        validation::ContentsRequirement::BorrowedStorage
+    );
     // Primitive and aggregate endpoints borrow their established home using
     // the same exact root/path/access join. No scalar snapshot is constructed.
     let primitive_scalar = program.type_multiplicity(reference) == Multiplicity::Unrestricted
@@ -519,10 +520,11 @@ pub(crate) fn borrowed_storage_argument(
     if identity != target_identity
         || (!parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
             && !validation::has_contents(
-                program,
-                reference,
-                validation::ContentsRequirement::RepresentedOwned,
-            ))
+        program,
+        reference,
+        &[],
+        validation::ContentsRequirement::RepresentedOwned
+    ))
         || (!structural_referent && !primitive_scalar)
     {
         return None;
@@ -792,7 +794,12 @@ fn owned_argument(
         };
         if program.primitive_type_reference(reference).is_some()
             || !(validation::is_closed_primitive_array_type(program, reference)
-                || validation::has_contents(program, reference, contents))
+                || validation::has_contents(
+        program,
+        reference,
+        &[],
+        contents
+    ))
             || structural_access_for_type_reference(program, reference)?
                 != CheckedStructuralAccess::Owned
             || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()

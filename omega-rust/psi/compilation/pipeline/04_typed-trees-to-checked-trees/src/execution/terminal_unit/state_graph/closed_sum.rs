@@ -245,11 +245,13 @@ pub(super) fn build(
     if !validation::has_contents(
         program,
         type_reference,
-        validation::ContentsRequirement::NumericOwned,
+        &[],
+        validation::ContentsRequirement::NumericOwned
     ) && !validation::has_contents(
         program,
         type_reference,
-        validation::ContentsRequirement::OwnedOrSharedView,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
     ) {
         return None;
     }

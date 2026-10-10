@@ -138,10 +138,11 @@ fn projected_entry_value(
                 .map(|segment| super::mutable::canonical_place_segment(program, segment))
                 .collect();
             if !validation::has_contents(
-                program,
-                local.type_reference,
-                validation::ContentsRequirement::StableObservation,
-            ) || (local.is_mutable
+        program,
+        local.type_reference,
+        &[],
+        validation::ContentsRequirement::StableObservation
+    ) || (local.is_mutable
                 && !super::storage_holds_bound_value(
                     program,
                     machine.symbol,

@@ -334,14 +334,16 @@ impl Builder<'_, '_> {
             let returned = validation::call_target_return_type(self.program, call_target)?;
             if !value_predicates::structural_call_carrier_matches(self.program, returned, expected)
                 || !(validation::has_contents(
-                    self.program,
-                    returned,
-                    validation::ContentsRequirement::StructuralConstruction,
-                ) || validation::has_contents(
-                    self.program,
-                    returned,
-                    validation::ContentsRequirement::LinearOwned,
-                ) || validation::reference_result_custody::is_reference_record(
+        self.program,
+        returned,
+        &[],
+        validation::ContentsRequirement::StructuralConstruction
+    ) || validation::has_contents(
+        self.program,
+        returned,
+        &[],
+        validation::ContentsRequirement::LinearOwned
+    ) || validation::reference_result_custody::is_reference_record(
                     self.program,
                     returned,
                 ) || validation::borrowed_slice_view_result(self.program, returned))

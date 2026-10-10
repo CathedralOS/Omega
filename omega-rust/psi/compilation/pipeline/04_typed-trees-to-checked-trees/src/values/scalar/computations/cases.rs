@@ -100,14 +100,16 @@ impl Builder<'_, '_> {
             let inspected =
                 validation::unwrapped_type_reference(self.program, local.type_reference)?;
             if !(validation::has_contents(
-                self.program,
-                inspected,
-                validation::ContentsRequirement::NumericOwned,
-            ) || validation::has_contents(
-                self.program,
-                inspected,
-                validation::ContentsRequirement::OwnedOrSharedView,
-            )) {
+        self.program,
+        inspected,
+        &[],
+        validation::ContentsRequirement::NumericOwned
+    ) || validation::has_contents(
+        self.program,
+        inspected,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
+    )) {
                 return None;
             }
             local.symbol

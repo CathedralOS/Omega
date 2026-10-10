@@ -561,7 +561,7 @@ fn erased_subject_needs_disposition(
 ) -> bool {
     let carrier = resolve_peeled_type_reference(program, reference, substitutions);
     program.type_multiplicity(carrier) != Multiplicity::Unrestricted
-        || !validation::has_contents_with_substitutions(
+        || !validation::has_contents(
             program,
             reference,
             substitutions,

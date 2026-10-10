@@ -475,10 +475,11 @@ fn case_pattern(
         .find_named_type_reference(owner.symbol)?;
     if !owner.type_parameters.is_empty()
         || !crate::has_contents(
-            program,
-            reference,
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        )
+        program,
+        reference,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
+    )
         || program
             .data_members(owner)
             .iter()
@@ -522,10 +523,11 @@ fn case_dispatch_subject(
         && !local.is_mutable
         && local.type_reference.is_valid()
         && crate::has_contents(
-            program,
-            local.type_reference,
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        )
+        program,
+        local.type_reference,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
+    )
     {
         return Some(MatchCaseSubject::ImmutableLocal {
             symbol: local.symbol,

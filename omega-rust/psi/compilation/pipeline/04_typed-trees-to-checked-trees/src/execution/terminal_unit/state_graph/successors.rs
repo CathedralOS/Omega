@@ -784,8 +784,11 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                     Multiplicity::Affine | Multiplicity::Unrestricted
                                 )
                                 && validation::has_contents(
-                                    program,
-                                    local.type_reference, validation::ContentsRequirement::RepresentedOwned)
+        program,
+        local.type_reference,
+        &[],
+        validation::ContentsRequirement::RepresentedOwned
+    )
                                 && !super::super::types::type_graph_requires_nominal_drop(
                                     program,
                                     local.type_reference,
@@ -1246,14 +1249,16 @@ fn case_payload_transfer(
         // the carrier travels as a descriptor copy whose loan stays with
         // the view's owner, not with the dispatched place.
         (validation::has_contents(
-            program,
-            field.type_reference,
-            validation::ContentsRequirement::NumericOwned,
-        ) || validation::has_contents(
-            program,
-            field.type_reference,
-            validation::ContentsRequirement::OwnedOrSharedView,
-        )) && normalized(field.type_reference)
+        program,
+        field.type_reference,
+        &[],
+        validation::ContentsRequirement::NumericOwned
+    ) || validation::has_contents(
+        program,
+        field.type_reference,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
+    )) && normalized(field.type_reference)
             .is_some_and(|identity| identity == target.type_identity)
     } else {
         target.access == CheckedStructuralAccess::SharedBorrow

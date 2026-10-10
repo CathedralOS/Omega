@@ -154,14 +154,16 @@ pub(in crate::values::scalar::computations) fn is_record_value(
                 };
                 if !structural_call_carrier_matches(program, returned, expected)
                     || !(validation::has_contents(
-                        program,
-                        returned,
-                        validation::ContentsRequirement::StructuralConstruction,
-                    ) || validation::has_contents(
-                        program,
-                        returned,
-                        validation::ContentsRequirement::LinearOwned,
-                    ) || validation::reference_result_custody::is_reference_record(
+        program,
+        returned,
+        &[],
+        validation::ContentsRequirement::StructuralConstruction
+    ) || validation::has_contents(
+        program,
+        returned,
+        &[],
+        validation::ContentsRequirement::LinearOwned
+    ) || validation::reference_result_custody::is_reference_record(
                         program, returned,
                     ))
                 {

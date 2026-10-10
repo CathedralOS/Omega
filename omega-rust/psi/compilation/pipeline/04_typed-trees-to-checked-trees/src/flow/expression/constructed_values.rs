@@ -29,10 +29,11 @@ impl Execution<'_, '_, '_> {
         // scalar storage already established by this child evaluation.
         if !type_reference.is_valid()
             || !validation::has_contents(
-                self.program,
-                type_reference,
-                validation::ContentsRequirement::BorrowFree,
-            )
+        self.program,
+        type_reference,
+        &[],
+        validation::ContentsRequirement::BorrowFree
+    )
         {
             return;
         }

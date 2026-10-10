@@ -873,7 +873,8 @@ fn zero_valid_byte_field(
     if !validation::has_contents(
         &checked.typed,
         reference,
-        validation::ContentsRequirement::StableObservation,
+        &[],
+        validation::ContentsRequirement::StableObservation
     ) {
         return false;
     }

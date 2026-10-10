@@ -15,10 +15,11 @@ pub fn plain_owned_value_source(
 ) -> Option<SymbolHandle> {
     whole_owned_value_source(program, expression, reference).filter(|_| {
         crate::has_contents(
-            program,
-            reference,
-            crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
-        )
+        program,
+        reference,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::PlainOwned
+    )
     })
 }
 
@@ -36,10 +37,11 @@ pub fn affine_owned_value_source(
     whole_owned_value_source(program, expression, reference).filter(|_| {
         program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
             && crate::has_contents(
-                program,
-                reference,
-                crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
-            )
+        program,
+        reference,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::LinearOwned
+    )
     })
 }
 
@@ -54,10 +56,11 @@ pub fn linear_owned_value_source(
     whole_owned_value_source(program, expression, reference).filter(|_| {
         program.type_multiplicity(reference) == language_semantics::Multiplicity::Linear
             && crate::has_contents(
-                program,
-                reference,
-                crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
-            )
+        program,
+        reference,
+        &[],
+        crate::value_custody::storage_contents::ContentsRequirement::LinearOwned
+    )
     })
 }
 

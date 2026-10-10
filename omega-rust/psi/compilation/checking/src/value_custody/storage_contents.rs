@@ -142,18 +142,10 @@ pub enum ContentsRequirement {
     SeamMarshal,
 }
 
-/// Whether `reference`'s contents answer `requirement`.
-pub fn has_contents(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-    requirement: ContentsRequirement,
-) -> bool {
-    check_contents_requirement(program, reference, &[], requirement)
-}
 
 /// Ask the same contents judgment under the exact retained type telescope.
 /// Unknown actuals remain opaque; substitutions never supply live custody.
-pub fn has_contents_with_substitutions(
+pub fn has_contents(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -177,7 +169,12 @@ pub fn data_has_contents(
     // That generated concrete origin is already resolved; outer lexical binders
     // are not additional arguments of its retained closed application.
     if let Some(application) = data.generic_instance {
-        return has_contents(program, application, requirement);
+        return has_contents(
+        program,
+        application,
+        &[],
+        requirement
+    );
     }
     let parameters = program.data_type_parameters(data);
     let arguments = if parameters.is_empty() {
@@ -303,10 +300,11 @@ fn owned_or_shared_view_fields(
         has_view |= shared_view(field);
         !field.relevance.is_erased()
             && (has_contents(
-                program,
-                field.type_reference,
-                ContentsRequirement::NumericOwned,
-            ) || shared_view(field))
+        program,
+        field.type_reference,
+        &[],
+        ContentsRequirement::NumericOwned
+    ) || shared_view(field))
     }) && has_view
 }
 

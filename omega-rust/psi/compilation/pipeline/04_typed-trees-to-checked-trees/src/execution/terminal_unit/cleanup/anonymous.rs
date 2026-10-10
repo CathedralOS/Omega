@@ -160,10 +160,11 @@ pub(crate) fn projected_temporary_residuals(
         || argument.path.is_empty()
         || program.type_multiplicity(owner_type) != Multiplicity::Affine
         || !validation::has_contents(
-            program,
-            owner_type,
-            validation::ContentsRequirement::BorrowFree,
-        )
+        program,
+        owner_type,
+        &[],
+        validation::ContentsRequirement::BorrowFree
+    )
         || crate::checks::type_carries_linear_obligation(program, owner_type)
     {
         return None;

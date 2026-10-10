@@ -75,10 +75,11 @@ fn is_shared_borrow(
     }
     if program.primitive_type_reference(shell.referee).is_some() {
         return validation::has_contents(
-            program,
-            shell.referee,
-            validation::ContentsRequirement::LinearOwned,
-        );
+        program,
+        shell.referee,
+        &[],
+        validation::ContentsRequirement::LinearOwned
+    );
     }
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(shell.referee)

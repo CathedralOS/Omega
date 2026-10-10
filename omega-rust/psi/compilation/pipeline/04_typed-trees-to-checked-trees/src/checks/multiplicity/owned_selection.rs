@@ -31,12 +31,18 @@ fn owned_contents(
     reference: typed_trees::types::TypeReferenceHandle,
     requirement: validation::ContentsRequirement,
 ) -> bool {
-    validation::has_contents(program, reference, requirement)
+    validation::has_contents(
+        program,
+        reference,
+        &[],
+        requirement
+    )
         || validation::has_contents(
-            program,
-            reference,
-            validation::ContentsRequirement::OwnedOrSharedView,
-        )
+        program,
+        reference,
+        &[],
+        validation::ContentsRequirement::OwnedOrSharedView
+    )
 }
 
 fn owned_source(
