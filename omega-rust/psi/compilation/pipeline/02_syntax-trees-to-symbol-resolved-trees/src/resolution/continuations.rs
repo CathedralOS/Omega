@@ -44,12 +44,7 @@ impl ConstInitializerSelection {
         }
         let declaration = self
             .trees
-            .const_declarations
-            .iter()
-            .find(|declaration| {
-                self.trees.symbols.symbol_source_span(declaration.symbol)
-                    == Some(definition.name.source_span())
-            })
+            .const_declaration_at_source_span(definition.name.source_span())
             .ok_or_else(|| vec![Diagnostic::error("initializer leaf lost its declaration")])?;
         let root = if declaration.authored_initializer.is_valid() {
             declaration.authored_initializer
@@ -79,12 +74,7 @@ impl ConstInitializerSelection {
     > {
         let declaration = self
             .trees
-            .const_declarations
-            .iter()
-            .find(|declaration| {
-                self.trees.symbols.symbol_source_span(declaration.symbol)
-                    == Some(definition.name.source_span())
-            })
+            .const_declaration_at_source_span(definition.name.source_span())
             .ok_or_else(|| {
                 vec![Diagnostic::error(
                     "initializer dependencies lost their exact declaration",
@@ -122,12 +112,7 @@ impl ConstInitializerSelection {
             _ => None,
         }) {
             self.trees
-                .const_declarations
-                .iter()
-                .find(|declaration| {
-                    self.trees.symbols.symbol_source_span(declaration.symbol)
-                        == Some(definition.name.source_span())
-                })
+                .const_declaration_at_source_span(definition.name.source_span())
                 .ok_or_else(|| {
                     vec![Diagnostic::error(
                         "initializer preparation lost its exact declaration",

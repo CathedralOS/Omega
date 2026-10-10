@@ -781,6 +781,20 @@ impl SymbolResolvedTrees {
             .find(|declaration| declaration.symbol == symbol)
     }
 
+    /// The const declaration whose authored symbol occupies `span` — the
+    /// initializer walkers key declarations by provenance, not symbol.
+    pub fn const_declaration_at_source_span(
+        &self,
+        span: SourceSpan,
+    ) -> Option<&crate::constant::ConstDeclaration> {
+        self.roots
+            .const_declarations
+            .iter()
+            .find(|declaration| {
+                self.symbols.symbol_source_span(declaration.symbol) == Some(span)
+            })
+    }
+
     /// The machine declaration keyed `symbol`.
     pub fn machine(&self, symbol: symbols::SymbolHandle) -> Option<&crate::machine::Machine> {
         self.machines
