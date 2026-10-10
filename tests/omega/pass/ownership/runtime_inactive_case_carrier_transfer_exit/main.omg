@@ -1,0 +1,58 @@
+// An absent payload remains absent through completed call results, projected
+// fields and reconstructed carriers. A live payload takes the same route
+// with its original linear obligation and is consumed exactly once.
+use omega::language::core::drop;
+
+data Token [linear] { value: u32; }
+machine Token::drop(token: &mut Token) {}
+data Slot { case Empty; case Held(token: Token); }
+data Holder { slot: Slot; }
+
+machine empty() -> Holder { Holder { slot: Slot::Empty } }
+machine forward(value: Holder) -> Holder { value }
+
+machine anonymous() -> Holder {
+    let value: Holder = empty();
+    forward(Holder { slot: value.slot })
+}
+
+machine named() -> Holder {
+    let value: Holder = empty();
+    let rebuilt: Holder = Holder { slot: value.slot };
+    forward(rebuilt)
+}
+
+machine returned() -> Holder {
+    let value: Holder = empty();
+    Holder { slot: value.slot }
+}
+
+machine held(token: Token) -> Holder {
+    let value: Holder = Holder { slot: Slot::Held { token: token } };
+    forward(Holder { slot: value.slot })
+}
+
+machine consume(value: Holder) -> u32 {
+    transition value.slot {
+        Slot::Empty -> 0
+        Slot::Held { token } -> finish(token)
+    }
+    state finish(token: Token) -> u32 {
+        let value: u32 = token.value;
+        drop(token);
+        value
+    }
+}
+
+machine main() crashes Trap {
+    let first: u32 = consume(anonymous());
+    let second: u32 = consume(named());
+    let third: u32 = consume(returned());
+    let live: u32 = consume(held(Token { value: 70 }));
+    transition first == 0 && second == 0 && third == 0 && live == 70 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

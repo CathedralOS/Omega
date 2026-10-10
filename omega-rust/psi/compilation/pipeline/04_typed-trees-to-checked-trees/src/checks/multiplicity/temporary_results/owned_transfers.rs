@@ -20,6 +20,7 @@ pub(in crate::checks::multiplicity) fn append_owned_transfer(
     owners: &[TemporaryOwner],
     places: &mut [crate::checks::multiplicity::linear_obligations::LinearPlace],
     permissions: &mut Vec<FlowPermissionEventFact>,
+    conditional_carrier_transfers: &mut Vec<usize>,
 ) {
     for owner in owners.iter().filter(|owner| {
         matches!(owner.consumption, TemporaryConsumption::OwnedTransfer)
@@ -31,6 +32,12 @@ pub(in crate::checks::multiplicity) fn append_owned_transfer(
             .iter_mut()
             .filter(|place| place.root == root && place.live)
         {
+            super::super::linear_validation::record_conditional_carrier_transfer(
+                place,
+                &[],
+                permissions.len(),
+                conditional_carrier_transfers,
+            );
             permissions.push(FlowPermissionEventFact {
                 expression: owner.expression,
                 evaluation,

@@ -231,24 +231,12 @@ pub(crate) fn apply_statement_permission_production(
                 let segments = facts.flow.ownership.segments.insert_many(claim_path);
                 let place = &mut places[index];
                 let obligation_live = place.live && place.multiplicity == Multiplicity::Linear;
-                // This is a move of the carrier, not an extraction of its case
-                // payload. A checked callee may later prove the payload absent.
-                // Keep the occurrence until that correspondence is known; false
-                // duplicate moves and explicit payload projections are not in
-                // this list and must still reject during replay.
-                if obligation_live
-                    && place.conditional
-                    && place
-                        .path
-                        .strip_prefix(event_path.as_slice())
-                        .is_some_and(|suffix| {
-                            suffix
-                                .iter()
-                                .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
-                        })
-                {
-                    conditional_carrier_transfers.push(permission_events.len());
-                }
+                record_conditional_carrier_transfer(
+                    place,
+                    &event_path,
+                    permission_events.len(),
+                    conditional_carrier_transfers,
+                );
                 permission_events.push(FlowPermissionEventFact {
                     expression: event.expression,
                     evaluation: checked_trees::FlowPermissionEvaluation::Statement,
@@ -446,6 +434,12 @@ pub(crate) fn apply_statement_permission_production(
             .iter_mut()
             .filter(|place| place.root == facts::PlaceRoot::Expression(expression) && place.live)
         {
+            record_conditional_carrier_transfer(
+                place,
+                &[],
+                permission_events.len(),
+                conditional_carrier_transfers,
+            );
             permission_events.push(FlowPermissionEventFact {
                 expression,
                 evaluation,
@@ -478,6 +472,30 @@ pub(crate) fn apply_statement_permission_production(
         &facts.flow.ownership.segments,
     )?;
     Ok(storage_establishments)
+}
+
+/// Retain this exact provisional transfer only when it moves a containing
+/// carrier while its conditional claim is live. Reconciliation may later
+/// prove the payload absent and retire the recorded event. Named moves,
+/// anonymous call arguments and completed returns share this rule; duplicate
+/// transfers and direct payload extractions remain ordinary replay errors.
+pub(crate) fn record_conditional_carrier_transfer(
+    place: &LinearPlace,
+    carrier_path: &[facts::PlaceSegment],
+    event_ordinal: usize,
+    conditional_carrier_transfers: &mut Vec<usize>,
+) {
+    if place.live
+        && place.multiplicity == Multiplicity::Linear
+        && place.conditional
+        && place.path.strip_prefix(carrier_path).is_some_and(|suffix| {
+            suffix
+                .iter()
+                .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+        })
+    {
+        conditional_carrier_transfers.push(event_ordinal);
+    }
 }
 
 fn move_selects_claim(event_path: &[facts::PlaceSegment], claim: &LinearPlace) -> bool {

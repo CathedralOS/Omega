@@ -25,7 +25,7 @@ pub(crate) use claim_frontier::{
 pub(crate) use claim_provenance::{completed_statement_values, written_linear_targets};
 pub(crate) use permission_production::{
     apply_statement_permission_production, established_provenance, event_statement_index,
-    permission_source, select_static_case_alternative,
+    permission_source, record_conditional_carrier_transfer, select_static_case_alternative,
 };
 
 use crate::checks::multiplicity::owned_selection;

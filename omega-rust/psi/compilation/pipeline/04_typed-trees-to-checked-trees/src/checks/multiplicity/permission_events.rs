@@ -327,6 +327,7 @@ pub(crate) fn prepare_permission_events(
                             &temporary_owners,
                             places,
                             &mut permission_events,
+                            &mut conditional_carrier_transfers,
                         );
                         temporary_results::append_borrow(
                             program,
