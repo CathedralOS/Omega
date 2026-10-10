@@ -1,0 +1,20 @@
+use omega::language::core::binding;
+pub boundary trait Console {}
+// A `data where` constrains a record's scalar field beside a service
+// `Binding<Console>` field: the facts don't hide the service field from
+// establishment.
+data Session where retries <= 3 {
+    console: Binding<Console>;
+    retries: u64;
+}
+data Main {
+    session: Session;
+}
+machine Main::main(main: &mut Main) {
+    transition main.session.retries == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() {}
+}
