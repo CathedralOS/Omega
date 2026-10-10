@@ -1,0 +1,21 @@
+// A signature-free nominal machine binder requires its authored satisfaction
+// row: `chosen` satisfies `Handler::call` directly on its declaration, and
+// `register<chosen>` selects it under `where machine Selected satisfies`.
+trait Handler {
+    machine call(value: i32) -> i32;
+}
+machine chosen(value: i32) -> i32
+satisfies Handler::call
+{
+    value
+}
+machine register<machine Selected>(value: i32) -> i32
+where machine Selected satisfies Handler::call;
+{
+    Selected(value)
+}
+data Main { hits: i32 in Wrapping; }
+machine Main::main(main: &mut Main) {
+    let v: i32 = register<chosen>(4);
+    main.hits = main.hits + (v as i32 in Wrapping);
+}

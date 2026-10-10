@@ -1,0 +1,13 @@
+// Unused and erased static arguments keep their authored lexical scope:
+// `&Element` as a type argument inside a machine-call range endpoint, and an
+// unused `const Tag` forwarded through a relay.
+machine ceiling<Element>() -> u64 { 70 }
+data Bounded<Element> { value: u64[0..=ceiling<&Element>()]; }
+machine unused<Element, const Tag: u8>() -> u64 { 70 }
+machine relay<Element>() -> u64 { unused<&Element, 7>() }
+data Main { bounded: Bounded<u8>; hits: i32 in Wrapping; }
+machine Main::main(main: &mut Main) {
+    main.bounded = Bounded { value: 0 };
+    _ = relay<u8>();
+    main.hits = main.hits + 1;
+}
