@@ -21,5 +21,12 @@
     "invalid_readonly_write/main.omg": "220b584f3f232236aa75fae51af5e5dab340888bc753e9b8d59a635faae49419",
     "sensor_patch/build.omg": "3fcb100f392cececf063a74b17d3bfcb8c0f4608cb1a22bf4b71531312de09dd",
     "sensor_patch/main.omg": "1eea608a355f2003ef9f62c78e94fd7a2113f28786b2a1187594bc6a3484f333"
-  }
+  },
+  "rust_build_result": {
+    "exit": 0,
+    "elapsed_seconds": 389,
+    "profile": "release optimized",
+    "binary": "/workspace/cloud-setup/cache/mbx/targets/v1/15498277d3847133ff8ea2e7fad1504e0c39180f592607d400329bb0d1464933/release/omega"
+  },
+  "admission_cases_sha256": "b3ee6c9accc9c5520d559dbf140f87d43eba2f0dad9436b782cd22afd177ed98"
 }

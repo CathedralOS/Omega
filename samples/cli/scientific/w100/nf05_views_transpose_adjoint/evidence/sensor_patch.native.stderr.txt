@@ -1,0 +1,2 @@
+native compile FAILED:
+  error: cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user

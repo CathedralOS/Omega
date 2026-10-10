@@ -29,6 +29,9 @@ floating-point accuracy policy. `verify_oracles.py` is an independent coordinate
 oracle covering empty 0x0/0xN/Nx0 views, double transforms, nonzero-stride overlap,
 readonly aliasing and Hermitian symmetry. It is not a production descriptor API.
 
+`admission_cases.json` separately freezes exact boundary inputs and intended
+try-error outcomes for shared API integration; these are not yet executed.
+
 ## Frozen full shared-API sample designs
 
 Sensor integration must call NF01 admission on the packed and padded backing,

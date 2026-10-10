@@ -1,0 +1,136 @@
+[
+  {
+    "project": "sensor_patch",
+    "route": "check",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/15498277d3847133ff8ea2e7fad1504e0c39180f592607d400329bb0d1464933/release/omega",
+      "--check",
+      "/workspace/Omega/.codex/worktrees/nf05/samples/cli/scientific/w100/nf05_views_transpose_adjoint/sensor_patch/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf05",
+    "exit": 1,
+    "elapsed_seconds": 0.004,
+    "source_sha256": "1eea608a355f2003ef9f62c78e94fd7a2113f28786b2a1187594bc6a3484f333",
+    "stdout_log": "sensor_patch.check.stdout.txt",
+    "stderr_log": "sensor_patch.check.stderr.txt",
+    "classification": "environmental_before_source_validation",
+    "capability_qualified": false
+  },
+  {
+    "project": "sensor_patch",
+    "route": "native",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/15498277d3847133ff8ea2e7fad1504e0c39180f592607d400329bb0d1464933/release/omega",
+      "run",
+      "/workspace/Omega/.codex/worktrees/nf05/samples/cli/scientific/w100/nf05_views_transpose_adjoint/sensor_patch/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf05",
+    "exit": 200,
+    "elapsed_seconds": 0.003,
+    "source_sha256": "1eea608a355f2003ef9f62c78e94fd7a2113f28786b2a1187594bc6a3484f333",
+    "stdout_log": "sensor_patch.native.stdout.txt",
+    "stderr_log": "sensor_patch.native.stderr.txt",
+    "expected_stdout_present": false,
+    "expected_exit_matches": false,
+    "classification": "environmental_before_source_validation",
+    "capability_qualified": false
+  },
+  {
+    "project": "sensor_patch",
+    "route": "terminal_comparison",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/15498277d3847133ff8ea2e7fad1504e0c39180f592607d400329bb0d1464933/release/omega",
+      "run",
+      "--both",
+      "/workspace/Omega/.codex/worktrees/nf05/samples/cli/scientific/w100/nf05_views_transpose_adjoint/sensor_patch/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf05",
+    "exit": 200,
+    "elapsed_seconds": 0.006,
+    "source_sha256": "1eea608a355f2003ef9f62c78e94fd7a2113f28786b2a1187594bc6a3484f333",
+    "stdout_log": "sensor_patch.terminal_comparison.stdout.txt",
+    "stderr_log": "sensor_patch.terminal_comparison.stderr.txt",
+    "expected_stdout_present": false,
+    "expected_exit_matches": false,
+    "requires_agreement_review": true,
+    "classification": "environmental_before_source_validation",
+    "capability_qualified": false
+  },
+  {
+    "project": "hermitian_energy",
+    "route": "check",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/15498277d3847133ff8ea2e7fad1504e0c39180f592607d400329bb0d1464933/release/omega",
+      "--check",
+      "/workspace/Omega/.codex/worktrees/nf05/samples/cli/scientific/w100/nf05_views_transpose_adjoint/hermitian_energy/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf05",
+    "exit": 1,
+    "elapsed_seconds": 0.004,
+    "source_sha256": "0f53172736012a8e84c5d33ad7344ab6ae4ed5f2042716c2c02433ad48958783",
+    "stdout_log": "hermitian_energy.check.stdout.txt",
+    "stderr_log": "hermitian_energy.check.stderr.txt",
+    "classification": "environmental_before_source_validation",
+    "capability_qualified": false
+  },
+  {
+    "project": "hermitian_energy",
+    "route": "native",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/15498277d3847133ff8ea2e7fad1504e0c39180f592607d400329bb0d1464933/release/omega",
+      "run",
+      "/workspace/Omega/.codex/worktrees/nf05/samples/cli/scientific/w100/nf05_views_transpose_adjoint/hermitian_energy/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf05",
+    "exit": 200,
+    "elapsed_seconds": 0.005,
+    "source_sha256": "0f53172736012a8e84c5d33ad7344ab6ae4ed5f2042716c2c02433ad48958783",
+    "stdout_log": "hermitian_energy.native.stdout.txt",
+    "stderr_log": "hermitian_energy.native.stderr.txt",
+    "expected_stdout_present": false,
+    "expected_exit_matches": false,
+    "classification": "environmental_before_source_validation",
+    "capability_qualified": false
+  },
+  {
+    "project": "hermitian_energy",
+    "route": "terminal_comparison",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/15498277d3847133ff8ea2e7fad1504e0c39180f592607d400329bb0d1464933/release/omega",
+      "run",
+      "--both",
+      "/workspace/Omega/.codex/worktrees/nf05/samples/cli/scientific/w100/nf05_views_transpose_adjoint/hermitian_energy/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf05",
+    "exit": 200,
+    "elapsed_seconds": 0.003,
+    "source_sha256": "0f53172736012a8e84c5d33ad7344ab6ae4ed5f2042716c2c02433ad48958783",
+    "stdout_log": "hermitian_energy.terminal_comparison.stdout.txt",
+    "stderr_log": "hermitian_energy.terminal_comparison.stderr.txt",
+    "expected_stdout_present": false,
+    "expected_exit_matches": false,
+    "requires_agreement_review": true,
+    "classification": "environmental_before_source_validation",
+    "capability_qualified": false
+  },
+  {
+    "project": "invalid_readonly_write",
+    "route": "check",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/15498277d3847133ff8ea2e7fad1504e0c39180f592607d400329bb0d1464933/release/omega",
+      "--check",
+      "/workspace/Omega/.codex/worktrees/nf05/samples/cli/scientific/w100/nf05_views_transpose_adjoint/invalid_readonly_write/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf05",
+    "exit": 1,
+    "elapsed_seconds": 0.005,
+    "source_sha256": "220b584f3f232236aa75fae51af5e5dab340888bc753e9b8d59a635faae49419",
+    "stdout_log": "invalid_readonly_write.check.stdout.txt",
+    "stderr_log": "invalid_readonly_write.check.stderr.txt",
+    "intended_rejection": "write through immutable shared slice",
+    "requires_diagnostic_review": true,
+    "classification": "environmental_before_source_validation",
+    "capability_qualified": false,
+    "intended_rejection_observed": false
+  }
+]

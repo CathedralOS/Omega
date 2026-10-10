@@ -51,8 +51,8 @@ for project in ("sensor_patch", "hermitian_energy", "invalid_readonly_write"):
         if exit_code != 0 and not project.startswith("invalid"):
             destination = evidence / "failures" / prefix
             destination.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination / "main.omg")
-            shutil.copy2(source.with_name("build.omg"), destination / "build.omg")
+            shutil.copy2(source, destination / "main.omg.txt")
+            shutil.copy2(source.with_name("build.omg"), destination / "build.omg.txt")
             (destination / "command.json").write_text(json.dumps(command, indent=2) + "\n")
         records.append(record)
         (evidence / "routes.json").write_text(json.dumps(records, indent=2) + "\n")
