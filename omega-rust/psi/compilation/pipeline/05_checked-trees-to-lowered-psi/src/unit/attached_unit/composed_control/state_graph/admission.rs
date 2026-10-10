@@ -5,9 +5,7 @@
 //! source; a closed-sum dispatch alone still reads its subject's declaration
 //! and arms (`cases::validate`).
 use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
-use super::super::super::{
-    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, Multiplicity, unsupported,
-};
+use super::super::super::{CheckedBoundaryMachinePlan, Multiplicity, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{
     CheckedComposedUnitControlMachinePlan, claims, edges, entry_aliases, exclusive_handoffs,
@@ -351,25 +349,10 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
                 }
             }
         }
-        // Domain requirements on borrowed inputs lower into the emitted
-        // boundary's `requires` rows; qualified affine results mint their
-        // caller-side establishments at emission. Copyable structural results
-        // retain their value without acquiring an affine disposal obligation.
-        // A scalar result binds the state's next scalar value.
-        if !(boundary.result.is_unit()
-            || matches!(
-                &boundary.result,
-                CheckedBoundaryMachineResultPlan::Scalar(_)
-                    | CheckedBoundaryMachineResultPlan::Structural {
-                        multiplicity: Multiplicity::Affine | Multiplicity::Unrestricted,
-                        ..
-                    }
-            ))
-        {
-            return unsupported(
-                "Unit graph boundary requires additional provider or result custody",
-            );
-        }
+        // Result multiplicity does not choose a graph execution route. Every
+        // structural call retains its checked receiving frontier; emission
+        // binds those actual returned claims, including linear children of
+        // an affine carrier, rather than inventing boundary issuance.
     }
     Ok(AdmittedGraph {
         live,

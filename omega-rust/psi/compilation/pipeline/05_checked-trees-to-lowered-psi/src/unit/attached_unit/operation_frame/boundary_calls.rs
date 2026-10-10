@@ -6,7 +6,6 @@
 
 use super::super::argument_evaluation;
 use super::super::call_closure::unique_unit_boundary;
-use super::super::lower_structural_path;
 
 use super::calls::CallInputs;
 use super::{BoundaryParameters, OperationFrame, StructuralResults};
@@ -16,10 +15,10 @@ use crate::emission::operation_emission::boundary_calls::result_policy::{
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
 use crate::unit::{
-    CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, ClaimId, CompletionReceipt,
-    LoweringError, Multiplicity, Operation, OperationKind, OperationResult,
-    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration,
-    allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported, value_id,
+    CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, CompletionReceipt,
+    LoweringError, Operation, OperationKind, OperationResult, StructuralOperationResult,
+    StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
+    lookup_type_id, place_id, terminal_scalar_type, unsupported, value_id,
 };
 
 /// The operands every boundary call shape lowers identically.
@@ -162,14 +161,22 @@ impl OperationFrame<'_, '_> {
                 structural_type,
             },
         };
-        // A linear result arrives carrying the claim frontier the provider
-        // established: the checked `Establish` events on the bound local name
-        // the exact caller-local claims the completed value holds.
-        let result_claims = if result.multiplicity == Multiplicity::Linear {
-            self.boundary_result_claims(result)?
-        } else {
-            Vec::new()
-        };
+        // The checked receiving frontier follows result-relative claim paths,
+        // not root multiplicity or a local's spelling. Selected family members
+        // return their real claims through this same ordinary reception route.
+        let custody = call.structural_custody().ok_or(LoweringError::Unsupported(
+            "boundary structural result has no checked receiving custody",
+        ))?;
+        let result_claims = crate::emission::claim_bindings::emit_call_result_claims(
+            &crate::emission::claim_bindings::prepare_call_result_claims(
+                &custody.result_claims,
+                structural_type,
+                self.structural_types.declarations(),
+            )?,
+            self.state,
+            *coordinate,
+            &mut self.calls.claims,
+        )?;
         self.record_source_call(
             *coordinate,
             call.source_site().flatten(),
@@ -303,80 +310,6 @@ impl OperationFrame<'_, '_> {
             completion_receipts,
             requirement_obligations,
         })
-    }
-
-    /// The caller-local claim occurrences a completed boundary result holds:
-    /// the `Establish` events checking recorded on the bound local, rebased
-    /// onto this body's claim namespace.
-    fn boundary_result_claims(
-        &mut self,
-        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-    ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
-        let checked = self.checked;
-        let machine = self.machine;
-        let state = self.state;
-        let local = result.local;
-        if !local.is_named() {
-            return unsupported("boundary structural result has no authored local");
-        }
-        let mut claims = checked
-            .facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .map(|(_, event)| event)
-            .filter(|event| {
-                event.machine_symbol == machine
-                    && event.state_symbol == state
-                    && event.source
-                        == language_semantics::PermissionEventSource::Statement {
-                            statement_index: result.statement_index as usize,
-                        }
-                    && event.kind == language_semantics::PermissionEventKind::Establish
-                    && event.access == language_semantics::PermissionAccess::Owned
-                    && event.multiplicity == Multiplicity::Linear
-                    && event.obligation_live
-                    && event.root == facts::PlaceRoot::Symbol(local.symbol)
-            })
-            .map(|event| {
-                let path = lower_structural_path(
-                    &validation::structural_claim_path(
-                        &checked.typed,
-                        local.declared_type,
-                        checked
-                            .facts
-                            .flow
-                            .ownership
-                            .segments
-                            .span_or_empty(event.segments),
-                    )
-                    .map_err(LoweringError::Unsupported)?,
-                )?;
-                self.boundary_result_claim(state, result, event)
-                    .map(|claim| terminal_psi::StructuralResultClaimBinding { claim, path })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
-        claims.sort();
-        Ok(claims)
-    }
-
-    /// One claim occurrence on this call's completed boundary result: resolve
-    /// it through the caller's claim namespace with the shared establishment
-    /// join (`operation_frame::resolve_established_claim`).
-    fn boundary_result_claim(
-        &mut self,
-        state: symbols::SymbolHandle,
-        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-        event: &checked_trees::FlowPermissionEventFact,
-    ) -> Result<ClaimId, LoweringError> {
-        crate::emission::claim_bindings::resolve_established_claim(
-            &mut self.calls.claims,
-            self.machine,
-            state,
-            result.statement_index as usize,
-            event,
-        )
     }
 }
 

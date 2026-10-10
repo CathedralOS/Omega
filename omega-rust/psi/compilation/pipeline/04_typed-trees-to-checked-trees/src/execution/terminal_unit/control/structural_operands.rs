@@ -264,8 +264,15 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     &preparation,
                     trace,
                 )?;
-                let mut operation = bind_structural_call_result(operation, result.clone())?;
-                // Only an ordinary structural call produces a value operand.
+                let mut operation = bind_structural_call_result(
+                    program,
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    operation,
+                    result.clone(),
+                )?;
+                // Every completed structural call produces a value operand.
                 let (_, discard_result_on_return) = operation
                     .call_mut()
                     .filter(|call| call.is_module())?
@@ -654,20 +661,22 @@ pub(in crate::execution::terminal_unit) fn result(
         };
     let CheckedBoundaryMachineResultPlan::Structural {
         type_identity,
-        multiplicity: Multiplicity::Affine,
+        multiplicity,
         qualifications,
     } = boundary_result_plan(program, shapes, return_type, &binders, &[])?
     else {
         return None;
     };
-    qualifications
-        .is_empty()
-        .then_some(CheckedStructuralResultPlan {
-            type_identity,
-            multiplicity: Multiplicity::Affine,
-            qualifications,
-            projected_qualifications: Vec::new(),
-        })
+    Some(CheckedStructuralResultPlan {
+        type_identity,
+        multiplicity,
+        qualifications,
+        projected_qualifications: validation::structural_result_projected_qualifications(
+            program,
+            return_type,
+        )
+        .ok()?,
+    })
 }
 
 /// Prepare structural operands through the same construction and result
@@ -826,7 +835,14 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
             operations,
             trace,
         )?;
-        let operation = bind_structural_call_result(operation, result.clone())?;
+        let operation = bind_structural_call_result(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            operation,
+            result.clone(),
+        )?;
         super::statement_sequence::consume_results(&mut *operations, &operation)?;
         operations.push(operation);
         structural_results.push((

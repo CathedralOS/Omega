@@ -15,7 +15,7 @@
 //! | module   | `NormalReturn` | structural | `StructuralCustody`  | present             | retained     |
 //! | boundary | `NormalReturn` | Unit       | `CompletionReceipts` | absent              | retained     |
 //! | boundary | `NormalReturn` | scalar     | `CompletionReceipts` | absent              | retained     |
-//! | boundary | `NormalReturn` | structural | `CompletionReceipts` | absent              | retained     |
+//! | boundary | `NormalReturn` | structural | `StructuralCustody`  | absent              | retained     |
 //! | dynamic  | `NormalReturn` | Unit       | `Claims`             | absent              | not retained |
 //! | dynamic  | `NormalReturn` | scalar     | `Claims`             | absent              | not retained |
 //! | boundary | `External`     | Unit       | `Abandonment`        | absent              | retained     |
@@ -120,8 +120,9 @@ pub enum CheckedUnitCallResult {
 pub enum CheckedUnitCallTransfers {
     /// An ordinary Unit or scalar call's claim transfers.
     Claims(Vec<CheckedUnitClaimTransferPlan>),
-    /// An ordinary structural call's result custody, kept separate from its
-    /// value binding.
+    /// A structural call's ingress and receiving custody, kept separate from
+    /// its value binding. Boundary ingress remains completion receipts in
+    /// this roster; dispatch never issues the result's claims.
     StructuralCustody(CheckedStructuralCallCustodyPlan),
     /// A boundary call's completion receipts.
     CompletionReceipts(Vec<CheckedUnitClaimTransferPlan>),
@@ -219,7 +220,16 @@ impl CheckedUnitCallPlan {
                     Result::Structural { .. },
                     Transfers::StructuralCustody(_),
                 ) => contract_commitment.is_some(),
-                (CheckedUnitCallRoute::Boundary, _, Transfers::CompletionReceipts(_)) => true,
+                (
+                    CheckedUnitCallRoute::Boundary,
+                    Result::Unit | Result::Scalar(_),
+                    Transfers::CompletionReceipts(_),
+                ) => true,
+                (
+                    CheckedUnitCallRoute::Boundary,
+                    Result::Structural { .. },
+                    Transfers::StructuralCustody(_),
+                ) => true,
                 (
                     CheckedUnitCallRoute::Dynamic { .. },
                     Result::Unit | Result::Scalar(_),
@@ -410,7 +420,7 @@ impl CheckedUnitCallPlan {
         }
     }
 
-    /// An ordinary structural call's result custody.
+    /// A structural call's result custody, including boundary completion.
     pub fn structural_custody(&self) -> Option<&CheckedStructuralCallCustodyPlan> {
         match &self.transfers {
             CheckedUnitCallTransfers::StructuralCustody(custody) => Some(custody),

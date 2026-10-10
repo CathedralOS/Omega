@@ -1,7 +1,7 @@
 //! Scalar operand evaluation within an existing machine's structural frontier.
 use super::super::{
-    BlockId, QualifiedScalarType, StructuralAccess,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, block_id, scalar_carriers,
+    BlockId, QualifiedScalarType, StructuralAccess, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, block_id, scalar_carriers,
 };
 use super::{
     Block, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
@@ -10,7 +10,6 @@ use super::{
     direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
-use crate::direct_calls::{DirectCallRole, direct_call_parts};
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
@@ -360,17 +359,15 @@ impl Evaluation {
             return unsupported("structural result type was not declared");
         }
         if multiplicity == StructuralMultiplicity::Linear {
-            // Registration does not establish new linear authority. Only the
-            // exact ordinary call result already emitted under replayed custody
-            // can attach that returned frontier to a local binding.
+            // Registration does not establish authority. Rejoin the exact
+            // emitted call result and source occurrence; its checked custody
+            // is independent of ordinary versus boundary dispatch.
             let mut producers = operations.iter().filter(|operation| {
                 matches!(&operation.result,
                 OperationResult::Structural(value) if value == &produced)
-                    && direct_call_parts(&operation.kind)
-                        .is_some_and(|call| call.role == DirectCallRole::Structural)
             });
             let producer = producers.next().ok_or(LoweringError::Unsupported(
-                "linear local has no ordinary call result",
+                "linear local has no exact completed call result",
             ))?;
             if producers.next().is_some()
                 || produced.claims.is_empty()

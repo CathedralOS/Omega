@@ -377,6 +377,37 @@ pub(super) fn validate_call_structural(
     if requirement_obligations.len() != callee.contract.requires.len() {
         return malformed("structural call obligations disagree with its callee contract");
     }
+    validate_result_claim_shape(module, actual_result)?;
+    if !terminal_semantics::result_claim_catalog_matches_returns(
+        &actual_result.claims,
+        callee
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                Terminator::ReturnStructural {
+                    returned_claims, ..
+                } => Some(returned_claims.as_slice()),
+                _ => None,
+            }),
+    ) {
+        return malformed("structural callee return disagrees with the caller's result claims");
+    }
+    validate_call_tail(
+        module,
+        machine,
+        structural_arguments,
+        &callee.structural_parameters,
+        claim_transfers,
+    )
+}
+
+/// Ordinary and boundary results carry the same occurrence-relative claim
+/// shape. The selected producer's returned custody supplies lineage; this
+/// portable check admits neither duplicate names nor overlapping paths.
+fn validate_result_claim_shape(
+    module: &TerminalModule,
+    actual_result: &terminal_psi::StructuralOperationResult,
+) -> Result<(), CodecError> {
     let mut result_paths = Vec::with_capacity(actual_result.claims.len());
     for binding in &actual_result.claims {
         validate_structural_path(module, actual_result.structural_type, &binding.path)?;
@@ -409,27 +440,7 @@ pub(super) fn validate_call_structural(
     {
         return malformed("structural call result claims disagree with its multiplicity");
     }
-    if !terminal_semantics::result_claim_catalog_matches_returns(
-        &actual_result.claims,
-        callee
-            .blocks
-            .iter()
-            .filter_map(|block| match &block.terminator {
-                Terminator::ReturnStructural {
-                    returned_claims, ..
-                } => Some(returned_claims.as_slice()),
-                _ => None,
-            }),
-    ) {
-        return malformed("structural callee return disagrees with the caller's result claims");
-    }
-    validate_call_tail(
-        module,
-        machine,
-        structural_arguments,
-        &callee.structural_parameters,
-        claim_transfers,
-    )
+    Ok(())
 }
 
 /// Authenticate the terminal invocation's representation, not its runtime
@@ -530,11 +541,8 @@ pub(super) fn validate_boundary_call(
     let actual_result = match &operation.result {
         OperationResult::Unit => Some(BoundaryMachineResult::Unit),
         OperationResult::Scalar(result) => Some(BoundaryMachineResult::Scalar(result.scalar_type)),
-        OperationResult::Structural(result)
-            if result.projected_qualifications.is_empty()
-                && (result.claims.is_empty()
-                    || result.multiplicity == StructuralMultiplicity::Linear) =>
-        {
+        OperationResult::Structural(result) if result.projected_qualifications.is_empty() => {
+            validate_result_claim_shape(module, result)?;
             Some(BoundaryMachineResult::Structural(
                 BoundaryStructuralResultDeclaration {
                     structural_type: result.structural_type,

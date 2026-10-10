@@ -190,10 +190,12 @@ pub(super) fn build(
                             binding_ordinal: result.binding_ordinal,
                         },
                         path: vec![checked_trees::CheckedUnitStructuralPathSegment::Referent],
-                        type_identity: crate::execution::terminal_unit::types::base_type_identity(program,
+                        type_identity: crate::execution::terminal_unit::types::base_type_identity(
+                            program,
                             shell.referee,
                             &[],
-        &[])?,
+                            &[],
+                        )?,
                         access: CheckedStructuralAccess::SharedBorrow,
                     },
                     shell.referee,
@@ -232,12 +234,15 @@ pub(super) fn build(
             transition_start,
             place,
             None,
-            None
+            None,
         )?;
         subject.path.extend(path);
-        subject.type_identity =
-            crate::execution::terminal_unit::types::base_type_identity(program, projected, &[],
-        &[])?;
+        subject.type_identity = crate::execution::terminal_unit::types::base_type_identity(
+            program,
+            projected,
+            &[],
+            &[],
+        )?;
         // Dispatch observes a subtree, not an owned move of its enclosing
         // record. Ordinary selected-edge cleanup still owns that root.
         subject.access = CheckedStructuralAccess::SharedBorrow;
@@ -248,12 +253,12 @@ pub(super) fn build(
         program,
         type_reference,
         &[],
-        validation::ContentsRequirement::NumericOwned
+        validation::ContentsRequirement::NumericOwned,
     ) && !validation::has_contents(
         program,
         type_reference,
         &[],
-        validation::ContentsRequirement::OwnedOrSharedView
+        validation::ContentsRequirement::OwnedOrSharedView,
     ) {
         return None;
     }
@@ -897,6 +902,10 @@ fn subject_call(
         trace,
     )?;
     let mut operation = crate::execution::terminal_unit::control::bind_structural_call_result(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
         operation,
         result.clone(),
     )?;

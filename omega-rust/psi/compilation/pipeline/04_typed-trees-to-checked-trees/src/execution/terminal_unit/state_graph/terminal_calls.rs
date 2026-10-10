@@ -333,7 +333,14 @@ pub(super) fn arm_call(
     let operation = match (scalar_result, structural_result) {
         (Some(result), None) => bind_scalar_call_result(facts, operation, result, true)?,
         (None, Some(result)) => {
-            let mut operation = bind_structural_call_result(operation, result.clone())?;
+            let mut operation = bind_structural_call_result(
+                program,
+                facts,
+                machine.symbol,
+                state.symbol,
+                operation,
+                result.clone(),
+            )?;
             let (binding, discard) = operation.call_mut()?.structural_result_mut()?;
             if *binding != result {
                 return None;

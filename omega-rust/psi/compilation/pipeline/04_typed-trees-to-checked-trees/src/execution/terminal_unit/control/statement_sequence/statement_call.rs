@@ -204,7 +204,14 @@ pub(super) fn plan(
         // Its anonymous result cannot enter the named-local operand roster.
         // Dispose plain affine contents on this normal continuation, before
         // the next authored effect, rather than extending custody to return.
-        operation = bind_structural_call_result(operation, result.clone())?;
+        operation = bind_structural_call_result(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            operation,
+            result.clone(),
+        )?;
         // Any call with a structural result, ordinary or boundary.
         let call = operation.call_mut()?;
         let coordinate = call.coordinate;
@@ -241,7 +248,14 @@ pub(super) fn plan(
         return Some(());
     }
     if let Some(result) = structural_result {
-        operation = bind_structural_call_result(operation, result.clone())?;
+        operation = bind_structural_call_result(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            operation,
+            result.clone(),
+        )?;
         if completes_machine {
             *returned_call = Some(result.clone());
         }

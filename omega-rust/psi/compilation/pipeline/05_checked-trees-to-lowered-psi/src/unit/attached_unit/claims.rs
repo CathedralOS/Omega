@@ -1,4 +1,4 @@
-//! Exact checked state-entry claims and their machine-local Terminal identities.
+//! Exact checked claim transfers and their machine-local Terminal identities.
 //!
 //! Project an owner's stored type only when checked custody actually transfers
 //! a claim frontier. Borrowed values carry loans instead: an immutable literal
@@ -84,6 +84,45 @@ pub(super) fn lower_return_claims(
             return Ok(produced.claims.clone());
         }
     };
+    if validation::canonical_place_from_expression_in_state(
+        &checked.typed,
+        state,
+        statement_index as usize,
+        expression,
+    )
+    .is_none_or(|place| matches!(place.root, facts::PlaceRoot::Expression(_)))
+    {
+        // An immediate computed value has no pre-existing source place to
+        // transfer at completion. Its materialization already transported
+        // the exact operand claims into this result home. Rejoin that checked
+        // binding, rather than interpreting an absent second Transfer event
+        // as claim-free. Existing places still use current exit transfers
+        // below: their birth roster can be stale after field replacement.
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal,
+        } = result.source
+        else {
+            return unsupported("computed return has no materialized result binding");
+        };
+        let mut matching = operations
+            .structural_values
+            .iter()
+            .filter(|(ordinal, _)| *ordinal == binding_ordinal);
+        let (_, binding) = matching.next().ok_or(LoweringError::Unsupported(
+            "computed return lost its materialized custody",
+        ))?;
+        if matching.next().is_some()
+            || !binding.path().is_empty()
+            || binding.structural_type() != structural_type
+            || binding.multiplicity()
+                != crate::terminal_identities::structural_multiplicity(result.multiplicity)
+        {
+            return unsupported("computed return binding is ambiguous or has another carrier");
+        }
+        let mut claims = binding.claims().to_vec();
+        claims.sort_by_key(|binding| binding.claim);
+        return Ok(claims);
+    }
     lower_owned_transfer_claims(
         checked,
         machine,

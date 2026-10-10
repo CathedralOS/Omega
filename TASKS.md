@@ -2555,14 +2555,21 @@ crash and native exit behavior.
     custody, including claims reseated into owned fields; native custody joins
     the complete selected call graph rather than its pointer-only mirror.
     It supplies no provider grant or boundary issuance.
-    The frontier is complete generic/named per-member conformance transport
-    and std's exit-70 Console canary. Its current first failure is
-    `cannot prove the terminates by ranking for machine console_write_bytes`
-    (**TERMINATION-RANKING-CHECKS**); the import-only baseline reproduces it.
+    The conformance frontier is differing or nested per-member requirement
+    conjunctions, not ordinary named evidence arguments or named maps. Result
+    transport still needs declaration-owned projected memberships and complete
+    entry/result-route coverage. Keep `targets/runtime_family_composed_owned_results_exit`
+    and `targets/runtime_family_current_completion_paths_exit` running through
+    both engines while completing those routes (`tools/corpus_gate.py --both
+    --filter <fixture>`).
+    The shared Console ranking repair is landed. Recheck std's exit-70
+    `targets/target_machine_gating_exit` canary through public package preparation;
+    it currently requests review and acceptance of the dependency's
+    `MacosApplication` program-entry binding, not a fabricated provider grant.
     Provider-default declaration operations must remain distinct from runtime
     invocation dependencies. Existing std-dependent missing-target rejection
-    fixtures stop at that same ranking failure; restore their authored checks
-    after the shared dependency is repaired. Publish target-default effects in
+    fixtures need their authored missing-target checks restored after the shared
+    integration dependency is repaired. Publish target-default effects in
     the source-free Build companion and prove distinct tagged realizations
     consume one unchanged Terminal artifact. Ensure
     every entry/result lowering route uses the same complete family catalog;

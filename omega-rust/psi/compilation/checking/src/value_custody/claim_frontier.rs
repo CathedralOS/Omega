@@ -217,6 +217,23 @@ fn append_linear_claim_frontier(
             arguments,
             ..
         } => {
+            // Preparation retains a closed application's concrete members.
+            // Their symbols, not the template's similarly named fields, are
+            // the places receiving custody and typed path resolution use.
+            // Before preparation, an open application still walks its exact
+            // declaration under substitutions; that does not grant a closed
+            // instance or rename its members.
+            if let Some(definition) = program.closed_data_definition(type_reference) {
+                append_data_linear_claim_frontier(
+                    program,
+                    definition,
+                    substitutions,
+                    path,
+                    visiting,
+                    claims,
+                );
+                return;
+            }
             let Some(definition) = find_data_definition(program, *base_symbol, base_name.as_str())
             else {
                 return;
@@ -357,9 +374,7 @@ fn type_multiplicity(
             .find_map(|(parameter, replacement)| {
                 (*parameter == *symbol && *replacement != type_reference).then_some(*replacement)
             })
-            .map(|replacement| {
-                type_multiplicity(program, replacement, substitutions)
-            })
+            .map(|replacement| type_multiplicity(program, replacement, substitutions))
             .unwrap_or_else(|| frontier_type_multiplicity(program, type_reference)),
         _ => frontier_type_multiplicity(program, type_reference),
     }

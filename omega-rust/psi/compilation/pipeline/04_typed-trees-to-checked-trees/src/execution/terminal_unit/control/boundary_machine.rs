@@ -13,7 +13,6 @@ use crate::execution::terminal_unit::types::{
     ShapeCollector, boundary_borrowed_referent, boundary_domain_requirements,
     fold_authorized_result_domains, is_unit, machine_binders, parameter_qualifications,
     projected_parameter_qualifications, structural_access_for_type_reference,
-    type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, substituted_formal_type};
 use crate::execution::terminal_unit::{
@@ -21,7 +20,6 @@ use crate::execution::terminal_unit::{
     CheckedStructuralScalarParameterPlan, CheckedUnitStructuralDomainRequirementPlan,
     CheckedUnitStructuralParameterPlan, SymbolHandle, is_reference,
 };
-use std::collections::BTreeSet;
 
 pub(crate) fn build_boundary_machine(
     program: &dyn ::validation::CheckingInput,
@@ -789,9 +787,11 @@ pub(crate) fn boundary_result_plan(
     if let Some(scalar) = program.primitive_type_reference(type_reference) {
         return Some(CheckedBoundaryMachineResultPlan::Scalar(scalar));
     }
-    if is_reference(program, type_reference)
-        || type_graph_requires_nominal_drop(program, type_reference, &[], &mut BTreeSet::new())
-    {
+    // Owned result storage is independent of its cleanup obligation. The
+    // successful call transports the producer's actual claims; the receiving
+    // body still owes their separately checked settlement. Reference results
+    // need their distinct returned-loan custody and are not owned storage.
+    if is_reference(program, type_reference) {
         return None;
     }
     Some(CheckedBoundaryMachineResultPlan::Structural {

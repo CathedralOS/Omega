@@ -215,7 +215,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         {
             let Some((call, custody)) = operation
                 .call()
-                .filter(|call| call.is_module())
                 .and_then(|call| Some((call, call.structural_custody()?)))
             else {
                 continue;

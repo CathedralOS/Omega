@@ -216,11 +216,12 @@ The Rust reference compiler does not implement this contract yet. Its common
 lowering route retains checked target bodies and opaque contracts in Terminal
 families; native work is scoped without changing that canonical storage. It
 retains concrete checked provider candidates for every family member, including
-implementations of uncalled boundary-trait requirements. Native installation matches
-actual callable IDs remaining in the selected deployment's execution scope,
-not whichever candidate first shares a portable overload identity. Generic and
-named per-member conformance transport remains incomplete. The compiler
-executes Build and completes source typing once within one `CompileRequest`;
+implementations of uncalled boundary-trait requirements. Native installation
+matches actual callable IDs remaining in the selected deployment's execution scope,
+not whichever candidate first shares a portable overload identity. Ordinary
+named evidence arguments and named maps dispatch through closed family members;
+differing or nested per-member requirement conjunctions remain incomplete. The
+compiler executes Build and completes source typing once within one `CompileRequest`;
 checking and Terminal production remain inside the per-target route, with
 provider settlement before checking. Package batch callers still need to use
 that shared invocation. Build staging is invocation-owned; artifact publication
@@ -230,12 +231,13 @@ member handles. Portable runtime calls use an independent bodyless family head:
 callers meet every member's premises and the joined conservative effect/crash
 envelope without importing a member's private result guarantees. Native and
 Terminal execution select the exact deployment-tag member and preserve ordinary
-call custody. Closed generic applications retain the whole specialized cohort;
+call custody, including returned linear owners and claims inside affine records.
+Closed generic applications retain the whole specialized cohort;
 unsupported generic demand conjunctions reject rather than adopt a lexical
 prototype. Explicit boundary requirements and target-local calls retain their
-own contracts. Complete generic/named conformance transport, all entry/result
-routes, source-free target-default effects and one-artifact multi-target
-realization remain unfinished. The
+own contracts. Complete requirement-conjunction and projected-result transport,
+all entry/result routes, source-free target-default effects and one-artifact
+multi-target realization remain unfinished. The
 [pipeline route items](../../../TASKS.md#pipeline-route) own the repair.
 
 ## Directional wire compatibility

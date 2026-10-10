@@ -55,6 +55,10 @@ pub(crate) fn bind_scalar_call_result(
 /// completion receipts while attaching its independently checked result local.
 /// An ordinary structural call already carries its result and custody.
 pub(crate) fn bind_structural_call_result(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    caller_machine: SymbolHandle,
+    caller_state: SymbolHandle,
     operation: CheckedUnitEffectOperationPlan,
     result: CheckedUnitStructuralResultBindingPlan,
 ) -> Option<CheckedUnitEffectOperationPlan> {
@@ -67,6 +71,59 @@ pub(crate) fn bind_structural_call_result(
         }
         (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
             let mut parts = call.into_parts();
+            let occurrence = facts.flow.control.call_at(
+                caller_state,
+                parts.coordinate.statement_index as usize,
+                parts.coordinate.call_ordinal as usize,
+            )?;
+            // A requirement or operator owns a signature, not a Machine body.
+            // Resolve its declaration and the same retained specialization the
+            // boundary argument/result planner used, never a receiving annotation.
+            let return_type = validation::call_target_return_type(program, parts.target.state)?;
+            let substitutions = parts
+                .source_site
+                .and_then(|site| {
+                    facts
+                        .requirement_call_specializations
+                        .for_site(site, occurrence.target_symbol)
+                })
+                .map(|specialization| {
+                    specialization
+                        .type_bindings
+                        .iter()
+                        .map(|binding| (binding.parameter, binding.actual))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let return_type = crate::execution::terminal_unit::types::substituted_formal_type(
+                program,
+                return_type,
+                &substitutions,
+            );
+            let result_claims = validation::structural_call_result_claims(
+                program,
+                facts,
+                caller_machine,
+                caller_state,
+                occurrence,
+                return_type,
+            )
+            .ok()?;
+            // Boundary ingress remains completion receipts, while receiving
+            // custody is the same checked result frontier ordinary calls use.
+            // Record it now; lowering must not reconstruct authority from names.
+            let checked_trees::CheckedUnitCallTransfers::CompletionReceipts(claim_transfers) =
+                parts.transfers
+            else {
+                return None;
+            };
+            parts.transfers = checked_trees::CheckedUnitCallTransfers::StructuralCustody(
+                checked_trees::CheckedStructuralCallCustodyPlan {
+                    claim_transfers,
+                    result_claims,
+                    ..Default::default()
+                },
+            );
             parts.result = CheckedUnitCallResult::Structural {
                 discard_result_on_return: result.multiplicity == Multiplicity::Affine,
                 binding: result,
@@ -94,11 +151,11 @@ pub(crate) fn checked_copied_result_type(
     }
     if crate::checks::type_multiplicity(program, result_type) != Multiplicity::Unrestricted
         || !validation::has_contents(
-        program,
-        result_type,
-        &[],
-        validation::ContentsRequirement::RepresentedOwned
-    )
+            program,
+            result_type,
+            &[],
+            validation::ContentsRequirement::RepresentedOwned,
+        )
         || !parameter_qualifications(program, shapes, result_type, binders)?.is_empty()
     {
         return None;
@@ -199,11 +256,11 @@ pub(crate) fn checked_structural_result_type(
     if multiplicity == Multiplicity::Unrestricted
         && validation::bounded_byte_buffer_capacity(program, result_type).is_some()
         && validation::has_contents(
-        program,
-        result_type,
-        &[],
-        validation::ContentsRequirement::RepresentedOwned
-    )
+            program,
+            result_type,
+            &[],
+            validation::ContentsRequirement::RepresentedOwned,
+        )
     {
         return Some(CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
@@ -237,8 +294,7 @@ pub(crate) fn checked_structural_result_type(
         result_type,
         &[],
         validation::ContentsRequirement::OwnedOrSharedView
-    ))
-                || !qualifications.is_empty()))
+    )) || !qualifications.is_empty()))
     {
         return None;
     }

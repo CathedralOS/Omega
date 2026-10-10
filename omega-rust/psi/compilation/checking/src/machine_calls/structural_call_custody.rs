@@ -1259,17 +1259,40 @@ pub fn structural_call_custody(
     // conditional claim joins), so the result binds by path rather than by
     // one callee lineage: the callee's claim at a path continues as the
     // caller's claim at the same path.
+    let result_claims = structural_call_result_claims(
+        program,
+        facts,
+        caller_machine,
+        caller_state,
+        call,
+        destination.return_type,
+    )?;
+    Ok(CheckedStructuralCallCustodyPlan {
+        reference_loans,
+        forwarded_reference_sources,
+        result_qualifications,
+        claim_transfers,
+        result_claims,
+    })
+}
+
+/// Bind the declared result frontier to this exact call's checked receiving
+/// establishments. Ordinary and bodyless calls use the same custody join;
+/// neither a local name nor the root carrier's multiplicity defines it.
+/// Unreceived results retain path-only names for their returning edge.
+pub fn structural_call_result_claims(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    caller_machine: SymbolHandle,
+    caller_state: SymbolHandle,
+    call: &FlowCallFact,
+    result_type: typed_trees::types::TypeReferenceHandle,
+) -> Result<Vec<CheckedStructuralResultClaimPlan>, &'static str> {
+    let result_frontier = crate::linear_claim_frontier(program, result_type);
     let received = if result_frontier.is_empty() {
         Vec::new()
     } else {
-        received_result_claims(
-            program,
-            facts,
-            caller_machine,
-            caller_state,
-            source_state,
-            call,
-        )?
+        received_result_claims(program, facts, caller_machine, caller_state, call)?
     };
     let mut result_claims = Vec::with_capacity(result_frontier.len());
     for claim in &result_frontier {
@@ -1289,20 +1312,14 @@ pub fn structural_call_custody(
         };
         result_claims.push(CheckedStructuralResultClaimPlan {
             claim: identity,
-            path: structural_claim_path(program, destination.return_type, &claim.path)?,
+            path: structural_claim_path(program, result_type, &claim.path)?,
         });
     }
     if !received.is_empty() && received.len() != result_frontier.len() {
         return Err("structural result receives claims outside its result frontier");
     }
     result_claims.sort_by(|left, right| left.path.cmp(&right.path));
-    Ok(CheckedStructuralCallCustodyPlan {
-        reference_loans,
-        forwarded_reference_sources,
-        result_qualifications,
-        claim_transfers,
-        result_claims,
-    })
+    Ok(result_claims)
 }
 
 /// Join each linear claim this call consumes to the owned argument whose
@@ -1444,7 +1461,6 @@ fn received_result_claims<'facts>(
     facts: &'facts CheckFacts,
     caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
-    _source_state: &typed_trees::state::State,
     call: &FlowCallFact,
 ) -> Result<Vec<(&'facts [facts::PlaceSegment], PermissionClaimIdentity)>, &'static str> {
     let mut received = Vec::new();

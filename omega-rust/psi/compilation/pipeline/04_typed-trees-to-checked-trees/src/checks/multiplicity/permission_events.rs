@@ -120,6 +120,15 @@ pub(crate) fn prepare_permission_events(
             });
         }
 
+        // A bodyless contract still names ingress claims for its signature,
+        // but has no executable evaluation or scope-exit cleanup. Walking an
+        // empty declaration would fabricate a FinalExpression death with no
+        // semantic outgoing edge. Actual provider/member bodies own disposal
+        // and returned custody; their schedules remain checked normally.
+        if machine.has_bodyless_signature() {
+            continue;
+        }
+
         let moves = crate::flow::discover_state_move_events(
             program,
             &facts.borrow,
