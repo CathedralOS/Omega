@@ -94,3 +94,12 @@ pub struct DomainMembershipFact {
 pub struct TypeConstraintFact {
     pub constraint: Handle<TypeConstraintNode>,
 }
+
+#[macro_export]
+macro_rules! call_point_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::ProgramPoint::Call { $($fields)* }
+            | $crate::ProgramPoint::CallEnsures { $($fields)* }
+            | $crate::ProgramPoint::CallRequires { $($fields)* }
+    };
+}

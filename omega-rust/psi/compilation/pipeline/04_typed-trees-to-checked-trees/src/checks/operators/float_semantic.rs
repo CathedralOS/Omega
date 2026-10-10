@@ -737,21 +737,7 @@ fn frame(program: &dyn ::validation::CheckingInput, point: ProgramPoint) -> Opti
             state_symbol,
             ..
         }
-        | ProgramPoint::Call {
-            machine_symbol,
-            state_symbol,
-            ..
-        }
-        | ProgramPoint::CallRequires {
-            machine_symbol,
-            state_symbol,
-            ..
-        }
-        | ProgramPoint::CallEnsures {
-            machine_symbol,
-            state_symbol,
-            ..
-        }
+        | facts::call_point_triple_pattern!(machine_symbol,state_symbol, ..)
         | ProgramPoint::TransitionArm {
             machine_symbol,
             state_symbol,
