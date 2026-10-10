@@ -101,12 +101,28 @@ fn named_operator_result(walk: &ExpressionWalk, call: &TableCallExpression) -> O
             return None;
         };
         let source = super::super::float_source_bounds(
-            program,
-            walk.machine,
-            walk.state,
-            walk.environment,
-            *operand,
-        )?;
+        program,
+        walk.environment,
+        *operand,
+        &|value| {
+            walk.state.and_then(|state| {
+                crate::value_custody::expression_types::expression_result_type_reference(
+                    program,
+                    walk.machine,
+                    state,
+                    value,
+                )
+            })
+            .or_else(|| {
+                crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    walk.machine,
+                    walk.state,
+                    value,
+                )
+            })
+        }
+    )?;
         let (minimum, maximum) = crate::float_integer_conversion_bounds(
             program,
             operator,

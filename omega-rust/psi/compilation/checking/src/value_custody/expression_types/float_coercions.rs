@@ -51,12 +51,28 @@ pub(crate) fn validate_exact_float_coercion(
         target,
         || {
             crate::proof_contracts::arithmetic_domains::float_source_bounds(
-                program,
-                machine,
-                Some(state),
-                environment,
-                operand,
-            )
+        program,
+        environment,
+        operand,
+        &|value| {
+            Some(state).and_then(|state| {
+                crate::value_custody::expression_types::expression_result_type_reference(
+                    program,
+                    machine,
+                    state,
+                    value,
+                )
+            })
+            .or_else(|| {
+                crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    value,
+                )
+            })
+        }
+    )
         },
         || {
             crate::proof_contracts::arithmetic_domains::integer_source_bounds(

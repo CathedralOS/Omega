@@ -14,7 +14,7 @@ pub(super) fn proves_entry_requirements(
     measure: DecreaseMeasure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    relational::prove_with_entry_requirements(program, machine, measure, order, true, call_frames)
+    relational::prove(program, machine, measure, order, true, call_frames)
 }
 
 pub(super) struct RangeProof {
@@ -36,7 +36,7 @@ pub(super) fn check(
             strict_decrease_proven: false,
         });
     }
-    if relational::prove(program, machine, measure, order, call_frames) {
+    if relational::prove(program, machine, measure, order, false, call_frames) {
         return Ok(RangeProof {
             strict_decrease_proven: true,
         });
@@ -77,7 +77,7 @@ pub(super) fn proves_relational_decrease(
     measure: DecreaseMeasure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    relational::prove(program, machine, measure, order, call_frames)
+    relational::prove(program, machine, measure, order, false, call_frames)
 }
 
 fn proves_range(

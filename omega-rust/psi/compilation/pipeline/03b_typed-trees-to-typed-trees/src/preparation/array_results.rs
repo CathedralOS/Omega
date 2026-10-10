@@ -26,7 +26,7 @@ pub(super) fn retain_array_result_types(program: &mut TypedTrees) {
             for expression in expressions {
                 // A child may be shared by several parents. Actual postorder,
                 // not reversed preorder, ensures it is derived first.
-                validation::expression_traversal::visit_post_order_with_handles(
+                validation::expression_traversal::visit_post_order(
                     program,
                     expression,
                     &mut visited,

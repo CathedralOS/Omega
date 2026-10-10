@@ -910,15 +910,16 @@ pub(crate) fn refine_published_crash_routes(
                     let concrete_value = (builtin_meaning && entry_predicate.is_some())
                         .then(|| {
                             crate::checks::contracts::call_site_boolean_contract_expression_value(
-                                program,
-                                state_flow,
-                                call_flow,
-                                call_site,
-                                target_state_symbol,
-                                target_parameters,
-                                expression,
-                                call_frames,
-                            )
+            program,
+            None,
+            state_flow,
+            call_flow,
+            call_site,
+            target_state_symbol,
+            target_parameters,
+            expression,
+            call_frames
+        )
                         })
                         .flatten();
                     match concrete_value {

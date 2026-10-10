@@ -41,7 +41,12 @@ pub(super) fn guard_interval_for_label(
         {
             guard_interval_for_label(program, binary.left, subject_label)
         }
-        _ => comparison_bound(program, binary, subject_label),
+        _ => comparison_bound(
+            program,
+            binary,
+            binary.operator,
+            subject_label
+        ),
     }
 }
 
@@ -86,24 +91,15 @@ pub(super) fn negated_guard_interval_for_label(
             // `!(a != b)` spells `a == b` -- a point bound. `!(a == b)`
             // spells `a != b`, which bounds nothing closed.
             (operator != BinaryOperator::NotEqual)
-                .then(|| comparison_bound_with_operator(program, binary, operator, subject_label))?
+                .then(|| comparison_bound(program, binary, operator, subject_label))?
         }
     }
 }
 
-/// One comparison's contribution, when exactly one side is the subject and the
-/// other is a closed integer literal.
-fn comparison_bound(
-    program: &dyn ::validation::CheckingInput,
-    binary: &typed_trees::expression::TableBinaryExpression,
-    subject_label: &str,
-) -> Option<(BigInt, BigInt)> {
-    comparison_bound_with_operator(program, binary, binary.operator, subject_label)
-}
 
 /// `comparison_bound` under a caller-selected operator, so the negated arm
 /// can read the complement comparison the same way.
-fn comparison_bound_with_operator(
+fn comparison_bound(
     program: &dyn ::validation::CheckingInput,
     binary: &typed_trees::expression::TableBinaryExpression,
     operator: BinaryOperator,

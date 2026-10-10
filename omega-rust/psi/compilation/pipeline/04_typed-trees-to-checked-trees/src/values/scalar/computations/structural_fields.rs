@@ -35,8 +35,18 @@ impl Builder<'_, '_> {
             self.program,
             self.machine,
             self.state,
-            u32::try_from(self.statement_index).ok()?,
             expression,
+            &[],
+            |receiver| {
+                validation::structural_source(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    u32::try_from(self.statement_index).ok()?,
+                    expression,
+                    receiver,
+                )
+            },
         )
     }
 

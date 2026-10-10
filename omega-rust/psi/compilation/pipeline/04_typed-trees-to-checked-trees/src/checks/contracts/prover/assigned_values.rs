@@ -378,7 +378,7 @@ impl AssignedValues<'_> {
                 .installed_case(&selected)
                 .map(|variant| variant == case);
         }
-        let value = scalars::evaluate_with_comparisons(
+        let value = scalars::evaluate(
             self.program,
             expression,
             &mut |expression| {

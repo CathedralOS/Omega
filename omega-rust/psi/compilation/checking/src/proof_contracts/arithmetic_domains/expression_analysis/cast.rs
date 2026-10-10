@@ -192,10 +192,26 @@ fn require_float_to_integer_denotation(
     // Every value permitted by the source facts must be integral and fit.
     if !super::super::float_source_bounds(
         walk.program,
-        walk.machine,
-        walk.state,
         walk.environment,
         cast.value,
+        &|value| {
+            walk.state.and_then(|state| {
+                crate::value_custody::expression_types::expression_result_type_reference(
+                    walk.program,
+                    walk.machine,
+                    state,
+                    value,
+                )
+            })
+            .or_else(|| {
+                crate::value_custody::places::declared_place_type_raw(
+                    walk.program,
+                    walk.machine,
+                    walk.state,
+                    value,
+                )
+            })
+        }
     )
     .is_some_and(|bounds| bounds.is_exact_integer(target))
     {

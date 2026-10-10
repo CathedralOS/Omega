@@ -10,17 +10,8 @@ use typed_trees::statement::TransitionGuardNode;
 
 mod state_edges;
 
-pub(super) fn prove(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    measure: DecreaseMeasure,
-    order: &RankingOrder,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> bool {
-    prove_with_entry_requirements(program, machine, measure, order, false, call_frames)
-}
 
-pub(super) fn prove_with_entry_requirements(
+pub(super) fn prove(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     measure: DecreaseMeasure,

@@ -54,7 +54,7 @@ pub(super) fn call_site_proves_boolean_contract_expression(
     expression: ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    call_site_boolean_contract_expression_value_with_operators(
+    call_site_boolean_contract_expression_value(
         program,
         Some(operators),
         state_flow,
@@ -68,34 +68,9 @@ pub(super) fn call_site_proves_boolean_contract_expression(
     .unwrap_or(false)
 }
 
-/// Evaluate one callee Boolean contract expression after substituting the
-/// invocation's concrete arguments. `None` is deliberately distinct from
-/// `false`: crash refinement may discard a route only when false is proved.
-pub(crate) fn call_site_boolean_contract_expression_value(
-    program: &dyn ::validation::CheckingInput,
-    state_flow: &FlowStateFact,
-    call_flow: &FlowCallFact,
-    call_site: &validation::CallSite<'_>,
-    target_symbol: symbols::SymbolHandle,
-    target_parameters: &[StateParameter],
-    expression: ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<bool> {
-    call_site_boolean_contract_expression_value_with_operators(
-        program,
-        None,
-        state_flow,
-        call_flow,
-        call_site,
-        target_symbol,
-        target_parameters,
-        expression,
-        call_frames,
-    )
-}
 
 #[allow(clippy::too_many_arguments)]
-fn call_site_boolean_contract_expression_value_with_operators<'program, 'call>(
+pub(crate) fn call_site_boolean_contract_expression_value<'program, 'call>(
     program: &'program dyn ::validation::CheckingInput,
     operators: Option<&'program checked_trees::CheckedOperatorFacts>,
     state_flow: &FlowStateFact,

@@ -397,25 +397,11 @@ fn sealed_float_comparison_for_operands(
             })
 }
 
-/// Read a guard's operation without assigning primitive meaning to an arbitrary
-/// call. Token lowering represents the sealed Float relations as calls; their
-/// exact selected declaration and source custody must survive that spelling
-/// change. Binary nodes retain their existing, caller-owned meaning checks.
-pub(crate) fn guard_comparison(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    expression: ExpressionHandle,
-) -> Option<typed_trees::expression::TableBinaryExpression> {
-    guard_comparison_with_operand_types(program, machine.symbol, expression, &|operand| {
-        operand_type(program, machine, state, operand)
-    })
-}
 
 /// Read the same selected comparison inside a declaration telescope. The
 /// source result query replaces executable place context; sealed IEEE identity
 /// and bound-call restrictions remain owned by this operation.
-pub(crate) fn guard_comparison_with_operand_types(
+pub(crate) fn guard_comparison(
     program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
@@ -707,7 +693,7 @@ fn membership_subject_matches_owner(
     }
 }
 
-fn operand_type(
+pub(crate) fn operand_type(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,

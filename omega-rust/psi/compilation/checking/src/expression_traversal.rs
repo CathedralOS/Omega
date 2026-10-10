@@ -67,20 +67,10 @@ pub fn children(
     }
 }
 
-/// Visit every reachable expression node after its value edges, each once.
-/// `arm` observes a node only after the node's children already walked.
-pub fn visit_post_order(
-    program: &dyn crate::CheckingInput,
-    root: ExpressionHandle,
-    visited: &mut Vec<ExpressionHandle>,
-    mut arm: impl FnMut(&ExpressionNode),
-) {
-    visit_post_order_with_handles(program, root, visited, |_, node| arm(node));
-}
 
 /// Preserve occurrence identity for checks that consume selected declarations
 /// or result types. This is the same postorder as the node-only convenience API.
-pub fn visit_post_order_with_handles(
+pub fn visit_post_order(
     program: &dyn crate::CheckingInput,
     root: ExpressionHandle,
     visited: &mut Vec<ExpressionHandle>,

@@ -368,7 +368,7 @@ fn bind_occurrences(
         });
     }
     let mut arguments = Vec::new();
-    validation::expression_traversal::visit_post_order_with_handles(
+    validation::expression_traversal::visit_post_order(
         program,
         expression,
         &mut Vec::new(),

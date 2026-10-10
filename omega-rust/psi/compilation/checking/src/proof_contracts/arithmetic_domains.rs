@@ -77,7 +77,7 @@ pub(crate) use cited_element_bounds::{
 pub(crate) use expression_analysis::ArithmeticDecisions;
 pub(crate) use float_arithmetic::float_source_proves_integer_conversion;
 pub(crate) use float_arithmetic::{
-    FloatSourceBounds, float_source_bounds, float_source_bounds_with_result_type,
+    FloatSourceBounds, float_source_bounds,
 };
 pub use guard_narrowing::{
     arrival_integer_expression_bounds, occurrence_integer_expression_bounds,
@@ -199,7 +199,7 @@ pub(super) fn visit_binary_operators(
             check(expression, binary);
         }
     };
-    crate::expression_traversal::visit_post_order_with_handles(
+    crate::expression_traversal::visit_post_order(
         program,
         expression,
         &mut Vec::new(),

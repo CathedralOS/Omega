@@ -29,7 +29,7 @@ pub fn proven_machine_contract_expressions(
     };
     let mut proven = Vec::new();
     let mut diagnostics = Vec::new();
-    contract_entailment::validate_machine_contract_entailment_with_outcomes(
+    contract_entailment::validate_machine_contract_entailment(
         program,
         machine,
         &mut diagnostics,
@@ -89,7 +89,12 @@ pub fn validate_generic_machine_contract_entailment(
                 )
             })
         {
-            validate_machine_contract_entailment(program, machine, &mut diagnostics);
+            validate_machine_contract_entailment(
+            program,
+            machine,
+            &mut diagnostics,
+            &mut Vec::new()
+        );
         }
     }
     finish_diagnostics(diagnostics)

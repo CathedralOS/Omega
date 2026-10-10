@@ -344,7 +344,7 @@ fn validate(
         {
             let mut machine_diagnostics = Vec::new();
             let mut proven = Vec::new();
-            crate::proof_contracts::contract_entailment::validate_machine_contract_entailment_with_outcomes(
+            crate::proof_contracts::contract_entailment::validate_machine_contract_entailment(
                 program,
                 machine,
                 &mut machine_diagnostics,

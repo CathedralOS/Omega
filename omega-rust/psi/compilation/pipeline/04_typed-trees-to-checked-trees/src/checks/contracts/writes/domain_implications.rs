@@ -639,7 +639,9 @@ fn domain_admits_zero_value_inner(
         typed_trees::domain::ProofFact::Expression(expression) => matches!(
             super::super::prover::evaluate_scalar(program, *expression, &mut |leaf| {
                 zero_value_scalar_leaf(program, domain, leaf)
-            }),
+            },
+            &|_, _| true
+        ),
             Some(super::super::prover::ScalarValue::Boolean(true))
         ),
         typed_trees::domain::ProofFact::Membership(membership) => {

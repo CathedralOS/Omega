@@ -254,8 +254,12 @@ fn instantiated_live_value_proves(
                     .find(|required| guard_values::proves(program, guard, value, leaf, *required))
                     .map(ScalarValue::Boolean)
             })
-        })
-    }) == Some(ScalarValue::Boolean(true))
+        },
+            &|_, _| true,
+        )
+    },
+            &|_, _| true,
+        ) == Some(ScalarValue::Boolean(true))
 }
 
 /// Read a callee projection's value on the actual referent. `room.count` under

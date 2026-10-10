@@ -156,7 +156,29 @@ pub(super) fn validate_target_ranges(
         cast.target_type,
         source_primitive,
         source_bounds,
-        &|expression| super::float_source_bounds(program, machine, state, environment, expression),
+        &|expression| super::float_source_bounds(
+        program,
+        environment,
+        expression,
+        &|value| {
+            state.and_then(|state| {
+                crate::value_custody::expression_types::expression_result_type_reference(
+                    program,
+                    machine,
+                    state,
+                    value,
+                )
+            })
+            .or_else(|| {
+                crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    state,
+                    value,
+                )
+            })
+        }
+    ),
         owner,
         diagnostics,
     );

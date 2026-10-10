@@ -255,13 +255,14 @@ fn instantiate_call_premise(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<ProgressPremise> {
     let mut subject = call_argument_subject(
-        program,
-        machine,
-        state_flow,
-        call,
-        premise.subject.root,
-        call_frames,
-    )?;
+            program,
+            machine,
+            state_flow,
+            call,
+            call_target_parameters(program, call.target_symbol)?,
+            premise.subject.root,
+            call_frames
+        )?;
     subject
         .projections
         .extend(premise.subject.projections.iter().copied());
@@ -271,30 +272,11 @@ fn instantiate_call_premise(
     })
 }
 
-fn call_argument_subject(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state_flow: &FlowStateFact,
-    call: &FlowCallFact,
-    parameter_symbol: SymbolHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<ProgressSubject> {
-    let parameters = call_target_parameters(program, call.target_symbol)?;
-    call_argument_subject_with_parameters(
-        program,
-        machine,
-        state_flow,
-        call,
-        parameters,
-        parameter_symbol,
-        call_frames,
-    )
-}
 
 /// The single subject a call argument names, or `None` when it names none or
 /// when a dynamic selector leaves several — `call_argument_subjects`
 /// is what reads that set.
-pub(crate) fn call_argument_subject_with_parameters(
+pub(crate) fn call_argument_subject(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_flow: &FlowStateFact,

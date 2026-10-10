@@ -554,7 +554,9 @@ impl ExitScalars<'_, '_> {
                         return None;
                     }
                     self.value_at_place(&place)
-                })
+                },
+            &|_, _| true
+        )
             })
     }
 

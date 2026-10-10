@@ -434,7 +434,11 @@ pub(super) fn narrow_environment_by_condition(
         );
         return;
     }
-    let Some(comparison) = meaning::guard_comparison(program, machine, state, condition) else {
+    let Some(comparison) = meaning::guard_comparison(program, machine.symbol, condition, &|operand| {
+        crate::proof_contracts::bound_expression_meaning::operand_type(
+            program, machine, state, operand,
+        )
+    }) else {
         return;
     };
     narrow_environment_by_comparison(

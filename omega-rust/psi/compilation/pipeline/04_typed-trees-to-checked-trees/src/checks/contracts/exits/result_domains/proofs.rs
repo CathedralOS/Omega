@@ -173,7 +173,9 @@ pub(super) fn establishes_scalar_predicates(
                     .iter()
                     .find(|index| index.symbol == path.symbol)
                     .map(|index| index.value.clone())
-            }) == Some(super::super::super::prover::ScalarValue::Boolean(true))
+            },
+            &|_, _| true
+        ) == Some(super::super::super::prover::ScalarValue::Boolean(true))
             {
                 return true;
             }
@@ -504,7 +506,9 @@ impl ScalarReturnProof<'_> {
                     .map(|context| self.facts.semantic.contexts.get(*context)),
                 &subject,
             )
-        })
+        },
+            &|_, _| true
+        )
     }
 }
 

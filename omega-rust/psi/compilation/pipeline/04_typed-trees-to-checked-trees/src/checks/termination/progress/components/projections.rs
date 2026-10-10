@@ -3,7 +3,7 @@
 use super::super::CheckedProgressSummary;
 use crate::checks::termination::progress::fact_subjects::fact_subject;
 use crate::checks::termination::progress::machine_summaries::{
-    call_argument_subject_with_parameters, selected_call_summary,
+    call_argument_subject, selected_call_summary,
 };
 use checked_trees::FlowFacts;
 use language_semantics::TerminationGuarantee;
@@ -71,7 +71,7 @@ pub(super) fn finite_projection_limit(
                     validation::call_target_parameters(program, call.target_symbol)
                 {
                     for parameter in parameters {
-                        if let Some(subject) = call_argument_subject_with_parameters(
+                        if let Some(subject) = call_argument_subject(
                             program,
                             machine,
                             state,

@@ -218,20 +218,8 @@ pub fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
     )
 }
 
-pub(crate) fn validate_machine_contract_entailment(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    validate_machine_contract_entailment_with_outcomes(
-        program,
-        machine,
-        diagnostics,
-        &mut Vec::new(),
-    );
-}
 
-pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
+pub(crate) fn validate_machine_contract_entailment<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     diagnostics: &mut Vec<Diagnostic>,

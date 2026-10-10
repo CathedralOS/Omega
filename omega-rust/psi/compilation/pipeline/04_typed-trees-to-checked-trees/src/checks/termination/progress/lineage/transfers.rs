@@ -2,7 +2,7 @@
 
 use super::{FlowFacts, ProgressSubject};
 use crate::checks::termination::progress::machine_summaries::{
-    call_argument_subject_with_parameters, local_state_transition_target,
+    call_argument_subject, local_state_transition_target,
 };
 
 pub(super) struct ParameterTransfer {
@@ -36,7 +36,7 @@ pub(super) fn collect(
             }) {
                 transfers.push(ParameterTransfer {
                     destination: destination.clone(),
-                    source: call_argument_subject_with_parameters(
+                    source: call_argument_subject(
                         program,
                         machine,
                         state,

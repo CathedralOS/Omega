@@ -36,7 +36,20 @@ pub(crate) fn float_source_proves_integer_conversion(
     value: ExpressionHandle,
     target: PrimitiveType,
 ) -> bool {
-    float_source_bounds(program, machine, state, environment, value).is_some_and(|bounds| {
+    float_source_bounds(
+            program,
+            environment,
+            value,
+            &|value| {
+        state
+            .and_then(|state| {
+                crate::value_custody::expression_types::expression_result_type_reference(
+                    program, machine, state, value,
+                )
+            })
+            .or_else(|| declared_place_type_raw(program, machine, state, value))
+    }
+        ).is_some_and(|bounds| {
         bounds.minimum.is_finite()
             && bounds.maximum.is_finite()
             && float_interval_fits_integer(bounds.minimum.trunc(), bounds.maximum.trunc(), target)
@@ -75,28 +88,11 @@ impl FloatSourceBounds {
     }
 }
 
-pub(crate) fn float_source_bounds(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    environment: &ValueEnvironment,
-    value: ExpressionHandle,
-) -> Option<FloatSourceBounds> {
-    float_source_bounds_with_result_type(program, environment, value, &|value| {
-        state
-            .and_then(|state| {
-                crate::value_custody::expression_types::expression_result_type_reference(
-                    program, machine, state, value,
-                )
-            })
-            .or_else(|| declared_place_type_raw(program, machine, state, value))
-    })
-}
 
 /// The same source enclosure query for a declaration telescope without an
 /// executable state. The callback supplies selected result types only; live
 /// facts, literals and sealed format conversions keep their ordinary owner.
-pub(crate) fn float_source_bounds_with_result_type(
+pub(crate) fn float_source_bounds(
     program: &dyn crate::CheckingInput,
     environment: &ValueEnvironment,
     value: ExpressionHandle,
@@ -168,7 +164,7 @@ fn selected_numeric_conversion_bounds(
             high: Some(maximum.to_f64()),
         });
     }
-    let bounds = float_source_bounds_with_result_type(program, environment, *operand, result_type)?;
+    let bounds = float_source_bounds(program, environment, *operand, result_type)?;
     if bounds.primitive != source {
         return None;
     }

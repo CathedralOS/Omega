@@ -170,6 +170,7 @@ impl ContractExpressionEvaluator<'_, '_> {
                 self.boolean_value_in_owner(resolved, resolved_owner)
                     .map(crate::checks::contracts::prover::ScalarValue::Boolean)
             },
+            &|_, _| true
         )?;
         let crate::checks::contracts::prover::ScalarValue::Boolean(value) = value else {
             return None;

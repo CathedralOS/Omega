@@ -16,7 +16,13 @@ pub(in crate::checks::contracts) fn closed_boolean_value(
     if !has_builtin_operators(program, operators, expression) {
         return None;
     }
-    let ScalarValue::Boolean(value) = evaluate(program, expression, &mut |_| None)? else {
+    let ScalarValue::Boolean(value) = evaluate(
+            program,
+            expression,
+            &mut |_| None,
+            &|_,
+            _| true
+        )? else {
         return None;
     };
     Some(value)
@@ -45,18 +51,11 @@ pub(in crate::checks::contracts) fn has_builtin_operators(
     }
 }
 
-pub(in crate::checks::contracts) fn evaluate(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-    resolve_leaf: &mut impl FnMut(ExpressionHandle) -> Option<ScalarValue>,
-) -> Option<ScalarValue> {
-    evaluate_with_comparisons(program, expression, resolve_leaf, &|_, _| true)
-}
 
 /// Comparison meaning is supplied by the consumer independently of leaf
 /// values. In particular, the domain prover has no selected-operator evidence
 /// for Boolean equality merely because both operands have Boolean values.
-pub(super) fn evaluate_with_comparisons(
+pub(in crate::checks::contracts) fn evaluate(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     resolve_leaf: &mut impl FnMut(ExpressionHandle) -> Option<ScalarValue>,

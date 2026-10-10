@@ -55,34 +55,6 @@ pub struct StructuralScalarField {
     pub domain: ArithmeticDomain,
 }
 
-/// Resolve a field path below established storage or a fresh receiver value.
-/// Established storage is observed here, never equated with its initializer: member
-/// writes need not rebind the local, so absence of `mut` does not freeze fields.
-/// The caller must bind the expression to this authored statement's evaluation
-/// graph. Open generic owners, erased fields and scalar qualifications
-/// without a complete supported predicate require additional facts. Arithmetic
-/// policy changes operations, not storage: retain it alongside the observation.
-/// Restrictions stay on the independently reconstructed field declaration;
-/// construction and every store prove them. This query grants no membership:
-/// observing the established field reads its scalar carrier.
-pub fn structural_scalar_field(
-    program: &dyn crate::CheckingInput,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    statement_ordinal: u32,
-    expression: ExpressionHandle,
-) -> Option<StructuralScalarField> {
-    structural_scalar_field_with_source(program, machine, state, expression, &[], |receiver| {
-        structural_source(
-            program,
-            machine,
-            state,
-            statement_ordinal,
-            expression,
-            receiver,
-        )
-    })
-}
 
 /// Resolve declaration-scoped observations under an explicit input telescope.
 /// This is the same field geometry query as an executable use-site read, but
@@ -96,7 +68,7 @@ pub fn structural_scalar_field_in_parameters(
     bindings: &[(SymbolHandle, ExpressionHandle)],
     expression: ExpressionHandle,
 ) -> Option<StructuralScalarField> {
-    structural_scalar_field_with_source(program, machine, state, expression, bindings, |receiver| {
+    structural_scalar_field(program, machine, state, expression, bindings, |receiver| {
         let name = program.expression_table.name_path_node(receiver)?;
         if !name.symbol.is_valid() || name.head_symbol != name.symbol {
             return None;
@@ -137,7 +109,7 @@ pub fn structural_scalar_field_in_parameters(
     })
 }
 
-fn structural_scalar_field_with_source(
+pub fn structural_scalar_field(
     program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -409,7 +381,7 @@ fn builtin_place_coordinates(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct StructuralSource {
+pub struct StructuralSource {
     pub root: facts::PlaceRoot,
     pub receiver_value: ExpressionHandle,
     pub statement_ordinal: u32,
@@ -638,7 +610,7 @@ fn dispatch_case_subject(
     None
 }
 
-fn structural_source(
+pub fn structural_source(
     program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
