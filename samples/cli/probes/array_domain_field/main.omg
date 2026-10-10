@@ -1,0 +1,45 @@
+// Byte-sequence domains on sized-array fields: `domain [u8; 8]::Utf8`
+// gives the array a whole-replacement + extent the plain `[u8; N]`
+// scalar array lacks. `main.label = "abc"` replaces the whole field
+// through the domain — extent 3 within capacity 8 — and
+// `main.label[0] = 66` writes one byte. Reads live one state after
+// the fill: the extent fact follows the edge.
+//
+//   * `domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes)` —
+//     compiler-recognized predicate on the array carrier.
+//   * Whole-replacement and indexed store both keep the domain.
+//   * `hits` records the reached arm.
+//
+// Compile-checked only: no standard-library dependency, no ProcessExit
+// provider.
+
+domain [u8; 8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+
+data Main {
+    label: [u8; 8] in Utf8;
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    transition { _ -> fill(main) }
+    state fill(main: &mut Main) {
+        main.label = "abc";
+        transition { _ -> stamp(main) }
+    }
+    state stamp(main: &mut Main) {
+        main.label[0] = 66;
+        transition { _ -> read(main) }
+    }
+    state read(main: &mut Main) {
+        transition main.label.len == 3 && main.label[0] == 66
+            && main.label[1] == 98 && main.label[2] == 99 {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
