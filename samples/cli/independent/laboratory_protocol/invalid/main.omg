@@ -1,0 +1,14 @@
+// Complete intended-invalid application: a runtime owner cannot bypass a
+// statically declared lease precondition. This rejection is independent of
+// invalid stdin, which the valid interpreter handles without compilation errors.
+data Main { }
+data Lease { owner: i32; }
+machine release(lease: &mut Lease, actor: i32)
+requires lease.owner == actor
+{
+    lease.owner = 0;
+}
+machine Main::main(main: &mut Main) {
+    let mut lease: Lease = Lease { owner: 1 };
+    release(&mut lease, 2);
+}
