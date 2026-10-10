@@ -223,9 +223,15 @@ fn initializer_transfer(
     let destination = statements.get(ordinal)?.as_local_data()?;
     let plans = &facts.values.structural_values;
     let root = plans.root_at(state, u32::try_from(ordinal).ok()?)?;
+    // root_at already selects the statement's unique structural root, so the
+    // authored occurrence it carries is necessarily this local's initializer
+    // construction; replaying the prepared initializer handle would reject
+    // specialized destinations. Type correspondence is joined by normalized
+    // identity, the way the provenance walk joins origins.
     if root.machine != machine
-        || root.expression != destination.initial_value
-        || root.type_reference != destination.type_reference
+        || (root.type_reference != destination.type_reference
+            && program.normalized_type_identity(root.type_reference)
+                != program.normalized_type_identity(destination.type_reference))
     {
         return None;
     }
