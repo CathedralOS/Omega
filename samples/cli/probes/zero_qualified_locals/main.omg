@@ -1,0 +1,39 @@
+// Carrier-valid zero needs no grant for route- and
+// predicate-free domain aliases: an uninitialized
+// `Counter in ReadyAlias` local is established at zero.
+// Floating range endpoints are IEEE values, not integer
+// bounds — `f32[0.0..0.5]` zero-initializes too.
+//
+//   * `domain Counter::ReadyAlias = Ready` member alias.
+//   * `let zero_ratio: ZeroRatio;` + `ZeroRatio {}` elided.
+//   * `zero_value<Choice<T>>() in Choice::Empty` — unused
+//     generic payload in another case can't invalidate the
+//     home case.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+data Counter [copy] { code: i32; }
+domain Counter::Ready;
+domain Counter::ReadyAlias = Ready;
+
+data ZeroRatio [copy] { value: f32[0.0..0.5]; }
+
+data Choice<T> {
+    case #0 Empty;
+    case #1 Value(value: T);
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine zero_is_empty<T>() ensures zero_value<Choice<T>>() in Choice::Empty { }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 1;
+    let counter: Counter in Counter::ReadyAlias;
+    let observed: i32 = counter.code;
+    let zero_ratio: ZeroRatio;
+    let ratio: f32 = zero_ratio.value;
+    let omitted: ZeroRatio = ZeroRatio {};
+    let choice: Choice<u64>;
+}
