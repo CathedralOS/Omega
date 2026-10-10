@@ -15,10 +15,20 @@ pub(super) fn project_observed_value(
     path: &[PlaceSegment],
 ) -> Option<StructuralTerm> {
     for segment in path {
-        if crate::reference_shell(program, reference).is_some()
-            && !super::structural_terms::scalar_operand_is_observed(program, reference, &value)
-        {
-            return None;
+        let mut crossing = reference;
+        let mut crossed = Vec::new();
+        while let Some(shell) = crate::reference_shell(program, crossing) {
+            if crossed.contains(&crossing) {
+                return None;
+            }
+            crossed.push(crossing);
+            if !shell.access.is_readable()
+                || !super::structural_terms::scalar_operand_is_observed(program, crossing, &value)
+                || shell.referee == crossing
+            {
+                return None;
+            }
+            crossing = shell.referee;
         }
         let projected = crate::value_custody::places::project_type_reference_from_segments(
             program,
@@ -37,7 +47,13 @@ pub(super) fn project_observed_value(
                 let StructuralTerm::Constructor { case, .. } = value.semantic_value() else {
                     return None;
                 };
-                if case.as_str() != program.symbols.name(*variant) {
+                let (owner, _) = program.variant_owner(*variant)?;
+                let carrier =
+                    crate::value_custody::places::unwrapped_type_reference(program, reference)?;
+                if crate::value_custody::type_shapes::head_data_symbol(program, carrier)
+                    != Some(owner.symbol)
+                    || case.as_str() != program.symbols.name(*variant)
+                {
                     return None;
                 }
             }

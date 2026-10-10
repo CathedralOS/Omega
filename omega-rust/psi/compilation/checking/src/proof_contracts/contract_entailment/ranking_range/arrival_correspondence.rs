@@ -369,12 +369,24 @@ fn completed_coordinates(
                 }
                 return Some(completed);
             }
-            let place = crate::canonical_place_from_expression_in_state(
+            let Some(place) = crate::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 statement_index,
                 expression,
-            )?;
+            ) else {
+                // A projected completed value need not denote caller storage.
+                // It uses the same normal-result owner as every other producer.
+                return completed_projected_coordinates(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    expression,
+                    source,
+                    depth,
+                );
+            };
             let symbol = place.root.as_symbol()?;
             // A selector expression denotes its value at this completion,
             // not at every later observation of the same path. Until the
