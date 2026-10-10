@@ -367,6 +367,53 @@ pub fn runtime_structural_path_tip<'a>(
     }
 }
 
+/// Enumerate the stored descriptor paths required by a runtime projection.
+/// Declared fixed extents determine coverage; missing live custody rows cannot
+/// shrink it. The caller's finite roster bounds expansion before allocation.
+/// These paths check custody only. They never select the emitted address.
+pub fn stored_descriptor_paths<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    maximum: usize,
+) -> Option<Vec<Vec<StructuralPathSegment>>> {
+    if maximum == 0 {
+        return None;
+    }
+    runtime_structural_path_tip(declarations.clone(), root, path)?;
+    let mut candidates = vec![Vec::new()];
+    for (position, segment) in path.iter().enumerate() {
+        if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
+            let current =
+                runtime_structural_path_tip(declarations.clone(), root, &path[..position])?;
+            let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = current.shape else {
+                return None;
+            };
+            let length = usize::try_from(length).ok()?;
+            let count = candidates.len().checked_mul(length)?;
+            if count == 0 || count > maximum {
+                return None;
+            }
+            let mut expanded = Vec::with_capacity(count);
+            for candidate in candidates {
+                for index in 0..length {
+                    let mut selected = candidate.clone();
+                    selected.push(StructuralPathSegment::FixedIndex(
+                        u64::try_from(index).ok()?,
+                    ));
+                    expanded.push(selected);
+                }
+            }
+            candidates = expanded;
+        } else {
+            for candidate in &mut candidates {
+                candidate.push(segment.clone());
+            }
+        }
+    }
+    Some(candidates)
+}
+
 /// The tip of a primitive projection: a declared structural type, or a byte
 /// carrier's element — the u8 scalar that rides no declared identity.
 enum ProjectionTip<'a> {

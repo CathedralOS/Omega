@@ -16,8 +16,12 @@ pass/atomics/runtime_atomic_bitwise_widths_exit built 5472ms exit:70 interpreter
 pass/atomics/shared_receiver_atomic_store built 5511ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/borrows/mut_loan_local_write_through_exit built 4818ms exit:9 interpreter-exit:9 interpreter:agrees @944fb1232f17
 pass/borrows/runtime_array_primitive_reference_capture_exit built 5953ms exit:0 interpreter-exit:0 interpreter:agrees @3f342b86d6b4
+pass/borrows/runtime_indexed_reference_call_regions built 4998ms exit:0 interpreter-exit:0 interpreter:agrees @ceb70d0df240+wt
+pass/borrows/runtime_indexed_scalar_descriptor_call built 4854ms exit:0 interpreter-exit:0 interpreter:agrees @ceb70d0df240+wt
+pass/borrows/runtime_indexed_stored_reference_call built 4968ms exit:0 interpreter-exit:0 interpreter:agrees @ceb70d0df240+wt
 pass/borrows/runtime_mutable_primitive_reference_exit built 6934ms exit:0 interpreter-exit:0 interpreter:agrees @944fb1232f17
 pass/borrows/runtime_record_primitive_reference_capture_exit built 5943ms exit:0 interpreter-exit:0 interpreter:agrees @3f342b86d6b4
+pass/borrows/static_record_reference_return_exit built 4895ms exit:0 interpreter-exit:0 interpreter:agrees @ceb70d0df240+wt
 pass/collections/runtime_computed_borrow_selector_join_exit built 4309ms exit:0 interpreter-exit:0 interpreter:agrees @a4b3d5fb0060+wt
 pass/collections/runtime_computed_borrow_selector_once_exit built 4264ms exit:0 interpreter-exit:0 interpreter:agrees @a4b3d5fb0060+wt
 pass/collections/runtime_computed_borrow_selector_order_exit built 4337ms exit:0 interpreter-exit:0 interpreter:agrees @a4b3d5fb0060+wt

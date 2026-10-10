@@ -8,8 +8,8 @@ use super::{
     shared_source_compatible, source_contract,
 };
 
-/// Calls keep their static structural endpoint grammar. Scalar observations
-/// have their own endpoint operation and use the same custody walk below.
+/// Calls and scalar observations use the same bounded descriptor custody walk.
+/// Their endpoint operation independently selects the admitted leaf geometry.
 pub(super) fn call_reference_custody(
     function: &AbstractFunction,
     live: &LiveDefinitions,
@@ -223,42 +223,9 @@ fn descriptor_candidates(
     path: &[StructuralPathSegment],
     maximum: usize,
 ) -> Option<Vec<Vec<StructuralPathSegment>>> {
-    if maximum == 0 {
-        return None;
-    }
-    let mut candidates = vec![Vec::new()];
     let path = abstract_operations::values::resolve_constant_runtime_indexes(
         function.operations.iter(),
         path,
     );
-    leaf_type(types, root, &path)?;
-    for (position, segment) in path.iter().enumerate() {
-        if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
-            let current = leaf_type(types, root, &path[..position])?;
-            let StructuralTypeShape::FixedArray { length, .. } = types.get(&current)?.shape else {
-                return None;
-            };
-            let length = usize::try_from(length).ok()?;
-            let count = candidates.len().checked_mul(length)?;
-            if count == 0 || count > maximum {
-                return None;
-            }
-            let mut expanded = Vec::with_capacity(count);
-            for candidate in candidates {
-                for element_index in 0..length {
-                    let mut selected = candidate.clone();
-                    selected.push(StructuralPathSegment::FixedIndex(
-                        u64::try_from(element_index).ok()?,
-                    ));
-                    expanded.push(selected);
-                }
-            }
-            candidates = expanded;
-        } else {
-            for candidate in &mut candidates {
-                candidate.push(segment.clone());
-            }
-        }
-    }
-    Some(candidates)
+    terminal_semantics::stored_descriptor_paths(types.values().copied(), root, &path, maximum)
 }

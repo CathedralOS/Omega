@@ -277,50 +277,50 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
     place: semantic_vocabulary::PlaceId,
     address: &crate::selection::reference_input::BorrowedReferenceAddress,
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
-    // Keep ordinary call ownership/provenance admission before loading payload.
-    let mut pointer = super::place_pointer(builder, row, place, 0)?;
-    let descriptor_count = address.descriptor_offsets.len();
-    for (position, offset) in address.descriptor_offsets.iter().copied().enumerate() {
-        let home = transport_register(builder, place, offset)?;
-        builder.emit(
-            if offset == 0 {
-                SelectedInstructionKind::CopyI64
-            } else {
-                SelectedInstructionKind::AddressOffset {
-                    byte_offset: offset,
-                }
-            },
-            if offset == 0 {
-                builder.constraints.keys.copy_i64
-            } else {
-                builder.constraints.keys.address_offset.ok_or(invalid())?
-            },
-            &[pointer, home],
-            provenance(row),
-        )?;
-        if address.scalar_descriptor && position + 1 == descriptor_count {
-            if address.referent_offset != 0 {
-                return Err(invalid());
-            }
-            return Ok(home);
+    // The captured selectors stay in their original regions around pointer
+    // loads. Scalar endpoints transport the descriptor home (address + codec),
+    // while aggregate crossings load the stored address word.
+    let pointer = super::place_pointer(builder, row, place, 0)?;
+    let (slots, scalar_slot) = match address.pointer_slots.split_last() {
+        Some((last, preceding)) if last.scalar_descriptor => (preceding, Some(last)),
+        _ => (address.pointer_slots.as_slice(), None),
+    };
+    let (pointer, leaf_index) = super::runtime_address::cross_references(
+        builder,
+        row,
+        place,
+        pointer,
+        &address.indices,
+        slots,
+    )?;
+    let (pointer, offset) = if let Some(slot) = scalar_slot {
+        if address.referent_offset != 0 || slot.indices.end != address.indices.len() {
+            return Err(invalid());
         }
-        pointer = transport_register(builder, place, offset)?;
-        memory(
-            builder,
-            row,
-            place,
-            offset,
-            8,
-            SelectedMemoryAccessRole::ReadPlace,
-        )?;
-        builder.emit(
-            SelectedInstructionKind::Load64 { byte_offset: 0 },
-            builder.constraints.keys.load64.ok_or(invalid())?,
-            &[home, pointer],
-            provenance(row),
-        )?;
-    }
-    let offset = address.referent_offset;
+        (
+            super::runtime_address::scale(
+                builder,
+                row,
+                place,
+                slot.byte_offset,
+                pointer,
+                address.indices.get(slot.indices.clone()).ok_or(invalid())?,
+            )?,
+            slot.byte_offset,
+        )
+    } else {
+        (
+            super::runtime_address::scale(
+                builder,
+                row,
+                place,
+                address.referent_offset,
+                pointer,
+                address.indices.get(leaf_index..).ok_or(invalid())?,
+            )?,
+            address.referent_offset,
+        )
+    };
     let output = transport_register(builder, place, offset)?;
     builder.emit(
         if offset == 0 {

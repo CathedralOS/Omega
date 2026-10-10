@@ -50,9 +50,6 @@ pub(in crate::legalization) fn argument_at(
         .iter()
         .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
     {
-        let target_caller = native
-            .function(caller.machine)
-            .ok_or(LegalizationError::custody())?;
         return super::reference_custody::referent_argument(
             semantic,
             destination_parameter,
@@ -60,7 +57,8 @@ pub(in crate::legalization) fn argument_at(
                 .get(parameter_ordinal)
                 .ok_or(LegalizationError::custody())?,
             caller,
-            target_caller,
+            native,
+            call_operation,
             custody,
             &plan.structural_types,
         );

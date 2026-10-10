@@ -312,13 +312,17 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     )
                 };
                 if argument.path.contains(&StructuralPathSegment::Referent) {
-                    reference_referent_projection(
+                    let (selected, shape, offset, indices) = reference_referent_projection(
                         source_structural_type,
                         &argument.path,
                         argument.access,
                         structural_types,
                     )
-                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
+                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+                    if !indices.is_empty() {
+                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    }
+                    (selected, shape, offset)
                 } else if argument.path.is_empty() {
                     if descriptor_root(source_structural_type) {
                         (

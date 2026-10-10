@@ -4020,6 +4020,13 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   range spelling with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. Declared receiver
   custody stays independent of field observations and state count.
 
+  Keep runtime-selected stored-reference calls on the same bounded descriptor
+  roster as direct observations. `borrows/runtime_indexed_stored_reference_call`,
+  `borrows/runtime_indexed_scalar_descriptor_call` and
+  `borrows/runtime_indexed_reference_call_regions` retain selected and neighboring
+  caller values, scalar codecs and selectors on both sides of pointer crossings.
+  Missing bounds and writable access through a shared carrier remain refused.
+
   Controls (keep passing): `calls/unread_multistate_receiver_exit` (native exit
   70 on macOS, Linux x86-64 and Windows without a dummy read),
   `borrows/returned_record_field_read_exit` (70) and

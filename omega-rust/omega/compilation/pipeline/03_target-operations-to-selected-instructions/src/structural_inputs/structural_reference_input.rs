@@ -1,6 +1,10 @@
 //! Input-only reconstruction of structural storage and borrowed-pointer geometry.
 //! Whole owned aggregates and borrowed referents share recursive payload layout;
 //! their callers independently check access, ownership and exact ABI placement.
+//! Reference formation and calls retain selectors in ordered pointer regions.
+//! A flattened selector roster authenticates bounds but cannot be reapplied
+//! after the loads: that would index different storage. Scalar crossings retain
+//! their address-and-codec descriptor, while aggregate crossings load a pointer.
 use calling_conventions::{
     IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
@@ -202,13 +206,27 @@ fn reference_source_geometry_with_leaf_shape(
     declarations: &[StructuralTypeDeclaration],
     leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Option<ReferenceSourceGeometry> {
+    reference_geometry(root, path, declarations, leaf_shape, |root, path| {
+        runtime_projection_with_leaf_shape(root, path, declarations, leaf_shape)
+    })
+}
+
+/// Formation and call preparation share the independently bounded pointer
+/// regions. Only the final leaf contract differs: a scalar call carries its
+/// address and codec descriptor rather than loading the scalar value.
+fn reference_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    endpoint: impl Fn(
+        StructuralTypeId,
+        &[StructuralPathSegment],
+    ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)>,
+) -> Option<ReferenceSourceGeometry> {
     let regions = storage_projection_regions(root, path, declarations, leaf_shape)?;
-    let (selected, byte_offset, leaf_elements) = runtime_projection_with_leaf_shape(
-        regions.root,
-        &path[regions.segment_start..],
-        declarations,
-        leaf_shape,
-    )?;
+    let (selected, byte_offset, leaf_elements) =
+        endpoint(regions.root, &path[regions.segment_start..])?;
     let mut elements = regions.elements;
     elements.extend(leaf_elements);
     Some(ReferenceSourceGeometry {
@@ -1600,7 +1618,8 @@ pub(crate) fn case_layout(
 /// storage reached by the preceding pointer load, not the original home.
 pub(crate) struct ReferenceProjection {
     pub(crate) selected: StructuralTypeId,
-    pub(crate) descriptor_offsets: Vec<u32>,
+    pub(crate) pointer_slots: Vec<PointerSlot>,
+    pub(crate) elements: Vec<RuntimeElement>,
     pub(crate) referent_offset: u32,
     /// The final crossing reaches a scalar descriptor, not aggregate backing.
     pub(crate) scalar_descriptor: bool,
@@ -1616,19 +1635,21 @@ pub(crate) fn reference_projection(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ReferenceProjection> {
     use terminal_psi::StructuralAccess;
-    // Each region is resolved by the ordinary static storage projection below.
+    // Each region is resolved by the ordinary runtime storage projection below.
     // A second path grammar would discard case namespaces before that owner
     // can join the selected payload to its actual descriptor offset.
     if access == StructuralAccess::Owned {
         return None;
     }
-    let mut descriptor_offsets = Vec::new();
+    let initial_root = root;
+    let initial_path = path;
+    let mut crossings = 0;
     let mut scalar_descriptor = false;
     while let Some(crossing) = path
         .iter()
         .position(|segment| *segment == StructuralPathSegment::Referent)
     {
-        let (carrier, offset) = project(root, &path[..crossing], declarations)?;
+        let (carrier, _, _) = runtime_projection(root, &path[..crossing], declarations)?;
         let StructuralTypeShape::Reference {
             referent,
             access: granted,
@@ -1650,19 +1671,26 @@ pub(crate) fn reference_projection(
         {
             return None;
         }
-        descriptor_offsets.push(offset);
+        crossings += 1;
         scalar_descriptor = scalar_storage_type(referent, declarations).is_some();
         root = referent;
         path = &path[crossing + 1..];
     }
-    if descriptor_offsets.is_empty() {
+    if crossings == 0 {
         return None;
     }
-    let (selected, referent_offset) = borrowed_projection(root, path, access, declarations)?;
+    let geometry = reference_geometry(
+        initial_root,
+        initial_path,
+        declarations,
+        StructuralFieldType::canonical_leaf_shape,
+        |root, path| runtime_borrowed_projection(root, path, access, declarations),
+    )?;
     Some(ReferenceProjection {
-        selected,
-        descriptor_offsets,
-        referent_offset,
+        selected: geometry.selected,
+        pointer_slots: geometry.pointer_slots,
+        elements: geometry.elements,
+        referent_offset: geometry.byte_offset,
         scalar_descriptor,
     })
 }
@@ -1678,18 +1706,6 @@ pub(crate) fn project(
         declarations,
         StructuralFieldType::canonical_leaf_shape,
     )
-}
-
-/// Borrowing retains the original place and its restrictions. Only a shared
-/// endpoint may expose a restricted scalar's carrier for observation; writable
-/// and owned projections still require an ordinary canonical leaf.
-fn borrowed_projection(
-    root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    access: terminal_psi::StructuralAccess,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<(StructuralTypeId, u32)> {
-    project_with_leaf_shape(root, path, declarations, borrowed_leaf_shape(access))
 }
 
 fn borrowed_leaf_shape(

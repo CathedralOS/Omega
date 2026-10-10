@@ -2314,25 +2314,12 @@ pub(in crate::legalization) fn referent_argument(
     declaration: &terminal_psi::StructuralParameterDeclaration,
     destination: &calling_conventions::ValuePlacement,
     caller: &PsiOptimizationFunction,
-    target_caller: &super::TargetFunction,
+    native: &target_operations::TargetOperationPlan,
+    call_operation: semantic_vocabulary::OperationId,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let crossing = argument
-        .path
-        .iter()
-        .position(|segment| matches!(segment, StructuralPathSegment::Referent))
-        .ok_or(invalid())?;
-    if argument.path.iter().enumerate().any(|(position, segment)| {
-        position != crossing
-            && !matches!(
-                segment,
-                StructuralPathSegment::Case(_)
-                    | StructuralPathSegment::Field(_)
-                    | StructuralPathSegment::FixedIndex(_)
-                    | StructuralPathSegment::Referent
-            )
-    }) || argument.access == StructuralAccess::Owned
+    if argument.access == StructuralAccess::Owned
         || argument.access != declaration.access
         || declaration.multiplicity != StructuralMultiplicity::Unrestricted
         || !declaration.qualifications.is_empty()
@@ -2340,34 +2327,8 @@ pub(in crate::legalization) fn referent_argument(
     {
         return Err(invalid());
     }
-    let carrier_path = &argument.path[..crossing];
-    let leaf = custody
-        .leaf(argument.place, carrier_path)
-        .ok_or(invalid())?;
-    if custody
-        .leaves
-        .values()
-        .any(|child| child.parents.contains(&leaf.identity))
-    {
-        return Err(invalid());
-    }
+    call_paths::call_reference_custody(caller, custody, types, argument)?;
     let root_type = source_contract(caller, custody, argument.place).ok_or(invalid())?;
-    let (reference_type, _) = crate::structural_inputs::structural_reference_input::project(
-        root_type,
-        carrier_path,
-        types,
-    )
-    .ok_or(invalid())?;
-    let StructuralTypeShape::Reference { referent, access } =
-        find_structural_type(types, reference_type)
-            .ok_or(invalid())?
-            .shape
-    else {
-        return Err(invalid());
-    };
-    // Transport borrows the captured referent without changing its authority.
-    // Write-only descriptors can supply write-only access, never observations.
-    let allowed = access != StructuralAccess::Owned && access_covers(access, argument.access);
     let projection = crate::structural_inputs::structural_reference_input::reference_projection(
         root_type,
         &argument.path,
@@ -2377,9 +2338,7 @@ pub(in crate::legalization) fn referent_argument(
     .ok_or(invalid())?;
     let selected = projection.selected;
     let source_byte_offset = projection.referent_offset;
-    if !allowed
-        || leaf.referent != referent
-        || selected != declaration.structural_type
+    if selected != declaration.structural_type
         || Some(destination.shape)
             != crate::structural_inputs::structural_reference_input::parameter_shape(
                 declaration,
@@ -2388,6 +2347,7 @@ pub(in crate::legalization) fn referent_argument(
     {
         return Err(invalid());
     }
+    let target_caller = native.function(caller.machine).ok_or(invalid())?;
     let source = if let Some(parameter) = caller.structural_parameter(argument.place) {
         let retained = super::structural_parameters(target_caller)
             .and_then(|parameters| {
@@ -2443,7 +2403,12 @@ pub(in crate::legalization) fn referent_argument(
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
-        indices: Vec::new(),
+        indices: super::target::control_flow::sources::call_indices(
+            native,
+            caller,
+            call_operation,
+            &projection.elements,
+        )?,
         source,
         destination: destination.clone(),
     })

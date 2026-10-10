@@ -77,84 +77,94 @@ pub(super) fn call_reference_custody(
         let mut next_cursors = Vec::new();
         for (place, mut path, ancestors) in cursors {
             path.extend_from_slice(prefix);
-            if source_contract(function, custody, place)
-                .and_then(|contract| leaf_type(types, contract, &path))
-                != Some(reference_type)
-            {
-                return Err(invalid());
-            }
-            let leaf = custody
-                .leaves
-                .get(&(place, path.clone()))
-                .ok_or(invalid())?;
-            if leaf.referent != referent
-                || custody.leaves.iter().any(|((carrier, path), child)| {
-                    child.parents.contains(&leaf.identity)
-                        && !shared_source_compatible(
-                            function,
-                            custody,
-                            types,
-                            carrier,
-                            path,
-                            argument.access,
-                        )
-                })
-            {
-                return Err(invalid());
-            }
-            // A descriptor is stored data too. Direct access cannot bypass
-            // a live enclosing loan; traversing that exact ancestor is the
-            // only non-shared exemption, retained separately on each cursor.
-            if custody
-                .leaves
-                .iter()
-                .any(|((carrier, carrier_path), enclosing)| {
-                    !ancestors.contains(&enclosing.identity)
-                        && !shared_source_compatible(
-                            function,
-                            custody,
-                            types,
-                            carrier,
-                            carrier_path,
-                            argument.access,
-                        )
-                        && enclosing.root.origins().iter().any(|origin| {
-                            let origin_path = &origin.path;
-                            let origin_place = origin.root;
-                            origin_place == place
-                                && source_contract(function, custody, origin_place)
-                                    .and_then(|contract| leaf_type(types, contract, origin_path))
-                                    == Some(enclosing.referent)
-                                && terminal_semantics::structural_paths_may_overlap(
-                                    origin_path,
-                                    &path,
-                                )
-                        })
-                })
-            {
-                return Err(invalid());
-            }
-            dependencies.push(Root::Ingress(place, path));
-            origins.push(leaf.root.clone());
-            if further_crossing {
-                dependencies.push(leaf.root.clone());
-                let mut ancestors = ancestors;
-                ancestors.push(leaf.identity.clone());
-                for origin in leaf.root.origins() {
-                    let place = origin.root;
-                    let path = origin.path;
-                    if source_contract(function, custody, place)
-                        .and_then(|contract| leaf_type(types, contract, &path))
-                        != Some(referent)
-                    {
-                        return Err(invalid());
-                    }
-                    let cursor = (place, path, ancestors.clone());
-                    if !next_cursors.contains(&cursor) {
-                        if next_cursors.len() >= cursor_budget {
+            let root = source_contract(function, custody, place).ok_or(invalid())?;
+            let candidates = terminal_semantics::stored_descriptor_paths(
+                types.iter(),
+                root,
+                &path,
+                custody.leaves.len(),
+            )
+            .ok_or(invalid())?;
+            for path in candidates {
+                if source_contract(function, custody, place)
+                    .and_then(|contract| leaf_type(types, contract, &path))
+                    != Some(reference_type)
+                {
+                    return Err(invalid());
+                }
+                let leaf = custody
+                    .leaves
+                    .get(&(place, path.clone()))
+                    .ok_or(invalid())?;
+                if leaf.referent != referent
+                    || custody.leaves.iter().any(|((carrier, path), child)| {
+                        child.parents.contains(&leaf.identity)
+                            && !shared_source_compatible(
+                                function,
+                                custody,
+                                types,
+                                carrier,
+                                path,
+                                argument.access,
+                            )
+                    })
+                {
+                    return Err(invalid());
+                }
+                // A descriptor is stored data too. Direct access cannot bypass
+                // a live enclosing loan; traversing that exact ancestor is the
+                // only non-shared exemption, retained separately on each cursor.
+                if custody
+                    .leaves
+                    .iter()
+                    .any(|((carrier, carrier_path), enclosing)| {
+                        !ancestors.contains(&enclosing.identity)
+                            && !shared_source_compatible(
+                                function,
+                                custody,
+                                types,
+                                carrier,
+                                carrier_path,
+                                argument.access,
+                            )
+                            && enclosing.root.origins().iter().any(|origin| {
+                                let origin_path = &origin.path;
+                                let origin_place = origin.root;
+                                origin_place == place
+                                    && source_contract(function, custody, origin_place).and_then(
+                                        |contract| leaf_type(types, contract, origin_path),
+                                    ) == Some(enclosing.referent)
+                                    && terminal_semantics::structural_paths_may_overlap(
+                                        origin_path,
+                                        &path,
+                                    )
+                            })
+                    })
+                {
+                    return Err(invalid());
+                }
+                dependencies.push(Root::Ingress(place, path));
+                origins.push(leaf.root.clone());
+                if further_crossing {
+                    dependencies.push(leaf.root.clone());
+                    let mut ancestors = ancestors.clone();
+                    ancestors.push(leaf.identity.clone());
+                    for origin in leaf.root.origins() {
+                        let place = origin.root;
+                        let path = origin.path;
+                        if source_contract(function, custody, place)
+                            .and_then(|contract| leaf_type(types, contract, &path))
+                            != Some(referent)
+                        {
                             return Err(invalid());
                         }
-                        next_cursors.push(cursor);
+                        let cursor = (place, path, ancestors.clone());
+                        if !next_cursors.contains(&cursor) {
+                            if next_cursors.len() >= cursor_budget {
+                                return Err(invalid());
+                            }
+                            next_cursors.push(cursor);
+                        }
                     }
                 }
             }

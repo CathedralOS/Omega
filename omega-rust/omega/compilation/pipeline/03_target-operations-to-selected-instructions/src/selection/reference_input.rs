@@ -325,6 +325,7 @@ pub(super) fn borrowed_argument(
     function: &LegalizedScalarFunction,
     argument: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Option<BorrowedReferenceAddress> {
     let root = root_type(function, argument.place)?;
     let signature = function.structural.as_ref()?;
@@ -384,18 +385,24 @@ pub(super) fn borrowed_argument(
             } else {
                 ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
             }
-        && target.indices.is_empty()
+        && crate::structural_inputs::structural_reference_input::runtime_indices_match(
+            indices,
+            &projection.elements,
+        )
         && target.fixed_array_length.is_none()
         && target.element_stride.is_none())
     .then_some(BorrowedReferenceAddress {
-        descriptor_offsets: projection.descriptor_offsets,
+        pointer_slots: projection.pointer_slots,
+        indices: indices.to_vec(),
         referent_offset: offset,
         scalar_descriptor: projection.scalar_descriptor,
     })
 }
 
 pub(super) struct BorrowedReferenceAddress {
-    pub(super) descriptor_offsets: Vec<u32>,
+    pub(super) pointer_slots:
+        Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
+    pub(super) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
     pub(super) referent_offset: u32,
     pub(super) scalar_descriptor: bool,
 }

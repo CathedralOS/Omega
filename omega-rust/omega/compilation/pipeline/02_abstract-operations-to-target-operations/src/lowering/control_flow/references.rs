@@ -265,24 +265,6 @@ pub(super) fn reference_call_argument(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    let crossing = argument
-        .path
-        .iter()
-        .position(|segment| *segment == StructuralPathSegment::Referent)
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let prefix = &argument.path[..crossing];
-    let suffix = &argument.path[crossing + 1..];
-    if prefix.iter().chain(suffix).any(|segment| {
-        !matches!(
-            segment,
-            StructuralPathSegment::Case(_)
-                | StructuralPathSegment::Field(_)
-                | StructuralPathSegment::FixedIndex(_)
-                | StructuralPathSegment::Referent
-        )
-    }) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
     if argument.access == StructuralAccess::Owned
         || argument.access != declaration.access
         || declaration.multiplicity != StructuralMultiplicity::Unrestricted
@@ -291,17 +273,9 @@ pub(super) fn reference_call_argument(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let leaf = live
-        .references
-        .get(&(argument.place, prefix.to_vec()))
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    if live
-        .references
-        .values()
-        .any(|child| child.parents.contains(&leaf.identity))
-    {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
+    // Calls and direct observations authenticate the same complete descriptor
+    // roster. Runtime address selection remains in ordered storage geometry.
+    access_paths::call_reference_custody(function, live, types, argument)?;
     let (root_type, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
         if home.has_claims()
             || home.multiplicity() == StructuralMultiplicity::Linear
@@ -327,25 +301,18 @@ pub(super) fn reference_call_argument(
             parameter.placement.clone().into(),
         )
     };
-    let reference_type = leaf_type(types, root_type, prefix)
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let StructuralTypeShape::Reference { referent, .. } = types
-        .get(&reference_type)
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?
-        .shape
-    else {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    };
-    if referent != leaf.referent {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    let (selected, shape, offset) =
+    let (selected, shape, offset, runs) =
         crate::lowering::structural_layout::reference_referent_projection(
             root_type,
             &argument.path,
             argument.access,
             types,
         )?;
+    let indices = super::scalar_sources::runtime_indices(
+        runs,
+        function,
+        &super::scalar_sources::ScalarSources::from(live),
+    )?;
     if selected != declaration.structural_type
         || crate::lowering::structural_layout::internal_parameter_shape(
             selected,
@@ -366,7 +333,7 @@ pub(super) fn reference_call_argument(
         source_byte_offset: offset,
         fixed_array_length: None,
         element_stride: None,
-        indices: Vec::new(),
+        indices,
         source,
         destination: destination.placement.clone(),
     })

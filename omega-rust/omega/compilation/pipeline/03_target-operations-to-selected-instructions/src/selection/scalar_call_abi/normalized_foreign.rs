@@ -356,7 +356,7 @@ pub(crate) fn validate(
             .contains(&terminal_psi::StructuralPathSegment::Referent)
         {
             let address =
-                crate::selection::reference_input::borrowed_argument(source, &semantic, argument)
+                crate::selection::reference_input::borrowed_argument(source, &semantic, argument, &[])
                     .ok_or_else(invalid)?;
             // Foreign thin pointers cannot transport a runtime scalar
             // codec. An explicitly checked physical aggregate view carries

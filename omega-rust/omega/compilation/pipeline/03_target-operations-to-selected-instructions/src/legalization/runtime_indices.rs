@@ -100,14 +100,25 @@ pub(crate) fn projection(
     }) {
         return Ok(Vec::new());
     }
-    let (_, _, elements) =
+    let elements = if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
+        crate::structural_inputs::structural_reference_input::reference_projection(
+            root,
+            path,
+            access,
+            declarations,
+        )
+        .ok_or(LegalizationError::custody())?
+        .elements
+    } else {
         crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
             root,
             path,
             access,
             declarations,
         )
-        .ok_or(LegalizationError::custody())?;
+        .ok_or(LegalizationError::custody())?
+        .2
+    };
     operands(optimized, unit, operation, &elements)
 }
 

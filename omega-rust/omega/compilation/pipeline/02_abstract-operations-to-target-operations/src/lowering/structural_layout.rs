@@ -34,19 +34,29 @@ pub(super) struct PrimitiveProjection {
 /// relative to the last referent, never to a descriptor containing its pointer.
 /// Ordinary and foreign calls use the same geometry; call custody establishes
 /// liveness independently and the selected ABI determines pointer transport.
+#[allow(clippy::type_complexity)]
 pub(super) fn reference_referent_projection(
     mut root: StructuralTypeId,
     mut path: &[StructuralPathSegment],
     requested: StructuralAccess,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
+) -> Result<
+    (
+        StructuralTypeId,
+        ValueShape,
+        u32,
+        Vec<(semantic_vocabulary::ValueId, u32)>,
+    ),
+    LoweringError,
+> {
     let mut shapes = BTreeMap::new();
     let mut active = BTreeSet::new();
+    let mut runs = Vec::new();
     while let Some(crossing) = path
         .iter()
         .position(|segment| *segment == StructuralPathSegment::Referent)
     {
-        let (carrier, _, _) = resolve_structural_projection_path(
+        let (carrier, _, _, indices) = runtime_projection(
             root,
             &path[..crossing],
             declarations,
@@ -68,6 +78,7 @@ pub(super) fn reference_referent_projection(
         {
             return Err(LoweringError::UnsupportedStructuralReference(root));
         }
+        runs.extend(indices);
         root = *referent;
         path = &path[crossing + 1..];
         if *access == StructuralAccess::WriteOnlyBorrow
@@ -84,10 +95,8 @@ pub(super) fn reference_referent_projection(
         &mut shapes,
         &mut active,
     )?;
-    if !indices.is_empty() {
-        return Err(LoweringError::UnsupportedStructuralReference(root));
-    }
-    Ok((selected, shape, offset))
+    runs.extend(indices);
+    Ok((selected, shape, offset, runs))
 }
 
 /// Resolve a primitive address in path order. A reference declaration supplies

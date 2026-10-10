@@ -478,6 +478,8 @@ fail/borrows/returned_case_reference_live_source_write rejected 352ms expected @
 	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
 	cannot prove index `main.off` is within length 48 in Main::main::main
+fail/borrows/runtime_indexed_reference_missing_bound rejected 2429ms expected @ceb70d0df240+wt
+	cannot prove index `position` is within length 2 in inspect::entry
 fail/borrows/same_initializer_reference_live_source_move rejected 538ms expected @e477ee0294de+wt
 	statement 0 moves `main.inventory` while local borrow `bundle` is still active (borrowed at statement 0; its last use is at statement 1)
 fail/borrows/selected_primitive_reference_live_backing_write rejected 458ms expected @4a00cf9908d9+wt
@@ -511,6 +513,8 @@ fail/borrows/shared_observation_does_not_discharge_linear_owner rejected 881ms e
 	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/borrows/shared_record_byte_write_before_last_observation rejected 2344ms expected @81c668e34445+wt
 	statement 2 mutates `row.text` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/shared_reference_carrier_writable_call rejected 1751ms expected @ceb70d0df240+wt
+	mutable argument `messages` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/static_subject_delayed_loan rejected 372ms expected @cbe9ad8ebf41+wt
 	state `bump` receives `main` as mutable more than once
 fail/borrows/static_whole_record_field_overlap rejected 372ms expected @cbe9ad8ebf41+wt
@@ -2936,6 +2940,9 @@ pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms check-target:macos
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 1132ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_indexed_carrier_reference_read_exit checked 1126ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_indexed_reference_array_bounded_read_exit checked 1731ms check-target:macos_arm64 @15c77983aab0+wt
+pass/borrows/runtime_indexed_reference_call_regions checked 4901ms check-target:macos_arm64 @ceb70d0df240+wt
+pass/borrows/runtime_indexed_scalar_descriptor_call checked 4894ms check-target:macos_arm64 @ceb70d0df240+wt
+pass/borrows/runtime_indexed_stored_reference_call checked 5059ms check-target:macos_arm64 @ceb70d0df240+wt
 pass/borrows/runtime_mutable_byte_loan_read_exit checked 1684ms check-target:macos_arm64 @8836526aee39
 pass/borrows/runtime_mutable_primitive_reference_exit checked 3295ms check-target:macos_arm64 @944fb1232f17
 pass/borrows/runtime_mutable_reference_array_bounded_read_exit checked 1520ms check-target:macos_arm64 @15c77983aab0+wt
@@ -2998,7 +3005,7 @@ pass/borrows/shared_recast_loan_member_read checked 1532ms check-target:macos_ar
 pass/borrows/static_carrier_bounded_reference_read_exit checked 1151ms check-target:macos_arm64 @104c2da31081
 pass/borrows/static_carrier_reference_read_exit checked 1134ms check-target:macos_arm64 @104c2da31081
 pass/borrows/static_projected_local_reference_exit checked 4618ms check-target:macos_arm64 @cfe60a3a242
-pass/borrows/static_record_reference_return_exit checked 1105ms check-target:macos_arm64 @2816825e8941
+pass/borrows/static_record_reference_return_exit checked 5054ms check-target:macos_arm64 @ceb70d0df240+wt
 pass/borrows/stored_primitive_reference_observations_exit checked 1674ms check-target:macos_arm64 @6cb668db83ab
 pass/borrows/stored_reference_projection_exit checked 1121ms check-target:macos_arm64 @104c2da31081
 pass/borrows/transition_shared_borrow_result checked 1126ms check-target:macos_arm64 @4eef5b6cc89f
@@ -3962,7 +3969,7 @@ pass/layouts/runtime_callee_owned_local_origins_exit checked 1411ms check-target
 pass/layouts/runtime_captured_encoded_reference_replacement_exit checked 1763ms check-target:macos_arm64 @0234777c1cd7+wt
 pass/layouts/runtime_encoded_physical_view_exit checked 1796ms check-target:macos_arm64 @d56a61c738bf
 pass/layouts/runtime_foreign_encoded_reference_exit checked 1820ms check-target:macos_arm64 @d56a61c738bf
-pass/layouts/runtime_indexed_restricted_field_read checked 47744ms check-target:macos_arm64 @93b3a4938255
+pass/layouts/runtime_indexed_restricted_field_read checked 5243ms check-target:macos_arm64 @ceb70d0df240+wt
 pass/layouts/runtime_multi_origin_encoded_reference_exit checked 1619ms check-target:macos_arm64 @89699170f158+wt
 pass/layouts/runtime_nested_restricted_field_read checked 47550ms check-target:macos_arm64 @93b3a4938255
 pass/layouts/runtime_offset_encoded_reference_exit checked 2916ms check-target:macos_arm64 @6282711b68c7

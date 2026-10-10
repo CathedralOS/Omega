@@ -445,7 +445,7 @@ pub(in crate::legalization) fn structural_argument_at(
             .ok_or(LegalizationError::custody())?;
         // A foreign pointer can expose checked canonical aggregate backing,
         // not an internal scalar pointer-and-codec descriptor.
-        if projection.scalar_descriptor {
+        if projection.scalar_descriptor || !projection.elements.is_empty() {
             return Err(LegalizationError::custody());
         }
         (projection.selected, projection.referent_offset, Vec::new())

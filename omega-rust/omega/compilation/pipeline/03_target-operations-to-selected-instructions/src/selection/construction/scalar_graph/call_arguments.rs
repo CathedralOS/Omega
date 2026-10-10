@@ -272,8 +272,7 @@ fn referent_pointer(
     };
     let reference = if referent {
         Some(
-            crate::selection::reference_input::borrowed_argument(source, semantic, target)
-                .filter(|_| indices.is_empty())
+            crate::selection::reference_input::borrowed_argument(source, semantic, target, indices)
                 .ok_or_else(|| SelectedInstructionError::custody())?,
         )
     } else {
@@ -309,11 +308,12 @@ fn referent_pointer(
     } else {
         pointer
     };
-    let pointer = if indices.is_empty() {
+    let pointer = if reference.is_some() || indices.is_empty() {
         pointer
     } else {
-        // Each runtime selector scales onto the element address the borrow
-        // actually loans; the static prefix is already folded into `pointer`.
+        // Contiguous loans apply their selectors here. Reference loans have
+        // already consumed each selector in its region around pointer loads;
+        // applying the flattened roster again would index the referent twice.
         structural::runtime_address::scale(
             builder,
             operation,

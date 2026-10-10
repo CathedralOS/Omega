@@ -532,14 +532,11 @@ fn validate_reference_argument(
     target: &target_operations::TargetStructuralArgument,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Option<()> {
-    if !indices.is_empty() {
-        return None;
-    }
     if matches!(target.source, target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } if psi_operation == operation)
     {
         return None;
     }
-    crate::selection::reference_input::borrowed_argument(source, semantic, target)?;
+    crate::selection::reference_input::borrowed_argument(source, semantic, target, indices)?;
     let shape = target.shape;
     let expected = expected_signature_plan(source, call, argument_index, shape)?;
     (call.call_plan == expected
