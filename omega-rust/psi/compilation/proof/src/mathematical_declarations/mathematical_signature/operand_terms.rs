@@ -202,17 +202,7 @@ impl<'a> Elaborator<'a> {
     /// `(carrier, exact bits)` — denotation by value, matching
     /// `numeric_literal`.
     pub(super) fn float_literal(&mut self, carrier: u32, bits: u64) -> TermHandle {
-        let key = (carrier, bits);
-        let position = match self.float_literals.get(&key) {
-            Some(&position) => position,
-            None => {
-                let ty = self.constant(carrier);
-                let position = self.push_assumption(ty);
-                self.float_literals.insert(key, position);
-                position
-            }
-        };
-        self.constant(position)
+        interned_literal!(self.float_literals, (carrier, bits), carrier)
     }
 
     /// The zero value of a scalar carrier.

@@ -18,6 +18,25 @@
 //! not an equality or normal-return guarantee. Executable operations embedded
 //! in mathematical roots still pass the ordinary Requires/totality gates.
 
+/// Closed-literal interning by exact value at a carrier: look the key up in
+/// the interning map; on a miss, mint the carrier-typed assumption position,
+/// record it, and answer the interned constant.
+macro_rules! interned_literal {
+    ($self:ident . $map:ident, $key:expr, $carrier:expr) => {{
+        let key = $key;
+        let position = match $self.$map.get(&key) {
+            Some(&position) => position,
+            None => {
+                let ty = $self.constant($carrier);
+                let position = $self.push_assumption(ty);
+                $self.$map.insert(key, position);
+                position
+            }
+        };
+        $self.constant(position)
+    }};
+}
+
 mod applications;
 mod carriers;
 mod dependencies;

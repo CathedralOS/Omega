@@ -522,17 +522,7 @@ impl<'a> Elaborator<'a> {
     /// its carrier — `2 + 0` and `2` name one constant, so evaluated
     /// equalities stay `refl`-provable without a decision assumption.
     pub(super) fn numeric_literal(&mut self, carrier: u32, value: BigInt) -> TermHandle {
-        let key = (carrier, value);
-        let position = match self.numeric_literals.get(&key) {
-            Some(&position) => position,
-            None => {
-                let ty = self.constant(carrier);
-                let position = self.push_assumption(ty);
-                self.numeric_literals.insert(key, position);
-                position
-            }
-        };
-        self.constant(position)
+        interned_literal!(self.numeric_literals, (carrier, value), carrier)
     }
 
     /// `true`/`false` interned at the `bool` carrier.
