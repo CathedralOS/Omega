@@ -105,7 +105,7 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
         .iter()
         .zip(provenance)
         .filter(|(plan, retained)| {
-            plan.schema.trait_name == slot
+            plan.schema.identity_text(plan.schema.trait_name) == slot
                 && retained.provider.schema
                     == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
                         operator.symbol,
@@ -133,7 +133,7 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
             machine_identity,
             machine_package_identity,
         } if *machine_package_identity == expected_package => {
-            machine_identity == &expected_machine_identity
+            plan.identity_text(*machine_identity) == expected_machine_identity
                 || compilation
                     .typed
                     .machine_specializations
@@ -143,7 +143,7 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
                         validation::machine_specialization_matches_template_identity(
                             compilation.checking_input,
                             specialization,
-                            machine_identity,
+                            plan.identity_text(*machine_identity),
                             *machine_package_identity,
                         )
                     })
@@ -154,7 +154,7 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
         || *requirement_symbol != operator.symbol
         || *realization_symbol != machine.symbol
         || method.requirement_owner != slot
-        || method.requirement_identity != slot
+        || plan.schema.identity_text(method.requirement_identity) != slot
         || row.requirement_identity != slot
         || !selected_identity_matches
     {
@@ -188,7 +188,7 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
         .iter()
         .zip(provenance)
         .filter(|(plan, retained)| {
-            plan.schema.trait_name == slot
+            plan.schema.identity_text(plan.schema.trait_name) == slot
                 && retained.provider.schema
                     == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
                         operator.symbol,
@@ -217,7 +217,7 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
         || *realization_symbol != machine.symbol
         || plan.origin_package_identity != expected_package
         || method.requirement_owner != slot
-        || method.requirement_identity != slot
+        || plan.schema.identity_text(method.requirement_identity) != slot
         || row.requirement_identity != slot
         || !external_binding_matches_provider_binding(compilation, machine, binding, &row.binding)
     {

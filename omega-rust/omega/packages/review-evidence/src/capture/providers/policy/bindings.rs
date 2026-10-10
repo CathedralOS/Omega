@@ -13,6 +13,7 @@ use symbols::SymbolHandle;
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
+    identities: &effects::provider_plan::ProviderIdentityTable,
     binding: &ProviderBinding,
     requirement: SymbolHandle,
     realization: SymbolHandle,
@@ -96,7 +97,7 @@ pub(super) fn project(
             machine_identity,
             machine_package_identity,
         } => PackagePolicyProviderBinding::CheckedAdapter {
-            machine_identity: machine_identity.clone(),
+            machine_identity: identities.text(*machine_identity).to_owned(),
             machine_package_identity: *machine_package_identity,
         },
     })

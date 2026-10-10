@@ -55,7 +55,9 @@ impl PackagePolicyServiceMethod {
                 || premise
                     .establishment_routes
                     .iter()
-                    .any(|route| route.requirement_identity.is_empty())
+                    .any(|route| {
+                        self.identities.text(route.requirement_identity).is_empty()
+                    })
             {
                 return Err("provider progress premise has an invalid subject or route");
             }

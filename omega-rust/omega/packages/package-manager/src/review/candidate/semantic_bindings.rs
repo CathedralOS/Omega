@@ -291,7 +291,7 @@ fn candidate_hosted_exit_permissions(
         }
         permissions.push(ServiceTerminalAuthorityPermission::new(
             provider.schema.identity_digest(),
-            method.requirement_identity.clone(),
+            provider.schema.identity_text(method.requirement_identity).to_owned(),
             TerminalAuthorityDisposition::from_classes([class]),
         ));
     }

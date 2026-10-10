@@ -5,10 +5,11 @@
 use super::super::semantic_bindings::SemanticBindingReviewCandidate;
 use super::{CachedCompiledReview, CachedOccurrenceFacts};
 use effects::provider_plan::{
-    BoundaryCallingPlanCommitment, ProviderPlanDigest, ServiceEntryAuthorityFlow,
-    ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
-    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
-    ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
+    BoundaryCallingPlanCommitment, ProviderIdentityTable, ProviderPlanDigest,
+    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
+    ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
+    ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
+    ServiceSchemaDigest,
 };
 use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
@@ -219,7 +220,11 @@ fn recover_predicate_body(cursor: &mut ObservationCursor<'_>) -> Option<DomainPr
     })
 }
 
-fn encode_service_method(method: &ServiceMethod, out: &mut Vec<u8>) {
+fn encode_service_method(
+    method: &ServiceMethod,
+    identities: &ProviderIdentityTable,
+    out: &mut Vec<u8>,
+) {
     encode_string(&method.name, out);
     encode_string(&method.requirement_owner, out);
     encode_optional(
@@ -227,7 +232,7 @@ fn encode_service_method(method: &ServiceMethod, out: &mut Vec<u8>) {
         out,
         |identity, out| encode_identity(*identity, out),
     );
-    encode_string(&method.requirement_identity, out);
+    encode_string(identities.text(method.requirement_identity), out);
     crate::codec_bytes::push_encoded(out, (method.parameter_count as u64).to_le_bytes());
     crate::codec_bytes::push_encoded(
         out,
@@ -305,7 +310,7 @@ fn encode_service_method(method: &ServiceMethod, out: &mut Vec<u8>) {
                 ServiceProgressEstablishmentRouteKind::CheckedRequirement => 0,
                 ServiceProgressEstablishmentRouteKind::BoundaryRequirement => 1,
             });
-            encode_string(&route.requirement_identity, out);
+            encode_string(identities.text(route.requirement_identity), out);
         }
     }
     encode_optional(
@@ -320,11 +325,14 @@ fn encode_service_method(method: &ServiceMethod, out: &mut Vec<u8>) {
     );
 }
 
-fn recover_service_method(cursor: &mut ObservationCursor<'_>) -> Option<ServiceMethod> {
+fn recover_service_method(
+    cursor: &mut ObservationCursor<'_>,
+    identities: &mut ProviderIdentityTable,
+) -> Option<ServiceMethod> {
     let name = cursor_string(cursor)?.to_owned();
     let requirement_owner = cursor_string(cursor)?.to_owned();
     let requirement_owner_package_identity = recover_optional(cursor, recover_identity)?;
-    let requirement_identity = cursor_string(cursor)?.to_owned();
+    let requirement_identity = identities.intern(cursor_string(cursor)?);
     let parameter_count = usize::try_from(cursor.u64()?).ok()?;
     let parameter_type_identities =
         cursor_vec(cursor, |cursor| cursor_string(cursor).map(str::to_owned))?;
@@ -386,7 +394,7 @@ fn recover_service_method(cursor: &mut ObservationCursor<'_>) -> Option<ServiceM
             };
             Some(ServiceProgressEstablishmentRoute {
                 kind,
-                requirement_identity: cursor_string(cursor)?.to_owned(),
+                requirement_identity: identities.intern(cursor_string(cursor)?),
             })
         })?;
         Some(ServiceProgressPremise {
@@ -432,7 +440,7 @@ fn recover_service_method(cursor: &mut ObservationCursor<'_>) -> Option<ServiceM
 }
 
 fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
-    encode_string(&schema.trait_name, out);
+    encode_string(schema.identity_text(schema.trait_name), out);
     encode_optional(
         schema.trait_package_identity.as_ref(),
         out,
@@ -440,15 +448,17 @@ fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
     );
     crate::codec_bytes::push_encoded(out, (schema.methods.len() as u64).to_le_bytes());
     for method in &schema.methods {
-        encode_service_method(method, out);
+        encode_service_method(method, &schema.identities, out);
     }
 }
 
 fn recover_service_schema(cursor: &mut ObservationCursor<'_>) -> Option<ServiceSchema> {
+    let mut identities = ProviderIdentityTable::default();
     Some(ServiceSchema {
-        trait_name: cursor_string(cursor)?.to_owned(),
+        trait_name: identities.intern(cursor_string(cursor)?),
         trait_package_identity: recover_optional(cursor, recover_identity)?,
-        methods: cursor_vec(cursor, recover_service_method)?,
+        methods: cursor_vec(cursor, |cursor| recover_service_method(cursor, &mut identities))?,
+        identities,
     })
 }
 

@@ -39,7 +39,13 @@ pub fn project_checked_terminal_permission_policy<'a>(
             .iter()
             .zip(&resolved.requirements)
             .map(|(method, requirement)| {
-                services::project_declaration(compilation, resolved.symbol, *requirement, method)
+                services::project_declaration(
+                    compilation,
+                    &resolved.schema,
+                    resolved.symbol,
+                    *requirement,
+                    method,
+                )
             })
             .collect::<Result<Vec<_>, _>>()?;
         let permissions = resolved

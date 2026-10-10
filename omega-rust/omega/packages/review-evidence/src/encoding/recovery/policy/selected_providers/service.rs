@@ -13,6 +13,9 @@ use language_semantics::{
 pub(in crate::encoding::recovery) fn method(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyServiceMethod, Error> {
+    // Interned route identities rebuild from the same canonical texts they
+    // encoded; the mint order is record-local and never part of the bytes.
+    let mut identities = effects::provider_plan::ProviderIdentityTable::default();
     Ok(PackagePolicyServiceMethod {
         name: reader.string()?,
         requirement_owner: nominal(reader)?,
@@ -69,11 +72,12 @@ pub(in crate::encoding::recovery) fn method(
                             0 => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
                             1 => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
                         }),
-                        requirement_identity: reader.string()?,
+                        requirement_identity: identities.intern(&reader.string()?),
                     })
                 })?,
             })
         })?,
+        identities,
         calling: reader.option(calling_application::application)?,
     })
 }

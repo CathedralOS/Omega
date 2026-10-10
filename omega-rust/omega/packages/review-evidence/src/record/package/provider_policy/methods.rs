@@ -3,7 +3,9 @@ use crate::record::{
     PackageReviewNominalIdentity,
 };
 
-use effects::provider_plan::{ServiceEntryClaim, ServiceProgressPremise, ServiceResultClaim};
+use effects::provider_plan::{
+    ProviderIdentityTable, ServiceEntryClaim, ServiceProgressPremise, ServiceResultClaim,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyServiceMethod {
@@ -25,6 +27,10 @@ pub struct PackagePolicyServiceMethod {
     pub(crate) may_block: bool,
     pub(crate) terminates_guarantee: bool,
     pub(crate) termination_premises: Vec<ServiceProgressPremise>,
+    /// The interned identities this method's embedded plan-side fields point
+    /// into; capture clones the schema's table, decoding rebuilds an
+    /// equivalent one from the same canonical texts.
+    pub(crate) identities: ProviderIdentityTable,
     pub(crate) calling: Option<PackagePolicyCallingPlan>,
 }
 

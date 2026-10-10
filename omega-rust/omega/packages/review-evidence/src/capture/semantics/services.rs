@@ -11,7 +11,7 @@ use crate::capture::semantics::declarations::{
 };
 use crate::record::PackagePolicyServiceMethod;
 use diagnostics::Diagnostic;
-use effects::provider_plan::ServiceMethod;
+use effects::provider_plan::{ServiceMethod, ServiceSchema};
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
@@ -19,6 +19,7 @@ pub(crate) use crate::capture::calling::application::signature::declaration_para
 
 pub(crate) fn project(
     compilation: &PackageReviewInput<'_>,
+    service_schema: &ServiceSchema,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
@@ -26,6 +27,7 @@ pub(crate) fn project(
 ) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
     project_inner(
         compilation,
+        service_schema,
         schema,
         provider_type,
         requirement,
@@ -38,12 +40,14 @@ pub(crate) fn project(
 /// closed generic calling application.
 pub(crate) fn project_declaration(
     compilation: &PackageReviewInput<'_>,
+    service_schema: &ServiceSchema,
     schema: SymbolHandle,
     requirement: SymbolHandle,
     method: &ServiceMethod,
 ) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
     project_inner(
         compilation,
+        service_schema,
         ProviderSchemaDeclaration::BoundaryTrait(schema),
         None,
         requirement,
@@ -54,6 +58,7 @@ pub(crate) fn project_declaration(
 
 fn project_inner(
     compilation: &PackageReviewInput<'_>,
+    service_schema: &ServiceSchema,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
@@ -62,7 +67,7 @@ fn project_inner(
 ) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
     let declaration = provider_requirement_schema(compilation, schema, requirement)?;
     let checked_identity = provider_requirement_identity(compilation, declaration, requirement)?;
-    if checked_identity.path() != method.requirement_identity {
+    if checked_identity.path() != service_schema.identity_text(method.requirement_identity) {
         return Err(rejected(
             "service method changes its exact requirement overload",
         ));
@@ -145,6 +150,7 @@ fn project_inner(
         may_block: method.may_block,
         terminates_guarantee: method.terminates_guarantee,
         termination_premises: method.termination_premises.clone(),
+        identities: service_schema.identities.clone(),
         calling,
     })
 }
