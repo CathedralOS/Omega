@@ -126,7 +126,7 @@ impl NativeExecutionScope {
                             continue;
                         }
                         scope.boundaries.push(*boundary);
-                        if let Some(member) = input
+                        if let Some(terminal_psi::TargetMachineCallable::Machine(member)) = input
                             .target_family_member(*boundary)
                             .map_err(NativeExecutionScopeError::TargetFamily)?
                         {

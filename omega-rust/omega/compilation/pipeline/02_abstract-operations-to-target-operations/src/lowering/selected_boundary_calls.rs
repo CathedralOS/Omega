@@ -77,7 +77,9 @@ pub(crate) fn index(
                     let selections = input.target_machine_selections().ok_or_else(invalid)?;
                     let member = selections.member(family.canonical).map_err(|_| invalid())?;
                     let TargetMachineCallable::Machine(callee) = member.callable() else {
-                        return Err(invalid());
+                        // Opaque selected members use ordinary provider settlement
+                        // under the unchanged head occurrence and contract.
+                        continue;
                     };
                     if selections.terminal_psi() != plan.psi
                         || !matches!(

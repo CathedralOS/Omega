@@ -604,6 +604,7 @@ pub struct NativeSelectedProviderPlan {
     report_identity: u64,
     plan_digest: NativeSelectedProviderPlanDigest,
     requirement_identities: Vec<String>,
+    family_realization_rows: Vec<effects::SelectedTargetFamilyRealization>,
 }
 
 impl NativeSelectedProviderPlan {
@@ -628,13 +629,20 @@ impl NativeSelectedProviderPlan {
                     })
                     .map(str::to_owned)
                     .collect();
-                Self::new(
+                let mut projected = Self::new(
                     report_identity,
                     NativeSelectedProviderPlanDigest::from_digest(
                         *plan.identity_digest().as_bytes(),
                     ),
                     requirements,
-                )
+                );
+                projected.family_realization_rows = selection
+                    .family_realization_rows()
+                    .iter()
+                    .filter(|row| row.provider_plan_report_identity == report_identity)
+                    .cloned()
+                    .collect();
+                projected
             })
             .collect::<Vec<_>>();
         plans.sort_by_key(Self::report_identity);
@@ -652,6 +660,7 @@ impl NativeSelectedProviderPlan {
             report_identity,
             plan_digest,
             requirement_identities,
+            family_realization_rows: Vec::new(),
         }
     }
 
@@ -665,6 +674,22 @@ impl NativeSelectedProviderPlan {
 
     pub fn requirement_identities(&self) -> &[String] {
         &self.requirement_identities
+    }
+
+    pub fn family_realization_rows(&self) -> &[effects::SelectedTargetFamilyRealization] {
+        &self.family_realization_rows
+    }
+
+    /// Recover the authority requirement without rewriting the original
+    /// callable occurrence. These rows were projected from the exact selected
+    /// closure and remain committed by both closure and artifact identities.
+    pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
+        self.family_realization_rows
+            .iter()
+            .find(|row| row.head_identity == requirement || row.member_identity == requirement)
+            .map_or(requirement, |row| {
+                row.selected_requirement_identity.as_str()
+            })
     }
 }
 

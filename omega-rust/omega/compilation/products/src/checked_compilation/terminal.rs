@@ -44,10 +44,11 @@ impl CheckedCompilation {
         callback_placements: &[provider_planning::calling_policy_plans::SelectedCallbackPlacement],
         callback_thunks: Vec<TerminalCallbackThunkArtifact>,
         selections: &optimization_core::OptimizationSelections,
-    ) -> TerminalNativeProposalRequest<'input> {
+    ) -> Result<TerminalNativeProposalRequest<'input>, Vec<Diagnostic>> {
         let execution = self.execution();
         let providers = self.providers();
-        TerminalNativeProposalRequest {
+        Ok(TerminalNativeProposalRequest {
+            family_realizations: self.selected_family_realizations()?,
             target_profile: execution.selected_target_profile,
             boundaries: BoundaryApplicationSettlement {
                 selected_provider_plans: &execution.selected_provider_plan_facts,
@@ -82,6 +83,84 @@ impl CheckedCompilation {
             callback_placements: callback_placements.iter().map(|placement| placement.native.clone()).collect(),
             callback_thunks,
             x86_scalar_fma_provider: execution.x86_scalar_fma_provider,
+        })
+    }
+}
+
+impl CheckedCompilation {
+    /// Project the same exact source member that supplied each checked provider
+    /// row. Artifact IDs are joined later from its structural family roster.
+    fn selected_family_realizations(
+        &self,
+    ) -> Result<
+        Vec<terminal_psi_to_abstract_operations::SelectedFamilyRealizationSource>,
+        Vec<Diagnostic>,
+    > {
+        let execution = self.execution();
+        let typed = &execution.program.typed;
+        let mut rows = Vec::new();
+        for retained in &execution.selected_provider_provenance {
+            let provider = &retained.provider;
+            let plan = &retained.plan;
+            if provider.row_realizations.len() != plan.rows.len()
+                || provider.row_requirements.len() != plan.rows.len()
+                || provider.row_target_machine_origins.len() != plan.rows.len()
+            {
+                return Err(vec![Diagnostic::error(
+                    "selected family realization has incomplete provider row custody",
+                )]);
+            }
+            for (index, row) in plan.rows.iter().enumerate() {
+                let realization = provider.row_target_machine_origins[index]
+                    .as_ref()
+                    .map_or(provider.row_realizations[index], |origin| origin.machine);
+                for family in &typed.target_machine_families {
+                    if !family.members.iter().any(|member| {
+                        member.machine == realization && member.target.as_str() == plan.target
+                    }) {
+                        continue;
+                    }
+                    if provider.row_target_machine_origins[index]
+                        .as_ref()
+                        .is_some_and(|origin| origin.target != plan.target)
+                    {
+                        return Err(vec![Diagnostic::error(
+                            "selected family realization has substituted target custody",
+                        )]);
+                    }
+                    // Foreign family heads export their exact checked terminal
+                    // declaration name. The portable overload identity is shared
+                    // by members and is not this emitted callable's identity.
+                    let mut heads = execution
+                        .program
+                        .facts
+                        .flow
+                        .terminal_machines
+                        .machines
+                        .iter()
+                        .filter(|selection| selection.machine == family.canonical);
+                    let (Some(head), None) = (heads.next(), heads.next()) else {
+                        return Err(vec![Diagnostic::error(
+                            "selected family realization has no unique checked terminal head",
+                        )]);
+                    };
+                    if head.name.is_empty() {
+                        return Err(vec![Diagnostic::error(
+                            "selected family realization has an empty checked terminal head",
+                        )]);
+                    }
+                    rows.push(
+                        terminal_psi_to_abstract_operations::SelectedFamilyRealizationSource {
+                            head_identity: head.name.clone(),
+                            target: plan.target.clone(),
+                            selected_requirement_identity: row.requirement_identity.clone(),
+                            provider_plan_report_identity: plan.report_fingerprint(),
+                            provider_plan_digest: plan.identity_digest(),
+                        },
+                    );
+                }
+            }
         }
+        Ok(rows)
     }
 }

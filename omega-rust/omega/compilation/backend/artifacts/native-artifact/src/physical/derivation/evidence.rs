@@ -258,6 +258,14 @@ pub(crate) fn derive_physical_evidence(
         let [selected_plan] = matching_plans.as_slice() else {
             return Err("native physical evidence cannot rejoin one exact selected provider plan");
         };
+        super::provider_custody::validate_family_provider_custody(
+            terminal_artifact.manifest().semantic(),
+            module,
+            target,
+            occurrence.boundary(),
+            requirement,
+            selected_plan,
+        )?;
         match (installed, foreign) {
             (Some(installed), None) => {
                 if let Some(builtin) = hosted_builtin_settlement(&installed.settlement) {

@@ -210,13 +210,14 @@ pub(super) fn validate(
         ),
     }
     .map_err(|_| LegalizationError::custody())?;
+    // The mandatory boundary-origin entrance already joined the provider
+    // requirement to this declaration, including exact family aliases.
     if declarations.next().is_some()
         || psi_operation != expected_operation
         || boundary != expected_boundary
         || binding.native_target() != Some(native.target)
         || binding.provider_plan_report_identity()
             != provider_execution.provider_plan_report_identity().get()
-        || binding.requirement_identity() != declaration.identity
         || !binding.has_valid_entry_mechanism()
         || validated.plan() != &binding.boundary_entry_plan
         || binding.boundary_entry_plan.call.parameters.len()

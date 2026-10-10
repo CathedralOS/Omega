@@ -171,7 +171,6 @@ pub(super) fn validate(
     };
     if signature.completion != BoundaryCompletion::NormalReturn
         || !binding.has_valid_entry_mechanism()
-        || binding.requirement_identity() != declaration.identity
         || binding.provider_plan_report_identity() == 0
         || !binding
             .boundary_entry_plan

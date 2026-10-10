@@ -98,7 +98,18 @@ impl TerminalNativeRealizationProposal {
             backend_plan::native_callback_thunks(self.occurrences().callbacks.as_slice());
 
         let module = artifact.semantic_module();
-        let demanded = crate::provider_admission::demanded_boundary_identities(module)?;
+        // Execution records belong to selected provider rows. Calls keep their
+        // original head identities, joined through the retained exact family
+        // and specialization relations rather than renamed in Terminal Psi.
+        let demanded = crate::provider_admission::demanded_boundary_identities(module)?
+            .iter()
+            .map(|identity| {
+                self.providers()
+                    .selection
+                    .selected_requirement_identity(identity)
+                    .to_owned()
+            })
+            .collect();
         let bindings = prepare_source_evaluated_bindings(
             self.providers().selection.plans(),
             &demanded,

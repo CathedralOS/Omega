@@ -48,13 +48,6 @@ mod retained_terminal;
 #[cfg(test)]
 mod terminal_decode_once;
 
-pub use retained_terminal::{ RetainedNativeProviderInputs, RetainedTerminalArtifact,
-    TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
-    TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
-    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
-    TerminalNativeOccurrences, TerminalNativeProposalRequest, TerminalNativeProviders,
-    TerminalNativeRealizationProposal, project_terminal_native_realization_proposal,
-};
 pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
     artifact_lowering_error,
@@ -63,22 +56,31 @@ pub(crate) use native_execution_scope::NativeExecutionScopeError;
 pub use provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
 };
-
-pub use artifact_admission::{ ArtifactSections,
-    TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
+pub use retained_terminal::{
+    RetainedNativeProviderInputs, RetainedTerminalArtifact, SelectedFamilyRealizationSource,
+    TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
+    TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
+    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
+    TerminalNativeOccurrences, TerminalNativeProposalRequest, TerminalNativeProviders,
+    TerminalNativeRealizationProposal, project_terminal_native_realization_proposal,
 };
-pub(crate) use artifact_admission::{ ArtifactLoweringError};
+
+pub(crate) use artifact_admission::ArtifactLoweringError;
+pub use artifact_admission::{
+    ArtifactSections, TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
+};
 pub use boundary_application_settlement::BoundaryApplicationSettlement;
-pub(crate) use callback_settlement::{CallbackRegistrarOccurrence, settle_callback_registrar_imports};
+pub(crate) use callback_settlement::{
+    CallbackRegistrarOccurrence, settle_callback_registrar_imports,
+};
 pub use entry_settlement::{
-    NativeProgramEntrySettlement, NativeProgramEntrySettlementError, ValidatedNativeProgramEntrySettlement,
-    validate_native_program_entry_settlement,
+    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
+    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
 pub use lowering::LoweringError;
-pub use optimization::{ VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
+pub use optimization::{
+    VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
     VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
 };
-pub use provider_installation::{ AdmittedProviderInstallation, ProviderInstallationError,
-};
-pub(crate) use provider_installation::{
-    SelectedProviderAdapter};
+pub(crate) use provider_installation::SelectedProviderAdapter;
+pub use provider_installation::{AdmittedProviderInstallation, ProviderInstallationError};

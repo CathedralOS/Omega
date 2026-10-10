@@ -134,28 +134,29 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     selected_rows
         .sort_unstable_by(|left, right| left.requirement_identity.cmp(right.requirement_identity));
 
-    // Both sides are lexical. Each selected row is consumed once, including
-    // complete duplicate groups, without allocating a match list per demand.
-    let mut remaining_rows = selected_rows.as_slice();
+    // Each demanded callable retains its own occurrence. A selected row may
+    // realize both a portable family head and a direct requirement call.
     let mut evidence = Vec::new();
     let mut diagnostics = Vec::new();
     for requirement in demanded_boundaries {
-        let preceding_count = remaining_rows
+        let actual_requirement = selected.selected_requirement_identity(requirement);
+        let first =
+            selected_rows.partition_point(|row| row.requirement_identity < actual_requirement);
+        let matches = selected_rows[first..]
             .iter()
-            .take_while(|row| row.requirement_identity < requirement.as_str())
-            .count();
-        remaining_rows = &remaining_rows[preceding_count..];
-        let matching_count = remaining_rows
-            .iter()
-            .take_while(|row| row.requirement_identity == requirement)
-            .count();
-        let (matches, later_rows) = remaining_rows.split_at(matching_count);
-        remaining_rows = later_rows;
-        let [selected_row] = matches else {
+            .take_while(|row| row.requirement_identity == actual_requirement)
+            .filter(|row| {
+                selected.selected_row_matches_requirement(
+                    requirement,
+                    row.requirement_identity,
+                    plans[row.plan_index].report_fingerprint(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let [selected_row] = matches.as_slice() else {
             if !matches.is_empty() {
                 diagnostics.push(Diagnostic::error(format!(
-                    "Terminal boundary `{requirement}` resolves to {} selected compiler-intrinsic rows",
-                    matches.len(),
+                    "Terminal boundary `{requirement}` resolves to {} selected compiler-intrinsic rows", matches.len(),
                 )));
             }
             continue;
@@ -176,30 +177,18 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
             )));
             continue;
         };
-        // A specialized boundary reaches its template-keyed row through the
-        // selected specialization roster of the same plan.
-        let plan_report_identity = plans[selected_row.plan_index].report_fingerprint();
-        let matching_boundaries = boundaries
+        let mut matching_boundaries = boundaries
             .iter()
-            .filter(|boundary| {
-                boundary.identity == *requirement
-                    || selected
-                        .specialized_requirement_row(&boundary.identity)
-                        .is_some_and(|specialization| {
-                            specialization.selected_requirement_identity == *requirement
-                                && specialization.provider_plan_report_identity
-                                    == plan_report_identity
-                        })
-            })
-            .collect::<Vec<_>>();
-        let [boundary] = matching_boundaries.as_slice() else {
+            .filter(|boundary| boundary.identity == *requirement);
+        let (Some(boundary), None) = (matching_boundaries.next(), matching_boundaries.next())
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "compiler-builtin proposal for `{requirement}` does not rejoin one Terminal boundary"
             )));
             continue;
         };
         evidence.push(super::TerminalCompilerBuiltinProposal::new(
-            requirement.clone(),
+            selected_row.requirement_identity.to_owned(),
             selected_row.plan_index,
             boundary.id,
             execution,

@@ -83,6 +83,8 @@ pub struct SelectedProviderPlanFacts {
     /// Template-keyed selected rows rebound to their exact closed requirement
     /// instances once specialization evidence exists.
     specialized_requirement_rows: Vec<SelectedRequirementSpecialization>,
+    /// Exact family aliases of selected rows, closed against one Terminal artifact.
+    family_realization_rows: Vec<SelectedTargetFamilyRealization>,
     /// Compact identities of the members settled by the toolchain itself
     /// (canonical-host mints). Report surfaces use this to label their
     /// provenance honestly instead of reporting them as ungranted
@@ -99,6 +101,7 @@ impl Default for SelectedProviderPlanFacts {
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
             specialized_requirement_rows: Vec::new(),
+            family_realization_rows: Vec::new(),
             toolchain_settled_identities: BTreeSet::new(),
         }
     }
@@ -164,6 +167,7 @@ impl SelectedProviderPlanFacts {
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
             specialized_requirement_rows: Vec::new(),
+            family_realization_rows: Vec::new(),
             toolchain_settled_identities: BTreeSet::new(),
         })
     }
@@ -186,9 +190,10 @@ impl SelectedProviderPlanFacts {
     pub fn with_toolchain_settled_plan(mut self, plan: ProviderPlan) -> Result<Self, String> {
         if !self.installation_reach_resolutions.is_empty()
             || !self.specialized_requirement_rows.is_empty()
+            || !self.family_realization_rows.is_empty()
         {
             return Err(
-                "selected provider closure must join toolchain-settled plans before attaching installation reach or specialization evidence"
+                "selected provider closure must join toolchain-settled plans before attaching installation reach, specialization, or family evidence"
                     .into(),
             );
         }
@@ -318,6 +323,19 @@ impl SelectedProviderPlanFacts {
             encoder.string(&row.requirement_identity);
             encoder.string(&row.machine_identity);
         }
+        encoder.len(self.family_realization_rows.len());
+        for row in &self.family_realization_rows {
+            encoder.u64(u64::from(row.terminal.vocabulary_marker.get()));
+            encoder.bytes(row.terminal.program_fingerprint.as_bytes());
+            encoder.string(&row.target);
+            encoder.u64(row.head.get());
+            encoder.u64(row.member.get());
+            encoder.string(&row.head_identity);
+            encoder.string(&row.member_identity);
+            encoder.string(&row.selected_requirement_identity);
+            encoder.u64(row.provider_plan_report_identity);
+            encoder.bytes(row.provider_plan_digest.as_bytes());
+        }
         encoder.finish()
     }
 
@@ -402,6 +420,7 @@ impl SelectedProviderPlanFacts {
             &self.plans,
             &self.installation_reach_resolutions,
             &self.specialized_requirement_rows,
+            &self.family_realization_rows,
         );
         Ok(self)
     }
@@ -473,10 +492,12 @@ impl SelectedProviderPlanFacts {
             }
         }
         self.specialized_requirement_rows = rows;
+        self.validate_family_realization_rows(&self.family_realization_rows)?;
         self.report_fingerprint = selected_closure_report_fingerprint(
             &self.plans,
             &self.installation_reach_resolutions,
             &self.specialized_requirement_rows,
+            &self.family_realization_rows,
         );
         Ok(self)
     }
@@ -516,35 +537,174 @@ impl SelectedProviderPlanFacts {
 
     /// Every Terminal-facing requirement identity one selected plan row
     /// serves: the roster's closed identities, or the row's own identity when
-    /// its requirement was never specialized.
+    /// its requirement was never specialized, plus exact family aliases.
     pub fn selected_row_requirement_identities<'a>(
         &'a self,
         provider_plan_report_identity: u64,
         row_requirement_identity: &'a str,
     ) -> Vec<&'a str> {
-        let specialized = self
+        let mut identities = self
             .specialized_requirement_rows_for_row(
                 provider_plan_report_identity,
                 row_requirement_identity,
             )
             .map(|row| row.requirement_identity.as_str())
             .collect::<Vec<_>>();
-        if specialized.is_empty() {
-            vec![row_requirement_identity]
-        } else {
-            specialized
+        if identities.is_empty() {
+            identities.push(row_requirement_identity);
         }
+        for row in &self.family_realization_rows {
+            if row.provider_plan_report_identity == provider_plan_report_identity
+                && row.selected_requirement_identity == row_requirement_identity
+            {
+                identities.extend([row.head_identity.as_str(), row.member_identity.as_str()]);
+            }
+        }
+        identities.sort_unstable();
+        identities.dedup();
+        identities
     }
 
-    /// The requirement identity the selected row retains for one queried
-    /// requirement: a roster row rebinds its closed Terminal identity to the
-    /// template identity its selected row carries. Unspecialized identities
-    /// pass through unchanged.
+    /// Rejoin a Terminal identity to its selected row without changing the
+    /// original call's contract. Family and specialization custody stay distinct.
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
+        if let Some(row) = self.family_realization_row(requirement) {
+            return &row.selected_requirement_identity;
+        }
         self.specialized_requirement_row(requirement)
             .map_or(requirement, |row| {
                 row.selected_requirement_identity.as_str()
             })
+    }
+
+    /// Exact plan-scoped row matching, including retained family and closed
+    /// requirement coordinates. An alias cannot borrow a different plan's row.
+    pub fn selected_row_matches_requirement(
+        &self,
+        requirement: &str,
+        selected_requirement: &str,
+        provider_plan_report_identity: u64,
+    ) -> bool {
+        if let Some(row) = self.family_realization_row(requirement) {
+            return row.provider_plan_report_identity == provider_plan_report_identity
+                && row.selected_requirement_identity == selected_requirement;
+        }
+        if let Some(row) = self.specialized_requirement_row(requirement) {
+            return row.provider_plan_report_identity == provider_plan_report_identity
+                && row.selected_requirement_identity == selected_requirement;
+        }
+        requirement == selected_requirement
+    }
+
+    /// Attach the source producer's exact realization-to-row relation. This
+    /// checks closure consistency, not family membership or provider permission:
+    /// the proposal producer must close IDs and identities against its artifact
+    /// and selected target before execution consumes this retained relation.
+    pub fn with_family_realization_rows(
+        mut self,
+        mut rows: Vec<SelectedTargetFamilyRealization>,
+    ) -> Result<Self, String> {
+        rows.sort_by(|left, right| left.head_identity.cmp(&right.head_identity));
+        self.validate_family_realization_rows(&rows)?;
+        self.family_realization_rows = rows;
+        self.report_fingerprint = selected_closure_report_fingerprint(
+            &self.plans,
+            &self.installation_reach_resolutions,
+            &self.specialized_requirement_rows,
+            &self.family_realization_rows,
+        );
+        Ok(self)
+    }
+
+    pub fn family_realization_rows(&self) -> &[SelectedTargetFamilyRealization] {
+        &self.family_realization_rows
+    }
+
+    pub fn family_realization_row(
+        &self,
+        identity: &str,
+    ) -> Option<&SelectedTargetFamilyRealization> {
+        self.family_realization_rows
+            .iter()
+            .find(|row| row.head_identity == identity || row.member_identity == identity)
+    }
+
+    fn validate_family_realization_rows(
+        &self,
+        rows: &[SelectedTargetFamilyRealization],
+    ) -> Result<(), String> {
+        let mut identities = BTreeSet::new();
+        let mut boundaries = BTreeSet::new();
+        for row in rows {
+            if row.target.is_empty()
+                || row.head_identity.is_empty()
+                || row.member_identity.is_empty()
+                || row.selected_requirement_identity.is_empty()
+                || !identities.insert(row.head_identity.as_str())
+                || !identities.insert(row.member_identity.as_str())
+                || !boundaries.insert(row.head)
+                || !boundaries.insert(row.member)
+            {
+                return Err(
+                    "selected family realization has empty or ambiguous coordinates".into(),
+                );
+            }
+            if rows
+                .first()
+                .is_some_and(|first| first.terminal != row.terminal || first.target != row.target)
+            {
+                return Err(
+                    "selected family realizations name different artifacts or targets".into(),
+                );
+            }
+            let Some(plan) = self.plan_by_report_fingerprint(row.provider_plan_report_identity)
+            else {
+                return Err("selected family realization names an unselected plan".into());
+            };
+            if plan.identity_digest() != row.provider_plan_digest
+                || plan.target != row.target
+                || plan
+                    .rows
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.requirement_identity == row.selected_requirement_identity
+                    })
+                    .count()
+                    != 1
+            {
+                return Err(
+                    "selected family realization disagrees with its exact plan, target, or row"
+                        .into(),
+                );
+            }
+            // A direct row or closed requirement must never be shadowed by
+            // a family alias which would redirect it to unrelated authority.
+            for alias in [&row.head_identity, &row.member_identity] {
+                if self.plans.iter().any(|candidate| {
+                    candidate.rows.iter().any(|candidate_row| {
+                        candidate_row.requirement_identity == *alias
+                            && (candidate.report_fingerprint() != row.provider_plan_report_identity
+                                || candidate_row.requirement_identity
+                                    != row.selected_requirement_identity)
+                    })
+                }) || self
+                    .specialized_requirement_rows
+                    .iter()
+                    .any(|specialization| {
+                        specialization.requirement_identity == *alias
+                            && (specialization.provider_plan_report_identity
+                                != row.provider_plan_report_identity
+                                || specialization.selected_requirement_identity
+                                    != row.selected_requirement_identity)
+                    })
+                {
+                    return Err(
+                        "selected family alias shadows a different selected requirement".into(),
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Every closed requirement identity the roster binds to one retained
@@ -571,6 +731,12 @@ impl SelectedProviderPlanFacts {
         &self,
         requirement_identity: &str,
     ) -> Option<&InstallationReachResolution> {
+        if let Some(row) = self.family_realization_row(requirement_identity) {
+            return self.installation_reach_resolution_for_plan(
+                row.provider_plan_report_identity,
+                requirement_identity,
+            );
+        }
         let requirement_identity = self.selected_requirement_identity(requirement_identity);
         let mut matches = self
             .installation_reach_resolutions
@@ -593,6 +759,12 @@ impl SelectedProviderPlanFacts {
         provider_plan_report_identity: u64,
         requirement_identity: &str,
     ) -> Option<&InstallationReachResolution> {
+        if self
+            .family_realization_row(requirement_identity)
+            .is_some_and(|row| row.provider_plan_report_identity != provider_plan_report_identity)
+        {
+            return None;
+        }
         let requirement_identity = self.selected_requirement_identity(requirement_identity);
         self.installation_reach_resolutions
             .iter()
@@ -618,12 +790,12 @@ impl SelectedProviderPlanFacts {
             let selected_identity = self.selected_requirement_identity(requirement_identity);
             if let Some(row) = self.installation_reach_resolution_for_plan(
                 provider_plan_report_identity,
-                selected_identity,
+                requirement_identity,
             ) {
                 resolved.extend(row.resolved_row.iter().cloned());
                 continue;
             }
-            if let Some(row) = self.installation_reach_resolution(selected_identity) {
+            if let Some(row) = self.installation_reach_resolution(requirement_identity) {
                 resolved.extend(row.resolved_row.iter().cloned());
                 continue;
             }
@@ -685,6 +857,23 @@ pub struct SelectedRequirementSpecialization {
     pub machine_identity: String,
 }
 
+/// A provider row's exact target-family execution coordinates. The selected
+/// requirement is the authority address; head/member identify the original
+/// callable contract and selected realization in one canonical artifact.
+/// These records do not grant execution or establish a checked conformance.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedTargetFamilyRealization {
+    pub terminal: terminal_psi::TerminalPsiIdentity,
+    pub target: String,
+    pub head: semantic_vocabulary::BoundaryMachineId,
+    pub member: semantic_vocabulary::BoundaryMachineId,
+    pub head_identity: String,
+    pub member_identity: String,
+    pub selected_requirement_identity: String,
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: crate::provider_plan::ProviderPlanDigest,
+}
+
 fn selected_plans_report_fingerprint(plans: &[ProviderPlan]) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.u64(plans.len() as u64);
@@ -698,6 +887,7 @@ fn selected_closure_report_fingerprint(
     plans: &[ProviderPlan],
     resolutions: &[InstallationReachResolution],
     specialization_rows: &[SelectedRequirementSpecialization],
+    family_rows: &[SelectedTargetFamilyRealization],
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::resume(selected_plans_report_fingerprint(plans));
     for resolution in resolutions {
@@ -719,6 +909,18 @@ fn selected_closure_report_fingerprint(
         hash.bytes_terminated(row.requirement_identity.as_bytes(), 0);
         hash.bytes_terminated(row.machine_identity.as_bytes(), 0);
     }
+    for row in family_rows {
+        hash.u64(u64::from(row.terminal.vocabulary_marker.get()));
+        hash.bytes(row.terminal.program_fingerprint.as_bytes());
+        hash.bytes_terminated(row.target.as_bytes(), 0);
+        hash.u64(row.head.get());
+        hash.u64(row.member.get());
+        hash.bytes_terminated(row.head_identity.as_bytes(), 0);
+        hash.bytes_terminated(row.member_identity.as_bytes(), 0);
+        hash.bytes_terminated(row.selected_requirement_identity.as_bytes(), 0);
+        hash.u64(row.provider_plan_report_identity);
+        hash.bytes(row.provider_plan_digest.as_bytes());
+    }
     hash.finish()
 }
 
@@ -735,7 +937,7 @@ impl crate::provider_evidence::providers::provider_plan::DigestFeed
 impl SelectedProviderClosureDigestEncoder {
     fn new() -> Self {
         Self(DomainDigestEncoder::new(
-            b"omega.selected-provider-closure.sha256.v1\0",
+            b"omega.selected-provider-closure.sha256.v2\0",
         ))
     }
 

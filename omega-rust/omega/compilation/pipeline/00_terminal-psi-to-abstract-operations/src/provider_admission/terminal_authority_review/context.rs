@@ -128,21 +128,14 @@ impl<'a> ReviewContext<'a> {
             .selected
             .plans()
             .iter()
-            .filter(|plan| {
-                specialization.is_none_or(|row| {
-                    row.provider_plan_report_identity == plan.report_fingerprint()
-                })
-            })
             .flat_map(|plan| {
                 plan.rows
                     .iter()
                     .filter(move |row| {
-                        specialization.map_or_else(
-                            || row.requirement_identity == requirement,
-                            |specialization| {
-                                row.requirement_identity
-                                    == specialization.selected_requirement_identity
-                            },
+                        self.selected.selected_row_matches_requirement(
+                            requirement,
+                            &row.requirement_identity,
+                            plan.report_fingerprint(),
                         )
                     })
                     .map(move |row| (plan, row))
@@ -243,7 +236,9 @@ impl<'a> ReviewContext<'a> {
                         }
                     }
                     AuthorityEdge::Boundary(boundary) => {
-                        if let Some(member) = self.input.target_family_member(boundary)? {
+                        if let Some(terminal_psi::TargetMachineCallable::Machine(member)) =
+                            self.input.target_family_member(boundary)?
+                        {
                             pending.push(member);
                         } else {
                             boundaries.insert(boundary);

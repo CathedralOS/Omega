@@ -279,11 +279,25 @@ impl TerminalExecution<'_> {
             .collect::<Result<Vec<_>, _>>()?;
         bind_boundary_arguments(&boundary_declaration.scalar_parameters, &scalar_arguments)?;
         if program.is_target_family_head(boundary) {
-            return self.execute_target_family_call(
-                operation,
-                boundary_declaration,
-                &scalar_arguments,
-            );
+            match target_families::selected_member(
+                &program,
+                self.target_machines.as_ref(),
+                boundary,
+            )? {
+                terminal_psi::TargetMachineCallable::Machine(member) => {
+                    return self.execute_target_family_call(
+                        operation,
+                        boundary_declaration,
+                        member,
+                        &scalar_arguments,
+                    );
+                }
+                terminal_psi::TargetMachineCallable::Boundary(_) => {
+                    // Selection identifies the opaque implementation; its
+                    // execution still needs the ordinary admitted supply.
+                    // Keep the portable head's contract and occurrence ID.
+                }
+            }
         }
         let supply = self.boundary_supplies.get(&boundary).copied();
         if matches!(

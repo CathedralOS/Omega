@@ -5,10 +5,13 @@
 mod native_providers;
 mod proposal;
 
-pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realization_proposal};
+pub use proposal::{
+    SelectedFamilyRealizationSource, TerminalNativeProposalRequest,
+    project_terminal_native_realization_proposal,
+};
 
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
-pub use native_providers::{ RetainedNativeProviderInputs};
+pub use native_providers::RetainedNativeProviderInputs;
 
 pub use crate::provider_admission::TerminalCompilerBuiltinProposal;
 

@@ -5,6 +5,7 @@ use target_operations::BoundarySettlementBinding;
 
 pub(super) fn bind_provider_executions(
     plan: &AbstractOperationPlan,
+    verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
     settlements: &[AdmittedBoundarySettlement<'_>],
 ) -> Result<Vec<BoundarySettlementBinding>, LoweringError> {
     settlements
@@ -17,7 +18,18 @@ pub(super) fn bind_provider_executions(
                 ))?;
             let execution = match settlement.execution {
                 AdmittedBoundaryExecution::Provider(provider_execution) => {
-                    if provider_execution.requirement_identity() != declaration.identity {
+                    if provider_execution.requirement_identity() != declaration.identity
+                        && !verified_input.is_some_and(|input| {
+                            input.target_family_realizations().iter().any(|row| {
+                                (row.head == settlement.boundary
+                                    || row.member == settlement.boundary)
+                                    && row.selected_requirement_identity
+                                        == provider_execution.requirement_identity()
+                                    && row.provider_plan_report_identity
+                                        == provider_execution.provider_plan_report_identity()
+                            })
+                        })
+                    {
                         return Err(LoweringError::ProviderExecutionRequirementMismatch {
                             boundary: settlement.boundary,
                             expected: declaration.identity.clone(),

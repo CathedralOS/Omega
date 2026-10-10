@@ -135,6 +135,13 @@ pub fn execute(
             "runtime provisions name another Terminal program or entry",
         ));
     }
+    if let (Some(provisions), Some(target)) = (request.provisions, request.target)
+        && provisions.target_slot().owner.target_name() != target
+    {
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "runtime provisions name another deployment target",
+        ));
+    }
     let checked_installation = request
         .provisions
         .and_then(TerminalRuntimeProvisions::installation);

@@ -18,6 +18,17 @@ pub struct TerminalRuntimeHostProvision {
     pub realization: target_operations::BoundarySettlementRealization,
 }
 
+/// The original call contract served by one exact admitted foreign row.
+/// This relation is captured from selected closure custody, not reconstructed
+/// from either callable's spelling by a receiving host adapter.
+#[derive(Debug, Clone)]
+struct RuntimeHostRequirement {
+    boundary: BoundaryMachineId,
+    boundary_identity: String,
+    selected_requirement_identity: String,
+    provider_plan_report_identity: u64,
+}
+
 /// Entry and provider facts for the exact produced Terminal program. Source
 /// arena handles and physical wrapper storage do not cross this record.
 #[derive(Debug, Clone)]
@@ -33,6 +44,7 @@ pub struct TerminalRuntimeProvisions {
     fused_service_boundary_slots: Vec<Vec<BoundaryMachineId>>,
     installation: Option<terminal_installation::AdmittedProviderSelections>,
     host: Vec<TerminalRuntimeHostProvision>,
+    host_requirements: Vec<RuntimeHostRequirement>,
     borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
 }
 
@@ -48,6 +60,35 @@ impl TerminalRuntimeProvisions {
         selected: &effects::SelectedProviderPlanFacts,
         target_slot: target::ProgramEntrySlotDeclaration,
     ) -> Result<Self, &'static str> {
+        let mut host_requirements = Vec::new();
+        for provision in &host {
+            let target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding) =
+                &provision.realization
+            else {
+                continue;
+            };
+            let mut matching = boundaries
+                .iter()
+                .filter(|boundary| boundary.id == provision.boundary);
+            let boundary = matching
+                .next()
+                .ok_or("runtime host provision lost its exact boundary declaration")?;
+            if matching.next().is_some()
+                || !selected.selected_row_matches_requirement(
+                    &boundary.identity,
+                    binding.requirement_identity(),
+                    binding.provider_plan_report_identity(),
+                )
+            {
+                return Err("runtime host provision lost its exact selected requirement row");
+            }
+            host_requirements.push(RuntimeHostRequirement {
+                boundary: boundary.id,
+                boundary_identity: boundary.identity.clone(),
+                selected_requirement_identity: binding.requirement_identity().to_owned(),
+                provider_plan_report_identity: binding.provider_plan_report_identity(),
+            });
+        }
         let mut fused_service_boundary_slots = Vec::with_capacity(fused_services.len());
         for establishment in fused_services {
             let mut matching_plans = selected.plans().iter().filter(|plan| {
@@ -65,18 +106,13 @@ impl TerminalRuntimeProvisions {
             // admission is consumed; do not reconstruct semantics or authority.
             let mut slots = Vec::new();
             for boundary in boundaries {
-                let requirement = selected
-                    .specialized_requirement_row(&boundary.identity)
-                    .filter(|row| row.provider_plan_report_identity == plan.report_fingerprint())
-                    .map_or(boundary.identity.as_str(), |row| {
-                        row.selected_requirement_identity.as_str()
-                    });
-                if plan
-                    .schema
-                    .methods
-                    .iter()
-                    .any(|method| method.requirement_identity == requirement)
-                {
+                if plan.schema.methods.iter().any(|method| {
+                    selected.selected_row_matches_requirement(
+                        &boundary.identity,
+                        &method.requirement_identity,
+                        plan.report_fingerprint(),
+                    )
+                }) {
                     slots.push(boundary.id);
                 }
             }
@@ -95,7 +131,29 @@ impl TerminalRuntimeProvisions {
             fused_service_boundary_slots,
             installation: installation.cloned(),
             host,
+            host_requirements,
         })
+    }
+
+    /// Rejoin one original boundary contract to its captured foreign provider
+    /// row before offering a host implementation. This establishes identity
+    /// correspondence only; the adapter must still admit the complete contract,
+    /// ABI and actual host capability independently.
+    pub fn matches_host_requirement(
+        &self,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
+        selected_requirement: &str,
+        provider_plan_report_identity: u64,
+    ) -> bool {
+        let mut matching = self
+            .host_requirements
+            .iter()
+            .filter(|row| row.boundary == declaration.id);
+        matching.next().is_some_and(|row| {
+            row.boundary_identity == declaration.identity
+                && row.selected_requirement_identity == selected_requirement
+                && row.provider_plan_report_identity == provider_plan_report_identity
+        }) && matching.next().is_none()
     }
 
     pub const fn identity(&self) -> TerminalPsiIdentity {

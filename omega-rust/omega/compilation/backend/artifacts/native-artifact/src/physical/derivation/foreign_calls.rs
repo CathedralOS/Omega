@@ -518,10 +518,13 @@ pub(crate) fn derive_normalized_foreign_child(
         .map_err(|_| "normalized foreign D41 child contains an invalid boundary entry plan")?
     };
     let boundary_plan_identity = validated_plan.contract_commitment_digest();
+    // Physical provider evidence names the selected schema requirement; the
+    // original occurrence above still names and validates the portable head.
+    let selected_requirement = selected_plan.selected_requirement_identity(requirement_identity);
     if validated_plan.plan() != &foreign.binding.boundary_entry_plan
         || foreign.binding.native_target() != Some(target)
         || !foreign.binding.has_valid_entry_mechanism()
-        || foreign.binding.requirement_identity() != requirement_identity
+        || foreign.binding.requirement_identity() != selected_requirement
         || foreign.binding.provider_plan_report_identity() != selected_plan.report_identity()
     {
         return Err("normalized external child changed its binding or boundary plan");
@@ -548,7 +551,7 @@ pub(crate) fn derive_normalized_foreign_child(
     let matching_executions = provider_executions
         .iter()
         .filter(|execution| {
-            execution.requirement_identity() == requirement_identity
+            execution.requirement_identity() == selected_requirement
                 && execution.provider_plan_report_identity()
                     == execution_record.provider_plan_report_identity
                 && execution.provider_execution_report_identity()

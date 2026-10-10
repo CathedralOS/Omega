@@ -12,13 +12,62 @@ use target_operations::{NativeCallOrigin, TargetUnitOperation};
 
 /// Rejoin the selected native namespace to retained portable catalog data.
 /// This does not install a provider, establish claims, or replay a source body.
-pub(in crate::legalization) fn validate_family_origins(
+pub(in crate::legalization) fn validate_boundary_origins(
     native: &TargetOperationPlan,
     unit: &super::PsiOptimizationUnit,
     input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 ) -> Result<(), LegalizationError> {
     for function in &native.functions {
         for operation in function.graph.operations() {
+            // Normalized bindings name provider requirements; the original
+            // boundary remains the portable call contract. Rejoin the exact
+            // admitted family relation here, where the artifact receipt is
+            // available, before operation-local placement validation.
+            if let TargetUnitOperation::NormalizedForeignCall {
+                boundary,
+                binding,
+                provider_execution,
+                ..
+            } = operation
+            {
+                let declaration = unit
+                    .boundary_machine(*boundary)
+                    .ok_or_else(LegalizationError::custody)?;
+                if binding.requirement_identity() != declaration.identity {
+                    let input = input.ok_or_else(LegalizationError::custody)?;
+                    let plan_commitment = match &binding.mechanism {
+                        target_operations::NormalizedForeignCallMechanism::Import {
+                            same_stack_contribution,
+                            ..
+                        } => same_stack_contribution
+                            .provider_plan_commitment()
+                            .as_bytes(),
+                        target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
+                            kernel.provider_plan_commitment
+                        }
+                    };
+                    if !input.target_family_realizations().iter().any(|row| {
+                        row.terminal == native.psi
+                            && *row.provider_plan_digest.as_bytes() == plan_commitment
+                            && target::TargetProfile::from_canonical_target_name(&row.target)
+                                .is_ok_and(|profile| {
+                                    profile.native_realization() == Some(native.target)
+                                })
+                            && ((row.head == *boundary
+                                && row.head_identity == declaration.identity)
+                                || (row.member == *boundary
+                                    && row.member_identity == declaration.identity))
+                            && row.selected_requirement_identity == binding.requirement_identity()
+                            && row.provider_plan_report_identity
+                                == binding.provider_plan_report_identity()
+                            && row.provider_plan_report_identity
+                                == provider_execution.provider_plan_report_identity().get()
+                    }) {
+                        return Err(LegalizationError::custody());
+                    }
+                }
+                continue;
+            }
             let TargetUnitOperation::Call {
                 psi_operation,
                 origin:

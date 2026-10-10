@@ -259,13 +259,14 @@ fn join_import_coverage_rows<'input>(
     let mut has_external_demand = false;
     for provider_plan in selected_plans.plans() {
         for row in &provider_plan.rows {
-            // Terminal demand names closed requirement identities; a
-            // template-keyed selected row reaches them through the roster.
-            for identity in selected_plans.selected_row_requirement_identities(
-                provider_plan.report_fingerprint(),
-                row.requirement_identity.as_str(),
-            ) {
-                if let Some(rows) = demanded.get_mut(identity) {
+            // Calls retain their original contract identity. The selected
+            // closure relates each family or specialization to this exact row.
+            for (requirement, rows) in &mut demanded {
+                if selected_plans.selected_row_matches_requirement(
+                    requirement,
+                    &row.requirement_identity,
+                    provider_plan.report_fingerprint(),
+                ) {
                     rows.selected_count += 1;
                     if matches!(
                         row.binding,
@@ -288,11 +289,15 @@ fn join_import_coverage_rows<'input>(
             }
         }
         for external in external_binding_rows {
-            let mut identities = selected_plans
-                .closed_requirement_identities(external.requirement_identity.as_str());
-            identities.push(external.requirement_identity.as_str());
-            for identity in identities {
-                if let Some(rows) = demanded.get_mut(identity) {
+            for (requirement, rows) in &mut demanded {
+                let Some((provider_plan, _)) = rows.selected_external else {
+                    continue;
+                };
+                if selected_plans.selected_row_matches_requirement(
+                    requirement,
+                    &external.requirement_identity,
+                    provider_plan.report_fingerprint(),
+                ) {
                     rows.external = Some(external);
                     rows.external_count += 1;
                 }

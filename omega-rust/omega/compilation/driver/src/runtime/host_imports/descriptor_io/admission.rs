@@ -135,8 +135,9 @@ pub(super) fn admit(
     };
     let access_supported = match operation {
         DescriptorOperation::Read => formal.access == StructuralAccess::MutableBorrow,
-        DescriptorOperation::Write => matches!(
-            formal.access,terminal_psi::reading_borrow_pair_pattern!()),
+        DescriptorOperation::Write => {
+            matches!(formal.access, terminal_psi::reading_borrow_pair_pattern!())
+        }
     };
     let (scalar_parameters, parameter_order, native_parameters) = match &buffer {
         DescriptorBuffer::Scalar(_) | DescriptorBuffer::Aggregate(_) => (
@@ -173,7 +174,6 @@ pub(super) fn admit(
         },
     };
     if !binding.has_valid_entry_mechanism()
-        || binding.requirement_identity() != declaration.identity
         || binding.provider_plan_report_identity() == 0
         || !binding
             .boundary_entry_plan

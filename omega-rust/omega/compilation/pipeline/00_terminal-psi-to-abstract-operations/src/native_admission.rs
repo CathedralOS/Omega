@@ -58,7 +58,9 @@ pub fn admit_native_realization<'request>(
             request.providers.program_entry.source().target_slot().owner,
             &adapters,
         )
-        .map_err(|error| realization_error("execution scope", error))?;
+        .map_err(|error| realization_error("execution scope", error))?
+        .bind_selected_family_realizations(artifact, request.providers.selected_provider_plans)
+        .map_err(|error| realization_error("selected family realization", error))?;
     // Invocation-scoped supplies must answer the same executable occurrences
     // as the plan. Complete declarations stay retained in canonical Terminal.
     let settlements = request
@@ -73,19 +75,16 @@ pub fn admit_native_realization<'request>(
                 .boundary_machines
                 .iter()
                 .filter(|boundary| {
-                    boundary.identity == settlement.provider_execution.requirement_identity()
-                        || request
-                            .providers
-                            .selected_provider_plans
-                            .specialized_requirement_row(&boundary.identity)
-                            .is_some_and(|row| {
-                                row.selected_requirement_identity
-                                    == settlement.provider_execution.requirement_identity()
-                                    && row.provider_plan_report_identity
-                                        == settlement
-                                            .provider_execution
-                                            .provider_plan_report_identity()
-                            })
+                    request
+                        .providers
+                        .selected_provider_plans
+                        .selected_row_matches_requirement(
+                            &boundary.identity,
+                            settlement.provider_execution.requirement_identity(),
+                            settlement
+                                .provider_execution
+                                .provider_plan_report_identity(),
+                        )
                 })
                 .peekable();
             // Unknown supplies still reach admission and refuse there. Only

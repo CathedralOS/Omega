@@ -116,18 +116,23 @@ pub(crate) fn check(
                     }
                     OperationKind::BoundaryCall { boundary, .. } => {
                         if program.is_target_family_head(*boundary) {
-                            let member = crate::calls::target_families::checked_member(
+                            let member = crate::calls::target_families::selected_member(
                                 program,
                                 installation
                                     .and_then(|installation| installation.target_machines.as_ref()),
                                 *boundary,
                             )?;
-                            crate::calls::target_families::validate_result_transport(
-                                operation,
-                                program.verified_machine(member)?,
-                            )?;
-                            pending.push(member);
-                            continue;
+                            if let terminal_psi::TargetMachineCallable::Machine(member) = member {
+                                crate::calls::target_families::validate_result_transport(
+                                    operation,
+                                    program.verified_machine(member)?,
+                                )?;
+                                pending.push(member);
+                                continue;
+                            }
+                            // An opaque member contributes the head's exact
+                            // provider or host demand, never an executable body
+                            // or an adapter supplied by catalog membership.
                         }
                         let declaration = program.verified_boundary_machine(boundary)?;
                         if let terminal_psi::BoundaryCompletion::External(kind) =

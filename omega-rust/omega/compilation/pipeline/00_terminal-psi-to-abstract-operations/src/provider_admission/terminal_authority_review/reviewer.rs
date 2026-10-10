@@ -110,7 +110,7 @@ impl<'a> Reviewer<'a> {
                 let schema = selected_plan.schema.identity_digest();
                 self.admit_leaf(
                     schema,
-                    requirement,
+                    &selected_row.requirement_identity,
                     selected_plan.identity_digest(),
                     mechanism,
                 )?;

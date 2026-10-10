@@ -121,6 +121,7 @@ pub struct VerifiedPsiOptimizationInput {
     pub(crate) target_machine_selections:
         Option<terminal_installation::AdmittedTargetMachineSelections>,
     pub(crate) target_layout_selections: Option<terminal_installation::AdmittedTargetLayouts>,
+    pub(crate) target_family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
 }
 
 impl VerifiedPsiOptimizationInput {
@@ -140,6 +141,12 @@ impl VerifiedPsiOptimizationInput {
         self.target_machine_selections.as_ref()
     }
 
+    /// Exact provider coordinates already closed against this artifact and its
+    /// invocation selection. The original boundary remains the call contract.
+    pub fn target_family_realizations(&self) -> &[effects::SelectedTargetFamilyRealization] {
+        &self.target_family_realizations
+    }
+
     /// Exact geometry closure retained separately from immutable canonical Psi.
     /// The executable plan uses only this receipt's selected declarations.
     pub fn target_layout_selections(
@@ -148,14 +155,14 @@ impl VerifiedPsiOptimizationInput {
         self.target_layout_selections.as_ref()
     }
 
-    /// Follow a portable family head as an internal execution edge. A missing
+    /// Resolve a portable family head to its exact execution coordinate. A missing
     /// selected member refuses only when reached; retained, unused families
     /// impose no deployment requirement. Opaque members still require their
     /// own realization and cannot be promoted to executable checked bodies.
     pub fn target_family_member(
         &self,
         boundary: semantic_vocabulary::BoundaryMachineId,
-    ) -> Result<Option<semantic_vocabulary::MachineId>, String> {
+    ) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
         let head = terminal_psi::TargetMachineCallable::Boundary(boundary);
         let families = &self.context.module.target_machine_families;
         let Ok(position) = families.binary_search_by_key(&head, |family| family.canonical) else {
@@ -177,9 +184,14 @@ impl VerifiedPsiOptimizationInput {
                 terminal_psi::TargetMachineCallable::Machine(machine),
                 terminal_psi::TargetMachineSupply::CheckedBody
                 | terminal_psi::TargetMachineSupply::Boundary,
-            ) => Ok(Some(machine)),
+            ) => Ok(Some(terminal_psi::TargetMachineCallable::Machine(machine))),
+            (terminal_psi::TargetMachineCallable::Boundary(member), supply)
+                if supply != terminal_psi::TargetMachineSupply::CheckedBody =>
+            {
+                Ok(Some(terminal_psi::TargetMachineCallable::Boundary(member)))
+            }
             _ => Err(format!(
-                "target-family head {boundary:?} selected opaque {:?} for `{}`; native member realization is unavailable",
+                "target-family head {boundary:?} selected incompatible callable {:?} for `{}`",
                 member.callable(),
                 selections.target(),
             )),

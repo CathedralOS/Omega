@@ -20,7 +20,11 @@ pub(crate) fn project_terminal_native_realization_proposal(
     terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
         artifact,
         checked_program_entry,
-        checked.terminal_native_proposal_request(callback_placements, callback_thunks, selections),
+        checked.terminal_native_proposal_request(
+            callback_placements,
+            callback_thunks,
+            selections,
+        )?,
     )
 }
 

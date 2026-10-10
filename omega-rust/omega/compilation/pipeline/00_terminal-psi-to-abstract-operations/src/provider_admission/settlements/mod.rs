@@ -36,14 +36,15 @@ pub(crate) fn settle_provider_executions<'request>(
         request.external_binding_rows,
         request.native_callbacks,
     )?;
-    // Preparation settled one execution per demanded requirement.
+    // Preparation settles one execution per selected row. Its retained family
+    // and specialization relations may serve several original call contracts.
     let mut admitted = Vec::with_capacity(request.settlements.len());
     let mut provider_executions = Vec::with_capacity(request.settlements.len());
 
     for settlement in request.settlements {
         let (admitted_settlement, provider_execution) =
             settle_boundary(input, request, settlement)?;
-        admitted.push(admitted_settlement);
+        admitted.extend(admitted_settlement);
         provider_executions.push(provider_execution);
     }
 

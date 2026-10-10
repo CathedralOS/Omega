@@ -17,6 +17,7 @@ use diagnostics::Diagnostic;
 /// neither their cardinality nor their identity is trusted.
 pub struct TerminalNativeProposalRequest<'input> {
     pub target_profile: Option<target::TargetProfile>,
+    pub family_realizations: Vec<SelectedFamilyRealizationSource>,
     pub boundaries: crate::BoundaryApplicationSettlement<'input>,
     pub native_target: Option<target::NativeTarget>,
     pub program_entry: Option<crate::NativeProgramEntrySettlement<'input>>,
@@ -28,6 +29,73 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub callback_placements: Vec<backend_plan::NativeCallbackPlacement>,
     pub callback_thunks: Vec<crate::TerminalCallbackThunkArtifact>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+}
+
+/// Source custody for one already selected provider row. Its physical member
+/// identity is deliberately absent: only the emitted artifact owns that identity.
+pub struct SelectedFamilyRealizationSource {
+    pub head_identity: String,
+    pub target: String,
+    pub selected_requirement_identity: String,
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: effects::provider_plan::ProviderPlanDigest,
+}
+
+fn close_family_realizations(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    profile: target::TargetProfile,
+    selected: &effects::SelectedProviderPlanFacts,
+    sources: &[SelectedFamilyRealizationSource],
+) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
+    use terminal_psi::TargetMachineCallable;
+    let error = |message: String| vec![Diagnostic::error(message)];
+    let selections = terminal_installation::admit_target_machine_selections(
+        artifact.view(),
+        profile.target_name(),
+    );
+    let module = artifact.semantic_module();
+    let mut rows = Vec::new();
+    for source in sources {
+        let Some(head) = module
+            .boundary_machines
+            .iter()
+            .find(|boundary| boundary.identity == source.head_identity)
+        else {
+            // An unretained source family creates no execution demand.
+            continue;
+        };
+        if source.target != selections.target() {
+            return Err(error(
+                "selected provider family has a different target".to_owned(),
+            ));
+        }
+        let selected_member = selections
+            .member(TargetMachineCallable::Boundary(head.id))
+            .map_err(|message| error(format!("selected provider family member: {message}")))?;
+        let TargetMachineCallable::Boundary(member_id) = selected_member.callable() else {
+            // Checked bodies execute through the ordinary family frame path.
+            continue;
+        };
+        let member = terminal_psi::find_boundary_machine(&module.boundary_machines, member_id)
+            .ok_or_else(|| {
+                error("selected provider family member declaration is absent".to_owned())
+            })?;
+        rows.push(effects::SelectedTargetFamilyRealization {
+            terminal: selections.terminal_psi(),
+            target: source.target.clone(),
+            head: head.id,
+            member: member.id,
+            head_identity: head.identity.clone(),
+            member_identity: member.identity.clone(),
+            selected_requirement_identity: source.selected_requirement_identity.clone(),
+            provider_plan_report_identity: source.provider_plan_report_identity,
+            provider_plan_digest: source.provider_plan_digest,
+        });
+    }
+    selected
+        .clone()
+        .with_family_realization_rows(rows)
+        .map_err(error)
 }
 
 /// Reconstruct the entry, provider and occurrence joins required by native
@@ -73,11 +141,17 @@ pub fn project_terminal_native_realization_proposal(
         ))]
     })?;
     let terminal_module = artifact.semantic_module();
+    let selected = close_family_realizations(
+        artifact,
+        target_profile,
+        request.boundaries.selected_provider_plans,
+        &request.family_realizations,
+    )?;
     let demanded_intrinsics =
         crate::provider_admission::demanded_boundary_identities(terminal_module)?;
     let builtin_proposals =
         crate::provider_admission::derive_selected_intrinsic_settlement_proposals(
-            request.boundaries.selected_provider_plans,
+            &selected,
             request
                 .boundaries
                 .selected_provider_provenance
@@ -128,7 +202,7 @@ pub fn project_terminal_native_realization_proposal(
         program_entry,
         request.optimizations,
         TerminalNativeProviders {
-            selection: request.boundaries.selected_provider_plans.clone(),
+            selection: selected,
             external_bindings: external_binding_rows,
             compiler_builtins: builtin_proposals,
             x86_scalar_fma: request.x86_scalar_fma_provider,

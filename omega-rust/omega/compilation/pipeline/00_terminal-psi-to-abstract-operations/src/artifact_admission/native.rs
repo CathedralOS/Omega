@@ -79,6 +79,42 @@ impl VerifiedNativeArtifactInput {
         Ok(input)
     }
 
+    /// Admit selected row aliases only with the exact artifact member receipt.
+    pub(crate) fn bind_selected_family_realizations(
+        mut self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        selected: &effects::SelectedProviderPlanFacts,
+    ) -> Result<Self, String> {
+        let selections = self
+            .optimization_input
+            .target_machine_selections
+            .as_ref()
+            .ok_or_else(|| "selected family providers require target selection".to_owned())?;
+        for row in selected.family_realization_rows() {
+            let member = selections
+                .member(terminal_psi::TargetMachineCallable::Boundary(row.head))
+                .map_err(|error| error.to_string())?;
+            let module = artifact.semantic_module();
+            if row.terminal != artifact.manifest().semantic()
+                || row.terminal != selections.terminal_psi()
+                || row.target != selections.target()
+                || member.callable() != terminal_psi::TargetMachineCallable::Boundary(row.member)
+                || terminal_psi::find_boundary_machine(&module.boundary_machines, row.head)
+                    .is_none_or(|head| head.identity != row.head_identity)
+                || terminal_psi::find_boundary_machine(&module.boundary_machines, row.member)
+                    .is_none_or(|member| member.identity != row.member_identity)
+            {
+                return Err(
+                    "selected family provider row disagrees with the exact artifact member"
+                        .to_owned(),
+                );
+            }
+        }
+        self.optimization_input.target_family_realizations =
+            selected.family_realization_rows().to_vec();
+        Ok(self)
+    }
+
     /// Restrict physical work to this deployment's retained implementations.
     /// Canonical Terminal storage and actual member identities remain intact;
     /// this does not redirect calls or substitute a body at a family head.
@@ -228,6 +264,7 @@ pub(super) fn lower_decoded_native_module(
             context,
             target_machine_selections: None,
             target_layout_selections: None,
+            target_family_realizations: Vec::new(),
         },
     })
 }

@@ -16,7 +16,7 @@ pub(super) fn settle_boundary<'request>(
     settlement: &NativeProviderSettlement<'request>,
 ) -> Result<
     (
-        AdmittedBoundarySettlement<'request>,
+        Vec<AdmittedBoundarySettlement<'request>>,
         &'request dyn ProviderExecutionEvidence,
     ),
     Vec<Diagnostic>,
@@ -71,63 +71,59 @@ pub(super) fn settle_boundary<'request>(
         .boundary_machines
         .iter()
         .filter(|boundary| {
-            boundary.identity == requirement
-                || request
-                    .selected_provider_plans
-                    .specialized_requirement_row(&boundary.identity)
-                    .is_some_and(|specialization| {
-                        specialization.selected_requirement_identity == requirement
-                            && specialization.provider_plan_report_identity
-                                == evidence.provider_plan_report_identity()
-                    })
+            request
+                .selected_provider_plans
+                .selected_row_matches_requirement(
+                    &boundary.identity,
+                    requirement,
+                    evidence.provider_plan_report_identity(),
+                )
         })
         .collect::<Vec<_>>();
-    let [boundary] = matching_boundaries.as_slice() else {
-        return Err(vec![Diagnostic::error(match matching_boundaries.len() {
-            0 => format!("native provider execution cites absent requirement `{requirement}`"),
-            count => format!(
-                "native requirement `{requirement}` resolves to {count} boundary declarations"
-            ),
-        })]);
-    };
-    if !super::super::compiler_builtins::boundary_contract_matches_selected_schema(
-        boundary,
-        selected_plan,
-        requirement,
-    ) {
+    if matching_boundaries.is_empty() {
         return Err(vec![Diagnostic::error(format!(
-            "provider completion for `{requirement}` disagrees with its exact retained requirement contract"
+            "native provider execution cites absent requirement `{requirement}`"
         ))]);
     }
-    if let target_operations::BoundarySettlementRealization::Builtin(builtin) = &realization {
-        let completion = match builtin {
-            target_operations::BoundaryRealization::HostedExitProcessI32(_) => {
-                semantic_vocabulary::BoundaryCompletion::External(
-                    semantic_vocabulary::ExternalCompletionKind::ProcessExit,
-                )
-            }
-            target_operations::BoundaryRealization::MetadataOnlyPort(_)
-            | target_operations::BoundaryRealization::DirectPortReadU8(_)
-            | target_operations::BoundaryRealization::LinuxWriteLine(_)
-            | target_operations::BoundaryRealization::HostedReadByte(_)
-            | target_operations::BoundaryRealization::HostedWriteByteI32(_)
-            | target_operations::BoundaryRealization::ClaimCompletionOnly(_)
-            | target_operations::BoundaryRealization::NearestIeeeFloatArithmetic(_) => {
-                semantic_vocabulary::BoundaryCompletion::NormalReturn
-            }
-        };
-        if boundary.completion != completion {
+    let mut admitted = Vec::with_capacity(matching_boundaries.len());
+    for boundary in matching_boundaries {
+        if !super::super::compiler_builtins::boundary_contract_matches_selected_schema(
+            boundary,
+            selected_plan,
+            requirement,
+        ) {
             return Err(vec![Diagnostic::error(format!(
-                "provider builtin for `{requirement}` contradicts its retained completion contract"
+                "provider completion for `{requirement}` disagrees with its exact retained requirement contract"
             ))]);
         }
-    }
-    Ok((
-        AdmittedBoundarySettlement {
+        if let target_operations::BoundarySettlementRealization::Builtin(builtin) = &realization {
+            let completion = match builtin {
+                target_operations::BoundaryRealization::HostedExitProcessI32(_) => {
+                    semantic_vocabulary::BoundaryCompletion::External(
+                        semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+                    )
+                }
+                target_operations::BoundaryRealization::MetadataOnlyPort(_)
+                | target_operations::BoundaryRealization::DirectPortReadU8(_)
+                | target_operations::BoundaryRealization::LinuxWriteLine(_)
+                | target_operations::BoundaryRealization::HostedReadByte(_)
+                | target_operations::BoundaryRealization::HostedWriteByteI32(_)
+                | target_operations::BoundaryRealization::ClaimCompletionOnly(_)
+                | target_operations::BoundaryRealization::NearestIeeeFloatArithmetic(_) => {
+                    semantic_vocabulary::BoundaryCompletion::NormalReturn
+                }
+            };
+            if boundary.completion != completion {
+                return Err(vec![Diagnostic::error(format!(
+                    "provider builtin for `{requirement}` contradicts its retained completion contract"
+                ))]);
+            }
+        }
+        admitted.push(AdmittedBoundarySettlement {
             boundary: boundary.id,
             execution: crate::AdmittedBoundaryExecution::Provider(evidence),
-            realization,
-        },
-        evidence,
-    ))
+            realization: realization.clone(),
+        });
+    }
+    Ok((admitted, evidence))
 }

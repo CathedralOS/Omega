@@ -316,9 +316,16 @@ impl<'artifact> TerminalProgram<'artifact> {
                 .get(&boundary)
                 .ok_or_else(|| rejected("host import names no declared boundary"))?;
             if self.program.is_target_family_head(boundary) {
-                return Err(rejected(
-                    "family contract head requires exact target member selection",
-                ));
+                let member = crate::calls::target_families::selected_member(
+                    &self.program,
+                    installation.target_machines.as_ref(),
+                    boundary,
+                )?;
+                if !matches!(member, terminal_psi::TargetMachineCallable::Boundary(_)) {
+                    return Err(rejected(
+                        "a checked target-family member cannot be replaced by a host import",
+                    ));
+                }
             }
             if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
                 return Err(rejected(

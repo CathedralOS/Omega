@@ -120,6 +120,20 @@ pub(super) fn bind<'host>(
                         .ok_or(TerminalRuntimeError::InvalidProvision(
                             "foreign host provision names no demanded import",
                         ))?;
+                // The occurrence keeps its portable contract while the foreign
+                // binding names the selected row. Rejoin their retained exact
+                // association once before either host implementation is offered.
+                if !provisions.is_some_and(|provisions| {
+                    provisions.matches_host_requirement(
+                        declaration,
+                        binding.requirement_identity(),
+                        binding.provider_plan_report_identity(),
+                    )
+                }) {
+                    return Err(TerminalRuntimeError::InvalidProvision(
+                        "foreign host binding does not match its admitted requirement row",
+                    ));
+                }
                 if let Some(adapter) = clock::ClockImport::admit(
                     declaration,
                     binding,

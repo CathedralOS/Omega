@@ -1,7 +1,9 @@
-//! Family dispatch selects an exact executable identity, not a provider route.
+//! Family dispatch selects an exact member before choosing its execution route.
 //! Psi admitted the head/member refinement; catalog selection supplies only its
-//! deployment association. Arguments enter the ordinary member frame. Results
-//! transfer the member's actual claims and backing, never boundary issuance.
+//! deployment association. Checked members enter an ordinary call frame and
+//! transfer their actual result claims and backing, never boundary issuance.
+//! Opaque members retain the head's ordinary provider/import route and contract;
+//! catalog selection alone grants neither a provider nor a host adapter.
 
 use crate::capabilities::TerminalUnsupportedCapability;
 use crate::custody::{bind_structural_arguments, validate_boundary_requirements};
@@ -16,14 +18,21 @@ use terminal_psi::{
     TargetMachineCallable, TargetMachineSupply,
 };
 
-pub(crate) fn checked_member(
+/// Resolve the exact deployment member without granting its execution supply.
+/// Checked bodies use ordinary call custody; opaque declarations still demand
+/// a separately admitted provider or a receiving host's exact import adapter.
+pub(crate) fn selected_member(
     program: &AdmittedTerminalProgram<'_>,
     selections: Option<&AdmittedTargetMachineSelections>,
     boundary: BoundaryMachineId,
-) -> Result<MachineId, TerminalInterpretError> {
+) -> Result<TargetMachineCallable, TerminalInterpretError> {
     let head = TargetMachineCallable::Boundary(boundary);
+    let selections =
+        selections.ok_or(TerminalInterpretError::TargetMachineSelectionMissing(head))?;
+    if selections.terminal_psi() != program.identity {
+        return Err(TerminalInterpretError::TargetMachineSelectionIdentityMismatch);
+    }
     let selected = selections
-        .ok_or(TerminalInterpretError::TargetMachineSelectionMissing(head))?
         .member(head)
         .map_err(TerminalInterpretError::TargetMachineSelection)?;
     match (selected.callable(), selected.supply()) {
@@ -35,7 +44,13 @@ pub(crate) fn checked_member(
             // executable identity supplies custody; an opaque Boundary never
             // enters this arm merely by naming the same supply mode.
             program.verified_machine(member)?;
-            Ok(member)
+            Ok(selected.callable())
+        }
+        (TargetMachineCallable::Boundary(member), supply)
+            if supply != TargetMachineSupply::CheckedBody =>
+        {
+            program.verified_boundary_machine(&member)?;
+            Ok(selected.callable())
         }
         (callable, supply) => Err(TerminalInterpretError::UnsupportedCapability(
             TerminalUnsupportedCapability::TargetMachineMemberSupply {
@@ -88,6 +103,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
         head: &BoundaryMachineDeclaration,
+        member_id: MachineId,
         scalar_arguments: &[TerminalScalarValue],
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let OperationKind::BoundaryCall {
@@ -99,7 +115,6 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let program = std::sync::Arc::clone(&self.program);
-        let member_id = checked_member(&program, self.target_machines.as_ref(), head.id)?;
         let member = program.verified_machine(member_id)?;
         validate_result_transport(operation, member)?;
         let prepared = self.prepare_structural_call_arguments(member_id, structural_arguments)?;

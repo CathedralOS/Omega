@@ -7,7 +7,7 @@ use super::{
 use crate::physical::{canonical_usize, hash_bytes};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v8\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v9\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) terminal_artifact_identity: [u8; 32],
@@ -144,6 +144,19 @@ pub(super) fn derive_native_artifact_identity(
         digest.raw(&canonical_usize(plan.requirement_identities.len()));
         for requirement in &plan.requirement_identities {
             hash_bytes(&mut digest, requirement.as_bytes());
+        }
+        digest.raw(&canonical_usize(plan.family_realization_rows.len()));
+        for row in &plan.family_realization_rows {
+            digest.raw(&row.terminal.vocabulary_marker.get().to_le_bytes());
+            digest.raw(row.terminal.program_fingerprint.as_bytes());
+            hash_bytes(&mut digest, row.target.as_bytes());
+            digest.raw(&row.head.get().to_le_bytes());
+            digest.raw(&row.member.get().to_le_bytes());
+            hash_bytes(&mut digest, row.head_identity.as_bytes());
+            hash_bytes(&mut digest, row.member_identity.as_bytes());
+            hash_bytes(&mut digest, row.selected_requirement_identity.as_bytes());
+            digest.raw(&row.provider_plan_report_identity.to_le_bytes());
+            digest.raw(row.provider_plan_digest.as_bytes());
         }
     }
     digest.raw(&canonical_usize(fields.provider_executions.len()));
