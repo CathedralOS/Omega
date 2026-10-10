@@ -9,6 +9,8 @@ use semantic_vocabulary::{ClaimId, PlaceId};
 /// indices. A reference descriptor may belong to that subtree; its referent
 /// cannot. Dynamic access geometry requires separate selector custody and is
 /// not a completion path.
+/// Fixed indices descend only into fixed arrays or inline owned bytes, never
+/// into the borrowed backing of an element or byte view.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoanCompletion {
     pub operation: semantic_vocabulary::OperationId,

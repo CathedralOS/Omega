@@ -216,6 +216,30 @@ fn validate_owned_completion_path(
     }) {
         return malformed("loan completion path must retain a static owned subtree");
     }
+    // A fixed coordinate is not enough: ordinary access also indexes a view's
+    // borrowed backing. Resolve each indexed parent before admitting its hop;
+    // only fixed arrays and inline owned bytes retain storage in this home.
+    for (position, segment) in path.iter().enumerate() {
+        if !matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_)) {
+            continue;
+        }
+        let parent = terminal_semantics::runtime_structural_path_tip(
+            module.structural_types.iter(),
+            root,
+            &path[..position],
+        );
+        if parent.is_none_or(|declaration| {
+            !matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::FixedArray { .. }
+                    | terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+            )
+        }) {
+            return malformed("loan completion index must select inline owned storage");
+        }
+    }
     validate_structural_path(module, root, path)?;
     Ok(())
 }
