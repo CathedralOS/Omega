@@ -97,6 +97,7 @@ pub(super) fn check_call_requires(
                 call_flow,
                 requirement_contexts,
                 fact,
+                expression_intervals,
                 call_frames,
             );
             let satisfied = captured_judgment.unwrap_or_else(|| match fact.payload {
@@ -116,12 +117,6 @@ pub(super) fn check_call_requires(
                         call_flow,
                         expression,
                         call_frames,
-                    ) || super::argument_intervals::proves(
-                        program,
-                        state_flow,
-                        call_flow,
-                        expression,
-                        expression_intervals,
                     )
                 }
                 _ => semantic_contexts_prove_contract_fact(

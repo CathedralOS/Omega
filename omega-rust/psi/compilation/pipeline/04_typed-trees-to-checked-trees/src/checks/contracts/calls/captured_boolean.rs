@@ -17,6 +17,7 @@ pub(super) fn judgment(
     call: &FlowCallFact,
     contexts: &[facts::FactContextHandle],
     requirement: &Fact,
+    expression_intervals: &[validation::ExpressionInterval],
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
     let FactPayload::ContractBooleanExpression { expression, .. } = requirement.payload else {
@@ -56,6 +57,7 @@ pub(super) fn judgment(
                 contract,
                 contract_call.target_state_symbol,
                 expression,
+                expression_intervals,
                 frames,
             ) {
                 return Some(false);
@@ -91,6 +93,7 @@ fn captured_contract_proven(
     contract: &checked_trees::ContractProofFact,
     target: symbols::SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
+    expression_intervals: &[validation::ExpressionInterval],
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     if call_values::proves_captured_arithmetic_requirement(program, facts, state, call, expression)
@@ -126,6 +129,46 @@ fn captured_contract_proven(
     }
     if !super::super::prover::has_builtin_operators(program, &facts.operators, expression) {
         return false;
+    }
+    // The arithmetic walk observed every evaluation of this exact actual.
+    // Its retained hull can describe an effectful call's completed result;
+    // it does not establish that replaying that call has the same value.
+    let complete_arguments =
+        call_values::captured_argument_expressions(program, facts, state, call)
+            .zip(validation::call_target_parameters(program, target))
+            .is_some_and(|(arguments, parameters)| arguments.len() == parameters.len());
+    if complete_arguments
+        && super::super::argument_intervals::proves(
+            program,
+            expression,
+            expression_intervals,
+            &|parameter| {
+                let name = program.expression_table.name_path_node(parameter)?;
+                if !name.symbol.is_valid()
+                    || name.symbol != name.head_symbol
+                    || program
+                        .expression_table
+                        .name_path_members(name.members)
+                        .len()
+                        != 1
+                {
+                    return None;
+                }
+                let declared = validation::canonical_place_from_expression(program, parameter)?;
+                let actual = actual_for_formal_place(
+                    program, facts, state, call, contract, target, &declared,
+                )?;
+                // A value formal receives the completed scalar snapshot.
+                // A reference formal instead observes live referee contents;
+                // its argument-time hull cannot certify later invocation data.
+                program
+                    .primitive_type_reference(actual.parameter.type_reference)
+                    .filter(|primitive| primitive.accepts_integer_literal())?;
+                actual.argument
+            },
+        )
+    {
+        return true;
     }
     matches!(
         super::super::prover::evaluate_with_atoms(

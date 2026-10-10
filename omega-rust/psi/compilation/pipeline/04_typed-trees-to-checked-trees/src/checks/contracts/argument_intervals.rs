@@ -8,23 +8,23 @@
 //! `sum(values, index + 1, ..)` after a refuted `index >= 4 ->` arm passes
 //! `index + 1` in `[1, 4]`. Conjunctions of such comparisons hold when each
 //! does. Every other requirement keeps its existing provers; this is a client
-//! of the one interval engine rather than another private one.
-use checked_trees::{FlowCallFact, FlowStateFact};
+//! of the one interval engine rather than another private one. The call capture
+//! owner supplies the exact completed actual for each demanded formal; this
+//! consumer never reconstructs source arguments or evaluates them again.
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 pub(super) fn proves(
     program: &dyn ::validation::CheckingInput,
-    state_flow: &FlowStateFact,
-    call_flow: &FlowCallFact,
     requirement: ExpressionHandle,
     intervals: &[validation::ExpressionInterval],
+    argument_for: &impl Fn(ExpressionHandle) -> Option<ExpressionHandle>,
 ) -> bool {
     let Some(binary) = program.expression_table.binary_node(requirement) else {
         return false;
     };
     if binary.operator == BinaryOperator::And {
-        return proves(program, state_flow, call_flow, binary.left, intervals)
-            && proves(program, state_flow, call_flow, binary.right, intervals);
+        return proves(program, binary.left, intervals, argument_for)
+            && proves(program, binary.right, intervals, argument_for);
     }
     let literal = |side: ExpressionHandle| match program.expression_table.expression(side) {
         ExpressionNode::Integer(value) => value.value_i64(),
@@ -39,7 +39,7 @@ pub(super) fn proves(
     } else {
         return false;
     };
-    let Some(argument) = argument_for(program, state_flow, call_flow, parameter) else {
+    let Some(argument) = argument_for(parameter) else {
         return false;
     };
     let Some(interval) = validation::expression_interval(intervals, argument) else {
@@ -57,43 +57,4 @@ pub(super) fn proves(
         }
         _ => false,
     }
-}
-
-/// The argument expression the call passes for the plain parameter name
-/// `parameter` of its target.
-fn argument_for(
-    program: &dyn ::validation::CheckingInput,
-    state_flow: &FlowStateFact,
-    call_flow: &FlowCallFact,
-    parameter: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    let name = program.expression_table.name_path_node(parameter)?;
-    if !name.symbol.is_valid()
-        || name.symbol != name.head_symbol
-        || program
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
-    let parameters = validation::call_target_parameters(program, call_flow.target_symbol)?;
-    let position = parameters
-        .iter()
-        .position(|candidate| candidate.symbol == name.symbol)?;
-    let site = validation::find_call_site(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-        call_flow.statement_index,
-        call_flow.call_ordinal,
-    )?;
-    let arguments = validation::call_site_argument_expressions(program, &site);
-    // Arguments and parameters correspond positionally only when every
-    // parameter has its own argument.
-    if arguments.len() != parameters.len() {
-        return None;
-    }
-    arguments.get(position).copied()
 }
