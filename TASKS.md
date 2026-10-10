@@ -2827,34 +2827,6 @@ routes in dependency order. New capability work
 never a new per-route case. Land coherent cuts that delete their superseded
 code and preserve check/native behavior for the named customer slices.
 
-- **ONE-CALL-LOWERING.** (new-scope) Composed graphs, ordinary bodies and
-  structural-value members all reach `OperationFrame::emit_call`
-  (`unit/attached_unit/operation_frame/calls.rs`), and `DirectCall` selects
-  every direct Terminal call kind. Separate call emitters remain:
-  - `operation_emission/calls.rs::emit_direct_call_operation` and
-    `operation_emission/boundary_calls.rs` for computation calls;
-  - `scalar_lowering/effects.rs` `LoweredScalarEffect::Call`.
-
-  These routes duplicate erased lanes, requirement obligations, crash-route
-  root substitution (only `ordinary_calls::prepare` substitutes structural
-  roots) and result claims (path-based in `receive_call_result_claim`, a
-  permission-event scan for boundary results, none for scalar-graph
-  effects). Source-call rows name a state symbol in some routes and a machine
-  symbol in others. Call-argument homes are resolved by
-  `parameters::lower_structural_arguments` and again by
-  `ScalarBindings`/`scalar_computations/structural_arguments.rs`; the path
-  step (`prepare_structural_argument_path`) is already shared. Stage 04
-  builds every `CheckedUnitCallPlan` through `build_call_operation`; scalar
-  computations (`CheckedScalarComputationKind::Call`) keep their own call
-  records. Make one argument preparation and one call emitter, keeping the
-  real boundary versus machine and result-kind distinctions.
-  `ClaimBindings::Fixed` still cannot mint a result claim.
-
-  Acceptance: a source-scanning guard finds one call emitter and one
-  `StructuralArgument` constructor in stage 05; corpus
-  `--filter calls/,boundary/,providers/` is unchanged;
-  `pass/calls/runtime_value_call_literal_len_arm_guard_exit` exits 70.
-
 - **OUTCOME-SPECIFIC-CALL-EVIDENCE.** (split-of:RETURN-ROSTERS-RETIRED) A
   caller arm matching a callee's outcome-specific guarantee
   (`ensures Result::Case -> { ... }`) has no producer. Parsing and resolution
