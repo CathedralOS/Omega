@@ -4616,3 +4616,5 @@ fail/generics/qualified_closed_equation_value_operand rejected 1261ms expected @
 fail/generics/qualified_closed_equation_value_reconstruction rejected 1243ms expected @8d6cc0f5fef7+wt
 	generic machine `recovered` where type equation operand `models::COUNT` does not name a closed type
 pass/generics/runtime_qualified_closed_equation_exit checked 5180ms check-target:linux_x86_64 @8d6cc0f5fef7+wt
+pass/modules/selected_constant_array_alias_named_extent checked 11142ms @b5964efaecb8
+pass/modules/selected_constant_array_alias_named_extent_exit checked 55762ms check-target:linux_x86_64 @b5964efaecb8

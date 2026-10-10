@@ -10,6 +10,9 @@
 //! component type. A suffixed leaf has already landed: erasing that carrier or
 //! arithmetic domain would equate a differently typed value with this component,
 //! even when its numeric payload fits. Check the landing before encoding it.
+//! Array eligibility, element rosters and encoded carrier labels close geometry
+//! through one source-selected integer extent. Generic bindings retain priority;
+//! a completed named constant is read from its declaration, never a root-name map.
 use super::super::{
     CanonicalConstValue, ConstDefinition, DataDefinition, DataMember, ExpressionHandle,
     ExpressionNode, FixedArrayLength, HandleSpan, HashSet, Identifier, Item, SyntaxTrees,
@@ -350,7 +353,12 @@ fn canonical_const_result(
     node: CanonicalConstNode,
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
-    let required = selected_type_label(syntax, type_reference, selection)?;
+    let required = substituted_type_label(
+        syntax,
+        type_reference,
+        &GenericApplicationSubstitution::new(),
+        selection,
+    )?;
     if required == "Rat" {
         validate_canonical_rat(&node)?;
     }
@@ -677,6 +685,85 @@ pub(in crate::preparation::generic_data) fn canonicalize_selected_declaration_va
     canonical_const_result(syntax, definition.type_reference, node, selection)
 }
 
+/// Close structural array geometry through the same selected declaration used
+/// for its value. A spelling is not an extent: source custody selects the owner,
+/// canonical scalar validation establishes its carrier, and only a completed
+/// literal is observable here. Calls and unresolved values remain with the
+/// evaluation scheduler; reading them here would invent dependency readiness.
+pub(crate) fn closed_fixed_array_length(
+    syntax: &SyntaxTrees,
+    length: &FixedArrayLength,
+    substitution: &GenericApplicationSubstitution,
+    selection: Option<&ConstantSelection>,
+) -> Result<usize, String> {
+    match length {
+        FixedArrayLength::Literal(length) => Ok(*length),
+        FixedArrayLength::ConstParameter(name) => {
+            if let Some(argument) = substitution.get(name.as_str()) {
+                return syntax
+                    .type_references
+                    .type_reference(*argument)
+                    .as_named()
+                    .ok_or_else(|| {
+                        "array extent binding is not a completed integer literal".to_owned()
+                    })?
+                    .as_str()
+                    .parse::<usize>()
+                    .map_err(|_| {
+                        "array extent binding is not a nonnegative host-sized integer".to_owned()
+                    });
+            }
+            let selection = selection.ok_or_else(|| {
+                "array extent requires an exact selected constant declaration".to_owned()
+            })?;
+            let definition = selection
+                .select(syntax, name)
+                .map_err(|diagnostic| diagnostic.message.to_string())?
+                .ok_or_else(|| {
+                    "array extent requires an exact selected constant declaration".to_owned()
+                })?;
+            if !matches!(
+                syntax.expressions.expression(definition.value),
+                ExpressionNode::Integer(_)
+            ) {
+                return Err("array extent constant is not a completed integer literal".to_owned());
+            }
+            // Reject an aggregate pretending to be its own scalar extent before
+            // recursively validating its carrier: no cyclic type can acquire
+            // readiness merely because its initializer is spelled as an integer.
+            let mut carrier = definition.type_reference;
+            while let TypeReferenceNode::Constrained { base_type, .. } =
+                syntax.type_references.type_reference(carrier)
+            {
+                carrier = *base_type;
+            }
+            if !matches!(syntax.type_references.type_reference(carrier), TypeReferenceNode::Named(name)
+                if matches!(selection.builtin_type(name), Some(symbols::BuiltinTypeAtom::I8 | symbols::BuiltinTypeAtom::I16 | symbols::BuiltinTypeAtom::I32 | symbols::BuiltinTypeAtom::I64 | symbols::BuiltinTypeAtom::U8 | symbols::BuiltinTypeAtom::U16 | symbols::BuiltinTypeAtom::U32 | symbols::BuiltinTypeAtom::U64)))
+            {
+                return Err("array extent constant must have an integer carrier".to_owned());
+            }
+            let value = super::super::canonicalize_selected_declared_const_definition(
+                syntax,
+                &definition,
+                Some(selection),
+            )?;
+            let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                value,
+                ..
+            }) = value.decode_encoding()
+            else {
+                return Err("array extent constant must have an integer carrier".to_owned());
+            };
+            usize::try_from(value).map_err(|_| {
+                "array extent constant is not a nonnegative host-sized integer".to_owned()
+            })
+        }
+        FixedArrayLength::ConstCall(_) => {
+            Err("array extent call requires completed constant evaluation".to_owned())
+        }
+    }
+}
+
 fn validate_selected_const_type(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
@@ -880,38 +967,7 @@ fn validate_selected_const_type(
             element_type,
             length,
         } => {
-            match length {
-                FixedArrayLength::Literal(_) => {}
-                FixedArrayLength::ConstParameter(name) => {
-                    let Some(argument) = substitution.get(name.as_str()) else {
-                        return Err(
-                            "const index types require finite structural values with decidable equality and one canonical form"
-                                .to_owned(),
-                        );
-                    };
-                    let Some(value) = syntax
-                        .tables
-                        .type_references
-                        .type_reference(*argument).as_named() else {
-                        return Err(
-                            "const index types require finite structural values with decidable equality and one canonical form"
-                                .to_owned(),
-                        );
-                    };
-                    if value.as_str().parse::<usize>().is_err() {
-                        return Err(
-                            "const index types require finite structural values with decidable equality and one canonical form"
-                                .to_owned(),
-                        );
-                    }
-                }
-                FixedArrayLength::ConstCall(_) => {
-                    return Err(
-                        "const index types require finite structural values with decidable equality and one canonical form"
-                            .to_owned(),
-                    );
-                }
-            }
+            closed_fixed_array_length(syntax, length, substitution, selection)?;
             validate_selected_const_type(syntax,
                 *element_type,
                 visiting,
@@ -1134,33 +1190,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
             element_type,
             length,
         } => {
-            let length =
-                match length {
-                    FixedArrayLength::Literal(length) => *length,
-                    FixedArrayLength::ConstParameter(name) => {
-                        let Some(argument) = substitution.get(name.as_str()) else {
-                            return Err("const value expression has an ineligible parameter type"
-                                .to_owned());
-                        };
-                        let Some(value) = syntax
-                            .tables
-                            .type_references
-                            .type_reference(*argument)
-                            .as_named()
-                        else {
-                            return Err("const value expression has an ineligible parameter type"
-                                .to_owned());
-                        };
-                        value.as_str().parse::<usize>().map_err(|_| {
-                            "const value expression has an ineligible parameter type".to_owned()
-                        })?
-                    }
-                    FixedArrayLength::ConstCall(_) => {
-                        return Err(
-                            "const value expression has an ineligible parameter type".to_owned()
-                        );
-                    }
-                };
+            let length = closed_fixed_array_length(syntax, length, substitution, selection)?;
             let ExpressionNode::ArrayLiteral(values) = syntax.expressions.expression(expression)
             else {
                 return Err("expected an array literal for fixed-array const value".to_owned());
@@ -1247,29 +1277,7 @@ fn substituted_type_label(
             element_type,
             length,
         } => {
-            let length = match length {
-                FixedArrayLength::Literal(length) => *length,
-                FixedArrayLength::ConstParameter(name) => {
-                    let Some(argument) = substitution.get(name.as_str()) else {
-                        return selected_type_label(syntax, reference, selection);
-                    };
-                    let Some(value) = syntax
-                        .tables
-                        .type_references
-                        .type_reference(*argument)
-                        .as_named()
-                    else {
-                        return selected_type_label(syntax, reference, selection);
-                    };
-                    match value.as_str().parse::<usize>() {
-                        Ok(length) => length,
-                        Err(_) => return selected_type_label(syntax, reference, selection),
-                    }
-                }
-                FixedArrayLength::ConstCall(_) => {
-                    return selected_type_label(syntax, reference, selection);
-                }
-            };
+            let length = closed_fixed_array_length(syntax, length, substitution, selection)?;
             Ok(format!(
                 "[{}; {length}]",
                 substituted_type_label(syntax, *element_type, substitution, selection)?

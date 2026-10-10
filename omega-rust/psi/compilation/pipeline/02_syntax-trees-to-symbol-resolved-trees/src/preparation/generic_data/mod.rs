@@ -50,8 +50,8 @@ pub(in crate::preparation::generic_data) use arguments::{
 };
 pub(in crate::preparation) use const_evaluation::collect_type_positions;
 pub(crate) use const_evaluation::{
-    ConstFactValue, ConstScalarSpelling, ConstScalarValue, evaluate_const_fact_binary,
-    evaluate_const_fact_expression, evaluate_const_membership_fact,
+    ConstFactValue, ConstScalarSpelling, ConstScalarValue, closed_fixed_array_length,
+    evaluate_const_fact_binary, evaluate_const_fact_expression, evaluate_const_membership_fact,
     prove_const_literal_leaf_domain_constraints, prove_declared_const_domain_constraints,
 };
 pub(in crate::preparation::generic_data) use const_evaluation::{

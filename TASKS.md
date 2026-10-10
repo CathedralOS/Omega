@@ -4915,10 +4915,13 @@ wait for Cathedral's instruction coverage. The interpreter is
     Computed payloads cannot establish qualifications. The unused alias in
     `pending/modules/selected_constant_array_alias_false_qualification`
     incorrectly accepts `[3]` as `[u64 [0..=2]; 1]`; establish each routed
-    element qualification separately from carrier correspondence. The valid
-    `pending/modules/selected_constant_array_alias_named_extent` stops at
-    `initializer selected a dependency without an evaluated value`; retain the
-    evaluated extent's dependency readiness through array alias probes.
+    element qualification separately from carrier correspondence. Computed extents
+    in declaration aliases still require dependency readiness:
+    changing `SIZE = 1` to `SIZE = 1 + 0` in
+    `pass/modules/selected_constant_array_alias_named_extent` stops at
+    `initializer selected a dependency without an evaluated value`. Retain the
+    completed extent through literal-aggregate readiness before alias probes;
+    never observe a provisional layout value as an evaluated dependency.
   - Constant invocations share **CRASH-CONTRACT** / **OPERATOR-MACHINE-SUPPLY**
     premise transport through
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`.

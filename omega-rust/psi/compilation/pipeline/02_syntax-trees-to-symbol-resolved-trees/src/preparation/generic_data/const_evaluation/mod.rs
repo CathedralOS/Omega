@@ -35,6 +35,7 @@ pub(super) use templates::{
     normalize_generic_template_const_expressions, replace_const_expression_names_from,
     replace_machine_const_expression_names_from,
 };
+pub(crate) use values::closed_fixed_array_length;
 pub(super) use values::{
     canonicalize_const_definition, canonicalize_const_expression,
     canonicalize_selected_const_definition, canonicalize_selected_declaration_value,

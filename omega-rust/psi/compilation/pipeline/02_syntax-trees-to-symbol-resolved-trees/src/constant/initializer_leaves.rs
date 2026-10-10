@@ -58,33 +58,6 @@ fn effective_member_type(
     }
 }
 
-/// A fixed-array carrier length, closed by its literal or by the enclosing
-/// application's binding for a declared const parameter.
-fn resolved_fixed_length(
-    syntax: &SyntaxTrees,
-    length: &FixedArrayLength,
-    substitution: &GenericApplicationSubstitution,
-) -> Result<usize, String> {
-    match length {
-        FixedArrayLength::Literal(length) => Ok(*length),
-        FixedArrayLength::ConstParameter(name) => {
-            let Some(argument) = substitution.get(name.as_str()) else {
-                return Err("computed array constant length is an open parameter".to_owned());
-            };
-            let Some(value) = syntax.type_references.type_reference(*argument).as_named() else {
-                return Err("computed array constant length is not a closed literal".to_owned());
-            };
-            value
-                .as_str()
-                .parse::<usize>()
-                .map_err(|_| "computed array constant length is not a closed literal".to_owned())
-        }
-        FixedArrayLength::ConstCall(_) => {
-            Err("computed array constant length is not a closed literal".to_owned())
-        }
-    }
-}
-
 pub(crate) fn pending_const_initializer_leaves(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
@@ -132,7 +105,9 @@ pub(crate) fn pending_const_initializer_leaves(
                 length,
             } => match syntax.expressions.expression(expression) {
                 ExpressionNode::ArrayLiteral(elements) => {
-                    let length = resolved_fixed_length(syntax, length, substitution)?;
+                    let length = crate::preparation::generic_data::closed_fixed_array_length(
+                        syntax, length, substitution, Some(selection),
+                    )?;
                     let element_type =
                         effective_member_type(syntax, *element_type, substitution)?;
                     let values = syntax.expressions.expression_handles(*elements);
@@ -570,7 +545,12 @@ fn pending_aggregate_placeholder_at(
             element_type,
             length,
         } => {
-            let length = resolved_fixed_length(syntax, length, substitution)?;
+            let length = crate::preparation::generic_data::closed_fixed_array_length(
+                syntax,
+                length,
+                substitution,
+                Some(selection),
+            )?;
             let element_type = effective_member_type(syntax, *element_type, substitution)?;
             let element = pending_aggregate_placeholder_at(
                 syntax,
