@@ -3893,11 +3893,6 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   - general aggregate and `[copy]` sum replacement beyond scalar-field record
     literals, preserving displaced custody and whole-value validity;
   - runtime domain-qualified byte-field replacement with encoding evidence;
-  - stored write-only leaves need the same non-observation check as direct
-    roots: `machine invalid(references: &[&write i32; 1]) -> i32 {
-    references[0] }` is checked on macOS ARM64 at `a1a656f68a4`, although
-    scalar lowering refuses the unreadable endpoint. Join selected-place access
-    to observation generally; the direct-root collector misses this carrier;
   - computed IEEE store/readback (through **FLOAT-PROVIDERS**; the mutable
     controls stop in caller guard planning);
   - computed-index aggregate stores and local affine backing through the

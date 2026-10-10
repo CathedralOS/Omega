@@ -4,6 +4,9 @@
 //! The ordinary borrow and range checkers still own authority and bounds.
 //! Persistent projected captures retain their narrower frozen-coordinate
 //! limit rather than inheriting the call's selector-evaluation contract.
+//! Observation checks the selected declaration and each traversed reference,
+//! not just bindings whose outermost type spells `&write`. A readable carrier
+//! can store a write-only descriptor without granting access to its referent.
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use language_semantics::{MachineSupplyMode, ReferenceAccess};
@@ -217,20 +220,6 @@ fn fixed_unrestricted_write_only_array_length(
     fixed_unrestricted_write_only_array_shape(program, type_reference).map(|(_, length)| length)
 }
 
-fn literal_fixed_array_length(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<usize> {
-    let TypeReferenceNode::FixedArray {
-        length: FixedArrayLength::Literal(length),
-        ..
-    } = program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
-    Some(*length)
-}
-
 fn is_admitted_checked_referee(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -270,26 +259,23 @@ fn is_byte_slice(program: &dyn crate::CheckingInput, type_reference: TypeReferen
 
 fn is_write_only_length_metadata(
     program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
     member: &typed_trees::expression::TableMemberExpression,
-    roots: &[WriteOnlyRoot],
 ) -> bool {
-    if member.case_variant.is_some()
-        || CollectionMeasure::from_authored_spelling(member.member.as_str())
-            != Some(CollectionMeasure::Length)
-    {
-        return false;
-    }
-
-    if direct_write_only_root(program, member.receiver, roots).is_some_and(|root| {
-        is_byte_slice(program, root.referee)
-            || fixed_unrestricted_write_only_array_length(program, root.referee).is_some()
-    }) {
-        return true;
-    }
-
-    write_only_record_field_type(program, member.receiver, roots)
-        .and_then(|field_type| literal_fixed_array_length(program, field_type))
-        .is_some()
+    crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        member.receiver,
+    )
+    .and_then(|reference| {
+        crate::collection_operations::collection_measure_member(
+            program,
+            member,
+            crate::collection_operations::MeasureReceiver::Declared(reference),
+        )
+    }) == Some(CollectionMeasure::Length)
 }
 
 /// Resolve one closed nominal data definition whose shape is known without
@@ -1285,6 +1271,12 @@ fn validate_expression(
 ) {
     let machine_name = machine.name.as_str();
     let state_name = state.name.as_str();
+    let metadata = program
+        .expression_table
+        .member_node(expression)
+        .is_some_and(|member| is_write_only_length_metadata(program, machine, state, member));
+    let observes_write_only = !metadata
+        && validate_observation_access(program, machine, state, expression, roots, diagnostics);
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
             validate_expression(
@@ -1302,17 +1294,7 @@ fn validate_expression(
                 validate_expression(program, machine, state, arm.value, roots, diagnostics);
             }
         }
-        ExpressionNode::Name(path) => {
-            if let Some(root) = roots
-                .iter()
-                .find(|root| receiver::mentions_name(program, root, path))
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{machine_name}` state `{state_name}` reads write-only parameter `{}`; `&write` permits replacement or exact `&write` forwarding, never observation",
-                    root.name,
-                )));
-            }
-        }
+        ExpressionNode::Name(_) => {}
         ExpressionNode::Borrow(borrow) => match borrow.access {
             ReferenceAccess::WriteOnly => {
                 if let Some(binding) =
@@ -1342,29 +1324,26 @@ fn validate_expression(
             }
         },
         ExpressionNode::Member(member) => {
-            if is_write_only_length_metadata(program, member, roots) {
+            if metadata {
                 // A direct slice length belongs to its descriptor. A literal
                 // fixed-array length belongs to its static type, including when
                 // the array is reached only through statically known common
-                // fields of plain records. Neither reads referent content. Do
-                // not recurse into the receiver: doing so would misclassify this
-                // exact metadata read as observation.
-            } else if let Some(root) = mentioned_write_only_root(program, member.receiver, roots) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{machine_name}` state `{state_name}` reads field `{}` from write-only parameter `{}`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation",
-                    member.member, root.name,
-                )));
-            } else {
+                // fields of plain records. Neither reads referent content.
+                // Check its address computation without observing the payload.
+                validate_metadata_receiver(
+                    program,
+                    machine,
+                    state,
+                    member.receiver,
+                    roots,
+                    diagnostics,
+                );
+            } else if !observes_write_only {
                 validate_expression(program, machine, state, member.receiver, roots, diagnostics);
             }
         }
         ExpressionNode::Indexed(indexed) => {
-            if let Some(root) = mentioned_write_only_root(program, indexed.collection, roots) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{machine_name}` state `{state_name}` reads through index projection of write-only parameter `{}`; `&write` permits admitted fixed-array element replacement but never observation",
-                    root.name,
-                )));
-            } else {
+            if !observes_write_only {
                 validate_expression(
                     program,
                     machine,
@@ -1431,6 +1410,137 @@ fn validate_expression(
             validate_expression(program, machine, state, unary.operand, roots, diagnostics)
         }
         typed_trees::spelled_literal_expression_pattern!() => {}
+    }
+}
+
+/// Collection metadata does not observe payload content, but computing its
+/// address still evaluates selectors and producers. Walk the address spine
+/// without reading its referent; ordinary expressions retain their checks.
+fn validate_metadata_receiver(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) => {}
+        ExpressionNode::Member(member) => {
+            validate_metadata_receiver(
+                program,
+                machine,
+                state,
+                member.receiver,
+                roots,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Indexed(indexed) => {
+            validate_metadata_receiver(
+                program,
+                machine,
+                state,
+                indexed.collection,
+                roots,
+                diagnostics,
+            );
+            validate_expression(program, machine, state, indexed.index, roots, diagnostics);
+        }
+        _ => validate_expression(program, machine, state, expression, roots, diagnostics),
+    }
+}
+
+/// A selected leaf and its projection receiver both retain declared access.
+/// Do not inspect all fields/elements of a carrier: moving its descriptors or
+/// reading a different leaf does not observe their write-only referents.
+/// Borrow formation has its own non-observing place and attenuation judgment.
+fn validate_observation_access(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let node = program.expression_table.expression(expression);
+    if matches!(node, ExpressionNode::Borrow(_)) {
+        return false;
+    }
+    let receiver = match node {
+        ExpressionNode::Member(member) => member.receiver,
+        ExpressionNode::Indexed(indexed) => indexed.collection,
+        _ => ExpressionHandle::invalid(),
+    };
+    let root = write_only_place_root(program, expression, roots);
+    let declared_write_only = [expression, receiver].into_iter().any(|value| {
+        if !value.is_valid() {
+            return false;
+        }
+        let Some(mut reference) = crate::value_custody::places::declared_place_type_raw(
+            program,
+            machine,
+            Some(state),
+            value,
+        ) else {
+            return false;
+        };
+        loop {
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                TypeReferenceNode::Reference {
+                    access: ReferenceAccess::WriteOnly,
+                    ..
+                } => return true,
+                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                _ => return false,
+            }
+        }
+    });
+    if !declared_write_only && root.is_none() {
+        return false;
+    }
+    // Keep the established direct-root diagnostics; the access decision above
+    // also covers stored descriptors and nested references without root names.
+    let message = match (node, root) {
+        (ExpressionNode::Name(_), Some(root)) => format!(
+            "reads write-only parameter `{}`; `&write` permits replacement or exact `&write` forwarding, never observation", root.name,
+        ),
+        (ExpressionNode::Member(member), Some(root)) => format!(
+            "reads field `{}` from write-only parameter `{}`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation", member.member, root.name,
+        ),
+        (ExpressionNode::Indexed(_), Some(root)) => format!(
+            "reads through index projection of write-only parameter `{}`; `&write` permits admitted fixed-array element replacement but never observation", root.name,
+        ),
+        _ => "observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation".to_owned(),
+    };
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` {message}",
+        machine.name, state.name,
+    )));
+    true
+}
+
+/// Follow only the observed storage path. A completed call result is separate
+/// storage: mentioning a write-only argument in its producer does not make
+/// the result write-only. Selectors and call arguments are validated as their
+/// own expressions rather than mistaken for the projected receiver's access.
+fn write_only_place_root<'roots>(
+    program: &dyn crate::CheckingInput,
+    mut expression: ExpressionHandle,
+    roots: &'roots [WriteOnlyRoot],
+) -> Option<&'roots WriteOnlyRoot> {
+    loop {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                return roots
+                    .iter()
+                    .find(|root| receiver::mentions_name(program, root, path));
+            }
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Indexed(indexed) => expression = indexed.collection,
+            _ => return None,
+        }
     }
 }
 

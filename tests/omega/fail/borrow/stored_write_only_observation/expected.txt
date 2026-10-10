@@ -1,0 +1,2 @@
+observes write-only referent
+reads field `len` from write-only parameter `source`

@@ -1,0 +1,5 @@
+machine extent(references: &[&write [i32; 2]; 2], position: u64[0..=1]) -> u64 {
+    references[position].len
+}
+
+machine main() {}

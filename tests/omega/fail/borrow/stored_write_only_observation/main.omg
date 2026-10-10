@@ -1,0 +1,12 @@
+machine observe_index(references: &[&write i32; 2], position: u64[0..=1]) -> i32 {
+    references[position]
+}
+
+machine observe_nested(reference: & &write i32) -> i32 {
+    reference
+}
+
+data LengthRecord [copy] { len: u64; }
+machine observe_named_field(source: &write LengthRecord) -> u64 { source.len }
+
+machine main() {}
