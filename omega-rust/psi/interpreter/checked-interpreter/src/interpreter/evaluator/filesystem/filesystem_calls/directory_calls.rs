@@ -90,34 +90,13 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let PreparedFilesystemCall::FindNext { handle, data } = call else {
             unreachable!("dispatched serve_find_next")
         };
-        Ok({
-            // `find_next(handle, &data)`: fill the next snapshotted entry
-            // (1 = filled, 0 = end-of-enumeration or unknown handle).
-            match self
-                .virtual_finds
-                .get_mut(&handle)
-                .and_then(std::collections::VecDeque::pop_front)
-            {
-                Some((name, is_dir)) => {
-                    self.write_find_data(&data, &name, is_dir)?;
-                    1
-                }
-                None => 0,
-            }
-        })
+        self.pop_virtual_find(handle, &data)
     }
 
     pub(super) fn serve_find_close(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
         let PreparedFilesystemCall::FindClose { handle } = call else {
             unreachable!("dispatched serve_find_close")
         };
-        Ok({
-            // `find_close(handle)`: release the cursor (BOOL, like Win32).
-            if self.virtual_finds.remove(&handle).is_some() {
-                1
-            } else {
-                0
-            }
-        })
+        Ok(self.close_virtual_find(handle))
     }
 }

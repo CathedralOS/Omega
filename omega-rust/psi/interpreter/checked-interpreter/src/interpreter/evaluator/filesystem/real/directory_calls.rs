@@ -107,21 +107,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let PreparedFilesystemCall::FindNext { handle, data } = call else {
             unreachable!("dispatched real_find_next")
         };
-        Ok({
-            // Cursor-only (the snapshot was taken at find_first) -- the
-            // same arm shape as the hermetic dispatcher.
-            match self
-                .virtual_finds
-                .get_mut(&handle)
-                .and_then(std::collections::VecDeque::pop_front)
-            {
-                Some((name, is_dir)) => {
-                    self.write_find_data(&data, &name, is_dir)?;
-                    1
-                }
-                None => 0,
-            }
-        })
+        self.pop_virtual_find(handle, &data)
     }
 
     pub(in crate::interpreter::evaluator) fn real_find_close(
@@ -131,12 +117,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let PreparedFilesystemCall::FindClose { handle } = call else {
             unreachable!("dispatched real_find_close")
         };
-        Ok({
-            if self.virtual_finds.remove(&handle).is_some() {
-                1
-            } else {
-                0
-            }
-        })
+        Ok(self.close_virtual_find(handle))
     }
 }
