@@ -1,0 +1,39 @@
+// Bounded text carriers concatenate: `"Room " + main.label` copies
+// the literal and the label's live bytes into a fresh owned result
+// before replacing text's inline storage. Capacity is a bound, not
+// readable content — label has capacity 4 but holds 2 bytes. The
+// receiving proof establishes that the result fits text's
+// capacity 16.
+//
+//   * Two coexisting capacities: `[u8; 4]::Utf8` and
+//     `[u8; 16]::Utf8` domain declarations.
+//   * `main.text == "Room A1"` — byte-equality observes length 7.
+//   * `hits` records the reached arm.
+//
+// Compile-checked only: no standard-library dependency, no ProcessExit
+// provider.
+
+domain [u8; 4]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+domain [u8; 16]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+
+data Main {
+    label: [u8; 4] in Utf8;
+    text: [u8; 16] in Utf8;
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    main.label = "A1";
+    main.text = "Room " + main.label;
+    transition main.text == "Room A1" && main.text.len == 7 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
