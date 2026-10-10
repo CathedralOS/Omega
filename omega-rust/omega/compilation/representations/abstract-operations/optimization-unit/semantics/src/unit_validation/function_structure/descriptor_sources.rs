@@ -9,8 +9,8 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeMap;
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 pub(super) fn valid(

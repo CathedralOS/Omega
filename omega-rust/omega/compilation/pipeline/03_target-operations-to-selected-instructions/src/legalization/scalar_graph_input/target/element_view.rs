@@ -237,20 +237,21 @@ impl Checker<'_> {
                 length,
                 obligation,
             } => {
-                *place == source && self.optimized.block_nodes().any(|node| {
-                    let AbstractOperation::ElementViewSubslice {
-                        psi_operation: operation,
-                        result,
-                        source: expected_source,
-                        start: expected_start,
-                        end: expected_end,
-                        length: expected_length,
-                        obligation: expected_obligation,
-                    } = &node.operation
-                    else {
-                        return false;
-                    };
-                    operation == psi_operation
+                *place == source
+                    && self.optimized.block_nodes().any(|node| {
+                        let AbstractOperation::ElementViewSubslice {
+                            psi_operation: operation,
+                            result,
+                            source: expected_source,
+                            start: expected_start,
+                            end: expected_end,
+                            length: expected_length,
+                            obligation: expected_obligation,
+                        } = &node.operation
+                        else {
+                            return false;
+                        };
+                        operation == psi_operation
                         && result.place == source
                         && matches!(
                             (actual, result.multiplicity),
@@ -293,7 +294,7 @@ impl Checker<'_> {
                         })
                         && self.integer_source(start, *expected_start, aliases)
                         && self.integer_source(end, *expected_end, aliases)
-                })
+                    })
             }
         }
     }

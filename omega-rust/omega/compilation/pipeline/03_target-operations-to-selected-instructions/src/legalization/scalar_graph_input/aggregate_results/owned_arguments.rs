@@ -64,148 +64,148 @@ pub(super) fn reconstruct(
     if block_parameters.next().is_some() {
         return Err(LegalizationError::custody());
     }
-    let (source, root_structural_type, source_byte_offset) =
-        if let Some(parameter) = caller.structural_parameter(argument.place) {
-            if parameter.access != destination.access
-                || (argument.path.is_empty() && parameter.multiplicity != destination.multiplicity)
-            {
-                return Err(LegalizationError::custody());
-            }
-            let retained = native
-                .function(caller.machine)
-                .and_then(structural_parameters)
-                .and_then(|parameters| {
-                    parameters
-                        .iter()
-                        .find(|retained| retained.place == argument.place)
-                })
-                .ok_or(LegalizationError::custody())?;
-            let root_shape =
-                crate::structural_inputs::structural_reference_input::owned_storage_shape(
-                    parameter.structural_type,
-                    &plan.structural_types,
-                )
-                .ok_or(LegalizationError::custody())?;
-            if retained.structural_type != parameter.structural_type
-                || retained.access != parameter.access
-                || retained.multiplicity != parameter.multiplicity
-                || retained.shape != root_shape
-                || retained.placement.shape != root_shape
-                || retained.projected_qualifications != parameter.projected_qualifications
-            {
-                return Err(LegalizationError::custody());
-            }
-            (
-                retained.placement.clone().into(),
-                parameter.structural_type,
-                owned_projection(
-                    parameter.structural_type,
-                    destination.structural_type,
-                    argument,
-                    plan,
-                )?,
-            )
-        } else if let Some((block, parameter)) = block_parameter {
-            // The edge has already established this destination's owned storage.
-            // Its declaration and dominance, not any predecessor operation ID,
-            // establish the call's source. Reconstruct the projection from types
-            // under the same rules as an operation-established home.
-            let call_site = call_site(caller, call_operation, argument)?;
-            if block == caller.entry
-                || parameter.access != destination.access
-                || argument.access != parameter.access
-                || (argument.path.is_empty() && parameter.multiplicity != destination.multiplicity)
-                || !target::control_flow::sources::dominates(caller, block, call_site.0)
-                || !caller.structural_places.iter().any(|place| {
-                    place.id == parameter.place
-                        && place.kind
-                            == StructuralPlaceKind::BlockParameter {
-                                block,
-                                position: parameter.position,
-                            }
-                })
-            {
-                return Err(LegalizationError::custody());
-            }
-            let offset = owned_projection(
-                parameter.structural_type,
-                destination.structural_type,
-                argument,
-                plan,
-            )?;
-            (
-                target_operations::TargetStructuralArgumentSource::BlockParameter {
-                    block,
-                    place: parameter.place,
-                },
-                parameter.structural_type,
-                offset,
-            )
-        } else if let Some((producer, structural_type, producer_site)) =
-            trivial_affine_local(caller, argument.place)
+    let (source, root_structural_type, source_byte_offset) = if let Some(parameter) =
+        caller.structural_parameter(argument.place)
+    {
+        if parameter.access != destination.access
+            || (argument.path.is_empty() && parameter.multiplicity != destination.multiplicity)
         {
-            // An empty-record local has no bytes: the call replays its exact
-            // establishment as the producer, and the zero-byte placement carries
-            // nothing. The establishment must precede the call like any producer.
-            if !argument.path.is_empty()
-                || structural_type != destination.structural_type
-                || destination.multiplicity != StructuralMultiplicity::Affine
-                || shape.byte_size != 0
-                || !precedes(caller, producer_site, call_operation, argument)?
-            {
-                return Err(LegalizationError::custody());
-            }
-            (
-                target_operations::TargetStructuralArgumentSource::StructuralHome {
-                    psi_operation: producer,
-                },
-                structural_type,
-                0,
-            )
-        } else {
-            let (producer, result) = structural_case::source_result(caller, argument.place)?;
-            // A projected child has its own custody contract. The enclosing
-            // aggregate's multiplicity cannot classify that selected value.
-            if argument.path.is_empty() && result.multiplicity != destination.multiplicity {
-                return Err(LegalizationError::custody());
-            }
-            let offset = owned_projection(
-                result.structural_type,
-                destination.structural_type,
-                argument,
-                plan,
-            )?;
-            // Rejoin the same result inventory that resolved the source. A second
-            // producer whitelist can reject an established home solely because its
-            // constructor differs; custody and storage shape were checked above.
-            let producer_site = node_site(caller, |operation| {
-                operation
-                    .structural_result()
-                    .is_some_and(|(actual_producer, actual)| {
-                        actual_producer == producer && actual == result
-                    })
+            return Err(LegalizationError::custody());
+        }
+        let retained = native
+            .function(caller.machine)
+            .and_then(structural_parameters)
+            .and_then(|parameters| {
+                parameters
+                    .iter()
+                    .find(|retained| retained.place == argument.place)
             })
             .ok_or(LegalizationError::custody())?;
-            if !precedes(caller, producer_site, call_operation, argument)?
-                || !caller.structural_places.iter().any(|place| {
-                    place.id == result.place
-                        && place.kind
-                            == StructuralPlaceKind::OperationResult {
-                                producer,
-                                structural_type: result.structural_type,
-                            }
+        let root_shape = crate::structural_inputs::structural_reference_input::owned_storage_shape(
+            parameter.structural_type,
+            &plan.structural_types,
+        )
+        .ok_or(LegalizationError::custody())?;
+        if retained.structural_type != parameter.structural_type
+            || retained.access != parameter.access
+            || retained.multiplicity != parameter.multiplicity
+            || retained.shape != root_shape
+            || retained.placement.shape != root_shape
+            || retained.projected_qualifications != parameter.projected_qualifications
+        {
+            return Err(LegalizationError::custody());
+        }
+        (
+            retained.placement.clone().into(),
+            parameter.structural_type,
+            owned_projection(
+                parameter.structural_type,
+                destination.structural_type,
+                argument,
+                plan,
+            )?,
+        )
+    } else if let Some((block, parameter)) = block_parameter {
+        // The edge has already established this destination's owned storage.
+        // Its declaration and dominance, not any predecessor operation ID,
+        // establish the call's source. Reconstruct the projection from types
+        // under the same rules as an operation-established home.
+        let call_site = call_site(caller, call_operation, argument)?;
+        if block == caller.entry
+            || parameter.access != destination.access
+            || argument.access != parameter.access
+            || (argument.path.is_empty() && parameter.multiplicity != destination.multiplicity)
+            || !target::control_flow::sources::dominates(caller, block, call_site.0)
+            || !caller.structural_places.iter().any(|place| {
+                place.id == parameter.place
+                    && place.kind
+                        == StructuralPlaceKind::BlockParameter {
+                            block,
+                            position: parameter.position,
+                        }
+            })
+        {
+            return Err(LegalizationError::custody());
+        }
+        let offset = owned_projection(
+            parameter.structural_type,
+            destination.structural_type,
+            argument,
+            plan,
+        )?;
+        (
+            target_operations::TargetStructuralArgumentSource::BlockParameter {
+                block,
+                place: parameter.place,
+            },
+            parameter.structural_type,
+            offset,
+        )
+    } else if let Some((producer, structural_type, producer_site)) =
+        trivial_affine_local(caller, argument.place)
+    {
+        // An empty-record local has no bytes: the call replays its exact
+        // establishment as the producer, and the zero-byte placement carries
+        // nothing. The establishment must precede the call like any producer.
+        if !argument.path.is_empty()
+            || structural_type != destination.structural_type
+            || destination.multiplicity != StructuralMultiplicity::Affine
+            || shape.byte_size != 0
+            || !precedes(caller, producer_site, call_operation, argument)?
+        {
+            return Err(LegalizationError::custody());
+        }
+        (
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: producer,
+            },
+            structural_type,
+            0,
+        )
+    } else {
+        let (producer, result) = structural_case::source_result(caller, argument.place)?;
+        // A projected child has its own custody contract. The enclosing
+        // aggregate's multiplicity cannot classify that selected value.
+        if argument.path.is_empty() && result.multiplicity != destination.multiplicity {
+            return Err(LegalizationError::custody());
+        }
+        let offset = owned_projection(
+            result.structural_type,
+            destination.structural_type,
+            argument,
+            plan,
+        )?;
+        // Rejoin the same result inventory that resolved the source. A second
+        // producer whitelist can reject an established home solely because its
+        // constructor differs; custody and storage shape were checked above.
+        let producer_site = node_site(caller, |operation| {
+            operation
+                .structural_result()
+                .is_some_and(|(actual_producer, actual)| {
+                    actual_producer == producer && actual == result
                 })
-            {
-                return Err(LegalizationError::custody());
-            }
-            (
-                target_operations::TargetStructuralArgumentSource::StructuralHome {
-                    psi_operation: producer,
-                },
-                result.structural_type,
-                offset,
-            )
-        };
+        })
+        .ok_or(LegalizationError::custody())?;
+        if !precedes(caller, producer_site, call_operation, argument)?
+            || !caller.structural_places.iter().any(|place| {
+                place.id == result.place
+                    && place.kind
+                        == StructuralPlaceKind::OperationResult {
+                            producer,
+                            structural_type: result.structural_type,
+                        }
+            })
+        {
+            return Err(LegalizationError::custody());
+        }
+        (
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: producer,
+            },
+            result.structural_type,
+            offset,
+        )
+    };
     let placement = call
         .parameters
         .get(callee.scalar_parameter_count() + position)
@@ -294,7 +294,11 @@ fn call_site(
     argument: &terminal_psi::StructuralArgument,
 ) -> Result<(semantic_vocabulary::BlockId, usize), LegalizationError> {
     node_site(caller, |operation| match operation {
-        abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation,structural_arguments, ..) => *psi_operation == call_operation && structural_arguments.contains(argument),
+        abstract_operations::boundary_or_structural_call_pair_pattern!(
+            psi_operation,
+            structural_arguments,
+            ..
+        ) => *psi_operation == call_operation && structural_arguments.contains(argument),
         _ => false,
     })
     .ok_or(LegalizationError::custody())
