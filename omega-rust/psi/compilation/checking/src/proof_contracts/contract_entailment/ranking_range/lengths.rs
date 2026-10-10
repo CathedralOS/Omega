@@ -4,10 +4,7 @@
 //! use the same evaluator without caller facts: a later observation cannot
 //! retroactively describe the descriptor captured by an earlier binding.
 use super::coordinate::{Coordinate, CoordinateKind};
-use super::fields::{
-    collect_leaf_paths, declared_spelling_verified, member_chain, record_referent, rooted_carrier,
-    unique_literal_field,
-};
+use super::fields::{collect_leaf_paths, record_referent, rooted_carrier, unique_literal_field};
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
     Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, projections,
@@ -578,16 +575,7 @@ impl<'program> Coordinate<'program> {
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<Self> {
-        let (parameter, chain) = member_chain(program, state, expression)?;
-        let coordinate = Self::for_parameter(
-            program,
-            parameter,
-            &chain.iter().map(|(symbol, _)| *symbol).collect::<Vec<_>>(),
-            CoordinateKind::Length,
-            false,
-        )?;
-        declared_spelling_verified(&chain, &coordinate.steps, coordinate.field)
-            .then_some(coordinate)
+        Self::resolve_member(program, state, expression, CoordinateKind::Length, false)
     }
 
     /// The length this coordinate holds after `expression` arrives in its

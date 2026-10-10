@@ -5,9 +5,12 @@
 //! every traversal answers once.
 
 use super::fields::{
-    declared_field, member_coordinate_parts, nested_arrival_chain, record_referent,
+    declared_field, declared_spelling_verified, member_chain, member_coordinate_parts,
+    nested_arrival_chain, record_referent,
 };
-use super::{Polynomial, PrimitiveType, RankingRangeState, State, exact_integer_parameter};
+use super::{
+    ExpressionHandle, Polynomial, PrimitiveType, RankingRangeState, State, exact_integer_parameter,
+};
 use symbols::SymbolHandle;
 use typed_trees::data::DataField;
 use typed_trees::signature::StateParameter;
@@ -111,6 +114,28 @@ impl<'program> Coordinate<'program> {
     /// denotes its arrival value at an edge whose evaluated prefix is proven
     /// to preserve its path; mutability is a storage capability, not
     /// evidence the value moved.
+    /// Shared member-chain resolution: walk the chain, build the coordinate
+    /// under `kind`'s step-owner/leaf spec, then require the spelled hops to
+    /// name the resolved fields.
+    pub(super) fn resolve_member(
+        program: &'program dyn crate::CheckingInput,
+        state: &State,
+        expression: ExpressionHandle,
+        kind: CoordinateKind,
+        natural_leaf: bool,
+    ) -> Option<Self> {
+        let (parameter, chain) = member_chain(program, state, expression)?;
+        let coordinate = Self::for_parameter(
+            program,
+            parameter,
+            &chain.iter().map(|(symbol, _)| *symbol).collect::<Vec<_>>(),
+            kind,
+            natural_leaf,
+        )?;
+        declared_spelling_verified(&chain, &coordinate.steps, coordinate.field)
+            .then_some(coordinate)
+    }
+
     pub(super) fn for_parameter(
         program: &'program dyn crate::CheckingInput,
         parameter: &'program StateParameter,

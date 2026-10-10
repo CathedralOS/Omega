@@ -329,16 +329,7 @@ impl<'program> Coordinate<'program> {
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<Self> {
-        let (parameter, chain) = member_chain(program, state, expression)?;
-        let coordinate = Self::for_parameter(
-            program,
-            parameter,
-            &chain.iter().map(|(symbol, _)| *symbol).collect::<Vec<_>>(),
-            CoordinateKind::Field,
-            true,
-        )?;
-        declared_spelling_verified(&chain, &coordinate.steps, coordinate.field)
-            .then_some(coordinate)
+        Self::resolve_member(program, state, expression, CoordinateKind::Field, true)
     }
 
     pub(super) fn field_comparisons(&self, program: &dyn crate::CheckingInput) -> Vec<Comparison> {
