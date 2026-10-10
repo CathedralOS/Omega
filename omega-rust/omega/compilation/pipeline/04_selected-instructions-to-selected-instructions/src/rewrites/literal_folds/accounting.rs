@@ -147,7 +147,10 @@ pub(super) fn encode_iteration_receipt(
     canonical.push(recovery_policy_tag(iteration.recovery_policy()));
     canonical.extend_from_slice(&iteration.recovery_usage().encode());
     canonical.extend_from_slice(&iteration.fold().bytes());
-    crate::codec_bytes::push_encoded(canonical, literal_fold_policy_tag(iteration.fold_policy()).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        canonical,
+        literal_fold_policy_tag(iteration.fold_policy()).to_le_bytes(),
+    );
     canonical.extend_from_slice(&iteration.fold_usage().encode());
     canonical.extend_from_slice(&iteration.transformed_selected().bytes());
     canonical.extend_from_slice(&iteration.fresh_liveness().bytes());
@@ -169,7 +172,10 @@ pub(super) fn encode_attempt_receipt(
     canonical.push(recovery_policy_tag(attempt.recovery_policy()));
     canonical.extend_from_slice(&attempt.recovery_usage().encode());
     canonical.extend_from_slice(&attempt.fold().bytes());
-    crate::codec_bytes::push_encoded(canonical, literal_fold_policy_tag(attempt.fold_policy()).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        canonical,
+        literal_fold_policy_tag(attempt.fold_policy()).to_le_bytes(),
+    );
     canonical.extend_from_slice(&attempt.fold_usage().encode());
     encode_count(canonical, attempt.applied_count());
     canonical.extend_from_slice(&attempt.transformed_selected().bytes());

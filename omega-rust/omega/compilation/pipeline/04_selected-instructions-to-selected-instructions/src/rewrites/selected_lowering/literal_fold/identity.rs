@@ -30,9 +30,15 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
         length(&mut bytes, function.actions.len());
         for action in &function.actions {
             crate::codec_bytes::push_encoded(&mut bytes, action.block.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, action.literal_instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                action.literal_instruction.0.to_le_bytes(),
+            );
             crate::codec_bytes::push_encoded(&mut bytes, action.victim.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, action.consumer_instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                action.consumer_instruction.0.to_le_bytes(),
+            );
             crate::codec_bytes::push_encoded(&mut bytes, action.surviving.0.to_le_bytes());
             match action.result {
                 None => bytes.push(0),
@@ -49,7 +55,10 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
                 register_model::RegisterConstraintFamily::InlineAssembly => 3,
                 register_model::RegisterConstraintFamily::Instruction => 4,
             });
-            crate::codec_bytes::push_encoded(&mut bytes, action.immediate_constraint.variant.to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                action.immediate_constraint.variant.to_le_bytes(),
+            );
         }
     }
     bytes.extend_from_slice(&plan.transformed_selected.bytes());

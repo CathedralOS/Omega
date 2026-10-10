@@ -47,8 +47,14 @@ pub(crate) fn encode_terminal_pressure_rematerialization_content(
                 crate::codec_bytes::push_encoded(&mut bytes, action.victim.0.to_le_bytes());
                 crate::codec_bytes::push_encoded(&mut bytes, action.current_view.0.to_le_bytes());
                 crate::codec_bytes::push_encoded(&mut bytes, action.reclaimed_view.0.to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, action.original_materialize.0.to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, action.source_value.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    action.original_materialize.0.to_le_bytes(),
+                );
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    action.source_value.get().to_le_bytes(),
+                );
                 match action.value {
                     semantic_vocabulary::IntegerValue::Unsigned(value) => {
                         crate::codec_bytes::push_encoded(&mut bytes, value.to_le_bytes());
@@ -66,11 +72,20 @@ pub(crate) fn encode_terminal_pressure_rematerialization_content(
                 );
                 for rewrite in &action.rewrites {
                     crate::codec_bytes::push_encoded(&mut bytes, rewrite.point.0.to_le_bytes());
-                    crate::codec_bytes::push_encoded(&mut bytes, rewrite.instruction.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(
+                        &mut bytes,
+                        rewrite.instruction.0.to_le_bytes(),
+                    );
                     crate::codec_bytes::push_encoded(&mut bytes, rewrite.operand.to_le_bytes());
                 }
-                crate::codec_bytes::push_encoded(&mut bytes, action.fresh_materialize.0.to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, action.result_virtual_register.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    action.fresh_materialize.0.to_le_bytes(),
+                );
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    action.result_virtual_register.0.to_le_bytes(),
+                );
                 bytes.push(match action.materialize_constraint.family {
                     register_model::RegisterConstraintFamily::Call => 0,
                     register_model::RegisterConstraintFamily::Return => 1,
@@ -78,7 +93,10 @@ pub(crate) fn encode_terminal_pressure_rematerialization_content(
                     register_model::RegisterConstraintFamily::InlineAssembly => 3,
                     register_model::RegisterConstraintFamily::Instruction => 4,
                 });
-                crate::codec_bytes::push_encoded(&mut bytes, action.materialize_constraint.variant.to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    action.materialize_constraint.variant.to_le_bytes(),
+                );
             }
         }
     }

@@ -145,19 +145,21 @@ receipt_selected_identities!(ConstantBooleanReceipt);
 pub(crate) fn constant_boolean_identity(
     receipt: &ConstantBooleanReceipt,
 ) -> ConstantBooleanIdentity {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-constant-boolean-fold.v1\0");
-    bytes.extend_from_slice(&receipt.source_selected.bytes());
-    bytes.extend_from_slice(&receipt.transformed_selected.bytes());
-    bytes.extend_from_slice(&receipt.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, receipt.fuel_schedule.marker().to_le_bytes());
-    bytes.extend_from_slice(
-        &u64::try_from(receipt.function_index)
-            .expect("constant-boolean function index fits u64")
-            .to_le_bytes(),
-    );
-    crate::codec_bytes::push_encoded(&mut bytes, receipt.materialization.0.to_le_bytes());
-    ConstantBooleanIdentity::from_canonical_bytes(&bytes)
+    ConstantBooleanIdentity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
+        b"omega.terminal-constant-boolean-fold.v1\0",
+        &receipt.source_selected.bytes(),
+        &receipt.transformed_selected.bytes(),
+        &receipt.optimization_unit.bytes(),
+        |bytes| {
+            crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
+            bytes.extend_from_slice(
+                &u64::try_from(receipt.function_index)
+                    .expect("constant-boolean function index fits u64")
+                    .to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(bytes, receipt.materialization.0.to_le_bytes());
+        },
+    ))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

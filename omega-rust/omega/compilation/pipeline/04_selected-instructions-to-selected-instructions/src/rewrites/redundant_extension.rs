@@ -110,19 +110,21 @@ receipt_selected_identities!(RedundantExtensionReceipt);
 pub(crate) fn redundant_extension_identity(
     receipt: &RedundantExtensionReceipt,
 ) -> RedundantExtensionIdentity {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-redundant-extension-removal.v1\0");
-    bytes.extend_from_slice(&receipt.source_selected.bytes());
-    bytes.extend_from_slice(&receipt.transformed_selected.bytes());
-    bytes.extend_from_slice(&receipt.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, receipt.fuel_schedule.marker().to_le_bytes());
-    bytes.extend_from_slice(
-        &u64::try_from(receipt.function_index)
-            .expect("redundant-extension function index fits u64")
-            .to_le_bytes(),
-    );
-    crate::codec_bytes::push_encoded(&mut bytes, receipt.extension.0.to_le_bytes());
-    RedundantExtensionIdentity::from_canonical_bytes(&bytes)
+    RedundantExtensionIdentity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
+        b"omega.terminal-redundant-extension-removal.v1\0",
+        &receipt.source_selected.bytes(),
+        &receipt.transformed_selected.bytes(),
+        &receipt.optimization_unit.bytes(),
+        |bytes| {
+            crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
+            bytes.extend_from_slice(
+                &u64::try_from(receipt.function_index)
+                    .expect("redundant-extension function index fits u64")
+                    .to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(bytes, receipt.extension.0.to_le_bytes());
+        },
+    ))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

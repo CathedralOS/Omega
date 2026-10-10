@@ -1601,7 +1601,10 @@ fn pre_allocation_completion_identity(
     ] {
         canonical.extend_from_slice(&identity);
     }
-    crate::codec_bytes::push_encoded(&mut canonical, receipt.policy.canonical_bits().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut canonical,
+        receipt.policy.canonical_bits().to_le_bytes(),
+    );
     canonical.extend_from_slice(&receipt.budget.encode());
     canonical.extend_from_slice(&receipt.usage.encode());
     for count in [

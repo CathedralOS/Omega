@@ -519,3 +519,22 @@ pub(crate) fn register_occurs_once(
     }
     occurrences == 1
 }
+
+/// Shared byte-envelope for the selected-rewrite receipt identities: the
+/// domain tag, the source and transformed fingerprints, the optimization-unit
+/// fingerprint, then the per-rewrite tail feeds.
+pub(crate) fn rewrite_bytes(
+    tag: &'static [u8],
+    source_selected: impl AsRef<[u8]>,
+    transformed_selected: impl AsRef<[u8]>,
+    optimization_unit: impl AsRef<[u8]>,
+    tail: impl FnOnce(&mut Vec<u8>),
+) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(tag);
+    bytes.extend_from_slice(source_selected.as_ref());
+    bytes.extend_from_slice(transformed_selected.as_ref());
+    bytes.extend_from_slice(optimization_unit.as_ref());
+    tail(&mut bytes);
+    bytes
+}
