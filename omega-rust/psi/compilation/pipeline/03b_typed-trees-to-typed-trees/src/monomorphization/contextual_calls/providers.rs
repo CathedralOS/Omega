@@ -2,20 +2,37 @@
 //! Reuse the ordinary clone, cache identity and retained tuple. Generic expected
 //! telescopes are universal schemas, never permission to choose one instance.
 
+mod explicit_arguments;
+
 use super::super::{
-    Diagnostic, SymbolHandle, TypeReferenceHandle, TypedTrees, candidate, saved_calls,
+    CallSite, Diagnostic, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees,
+    candidate, saved_calls,
 };
 use typed_trees::signature::StateSignature;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
 pub(super) fn close(
     program: &mut TypedTrees,
-    selected: SymbolHandle,
+    selection: &StaticMachineArgument,
     expected: &StateSignature,
     caller_types: &[(SymbolHandle, TypeReferenceHandle)],
+    site: CallSite,
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
     ordinal: usize,
 ) -> Result<Option<SymbolHandle>, Vec<Diagnostic>> {
+    let selected = selection.symbol;
+    if selection
+        .application
+        .as_ref()
+        .is_some_and(|application| !application.lifetime_arguments.is_empty())
+    {
+        // Invocation-lifetime families are not ordinary type operands. Until
+        // this selection owns an applied region mapping, preserving the
+        // declaration's telescope would silently discard an authored choice.
+        return Err(vec![Diagnostic::error(
+            "explicit nested machine lifetime selections require an applied region mapping before callable admission",
+        )]);
+    }
     if !program.state_signature_type_parameters(expected).is_empty() {
         return Ok(None);
     }
@@ -40,6 +57,16 @@ pub(super) fn close(
     let Some(state) = state else {
         return Ok(None);
     };
+    if let Some(explicit) = &selection.application {
+        explicit_arguments::bind(
+            program,
+            &mut provider,
+            &state,
+            selected,
+            site,
+            &explicit.arguments,
+        )?;
+    }
     let actual_types = program
         .state_parameters(&state)
         .iter()
@@ -116,6 +143,16 @@ pub(super) fn close(
         .chain(&provider.const_bindings)
         .flatten()
         .any(|reference| super::static_operands::is_open(program, *reference))
+        || provider.machine_bindings.iter().flatten().any(|argument| {
+            matches!(
+                program.symbols.get(argument.symbol).kind,
+                symbols::SymbolKind::MachineParameter
+            ) || argument.application.is_some()
+        })
+        || provider.evidence_bindings.iter().flatten().any(|argument| {
+            validation::conformance_applications::close_conformance_application(program, argument)
+                .is_err()
+        })
     {
         let bindings = super::super::applications::candidate_bindings(&provider);
         if program.applied_machine_callable_matches(

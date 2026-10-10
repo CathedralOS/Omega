@@ -43,6 +43,15 @@ pub struct OpenIndexOperationSelection {
 }
 
 impl OpenIndexOperationSelection {
+    /// Transport an already selected provider without discovering operations
+    /// or granting laws. Its symbol, application and diagnostic alias form one
+    /// payload; executable and contract copies must move them together.
+    pub fn apply_provider(&mut self, selected: &super::StaticMachineArgument, alias: &str) {
+        self.provider = selected.symbol;
+        self.application = selected.application.as_ref().map(|_| selected.clone());
+        self.algebra_alias = Some(alias.to_owned());
+    }
+
     pub fn operation_contract_identity(&self, program: &crate::TypedTrees) -> String {
         let subject = program.normalized_type_identity_text(self.operand_type);
         format!(

@@ -138,9 +138,13 @@ pub(crate) fn selection_from_proposals(
         }
     }
     for (_, parameter, binding) in machine_proposals {
-        if program.symbols.get(binding.symbol).kind == SymbolKind::MachineParameter {
+        if program.symbols.get(binding.symbol).kind == SymbolKind::MachineParameter
+            || binding.application.is_some()
+        {
             // A forwarded binder from another generic caller is no more
-            // concrete than a recursive self-binding.
+            // concrete than a recursive self-binding. A nested provider must
+            // also close to an entry before the symbol-keyed executable cache
+            // can consume it; retaining its base symbol alone aliases tuples.
             selection.unresolved_machine_parameters = true;
         }
         match &selection.machine_bindings[parameter] {

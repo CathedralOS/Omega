@@ -141,35 +141,12 @@ fn validate_binding(
     let carrier = super::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
     let expected_arguments = bound_arguments(program, bound, substitutions);
     if program.symbols.get(selected.symbol).kind == SymbolKind::ConformanceParameter {
-        if selected.application.is_some() {
-            return Err("an implementation evidence binder is already selected and takes no application arguments".to_owned());
-        }
-        let actual = program
-            .traits()
-            .iter()
-            .flat_map(|definition| definition.conformance_bounds.iter())
-            .chain(
-                program
-                    .machines()
-                    .iter()
-                    .flat_map(|machine| machine.conformance_bounds.iter()),
-            )
-            .find(|actual| actual.binder == selected.symbol)
-            .ok_or_else(|| "forwarded implementation binder has no declared contract".to_owned())?;
-        // Forwarding cannot assume a refinement it has not declared. Concrete
-        // maps are checked against every authored refinement clause below.
-        let actual_carrier =
-            super::refinement_fit::resolve_bound_carrier(program, actual.trait_symbol);
-        if actual_carrier.base != carrier.base
-            || (carrier.refinement.is_some() && actual.trait_symbol != bound.trait_symbol)
-            || bound_arguments(program, actual, &[]) != expected_arguments
-        {
-            return Err(format!(
-                "forwarded binder `{}` does not guarantee the exact `{}` trait application",
-                actual.binder_name, bound.trait_name
-            ));
-        }
-        return Ok(());
+        return super::conformance_applications::validate_forwarded_argument(
+            program,
+            bound,
+            &selected,
+            |actual| bound_arguments(program, actual, &[]) == expected_arguments,
+        );
     }
     let application = close_conformance_application(program, &selected)
         .map_err(|diagnostic| diagnostic.message)?;

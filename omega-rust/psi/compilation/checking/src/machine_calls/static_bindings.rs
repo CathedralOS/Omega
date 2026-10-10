@@ -2,8 +2,11 @@
 //! typed closure. Exact arena operands survive executable retargeting; clone
 //! names and display fingerprints are not evidence of a satisfied bound.
 //! Open calls owe judgments for their known type and const operands. Evidence
-//! fitting waits for a closed tuple, rather than judging a forwarded binder as
-//! a named implementation. Runtime Value carriers keep ordinary value checking.
+//! forwarding uses the caller's exact declared promise; named implementation
+//! closure still requires a closed tuple. Runtime Value carriers keep ordinary
+//! value checking.
+
+mod forwarded_evidence;
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -193,6 +196,16 @@ pub fn validate_static_machine_bindings(
             ),
             _ => true,
         });
+        forwarded_evidence::validate(
+            program,
+            machine,
+            application,
+            bindings,
+            program
+                .expression_table
+                .static_machine_application_lifetimes(handle),
+            &mut diagnostics,
+        );
         if complete {
             validate_conformance_bindings(
                 program,
@@ -404,71 +417,26 @@ fn conformance_arguments_match(
         arguments: &actual_arguments,
         lifetimes: &actual_lifetimes,
     };
+    let required = crate::conformance_applications::applied_bound_argument_identities(
+        program,
+        bound,
+        lexical_owner,
+        &[machine_scope],
+    );
     let actual = program
         .type_reference_table
-        .type_reference_handles(conformance.arguments);
-
-    // A replacement is normalized in its original outer scope. In particular,
-    // an embedded region in a type actual is not a region of the conformance's
-    // telescope. Historical report strings are deliberately not an equality
-    // oracle for this retained semantic edge.
-    let matches = |required: &[TypeReferenceHandle], scopes: &[AppliedTypeIdentityScope<'_>]| {
-        actual.len() == required.len()
-            && required.iter().zip(actual).all(|(required, actual)| {
-                let required_identity = applied_type_identity(
-                    program.typed_program(),
-                    *required,
-                    lexical_owner,
-                    scopes,
-                );
-                let actual_identity = applied_type_identity(
-                    program.typed_program(),
-                    *actual,
-                    lexical_owner,
-                    &[actual_scope],
-                );
-                required_identity
-                    .zip(actual_identity)
-                    .is_some_and(|(required, actual)| required == actual)
-            })
-    };
-    // A refinement head may reorder or partially apply its base parameters.
-    // Compare the instantiated base, not the surface refinement's arguments.
-    let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
-    match carrier
-        .refinement
-        .and_then(|refinement| refinement.refines.as_ref().map(|base| (refinement, base)))
-    {
-        Some((refinement, base)) => {
-            let head = program
-                .data_type_parameters
-                .span_or_empty(refinement.type_parameters)
-                .iter()
-                .zip(bound.arguments.iter())
-                .map(|(parameter, argument)| {
-                    let argument =
-                        if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
-                            IndexIdentityArgument::TypeArgument(*argument)
-                        } else {
-                            IndexIdentityArgument::TypeReference(*argument)
-                        };
-                    (parameter.symbol, argument)
-                })
-                .collect::<Vec<_>>();
-            matches(
-                program
-                    .type_reference_table
-                    .type_reference_handles(base.arguments),
-                &[
-                    machine_scope,
-                    AppliedTypeIdentityScope {
-                        declaration: refinement.symbol,
-                        arguments: &head,
-                        lifetimes: &[],
-                    },
-                ],
+        .type_reference_handles(conformance.arguments)
+        .iter()
+        .map(|reference| {
+            applied_type_identity(
+                program.typed_program(),
+                *reference,
+                lexical_owner,
+                &[actual_scope],
             )
-        }
-        None => matches(&bound.arguments, &[machine_scope]),
-    }
+        })
+        .collect::<Option<Vec<_>>>();
+    required
+        .zip(actual)
+        .is_some_and(|(required, actual)| required == actual)
 }

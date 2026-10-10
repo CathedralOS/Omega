@@ -9,6 +9,7 @@
 
 mod machine_selections;
 mod payloads;
+mod selected_operands;
 mod signatures;
 mod trait_scopes;
 
@@ -56,6 +57,7 @@ pub struct AppliedMachineCallable<'a> {
 #[derive(Default)]
 struct CallableApplication {
     types: Vec<(SymbolHandle, types::TypeReferenceHandle)>,
+    static_arguments: Vec<(SymbolHandle, crate::expression::StaticMachineArgument)>,
     symbols: Vec<(SymbolHandle, SymbolHandle)>,
     active_requirements: Vec<(SymbolHandle, SymbolHandle)>,
 }

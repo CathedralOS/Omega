@@ -34,9 +34,10 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         {
             let Some(entry) = providers::close(
                 program,
-                argument.symbol,
+                argument,
                 expected,
                 &invocation.types,
+                invocation.site,
                 application,
                 ordinal,
             )?
@@ -44,6 +45,26 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                 continue;
             };
             argument.symbol = entry;
+            if program
+                .machine_specializations
+                .iter()
+                .any(|specialization| {
+                    program
+                        .machine_by_symbol(specialization.instance)
+                        .is_some_and(|machine| {
+                            program
+                                .machine_states(machine)
+                                .iter()
+                                .any(|state| state.symbol == entry)
+                        })
+                })
+            {
+                // The authored recursive tuple stays in the retained source
+                // application. The executable roster names its closed entry,
+                // so outer specialization never keys a nested tuple by base
+                // symbol alone.
+                argument.application = None;
+            }
             replaced = true;
         }
         if !replaced {

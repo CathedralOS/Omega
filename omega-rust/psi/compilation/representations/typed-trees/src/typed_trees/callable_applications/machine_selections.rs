@@ -39,12 +39,26 @@ impl TypedTrees {
             .expression_table
             .static_machine_application_bindings(provider)
             .iter()
-            .map(|binding| match binding.value {
+            .filter_map(|binding| match binding.value {
                 StaticMachineBindingValue::Type(actual)
-                | StaticMachineBindingValue::Const(actual) => Ok((binding.parameter, actual)),
-                _ => Err("applied machine callable requires a determined type or const operand"),
+                | StaticMachineBindingValue::Const(actual) => Some(Ok((binding.parameter, actual))),
+                StaticMachineBindingValue::Conformance(_) => None,
+                _ => Some(Err(
+                    "applied machine callable has an unclosed machine or runtime operand",
+                )),
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let static_arguments = self
+            .expression_table
+            .static_machine_application_bindings(provider)
+            .iter()
+            .filter_map(|binding| match &binding.value {
+                StaticMachineBindingValue::Conformance(argument) => {
+                    Some((binding.parameter, argument.clone()))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
         if self
             .machine_type_parameters(machine)
             .iter()
@@ -55,6 +69,13 @@ impl TypedTrees {
             })
         {
             return Err("applied machine callable has an incomplete provider tuple");
+        }
+        if machine.conformance_bounds.iter().any(|bound| {
+            !static_arguments
+                .iter()
+                .any(|(symbol, _)| *symbol == bound.binder)
+        }) {
+            return Err("applied machine callable has an incomplete evidence tuple");
         }
         // Every provider binder is supplied; remaining nested telescopes are
         // copied by the same deep application used for nominal requirements.
@@ -78,6 +99,7 @@ impl TypedTrees {
         };
         let signature = CallableApplication {
             types: substitutions,
+            static_arguments,
             ..CallableApplication::default()
         }
         .signature(self, &declared)?;

@@ -15,6 +15,9 @@ use typed_trees::typed_trees::{
 };
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
+mod forwarding;
+pub(crate) use forwarding::{applied_bound_argument_identities, validate_forwarded_argument};
+
 pub fn validate_conformance_applications(
     program: &dyn crate::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {

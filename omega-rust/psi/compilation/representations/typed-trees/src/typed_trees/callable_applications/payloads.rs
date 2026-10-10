@@ -22,6 +22,16 @@ impl CallableApplication {
         {
             types::TypeReferenceNode::Named { symbol, name } => {
                 if let Some((_, argument)) = self
+                    .static_arguments
+                    .iter()
+                    .rev()
+                    .find(|(binder, _)| *binder == symbol)
+                {
+                    // This operand belongs to the outer caller. Its own
+                    // nested application must not be rebound by this view.
+                    return Self::selected_argument_reference(program, argument);
+                }
+                if let Some((_, argument)) = self
                     .types
                     .iter()
                     .rev()
@@ -224,6 +234,19 @@ impl CallableApplication {
             let node = program.expression_table.expression(handle).clone();
             let applied = match node {
                 expression::ExpressionNode::Name(path) => {
+                    if self
+                        .static_arguments
+                        .iter()
+                        .any(|(binder, _)| *binder == path.head_symbol)
+                    {
+                        // Evidence is a selected namespace, not a runtime value.
+                        // Copying its old child symbols would retain authority
+                        // in the provider scope. An applied requirement/member
+                        // tuple join must precede support for expression names.
+                        return Err(
+                            "applied evidence expression requires an exact requirement namespace mapping",
+                        );
+                    }
                     if let Some((_, argument)) = self
                         .types
                         .iter()
@@ -333,6 +356,27 @@ impl CallableApplication {
                     if let Some(application) = &mut operation.application {
                         self.static_arguments(program, std::slice::from_mut(application))?;
                     }
+                    if let Some((_, selected)) = self
+                        .static_arguments
+                        .iter()
+                        .rev()
+                        .find(|(binder, _)| *binder == operation.provider)
+                    {
+                        let alias = if program.symbols.get(selected.symbol).kind
+                            == symbols::SymbolKind::ConformanceParameter
+                        {
+                            program.symbols.name(selected.symbol).to_owned()
+                        } else {
+                            let conformance = program.conformance_by_symbol(selected.symbol)
+                                .ok_or("applied index authority lost its selected evidence declaration")?;
+                            conformance
+                                .alias
+                                .as_ref()
+                                .map_or("<unnamed-conformance>", |alias| alias.as_str())
+                                .to_owned()
+                        };
+                        operation.apply_provider(selected, &alias);
+                    }
                 }
                 *program
                     .expression_table
@@ -348,6 +392,17 @@ impl CallableApplication {
         arguments: &mut [expression::StaticMachineArgument],
     ) -> Result<(), &'static str> {
         for argument in arguments {
+            if let Some((_, replacement)) = self
+                .static_arguments
+                .iter()
+                .rev()
+                .find(|(symbol, _)| *symbol == argument.symbol)
+            {
+                // A selected operand is already in the caller's scope. Do not
+                // recurse into it under the provider's telescope a second time.
+                *argument = replacement.clone();
+                continue;
+            }
             if let Some((_, replacement)) = self
                 .types
                 .iter()

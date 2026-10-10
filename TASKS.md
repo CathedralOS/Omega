@@ -2593,17 +2593,25 @@ crash and native exit behavior.
     custody, including claims reseated into owned fields; native custody joins
     the complete selected call graph rather than its pointer-only mirror.
     It supplies no provider grant or boundary issuance.
-    The remaining source-selection frontier is an explicitly applied callback
-    carrying caller-scoped conformance evidence. On macOS ARM64,
-    `omega run --both tests/omega/pending/generics/contextual_static_machine_conformance_application_exit/main.omg`
-    rejects `probe<Kind, Evidence>` in both the source `relay` and its closed
-    instance as an unsupported nested machine application. In Stage 03b's
-    `monomorphization/contextual_calls/` and ordinary callable admission,
-    retain the nested provider's full tuple, lexical scope and exact evidence
-    identity before executable closure. Replace the recursive-application fence
-    with a general represented and admitted application, not a source recognizer
-    or an inferred proof. A forwarded evidence binder must satisfy the selected
-    provider's demands; matching runtime carriers alone is insufficient. Preserve
+    The remaining source-selection frontier is an explicit invocation-lifetime
+    selection inside a nested callback application. On macOS ARM64,
+    `omega run --both tests/omega/pending/generics/contextual_static_machine_explicit_lifetime_application_exit/main.omg`
+    refuses `probe<'item, Kind, Evidence>` until its applied region mapping is
+    represented. In Stage 03b's `monomorphization/contextual_calls/`, retain and
+    admit the selected lifetime separately from type and evidence substitutions;
+    transport it through the signature, retained tuple and executable identity.
+    Keeping the provider's original universal lifetime telescope must not
+    discard an explicit choice. This is engineering work under the existing
+    application rules. Nested machine/runtime operands also must not enter an
+    applied view or executable cache before their complete admission. Preserve
+    the explicit refusal of unjoined evidence member references in signature
+    payloads until their namespace and member-local telescope are represented;
+    generic specification-call denotation is a separate prerequisite. Preserve
+    `generics/contextual_static_machine_conformance_application_exit` and
+    `generics/contextual_static_machine_evidence_scopes_exit` through both
+    engines; forwarded evidence must guarantee the exact demanded application,
+    independent selected maps must not share a symbol-only cache entry, and
+    incomplete or excessive tuples and stronger effects must reject. Preserve
     `generics/contextual_static_machine_open_const_exit` and
     `generics/contextual_static_machine_const_scopes_exit` through both engines;
     open const payloads must not become closed cache operands, lose caller scope,

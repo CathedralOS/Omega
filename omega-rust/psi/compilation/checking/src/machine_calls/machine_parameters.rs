@@ -569,9 +569,13 @@ fn form_call_selection(
         requirements.into_iter().zip(machine_arguments).enumerate()
     {
         let rendered = selected.path.joined_path();
-        if selected.application.is_some() {
+        if selected.application.is_some()
+            && program
+                .applied_machine_callable(application, static_machine_ordinal, selected.symbol)
+                .is_none()
+        {
             diagnostics.push(Diagnostic::error(format!(
-                "static machine argument `{rendered}` for `{}` is a nested machine application; recursive specialization identity is not yet supported",
+                "static machine argument `{rendered}` for `{}` is a nested machine application without a completely admitted callable tuple",
                 parameter.name
             )));
             continue;

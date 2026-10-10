@@ -72,13 +72,7 @@ pub(crate) fn rewrite_index_algebra(
         .iter()
         .find(|rewrite| rewrite.binder == operation.provider)
     {
-        operation.provider = rewrite.argument.symbol;
-        operation.application = rewrite
-            .argument
-            .application
-            .as_ref()
-            .map(|_| rewrite.argument.clone());
-        operation.algebra_alias = Some(rewrite.alias.as_str().to_owned());
+        operation.apply_provider(&rewrite.argument, rewrite.alias.as_str());
     }
 }
 
