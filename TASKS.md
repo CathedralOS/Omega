@@ -2559,12 +2559,17 @@ crash and native exit behavior.
     custody, including claims reseated into owned fields; native custody joins
     the complete selected call graph rather than its pointer-only mirror.
     It supplies no provider grant or boundary issuance.
-    The remaining conformance frontier is nominal or recursively nested
-    per-member requirement conjunctions and differing conformance bounds,
-    not ordinary named evidence arguments or named maps. Keep
+    The remaining conformance frontier is fully applied nested nominal supply
+    and differing conformance bounds, not ordinary named evidence arguments
+    or named maps. Keep
     `targets/runtime_family_callback_requirement_conjunction_exit` and
     `targets/runtime_family_generic_callback_forwarding_exit` running with
     their non-first-member precondition and effect-ceiling rejection controls.
+    Keep `targets/runtime_family_generic_nominal_callback_conjunction_exit`,
+    `targets/runtime_family_nested_nominal_callback_conjunction_exit` and
+    `targets/runtime_family_deep_nominal_callback_variance_exit` running;
+    wrong applied authorities and alternating nested input variance must reject
+    through ordinary callable admission, not carrier comparison.
     Every ordinary and attached entry/result producer uses the complete
     family catalog. Keep
     `targets/runtime_family_nested_projected_results_exit`,

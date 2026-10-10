@@ -1,4 +1,5 @@
 trait Handler<Value> { machine call() -> bool; }
+machine yes() -> bool satisfies Handler<u64>::call { true }
 
 linux_arm64 machine choose<machine Selected>() -> bool
 where machine Selected satisfies Handler<u64>::call;
@@ -8,6 +9,6 @@ macos_arm64 machine choose<machine Callback>() -> bool
 where machine Callback satisfies Handler<bool>::call;
 { Callback() }
 
-// Equal requirement declarations are not equal applied nominal contracts,
-// even when the trait argument does not change the ordinary calling shape.
-machine main() {}
+// Equal carriers and a first-member satisfaction do not grant the non-first
+// member's distinct applied authority, even for a phantom trait argument.
+machine main() { let answer: bool = choose<yes>(); }

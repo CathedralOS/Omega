@@ -1,1 +1,1 @@
-narrows `Target` by omitting `blocks;`
+it may block, but the requirement omits `blocks;`

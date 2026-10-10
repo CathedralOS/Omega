@@ -4,15 +4,86 @@
 //! argument, result, relevance or generic category from becoming a different
 //! target implementation of one signature. Preconditions, guarantees and
 //! operational ceilings are not calling shape; selection checking discharges
-//! those separately for every member. Exact nominal requirements stay nominal.
+//! those separately for every member. Nominal views substitute the authored
+//! trait application here; exact authority stays in ordinary supply admission.
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::data::{MachineParameterContractView, TypeParameterKind};
+use typed_trees::data::{
+    MachineParameterContract, MachineParameterContractView, TypeParameterKind,
+};
 use typed_trees::signature::StateSignature;
+use typed_trees::type_identity::TypeIdentityRequest;
 use validation::contract_structure::declared_callable;
 
-pub(super) fn compatible(
+pub(super) fn compatible_contracts(
+    program: &TypedTrees,
+    required: &MachineParameterContract,
+    actual: &MachineParameterContract,
+    required_outer: &[(SymbolHandle, String)],
+    actual_outer: &[(SymbolHandle, String)],
+    content_conservation: &[validation::ContentConservationSourcePlan],
+) -> bool {
+    let Some(required_view) = program.machine_parameter_contract_view(required) else {
+        return false;
+    };
+    let Some(actual_view) = program.machine_parameter_contract_view(actual) else {
+        return false;
+    };
+    let Some(required_binders) = applied_binders(program, required, required_view, required_outer)
+    else {
+        return false;
+    };
+    let Some(actual_binders) = applied_binders(program, actual, actual_view, actual_outer) else {
+        return false;
+    };
+    compatible(
+        program,
+        required_view.signature(),
+        actual_view.signature(),
+        &required_binders,
+        &actual_binders,
+        content_conservation,
+    )
+}
+
+/// Nominal views materialize ordinary parameters and results, but nested
+/// schemas still refer to their trait's binders. Project those binders under
+/// the same authored application without rewriting shared declaration rows.
+fn applied_binders(
+    program: &TypedTrees,
+    contract: &MachineParameterContract,
+    view: MachineParameterContractView<'_>,
+    outer: &[(SymbolHandle, String)],
+) -> Option<Vec<(SymbolHandle, String)>> {
+    let mut binders = outer.to_vec();
+    if let (
+        MachineParameterContract::Nominal {
+            trait_arguments, ..
+        },
+        MachineParameterContractView::Nominal {
+            trait_definition, ..
+        },
+    ) = (contract, view)
+    {
+        let parameters = program.trait_type_parameters(trait_definition);
+        if parameters.len() != trait_arguments.len() {
+            return None;
+        }
+        for (parameter, argument) in parameters.iter().zip(trait_arguments) {
+            binders.push((
+                parameter.symbol,
+                program.type_identity_request_text(TypeIdentityRequest {
+                    binders: outer,
+                    ..TypeIdentityRequest::ordinary(*argument)
+                }),
+            ));
+        }
+    }
+    Some(binders)
+}
+
+fn compatible(
     program: &TypedTrees,
     required: &StateSignature,
     actual: &StateSignature,
@@ -44,46 +115,25 @@ pub(super) fn compatible(
         if std::mem::discriminant(&required.kind) != std::mem::discriminant(&actual.kind) {
             return false;
         }
-        match (&required.kind, &actual.kind) {
-            (
-                TypeParameterKind::Machine { contract: required },
-                TypeParameterKind::Machine { contract: actual },
-            ) => match (
-                program.machine_parameter_contract_view(required),
-                program.machine_parameter_contract_view(actual),
+        if let (
+            TypeParameterKind::Machine { contract: required },
+            TypeParameterKind::Machine { contract: actual },
+        ) = (&required.kind, &actual.kind)
+        {
+            if !compatible_contracts(
+                program,
+                required,
+                actual,
+                &required_binders,
+                &actual_binders,
+                content_conservation,
             ) {
-                (
-                    Some(MachineParameterContractView::Structural(required)),
-                    Some(MachineParameterContractView::Structural(actual)),
-                ) if compatible(
-                    program,
-                    required,
-                    actual,
-                    &required_binders,
-                    &actual_binders,
-                    content_conservation,
-                ) =>
-                {
-                    continue;
-                }
-                (
-                    Some(MachineParameterContractView::Nominal {
-                        trait_definition: required_trait,
-                        requirement: required_machine,
-                    }),
-                    Some(MachineParameterContractView::Nominal {
-                        trait_definition: actual_trait,
-                        requirement: actual_machine,
-                    }),
-                ) if required_trait.symbol == actual_trait.symbol
-                    && required_machine.symbol == actual_machine.symbol => {}
-                _ => return false,
-            },
-            _ => {}
+                return false;
+            }
+            continue;
         }
-        // Named authority includes its trait application, not just the
-        // requirement declaration. Until that conjunction has an applied
-        // carrier model, nominal and non-callable slots retain exact identity.
+        // Non-callable payloads are not merely a calling shape. Their full
+        // identity remains required independently of callback admission.
         let required = validation::contract_identities::generic_parameter_contract_bytes(
             program,
             required,

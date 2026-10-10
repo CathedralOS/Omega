@@ -13,6 +13,8 @@ use typed_trees::signature::{SignatureContract, StateParameter};
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
+mod nominal_inputs;
+
 /// The shape one callable presents for refinement against a machine
 /// parameter's requirement: a machine entry, a forwarded machine parameter or
 /// a nested machine contract all reduce to these parts.
@@ -529,7 +531,7 @@ pub fn validate_trait_callable_parameter_refinement(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut bindings = Vec::new();
-    let mut binder_bindings = requirement_parameters
+    let binder_bindings = requirement_parameters
         .iter()
         .zip(actual_parameters)
         .map(|(required, provider)| BinderBinding {
@@ -550,57 +552,18 @@ pub fn validate_trait_callable_parameter_refinement(
         else {
             continue;
         };
-        let required_contract = machine_parameter_signature(program, required_contract);
-        let actual_contract = machine_parameter_signature(program, actual_contract);
         let nested_label = format!("machine parameter `{}` of {label}", actual.name);
-        validate_callable_parts(
+        validate_callable_input(
             program,
             &nested_label,
             required,
             required_contract,
-            &CallableParts::of_signature(program, actual_contract),
             actual_contract,
             generic_types,
             &mut bindings,
-            &mut binder_bindings,
+            &binder_bindings,
             diagnostics,
         );
-
-        // Provider conformance publishes one exact higher-order slot. The
-        // ordinary selection refinement above rejects a wider provider
-        // contract; these reverse checks reject a narrower one.
-        if required_contract.suspends && !actual_contract.suspends {
-            diagnostics.push(Diagnostic::error(format!(
-                "{nested_label} narrows `{}` by omitting `suspends;`",
-                required.name
-            )));
-        }
-        if required_contract.blocks && !actual_contract.blocks {
-            diagnostics.push(Diagnostic::error(format!(
-                "{nested_label} narrows `{}` by omitting `blocks;`",
-                required.name
-            )));
-        }
-        let actual_services = program
-            .service_reach_rows
-            .services(actual_contract.service_reach_row);
-        for service in program
-            .service_reach_rows
-            .services(required_contract.service_reach_row)
-        {
-            if !actual_services.contains(service) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{nested_label} narrows `{}` by omitting an admitted service reach",
-                    required.name
-                )));
-            }
-        }
-        if required_contract.termination_guarantee != actual_contract.termination_guarantee {
-            diagnostics.push(Diagnostic::error(format!(
-                "{nested_label} changes `{}` termination requirements",
-                required.name
-            )));
-        }
     }
 }
 
@@ -682,15 +645,12 @@ fn validate_callable_type_parameters(
                     contract: actual_contract,
                 },
             ) => {
-                let required_contract = machine_parameter_signature(program, required_contract);
-                let actual_contract = machine_parameter_signature(program, actual_contract);
                 let nested_label = format!("nested machine parameter `{}` of {label}", actual.name);
-                validate_callable_parts(
+                validate_callable_input(
                     program,
                     &nested_label,
                     required,
                     required_contract,
-                    &CallableParts::of_signature(program, actual_contract),
                     actual_contract,
                     generic_types,
                     bindings,
@@ -727,4 +687,54 @@ fn validate_callable_type_parameters(
             }
         }
     }
+}
+
+/// Callable inputs are contravariant: a supplied higher-order body must accept
+/// every callable its requirement promises to the caller. Check the promised
+/// input as a provider of the body's demanded input, reversing the exact
+/// positional mapping as well. Each recursive input reverses again, so nominal
+/// authority, predicates and operational ceilings alternate at every depth.
+#[allow(clippy::too_many_arguments)]
+fn validate_callable_input(
+    program: &dyn crate::CheckingInput,
+    label: &str,
+    parameter: &TypeParameter,
+    promised: &typed_trees::data::MachineParameterContract,
+    demanded: &typed_trees::data::MachineParameterContract,
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    binder_bindings: &[BinderBinding],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    nominal_inputs::validate(
+        program,
+        label,
+        promised,
+        demanded,
+        generic_types,
+        bindings,
+        binder_bindings,
+        diagnostics,
+    );
+    let promised = machine_parameter_signature(program, promised);
+    let demanded = machine_parameter_signature(program, demanded);
+    let mut reversed = binder_bindings
+        .iter()
+        .map(|binding| BinderBinding {
+            required: binding.actual,
+            actual: binding.required,
+        })
+        .collect::<Vec<_>>();
+    validate_callable_parts(
+        program,
+        label,
+        parameter,
+        demanded,
+        &CallableParts::of_signature(program, promised),
+        promised,
+        generic_types,
+        bindings,
+        &mut reversed,
+        diagnostics,
+    );
 }

@@ -1,1 +1,1 @@
-expected return `Index`, got `bool`
+expected return `bool`, got `Index`

@@ -10,7 +10,7 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::data::{MachineParameterContractView, TypeParameterKind};
+use typed_trees::data::TypeParameterKind;
 use typed_trees::machine::Machine;
 use typed_trees::type_identity::TypeIdentityRequest;
 use validation::contract_structure::{declared_callable, generic_binders};
@@ -106,48 +106,25 @@ pub(super) fn validate(
             TypeParameterKind::Machine { contract: actual },
         ) = (&required.kind, &actual.kind)
         {
-            let required = program
-                .machine_parameter_contract_view(required)
-                .ok_or_else(|| incompatible(member, "missing generic callable contract"))?;
-            let actual = program
-                .machine_parameter_contract_view(actual)
-                .ok_or_else(|| incompatible(member, "missing generic callable contract"))?;
-            match (required, actual) {
-                (
-                    MachineParameterContractView::Nominal {
-                        trait_definition: required_trait,
-                        requirement: required_machine,
-                    },
-                    MachineParameterContractView::Nominal {
-                        trait_definition: actual_trait,
-                        requirement: actual_machine,
-                    },
-                ) if required_trait.symbol == actual_trait.symbol
-                    && required_machine.symbol == actual_machine.symbol => {}
-                (
-                    MachineParameterContractView::Structural(required),
-                    MachineParameterContractView::Structural(actual),
-                ) => {
-                    if !callable_carriers::compatible(
-                        program,
-                        required,
-                        actual,
-                        &required_binders,
-                        &actual_binders,
-                        &content_conservation,
-                    ) {
-                        return Err(incompatible(member, "nested callable carrier telescope"));
-                    }
-                    // Structural calling shape is shared, while selection
-                    // discharges each member's complete supply demands.
-                    continue;
-                }
-                _ => return Err(unjoined(member, "nominal callable-contract correspondence")),
+            if !callable_carriers::compatible_contracts(
+                program,
+                required,
+                actual,
+                &required_binders,
+                &actual_binders,
+                &content_conservation,
+            ) {
+                return Err(incompatible(member, "nested callable carrier telescope"));
             }
+            // Calling shape is shared, not nominal authority. The contract
+            // view substitutes authored trait arguments before comparison;
+            // selection checking separately requires each member's exact
+            // satisfaction application, even for phantom arguments or when
+            // another member asks only for a structural contract.
+            continue;
         }
-        // Nominal applications retain the existing exact contract fence,
-        // including trait arguments. Equal declaration identities alone do
-        // not establish an applied carrier or a conjunction of authorities.
+        // Non-callable binders still require exact payload identity until
+        // their distinct demand conjunction has an ordinary admission route.
         let required_identity = validation::contract_identities::generic_parameter_contract_bytes(
             program,
             required,

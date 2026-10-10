@@ -457,66 +457,15 @@ pub(super) fn assign_machine_parameter_signature_symbols(
         .to_vec();
     local_type_parameters.extend_from_slice(inherited_type_parameters);
 
-    let nested_count = contract.type_parameters.len();
-    for index in 0..nested_count {
-        let (parameter_symbol, kind) = {
-            let parameter = &tables
-                .data_type_parameters
-                .span_or_empty(contract.type_parameters)[index];
-            (parameter.symbol, parameter.kind.clone())
-        };
-        let resolved_kind = match kind {
-            TypeParameterKind::Type => TypeParameterKind::Type,
-            TypeParameterKind::Implementation => TypeParameterKind::Implementation,
-            TypeParameterKind::Const { mut type_reference } => {
-                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
-                    tables.symbols,
-                    tables.child_type_references,
-                    tables.type_constraints,
-                    &local_type_parameters,
-                    &mut type_reference,
-);
-                TypeParameterKind::Const { type_reference }
-            }
-            TypeParameterKind::Value { mut type_reference } => {
-                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
-                    tables.symbols,
-                    tables.child_type_references,
-                    tables.type_constraints,
-                    &local_type_parameters,
-                    &mut type_reference,
-);
-                TypeParameterKind::Value { type_reference }
-            }
-            TypeParameterKind::Machine { mut contract } => {
-                if let Some(signature) = contract.structural_mut() {
-                    assign_machine_parameter_signature_symbols(
-                        tables,
-                        signature,
-                        parameter_symbol,
-                        &local_type_parameters,
-                    );
-                }
-                TypeParameterKind::Machine { contract }
-            }
-            TypeParameterKind::Proposition { mut contract } => {
-                assign_proposition_parameter_signature_symbols(
-                    tables.symbols,
-                    tables.state_parameters,
-                    tables.child_type_references,
-                    tables.type_constraints,
-                    &mut contract,
-                    parameter_symbol,
-                    &local_type_parameters,
-                );
-                TypeParameterKind::Proposition { contract }
-            }
-        };
-        tables
-            .data_type_parameters
-            .span_mut_or_empty(contract.type_parameters)[index]
-            .kind = resolved_kind;
-    }
+    // A nested telescope owns the same kind payloads as a top-level one.
+    // Reuse their complete resolution, including nominal trait arguments;
+    // signature-only recursion left those arguments as unresolved spellings.
+    tables.resolve_type_parameter_kind_symbols(
+        contract.type_parameters,
+        &local_type_parameters,
+        MachineParameterArm::ResolveWithAuthoredTraitArguments,
+        true,
+    );
 
     for parameter in tables
         .state_parameters
