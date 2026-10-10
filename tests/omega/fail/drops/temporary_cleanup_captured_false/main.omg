@@ -13,9 +13,16 @@ machine set(flag: &mut bool) -> u64 {
 
 machine read(token: &Token) -> u64 { token.value }
 
-machine main() -> u64 {
+machine explicit() -> u64 {
     let mut flag: bool = false;
     // A later sibling cannot repair the false value already established in
     // the anonymous owner that dies on read's continuation.
     read(&Token { ready: flag, value: set(&mut flag) })
 }
+
+machine implicit() -> u64 {
+    let mut flag: bool = false;
+    read(Token { ready: flag, value: set(&mut flag) })
+}
+
+machine main() -> bool { explicit() == 7 && implicit() == 7 }

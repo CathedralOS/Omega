@@ -23,7 +23,15 @@ machine main() crashes Trap {
         Token { ready: flag, value: clear(&mut flag) },
         Token { ready: true, value: 8 }
     ] });
-    transition answer == 7 && !flag {
+    let explicit: bool = answer == 7 && !flag;
+    flag = true;
+    // Implicit borrowing installs the same owned constructor before lending
+    // it. The formal reference must not replace that value's child snapshots.
+    let implicit: u64 = read(Bundle { tokens: [
+        Token { ready: flag, value: clear(&mut flag) },
+        Token { ready: true, value: 8 }
+    ] });
+    transition explicit && implicit == 7 && !flag {
         true -> done()
         false -> bad()
     }

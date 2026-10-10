@@ -832,7 +832,8 @@ defines the complete product bar.
     Keep `pass/drops/runtime_claim_bearing_temporary_cleanup_exit` and
     `pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit` as native
     and Terminal controls for conditional establishment, descendant identity
-    transport, disjoint affine complements and exact linear hook disposition.
+    transport, disjoint affine complements, exact linear hook disposition and
+    constructor snapshots across implicit borrowing.
     Keep `runtime_parent_hook_preserves_linear_descendants_exit` as the intact
     nominal receiver and retained child-claim control, with child cleanup
     prerequisites established by the parent hook's conjunction. Keep

@@ -1,1 +1,2 @@
-cannot prove automatic cleanup requires
+explicit state entry after statement 1: missing Token.ready == true
+implicit state entry after statement 1: missing Token.ready == true

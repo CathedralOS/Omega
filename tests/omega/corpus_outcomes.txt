@@ -1397,8 +1397,9 @@ fail/drops/read_after_conditional_call_move rejected 462ms expected @9beb2be72f2
 	cannot use `owner.value` in machine `invalid` state `entry` (statement 2) after `owner` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `owner` first
 fail/drops/successor_cleanup_unmet_prerequisite rejected 331ms expected @9beb2be72f2d+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
-fail/drops/temporary_cleanup_captured_false rejected 335ms expected @4df42bc194d5+wt
-	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing Token.ready == true required by Token::drop clause `token.ready`
+fail/drops/temporary_cleanup_captured_false rejected 416ms expected @fc58820b115b
+	cannot prove automatic cleanup requires at selected edge from explicit state entry after statement 1: missing Token.ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from implicit state entry after statement 1: missing Token.ready == true required by Token::drop clause `token.ready`
 fail/drops/temporary_cleanup_captured_false_integer rejected 354ms expected @4cc11cbadf31+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Token does not establish Token::drop clause `token.value == 7`
 fail/drops/temporary_cleanup_false_compound_contract rejected 354ms expected @4cc11cbadf31+wt

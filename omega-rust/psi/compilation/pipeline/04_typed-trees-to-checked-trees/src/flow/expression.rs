@@ -525,12 +525,39 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             })
     }
 
+    /// Contextual construction installs an owned value before an argument
+    /// borrows it. A formal reference describes that later access, not the
+    /// constructor's storage. Its retained result type supplies the exact
+    /// nominal application and fixed extent without peeling reference shells.
+    /// Operand capture still retains the original destination and its loans.
+    fn constructed_value_type(
+        &mut self,
+        expression: ExpressionHandle,
+        destination: TypeReferenceHandle,
+    ) -> Option<TypeReferenceHandle> {
+        if destination.is_valid()
+            && validation::reference_shell(self.program, destination).is_none()
+        {
+            Some(destination)
+        } else {
+            self.context.expression_result_type_at(
+                self.program,
+                self.machine,
+                self.state,
+                expression,
+            )
+        }
+    }
+
     fn constructed_child_type(
         &mut self,
         parent: ExpressionHandle,
         destination: TypeReferenceHandle,
         path: &[facts::PlaceSegment],
     ) -> TypeReferenceHandle {
+        let destination = self
+            .constructed_value_type(parent, destination)
+            .unwrap_or_default();
         if let Some(reference) = super::operand_values::operand_child_type(
             self.program,
             destination,
@@ -958,17 +985,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 }
             }
             ExpressionNode::StructLiteral(value) => {
-                let carrier = if destination.is_valid() {
-                    Some(destination)
-                } else {
-                    self.context.expression_result_type_at(
-                        self.program,
-                        self.machine,
-                        self.state,
-                        expression,
-                    )
-                }
-                .map(|reference| validation::peel_declared_constraints(self.program, reference));
+                let carrier =
+                    self.constructed_value_type(expression, destination)
+                        .map(|reference| {
+                            validation::peel_declared_constraints(self.program, reference)
+                        });
                 for field in self.program.expression_table.struct_fields(value.fields) {
                     let Some(selected) = carrier.and_then(|carrier| {
                         self.program.closed_data_constructor_field(
