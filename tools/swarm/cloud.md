@@ -122,6 +122,63 @@ contract plus governing repository links and existing owned walls. Translate
 parameters to supported tool fields; never forward this envelope as an invented
 API schema. Save the sanitized result file before attempting ledger ingestion.
 
+### Durable adapter steps
+
+For a restartable coordinator, use `prepare-step` instead of a bare `intent`.
+Its JSON is the same intent object plus a stable `step` ID naming the exact
+next turn. It saves the operation, immutable contract and operational checkpoint
+atomically. Identical preparation returns status; a changed contract under the
+same step is refused. `status` includes every saved step and its next action.
+
+Use `dispatch-step` with `{"assignment":"A","step":"preflight-1"}`.
+Only its first successful write returns `request.action:"invoke_once"` and the
+exact saved request inside `request.request`. Invoke that request's actual
+capability once, translating to the schema discovered on this runtime. The
+reservation is durable before the request is returned. A crash after reservation,
+including before the tool call, requires authoritative reconciliation; it never
+permits dispatching the same step again. Once an authoritative read resolves
+that exact operation, `complete_reconciled_step` directs `complete-step` to
+settle using the retained proof even when the original result was lost. Applied
+create/follow-up reconciliation still requires the exact child acknowledgment.
+A crash before reservation leaves a prepared step available. Dispatch rechecks current guards and the saved contract.
+
+Save the actual sanitized envelope using `save-step-result`, with input
+`{"assignment":"A","step":"preflight-1","result":{...}}`, then use
+`complete-step` with the assignment/step object. Saving and ingestion are separate
+atomic commits, so restart can ingest saved evidence without executing a tool.
+Identical result saves and completed-step replays are idempotent. Read ingestion
+permits only its own result-save revision increment; other journal changes or
+stale observation time require a fresh read. The original read envelope remains
+saved unchanged. Unknown mutation effects and actual denials retain the existing
+reconciliation and approval fences. A stale saved read stays preserved while
+step status directs a fresh read.
+
+This is a bounded adapter contract, not a live transport integration: one tool
+invocation per reserved step, existing retry/continuation bounds, and the recorded
+turn limit. The coordinator must consume the returned requests through supported
+runtime tools. No remote actuation or automatic daemon is demonstrated by local
+fixture tests. Keep exact landing ticket, claim, base, candidate, verification
+receipt, publication result and ancestry evidence in the checkpoint's evidence
+artifact; a `publication` phase alone never authorizes a retry or proves landing.
+
+### Rolling reuse
+
+`successor` takes `predecessor`, a single-assignment `manifest`, fresh `claims`,
+and a full verified `binding` packet in the existing `bind-existing` input shape.
+The manifest has `mode:"rolling-successor"`, `size:1`, `previous:null`, a fresh
+reviewed outcome and the ordinary acceptance/dependency contract. The predecessor
+must have managed landed acceptance, completed cleanup and no user rescue. The
+binding must identify the same recorded pool/slot and predecessor, prove current
+settlement and process/recovery/resource clearance, and preserve denial history
+and protected paths. Admission and binding commit together.
+
+One predecessor admits one successor. Exact replay is idempotent; a different
+successor contract is refused. The other slots remain visible, including blocked
+ones. Rolling reuse neither increases capacity nor supplies 2/5/10 staged rollout
+credit. Ordinary batch admission still refuses unfinished batches. `status`
+reports reusable settled slots and their successor links; the coordinator supplies
+an actually reviewed next outcome rather than deriving work from `next_gate` text.
+
 Result input has `schema:1`, `operation`, `execution_id`, `assignment`,
 `effect: applied|not_applied|unknown`, `evidence`, and `result`. A successful
 create's result must contain actual `thread`, `environment`, `generation`.

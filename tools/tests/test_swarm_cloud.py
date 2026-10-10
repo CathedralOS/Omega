@@ -519,6 +519,160 @@ class ControllerTests(unittest.TestCase):
 
     def bind(self, value): self.update(lambda r: cloud.bind_existing(r,value))
 
+    def prepare_step(self, step='next-turn', operation='step-operation', action='create'):
+        result=[]
+        self.update(lambda r:result.append(cloud.prepare_step(r,dict(assignment='0',step=step,
+            action=action,operation=operation,parameters=dict(model='gpt-6.1-sol',reasoning='medium',phase='preflight')))))
+        return result[0]
+
+    def test_durable_step_restart_never_duplicates_dispatch(self):
+        first=self.prepare_step(); revision=self.store.load()['revision']
+        self.store=Store(self.root/'state.json')
+        self.assertEqual(self.prepare_step(),first)
+        self.assertEqual(self.store.load()['revision'],revision)
+        dispatch=[]
+        self.update(lambda r:dispatch.append(cloud.dispatch_step(r,'0','next-turn')))
+        request=dispatch[0]['request']
+        self.assertEqual(request['operation'],'step-operation')
+        self.store=Store(self.root/'state.json')
+        replay=self.prepare_step()
+        self.assertEqual(replay['action'],'read_reconcile')
+        self.assertNotIn('request',replay)
+        with self.assertRaisesRegex(RecoveryError,'already dispatched'):
+            self.update(lambda r:cloud.dispatch_step(r,'0','next-turn'))
+        receipt=self.reply(request)
+        self.update(lambda r:cloud.save_step_result(r,'0','next-turn',receipt))
+        self.store=Store(self.root/'state.json')
+        self.assertEqual(self.prepare_step()['action'],'ingest_saved_result')
+        self.update(lambda r:cloud.complete_step(r,'0','next-turn'))
+        revision=self.store.load()['revision']
+        self.update(lambda r:cloud.complete_step(r,'0','next-turn'))
+        self.assertEqual(self.store.load()['revision'],revision)
+        self.assertEqual(self.prepare_step()['action'],'settled')
+        with self.assertRaisesRegex(RecoveryError,'conflicting step'):
+            self.prepare_step(operation='different-operation')
+
+    def test_saved_stale_read_remains_durable_without_dispatch_retry(self):
+        self.request(); self.read()
+        self.prepare_step(action='read')
+        requests=[]
+        self.update(lambda r:requests.append(cloud.dispatch_step(r,'0','next-turn')))
+        receipt=self.reply(requests[0]['request'],result=dict(thread='thread-0',environment='env-0',generation='gen-0',runtime='completed'))
+        self.update(lambda r:cloud.save_step_result(r,'0','next-turn',receipt))
+        self.update(lambda r:r.update(unrelated='concurrent progress'))
+        with self.assertRaisesRegex(RecoveryError,'stale runtime'):
+            self.update(lambda r:cloud.complete_step(r,'0','next-turn'))
+        self.assertEqual(self.prepare_step(action='read')['action'],'read_reconcile')
+        self.assertEqual(self.store.load()['cloud']['steps']['0']['next-turn']['result'],receipt)
+        with self.assertRaisesRegex(RecoveryError,'already dispatched'):
+            self.update(lambda r:cloud.dispatch_step(r,'0','next-turn'))
+
+    def test_durable_read_can_complete_after_only_its_result_save(self):
+        self.prepare_step(action='read')
+        requests=[]
+        self.update(lambda r:requests.append(cloud.dispatch_step(r,'0','next-turn')))
+        receipt=self.reply(requests[0]['request'],result=dict(runtime='completed'))
+        self.update(lambda r:cloud.save_step_result(r,'0','next-turn',receipt))
+        revision=self.store.load()['revision']
+        self.update(lambda r:cloud.save_step_result(r,'0','next-turn',receipt))
+        self.assertEqual(self.store.load()['revision'],revision)
+        self.store=Store(self.root/'state.json')
+        self.update(lambda r:cloud.complete_step(r,'0','next-turn'))
+        self.assertEqual(self.prepare_step(action='read')['action'],'settled')
+        self.assertEqual(self.store.load()['cloud']['steps']['0']['next-turn']['result'],receipt)
+        self.assertEqual(self.state()['runtime'],'completed')
+
+    def test_step_unknown_result_requires_authoritative_read_and_never_resumes_denial(self):
+        self.prepare_step(); requests=[]
+        self.update(lambda r:requests.append(cloud.dispatch_step(r,'0','next-turn')))
+        request=requests[0]['request']; receipt=self.reply(request,effect='unknown')
+        self.update(lambda r:cloud.save_step_result(r,'0','next-turn',receipt))
+        self.update(lambda r:cloud.complete_step(r,'0','next-turn'))
+        self.assertEqual(self.prepare_step()['action'],'read_reconcile')
+        with self.assertRaisesRegex(RecoveryError,'unknown mutation'):
+            self.prepare_step(step='duplicate',operation='duplicate')
+        self.read(effects={request['operation']:dict(execution_id=request['execution_id'],effect='not_applied',evidence='actual host proves no task')},include_preflight=False)
+        self.assertEqual(self.prepare_step()['action'],'settled')
+        self.prepare_step(step='denied',operation='denied')
+        denial=dict(operation='actual-denial',execution_id='denial-receipt',action='exact restricted action',error='approval rejected')
+        self.update(lambda r:r['cloud']['assignments']['0'].update(approval_required=denial))
+        with self.assertRaisesRegex(RecoveryError,'approval blocker'):
+            self.update(lambda r:cloud.dispatch_step(r,'0','denied'))
+        self.assertNotIn('dispatched_utc',self.store.load()['cloud']['steps']['0']['denied'])
+
+    def test_crash_without_result_settles_from_authoritative_read(self):
+        self.prepare_step(); requests=[]
+        self.update(lambda r:requests.append(cloud.dispatch_step(r,'0','next-turn')))
+        request=requests[0]['request']; self.store=Store(self.root/'state.json')
+        self.read(effects={request['operation']:dict(execution_id=request['execution_id'],effect='not_applied',evidence='actual host proves no task')},include_preflight=False)
+        self.assertEqual(self.prepare_step()['action'],'complete_reconciled_step')
+        self.update(lambda r:cloud.complete_step(r,'0','next-turn'))
+        self.assertEqual(self.prepare_step()['action'],'settled')
+        self.assertIsNone(self.store.load()['cloud']['steps']['0']['next-turn'].get('result'))
+        with self.assertRaisesRegex(RecoveryError,'already dispatched'):
+            self.update(lambda r:cloud.dispatch_step(r,'0','next-turn'))
+
+    def test_crash_applied_reconciliation_retains_child_acknowledgment_gate(self):
+        self.prepare_step(); requests=[]
+        self.update(lambda r:requests.append(cloud.dispatch_step(r,'0','next-turn')))
+        request=requests[0]['request']
+        self.read(effects={request['operation']:dict(execution_id=request['execution_id'],effect='applied',
+            thread='thread-0',environment='env-0',generation='gen-0',evidence='actual task mapping')},acknowledge=False,include_preflight=False)
+        self.assertEqual(self.prepare_step()['action'],'read_reconcile')
+        with self.assertRaisesRegex(RecoveryError,'acknowledgment'):
+            self.update(lambda r:cloud.complete_step(r,'0','next-turn'))
+        self.read(include_preflight=False)
+        self.assertEqual(self.prepare_step()['action'],'complete_reconciled_step')
+        self.update(lambda r:cloud.complete_step(r,'0','next-turn'))
+        self.assertEqual(self.prepare_step()['action'],'settled')
+
+    def successor_input(self):
+        self.bind(self.binding_input())
+        self.update(lambda r:r['cloud']['assignments']['0'].update(accepted=dict(result='landed',cleanup='completed',user_rescue=False,credit='managed')))
+        self.update(lambda r:cloud.checkpoint(r,'1',checkpoint('blocked')))
+        value=self.binding_input('next',3); receipt=value['receipt']
+        receipt['creation']=copy.deepcopy(self.store.load()['cloud']['operations']['bind-0']['result']['creation'])
+        receipt['observation'].update(thread='thread-0',environment='env-0',generation='gen-0',executor='actual-host-0',prior_assignment='0')
+        receipt['observation']['recovery'].update(assignment='0',environment='env-0',generation='gen-0')
+        receipt['prior'].update(assignment='0',outcome='program-0',disposition='accepted')
+        self.binding_packet(value)
+        successor=dict(id='rolling-next',size=1,mode='rolling-successor',previous=None,
+            dependency_review='independent outcome, no dependency on blocked slot',publication='serialized-landing',
+            assignments=[assignment('next',self.base)],dependencies=[])
+        return dict(predecessor='0',manifest=successor,claims=snapshot(),binding=value)
+
+    def test_settled_slot_reused_while_peer_blocked_without_stage_promotion(self):
+        value=self.successor_input()
+        pilot=copy.deepcopy(value['manifest']); pilot['mode']='non-promoting-pilot'
+        with self.assertRaisesRegex(RecoveryError,'unfinished batch'):
+            self.update(lambda r:cloud.admit(r,pilot,snapshot()))
+        self.update(lambda r:cloud.successor(r,value))
+        revision=self.store.load()['revision']; self.store=Store(self.root/'state.json')
+        self.update(lambda r:cloud.successor(r,value))
+        self.assertEqual(self.store.load()['revision'],revision)
+        state=self.store.load(); rows=state['cloud']['assignments']
+        self.assertEqual(rows['next']['thread'],'thread-0')
+        self.assertEqual(rows['0']['successor'],'next')
+        self.assertEqual(rows['1']['checkpoint']['phase'],'blocked')
+        self.assertFalse(cloud.batch_complete(state,'batch-2'))
+        self.assertFalse(cloud.batch_complete(state,'rolling-next'))
+        with self.assertRaisesRegex(RecoveryError,'previous batch'):
+            self.update(lambda r:cloud.admit(r,manifest(5,'promotion','batch-2'),snapshot()))
+        conflict=copy.deepcopy(value); conflict['manifest']['id']='duplicate-successor'
+        with self.assertRaisesRegex(RecoveryError,'conflicting successor'):
+            self.update(lambda r:cloud.successor(r,conflict))
+
+    def test_successor_requires_managed_settlement_and_exact_slot(self):
+        value=self.successor_input()
+        self.update(lambda r:r['cloud']['assignments']['0']['accepted'].update(credit='imported'))
+        with self.assertRaisesRegex(RecoveryError,'managed settlement'):
+            self.update(lambda r:cloud.successor(r,value))
+        self.update(lambda r:r['cloud']['assignments']['0']['accepted'].update(credit='managed'))
+        value['binding']['receipt']['source']['slot']=4; self.binding_packet(value['binding'])
+        with self.assertRaisesRegex(RecoveryError,'same recorded slot'):
+            self.update(lambda r:cloud.successor(r,value))
+        self.assertNotIn('next',self.store.load()['cloud']['assignments'])
+
     def test_existing_session_binding_preserves_provenance_without_create(self):
         value=self.binding_input(); self.bind(value); revision=self.store.load()['revision'];self.bind(value)
         self.assertEqual(self.store.load()['revision'],revision)  # Identical binding replay does not rewrite history.

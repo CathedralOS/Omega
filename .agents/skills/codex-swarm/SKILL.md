@@ -116,6 +116,22 @@ same logical slot. A capacity error is not permission for a resume-cap loophole.
 Keep blocked source checkpoints and route the session onto independent ready
 work only within the user's wave scope.
 
+Use the controller's durable step adapter for continuation: `prepare-step`
+records the exact operation and checkpoint, `dispatch-step` reserves its one
+supported tool invocation, `save-step-result` commits the actual envelope, and
+`complete-step` ingests it. On restart, consume step status; never repeat a
+reserved invocation when its effects are uncertain. A saved stale read calls for
+another authoritative read, with its original evidence retained. See the
+[adapter contract](../../../tools/swarm/cloud.md#durable-adapter-steps).
+
+Once a bound slot has managed landed acceptance and completed cleanup, use
+`successor` with a reviewed one-outcome manifest and a fresh verified binding
+packet for the same pool/slot. This lets that slot continue while a peer remains
+blocked, retaining the peer's checkpoint. It does not increase capacity or satisfy
+staged rollout gates. Preserve original denial and protected-path history.
+The controller emits requests; actual execution still requires the supported
+runtime capabilities discovered by the coordinator.
+
 ## Observe, integrate and drain
 
 Use compact `wait_threads` snapshots when available, with returned host IDs and

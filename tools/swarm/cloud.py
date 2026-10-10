@@ -55,13 +55,14 @@ def initialize(record, capabilities):
     record["cloud"] = dict(capabilities=capabilities, batches={}, assignments={}, handoffs={}, operations={})
 
 
-def admit(record, manifest, snapshot):
+def admit(record, manifest, snapshot, *, rolling_from=None):
     cloud = record["cloud"]
     identifier(manifest["id"])
     require(manifest["id"] not in cloud["batches"], "batch already admitted")
     size = manifest["size"]
     mode = manifest.get("mode", "staged")
-    require(mode in {"staged", "non-promoting-pilot"}, "explicit supported batch mode required")
+    require(mode in {"staged", "non-promoting-pilot"} or mode == "rolling-successor" and rolling_from is not None,
+            "explicit supported batch mode required")
     require(type(size) is int and (size in {2, 5, 10} if mode == "staged" else size == 1),
             "bounded 2/5/10 batch or explicit non-promoting pilot required")
     require(len(manifest["assignments"]) == size, "batch size differs from assignments")
@@ -69,6 +70,13 @@ def admit(record, manifest, snapshot):
             "complete producer/consumer and shared-file review plus serialized landing required")
     require(fresh(snapshot) and snapshot.get("evidence") and snapshot.get("state") != "unavailable"
             and isinstance(snapshot.get("claims"), list), "fresh actual claims snapshot required")
+    if rolling_from is not None:
+        prior = cloud["assignments"][rolling_from]
+        accepted = prior.get("accepted") or {}
+        require(mode == "rolling-successor" and prior.get("binding") and not prior.get("successor")
+                and accepted.get("result") == "landed" and accepted.get("cleanup") == "completed"
+                and accepted.get("credit") == "managed" and accepted.get("user_rescue") is False,
+                "rolling admission requires an unused managed settled slot")
     previous = manifest.get("previous")
     if mode == "staged" and size != 2:
         require(previous in cloud["batches"] and cloud["batches"][previous]["manifest"]["size"] == {5: 2, 10: 5}[size],
@@ -82,7 +90,7 @@ def admit(record, manifest, snapshot):
     require(len({row["item"] for row in rows.values()}) == size, "one DRI per outcome item")
     for row in rows.values():
         row.pop("binding", None)  # Session provenance enters only through a verified binding.
-        for field in ("source_revision", "revisions", "preflight_history", "scouting", "readiness"):
+        for field in ("source_revision", "revisions", "preflight_history", "scouting", "readiness", "successor", "successor_receipt"):
             row.pop(field, None)
         identifier(row["id"])
         sha(row["base"])
@@ -145,12 +153,39 @@ def admit(record, manifest, snapshot):
             del pending[key]
     # Shared files do not imply a semantic dependency. The reviewed dependency
     # graph records required producer results, not exclusive path reservations.
-    require(all(batch_settled(record, batch) for batch in cloud["batches"]),
+    require(rolling_from is not None or all(batch_settled(record, batch) for batch in cloud["batches"]),
             "unfinished batch remains; do not overlap staged batches")
     cloud["batches"][manifest["id"]] = dict(manifest=copy.deepcopy(manifest), admitted_utc=now(), claims=snapshot)
     for row in rows.values():
         cloud["assignments"][row["id"]] = dict(row, batch=manifest["id"], thread=None, environment=None,
                 generation=None, runtime="unknown", observation=None, checkpoint=None, attempts={}, accepted=None)
+
+
+def successor(record, value):
+    """Atomically assign one reviewed outcome to one accepted, settled slot."""
+    cloud = record["cloud"]
+    prior = cloud["assignments"][value["predecessor"]]
+    digest = fingerprint(value)
+    if prior.get("successor"):
+        require(prior.get("successor_receipt") == digest, "conflicting successor for settled slot")
+        return
+    accepted = prior.get("accepted") or {}
+    require(accepted.get("result") == "landed" and accepted.get("cleanup") == "completed"
+            and accepted.get("credit") == "managed" and accepted.get("user_rescue") is False,
+            "rolling reuse requires managed settlement")
+    manifest = value["manifest"]
+    require(manifest.get("mode") == "rolling-successor" and manifest.get("size") == 1,
+            "rolling successor must replace exactly one slot without stage promotion")
+    binding = value["binding"]
+    receipt = binding["receipt"]
+    require(receipt["prior"]["assignment"] == prior["id"]
+            and (prior.get("binding") or {}).get("source") == receipt["source"],
+            "successor must reuse same recorded slot and predecessor")
+    require(len(manifest["assignments"]) == 1 and manifest["assignments"][0]["id"] == binding["assignment"],
+            "successor binding differs from reviewed assignment")
+    admit(record, manifest, value["claims"], rolling_from=prior["id"])
+    bind_existing(record, binding)
+    prior.update(successor=binding["assignment"], successor_receipt=digest)
 
 
 def dependencies(record, assignment):
@@ -457,6 +492,106 @@ def intent(record, assignment, action, operation, parameters):
                    reporting=cloud["capabilities"]["reporting"], created_utc=now())
     cloud["operations"][operation] = dict(request=request, assignment=assignment, effect="unknown", result=None)
     return request
+
+
+def step_status(record, assignment, step):
+    entry = record["cloud"]["steps"][assignment][step]
+    operation = record["cloud"]["operations"][entry["operation"]]
+    awaiting_acknowledgment = operation["effect"] == "applied" and operation["request"]["action"] in {
+        "create", "follow_up"} and not operation.get("acknowledgment")
+    reconciled = operation["effect"] != "unknown" and operation.get("reconciliation")
+    if reconciled and awaiting_acknowledgment:
+        action = "read_reconcile"
+    elif entry.get("completed"):
+        action = "settled" if operation["effect"] != "unknown" else "read_reconcile"
+    elif reconciled and entry.get("result") is None:
+        action = "complete_reconciled_step"
+    elif entry.get("result") is not None:
+        action = "read_reconcile" if operation["request"]["action"] == "read" and (
+            entry["saved_revision"] != record["revision"] or not fresh(entry["result"])) else "ingest_saved_result"
+    elif entry.get("dispatched_utc"):
+        action = "read_reconcile"
+    else:
+        action = "dispatch_prepared_step"
+    return dict(assignment=assignment, step=step, operation=entry["operation"],
+                execution_id=operation["request"]["execution_id"], action=action,
+                effect=operation["effect"], checkpoint=copy.deepcopy(entry["checkpoint"]))
+
+
+def prepare_step(record, value):
+    """Save a logical step once; replay yields status, never another tool request."""
+    identifier(value["step"])
+    cloud = record["cloud"]
+    steps = cloud.setdefault("steps", {}).setdefault(value["assignment"], {})
+    digest = fingerprint(value)
+    if value["step"] in steps:
+        require(steps[value["step"]]["contract"] == digest, "conflicting step contract")
+        return step_status(record, value["assignment"], value["step"])
+    request = intent(record, value["assignment"], value["action"], value["operation"], value.get("parameters", {}))
+    steps[value["step"]] = dict(operation=request["operation"], contract=digest,
+                               checkpoint=copy.deepcopy(cloud["assignments"][value["assignment"]]["checkpoint"]))
+    return step_status(record, value["assignment"], value["step"])
+
+
+def dispatch_step(record, assignment, step):
+    """Reserve the sole adapter invocation before returning the exact saved request.
+
+    A crash after this write has uncertain effects, even if the tool was never
+    reached. There is no retry permission without an authoritative read.
+    """
+    entry = record["cloud"]["steps"][assignment][step]
+    require(not entry.get("dispatched_utc"), "step already dispatched; read and reconcile")
+    operation = record["cloud"]["operations"][entry["operation"]]
+    require(operation["effect"] == "unknown" and not operation.get("receipt"), "step already reconciled")
+    request = operation["request"]
+    # Run the existing admission guards against current state, removing only
+    # this prepared intent in a scratch record. Nothing dispatches from scratch.
+    scratch = copy.deepcopy(record)
+    del scratch["cloud"]["operations"][entry["operation"]]
+    checked = intent(scratch, assignment, request["action"], entry["operation"], request["parameters"])
+    for field in ("tool", "thread", "environment", "generation", "contract", "readiness_contract", "readiness_gate", "dependencies", "reporting"):
+        require(checked[field] == request[field], "prepared dispatch contract changed; reconcile")
+    entry["dispatched_utc"] = now()
+    return dict(action="invoke_once", request=copy.deepcopy(request))
+
+
+def save_step_result(record, assignment, step, envelope):
+    """Commit the actual sanitized result before attempting its state transition."""
+    entry = record["cloud"]["steps"][assignment][step]
+    request = record["cloud"]["operations"][entry["operation"]]["request"]
+    require(entry.get("dispatched_utc"), "step has no dispatch reservation")
+    require(envelope.get("schema") == 1 and envelope.get("operation") == request["operation"]
+            and envelope.get("execution_id") == request["execution_id"]
+            and envelope.get("assignment") == assignment, "saved step result identity mismatch")
+    if entry.get("result") is not None:
+        require(entry["result"] == envelope, "conflicting saved step result")
+        return
+    require(request["action"] != "read" or envelope.get("revision") == record["revision"],
+            "stale runtime observation")
+    entry.update(result=copy.deepcopy(envelope), saved_revision=record["revision"] + 1)
+
+
+def complete_step(record, assignment, step):
+    entry = record["cloud"]["steps"][assignment][step]
+    if entry.get("completed"):
+        return
+    operation = record["cloud"]["operations"][entry["operation"]]
+    request = operation["request"]
+    if entry.get("result") is None:
+        require(operation["effect"] != "unknown" and operation.get("reconciliation"),
+                "save actual result or reconcile exact operation before completing step")
+        require(operation["effect"] != "applied" or request["action"] not in {"create", "follow_up"}
+                or operation.get("acknowledgment"), "reconciled dispatch needs exact child acknowledgment")
+        entry.update(completed=True, reconciliation=copy.deepcopy(operation["reconciliation"]))
+        return
+    envelope = copy.deepcopy(entry["result"])
+    if request["action"] == "read":
+        require(entry["saved_revision"] == record["revision"], "stale runtime observation; perform a fresh read")
+        # Only our result-save commit advanced this observation's revision.
+        # Preserve the original envelope in the step as exact adapter evidence.
+        envelope["revision"] = record["revision"]
+    ingest(record, envelope)
+    entry["completed"] = True
 
 
 def ingest(record, envelope):
@@ -908,6 +1043,11 @@ def plan(record):
         rows.append(dict(assignment=name, action=action, dependencies=waiting, unknown_operations=pending, unacknowledged_operations=unacknowledged,
                          thread=row["thread"], environment=row["environment"], generation=row["generation"],
                          checkpoint=row["checkpoint"], runtime=row["runtime"], accepted=row["accepted"],
+                         successor=row.get("successor"), reusable_slot=bool(row.get("binding") and row.get("accepted")
+                             and row["accepted"].get("credit") == "managed" and row["accepted"].get("result") == "landed"
+                             and row["accepted"].get("cleanup") == "completed"
+                             and row["accepted"].get("user_rescue") is False and not row.get("successor")),
+                         steps=[step_status(record, name, step) for step in cloud.get("steps", {}).get(name, {})],
                          readiness=readiness_state(record, name), scouting_attempts=len(row.get("scouting", [])),
                          scouting_seconds=sum(e["elapsed_seconds"] for e in row.get("scouting", []))))
     return dict(revision=record["revision"], assignments=rows,
@@ -922,7 +1062,7 @@ def main(argv=None):
     parser.add_argument("--revision", type=int)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("status")
-    for name in ("init", "admit", "handoff", "checkpoint", "ownership", "preflight", "readiness", "bind-existing", "review-revision", "import-completion", "approval", "intent", "ingest", "cleanup-review", "accept"):
+    for name in ("init", "admit", "handoff", "checkpoint", "ownership", "preflight", "readiness", "bind-existing", "review-revision", "import-completion", "approval", "intent", "prepare-step", "dispatch-step", "save-step-result", "complete-step", "successor", "ingest", "cleanup-review", "accept"):
         command = commands.add_parser(name)
         command.add_argument("--input", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -938,6 +1078,11 @@ def main(argv=None):
             def change(record):
                 if args.command == "init": initialize(record, value)
                 elif args.command == "admit": admit(record, value["manifest"], value["claims"])
+                elif args.command == "successor": successor(record, value)
+                elif args.command == "prepare-step": request.append(prepare_step(record, value))
+                elif args.command == "dispatch-step": request.append(dispatch_step(record, value["assignment"], value["step"]))
+                elif args.command == "save-step-result": save_step_result(record, value["assignment"], value["step"], value["result"])
+                elif args.command == "complete-step": complete_step(record, value["assignment"], value["step"])
                 elif args.command == "handoff": handoff(record, value)
                 elif args.command == "checkpoint": checkpoint(record, value["assignment"], value["checkpoint"])
                 elif args.command == "ownership": ownership(record, value["assignment"], value["claims"])
