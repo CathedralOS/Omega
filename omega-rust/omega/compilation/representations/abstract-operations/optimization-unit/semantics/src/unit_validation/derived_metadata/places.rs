@@ -48,12 +48,7 @@ pub(crate) fn reconstruct_declared_places(
             abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => {
                 known_places.insert(place.id);
             }
-            O::EstablishByteSequenceConcatenation { result, .. }
-            | O::EstablishPrimitiveLocal { result, .. }
-            | O::ByteSequenceSubslice { result, .. }
-            | O::EstablishElementView { result, .. }
-            | O::ElementViewSubslice { result, .. }
-            | O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
+            abstract_operations::establish_or_subslice_set_pattern!(result, ..)
             | abstract_operations::establish_case_or_record_result_pattern!(result)
             | O::EstablishZeroedStructural { result, .. }
             | O::EstablishStructuralLocal { result, .. }

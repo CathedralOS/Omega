@@ -134,20 +134,7 @@ pub(crate) fn validate_function_structural_catalog(
                         .any(|node| {
                             matches!(
                                 &node.operation,
-                                O::EstablishByteSequenceConcatenation { psi_operation, result, .. }
-                                | O::EstablishPrimitiveLocal { psi_operation, result, .. }
-                                | O::ByteSequenceSubslice { psi_operation, result, .. }
-                                | O::EstablishElementView {
-                                    psi_operation,
-                                    result,
-                                    ..
-                                }
-                                | O::ElementViewSubslice {
-                                    psi_operation,
-                                    result,
-                                    ..
-                                }
-                                | O::EstablishScalarArray { psi_operation, result, .. } | O::EstablishStructuralArray { psi_operation, result, .. }
+                                abstract_operations::establish_or_subslice_set_pattern!(psi_operation,result, ..)
                                 | abstract_operations::establish_record_or_case_pattern!(psi_operation,
                                     result, ..)
                                 | O::EstablishZeroedStructural { psi_operation, result }

@@ -159,36 +159,7 @@ pub(super) fn collect_operation_structural_places(
     structural_places: &mut Vec<StructuralPlaceDeclaration>,
 ) {
     match operation {
-        AbstractOperation::EstablishByteSequenceConcatenation { psi_operation, result, .. }
-            | AbstractOperation::EstablishPrimitiveLocal {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ByteSequenceSubslice {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::EstablishElementView {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ElementViewSubslice {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::EstablishScalarArray {
-            psi_operation,
-            result,
-            ..
-        } | AbstractOperation::EstablishStructuralArray {
-            psi_operation,
-            result,
-            ..
-        }
+        abstract_operations::establish_or_subslice_set_pattern!(psi_operation,result, ..)
         | abstract_operations::establish_record_or_case_pattern!(psi_operation,
             result, ..)
         | AbstractOperation::EstablishZeroedStructural { psi_operation, result }
