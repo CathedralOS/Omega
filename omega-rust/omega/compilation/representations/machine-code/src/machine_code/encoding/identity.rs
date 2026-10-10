@@ -3,7 +3,7 @@ use crate::{
     SelectedFormInternalMachineFixupState,
 };
 use physical_instructions::PostAllocationMachineIdentity;
-use register_model::{RegisterUnitId, RegisterViewId};
+use register_model::RegisterViewId;
 
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 
@@ -414,9 +414,4 @@ fn encode_views(hasher: &mut crate::digest_encoder::DomainDigestEncoder, views: 
     }
 }
 
-fn encode_units(hasher: &mut crate::digest_encoder::DomainDigestEncoder, units: &[RegisterUnitId]) {
-    hasher.u64(units.len() as u64);
-    for unit in units {
-        hasher.raw(&unit.0.to_le_bytes());
-    }
-}
+use crate::machine_code::encode_units;

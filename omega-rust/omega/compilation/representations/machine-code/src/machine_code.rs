@@ -144,3 +144,13 @@ pub struct MachineCodePlan {
     pub entry: MachineId,
     pub functions: Vec<MachineCodeFunction>,
 }
+
+pub(crate) fn encode_units(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    units: &[register_model::RegisterUnitId],
+) {
+    hasher.u64(units.len() as u64);
+    for unit in units {
+        hasher.raw(&unit.0.to_le_bytes());
+    }
+}
