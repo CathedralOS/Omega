@@ -1,0 +1,125 @@
+{
+  "activation": "source /workspace/cloud-setup/activate.sh",
+  "executable": "/workspace/Omega/target/release/omega",
+  "executable_sha256": "03416e30f94b5ce5b44a983f61911ed88ebd2ddda41287ab4430fcb35a119af0",
+  "compiler_revision": "provisioned binary; current main build pending",
+  "routes": [
+    {
+      "route": "tall_line_fit:check",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf15_householder_qr_least_squares/tall_line_fit/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user\n"
+    },
+    {
+      "route": "tall_line_fit:native",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "run",
+        "--target",
+        "linux_x86_64",
+        "samples/cli/scientific/w100/nf15_householder_qr_least_squares/tall_line_fit/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user\n"
+    },
+    {
+      "route": "tall_line_fit:terminal",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "inspect-terminal",
+        "--machine",
+        "Main::main",
+        "--target",
+        "linux_x86_64",
+        "samples/cli/scientific/w100/nf15_householder_qr_least_squares/tall_line_fit/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user\n"
+    },
+    {
+      "route": "square_calibration:check",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf15_householder_qr_least_squares/square_calibration/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user\n"
+    },
+    {
+      "route": "square_calibration:native",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "run",
+        "--target",
+        "linux_x86_64",
+        "samples/cli/scientific/w100/nf15_householder_qr_least_squares/square_calibration/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user\n"
+    },
+    {
+      "route": "square_calibration:terminal",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "inspect-terminal",
+        "--machine",
+        "Main::main",
+        "--target",
+        "linux_x86_64",
+        "samples/cli/scientific/w100/nf15_householder_qr_least_squares/square_calibration/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user\n"
+    },
+    {
+      "route": "invalid_reflector_alias:check",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf15_householder_qr_least_squares/invalid_reflector_alias/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user\n"
+    },
+    {
+      "route": "invalid_reflector_alias:native",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "run",
+        "--target",
+        "linux_x86_64",
+        "samples/cli/scientific/w100/nf15_householder_qr_least_squares/invalid_reflector_alias/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user\n"
+    },
+    {
+      "route": "invalid_reflector_alias:terminal",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "inspect-terminal",
+        "--machine",
+        "Main::main",
+        "--target",
+        "linux_x86_64",
+        "samples/cli/scientific/w100/nf15_householder_qr_least_squares/invalid_reflector_alias/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user\n"
+    }
+  ]
+}

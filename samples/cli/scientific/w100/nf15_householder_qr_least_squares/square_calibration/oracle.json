@@ -1,0 +1,55 @@
+{
+  "rows": 2,
+  "columns": 2,
+  "leading_dimension": 2,
+  "backing": [
+    3,
+    4,
+    1,
+    2
+  ],
+  "right_hand_side": [
+    5,
+    6
+  ],
+  "expected_solution": [
+    2,
+    -1
+  ],
+  "expected_residual": [
+    0,
+    0
+  ],
+  "expected_residual_squared": 0,
+  "expected_rank": 2,
+  "expected_thin_q": [
+    [
+      -0.6,
+      0.8
+    ],
+    [
+      -0.8,
+      -0.6
+    ]
+  ],
+  "expected_r": [
+    [
+      -5,
+      -2.2
+    ],
+    [
+      0,
+      -0.4
+    ]
+  ],
+  "tolerances": {
+    "solution_absolute": 1e-12,
+    "residual_absolute": 1e-12,
+    "residual_squared_absolute": 1e-12,
+    "orthogonality_frobenius": 1e-12,
+    "reconstruction_frobenius": 1e-12,
+    "normal_residual_absolute": 1e-12,
+    "rank_relative": 1e-12,
+    "rank_absolute": 0.0
+  }
+}

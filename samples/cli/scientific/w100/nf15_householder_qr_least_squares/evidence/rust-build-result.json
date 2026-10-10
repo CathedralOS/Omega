@@ -1,0 +1,8 @@
+{
+  "command": "source /workspace/cloud-setup/activate.sh; mbx build -p omega --release",
+  "exit": 0,
+  "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+  "source_revision": "9d4451128dd05885e7b9c591796b2760189851db",
+  "executable": "/workspace/cloud-setup/cache/mbx/targets/v1/5774c908599e0bda740188e7101bdbc055573710baae1087e68ad089fc5262d0/release/omega",
+  "executable_sha256": "91008c813a026c7abd744c278431097d213f4ccf8a01bffeff435357bb9ed567"
+}

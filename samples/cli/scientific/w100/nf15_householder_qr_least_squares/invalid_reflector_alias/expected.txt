@@ -1,0 +1,1 @@
+while local borrow `reflector_scratch` is still active

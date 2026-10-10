@@ -1,0 +1,59 @@
+// Independent algebraic witness; this does not call the unavailable NF15 API.
+// Expected native exit: 0. No interactive input.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    residual0: f64;
+    residual1: f64;
+    determinant: f64;
+    reflector_image0: f64;
+    reflector_image1: f64;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    // A = [[3,1],[4,2]], b = [5,6]; solution [2,-1].
+    // First reflector v = [1,0.5], tau = 1.6 takes [3,4] to [-5,0].
+    let solution0: f64 = 2.0;
+    let solution1: f64 = -1.0;
+    main.residual0 = 3.0 * solution0 + solution1 - 5.0;
+    main.residual1 = 4.0 * solution0 + 2.0 * solution1 - 6.0;
+    main.determinant = 3.0 * 2.0 - 4.0;
+    let dot: f64 = 3.0 + 0.5 * 4.0;
+    main.reflector_image0 = 3.0 - 1.6 * dot;
+    main.reflector_image1 = 4.0 - 1.6 * 0.5 * dot;
+    transition main.residual0 == 0.0 { true -> second(main) _ -> failed(main) }
+    state second(main: &mut Main) {
+        transition main.residual1 == 0.0 { true -> nonsingular(main) _ -> failed(main) }
+    }
+    state nonsingular(main: &mut Main) {
+        transition main.determinant == 2.0 { true -> reflector(main) _ -> failed(main) }
+    }
+    state reflector(main: &mut Main) {
+        transition main.reflector_image0 > -5.000000000001 {
+            true -> upper(main) _ -> failed(main)
+        }
+    }
+    state upper(main: &mut Main) {
+        transition main.reflector_image0 < -4.999999999999 {
+            true -> zero_lower(main) _ -> failed(main)
+        }
+    }
+    state zero_lower(main: &mut Main) {
+        transition main.reflector_image1 > -0.000000000001 {
+            true -> zero_upper(main) _ -> failed(main)
+        }
+    }
+    state zero_upper(main: &mut Main) {
+        transition main.reflector_image1 < 0.000000000001 {
+            true -> good(main) _ -> failed(main)
+        }
+    }
+    state good(main: &mut Main) {
+        main.console.write_line("NF15 square algebraic oracle: solution [2,-1], first reflector [-5,0]");
+        main.console.exit_process(0);
+    }
+    state failed(main: &mut Main) { main.console.exit_process(1); }
+}

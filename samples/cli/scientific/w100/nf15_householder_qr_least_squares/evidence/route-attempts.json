@@ -1,0 +1,131 @@
+[
+  {
+    "route": "rust_build",
+    "command": [
+      "cargo",
+      "build",
+      "-p",
+      "omega"
+    ],
+    "exit": null,
+    "status": "not_started_missing_executable",
+    "stderr": "[Errno 2] No such file or directory: 'cargo'"
+  },
+  {
+    "route": "tall_line_fit:check",
+    "command": [
+      "omega",
+      "--check",
+      "samples/cli/scientific/w100/nf15_householder_qr_least_squares/tall_line_fit/main.omg"
+    ],
+    "exit": null,
+    "status": "not_started_missing_executable",
+    "stderr": "[Errno 2] No such file or directory: 'omega'"
+  },
+  {
+    "route": "tall_line_fit:native",
+    "command": [
+      "omega",
+      "run",
+      "--target",
+      "linux_x86_64",
+      "samples/cli/scientific/w100/nf15_householder_qr_least_squares/tall_line_fit/main.omg"
+    ],
+    "exit": null,
+    "status": "not_started_missing_executable",
+    "stderr": "[Errno 2] No such file or directory: 'omega'"
+  },
+  {
+    "route": "tall_line_fit:terminal",
+    "command": [
+      "omega",
+      "inspect-terminal",
+      "--machine",
+      "Main::main",
+      "--target",
+      "linux_x86_64",
+      "samples/cli/scientific/w100/nf15_householder_qr_least_squares/tall_line_fit/main.omg"
+    ],
+    "exit": null,
+    "status": "not_started_missing_executable",
+    "stderr": "[Errno 2] No such file or directory: 'omega'"
+  },
+  {
+    "route": "square_calibration:check",
+    "command": [
+      "omega",
+      "--check",
+      "samples/cli/scientific/w100/nf15_householder_qr_least_squares/square_calibration/main.omg"
+    ],
+    "exit": null,
+    "status": "not_started_missing_executable",
+    "stderr": "[Errno 2] No such file or directory: 'omega'"
+  },
+  {
+    "route": "square_calibration:native",
+    "command": [
+      "omega",
+      "run",
+      "--target",
+      "linux_x86_64",
+      "samples/cli/scientific/w100/nf15_householder_qr_least_squares/square_calibration/main.omg"
+    ],
+    "exit": null,
+    "status": "not_started_missing_executable",
+    "stderr": "[Errno 2] No such file or directory: 'omega'"
+  },
+  {
+    "route": "square_calibration:terminal",
+    "command": [
+      "omega",
+      "inspect-terminal",
+      "--machine",
+      "Main::main",
+      "--target",
+      "linux_x86_64",
+      "samples/cli/scientific/w100/nf15_householder_qr_least_squares/square_calibration/main.omg"
+    ],
+    "exit": null,
+    "status": "not_started_missing_executable",
+    "stderr": "[Errno 2] No such file or directory: 'omega'"
+  },
+  {
+    "route": "invalid_reflector_alias:check",
+    "command": [
+      "omega",
+      "--check",
+      "samples/cli/scientific/w100/nf15_householder_qr_least_squares/invalid_reflector_alias/main.omg"
+    ],
+    "exit": null,
+    "status": "not_started_missing_executable",
+    "stderr": "[Errno 2] No such file or directory: 'omega'"
+  },
+  {
+    "route": "invalid_reflector_alias:native",
+    "command": [
+      "omega",
+      "run",
+      "--target",
+      "linux_x86_64",
+      "samples/cli/scientific/w100/nf15_householder_qr_least_squares/invalid_reflector_alias/main.omg"
+    ],
+    "exit": null,
+    "status": "not_started_missing_executable",
+    "stderr": "[Errno 2] No such file or directory: 'omega'"
+  },
+  {
+    "route": "invalid_reflector_alias:terminal",
+    "command": [
+      "omega",
+      "inspect-terminal",
+      "--machine",
+      "Main::main",
+      "--target",
+      "linux_x86_64",
+      "samples/cli/scientific/w100/nf15_householder_qr_least_squares/invalid_reflector_alias/main.omg"
+    ],
+    "exit": null,
+    "status": "not_started_missing_executable",
+    "stderr": "[Errno 2] No such file or directory: 'omega'"
+  }
+]

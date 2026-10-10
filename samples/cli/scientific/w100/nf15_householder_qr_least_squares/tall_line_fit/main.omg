@@ -1,0 +1,53 @@
+// Independent algebraic witness; this does not call the unavailable NF15 API.
+// Expected native exit: 0. No interactive input.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    residual0: f64;
+    residual1: f64;
+    residual2: f64;
+    residual3: f64;
+    stationarity0: f64;
+    stationarity1: f64;
+    squared: f64;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    // A columns [1,1,1,1], [-1,0,1,2]; b = [0,0,2,6].
+    // The exact unique least-squares solution is intercept 1, slope 2.
+    let intercept: f64 = 1.0;
+    let slope: f64 = 2.0;
+    main.residual0 = intercept - slope;
+    main.residual1 = intercept;
+    main.residual2 = intercept + slope - 2.0;
+    main.residual3 = intercept + 2.0 * slope - 6.0;
+    main.stationarity0 = main.residual0 + main.residual1;
+    main.stationarity0 = main.stationarity0 + main.residual2 + main.residual3;
+    main.stationarity1 = 0.0 - main.residual0 + main.residual2;
+    main.stationarity1 = main.stationarity1 + 2.0 * main.residual3;
+    main.squared = main.residual0 * main.residual0;
+    main.squared = main.squared + main.residual1 * main.residual1;
+    main.squared = main.squared + main.residual2 * main.residual2;
+    main.squared = main.squared + main.residual3 * main.residual3;
+    transition main.stationarity0 == 0.0 {
+        true -> check_slope(main) _ -> failed(main)
+    }
+    state check_slope(main: &mut Main) {
+        transition main.stationarity1 == 0.0 {
+            true -> check_residual(main) _ -> failed(main)
+        }
+    }
+    state check_residual(main: &mut Main) {
+        transition main.squared == 4.0 {
+            true -> good(main) _ -> failed(main)
+        }
+    }
+    state good(main: &mut Main) {
+        main.console.write_line("NF15 tall algebraic oracle: residual squared 4, A^T residual zero");
+        main.console.exit_process(0);
+    }
+    state failed(main: &mut Main) { main.console.exit_process(1); }
+}

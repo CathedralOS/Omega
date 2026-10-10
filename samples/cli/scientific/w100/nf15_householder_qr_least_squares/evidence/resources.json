@@ -1,0 +1,13 @@
+{
+  "visible_cpus": 5,
+  "affinity_cpus": 5,
+  "memory_total": "18440136 kB",
+  "memory_available": "17305272 kB",
+  "disk_total_bytes": 33770192896,
+  "disk_free_bytes": 31771099136,
+  "load_average": [
+    2.0322265625,
+    0.83740234375,
+    0.3466796875
+  ]
+}

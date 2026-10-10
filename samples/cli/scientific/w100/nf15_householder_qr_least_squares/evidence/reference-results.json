@@ -1,0 +1,124 @@
+{
+  "tall_line_fit": {
+    "status": "full_rank",
+    "solution": [
+      1.0,
+      2.0
+    ],
+    "residual": [
+      -1.0,
+      1.0,
+      1.0,
+      -1.0
+    ],
+    "residual_squared": 4.0,
+    "residual_norm2": 2.0,
+    "transformed_tail_norm2": 2.0,
+    "normal_residual": [
+      0.0,
+      0.0
+    ],
+    "orthogonality_frobenius": 1.6184142622847344e-16,
+    "reconstruction_frobenius": 2.220446049250313e-16,
+    "thin_q": [
+      [
+        -0.5,
+        0.6708203932499368
+      ],
+      [
+        -0.5,
+        0.22360679774997894
+      ],
+      [
+        -0.5,
+        -0.223606797749979
+      ],
+      [
+        -0.5,
+        -0.6708203932499369
+      ]
+    ],
+    "r": [
+      [
+        -2.0,
+        -0.9999999999999999
+      ],
+      [
+        0.0,
+        -2.23606797749979
+      ]
+    ]
+  },
+  "square_calibration": {
+    "status": "full_rank",
+    "solution": [
+      2.000000000000001,
+      -1.000000000000001
+    ],
+    "residual": [
+      1.7763568394002505e-15,
+      1.7763568394002505e-15
+    ],
+    "residual_squared": 6.310887241768095e-30,
+    "residual_norm2": 2.5121479338940403e-15,
+    "transformed_tail_norm2": 0.0,
+    "normal_residual": [
+      1.2434497875801753e-14,
+      5.329070518200751e-15
+    ],
+    "orthogonality_frobenius": 2.7194799110210365e-16,
+    "reconstruction_frobenius": 6.280369834735101e-16,
+    "thin_q": [
+      [
+        -0.6000000000000001,
+        0.8
+      ],
+      [
+        -0.8,
+        -0.6
+      ]
+    ],
+    "r": [
+      [
+        -5.0,
+        -2.2
+      ],
+      [
+        0.0,
+        -0.3999999999999999
+      ]
+    ]
+  },
+  "rank_table": [
+    {
+      "name": "dependent_columns",
+      "status": "rank_deficient_unsupported",
+      "first_small_pivot": 1
+    },
+    {
+      "name": "zero_first_column",
+      "status": "rank_deficient_unsupported",
+      "first_small_pivot": 0
+    },
+    {
+      "name": "zero_table",
+      "status": "rank_deficient_unsupported",
+      "first_small_pivot": 0
+    },
+    {
+      "name": "negative_leading_coordinate",
+      "status": "full_rank",
+      "first_small_pivot": null
+    },
+    {
+      "name": "scaled_full_rank",
+      "status": "full_rank",
+      "first_small_pivot": null
+    },
+    {
+      "name": "padded_column_major",
+      "status": "full_rank",
+      "first_small_pivot": null
+    }
+  ]
+}

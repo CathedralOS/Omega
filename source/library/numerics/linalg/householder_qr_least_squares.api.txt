@@ -1,0 +1,128 @@
+NF15 interface checkpoint — 2026-10-10
+Base: 9d4451128dd05885e7b9c591796b2760189851db
+Status: dependency requirements and frozen independent fixtures; not a released API.
+No numerics sources or dependency APIs exist at this revision. The signatures
+below are semantic requirements to map to owner-approved names and types, not
+new declarations of shared types. householder_qr_least_squares.omg is withheld
+until those signatures are available rather than supplying competing interfaces.
+
+Needed dependency signatures
+
+NF01: rank-two descriptor, checked/try errors, package import/build identity.
+  try_column_major(rows: u64, columns: u64, leading_dimension: u64,
+                   backing_length: u64) -> Result<MatrixDescriptor, ShapeError>
+  try_offset(matrix: &MatrixDescriptor, row: u64, column: u64)
+      -> Result<u64, ShapeError>
+Need exact field/accessor names, overflow behavior, offset/extent proof contracts,
+and whether empty dimensions are admitted. No pointer or hidden storage owner in
+the descriptor. Offsets address explicit separate backing slices; padding is not
+matrix data. NF15 requires rows >= columns > 0, leading_dimension >= rows, and
+valid backing extent; wide/empty inputs return an explicit unsupported/shape error.
+
+NF02: tolerance and finite-value policy.
+  try_validate_policy(policy: &NumericPolicy) -> Result<(), NumericError>
+  is_finite(value: f64) -> bool
+  rank_cutoff(policy: &NumericPolicy, matrix_scale: f64) -> Result<f64, NumericError>
+Need exact definition of rank_absolute + rank_relative * matrix_scale (or the
+owner-approved replacement), finite/nonnegative validation, intermediate overflow
+status, and distinction between diagnostic tolerances and mathematical guarantees.
+NF15 will not declare its own global NumericPolicy or NaN policy.
+
+NF09: stable norm on an explicit view.
+  try_norm2(values: &[f64]) -> Result<f64, NumericError>
+Need a scaled sum-of-squares norm avoiding overflow when the norm is representable,
+finite input rejection, zero and subnormal semantics, no implicit copy/allocation.
+For strided columns, expose either a stride-aware norm or approved NF11 gathering.
+
+NF11: explicit transfer and reusable reflector update.
+  try_copy_matrix(source: &MatrixDescriptor, source_backing: &[f64],
+                  destination: &MatrixDescriptor, destination_backing: &mut [f64])
+      -> Result<(), NumericError>
+  try_apply_householder_left(matrix: &MatrixDescriptor, backing: &mut [f64],
+                             first_row: u64, first_column: u64,
+                             reflector: &[f64], tau: f64)
+      -> Result<(), NumericError>
+  try_apply_householder_vector(values: &mut [f64], first: u64,
+                               reflector: &[f64], tau: f64)
+      -> Result<(), NumericError>
+Need names and owned responsibility confirmation: if reflector application belongs
+to NF15, only the copy/strided-read interface is needed from NF11. The reflector
+must be physically distinct from the input/work/RHS buffers. Do not introduce
+these machines in NF15 as a substitute for an absent NF11 implementation.
+
+NF12: full-rank upper-triangular solve.
+  try_upper_triangular_solve(matrix: &MatrixDescriptor, backing: &[f64],
+                             rhs: &[f64], solution: &mut [f64],
+                             cutoff: f64) -> Result<SolveStatus, NumericError>
+Need diagonal convention, rank/singularity status payload, finite/shape checks,
+whether rhs/solution aliasing is forbidden, and allocation/mutation semantics.
+
+Owned NF15 surface once shared interfaces are available
+
+  try_householder_qr(input: &MatrixDescriptor, input_backing: &[f64],
+                     factor: &MatrixDescriptor, factor_backing: &mut [f64],
+                     tau: &mut [f64], reflector_scratch: &mut [f64],
+                     policy: &NumericPolicy) -> Result<QrStatus, NumericError>
+
+  try_least_squares(input: &MatrixDescriptor, input_backing: &[f64],
+                    rhs: &[f64], factor: &MatrixDescriptor,
+                    factor_backing: &mut [f64], tau: &mut [f64],
+                    reflector_scratch: &mut [f64], transformed_rhs: &mut [f64],
+                    solution: &mut [f64], residual: &mut [f64],
+                    policy: &NumericPolicy) -> Result<LeastSquaresStatus, NumericError>
+
+  try_qr_report(input: &MatrixDescriptor, input_backing: &[f64],
+                 factor: &MatrixDescriptor, factor_backing: &[f64], tau: &[f64],
+                 thin_q: &MatrixDescriptor, thin_q_backing: &mut [f64],
+                 reflector_scratch: &mut [f64], policy: &NumericPolicy)
+      -> Result<QrReport, NumericError>
+
+These are proposed NF15 signatures; exact shared type names must be reconciled.
+All allocations are caller-visible. factor is an explicit copy of the original;
+its upper triangle stores R, lower entries store v tails, and v[first] is 1.
+tau length >= columns, reflector scratch >= rows, transformed rhs/residual >=
+rows, solution >= columns, and thin Q is rows by columns. Shared input buffers
+can share read-only backing; every mutable output/scratch view is disjoint.
+Validate all extents before mutation. Numerical failure may leave factor/tau/
+transformed_rhs partially written; solution and residual are written only after
+the full-rank solve succeeds. Aliasing is an ownership rejection, not guessed
+from descriptor equality. No allocations or implicit copies inside the APIs.
+
+Algorithm and report contract
+
+For column k, gather the active column into separate reflector scratch. Get its
+stable norm from NF09. beta = -copysign(norm, alpha), with alpha == 0 choosing
+negative beta. For nonzero norm, tau = 1 - alpha/beta and
+v_tail = (x_tail/norm) / (alpha/norm - beta/norm). This scaled form avoids
+materializing alpha - beta, which can overflow while beta is representable.
+A zero active column produces identity reflector (tau = 0); test the rank
+cutoff before division. Apply H = I - tau v v^T to remaining factor columns and
+the RHS; store beta on the diagonal and v tails below. Q = H0 H1 ... H(n-1),
+Q^T b uses forward reflector order, explicit Q uses reverse application to I.
+Use NF12 on the leading n by n upper triangle for full-rank solutions.
+
+QrStatus: FullRank { columns } or RankDeficientUnsupported {
+ first_small_pivot, independent_prefix, cutoff }. The prefix is a count of
+previously accepted unpivoted pivots, NOT the matrix's numerical rank. A zero
+first column followed by nonzero columns demonstrates the distinction. Do not
+return a minimum-norm solution, silently perturb a pivot, or solve normal
+equations. Unpivoted QR does not supply a rank-revealing guarantee.
+
+LeastSquaresReport: residual = A*x - b using original backing; explicit
+residual_norm2; transformed_tail_norm2 (last m-n entries of Q^T b);
+normal_residual_norm2 = ||A^T residual||2. Square systems have empty transformed
+tail with norm 0. QrReport: ||Q^T Q-I||F, ||A-Q R||F, and rank status.
+Report construction requires a completed FullRank factorization; do not read
+uninitialized tau tails from a stopped factorization. Report calculations are
+explicit work, not free metadata; thin Q materialization
+and its output backing are requested by the caller. Finite result checks follow
+NF02. Absolute diagnostics and any relative versions must be named distinctly.
+
+Qualification prerequisites
+
+Two sample projects are independent mathematical fixture projects at this
+checkpoint. Their main.omg files qualify exact algebraic oracles only; the
+reference.py driver exercises a host-only Householder model. Neither is evidence
+that the unavailable NF15 Omega API works. After interface delivery, replace
+oracle-only mains with calls to this API, preserve frozen oracles, and qualify
+--check, native run, inspect-terminal, and intended rejection separately.

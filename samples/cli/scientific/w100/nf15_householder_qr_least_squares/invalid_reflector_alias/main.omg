@@ -1,0 +1,16 @@
+// Intended rejection: reflector scratch aliases factor backing during mutation.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let mut factor: [f64; 2] = [3.0, 4.0];
+    let reflector_scratch: &[f64] = &factor[..];
+    factor[0] = -5.0;
+    // This use keeps the scratch borrow active across the illegal mutation.
+    let witness: f64 = reflector_scratch[0];
+    transition witness == -5.0 {
+        true -> failed(main) _ -> failed(main)
+    }
+    state failed(main: &mut Main) { main.console.exit_process(1); }
+}
