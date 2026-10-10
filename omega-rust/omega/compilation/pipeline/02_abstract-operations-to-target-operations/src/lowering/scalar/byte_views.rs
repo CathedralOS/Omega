@@ -164,7 +164,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         predicate,
     } = operation
     {
-        let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+        let invalid = || super::descriptor_operands::refusal(function, &operation);
         if result.scalar_type != ScalarType::Boolean {
             return Err(invalid());
         }
@@ -198,7 +198,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         right,
     } = operation
     {
-        let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+        let invalid = || super::descriptor_operands::refusal(function, &operation);
         if result.scalar_type != ScalarType::Boolean {
             return Err(invalid());
         }
@@ -233,7 +233,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         source,
     } = operation
     {
-        let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+        let invalid = || super::descriptor_operands::refusal(function, &operation);
         let Some(scalar_type) = result.scalar_type.as_integer() else {
             return Err(invalid());
         };
@@ -291,7 +291,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         } => (*psi_operation, *result, *source),
         _ => return Ok(false),
     };
-    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+    let invalid = || super::descriptor_operands::refusal(function, &operation);
     let (view, _) = resolve_byte_view(
         function,
         structural_types,
@@ -363,7 +363,7 @@ pub(in crate::lowering) fn resolve_byte_view(
     place: PlaceId,
     active: &mut Vec<PlaceId>,
 ) -> Result<(TargetByteView, StructuralAccess), LoweringError> {
-    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+    let invalid = || super::descriptor_operands::refusal(function, &(place, backings.homes.get(&place), values, lengths));
     if active.contains(&place) {
         return Err(invalid());
     }

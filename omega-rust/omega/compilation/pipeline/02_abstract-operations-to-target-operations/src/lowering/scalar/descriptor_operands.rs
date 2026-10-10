@@ -22,7 +22,7 @@ pub(in crate::lowering) fn descriptor_projection(
     ),
     LoweringError,
 > {
-    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+    let invalid = || refusal(function, &(source, backings.homes.get(&source.place)));
     if !matches!(
         source.access,
         StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
@@ -127,4 +127,19 @@ pub(in crate::lowering) fn observes_count(
         }
         _ => false,
     })
+}
+
+/// Optional developer provenance for a descriptor refusal; semantic admission
+/// and the published error remain unchanged.
+#[track_caller]
+pub(in crate::lowering) fn refusal(
+    function: &AbstractFunction,
+    context: &impl std::fmt::Debug,
+) -> LoweringError {
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        let site = std::panic::Location::caller();
+        eprintln!("descriptor lowering refusal {:?} at {}:{}: {context:?}",
+            function.machine, site.file(), site.line());
+    }
+    LoweringError::UnsupportedOperationInScalarFunction(function.machine)
 }

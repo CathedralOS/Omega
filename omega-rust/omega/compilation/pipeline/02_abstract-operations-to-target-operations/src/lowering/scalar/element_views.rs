@@ -174,7 +174,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
         source,
     } = operation
     {
-        let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+        let invalid = || super::descriptor_operands::refusal(function, &operation);
         let Some(scalar_type) = result.scalar_type.as_integer() else {
             return Err(invalid());
         };
@@ -218,7 +218,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
         } => (*psi_operation, *result, *source),
         _ => return Ok(false),
     };
-    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+    let invalid = || super::descriptor_operands::refusal(function, &operation);
     let (view, view_structural_type) = element_view_for_place(
         function,
         structural_types,
@@ -397,7 +397,7 @@ pub(in crate::lowering) fn resolve_element_view(
     place: PlaceId,
     active: &mut Vec<PlaceId>,
 ) -> Result<(TargetElementView, StructuralTypeId, StructuralAccess), LoweringError> {
-    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+    let invalid = || super::descriptor_operands::refusal(function, &(place, backings.homes.get(&place), values, lengths));
     if active.contains(&place) {
         return Err(invalid());
     }
@@ -712,7 +712,7 @@ fn established_source(
     ),
     LoweringError,
 > {
-    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+    let invalid = || super::descriptor_operands::refusal(function, &(source, element, region));
     // A `&[u8]` view over `collection[a..b]` ends its projection in a
     // `FixedByteRange` window: the field path still names the fixed byte
     // array and the window contributes the descriptor's own byte offset and
