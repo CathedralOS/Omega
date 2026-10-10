@@ -2663,6 +2663,8 @@ fail/text/later_arm_guard_read_unbounded rejected 423ms expected @954364ed064e
 	cannot prove index `index` is within unknown slice length of `text` in at_space::entry
 fail/text/local_record_byte_field_replacement_breaks_domain rejected 914ms expected @fef76bc46fc7+wt
 	cannot prove the value assigned to `row.text` in main is in domain `[u8; N]::Ascii`; a place declared `in [u8; N]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/text/owned_byte_parameter_write_breaks_domain rejected 411ms expected @4ccfef6dc0f9
+	cannot prove requires contract for call observe from corrupt: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii)
 fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 459ms expected @ad48a872752b+wt
 	cannot prove requires contract for call step from main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[position]; output is part of [u8; N]::Utf8)
 fail/text/qualified_byte_state_domain_widening rejected 883ms expected @a0c004371ad8+wt
