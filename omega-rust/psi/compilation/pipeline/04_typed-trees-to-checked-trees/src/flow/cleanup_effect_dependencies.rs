@@ -335,6 +335,7 @@ fn visit(
         TypeReferenceNode::Named { symbol, .. } => visit_owner(
             program,
             *symbol,
+            reference,
             substitutions,
             removed,
             active,
@@ -366,6 +367,7 @@ fn visit(
             visit_owner(
                 program,
                 *base_symbol,
+                reference,
                 &nested,
                 removed,
                 active,
@@ -420,6 +422,7 @@ fn resolve_peeled_type_reference(
 fn visit_owner(
     program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
+    reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     removed: &[&[PlaceSegment]],
     active: &mut Vec<TypeReferenceHandle>,
@@ -444,7 +447,8 @@ fn visit_owner(
             _ => None,
         };
     };
-    let nominal = crate::checks::nominal_drop_machine_symbol(program, symbol);
+    let nominal = validation::nominal_cleanup_machine_for_type(program, reference, substitutions)
+        .map(|machine| machine.symbol);
     if data.properties.multiplicity == Multiplicity::Linear && nominal.is_none() {
         return None;
     }

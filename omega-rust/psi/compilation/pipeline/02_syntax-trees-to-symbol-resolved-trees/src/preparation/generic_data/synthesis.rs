@@ -177,33 +177,25 @@ pub(crate) fn desugar_generic_data_instances_in(
                 let Some(Item::Machine(machine)) = syntax.root_items().nth(item_index) else {
                     return false;
                 };
-                // DECLARATION-ONLY methods (the stdlib `Vec<T>` surface --
-                // empty state bodies, type-check-only) must NOT clone: a
-                // concrete clone of an empty body trips the
-                // returns-but-empty check that generic templates are
-                // exempt from. Such containers stay type-check-only.
-                let has_bodies = syntax
+                // An empty body is an ordinary implementation, including a
+                // no-op Unit cleanup hook. Source admission owns missing-body
+                // and return obligations; body length cannot decide whether
+                // the carrier or its attached machines may specialize.
+                syntax
                     .tables
                     .items
-                    .state_handles(machine.states)
+                    .type_parameters(machine.type_parameters)
                     .iter()
-                    .any(|state| !syntax.tables.items.state(*state).statements.is_empty());
-                has_bodies
-                    && syntax
-                        .tables
-                        .items
-                        .type_parameters(machine.type_parameters)
-                        .iter()
-                        .all(|parameter| {
-                            // A runtime-capable value binder counts as
-                            // const-shaped here: it can only lawfully pair
-                            // with a data `const` binder (a static argument),
-                            // never with a data type binder.
-                            let method_is_const = parameter.kind.is_const_or_value();
-                            data_parameters.iter().any(|(name, data_is_const)| {
-                                name == parameter.name.as_str() && *data_is_const == method_is_const
-                            })
+                    .all(|parameter| {
+                        // A runtime-capable value binder counts as
+                        // const-shaped here: it can only lawfully pair
+                        // with a data `const` binder (a static argument),
+                        // never with a data type binder.
+                        let method_is_const = parameter.kind.is_const_or_value();
+                        data_parameters.iter().any(|(name, data_is_const)| {
+                            name == parameter.name.as_str() && *data_is_const == method_is_const
                         })
+                    })
             });
             if !all_methods_covered {
                 continue;

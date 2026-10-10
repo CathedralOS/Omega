@@ -308,19 +308,11 @@ pub(crate) fn nominal_cleanup_shape<'a>(
     &'a typed_trees::state::State,
     &'a typed_trees::signature::StateParameter,
 )> {
-    let parameter_data = program.closed_data_definition(type_reference)?;
-    let cleanup_machines = program
-        .machines()
-        .iter()
-        .filter(|candidate| {
-            candidate.supply_mode == MachineSupplyMode::CheckedBody
-                && validation::nominal_cleanup_owner(program, candidate.symbol)
-                    == Some(parameter_data.symbol)
-        })
-        .collect::<Vec<_>>();
-    let [cleanup_machine] = cleanup_machines.as_slice() else {
+    let cleanup_machine =
+        validation::nominal_cleanup_machine_for_type(program, type_reference, &[])?;
+    if cleanup_machine.supply_mode != MachineSupplyMode::CheckedBody {
         return None;
-    };
+    }
     let cleanup_state = program.machine_states(cleanup_machine).first()?;
     let [cleanup_receiver] = program.state_parameters(cleanup_state) else {
         return None;

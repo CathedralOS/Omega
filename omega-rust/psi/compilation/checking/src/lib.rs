@@ -175,7 +175,7 @@ pub use crate::machine_calls::denotational_calls::{
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
 pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
 pub use crate::value_custody::cleanup::{
-    nominal_cleanup_owner, validate_reserved_cleanup_selections,
+    nominal_cleanup_machine_for_type, nominal_cleanup_owner, validate_reserved_cleanup_selections,
 };
 pub use crate::value_custody::content_conservation::{
     ContentConservationSourcePlan, build_content_conservation_plans, content_conservation_plans,

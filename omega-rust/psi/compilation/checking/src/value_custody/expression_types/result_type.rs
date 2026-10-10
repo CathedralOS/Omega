@@ -289,13 +289,20 @@ fn result_type(
                     )
                 })
         })(),
-        ExpressionNode::StructLiteral(literal) => program
-            .type_reference_table
-            .find_named_type_reference(literal.type_symbol),
+        ExpressionNode::StructLiteral(literal) => {
+            let reference = program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            reference.is_valid().then_some(reference).or_else(|| {
+                program
+                    .type_reference_table
+                    .find_named_type_reference(literal.type_symbol)
+            })
+        }
         ExpressionNode::ArrayLiteral(_) => {
             let reference = program
                 .expression_table
-                .array_literal_type_reference(expression);
+                .constructed_value_type_reference(expression);
             reference
                 .is_valid()
                 .then_some(reference)

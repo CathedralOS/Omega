@@ -10,11 +10,14 @@
 //!
 //! The completed typed program owns the finite application roster, including
 //! inferred projection types and selected machine instances. Substituting a
-//! field describes an edge; it does not demand another whole declaration view.
-//! Following newly generated type rows would enumerate `Nest<T>`'s recursive
-//! `Nest<[T; 2]>` field forever, even behind a reference. Consumers that inspect
-//! an unmaterialized field application retain its declaration telescope in
-//! their read-only scoped query; they never extend the frozen typed arenas.
+//! by-value field requires its own closed view: construction and disposal
+//! consume that field's actual member types. Follow these storage edges, not
+//! every newly generated type row. References stop expansion. A repeated
+//! declaration can continue only by descending into an existing actual type
+//! argument, so `Wrapper<Wrapper<T>>` closes without admitting a growing
+//! recursive field family. Consumers of
+//! an unmaterialized referent use read-only scoped queries instead of growing
+//! `Nest<T>`'s recursive `Nest<[T; 2]>` family behind a reference.
 
 use arena::HandleSpan;
 use symbols::SymbolHandle;
@@ -35,7 +38,7 @@ pub(super) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<diagnostics:
         .map(|(reference, _)| reference)
         .collect::<Vec<_>>();
     for reference in applications {
-        elaborate_application(program, reference);
+        elaborate_value_fields(program, reference, &mut Vec::new());
     }
     let produced = program
         .type_reference_table
@@ -45,6 +48,105 @@ pub(super) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<diagnostics:
         .collect::<Vec<_>>();
     crate::monomorphization::finalize_type_domain_instance_identities(program, produced)
         .map_err(|diagnostic| vec![diagnostic])
+}
+
+/// Close the finite by-value member roster without following referent families.
+/// This describes storage, not construction permission or layout admission;
+/// recursive proof-only declarations still receive their source root views.
+fn elaborate_value_fields(
+    program: &mut TypedTrees,
+    reference: TypeReferenceHandle,
+    active: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+) {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return,
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            let base_type = *base_type;
+            elaborate_value_fields(program, base_type, active);
+            return;
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            let element_type = *element_type;
+            elaborate_value_fields(program, element_type, active);
+            return;
+        }
+        _ => {}
+    }
+    let owner = match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        _ => return,
+    };
+    if let Some((_, parent)) = active.iter().rev().find(|(ancestor, _)| *ancestor == owner) {
+        let TypeReferenceNode::Generic { arguments, .. } =
+            program.type_reference_table.type_reference(*parent)
+        else {
+            return;
+        };
+        // A parameter field retains its actual argument handle. This is a
+        // strict descent in the finite source type, unlike a declaration field
+        // that manufactures another application of its own nominal owner.
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        if !contains_actual_type(program, arguments, reference) {
+            return;
+        }
+    }
+    elaborate_application(program, reference);
+    let Some(data) = program.closed_data_definition(reference) else {
+        return;
+    };
+    let mut children = Vec::new();
+    for member in program.data_members(data) {
+        match member {
+            DataMember::Field(field) => children.push(field.type_reference),
+            DataMember::Variant(case) => children.extend(
+                program
+                    .data_payload_fields(case)
+                    .iter()
+                    .map(|field| field.type_reference),
+            ),
+        }
+    }
+    active.push((owner, reference));
+    for child in children {
+        elaborate_value_fields(program, child, active);
+    }
+    active.pop();
+}
+
+/// Walk authored type structure, never a nominal declaration's member graph.
+/// Array and constraint shells still make strict argument descent finite.
+fn contains_actual_type(
+    program: &TypedTrees,
+    arguments: &[TypeReferenceHandle],
+    selected: TypeReferenceHandle,
+) -> bool {
+    let mut pending = arguments.to_vec();
+    let mut visited = Vec::new();
+    while let Some(reference) = pending.pop() {
+        if reference == selected {
+            return true;
+        }
+        if visited.contains(&reference) {
+            continue;
+        }
+        visited.push(reference);
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
+                program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .iter()
+                    .copied(),
+            ),
+            TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
+            TypeReferenceNode::FixedArray { element_type, .. } => pending.push(*element_type),
+            _ => {}
+        }
+    }
+    false
 }
 
 fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandle) {

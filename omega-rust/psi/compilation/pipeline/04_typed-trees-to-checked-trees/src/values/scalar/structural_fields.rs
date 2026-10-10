@@ -208,10 +208,11 @@ pub(crate) fn owned_local_root(
     }
     let owned = match program.type_reference_table.type_reference(carrier_type) {
         TypeReferenceNode::FixedArray { .. } => true,
-        TypeReferenceNode::Named { symbol, .. } => {
-            symbol.is_valid() && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data
-        }
-        _ => false,
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => false,
+        // An applied data owner is storage just like a named declaration.
+        // Use its prepared declaration rather than the source spelling;
+        // lexical regions can keep a closed carrier in application form.
+        _ => program.closed_data_definition(carrier_type).is_some(),
     };
     owned.then_some((symbol, local.type_reference))
 }
@@ -330,7 +331,9 @@ pub(crate) fn structural_parameter_field_path(
         ExpressionNode::Member(member) => {
             let parameter =
                 structural_parameter_field_path(program, parameters, member.receiver, fields)?;
-            let field_identity = |field: &typed_trees::data::DataField| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone());
+            let field_identity = |field: &typed_trees::data::DataField| {
+                checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone())
+            };
             parameters.get(usize::try_from(parameter).ok()?)?;
             if let Some(case_name) = &member.case_variant {
                 let (case, field) = program
@@ -341,7 +344,15 @@ pub(crate) fn structural_parameter_field_path(
                             declared_data_member(program, data_index, member_index).as_variant()?;
                         program
                             .data_payload_field_by_symbol(variant, member.member_symbol)
-                            .map(|field| (checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()), field_identity(field)))
+                            .map(|field| {
+                                (
+                                    checked_trees::CheckedMemberIdentity::of_member(
+                                        variant.identity,
+                                        variant.name.clone(),
+                                    ),
+                                    field_identity(field),
+                                )
+                            })
                     })?;
                 fields.push(CheckedStructuralPredicatePathSegment::Case(case));
                 fields.push(CheckedStructuralPredicatePathSegment::Field(field));
@@ -431,7 +442,12 @@ fn resolve_structural_path(
                 let definition = structural_data(program, receiver)?;
                 let variant = program.data_members(definition).iter().find_map(|member| {
                     let variant = member.as_variant()?;
-                    (*identity == checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone())).then_some(variant)
+                    (*identity
+                        == checked_trees::CheckedMemberIdentity::of_member(
+                            variant.identity,
+                            variant.name.clone(),
+                        ))
+                    .then_some(variant)
                 })?;
                 if !variant.symbol.is_valid() {
                     return None;
@@ -443,7 +459,10 @@ fn resolve_structural_path(
             }
             CheckedStructuralPredicatePathSegment::Field(identity) => {
                 let matches = |field: &&typed_trees::data::DataField| {
-                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *identity
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ) == *identity
                 };
                 let field = if let Some(variant) = selected_case.take() {
                     program.data_payload_fields(variant).iter().find(matches)?
@@ -816,7 +835,12 @@ pub(crate) fn structural_storage_place(
                     .iter()
                     .copied()
                     .find_map(|position| declared_data_field(program, position))?;
-                CheckedStructuralPredicatePathSegment::Field(checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()))
+                CheckedStructuralPredicatePathSegment::Field(
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ),
+                )
             }
             facts::PlaceSegment::Case { variant } => {
                 let case = program
@@ -827,7 +851,12 @@ pub(crate) fn structural_storage_place(
                             _ => None,
                         }
                     })?;
-                CheckedStructuralPredicatePathSegment::Case(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()))
+                CheckedStructuralPredicatePathSegment::Case(
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        case.identity,
+                        case.name.clone(),
+                    ),
+                )
             }
             facts::PlaceSegment::FixedIndex { index } => {
                 CheckedStructuralPredicatePathSegment::FixedIndex(u64::try_from(*index).ok()?)

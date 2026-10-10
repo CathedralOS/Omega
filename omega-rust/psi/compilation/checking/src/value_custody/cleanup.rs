@@ -287,6 +287,64 @@ pub fn nominal_cleanup_owner(
         .then_some(machine.attached_data_symbol)
 }
 
+/// Bind an owner-designated hook to the actual receiver application. Source
+/// fields and regions keep their namespace; the executable declaration may
+/// belong to a closed carrier derived from that exact owner. Carrier identity
+/// alone never licenses a different nominal's hook. Source admission checks
+/// every selected body's contract, including ordinary empty Unit bodies.
+pub fn nominal_cleanup_machine_for_type<'program>(
+    program: &'program dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<&'program Machine> {
+    let reference = crate::peel_declared_constraints(program, reference);
+    let owner = match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+        _ => return None,
+    };
+    let identity = program.type_identity(TypeIdentityRequest {
+        substitutions,
+        ..TypeIdentityRequest::ordinary(reference)
+    });
+    let mut selected = None;
+    for machine in program.machines() {
+        let Some(candidate_owner) = nominal_cleanup_owner(program, machine.symbol) else {
+            continue;
+        };
+        if candidate_owner != owner {
+            let Some(origin) = program
+                .unique_data_definition_by_symbol(candidate_owner)
+                .and_then(|data| data.generic_instance)
+            else {
+                continue;
+            };
+            if !matches!(program.type_reference_table.type_reference(origin),
+                TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == owner)
+            {
+                continue;
+            }
+        }
+        let Some(state) = program.machine_states(machine).first() else {
+            continue;
+        };
+        let [receiver] = program.state_parameters(state) else {
+            continue;
+        };
+        let Some(shell) = crate::reference_shell(program, receiver.type_reference) else {
+            continue;
+        };
+        if program.normalized_type_identity(shell.referee) != identity {
+            continue;
+        }
+        if selected.is_some() {
+            return None;
+        }
+        selected = Some(machine);
+    }
+    selected
+}
+
 /// The first reserved cleanup machine, in program order, that
 /// `selected_symbol` names.
 fn reserved_cleanup_selected_by<'program>(

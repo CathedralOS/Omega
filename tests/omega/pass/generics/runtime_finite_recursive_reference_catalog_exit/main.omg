@@ -2,6 +2,8 @@
 // Zero extent still retains its element type; it is not permission to erase
 // the growing edge. Held also transports and reads an actual nonempty loan.
 data Cell { value: i32; }
+data Wrapper<Payload> { payload: Payload; }
+data Deep<'storage> { wrapped: Wrapper<Wrapper<&'storage Cell>>; }
 data Chain<'next, Element, const Capacity: u64>
 where Capacity > 0,
 {
@@ -39,10 +41,19 @@ machine read_loop<'storage, 'borrow>(node: &'borrow Loop<'storage, i32>) -> i32 
     node.value
 }
 
+// Repeated nominal owners inside an actual argument are finite by-value
+// structure, not an invitation to expand a recursive declaration family.
+machine nested<'source>(source: &'source Cell) -> i32 {
+    let deep: Deep<'source> = Deep {
+        wrapped: Wrapper { payload: Wrapper { payload: source } }
+    };
+    deep.wrapped.payload.payload.value
+}
+
 machine exercise<'storage>(source: &'storage Cell) -> bool {
     let node: Chain<'storage, i32, 2> = Chain { value: source.value, next: [] };
     let regular: Loop<'storage, i32> = Loop { value: 29, next: [] };
-    read(&node) == 17 && read_loop(&regular) == 29
+    read(&node) == 17 && read_loop(&regular) == 29 && nested(source) == 17
 }
 
 machine main() crashes Trap {

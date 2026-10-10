@@ -228,16 +228,26 @@ pub(crate) fn infer_static_bindings(
         }
         (
             TypeReferenceNode::Generic {
-                base_name: required_base,
+                base_symbol: required_base,
                 arguments: required_arguments,
                 ..
             },
             TypeReferenceNode::Generic {
-                base_name: actual_base,
+                base_symbol: actual_base,
                 arguments: actual_arguments,
                 ..
             },
-        ) if required_base == actual_base => {
+        ) if required_base.is_valid()
+            && required_base == actual_base
+            && program
+                .type_reference_table
+                .type_reference_handles(*required_arguments)
+                .len()
+                == program
+                    .type_reference_table
+                    .type_reference_handles(*actual_arguments)
+                    .len() =>
+        {
             for (required, actual) in program
                 .type_reference_table
                 .type_reference_handles(*required_arguments)

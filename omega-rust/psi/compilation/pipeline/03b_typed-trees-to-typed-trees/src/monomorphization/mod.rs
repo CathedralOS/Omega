@@ -38,6 +38,7 @@ use validation::contract_identities::{accepted_template_commitment, normalized_m
 mod applications;
 mod candidate;
 mod selection;
+pub(crate) use selection::infer_static_bindings;
 
 mod body_rewriting;
 pub(crate) use body_rewriting::{collect_evidence_requirement_closure, insert_subject_name};

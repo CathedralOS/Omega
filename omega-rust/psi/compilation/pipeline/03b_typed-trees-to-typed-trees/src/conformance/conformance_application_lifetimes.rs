@@ -40,8 +40,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
     let calls = collect_elision_calls(program);
     let mut diagnostics = Vec::new();
     for mut call in calls {
-        let Some((callee_machine, callee_state)) =
-            validation::find_state(program, call.target)
+        let Some((callee_machine, callee_state)) = validation::find_state(program, call.target)
         else {
             continue;
         };
@@ -549,7 +548,7 @@ fn resolved_lifetime<'a>(bindings: &'a [(String, String)], name: &str) -> Option
         .find_map(|(parameter, argument)| (parameter == name).then_some(argument.as_str()))
 }
 
-fn collect_lifetime_bindings(
+pub(crate) fn collect_lifetime_bindings(
     program: &dyn ::validation::CheckingInput,
     required: TypeReferenceHandle,
     actual: TypeReferenceHandle,

@@ -79,9 +79,15 @@ pub(super) fn closed_generic_member_symbol(
     let MemberPosition::Reference(reference) = position? else {
         return None;
     };
-    let instance = closed_generic_owner(program, reference)?;
+    closed_generic_owner(program, reference)?;
+    let reference = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    // The application is the receiver, not its erased specialization origin.
+    // Reopening that origin can select another prepared field namespace even
+    // when the receiver already retains the exact closed member selection.
     let selected = program
-        .closed_data_member_field(instance.generic_instance?, retained, member_name)
+        .closed_data_member_field(reference, retained, member_name)
         .map(|field| field.symbol);
     Some(selected.unwrap_or_else(SymbolHandle::invalid))
 }
@@ -512,10 +518,19 @@ pub(super) fn expression_type_position(
             );
             member_type_position(program, receiver_position, symbol)
         }
-        ExpressionNode::StructLiteral(literal) => literal
-            .type_symbol
-            .is_valid()
-            .then_some(MemberPosition::Declaration(literal.type_symbol)),
+        ExpressionNode::StructLiteral(literal) => {
+            let reference = program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            if reference.is_valid() {
+                Some(MemberPosition::Reference(reference))
+            } else {
+                literal
+                    .type_symbol
+                    .is_valid()
+                    .then_some(MemberPosition::Declaration(literal.type_symbol))
+            }
+        }
         // A cast stores its complete normalized result qualification on the
         // node, so the leaf's position is that reference outright. An
         // unresolved stored result (zero means unnormalized) keeps none.
@@ -531,7 +546,7 @@ pub(super) fn expression_type_position(
         ExpressionNode::ArrayLiteral(elements) => {
             let retained = program
                 .expression_table
-                .array_literal_type_reference(expression);
+                .constructed_value_type_reference(expression);
             if retained.is_valid() {
                 Some(MemberPosition::Reference(retained))
             } else {
