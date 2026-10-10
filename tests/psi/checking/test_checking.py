@@ -2530,6 +2530,16 @@ def main() -> None:
     )
     rejected(
         program,
+        'pending-written-field-loses-old-value',
+        b'data Token [copy] { ready: bool; value: u64; }\n'
+        b'machine write(token: &mut Token) { token.value = 9; }\n'
+        b'machine consume(value: u64) requires value == 0 {}\n'
+        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; write(&mut token); consume(token.value); }',
+        'RequirementUnproven',
+        b'consume(token.value)',
+    )
+    rejected(
+        program,
         'boolean-join-keeps-both-arrivals',
         b'machine consume(flag: bool) requires flag {}\n'
         b'machine run(choice: bool) { transition choice { true -> next(true) false -> next(false) } state next(flag: bool) { consume(flag); } }',

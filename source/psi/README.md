@@ -448,11 +448,16 @@ complete empty call frame remains allowed. Scalar reference parameters have
 subjects for their referents, distinct from their binding storage.
 
 A construction's value
-is a place of its own whose integer fields stay pending until read: a field
+is a place of its own whose scalar fields stay pending until read: a field
 place entered below it, or below a place copied from it, holds the value
 written, a write drops the pending fields below the place written, and a
-write to what a pending field read enters that field first
-([`checking/constructions.omg`](checking/constructions.omg)). A value-position match's arms each run on the facts after its
+write to what a pending field read enters that field first. A call with a
+narrow write frame settles and invalidates only the written fields; pending
+siblings retain their construction values
+([`checking/constructions.omg`](checking/constructions.omg)). An element
+store preserves the containing collection's own length while invalidating
+changed contents, including nested lengths; whole-value replacement still
+forgets the entire place. A value-position match's arms each run on the facts after its
 subject, their own pattern selected and earlier ones passed over as a
 transition's arms are; the facts after it are its arms' join and its value
 their hull, and an arm value landed at a qualified match type proves the

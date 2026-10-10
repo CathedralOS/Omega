@@ -1225,7 +1225,7 @@ crashes Trap
 pub machine Checker::forget_written_fields(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping)
 crashes Trap
 {
-    Checker::forget_pending(checker, typing, place);
+    Checker::settle_written_pending(checker, typing, place, callee);
     Checker::forget_aliases(checker, place);
     transition { _ -> next(checker, typing, place, callee, 0) }
 

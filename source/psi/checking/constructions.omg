@@ -1,6 +1,7 @@
 use psi::checking::checker;
 use psi::checking::evaluation;
 use psi::checking::facts;
+use psi::checking::frames;
 use psi::checking::places;
 use psi::integers::integers;
 use psi::resolution::resolution;
@@ -339,30 +340,47 @@ crashes Trap
 pub machine Checker::settle_pending(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> next(checker, typing, parent, 0) }
+    Checker::settle_pending_fields(checker, typing, parent, false, 0);
+}
 
-    state next(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, index: u64 in Trapping) {
+// A narrow call frame must see pending fields it writes as places before
+// invalidating those places. Untouched siblings keep their pending values;
+// forgetting the entire parent here would discard their construction facts.
+pub machine Checker::settle_written_pending(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, callee: u64 in Trapping)
+crashes Trap
+{
+    Checker::settle_pending_fields(checker, typing, parent, true, callee);
+}
+
+machine Checker::settle_pending_fields(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping)
+crashes Trap
+{
+    transition { _ -> next(checker, typing, parent, written_only, callee, 0) }
+
+    state next(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.pending_count && index < 32 {
-            true -> candidate(checker, typing, parent, index)
+            true -> candidate(checker, typing, parent, written_only, callee, index)
             _ -> done()
         }
     }
 
-    state candidate(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, index: u64 in Trapping)
+    state candidate(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping)
     requires index < 32
     {
         let pending: PendingField = checker.pending[index];
-        transition pending.parent == parent {
-            true -> entered(checker, typing, parent, index, pending)
-            _ -> next(checker, typing, parent, index + 1)
+        let below: bool = pending.parent == parent || (written_only && Checker::within(checker, pending.parent, parent));
+        let selected: bool = !written_only || Checker::writes_field(checker, callee, pending.field);
+        transition below && selected {
+            true -> entered(checker, typing, parent, written_only, callee, index, pending)
+            _ -> next(checker, typing, parent, written_only, callee, index + 1)
         }
     }
 
     // The slot then holds the last entry, examined next.
-    state entered(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, index: u64 in Trapping, pending: PendingField) {
+    state entered(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping, pending: PendingField) {
         Checker::remove_pending(checker, index);
         Checker::enter_pending(checker, typing, pending);
-        transition { _ -> next(checker, typing, parent, index) }
+        transition { _ -> next(checker, typing, parent, written_only, callee, index) }
     }
 
     state done() {}
