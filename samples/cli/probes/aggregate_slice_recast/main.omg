@@ -1,0 +1,79 @@
+// A typed fixed array re-viewed as an unsized slice of a
+// DIFFERENTLY NAMED aggregate when every repeated element
+// preserves layout geometry and leaf representation
+// facts: the shared view weakens the integer range
+// (`Narrow.signed_value: i16 [0..=100]` →
+// `Wide.unsigned_value: u16 [0..=200]`), and the mutable
+// view uses the exact same bit-pattern set both ways
+// (`Exact: u16 [0..=100]`). The trailing bool leaves one
+// byte of native padding per element — success also
+// proves element stride.
+//
+//   * `&main.source as &[Wide]` — read-side weakening.
+//   * `&mut main.source as &mut [Exact]` — mutable
+//     re-view, exact sets.
+//   * Recast-carried views index like arrays
+//     (`read[0].unsigned_value`) — unlike `.as_slice()`
+//     views, whose operators are package-blocked.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+data Narrow {
+    signed_value: i16 [0..=100];
+    enabled: bool;
+}
+
+data Wide {
+    unsigned_value: u16 [0..=200];
+    active: bool;
+}
+
+data Exact {
+    unsigned_value: u16 [0..=100];
+    active: bool;
+}
+
+data Main {
+    source: [Narrow; 2];
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    main.source[0].signed_value = 7;
+    main.source[0].enabled = false;
+    main.source[1].signed_value = 11;
+    main.source[1].enabled = true;
+    let read: &[Wide] = &main.source as &[Wide];
+    transition read.len > 1 {
+        true -> inspect(main, read)
+        _ -> fail(main)
+    }
+    state inspect(main: &mut Main, read: &[Wide]) {
+        transition read[0].unsigned_value == 7
+            && !read[0].active
+            && read[1].unsigned_value == 11
+            && read[1].active {
+            true -> mutate(main)
+            _ -> fail(main)
+        }
+    }
+    state mutate(main: &mut Main) {
+        let write: &mut [Exact] = &mut main.source as &mut [Exact];
+        transition write.len > 1 {
+            true -> write_values(main, write)
+            _ -> fail(main)
+        }
+    }
+    state write_values(main: &mut Main, write: &mut [Exact]) {
+        write[0].unsigned_value = 42;
+        write[1].active = false;
+        transition write[0].unsigned_value == 42 && !write[1].active {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
