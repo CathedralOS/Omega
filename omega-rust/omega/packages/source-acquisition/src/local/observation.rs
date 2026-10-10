@@ -68,7 +68,11 @@ fn hash_path(hasher: &mut crate::digest_encoder::DomainDigestEncoder, path: &Pat
         use std::os::windows::ffi::OsStrExt;
         hash_field(hasher, b"windows-path");
         let units = path.as_os_str().encode_wide().collect::<Vec<_>>();
-        hash_usize(hasher, units.len());
+        // Observation identities length-frame this canonical u64 count.
+        hash_u64(
+            hasher,
+            u64::try_from(units.len()).expect("compiler-owned source ceilings fit canonical u64"),
+        );
         for unit in units {
             hash_field(hasher, &unit.to_le_bytes());
         }
