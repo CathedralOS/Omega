@@ -62,12 +62,12 @@ impl SelectedProgramStorageEntryPlan {
                 slot.slot_name
             )));
         };
-        if schema.trait_name != boundary_schema {
+        if schema.identity_text(schema.trait_name) != boundary_schema {
             return Err(ProgramStorageEntryDiagnostic(format!(
                 "target root slot `{}::{}` requires boundary schema `{boundary_schema}`, not `{}`",
                 slot.owner.root_slot_owner_name(),
                 slot.slot_name,
-                schema.trait_name
+                schema.identity_text(schema.trait_name)
             )));
         }
         if requirement_identity.is_empty() {
@@ -78,7 +78,10 @@ impl SelectedProgramStorageEntryPlan {
         let matching_methods = schema
             .methods
             .iter()
-            .filter(|method| method.requirement_identity == requirement_identity)
+            .filter(|method| {
+                schema.identities.id_at(&requirement_identity)
+                    == Some(method.requirement_identity)
+            })
             .collect::<Vec<_>>();
         let [method] = matching_methods.as_slice() else {
             return Err(ProgramStorageEntryDiagnostic(format!(

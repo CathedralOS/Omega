@@ -149,12 +149,12 @@ impl SelectedProviderPlanFacts {
             }
             let slot = (
                 plan.schema.trait_package_identity,
-                plan.schema.trait_name.as_str(),
+                plan.schema.identity_text(plan.schema.trait_name),
             );
             if !boundary_slots.insert(slot) {
                 return Err(format!(
                     "boundary slot `{}` has more than one selected provider plan",
-                    plan.schema.trait_name
+                    plan.schema.identity_text(plan.schema.trait_name)
                 ));
             }
         }
@@ -224,11 +224,14 @@ impl SelectedProviderPlanFacts {
         }
         if self.plans.iter().any(|existing| {
             existing.schema.trait_package_identity == plan.schema.trait_package_identity
-                && existing.schema.trait_name == plan.schema.trait_name
+                && existing
+                    .schema
+                    .identity_text(existing.schema.trait_name)
+                    == plan.schema.identity_text(plan.schema.trait_name)
         }) {
             return Err(format!(
                 "boundary slot `{}` has more than one selected provider plan",
-                plan.schema.trait_name
+                plan.schema.identity_text(plan.schema.trait_name)
             ));
         }
         self.plans.push(plan);
@@ -481,7 +484,8 @@ impl SelectedProviderPlanFacts {
                         crate::provider_plan::ProviderBinding::CheckedAdapter {
                             machine_identity,
                             ..
-                        } if *machine_identity == row.selected_machine_identity
+                        } if plan.identity_text(*machine_identity)
+                            == row.selected_machine_identity
                     )
             });
             if !bound {

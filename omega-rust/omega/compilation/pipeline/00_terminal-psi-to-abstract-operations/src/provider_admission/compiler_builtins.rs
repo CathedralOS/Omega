@@ -169,7 +169,10 @@ pub(super) fn boundary_contract_matches_selected_schema(
         .schema
         .methods
         .iter()
-        .filter(|method| method.requirement_identity == requirement);
+        .filter(|method| {
+            plan.schema.identities.id_at(requirement.as_ref())
+                == Some(method.requirement_identity)
+        });
     matching.next().is_some_and(|method| {
         method.completion == boundary.completion
             && boundary.unconditional_termination

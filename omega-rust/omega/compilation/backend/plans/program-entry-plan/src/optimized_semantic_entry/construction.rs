@@ -20,6 +20,7 @@ pub(super) fn construct(
         source,
         boundary,
         method,
+        requirement_identity,
         semantic_application_report_fingerprint,
         semantic_application_commitment,
         physical_contract,
@@ -43,7 +44,7 @@ pub(super) fn construct(
     OptimizedProgramStorageSemanticEntryContract {
         target,
         target_slot: slot,
-        requirement_identity: method.requirement_identity,
+        requirement_identity,
         source_signature_identity: source.identity(),
         source_signature: source,
         semantic_boundary_entry_plan: boundary.plan().clone(),

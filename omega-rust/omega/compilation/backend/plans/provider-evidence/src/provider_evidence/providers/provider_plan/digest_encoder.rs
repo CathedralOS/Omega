@@ -1,7 +1,7 @@
 //! The provider plan digest encoder.
 
 use crate::provider_evidence::providers::provider_plan::{
-    ProviderBinding, ServiceEntryAuthorityFlow, ServiceMethod,
+    ProviderBinding, ProviderIdentityTable, ServiceEntryAuthorityFlow, ServiceMethod,
     ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };
 use sha2::Digest;
@@ -108,11 +108,18 @@ impl ProviderPlanDigestEncoder {
         });
     }
 
-    pub(crate) fn service_method(&mut self, method: &ServiceMethod) {
+    /// Encodes one method's canonical content. `identities` is the owning
+    /// schema's table: interned fields feed their canonical text, never the
+    /// process-local mint order.
+    pub(crate) fn service_method(
+        &mut self,
+        method: &ServiceMethod,
+        identities: &ProviderIdentityTable,
+    ) {
         self.string(&method.name);
         self.string(&method.requirement_owner);
         self.package_identity(method.requirement_owner_package_identity);
-        self.string(&method.requirement_identity);
+        self.string(identities.text(method.requirement_identity));
         self.len(method.parameter_count);
         self.strings(&method.parameter_type_identities);
 
@@ -185,14 +192,20 @@ impl ProviderPlanDigestEncoder {
             }
             self.strings(&premise.subject_projections);
             let mut routes = premise.establishment_routes.iter().collect::<Vec<_>>();
-            routes.sort();
+            routes.sort_by(|left, right| {
+                left.kind.cmp(&right.kind).then_with(|| {
+                    identities
+                        .text(left.requirement_identity)
+                        .cmp(identities.text(right.requirement_identity))
+                })
+            });
             self.len(routes.len());
             for route in routes {
                 self.byte(match route.kind {
                     ServiceProgressEstablishmentRouteKind::CheckedRequirement => 0,
                     ServiceProgressEstablishmentRouteKind::BoundaryRequirement => 1,
                 });
-                self.string(&route.requirement_identity);
+                self.string(identities.text(route.requirement_identity));
             }
         }
 
@@ -212,7 +225,13 @@ impl ProviderPlanDigestEncoder {
         }
     }
 
-    pub(crate) fn provider_binding(&mut self, binding: &ProviderBinding) {
+    /// Encodes one binding's canonical content. `identities` is the owning
+    /// plan's table, resolving interned identities to their text.
+    pub(crate) fn provider_binding(
+        &mut self,
+        binding: &ProviderBinding,
+        identities: &ProviderIdentityTable,
+    ) {
         match binding {
             ProviderBinding::Import { evaluated } => {
                 let locator = evaluated.locator();
@@ -280,7 +299,7 @@ impl ProviderPlanDigestEncoder {
                 machine_package_identity,
             } => {
                 self.byte(7);
-                self.string(machine_identity);
+                self.string(identities.text(*machine_identity));
                 self.package_identity(*machine_package_identity);
             }
         }

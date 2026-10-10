@@ -151,6 +151,7 @@ pub(crate) fn settled_filesystem_cohort(name: &str) -> Option<FilesystemCohortDi
 }
 
 pub(crate) fn filesystem_host_permission_row(
+    schema: &ServiceSchema,
     service_schema: ServiceSchemaDigest,
     method: &ServiceMethod,
 ) -> Result<ServiceTerminalAuthorityPermission, UnsettledFilesystemRequirement> {
@@ -161,7 +162,7 @@ pub(crate) fn filesystem_host_permission_row(
     };
     Ok(ServiceTerminalAuthorityPermission::for_filesystem_facets(
         service_schema,
-        method.requirement_identity.clone(),
+        schema.identity_text(method.requirement_identity).to_owned(),
         facets.iter().copied(),
     ))
 }
@@ -173,7 +174,7 @@ pub fn filesystem_host_permission_rows(
     schema
         .methods
         .iter()
-        .map(|method| filesystem_host_permission_row(digest, method))
+        .map(|method| filesystem_host_permission_row(schema, digest, method))
         .collect()
 }
 

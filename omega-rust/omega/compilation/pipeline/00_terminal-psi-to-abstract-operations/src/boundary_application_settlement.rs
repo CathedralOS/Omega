@@ -73,7 +73,7 @@ fn project_terminal_boundary_application_realizations(
     for demand in demands.rows() {
         let requirement = demand.requirement();
         let mut matching = selected_rows.iter().filter(|(plan, row, _)| {
-            plan.schema.trait_name == requirement.overload()
+            plan.schema.identity_text(plan.schema.trait_name) == requirement.overload()
                 && plan.schema.trait_package_identity == requirement.package()
                 && row.requirement_identity == requirement.overload()
         });
@@ -104,7 +104,7 @@ fn project_terminal_boundary_application_realizations(
                             candidate.requirement == *requirement
                                 && candidate.application == *demand.application()
                                 && module.identities.text(candidate.selection_identity)
-                                    == Some(machine_identity.as_str())
+                                    == Some(plan.identity_text(*machine_identity))
                                 && candidate.selection_package == *machine_package_identity
                                 && candidate
                                     .target

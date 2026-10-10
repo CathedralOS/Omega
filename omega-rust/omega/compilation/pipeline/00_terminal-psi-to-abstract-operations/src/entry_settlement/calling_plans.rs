@@ -14,7 +14,7 @@ use calling_conventions::ValidatedBoundaryEntryPlan;
 use calling_conventions::{
     BoundaryCallingApplication, BoundarySignatureGeometry, BoundaryValueClass,
 };
-use effects::provider_plan::ServiceMethod;
+use effects::provider_plan::{ServiceMethod, ServiceSchema};
 use program_entry_plan::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
 
 pub(crate) fn validate_paired_calling_plans(
@@ -38,13 +38,24 @@ pub(crate) fn validate_paired_calling_plans(
     }
     let semantic_method = selected_method(storage, slot.semantic_arrival_requirement)?;
     let physical_method = selected_method(storage, physical_requirement)?;
-    if semantic_method.requirement_identity != storage.requirement_identity()
+    if storage.schema().identity_text(semantic_method.requirement_identity)
+        != storage.requirement_identity()
         || semantic_method.requirement_identity == physical_method.requirement_identity
     {
         return Err("selected ProgramEntry lost its distinct exact arrival requirements".into());
     }
-    let semantic_plan = join_application(semantic, semantic_method, slot.owner.native_target())?;
-    let physical_plan = join_application(physical, physical_method, slot.owner.native_target())?;
+    let semantic_plan = join_application(
+        storage.schema(),
+        semantic,
+        semantic_method,
+        slot.owner.native_target(),
+    )?;
+    let physical_plan = join_application(
+        storage.schema(),
+        physical,
+        physical_method,
+        slot.owner.native_target(),
+    )?;
     if semantic_plan.plan().call.policy
         != calling_conventions::CallingPolicy::for_program_entry_convention(expected_semantic)
         || physical_plan.plan().call.policy
@@ -105,7 +116,8 @@ pub(crate) fn validate_paired_calling_plans(
         .physical_contract()
         .ok_or_else(|| "selected ProgramEntry lost its physical calling contract".to_owned())?;
     if contract.target_slot() != slot
-        || contract.requirement_identity() != physical_method.requirement_identity
+        || contract.requirement_identity()
+            != storage.schema().identity_text(physical_method.requirement_identity)
         || contract.parameter_type_identities() != physical_method.parameter_type_identities
         || !physical_method.has_result
         || physical_method.result_type_identity.as_deref() != Some(contract.result_type_identity())
@@ -185,12 +197,13 @@ fn selected_method<'schema>(
 }
 
 fn join_application<'application>(
+    schema: &ServiceSchema,
     application: &'application BoundaryCallingApplication,
     method: &ServiceMethod,
     target: target::NativeTarget,
 ) -> Result<&'application ValidatedBoundaryEntryPlan, String> {
     if application.target != target
-        || application.requirement_identity != method.requirement_identity
+        || application.requirement_identity != schema.identity_text(method.requirement_identity)
         || method.calling_plan_report_fingerprint != Some(application.report_fingerprint)
         || method
             .calling_plan_commitment

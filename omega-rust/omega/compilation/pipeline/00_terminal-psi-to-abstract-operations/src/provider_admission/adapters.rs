@@ -89,7 +89,7 @@ pub(crate) fn project_selected_provider_adapters_for_requirements(
                     plan,
                     relevant_requirements,
                     &row.requirement_identity,
-                    machine_identity,
+                    plan.identity_text(*machine_identity),
                     *machine_package_identity,
                     &mut adapters,
                 )?;

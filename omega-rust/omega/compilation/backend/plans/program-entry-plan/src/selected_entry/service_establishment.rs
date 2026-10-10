@@ -35,7 +35,7 @@ impl ProgramEntryFusedServiceEstablishment {
     ) -> String {
         use std::fmt::Write as _;
 
-        let mut identity = format!("{}#", schema.trait_name);
+        let mut identity = format!("{}#", schema.identity_text(schema.trait_name));
         for byte in schema.identity_digest().as_bytes() {
             let _ = write!(identity, "{byte:02x}");
         }
