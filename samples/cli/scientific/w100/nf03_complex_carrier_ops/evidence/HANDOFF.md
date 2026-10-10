@@ -43,7 +43,10 @@ outside the remapping got past this check. Preflight with the old bundled
 compiler then rejected static Build syntax; that is distinct from new-main
 qualification. See retained command/log snapshots for exact results.
 
-Next necessary action: build fresh current-main compiler, qualify owned sources
-sequentially in scratch metadata, record each route, then integrate actual NF01
-metadata and NF02 signatures once distributed. Candidate commits are for parent
-review; no main publication is claimed.
+Current frontier: compiler build passed and all sample route commands completed.
+All valid routes and the alias control stop at core floating-provider resolution
+when imported from a named module. The three-line named/unnamed differential
+reproduction and exact results are in RESULTS.md. Restore that shared compiler
+boundary and provide actual NF01/NF02 interfaces, then rerun qualification.
+Candidate branch is published for parent review; main is untouched. The owned
+worktree remains for continuation because acceptance is incomplete.
