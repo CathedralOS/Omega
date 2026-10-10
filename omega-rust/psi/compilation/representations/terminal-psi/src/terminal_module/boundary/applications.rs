@@ -7,6 +7,7 @@
 //! execution authority.
 
 use crate::{CheckedMachineDeclaration, NominalDeclarationIdentity};
+use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::OperationId;
 
 /// Exact-owner canonical identity of one structural type.
@@ -74,7 +75,7 @@ impl BoundaryOperatorRequirement {
 pub struct BoundaryApplicationCandidate {
     pub requirement: BoundaryOperatorRequirement,
     pub application: BoundaryApplication,
-    pub selection_identity: String,
+    pub selection_identity: TerminalIdentityIndex,
     pub selection_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub target: Option<String>,
     pub body: CheckedMachineDeclaration,

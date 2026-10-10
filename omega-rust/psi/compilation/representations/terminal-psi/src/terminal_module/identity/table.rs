@@ -11,6 +11,18 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalIdentityIndex(pub u32);
 
+impl TerminalIdentityIndex {
+    /// ZII absent sentinel: index 0 is the table's empty entry, so a field
+    /// holding it renders as the empty identity the String shape used as
+    /// its default. `is_absent` is the validity test the empty-string
+    /// checks carried.
+    pub const ABSENT: Self = Self(0);
+
+    pub fn is_absent(self) -> bool {
+        self == Self::ABSENT
+    }
+}
+
 /// The deduplicated rendered identities the module's rows index into. Ordered
 /// by first use; the codec writes this section once and decoding checks its
 /// entries once.

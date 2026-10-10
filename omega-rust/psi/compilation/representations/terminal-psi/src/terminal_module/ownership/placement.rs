@@ -1,20 +1,21 @@
 use crate::StructuralAccess;
+use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalPlacedViewInput {
     pub machine: MachineId,
     pub position: u32,
-    pub source_machine_identity: String,
-    pub source_state_identity: String,
-    pub source_parameter_identity: String,
+    pub source_machine_identity: TerminalIdentityIndex,
+    pub source_state_identity: TerminalIdentityIndex,
+    pub source_parameter_identity: TerminalIdentityIndex,
     pub access: StructuralAccess,
     pub binding_is_const: bool,
     pub binding_is_mutable: bool,
-    pub view_identity: String,
-    pub policy_identity: String,
-    pub policy_plan_machine_identity: String,
-    pub schema_identity: String,
+    pub view_identity: TerminalIdentityIndex,
+    pub policy_identity: TerminalIdentityIndex,
+    pub policy_plan_machine_identity: TerminalIdentityIndex,
+    pub schema_identity: TerminalIdentityIndex,
     /// Compatibility/report coordinate only. `placement_commitment` is the
     /// collision-resistant canonical layout/access/reach identity.
     pub placement_report_fingerprint: u64,

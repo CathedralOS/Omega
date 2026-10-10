@@ -8,6 +8,7 @@ use semantic_vocabulary::{
 };
 
 use crate::StructuralPathQualification;
+use crate::terminal_module::TerminalIdentityIndex;
 use crate::{
     CrashCause, CrashRouteBucket, StructuralAccess, StructuralMultiplicity, StructuralPathSegment,
     TerminalPsiIdentity, TrappingIntegerPrimitive,
@@ -103,7 +104,7 @@ pub struct TerminalTraceBoundaryCrashSiteRow {
     pub block: BlockId,
     pub operation: OperationId,
     pub boundary: BoundaryMachineId,
-    pub boundary_identity: String,
+    pub boundary_identity: TerminalIdentityIndex,
     pub route: CrashRouteBucket,
 }
 
@@ -145,11 +146,11 @@ pub enum TerminalOperationCrashDenotation {
 pub enum TerminalTraceOrdinaryEventKind {
     BoundaryCall {
         boundary: BoundaryMachineId,
-        boundary_identity: String,
+        boundary_identity: TerminalIdentityIndex,
     },
     PortWrite {
         service: ServiceId,
-        service_identity: String,
+        service_identity: TerminalIdentityIndex,
     },
 }
 
@@ -179,7 +180,7 @@ pub struct TerminalTraceExternalCompletionSiteRow {
     pub block: BlockId,
     pub edge: EdgeId,
     pub boundary: BoundaryMachineId,
-    pub boundary_identity: String,
+    pub boundary_identity: TerminalIdentityIndex,
     pub kind: ExternalCompletionKind,
     /// ProcessExit observes exactly one fixed signed i32 status, independent
     /// of the host's physical status presentation.

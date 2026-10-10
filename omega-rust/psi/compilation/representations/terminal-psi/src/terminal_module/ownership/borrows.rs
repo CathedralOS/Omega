@@ -1,4 +1,5 @@
 use crate::{StructuralAccess, StructuralContentProjection, StructuralMultiplicity};
+use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::{DomainSemanticId, MachineId, OperationId};
 
 /// Closed lifecycle interpretation for one restored-parent call publication.
@@ -15,7 +16,7 @@ pub enum TerminalReborrowRestorationClass {
 /// restored-parent call publication.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalReborrowSharedCohortMember {
-    pub child_owner_identity: String,
+    pub child_owner_identity: TerminalIdentityIndex,
     pub child_owner_path: Vec<TerminalBorrowOwnerSegment>,
     pub child_place: TerminalBorrowPlace,
     pub child_access: StructuralAccess,
@@ -31,7 +32,7 @@ pub enum TerminalBorrowBoundarySource {
     Call {
         statement_index: u64,
         call_ordinal: u64,
-        target_identity: String,
+        target_identity: TerminalIdentityIndex,
     },
 }
 
@@ -53,7 +54,7 @@ pub enum TerminalBorrowPlaceSegment {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalBorrowPlace {
-    pub root_identity: String,
+    pub root_identity: TerminalIdentityIndex,
     pub segments: Vec<TerminalBorrowPlaceSegment>,
 }
 
@@ -65,7 +66,7 @@ pub struct TerminalBorrowPlace {
 /// row. This representation has no shared-cohort or branching vocabulary.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalReborrowRootHandoffStep {
-    pub child_owner_identity: String,
+    pub child_owner_identity: TerminalIdentityIndex,
     pub child_owner_path: Vec<TerminalBorrowOwnerSegment>,
     pub child_place: TerminalBorrowPlace,
     pub projection_remainder: Vec<TerminalBorrowPlaceSegment>,
@@ -82,15 +83,15 @@ pub struct TerminalReborrowRootHandoffStep {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalReborrowRootHandoff {
     pub machine: MachineId,
-    pub source_machine_identity: String,
-    pub source_state_identity: String,
-    pub direct_root_owner_identity: String,
+    pub source_machine_identity: TerminalIdentityIndex,
+    pub source_state_identity: TerminalIdentityIndex,
+    pub direct_root_owner_identity: TerminalIdentityIndex,
     pub direct_root_owner_path: Vec<TerminalBorrowOwnerSegment>,
     pub direct_root_place: TerminalBorrowPlace,
     pub direct_root_access: StructuralAccess,
     pub direct_root_activation: TerminalBorrowBoundarySource,
     pub direct_root_weakening: TerminalBorrowBoundarySource,
-    pub direct_root_lifetime_identity: String,
+    pub direct_root_lifetime_identity: TerminalIdentityIndex,
     pub lineage: Vec<TerminalReborrowRootHandoffStep>,
 }
 
@@ -108,15 +109,15 @@ pub struct TerminalReborrowRestoredCallUse {
     pub restoration_class: TerminalReborrowRestorationClass,
     pub call_boundary: TerminalBorrowBoundarySource,
     pub call_target_machine: MachineId,
-    pub source_machine_identity: String,
-    pub source_state_identity: String,
-    pub direct_root_owner_identity: String,
+    pub source_machine_identity: TerminalIdentityIndex,
+    pub source_state_identity: TerminalIdentityIndex,
+    pub direct_root_owner_identity: TerminalIdentityIndex,
     pub direct_root_owner_path: Vec<TerminalBorrowOwnerSegment>,
     pub direct_root_place: TerminalBorrowPlace,
     pub direct_root_activation: TerminalBorrowBoundarySource,
     pub direct_root_weakening: TerminalBorrowBoundarySource,
-    pub direct_root_lifetime_identity: String,
-    pub child_owner_identity: String,
+    pub direct_root_lifetime_identity: TerminalIdentityIndex,
+    pub child_owner_identity: TerminalIdentityIndex,
     pub child_owner_path: Vec<TerminalBorrowOwnerSegment>,
     pub child_place: TerminalBorrowPlace,
     pub projection_remainder: Vec<TerminalBorrowPlaceSegment>,
@@ -129,13 +130,13 @@ pub struct TerminalReborrowRestoredCallUse {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RetainedBorrowCustody {
-    pub callable_identity: String,
+    pub callable_identity: TerminalIdentityIndex,
     pub source: RetainedBorrowPlace,
     pub result: RetainedBorrowPlace,
     pub access: StructuralAccess,
     pub callable_lifetime_parameter_count: u32,
     pub callable_lifetime_parameter_ordinal: u32,
-    pub result_nominal_identity: String,
+    pub result_nominal_identity: TerminalIdentityIndex,
     pub result_multiplicity: StructuralMultiplicity,
     pub result_lifetime_argument_count: u32,
     pub result_lifetime_argument_ordinal: u32,
@@ -148,7 +149,7 @@ pub struct RetainedBorrowCustody {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RetainedBorrowContentProjection {
     pub semantic_domain: DomainSemanticId,
-    pub carrier_identity: String,
+    pub carrier_identity: TerminalIdentityIndex,
     pub projection: StructuralContentProjection,
 }
 
@@ -161,6 +162,6 @@ pub struct RetainedBorrowPlace {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RetainedBorrowPlaceRoot {
-    Parameter { position: u32, identity: String },
+    Parameter { position: u32, identity: TerminalIdentityIndex },
     Result,
 }

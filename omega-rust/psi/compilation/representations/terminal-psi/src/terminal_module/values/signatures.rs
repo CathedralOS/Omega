@@ -2,6 +2,7 @@ use crate::{
     StructuralAccess, StructuralMultiplicity, StructuralPathQualification, StructuralPathSegment,
 };
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralDomainId, StructuralTypeId, ValueId};
+use crate::terminal_module::TerminalIdentityIndex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ValueDeclaration {
@@ -29,7 +30,7 @@ pub struct ErasedProofFormal {
     /// for diagnostics.
     pub source_position: u32,
     /// Canonical display-path identity of the proof-only carrier type.
-    pub type_identity: String,
+    pub type_identity: TerminalIdentityIndex,
 }
 
 /// The normal result shape of one terminal machine.

@@ -1,4 +1,5 @@
 use language_core::BindingRelevance;
+use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::{
     IeeeFloatFormat, ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
@@ -6,7 +7,7 @@ use semantic_vocabulary::{
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralTypeDeclaration {
     pub id: StructuralTypeId,
-    pub identity: String,
+    pub identity: TerminalIdentityIndex,
     pub shape: StructuralTypeShape,
     /// Closed scalar declaration predicate, independent from physical carrier
     /// geometry. Only BoundedInteger and RefinedScalar are admitted, and only
@@ -25,7 +26,7 @@ pub struct StructuralReferentIdentity {
     pub id: StructuralTypeId,
     /// Canonical closed-type export payload. Runtime relationships use `id`,
     /// never a spelling comparison or a reconstructed source application.
-    pub identity: String,
+    pub identity: TerminalIdentityIndex,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -82,14 +83,14 @@ pub enum StructuralTypeShape {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralCaseDeclaration {
     pub id: StructuralCaseId,
-    pub identity: String,
+    pub identity: TerminalIdentityIndex,
     pub fields: Vec<StructuralFieldDeclaration>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralFieldDeclaration {
     pub id: StructuralFieldId,
-    pub identity: String,
+    pub identity: TerminalIdentityIndex,
     /// Authored semantic relevance. Erased rows remain in terminal identity and
     /// proof structure even though Omega omits them from native layout.
     pub relevance: BindingRelevance,
@@ -100,7 +101,7 @@ pub struct StructuralFieldDeclaration {
 /// The field carrying `identity` on a declaration roster, live or erased.
 pub fn field_by_identity<'fields>(
     fields: &'fields [StructuralFieldDeclaration],
-    identity: &str,
+    identity: TerminalIdentityIndex,
 ) -> Option<&'fields StructuralFieldDeclaration> {
     fields.iter().find(|field| field.identity == identity)
 }
@@ -109,7 +110,7 @@ pub fn field_by_identity<'fields>(
 /// erased.
 pub fn live_field_by_identity<'fields>(
     fields: &'fields [StructuralFieldDeclaration],
-    identity: &str,
+    identity: TerminalIdentityIndex,
 ) -> Option<&'fields StructuralFieldDeclaration> {
     fields
         .iter()
@@ -188,7 +189,7 @@ impl StructuralTypeShape {
 
     /// The unique live field `identity` names on a record shape — absent
     /// when the name is missing, erased, or resolves to more than one id.
-    pub fn live_record_field(&self, identity: &str) -> Option<&StructuralFieldDeclaration> {
+    pub fn live_record_field(&self, identity: TerminalIdentityIndex) -> Option<&StructuralFieldDeclaration> {
         live_field(self.record_fields()?, identity)
     }
 
@@ -318,7 +319,7 @@ pub enum StructuralFieldType {
     /// Exact semantic type identity for an erased field whose carrier need not
     /// belong to the executable structural/layout vocabulary.
     Erased {
-        type_identity: String,
+        type_identity: TerminalIdentityIndex,
     },
 }
 
@@ -497,7 +498,7 @@ pub fn structural_children(
 /// the name is missing, erased, or ambiguous.
 pub fn live_field<'a>(
     fields: &'a [StructuralFieldDeclaration],
-    identity: &str,
+    identity: TerminalIdentityIndex,
 ) -> Option<&'a StructuralFieldDeclaration> {
     let mut matching = fields.iter().filter(|field| field.identity == identity);
     let field = matching.next()?;
@@ -585,7 +586,7 @@ pub fn structural_type_contains_reference_by<'types>(
 /// The case declaration carrying `identity` on a declaration roster.
 pub fn structural_case_by_identity<'cases>(
     cases: &'cases [StructuralCaseDeclaration],
-    identity: &str,
+    identity: TerminalIdentityIndex,
 ) -> Option<&'cases StructuralCaseDeclaration> {
     cases.iter().find(|case| case.identity == identity)
 }
@@ -593,7 +594,7 @@ pub fn structural_case_by_identity<'cases>(
 /// The type declaration carrying `identity` on a declaration roster.
 pub fn structural_type_by_identity<'types>(
     types: &'types [StructuralTypeDeclaration],
-    identity: &str,
+    identity: TerminalIdentityIndex,
 ) -> Option<&'types StructuralTypeDeclaration> {
     types
         .iter()
@@ -615,7 +616,7 @@ pub fn live_field_by_id<'fields>(
 /// fields only, so callers can index a parallel live-only layout roster.
 pub fn live_field_entry<'fields>(
     fields: &'fields [StructuralFieldDeclaration],
-    identity: &str,
+    identity: TerminalIdentityIndex,
 ) -> Option<(usize, &'fields StructuralFieldDeclaration)> {
     fields
         .iter()
@@ -667,7 +668,7 @@ pub fn structural_case_initializer_path(
         path.push(crate::StructuralPathSegment::Case(selected_case));
     }
     path.push(crate::StructuralPathSegment::Field(
-        declaration.identity.clone(),
+        declaration.identity,
     ));
     Some(path)
 }

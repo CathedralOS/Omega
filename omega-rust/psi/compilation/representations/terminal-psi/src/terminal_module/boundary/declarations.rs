@@ -1,3 +1,4 @@
+use crate::terminal_module::TerminalIdentityIndex;
 use crate::{
     CrashRouteBucket, RetainedBorrowCustody, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, ValueDeclaration,
@@ -67,7 +68,7 @@ pub struct BoundaryMachineDeclaration {
     /// a guarantee with no progress premises. False makes no finite promise;
     /// it neither erases nor discharges a conditional guarantee's subjects.
     pub unconditional_termination: bool,
-    pub identity: String,
+    pub identity: TerminalIdentityIndex,
     pub attachment: Option<StructuralTypeId>,
     /// Exact interleave of the two lanes. Each parameter appears once, in its
     /// lane's order. This relationship is part of the portable signature.

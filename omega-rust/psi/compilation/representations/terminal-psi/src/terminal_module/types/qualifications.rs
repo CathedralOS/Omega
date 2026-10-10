@@ -1,4 +1,5 @@
 use crate::StructuralPathSegment;
+use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::{
     ContentAlgebra, ContentProjectionExpression, ContentProjectionIdentity, DomainSemanticId,
     StructuralDomainId, StructuralTypeId,
@@ -10,7 +11,7 @@ pub struct StructuralDomainDeclaration {
     /// Stable source-free semantic-domain identity, distinct from this
     /// module-local dense declaration ID.
     pub semantic_domain: DomainSemanticId,
-    pub identity: String,
+    pub identity: TerminalIdentityIndex,
     /// Exact carrier accepted by this domain. Qualification never changes the
     /// runtime carrier and never authorizes its own establishment.
     pub carrier: StructuralTypeId,

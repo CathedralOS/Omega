@@ -1,4 +1,5 @@
 use semantic_vocabulary::ServiceId;
+use crate::terminal_module::TerminalIdentityIndex;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalRootServiceReach {
@@ -8,14 +9,14 @@ pub struct TerminalRootServiceReach {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InstallationReachDependency {
-    pub requirement_identity: String,
+    pub requirement_identity: TerminalIdentityIndex,
     pub upper_bound: Vec<ServiceId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ServiceDeclaration {
     pub id: ServiceId,
-    pub identity: String,
+    pub identity: TerminalIdentityIndex,
     /// Strictly ordered canonical parent closure.
     pub parents: Vec<ServiceId>,
 }
