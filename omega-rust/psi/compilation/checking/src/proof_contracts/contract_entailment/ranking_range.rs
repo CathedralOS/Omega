@@ -549,6 +549,14 @@ pub fn prove_ranking_range_entry(
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
 ) -> bool {
+    // Without an authored range, a bounded distance produces the saturating
+    // natural distance (stage 05 emits `MAX - lower`), so an entry whose
+    // cursor already passed its bound is still a member: such a loop exits on
+    // its first guard. The raw `upper - lower >= 0` test is the clamped tier's
+    // job, not an entry obligation. Formation still has to succeed, and every
+    // arrival keeps proving the raw distance under its own guards.
+    let unranged_distance =
+        !range.is_valid() && matches!(measure, RankingRangeMeasure::Distance { .. });
     prove_edge(
         program,
         machine,
@@ -561,7 +569,7 @@ pub fn prove_ranking_range_entry(
         None,
         EdgeContext::Root,
     )
-    .is_some_and(|proof| proof.membership_and_pinning)
+    .is_some_and(|proof| proof.membership_and_pinning || unranged_distance)
 }
 
 /// The natural coordinates builtin scalar subjects read through member

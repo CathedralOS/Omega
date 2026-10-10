@@ -4977,3 +4977,6 @@ fail/traits/contextual_static_machine_nominal_authority rejected 190ms expected 
 	static machine argument `wrong` for nominal parameter `Selected` retains 0 authored satisfaction row(s) for exact requirement `Expected::test`; exactly one is required and structural coincidence establishes none
 pass/generics/contextual_static_machine_applications_exit checked 3070ms check-target:macos_arm64 @2347e2eb005f+wt
 pass/traits/applied_nominal_callback_local_types_exit checked 3083ms check-target:macos_arm64 @2347e2eb005f+wt
+fail/termination/bounded_distance_stalled_cursor_exit_state rejected 579ms expected @a957d2bfdca7+wt
+	terminating machine fill: cannot prove strict rank decrease on a recurrent arrival: the transition from `fill` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+pass/termination/runtime_bounded_distance_loop_exit_state_exit checked 3517ms check-target:macos_arm64 @a957d2bfdca7+wt

@@ -1356,6 +1356,13 @@ defines the complete product bar.
   `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/`
   and `omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking/`.
 
+  Std's own package check refuses three loops that ranked before
+  bd68c42a6ef, so every Console program stops before execution:
+  `console_write_bytes` (`Slice::Length` cycle on a non-entry state),
+  `Filesystem::mkall_walk` (bounded distance in a 4-state machine) and
+  `windows_wide_copy` (`fuel`). Reproduce with
+  `omega --check source/library/std/main.omg < /dev/null`.
+
   Quotient/remainder, shifts and bitwise-AND actuals already use
   `install_nonpolynomial_terms`. Executing controls:
   `pass/control_flow/termination_index_distance_compile` (exit 0 on macOS and
