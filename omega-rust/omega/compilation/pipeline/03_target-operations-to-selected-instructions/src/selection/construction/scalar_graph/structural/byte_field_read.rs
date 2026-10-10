@@ -110,18 +110,7 @@ pub(super) fn payload_pointer(
     let root = super::runtime_address::scale(builder, row, place, offset, root, indices)?;
     let payload = transport_register(builder, place, offset)?;
     if !geometry.is_descriptor {
-        builder.emit(
-            SelectedInstructionKind::AddressOffset {
-                byte_offset: offset,
-            },
-            builder
-                .constraints
-                .keys
-                .address_offset
-                .ok_or_else(|| invalid())?,
-            &[root, payload],
-            provenance(row),
-        )?;
+        builder.emit_address_offset(offset, root, payload, provenance(row))?;
     } else {
         super::runtime_address::footprint(
             builder,

@@ -169,16 +169,7 @@ pub(super) fn replace(
             .ok_or_else(|| invalid())?
     };
     let destination_pointer = transport_register(builder, destination.place, byte_offset)?;
-    builder.emit(
-        SelectedInstructionKind::AddressOffset { byte_offset },
-        builder
-            .constraints
-            .keys
-            .address_offset
-            .ok_or_else(|| invalid())?,
-        &[root, destination_pointer],
-        provenance(row),
-    )?;
+    builder.emit_address_offset(byte_offset, root, destination_pointer, provenance(row))?;
     let cursor = scratch(builder, 3)?;
     let byte = scratch(builder, 4)?;
     // The copy's source bytes live in the view's storage root, not the view's
@@ -340,18 +331,7 @@ pub(super) fn replace_byte(
         .map(|(_, pointer)| *pointer)
         .ok_or_else(|| invalid())?;
     let payload = transport_register(builder, destination.place, payload_offset)?;
-    builder.emit(
-        SelectedInstructionKind::AddressOffset {
-            byte_offset: payload_offset,
-        },
-        builder
-            .constraints
-            .keys
-            .address_offset
-            .ok_or_else(|| invalid())?,
-        &[root, payload],
-        provenance(row),
-    )?;
+    builder.emit_address_offset(payload_offset, root, payload, provenance(row))?;
     let address = transport_register(builder, destination.place, payload_offset)?;
     builder.emit(
         SelectedInstructionKind::ByteViewAddress,

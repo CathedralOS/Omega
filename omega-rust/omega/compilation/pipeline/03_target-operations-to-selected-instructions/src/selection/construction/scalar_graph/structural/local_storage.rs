@@ -157,16 +157,7 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
         place,
         field_offset.checked_add(8).ok_or_else(|| invalid())?,
     )?;
-    builder.emit(
-        SelectedInstructionKind::AddressOffset { byte_offset: 8 },
-        builder
-            .constraints
-            .keys
-            .address_offset
-            .ok_or_else(|| invalid())?,
-        &[field, data],
-        provenance(row),
-    )?;
+    builder.emit_address_offset(8, field, data, provenance(row))?;
     Ok(PresentedDescriptor {
         address: descriptor(builder, row, slot, data, length)?,
         words: Some([data, length]),

@@ -52,12 +52,7 @@ pub(super) fn establish(
     );
     let owner = local_storage::address(builder, row, slot, 0, capacity + 8, false)?;
     let payload = transport_register(builder, result.place, 8)?;
-    builder.emit(
-        SelectedInstructionKind::AddressOffset { byte_offset: 8 },
-        builder.constraints.keys.address_offset.ok_or(invalid())?,
-        &[owner, payload],
-        provenance(row),
-    )?;
+    builder.emit_address_offset(8, owner, payload, provenance(row))?;
     copy(
         function,
         builder,

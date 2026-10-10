@@ -670,6 +670,27 @@ impl Builder<'_> {
         )
     }
 
+    /// Every `AddressOffset` projection shares the kind and its
+    /// constraint-key lookup; only the offset, operand pair, and provenance
+    /// differ.
+    fn emit_address_offset(
+        &mut self,
+        byte_offset: u32,
+        source_pointer: VirtualRegisterId,
+        projected_pointer: VirtualRegisterId,
+        provenance: SelectedInstructionProvenance,
+    ) -> Result<(), SelectedInstructionError> {
+        self.emit(
+            SelectedInstructionKind::AddressOffset { byte_offset },
+            self.constraints
+                .keys
+                .address_offset
+                .ok_or_else(|| SelectedInstructionError::custody())?,
+            &[source_pointer, projected_pointer],
+            provenance,
+        )
+    }
+
     /// Every `Store` emission shares the kind and its constraint-key lookup;
     /// call sites differ only in offset, width, the operand pair, and the
     /// provenance they attach.

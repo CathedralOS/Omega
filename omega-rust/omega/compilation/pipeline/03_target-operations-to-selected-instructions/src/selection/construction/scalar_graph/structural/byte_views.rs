@@ -316,16 +316,7 @@ pub(super) fn backing_pointer(
         .ok_or_else(|| invalid())?;
     if crate::selection::byte_concatenation_input::owner_layout_type(function, source).is_some() {
         let pointer = transport_register(builder, source, 8)?;
-        builder.emit(
-            SelectedInstructionKind::AddressOffset { byte_offset: 8 },
-            builder
-                .constraints
-                .keys
-                .address_offset
-                .ok_or_else(|| invalid())?,
-            &[descriptor, pointer],
-            provenance(row),
-        )?;
+        builder.emit_address_offset(8, descriptor, pointer, provenance(row))?;
         return Ok(pointer);
     }
     let pointer = transport_register(builder, source, 0)?;

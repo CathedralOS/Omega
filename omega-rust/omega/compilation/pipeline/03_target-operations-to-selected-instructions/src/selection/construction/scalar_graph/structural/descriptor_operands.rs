@@ -111,12 +111,10 @@ pub(super) fn backing(
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
             ..
         }) => {
-            builder.emit(
-                SelectedInstructionKind::AddressOffset {
-                    byte_offset: displacement.checked_add(8).ok_or(invalid())?,
-                },
-                builder.constraints.keys.address_offset.ok_or(invalid())?,
-                &[pointer, output],
+            builder.emit_address_offset(
+                displacement.checked_add(8).ok_or(invalid())?,
+                pointer,
+                output,
                 provenance(row),
             )?;
         }

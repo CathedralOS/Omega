@@ -585,16 +585,7 @@ pub(super) fn displaced_memory_pointer(
         return Ok((pointer, byte_offset));
     }
     let address = transport_register(builder, place, byte_offset)?;
-    builder.emit(
-        SelectedInstructionKind::AddressOffset { byte_offset },
-        builder
-            .constraints
-            .keys
-            .address_offset
-            .ok_or(SelectedInstructionError::custody())?,
-        &[pointer, address],
-        provenance,
-    )?;
+    builder.emit_address_offset(byte_offset, pointer, address, provenance)?;
     Ok((address, 0))
 }
 
