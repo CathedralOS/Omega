@@ -1,5 +1,9 @@
 //! Closed argument identities and lifetime-bearing type substitution.
+//! Closed array extents share the declared-constant reader with structural
+//! matching. Observe geometry for identity and display without rewriting the
+//! authored type: receiving resolution still owns its selected extent origin.
 use crate::preparation::declaration_selection;
+use crate::preparation::declaration_selection::GenericApplicationSubstitution;
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::ClosedConstraintIdentity;
 use crate::preparation::generic_data::GenericData;
@@ -66,10 +70,11 @@ pub(super) fn complete_argument_tuple(
 pub(crate) fn monomorphizable_argument_slugs(
     syntax: &SyntaxTrees,
     argument_handles: &[TypeReferenceHandle],
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Option<Vec<String>> {
     argument_handles
         .iter()
-        .map(|&argument| type_reference_slug(syntax, argument))
+        .map(|&argument| type_reference_slug(syntax, argument, selection))
         .collect()
 }
 
@@ -227,6 +232,7 @@ pub(crate) fn exact_synthesized_lifetime_instance(
 pub(crate) fn type_reference_slug(
     syntax: &SyntaxTrees,
     handle: TypeReferenceHandle,
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Option<String> {
     match syntax.tables.type_references.type_reference(handle) {
         TypeReferenceNode::Reference {
@@ -237,12 +243,13 @@ pub(crate) fn type_reference_slug(
             let access = access.borrow_prefix();
             Some(format!(
                 "{access}{}",
-                type_reference_slug(syntax, *referee)?
+                type_reference_slug(syntax, *referee, selection)?
             ))
         }
-        TypeReferenceNode::Slice { element_type } => {
-            Some(format!("[{}]", type_reference_slug(syntax, *element_type)?))
-        }
+        TypeReferenceNode::Slice { element_type } => Some(format!(
+            "[{}]",
+            type_reference_slug(syntax, *element_type, selection)?
+        )),
         TypeReferenceNode::Named(name) => Some(name.as_str().to_string()),
         TypeReferenceNode::Generic {
             base_name,
@@ -263,16 +270,28 @@ pub(crate) fn type_reference_slug(
         }
         TypeReferenceNode::FixedArray {
             element_type,
-            length: FixedArrayLength::Literal(length),
-        } if *length > 0 => Some(format!(
-            "[{}; {length}]",
-            type_reference_slug(syntax, *element_type)?
-        )),
+            length,
+        } => {
+            let length = super::closed_fixed_array_length(
+                syntax,
+                length,
+                &GenericApplicationSubstitution::new(),
+                selection,
+            )
+            .ok()?;
+            if length == 0 {
+                return None;
+            }
+            Some(format!(
+                "[{}; {length}]",
+                type_reference_slug(syntax, *element_type, selection)?
+            ))
+        }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            let base = type_reference_slug(syntax, *base_type)?;
+            let base = type_reference_slug(syntax, *base_type, selection)?;
             let mut rendered = Vec::new();
             for (ordinal, constraint) in syntax
                 .tables
@@ -287,7 +306,7 @@ pub(crate) fn type_reference_slug(
                         .integer_range_normalization(handle, ordinal)?;
                     rendered.push(format!("[{}..={}]", range.minimum, range.maximum));
                 } else {
-                    rendered.push(constraint_slug(syntax, constraint)?);
+                    rendered.push(constraint_slug(syntax, constraint, selection)?);
                 }
             }
             if rendered.is_empty() {
@@ -305,6 +324,7 @@ pub(crate) fn type_reference_slug(
 pub(crate) fn constraint_slug(
     syntax: &SyntaxTrees,
     constraint: &TypeConstraintNode,
+    selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Option<String> {
     match constraint {
         TypeConstraintNode::Named(name) => Some(name.as_str().to_string()),
@@ -317,7 +337,7 @@ pub(crate) fn constraint_slug(
             }
             let indices = arguments
                 .iter()
-                .map(|argument| type_reference_slug(syntax, *argument))
+                .map(|argument| type_reference_slug(syntax, *argument, selection))
                 .collect::<Option<Vec<_>>>()?;
             Some(format!("{}<{}>", domain.name.as_str(), indices.join(",")))
         }
@@ -451,7 +471,7 @@ pub(crate) fn closed_argument_identity(
         }
         TypeReferenceNode::FixedArray {
             element_type,
-            length: FixedArrayLength::Literal(length),
+            length,
         } => Some(ClosedArgumentIdentity::Array(
             Box::new(closed_argument_identity(
                 syntax,
@@ -459,7 +479,13 @@ pub(crate) fn closed_argument_identity(
                 *element_type,
                 false,
             )?),
-            *length,
+            super::closed_fixed_array_length(
+                syntax,
+                length,
+                &GenericApplicationSubstitution::new(),
+                selection,
+            )
+            .ok()?,
         )),
         TypeReferenceNode::Constrained {
             base_type,

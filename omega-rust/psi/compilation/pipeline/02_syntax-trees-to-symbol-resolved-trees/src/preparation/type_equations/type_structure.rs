@@ -10,10 +10,15 @@
 //! exact declaration and parameter kinds of each nominal head. Closed leaves
 //! use the existing identity owner. This is not an arithmetic solver or a new
 //! source of array-length evaluation.
+//! Actual array geometry uses the same closed-extent reader as instance
+//! identity and diagnostic names. Actual names belong to their authored scope,
+//! not the template's binder roster. Keep those authored nodes intact: later
+//! resolution and typing retain their selection and constant-origin custody.
 
 use super::{Binding, Solver, collect_expression_binder_mentions};
 use crate::preparation::generic_data::{
     canonicalize_selected_declared_const_definition, closed_argument_identity,
+    closed_fixed_array_length,
 };
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
@@ -262,14 +267,23 @@ impl Solver<'_, '_> {
             } => {
                 let TypeReferenceNode::FixedArray {
                     element_type: actual_element,
-                    length: FixedArrayLength::Literal(actual_length),
+                    length: actual_length,
                 } = self.syntax.type_references.type_reference(actual).clone()
                 else {
-                    return Err(self.type_structure_error(
-                        "requires the same fixed-array constructor with a normalized length",
-                        span,
-                    ));
+                    return Err(self
+                        .type_structure_error("requires the same fixed-array constructor", span));
                 };
+                // An actual extent never refers to this template's const
+                // binder by spelling. Read closed geometry without a template
+                // substitution, before binding either its element or length.
+                let actual_length = closed_fixed_array_length(
+                    self.syntax,
+                    &actual_length,
+                    &crate::preparation::declaration_selection::GenericApplicationSubstitution::new(
+                    ),
+                    self.selection,
+                )
+                .map_err(|reason| self.type_structure_error(&reason, span))?;
                 self.match_type_structure(element_type, actual_element, span)?;
                 if let FixedArrayLength::ConstParameter(name) = &length
                     && let Some((position, is_type)) = self.parameter_position(name.as_str())

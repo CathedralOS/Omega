@@ -36,6 +36,7 @@ pass/float/build_runtime_semantics_twins_x86_baseline built 259139ms @d537c1f086
 pass/float/runtime_float_digit_separators_exit built 162056ms exit:0 interpreter-exit:0 interpreter:agrees @e129ea486356
 pass/generics/omitted_data_binder_range_equation built 1576ms exit:92 interpreter-exit:92 interpreter:agrees @f64782b89114+wt
 pass/generics/runtime_constructor_equation_binder_carriers_exit built 5015ms exit:0 interpreter-exit:0 interpreter:agrees @1843c1a8677b+wt
+pass/generics/runtime_equation_named_array_actual_exit built 4791ms exit:0 interpreter-exit:0 interpreter:agrees @5025d41fde63+wt
 pass/generics/runtime_generic_carrier_binder_equation_exit built 4986ms exit:0 interpreter-exit:0 interpreter:agrees @bb32bdfc8620+wt
 pass/generics/runtime_generic_carrier_equation_context_exit built 4671ms exit:0 interpreter-exit:0 interpreter:agrees @bb32bdfc8620+wt
 pass/generics/runtime_grouped_decimal_const_argument_exit built 6818ms exit:0 interpreter-exit:0 interpreter:agrees @1e24b2973189

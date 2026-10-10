@@ -310,8 +310,15 @@ fn require_closed_selected_arguments(
             TypeReference::Reference(reference) => pending.push(reference.referee),
             TypeReference::Slice(slice) => pending.push(slice.element_type),
             TypeReference::FixedArray(array) => {
-                if !matches!(array.length, FixedArrayLength::Literal(_)) {
-                    return Err(reject());
+                // A named extent can already select a closed declaration.
+                // Preserve that selection for the shared extent reader, but
+                // never reselect an open caller binder by its spelling.
+                match &array.length {
+                    FixedArrayLength::Literal(_) => {}
+                    FixedArrayLength::ConstParameter { symbol, .. }
+                        if symbol.is_valid()
+                            && trees.symbols.get(*symbol).kind == symbols::SymbolKind::Const => {}
+                    _ => return Err(reject()),
                 }
                 pending.push(array.element_type);
             }

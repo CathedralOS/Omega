@@ -320,7 +320,8 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
     ) else {
         return Ok(());
     };
-    let Some(argument_names) = monomorphizable_argument_slugs(syntax, &argument_handles) else {
+    let Some(argument_names) = monomorphizable_argument_slugs(syntax, &argument_handles, selection)
+    else {
         return Ok(());
     };
     if !const_arguments_fit_declarations(syntax, base_info, &argument_handles) {

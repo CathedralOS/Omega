@@ -438,7 +438,7 @@ fn generic_application_label(
         return Ok(instance.name.as_str().to_owned());
     }
     let argument_names =
-        if let Some(names) = monomorphizable_argument_slugs(syntax, argument_handles) {
+        if let Some(names) = monomorphizable_argument_slugs(syntax, argument_handles, selection) {
             names
         } else {
             // Declaration evaluation precedes instance synthesis. A nested closed
@@ -455,9 +455,9 @@ fn generic_application_label(
                 .iter()
                 .zip(argument_handles)
                 .map(|(parameter, argument)| {
-                    if let Some(slug) =
-                        crate::preparation::generic_data::type_reference_slug(syntax, *argument)
-                    {
+                    if let Some(slug) = crate::preparation::generic_data::type_reference_slug(
+                        syntax, *argument, selection,
+                    ) {
                         return Ok(slug);
                     }
                     closed_argument_identity(
@@ -722,12 +722,6 @@ pub(crate) fn closed_fixed_array_length(
                 .ok_or_else(|| {
                     "array extent requires an exact selected constant declaration".to_owned()
                 })?;
-            if !matches!(
-                syntax.expressions.expression(definition.value),
-                ExpressionNode::Integer(_)
-            ) {
-                return Err("array extent constant is not a completed integer literal".to_owned());
-            }
             // Reject an aggregate pretending to be its own scalar extent before
             // recursively validating its carrier: no cyclic type can acquire
             // readiness merely because its initializer is spelled as an integer.
@@ -741,6 +735,12 @@ pub(crate) fn closed_fixed_array_length(
                 if matches!(selection.builtin_type(name), Some(symbols::BuiltinTypeAtom::I8 | symbols::BuiltinTypeAtom::I16 | symbols::BuiltinTypeAtom::I32 | symbols::BuiltinTypeAtom::I64 | symbols::BuiltinTypeAtom::U8 | symbols::BuiltinTypeAtom::U16 | symbols::BuiltinTypeAtom::U32 | symbols::BuiltinTypeAtom::U64)))
             {
                 return Err("array extent constant must have an integer carrier".to_owned());
+            }
+            if !matches!(
+                syntax.expressions.expression(definition.value),
+                ExpressionNode::Integer(_)
+            ) {
+                return Err("array extent constant is not a completed integer literal".to_owned());
             }
             let value = super::super::canonicalize_selected_declared_const_definition(
                 syntax,

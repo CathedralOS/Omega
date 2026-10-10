@@ -1630,6 +1630,14 @@ fail/generics/const_generic_runtime_argument rejected 265ms expected @2d8ed25366
 	a value call to generic machine `prefix_count` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
 fail/generics/data_equation_constructor_binder_carrier_domain rejected 18ms expected @1843c1a8677b+wt
 	generic data `Box` where type equation constructor const binder has a different declared carrier
+fail/generics/equation_named_array_actual_boolean rejected 13ms expected @5025d41fde63+wt
+	generic data `Verified` where type equation array extent constant must have an integer carrier
+fail/generics/equation_named_array_actual_conflict rejected 9ms expected @5025d41fde63+wt
+	generic data `Verified` where type equation has conflicting fixed-array lengths
+fail/generics/equation_named_array_actual_explicit rejected 8ms expected @5025d41fde63+wt
+	generic data `Verified` where equation binds `Count` to 5 but its explicit argument is 4
+fail/generics/equation_named_array_actual_open rejected 36ms expected @5025d41fde63+wt
+	machine equation retains an open caller binder; supply a closed explicit static argument
 fail/generics/erased_static_arguments_keep_binder_order rejected 147ms expected @e31dda2664298bc891b76cde9f607ecf2a1f5973
 	machine `unused` static argument 2 requires its declared binder kind, not a type argument
 fail/generics/erased_static_const_keeps_declared_carrier rejected 143ms expected @e31dda2664298bc891b76cde9f607ecf2a1f5973
@@ -3834,6 +3842,7 @@ pass/generics/runtime_const_data_where_fact_exit checked 1270ms check-target:mac
 pass/generics/runtime_constructor_equation_binder_carriers_exit checked 5632ms check-target:linux_x86_64 @1843c1a8677b+wt
 pass/generics/runtime_container_setter_matrix_exit checked 1388ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_copied_indexed_case_subject_exit checked 2169ms check-target:macos_arm64 @0c36a0fe0b35
+pass/generics/runtime_equation_named_array_actual_exit checked 4788ms check-target:linux_x86_64 @5025d41fde63+wt
 pass/generics/runtime_finite_recursive_reference_catalog_exit checked 2468ms check-target:macos_arm64 @f5eade25e1fd+wt
 pass/generics/runtime_forwarded_value_contract_exit checked 507ms check-target:macos_arm64 @fbbbc025398+wt
 pass/generics/runtime_generic_carrier_binder_equation_exit checked 4877ms check-target:linux_x86_64 @bb32bdfc8620+wt
