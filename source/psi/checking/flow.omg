@@ -1067,6 +1067,21 @@ crashes Trap
     }
 
     state forgotten(checker: &mut Checker, typing: &Typing, origin: u64 in Trapping) {
+        let place: Place = Checker::place_at(checker, origin - 1);
+        let row: TypeRow = Checker::referent_row(typing, place.type_handle);
+        transition row.kind == TypeKind::Array || row.kind == TypeKind::Slice {
+            true -> contents(checker, typing, origin)
+            _ -> whole(checker, typing, origin)
+        }
+    }
+
+    // The missing element place still identifies its collection footprint.
+    // This store preserves the collection's own length, unlike replacing it.
+    state contents(checker: &mut Checker, typing: &Typing, origin: u64 in Trapping) {
+        Checker::forget_contents(checker, typing, origin);
+    }
+
+    state whole(checker: &mut Checker, typing: &Typing, origin: u64 in Trapping) {
         Checker::forget_place(checker, typing, origin);
     }
 

@@ -2641,6 +2641,25 @@ def main() -> None:
         b"true -> second",
     )
 
+    # Element stores preserve the collection's length, including the
+    # bounds needed by later stores, without making invalid indices valid.
+    accepted(
+        program,
+        "slice-content-stores-preserve-length-bounds",
+        b"machine put(items: &mut [u64], i: u64, j: u64) "
+        b"requires i < items.len && j < items.len "
+        b"{ items[i] = 1; items[j] = 2; }",
+    )
+    rejected(
+        program,
+        "slice-content-store-keeps-invalid-second-index",
+        b"machine put(items: &mut [u64], i: u64, j: u64) "
+        b"requires i < items.len && j == items.len "
+        b"{ items[i] = 1; items[j] = 2; }",
+        "IndexOutOfBounds",
+        b"items[j]",
+    )
+
     # The product's own psi package, each module under source/psi as
     # `<directory>::<file>` of package `psi`: how far checking reaches today.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

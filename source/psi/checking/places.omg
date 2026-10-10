@@ -413,31 +413,47 @@ crashes Trap
 pub machine Checker::forget_place(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
 crashes Trap
 {
+    Checker::forget_storage(checker, typing, place, false);
+}
+
+// An element store changes collection contents, not the collection's own
+// length. Nested lengths are still mutable contents: replacing an element
+// may replace a slice inside it. Keep all other write bookkeeping shared.
+pub machine Checker::forget_contents(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
+crashes Trap
+{
+    Checker::forget_storage(checker, typing, place, true);
+}
+
+machine Checker::forget_storage(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool)
+crashes Trap
+{
     Checker::forget_pending(checker, typing, place);
     Checker::forget_aliases(checker, place);
-    transition { _ -> next(checker, typing, place, 0) }
+    transition { _ -> next(checker, typing, place, contents, 0) }
 
-    state next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping) {
+    state next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping) {
         transition index < checker.place_count {
-            true -> visit(checker, typing, place, index)
+            true -> visit(checker, typing, place, contents, index)
             _ -> done(checker, place)
         }
     }
 
-    state visit(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping) {
+    state visit(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping) {
         let within: bool = Checker::within(checker, index + 1, place);
         let candidate: Place = Checker::place_at(checker, index);
-        transition within && candidate.subject > 0 {
-            true -> clear(checker, typing, place, index, candidate)
-            _ -> next(checker, typing, place, index + 1)
+        let length: bool = contents && candidate.kind == PlaceKind::Length && candidate.parent == place;
+        transition within && candidate.subject > 0 && !length {
+            true -> clear(checker, typing, place, contents, index, candidate)
+            _ -> next(checker, typing, place, contents, index + 1)
         }
     }
 
-    state clear(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, index: u64 in Trapping, candidate: Place) {
+    state clear(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping, candidate: Place) {
         let carrier: BuiltinType = Checker::place_carrier(typing, candidate.kind, candidate.type_handle);
         Zone::forget(&mut checker.zone, candidate.subject);
         Checker::enter_range(checker, candidate.subject, carrier);
-        transition { _ -> next(checker, typing, place, index + 1) }
+        transition { _ -> next(checker, typing, place, contents, index + 1) }
     }
 
     state done(checker: &mut Checker, place: u64 in Trapping) {
