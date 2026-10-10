@@ -116,10 +116,7 @@ pub(super) fn validate(
     if let Some(state) = current_state
         && state.return_type.is_valid()
     {
-        for target in [transition.target, transition.continuation] {
-            if !target.is_valid() {
-                continue;
-            }
+        for target in transition.targets() {
             if let TransitionTargetNode::Value(return_expression) =
                 program.statement_table.transition_target(target)
             {
@@ -212,10 +209,7 @@ pub(super) fn validate(
         }
     }
 
-    for target in [transition.target, transition.continuation] {
-        if !target.is_valid() {
-            continue;
-        }
+    for target in transition.targets() {
         if let TransitionTargetNode::Named { arguments, .. } =
             program.statement_table.transition_target(target)
         {

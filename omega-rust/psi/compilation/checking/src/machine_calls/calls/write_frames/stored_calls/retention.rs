@@ -78,10 +78,7 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
             if transition.exit != TransitionExit::Ordinary {
                 continue;
             }
-            for edge in [transition.target, transition.continuation] {
-                if !edge.is_valid() {
-                    continue;
-                }
+            for edge in transition.targets() {
                 let (target, arguments) = match program.statement_table.transition_target(edge) {
                     TransitionTargetNode::Named { arguments, .. } => {
                         if super::super::terminal_calls::target(program, machine, edge).is_valid() {

@@ -111,18 +111,14 @@ impl ValueOccurrenceVisitor<'_, '_> {
                         CheckedValueStatementRole::TransitionGuard,
                     );
                 }
-                self.collect_transition_target(
-                    machine_symbol,
-                    state_symbol,
-                    statement_index,
-                    transition.target,
-                );
-                self.collect_transition_target(
-                    machine_symbol,
-                    state_symbol,
-                    statement_index,
-                    transition.continuation,
-                );
+                for target in transition.targets() {
+                    self.collect_transition_target(
+                        machine_symbol,
+                        state_symbol,
+                        statement_index,
+                        target,
+                    );
+                }
             }
         }
     }

@@ -154,10 +154,7 @@ fn visit_destination_trees(
                         visit_result(state.return_type, *expression);
                     }
                     StatementNode::Transition(transition) => {
-                        for target in [transition.target, transition.continuation] {
-                            if !target.is_valid() {
-                                continue;
-                            }
+                        for target in transition.targets() {
                             match program.statement_table.transition_target(target) {
                                 TransitionTargetNode::Value(expression)
                                     if transition.exit

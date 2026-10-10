@@ -63,10 +63,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
+            for target in transition.targets() {
                 if let TransitionTargetNode::Named { path, .. } =
                     program.statement_table.transition_target(target)
                     && targets_state(path.symbol)

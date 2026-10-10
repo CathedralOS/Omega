@@ -227,10 +227,7 @@ fn solve_state_effects<'program>(
                 continue;
             }
             let prefix = prefixes.get(ordinal)?.as_ref()?;
-            for edge in [transition.target, transition.continuation] {
-                if !edge.is_valid() {
-                    continue;
-                }
+            for edge in transition.targets() {
                 match program.statement_table.transition_target(edge) {
                     TransitionTargetNode::Named { arguments, .. } => {
                         if super::terminal_calls::target(program, machine, edge).is_valid() {

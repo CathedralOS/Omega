@@ -69,10 +69,7 @@ pub(super) fn state_edges(
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
-            for handle in [transition.target, transition.continuation] {
-                if !handle.is_valid() {
-                    continue;
-                }
+            for handle in transition.targets() {
                 match program.statement_table.transition_target(handle) {
                     // Resolve by SYMBOL first (the termination graph's proven
                     // rule), name as the fallback.

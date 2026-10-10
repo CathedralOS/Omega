@@ -137,9 +137,9 @@ pub(crate) fn transition_call_target(
     {
         return Some(Default::default());
     }
-    [transition.target, transition.continuation]
-        .into_iter()
+    transition
+        .targets()
         .find(|&target| {
-            target.is_valid() && find_call_site_in_transition_target(traversal, target).is_some()
+            find_call_site_in_transition_target(traversal, target).is_some()
         })
 }

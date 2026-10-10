@@ -84,10 +84,7 @@ pub fn collect_checked_transition_target_selections(
                 let Some(transition) = statement.as_transition() else {
                     continue;
                 };
-                for target in [transition.target, transition.continuation] {
-                    if !target.is_valid() {
-                        continue;
-                    }
+                for target in transition.targets() {
                     let typed_trees::statement::TransitionTargetNode::Named {
                         path,
                         source_span,

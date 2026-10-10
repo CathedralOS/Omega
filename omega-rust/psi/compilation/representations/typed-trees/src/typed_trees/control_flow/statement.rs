@@ -847,6 +847,15 @@ pub struct TableTransition {
     pub source_span: SourceSpan,
 }
 
+impl TableTransition {
+    /// Both named target handles, skipping absent (zero) slots.
+    pub fn targets(&self) -> impl Iterator<Item = TransitionTargetHandle> + '_ {
+        [self.target, self.continuation]
+            .into_iter()
+            .filter(|handle| handle.is_valid())
+    }
+}
+
 impl Default for TableTransition {
     fn default() -> Self {
         Self {

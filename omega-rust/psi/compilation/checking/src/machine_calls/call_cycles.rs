@@ -312,10 +312,7 @@ fn collect_statement_dependency_symbols(
             if let TransitionGuardNode::When(guard) = transition.guard {
                 collect_expression_dependency_symbols(program, guard, symbols);
             }
-            for target_handle in [transition.target, transition.continuation] {
-                if !target_handle.is_valid() {
-                    continue;
-                }
+            for target_handle in transition.targets() {
                 match program.statement_table.transition_target(target_handle) {
                     TransitionTargetNode::Named {
                         path, arguments, ..

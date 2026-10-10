@@ -237,11 +237,10 @@ fn state_equation<'program>(
                 StatementNode::Transition(transition)
                     if transition.exit == TransitionExit::Ordinary =>
                 {
-                    [transition.target, transition.continuation]
-                        .into_iter()
+                    transition
+                        .targets()
                         .any(|edge| {
-                            edge.is_valid()
-                                && matches!(
+                            matches!(
                                     program.statement_table.transition_target(edge),
                                     TransitionTargetNode::Value(_)
                                         | TransitionTargetNode::Named { .. }
@@ -297,10 +296,7 @@ fn state_equation<'program>(
                 StatementNode::Transition(transition)
                     if transition.exit == TransitionExit::Ordinary =>
                 {
-                    for edge in [transition.target, transition.continuation] {
-                        if !edge.is_valid() {
-                            continue;
-                        }
+                    for edge in transition.targets() {
                         match program.statement_table.transition_target(edge) {
                             TransitionTargetNode::Value(result) => {
                                 merge_result(

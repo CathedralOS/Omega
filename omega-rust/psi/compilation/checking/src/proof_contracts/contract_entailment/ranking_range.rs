@@ -1497,12 +1497,9 @@ fn root_has_incoming_transition(
                 let Some(transition) = statement.as_transition() else {
                     return false;
                 };
-                [transition.target, transition.continuation]
-                    .into_iter()
+                transition
+                    .targets()
                     .any(|target| {
-                        if !target.is_valid() {
-                            return false;
-                        }
                         match program.statement_table.transition_target(target) {
                             TransitionTargetNode::Named { path, .. } => {
                                 path.symbol == root.symbol || path.symbol == machine.symbol

@@ -340,9 +340,8 @@ pub(crate) fn validate_suffix_landings(
                         );
                     }
                     StatementNode::Transition(transition) if state.return_type.is_valid() => {
-                        for target in [transition.target, transition.continuation] {
-                            if target.is_valid()
-                                && let typed_trees::statement::TransitionTargetNode::Value(value) =
+                        for target in transition.targets() {
+                            if let typed_trees::statement::TransitionTargetNode::Value(value) =
                                     program.statement_table.transition_target(target)
                             {
                                 validate_suffix_landing(

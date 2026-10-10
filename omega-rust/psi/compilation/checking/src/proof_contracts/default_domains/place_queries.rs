@@ -211,10 +211,7 @@ pub(super) fn transition_evaluated_expressions(
     if let typed_trees::statement::TransitionGuardNode::When(guard) = &transition.guard {
         evaluated.push(*guard);
     }
-    for handle in [transition.target, transition.continuation] {
-        if !handle.is_valid() {
-            continue;
-        }
+    for handle in transition.targets() {
         match program.statement_table.transition_target(handle) {
             typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
                 evaluated.extend_from_slice(program.statement_table.expression_handles(*arguments))

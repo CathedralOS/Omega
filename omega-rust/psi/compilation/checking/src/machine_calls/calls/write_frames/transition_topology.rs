@@ -37,9 +37,8 @@ pub(super) fn named_transition_subgraph_is_acyclic(
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
-            for edge in [transition.target, transition.continuation] {
-                if !edge.is_valid()
-                    || super::terminal_calls::target(program, machine, edge).is_valid()
+            for edge in transition.targets() {
+                if super::terminal_calls::target(program, machine, edge).is_valid()
                     || !matches!(
                         program.statement_table.transition_target(edge),
                         TransitionTargetNode::Named { .. }
@@ -88,9 +87,8 @@ pub(crate) fn named_state_transition_subgraph_is_acyclic(
             let Some(transition) = statement.as_transition() else {
                 return true;
             };
-            [transition.target, transition.continuation]
-                .into_iter()
-                .filter(|edge| edge.is_valid())
+            transition
+                .targets()
                 .all(|edge| {
                     !matches!(
                         program.statement_table.transition_target(edge),

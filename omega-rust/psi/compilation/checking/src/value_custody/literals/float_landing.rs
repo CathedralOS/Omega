@@ -202,10 +202,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                         // tiny)` into `got: f32` folds/evaluates per-op at
                         // f32. Same-machine targets only (value-machine call
                         // args ride the Call statement, a later face).
-                        for target in [transition.target, transition.continuation] {
-                            if !target.is_valid() {
-                                continue;
-                            }
+                        for target in transition.targets() {
                             let target_node = program.statement_table.transition_target(target);
                             if let typed_trees::statement::TransitionTargetNode::Value(value) =
                                 target_node

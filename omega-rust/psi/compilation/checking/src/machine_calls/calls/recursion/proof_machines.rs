@@ -430,10 +430,7 @@ fn substate_parameter_descends(
                     let Some(transition) = statement.as_transition() else {
                         continue;
                     };
-                    for target_handle in [transition.target, transition.continuation] {
-                        if !target_handle.is_valid() {
-                            continue;
-                        }
+                    for target_handle in transition.targets() {
                         let TransitionTargetNode::Named {
                             path, arguments, ..
                         } = program.statement_table.transition_target(target_handle)

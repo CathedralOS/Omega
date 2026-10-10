@@ -982,9 +982,8 @@ fn structural_authored_arguments<'program>(
                                 .is_some_and(|entry| entry.symbol == target_state)
                         })
                 };
-                let mut named = [transition.target, transition.continuation]
-                    .into_iter()
-                    .filter(|target| target.is_valid())
+                let mut named = transition
+                    .targets()
                     .filter_map(
                         |target| match program.statement_table.transition_target(target) {
                             typed_trees::statement::TransitionTargetNode::Named {

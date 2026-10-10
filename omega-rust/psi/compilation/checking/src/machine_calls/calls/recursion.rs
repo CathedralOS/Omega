@@ -73,10 +73,7 @@ pub(crate) fn validate_self_recursive_call_positions(
             if let TransitionGuardNode::When(guard) = transition.guard {
                 reject_embedded_self_calls(program, machine, guard, diagnostics);
             }
-            for target_handle in [transition.target, transition.continuation] {
-                if !target_handle.is_valid() {
-                    continue;
-                }
+            for target_handle in transition.targets() {
                 match program.statement_table.transition_target(target_handle) {
                     // Arm-target arguments are evaluated AT the jump; a
                     // self-call inside one still needs its own frame first.

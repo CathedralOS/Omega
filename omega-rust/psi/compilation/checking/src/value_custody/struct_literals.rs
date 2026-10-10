@@ -147,10 +147,7 @@ pub(crate) fn validate_struct_literal_fields(
                                 statement_index,
                             );
                         }
-                        for target in [transition.target, transition.continuation] {
-                            if !target.is_valid() {
-                                continue;
-                            }
+                        for target in transition.targets() {
                             scan_transition_target(
                                 program,
                                 machine,

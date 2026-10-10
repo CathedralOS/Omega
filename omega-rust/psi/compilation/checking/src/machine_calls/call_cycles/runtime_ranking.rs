@@ -1059,10 +1059,7 @@ pub(crate) fn internal_arrivals<'program>(
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
+            for target in transition.targets() {
                 if let Some((path, arguments)) =
                     program.statement_table.named_transition_target(target)
                 {

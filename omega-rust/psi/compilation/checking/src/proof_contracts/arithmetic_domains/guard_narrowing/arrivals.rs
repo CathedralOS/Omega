@@ -603,10 +603,7 @@ pub(crate) fn inferred_normal_return_interval(
             ) {
                 continue;
             }
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
+            for target in transition.targets() {
                 match program.statement_table.transition_target(target) {
                     TransitionTargetNode::Value(expression) => returns.push(*expression),
                     TransitionTargetNode::Named {

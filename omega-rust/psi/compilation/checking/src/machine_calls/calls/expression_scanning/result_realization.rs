@@ -576,14 +576,13 @@ pub(super) fn report_void_value_callee(
                     let Some(transition) = statement.as_transition() else {
                         return false;
                     };
-                    [transition.target, transition.continuation]
-                        .iter()
+                    transition
+                        .targets()
                         .any(|handle| {
-                            handle.is_valid()
-                                && matches!(
-                                    program.statement_table.transition_target(*handle),
-                                    TransitionTargetNode::Value(_)
-                                )
+                            matches!(
+                                program.statement_table.transition_target(handle),
+                                TransitionTargetNode::Value(_)
+                            )
                         })
                 })
     });

@@ -1138,11 +1138,10 @@ fn walk_state_write_prefix_inner(
                     // using this statement's captured prefix, including cycles.
                     continue;
                 }
-                for target in [transition.target, transition.continuation] {
+                for target in transition.targets() {
                     if (!local_alias_origins.is_empty()
                         || !stored.is_empty()
                         || !divergent_alias_origins.is_empty())
-                        && target.is_valid()
                         && matches!(
                             program.statement_table.transition_target(target),
                             TransitionTargetNode::Named { .. }

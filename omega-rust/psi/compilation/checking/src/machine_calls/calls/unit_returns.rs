@@ -178,12 +178,11 @@ fn has_inferred_value_return(program: &dyn crate::CheckingInput, machine: &Machi
                     let Some(transition) = statement.as_transition() else {
                         return false;
                     };
-                    [transition.target, transition.continuation]
-                        .iter()
+                    transition
+                        .targets()
                         .any(|target| {
-                            target.is_valid()
-                                && matches!(
-                                    program.statement_table.transition_target(*target),
+                            matches!(
+                                    program.statement_table.transition_target(target),
                                     TransitionTargetNode::Value(_)
                                 )
                         })

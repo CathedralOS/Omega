@@ -197,10 +197,7 @@ pub(crate) fn validate_value_position_calls(
                     diagnostics,
                 );
             }
-            for target_handle in [transition.target, transition.continuation] {
-                if !target_handle.is_valid() {
-                    continue;
-                }
+            for target_handle in transition.targets() {
                 let target = program.statement_table.transition_target(target_handle);
                 // Reuse the same guard and evaluation-order premises as root
                 // transition checking. Re-narrowing the aggregate statement

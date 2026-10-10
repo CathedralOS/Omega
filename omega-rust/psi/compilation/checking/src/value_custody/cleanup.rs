@@ -255,10 +255,7 @@ fn internal_cleanup_transitions(
                 let Some(transition) = statement.as_transition() else {
                     continue;
                 };
-                for target in [transition.target, transition.continuation] {
-                    if !target.is_valid() {
-                        continue;
-                    }
+                for target in transition.targets() {
                     let TransitionTargetNode::Named {
                         path,
                         authored_call_selection: Some(occurrence),
