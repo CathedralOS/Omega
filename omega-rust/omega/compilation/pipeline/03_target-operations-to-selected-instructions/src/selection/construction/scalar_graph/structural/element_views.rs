@@ -152,10 +152,10 @@ fn element_view_read(
         definition.scalar_type,
     )?;
     let address = transport_register(builder, source, 0)?;
-    builder.emit(
-        SelectedInstructionKind::ByteViewAddress,
-        builder.constraints.keys.add_i64,
-        &[pointer, physical_index, address],
+    builder.emit_byte_view_address(
+        pointer,
+        physical_index,
+        address,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![index, length],
@@ -269,10 +269,9 @@ fn element_view_length(
         .element_view(source)
         .copied()
         .ok_or_else(|| invalid())?;
-    builder.emit(
-        SelectedInstructionKind::CopyI64,
-        builder.constraints.keys.copy_i64,
-        &[view.element_length, output],
+    builder.emit_copy_i64(
+        view.element_length,
+        output,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![definition.value, view.root_length],

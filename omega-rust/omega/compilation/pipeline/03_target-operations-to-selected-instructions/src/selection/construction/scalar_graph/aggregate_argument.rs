@@ -296,10 +296,9 @@ pub(super) fn transport(
             // These words were established from authenticated original
             // backing. Descriptor scratch does not grant descriptor-sized
             // reads from the backing array or inline bytes themselves.
-            builder.emit(
-                SelectedInstructionKind::CopyI64,
-                builder.constraints.keys.copy_i64,
-                &[words[(value_byte_offset / 8) as usize], output],
+            builder.emit_copy_i64(
+                words[(value_byte_offset / 8) as usize],
+                output,
                 Default::default(),
             )?;
         } else if let Some(pointer) = pointer {
@@ -323,12 +322,7 @@ pub(super) fn transport(
                 .find(|(owner, position, _)| *owner == place && *position == source_offset)
                 .map(|(_, _, register)| *register)
                 .ok_or_else(|| SelectedInstructionError::custody())?;
-            builder.emit(
-                SelectedInstructionKind::CopyI64,
-                builder.constraints.keys.copy_i64,
-                &[input, output],
-                Default::default(),
-            )?;
+            builder.emit_copy_i64(input, output, Default::default())?;
         }
         if let Some(stack_offset) = stack_offset {
             let (slot, address) = outgoing.ok_or_else(|| SelectedInstructionError::custody())?;

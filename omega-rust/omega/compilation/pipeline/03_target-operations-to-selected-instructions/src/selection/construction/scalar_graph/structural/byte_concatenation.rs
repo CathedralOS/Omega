@@ -64,12 +64,7 @@ pub(super) fn establish(
         capacity,
     )?;
     let right_destination = transport_register(builder, result.place, 8)?;
-    builder.emit(
-        SelectedInstructionKind::ByteViewAddress,
-        builder.constraints.keys.add_i64,
-        &[payload, left_length, right_destination],
-        provenance(row),
-    )?;
+    builder.emit_byte_view_address(payload, left_length, right_destination, provenance(row))?;
     copy(
         function,
         builder,
@@ -131,10 +126,10 @@ pub(super) fn operand_pointer(
             let pointer = byte_views::backing_pointer(function, builder, row, *source)?;
             if let Some(view) = builder.transport.view(*source).copied() {
                 let address = transport_register(builder, *source, 0)?;
-                builder.emit(
-                    SelectedInstructionKind::ByteViewAddress,
-                    builder.constraints.keys.add_i64,
-                    &[pointer, view.byte_offset, address],
+                builder.emit_byte_view_address(
+                    pointer,
+                    view.byte_offset,
+                    address,
                     provenance(row),
                 )?;
                 Ok(address)

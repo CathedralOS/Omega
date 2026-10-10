@@ -96,12 +96,7 @@ pub(super) fn establish(
             return Err(invalid());
         }
         let projected = transport_register(builder, result.place, 0)?;
-        builder.emit(
-            SelectedInstructionKind::ByteViewAddress,
-            builder.constraints.keys.add_i64,
-            &[input, offset, projected],
-            provenance(row),
-        )?;
+        builder.emit_byte_view_address(input, offset, projected, provenance(row))?;
         input = projected;
     }
     let value = if address.load_pointer {

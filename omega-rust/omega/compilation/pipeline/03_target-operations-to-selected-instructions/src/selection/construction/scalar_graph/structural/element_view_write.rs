@@ -1,8 +1,8 @@
 //! Select one element store through a mutable element view.
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, memory,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionProvenance,
+    SelectedMemoryAccessRole, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -96,10 +96,10 @@ pub(super) fn write(
         },
     )?;
     let address = transport_register(builder, destination, 0)?;
-    builder.emit(
-        SelectedInstructionKind::ByteViewAddress,
-        builder.constraints.keys.add_i64,
-        &[pointer, physical_index, address],
+    builder.emit_byte_view_address(
+        pointer,
+        physical_index,
+        address,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![index, length],

@@ -171,12 +171,7 @@ pub(super) fn build(
                 .map(|(_, _, register)| *register)
                 .ok_or_else(|| SelectedInstructionError::custody())?;
             let output = super::structural::transport_register(builder, place, offset)?;
-            builder.emit(
-                SelectedInstructionKind::CopyI64,
-                builder.constraints.keys.copy_i64,
-                &[input, output],
-                Default::default(),
-            )?;
+            builder.emit_copy_i64(input, output, Default::default())?;
             registers.push(output);
         }
     }
@@ -193,12 +188,7 @@ pub(super) fn build(
                 return Err(SelectedInstructionError::custody());
             };
             let output = super::structural::transport_register(builder, place, value_byte_offset)?;
-            builder.emit(
-                SelectedInstructionKind::CopyI64,
-                builder.constraints.keys.copy_i64,
-                &[*register, output],
-                Default::default(),
-            )?;
+            builder.emit_copy_i64(*register, output, Default::default())?;
             *register = output;
         }
     }

@@ -68,12 +68,7 @@ pub(super) fn projection_base(
         return Ok(Some(backing));
     };
     let base = transport_register(builder, place, byte_offset)?;
-    builder.emit(
-        SelectedInstructionKind::ByteViewAddress,
-        builder.constraints.keys.add_i64,
-        &[backing, view_offset, base],
-        super::provenance(row),
-    )?;
+    builder.emit_byte_view_address(backing, view_offset, base, super::provenance(row))?;
     Ok(Some(base))
 }
 
@@ -146,10 +141,10 @@ pub(in crate::selection) fn scale(
             },
         )?;
         let joined = transport_register(builder, place, byte_offset)?;
-        builder.emit(
-            SelectedInstructionKind::ByteViewAddress,
-            builder.constraints.keys.add_i64,
-            &[address, scaled, joined],
+        builder.emit_byte_view_address(
+            address,
+            scaled,
+            joined,
             SelectedInstructionProvenance {
                 operations: vec![row.operation],
                 values: vec![index.operand.value],

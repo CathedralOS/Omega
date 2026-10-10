@@ -150,10 +150,10 @@ pub(super) fn create(
         // B + R * K <= Bound and O + L * K <= R * K imply B + O <= Bound.
         // Equality forces L = 0: zero address bits then represent an empty view.
         // This private descriptor calculation is not exact source integer addition.
-        builder.emit(
-            SelectedInstructionKind::ByteViewAddress,
-            builder.constraints.keys.add_i64,
-            &[backing, byte_offset, pointer],
+        builder.emit_byte_view_address(
+            backing,
+            byte_offset,
+            pointer,
             SelectedInstructionProvenance {
                 operations: vec![row.operation],
                 values: vec![*start, *end, *length, root_length],

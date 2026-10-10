@@ -54,10 +54,10 @@ pub(super) fn write(
     }
     let pointer = backing_pointer(function, builder, row, destination)?;
     let address = transport_register(builder, destination, 0)?;
-    builder.emit(
-        SelectedInstructionKind::ByteViewAddress,
-        builder.constraints.keys.add_i64,
-        &[pointer, index_register, address],
+    builder.emit_byte_view_address(
+        pointer,
+        index_register,
+        address,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![index, length],
@@ -347,10 +347,9 @@ fn byte_sequence_length(
     if let Some(view) = builder.transport.view(source) {
         let input = view.byte_length;
         let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
-        builder.emit(
-            SelectedInstructionKind::CopyI64,
-            builder.constraints.keys.copy_i64,
-            &[input, output],
+        builder.emit_copy_i64(
+            input,
+            output,
             SelectedInstructionProvenance {
                 operations: vec![row.operation],
                 values: vec![result.value],

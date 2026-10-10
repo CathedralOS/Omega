@@ -249,12 +249,7 @@ pub(super) fn establish(
     } else {
         let offset = constant(builder, row, 0, u64::from(field_offset))?;
         let backing = transport_register(builder, *destination, 0)?;
-        builder.emit(
-            SelectedInstructionKind::ByteViewAddress,
-            builder.constraints.keys.add_i64,
-            &[base, offset, backing],
-            provenance(row),
-        )?;
+        builder.emit_byte_view_address(base, offset, backing, provenance(row))?;
         backing
     };
     let (backing, length) = match region {
@@ -313,10 +308,10 @@ pub(super) fn establish(
                 ..Default::default()
             };
             let selected_backing = transport_register(builder, *destination, 0)?;
-            builder.emit(
-                SelectedInstructionKind::ByteViewAddress,
-                builder.constraints.keys.add_i64,
-                &[backing, start_register, selected_backing],
+            builder.emit_byte_view_address(
+                backing,
+                start_register,
+                selected_backing,
                 region_provenance.clone(),
             )?;
             let bytes = transport_register(builder, *destination, 8)?;

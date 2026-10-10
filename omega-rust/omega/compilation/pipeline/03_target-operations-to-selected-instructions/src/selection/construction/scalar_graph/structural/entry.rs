@@ -1,8 +1,8 @@
 //! Capture incoming parameter ABI storage before ordinary graph operations.
 use super::{
     Builder, IndirectPointerLocation, IntegerSign, IntegerType, LegalizedScalarFunction,
-    ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, StructuralAccess,
-    ValueLocation, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    ScalarType, SelectedInstructionProvenance, StructuralAccess, ValueLocation, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -121,12 +121,7 @@ pub(in crate::selection) fn entry(
                 });
                 let offset = *value_byte_offset;
                 let output = transport_register(builder, place, offset)?;
-                builder.emit(
-                    SelectedInstructionKind::CopyI64,
-                    builder.constraints.keys.copy_i64,
-                    &[input, output],
-                    SelectedInstructionProvenance::default(),
-                )?;
+                builder.emit_copy_i64(input, output, SelectedInstructionProvenance::default())?;
                 builder.transport.fragments.push((place, offset, output));
             }
             retain_owned_home(source, parameter, builder)?;
@@ -217,12 +212,7 @@ pub(in crate::selection) fn entry(
             entry_fixed_view: Some(fixed),
         });
         let output = transport_register(builder, place, 0)?;
-        builder.emit(
-            SelectedInstructionKind::CopyI64,
-            builder.constraints.keys.copy_i64,
-            &[input, output],
-            SelectedInstructionProvenance::default(),
-        )?;
+        builder.emit_copy_i64(input, output, SelectedInstructionProvenance::default())?;
         builder.transport.pointers.push((place, output));
     }
     Ok(())

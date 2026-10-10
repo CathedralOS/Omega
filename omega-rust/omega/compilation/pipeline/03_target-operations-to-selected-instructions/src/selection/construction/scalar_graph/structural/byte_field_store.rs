@@ -144,10 +144,10 @@ pub(super) fn replace(
     // rather than the backing's first byte, is the copy's source.
     if let Some(view) = builder.transport.view(*source).copied() {
         let address = transport_register(builder, *source, 0)?;
-        builder.emit(
-            SelectedInstructionKind::ByteViewAddress,
-            builder.constraints.keys.add_i64,
-            &[source_pointer, view.byte_offset, address],
+        builder.emit_byte_view_address(
+            source_pointer,
+            view.byte_offset,
+            address,
             provenance(row),
         )?;
         source_pointer = address;
@@ -333,10 +333,10 @@ pub(super) fn replace_byte(
     let payload = transport_register(builder, destination.place, payload_offset)?;
     builder.emit_address_offset(payload_offset, root, payload, provenance(row))?;
     let address = transport_register(builder, destination.place, payload_offset)?;
-    builder.emit(
-        SelectedInstructionKind::ByteViewAddress,
-        builder.constraints.keys.add_i64,
-        &[payload, index_register, address],
+    builder.emit_byte_view_address(
+        payload,
+        index_register,
+        address,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![*index, *length],

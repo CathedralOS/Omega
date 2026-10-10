@@ -739,6 +739,39 @@ impl Builder<'_> {
         )
     }
 
+    /// Every `CopyI64` emission shares the kind and its constraint-key
+    /// lookup; only the operand pair and provenance differ.
+    fn emit_copy_i64(
+        &mut self,
+        source: VirtualRegisterId,
+        destination: VirtualRegisterId,
+        provenance: SelectedInstructionProvenance,
+    ) -> Result<(), SelectedInstructionError> {
+        self.emit(
+            SelectedInstructionKind::CopyI64,
+            self.constraints.keys.copy_i64,
+            &[source, destination],
+            provenance,
+        )
+    }
+
+    /// Every `ByteViewAddress` emission joins a base and an index through the
+    /// add constraint; only the operands and provenance differ.
+    fn emit_byte_view_address(
+        &mut self,
+        base: VirtualRegisterId,
+        index: VirtualRegisterId,
+        destination: VirtualRegisterId,
+        provenance: SelectedInstructionProvenance,
+    ) -> Result<(), SelectedInstructionError> {
+        self.emit(
+            SelectedInstructionKind::ByteViewAddress,
+            self.constraints.keys.add_i64,
+            &[base, index, destination],
+            provenance,
+        )
+    }
+
     /// Every `Store` emission shares the kind and its constraint-key lookup;
     /// call sites differ only in offset, width, the operand pair, and the
     /// provenance they attach.

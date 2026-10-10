@@ -48,12 +48,7 @@ pub(in crate::selection) fn entry(
     let input = transport_register(builder, result.place, 0)?;
     builder.registers[input.0 as usize].entry_fixed_view = Some(fixed);
     let retained = transport_register(builder, result.place, 0)?;
-    builder.emit(
-        SelectedInstructionKind::CopyI64,
-        builder.constraints.keys.copy_i64,
-        &[input, retained],
-        Default::default(),
-    )?;
+    builder.emit_copy_i64(input, retained, Default::default())?;
     builder.transport.result_pointer = Some(retained);
     Ok(())
 }
@@ -171,12 +166,7 @@ pub(in crate::selection) fn returned(
     // The ABI return use must not pin the retained pointer across earlier calls.
     let pointer = if returned_pointer {
         let output = transport_register(builder, destination, 0)?;
-        builder.emit(
-            SelectedInstructionKind::CopyI64,
-            builder.constraints.keys.copy_i64,
-            &[pointer, output],
-            Default::default(),
-        )?;
+        builder.emit_copy_i64(pointer, output, Default::default())?;
         output
     } else {
         pointer
