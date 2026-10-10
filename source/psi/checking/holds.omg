@@ -183,6 +183,7 @@ crashes Trap
     transition adaptation {
         Adaptation::SharedLend -> answer(Hold::Shared { place: argument })
         Adaptation::Read -> answer(Hold::Released)
+        Adaptation::ExclusiveLend -> answer(Hold::Exclusive { place: argument })
         _ -> lent(typing, argument, expression)
     }
 

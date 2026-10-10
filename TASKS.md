@@ -6211,7 +6211,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   at a destination of the literal's shape. A quoted literal copies into an
   unqualified byte array of its exact length, and a range slice is a view
   wherever a shared reference stands. A reference to a builtin scalar reads
-  as its referent wherever the scalar is needed. An assignment writes a `let mut`
+  as its referent wherever the scalar is needed. A reference to a whole
+  array views it as a slice, and a range slice reached through an exclusive
+  reference lends exclusively. An assignment writes a `let mut`
   local, a `mut` parameter or a place behind an exclusive reference, and
   checking walks every state, an unreached one from its own `requires`
   facts. A membership is a Boolean, and a whole membership fact decides as

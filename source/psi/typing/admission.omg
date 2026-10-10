@@ -16,7 +16,9 @@ use psi::typing::typer;
 // (wiki/spec/language/expressions.md#calls-places-and-temporaries); and a
 // payload-free case of generic data, which spells no arguments, meets any
 // application of its data; a reference to a builtin scalar meets the scalar
-// by reading its referent (`Typer::read_type`). A quoted literal copies its bytes into an
+// by reading its referent (`Typer::read_type`); a reference to a whole array
+// views it as a slice of its elements; and an exclusive-reference
+// destination lends a range slice reached through an exclusive reference. A quoted literal copies its bytes into an
 // unqualified fixed byte array of exactly its length
 // (wiki/spec/language/data_and_literals.md#quoted-bytes), and a range
 // slice is a view a shared-reference destination lends from wherever it
@@ -36,6 +38,7 @@ pub data Admission [copy] {
     case SharedLend;
     case Qualified;
     case Read;
+    case ExclusiveLend;
 }
 
 pub machine Typer::admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
@@ -78,7 +81,7 @@ crashes Trap
         let written: Expression = SyntaxTrees::expression(syntax, expression);
         transition written.kind == ExpressionKind::String && wanted.kind == TypeKind::Array {
             true -> copied(typer, expression, wanted)
-            _ -> typed(typer, syntax, wanted, given, actual)
+            _ -> typed(typer, syntax, wanted, given, actual, expression)
         }
     }
 
@@ -105,18 +108,18 @@ crashes Trap
         landing.admission
     }
 
-    state typed(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
+    state typed(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
         transition given.kind == TypeKind::Builtin && given.builtin == BuiltinType::Never {
             true -> exact()
-            _ -> carried(typer, syntax, wanted, given, actual)
+            _ -> carried(typer, syntax, wanted, given, actual, expression)
         }
     }
 
-    state carried(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
+    state carried(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
         let same: bool = TypeTable::same_carrier(&typer.output.types, wanted, given);
         transition same {
             true -> requalified(typer, syntax, wanted, given)
-            _ -> lending(typer, syntax, wanted, given, actual)
+            _ -> lending(typer, syntax, wanted, given, actual, expression)
         }
     }
 
@@ -148,10 +151,38 @@ crashes Trap
         Admission::Qualified
     }
 
-    state lending(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
-        transition wanted.kind == TypeKind::Reference && wanted.access == ReferenceAccess::Shared {
-            true -> shared(wanted, given, actual)
+    state lending(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        transition wanted.kind == TypeKind::Reference {
+            true -> referenced(typer, syntax, wanted, given, actual, expression)
             _ -> unapplied(syntax, wanted, given)
+        }
+    }
+
+    // A reference to a whole array views it as a slice of its elements,
+    // a shared view from either reference.
+    state referenced(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        let viewed: bool = Typer::views_array(typer, wanted, given);
+        transition viewed {
+            true -> exact()
+            _ -> access(typer, syntax, wanted, given, actual, expression)
+        }
+    }
+
+    state access(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        transition wanted.access == ReferenceAccess::Shared {
+            true -> shared(wanted, given, actual)
+            _ -> exclusive(typer, syntax, wanted, actual, expression)
+        }
+    }
+
+    // An exclusive-reference destination lends a range slice whose
+    // collection is reached through an exclusive reference, its write
+    // authority.
+    state exclusive(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        let writable: bool = Typer::exclusive_range_slice(typer, syntax, expression);
+        transition actual == wanted.inner && writable {
+            true -> lend_exclusively()
+            _ -> rejected()
         }
     }
 
@@ -199,6 +230,10 @@ crashes Trap
 
     state reading() -> Admission {
         Admission::Read
+    }
+
+    state lend_exclusively() -> Admission {
+        Admission::ExclusiveLend
     }
 
     state rejected() -> Admission {
@@ -284,6 +319,7 @@ crashes Trap
         Admission::SharedLend -> lent(typer, syntax, written, expression, lend)
         Admission::Qualified -> qualified(typer, expression)
         Admission::Read -> read(typer, expression)
+        Admission::ExclusiveLend -> lent_exclusively(typer, expression)
         Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
         Admission::NotAValue -> reject(typer, written, TypeDiagnosticCode::NotAValue)
         Admission::Rejected -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
@@ -325,6 +361,11 @@ crashes Trap
 
     state read(typer: &mut Typer, expression: u64 in Trapping) -> bool {
         Typing::set_adaptation(&mut typer.output, expression, Adaptation::Read);
+        transition { _ -> admitted() }
+    }
+
+    state lent_exclusively(typer: &mut Typer, expression: u64 in Trapping) -> bool {
+        Typing::set_adaptation(&mut typer.output, expression, Adaptation::ExclusiveLend);
         transition { _ -> admitted() }
     }
 
@@ -379,6 +420,7 @@ crashes Trap
         Admission::SharedLend -> yes()
         Admission::Qualified -> yes()
         Admission::Read -> yes()
+        Admission::ExclusiveLend -> yes()
         _ -> no()
     }
 
@@ -388,5 +430,66 @@ crashes Trap
 
     state no() -> bool {
         false
+    }
+}
+
+// Whether a reference to an array meets a slice reference of its element
+// and qualifier, a shared one from either access and an exclusive one from
+// an exclusive reference.
+pub machine Typer::views_array(typer: &Typer, wanted: TypeRow, given: TypeRow) -> bool
+crashes Trap
+{
+    let access: bool = given.access == wanted.access || wanted.access == ReferenceAccess::Shared;
+    transition given.kind == TypeKind::Reference && access {
+        true -> referents(typer, wanted, given)
+        _ -> answer(false)
+    }
+
+    state referents(typer: &Typer, wanted: TypeRow, given: TypeRow) -> bool {
+        let array: TypeRow = TypeTable::row(&typer.output.types, given.inner);
+        let slice: TypeRow = TypeTable::row(&typer.output.types, wanted.inner);
+        let viewed: bool = array.kind == TypeKind::Array && slice.kind == TypeKind::Slice && array.inner == slice.inner
+            && array.domain == slice.domain && array.domain_item == slice.domain_item;
+        transition { _ -> answer(viewed) }
+    }
+
+    state answer(viewed: bool) -> bool {
+        viewed
+    }
+}
+
+// Whether `expression` is a range slice whose collection is reached
+// through an exclusive reference at some step of its place.
+pub machine Typer::exclusive_range_slice(typer: &Typer, syntax: &SyntaxTrees, expression: u64 in Trapping) -> bool
+crashes Trap
+{
+    let written: Expression = SyntaxTrees::expression(syntax, expression);
+    let selector: Expression = SyntaxTrees::expression(syntax, written.right);
+    transition written.kind == ExpressionKind::Index && selector.kind == ExpressionKind::Range {
+        true -> step(typer, syntax, written.left, 0)
+        _ -> answer(false)
+    }
+
+    state step(typer: &Typer, syntax: &SyntaxTrees, node: u64 in Trapping, walked: u64 in Trapping) -> bool {
+        let node_type: u64 in Trapping = Typing::expression_type(&typer.output, node);
+        let row: TypeRow = TypeTable::row(&typer.output.types, node_type);
+        let place: Expression = SyntaxTrees::expression(syntax, node);
+        let exclusive: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable;
+        let projected: bool = place.kind == ExpressionKind::Field || place.kind == ExpressionKind::Index;
+        transition exclusive {
+            true -> answer(true)
+            _ -> deeper(typer, syntax, place.left, walked, projected)
+        }
+    }
+
+    state deeper(typer: &Typer, syntax: &SyntaxTrees, base: u64 in Trapping, walked: u64 in Trapping, projected: bool) -> bool {
+        transition projected && walked < 64 {
+            true -> step(typer, syntax, base, walked + 1)
+            _ -> answer(false)
+        }
+    }
+
+    state answer(found: bool) -> bool {
+        found
     }
 }

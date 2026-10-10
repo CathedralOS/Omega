@@ -36,7 +36,7 @@ DIAGNOSTICS = (
     "UncoveredDispatch", "ImmutablePlace",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
-ADAPTATIONS = ("", "landed", "lent", "qualified", "read")
+ADAPTATIONS = ("", "landed", "lent", "qualified", "read", "lent exclusively")
 
 
 @dataclass(frozen=True)
@@ -1422,6 +1422,24 @@ def main() -> None:
         b"data Token { x: u64; }\nmachine f(token: &Token) -> Token { token }",
         "MismatchedTypes",
         b"token!2",
+    )
+    # A reference to a whole array views it as a slice of its elements, and
+    # a range slice reached through an exclusive reference lends exclusively.
+    accepted(
+        program,
+        "array-references-view-as-slices",
+        b"machine see(v: &[u8]) {}\nmachine fill(v: &mut [u8]) {}\n"
+        b"machine f(a: [u8; 4], b: &mut [u8; 4]) {\n"
+        b"    see(&a);\n    fill(b);\n    see(b);\n    let held: &mut [u8] = b[1..3];\n}",
+        ((b"&a", "&[u8; 4]"), (b"b[1..3]", "[u8]")),
+        adaptations=((b"b[1..3]", "lent exclusively"),),
+    )
+    rejected(
+        program,
+        "an-exclusive-slice-needs-an-exclusive-reference",
+        b"machine f(a: &[u8; 4]) { let held: &mut [u8] = a[1..3]; }",
+        "MismatchedTypes",
+        b"a[1..3]",
     )
     rejected(
         program,
