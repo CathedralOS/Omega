@@ -1,0 +1,9 @@
+const SIZE: u64 = 7 / 2 * 2;
+data Config [copy] { size: u64; enabled: bool; }
+const CONFIG: Config = Config { size: SIZE * 2, enabled: SIZE == 7 };
+machine read() -> u64 { CONFIG.size }
+machine enabled() -> bool { CONFIG.enabled }
+data Main { size: u64; }
+machine Main::main(main: &mut Main) {
+    main.size = read();
+}
