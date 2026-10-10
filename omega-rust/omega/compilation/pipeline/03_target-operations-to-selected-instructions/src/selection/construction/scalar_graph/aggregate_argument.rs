@@ -287,6 +287,23 @@ pub(super) fn transport(
             .source_byte_offset
             .checked_add(offset)
             .ok_or_else(|| SelectedInstructionError::custody())?;
+        let prepared_pointer = if let Some(pointer) = pointer.filter(|_| descriptor_words.is_none())
+        {
+            let pointer_offset = source_offset
+                .checked_sub(pointer_byte_offset)
+                .ok_or_else(|| SelectedInstructionError::custody())?;
+            let (pointer, displacement) = super::structural::displaced_memory_pointer(
+                builder,
+                place,
+                pointer,
+                pointer_offset,
+                byte_size,
+                super::structural::provenance(operation),
+            )?;
+            Some((pointer, displacement))
+        } else {
+            None
+        };
         let output = super::structural_case::register(builder, place, offset, 64, false)?;
         if let Some(words) = descriptor_words {
             if byte_size != 8 || !matches!(value_byte_offset, 0 | 8) {
@@ -300,7 +317,7 @@ pub(super) fn transport(
                 output,
                 Default::default(),
             )?;
-        } else if let Some(pointer) = pointer {
+        } else if let Some((pointer, displacement)) = prepared_pointer {
             super::structural_case::memory(
                 builder,
                 block,
@@ -309,10 +326,7 @@ pub(super) fn transport(
                 byte_size,
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
-            let pointer_offset = source_offset
-                .checked_sub(pointer_byte_offset)
-                .ok_or_else(|| SelectedInstructionError::custody())?;
-            super::aggregate_memory::load(builder, pointer, output, pointer_offset, byte_size)?;
+            super::aggregate_memory::load(builder, pointer, output, displacement, byte_size)?;
         } else {
             let input = builder
                 .transport
@@ -325,6 +339,14 @@ pub(super) fn transport(
         }
         if let Some(stack_offset) = stack_offset {
             let (slot, address) = outgoing.ok_or_else(|| SelectedInstructionError::custody())?;
+            let (address, displacement) = super::structural::displaced_memory_pointer(
+                builder,
+                place,
+                address,
+                stack_offset,
+                byte_size,
+                super::structural::provenance(operation),
+            )?;
             outgoing_memory(
                 builder,
                 operation.operation,
@@ -333,7 +355,7 @@ pub(super) fn transport(
                 byte_size,
                 SelectedMemoryAccessRole::WriteOutgoing { slot },
             )?;
-            super::aggregate_memory::store(builder, address, output, stack_offset, byte_size)?;
+            super::aggregate_memory::store(builder, address, output, displacement, byte_size)?;
         } else {
             let register = register.ok_or_else(|| SelectedInstructionError::custody())?;
             registers.push(argument_register(

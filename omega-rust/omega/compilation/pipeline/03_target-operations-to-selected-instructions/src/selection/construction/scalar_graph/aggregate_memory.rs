@@ -1,7 +1,10 @@
 //! Select exact aggregate fragment accesses without widening storage.
 //! Packed expansions own an instruction-local temporary, never a source value.
-//! The caller retains the exact place/offset/width access record; the physical
-//! constraints keep scratch and early-written outputs disjoint from live inputs.
+//! Callers stage an encodable pointer before recording the exact semantic
+//! place/offset/width access, then pass its native displacement here. Address
+//! staging must precede the access record so its instruction remains the load
+//! or store. Physical constraints keep scratch and early-written outputs
+//! disjoint from live inputs.
 use super::integer_arithmetic::instruction_scratch;
 use super::{Builder, IntegerSign, SelectedInstructionKind, VirtualRegisterId};
 use crate::SelectedInstructionError;

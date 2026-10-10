@@ -132,6 +132,14 @@ pub(in crate::selection) fn returned(
     let mut offset = 0u32;
     while offset < placement.shape.byte_size {
         let width = (placement.shape.byte_size - offset).min(8);
+        let (input, read_displacement) = super::displaced_memory_pointer(
+            builder,
+            place,
+            input,
+            offset,
+            width,
+            Default::default(),
+        )?;
         let value = transport_register(builder, place, offset)?;
         super::super::structural_case::memory(
             builder,
@@ -141,7 +149,15 @@ pub(in crate::selection) fn returned(
             width,
             SelectedMemoryAccessRole::ReadPlace,
         )?;
-        super::super::aggregate_memory::load(builder, input, value, offset, width)?;
+        super::super::aggregate_memory::load(builder, input, value, read_displacement, width)?;
+        let (pointer, write_displacement) = super::displaced_memory_pointer(
+            builder,
+            destination,
+            pointer,
+            offset,
+            width,
+            Default::default(),
+        )?;
         super::super::structural_case::memory(
             builder,
             block.id,
@@ -150,7 +166,7 @@ pub(in crate::selection) fn returned(
             width,
             SelectedMemoryAccessRole::WritePlace,
         )?;
-        super::super::aggregate_memory::store(builder, pointer, value, offset, width)?;
+        super::super::aggregate_memory::store(builder, pointer, value, write_displacement, width)?;
         offset += width;
     }
     // The completed result is in caller-owned storage before hooks execute.

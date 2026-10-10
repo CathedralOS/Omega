@@ -333,6 +333,14 @@ pub(super) fn write_structural_operand(
                 })
                 .map(|(_, _, value)| *value)
                 .ok_or_else(|| invalid())?;
+            let (pointer, displacement) = super::displaced_memory_pointer(
+                builder,
+                destination,
+                pointer,
+                offset + fragment_offset,
+                width,
+                provenance(row),
+            )?;
             memory(
                 builder,
                 row,
@@ -341,13 +349,7 @@ pub(super) fn write_structural_operand(
                 width,
                 SelectedMemoryAccessRole::WritePlace,
             )?;
-            super::super::aggregate_memory::store(
-                builder,
-                pointer,
-                value,
-                offset + fragment_offset,
-                width,
-            )?;
+            super::super::aggregate_memory::store(builder, pointer, value, displacement, width)?;
         }
         return Ok(());
     }

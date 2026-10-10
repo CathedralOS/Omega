@@ -267,6 +267,14 @@ fn retain_owned_home(
             .find(|(stored, byte_offset, _)| *stored == place && *byte_offset == offset)
             .map(|(_, _, value)| *value)
             .ok_or_else(|| invalid())?;
+        let (pointer, displacement) = super::displaced_memory_pointer(
+            builder,
+            place,
+            pointer,
+            offset,
+            width,
+            Default::default(),
+        )?;
         super::super::structural_case::memory(
             builder,
             source.entry_block,
@@ -275,7 +283,7 @@ fn retain_owned_home(
             width,
             selected_instructions::SelectedMemoryAccessRole::WritePlace,
         )?;
-        super::super::aggregate_memory::store(builder, pointer, value, offset, width)?;
+        super::super::aggregate_memory::store(builder, pointer, value, displacement, width)?;
     }
     builder.transport.pointers.push((place, pointer));
     Ok(())

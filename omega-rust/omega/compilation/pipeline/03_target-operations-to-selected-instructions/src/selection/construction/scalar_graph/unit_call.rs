@@ -212,6 +212,14 @@ pub(super) fn retain_result(
             } else {
                 value
             };
+            let (pointer, displacement) = super::structural::displaced_memory_pointer(
+                builder,
+                result.place,
+                pointer,
+                *value_byte_offset,
+                *byte_size,
+                super::structural::provenance(operation),
+            )?;
             super::structural_case::memory(
                 builder,
                 block,
@@ -220,13 +228,7 @@ pub(super) fn retain_result(
                 *byte_size,
                 SelectedMemoryAccessRole::WritePlace,
             )?;
-            super::aggregate_memory::store(
-                builder,
-                pointer,
-                value,
-                *value_byte_offset,
-                *byte_size,
-            )?;
+            super::aggregate_memory::store(builder, pointer, value, displacement, *byte_size)?;
         }
         // Later state edges use this initialized result home through the ordinary
         // place roster; they must not allocate another home or retain ABI registers.

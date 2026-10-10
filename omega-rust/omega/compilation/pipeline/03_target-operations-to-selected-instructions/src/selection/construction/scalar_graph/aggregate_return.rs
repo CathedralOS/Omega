@@ -142,6 +142,14 @@ pub(super) fn build(
                 return Err(SelectedInstructionError::custody());
             };
             let offset = *value_byte_offset;
+            let (pointer, displacement) = super::structural::displaced_memory_pointer(
+                builder,
+                place,
+                pointer,
+                offset,
+                *byte_size,
+                Default::default(),
+            )?;
             let register = super::structural_case::register(builder, place, offset, 64, false)?;
             super::structural_case::memory(
                 builder,
@@ -151,7 +159,7 @@ pub(super) fn build(
                 *byte_size,
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
-            super::aggregate_memory::load(builder, pointer, register, offset, *byte_size)?;
+            super::aggregate_memory::load(builder, pointer, register, displacement, *byte_size)?;
             registers.push(register);
         }
     } else {
