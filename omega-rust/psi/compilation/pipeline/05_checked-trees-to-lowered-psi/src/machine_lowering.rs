@@ -45,18 +45,33 @@ use crate::unit::attached_unit;
 /// Preserve source custody, install evidence, validate the completed module,
 /// and attach debug companions before returning unsealed Psi.
 pub fn lower_machine(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: TerminalMachineSelection<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<LoweredPsi, LoweringError> {
+    // One builder owns the complete closure's identities. Body construction
+    // snapshots only a prefix: declaration, evidence and application retention
+    // can intern more rows. Seal the complete table after those producers, so
+    // every durable index resolves in the module that owns it.
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let selection = select_terminal_machine(checked, machine)?;
     let mut lowered =
-        lower_terminal_selection(identities, checked, selection, exact_toolchain_sources)?;
-    boundary_applications::retain(identities, checked, exact_toolchain_sources, &mut lowered)
-        .map_err(LoweringError::Unsupported)?;
-    callback_applications::retain(identities, checked, exact_toolchain_sources, &mut lowered)
-        .map_err(LoweringError::Unsupported)?;
+        lower_terminal_selection(&mut identities, checked, selection, exact_toolchain_sources)?;
+    boundary_applications::retain(
+        &mut identities,
+        checked,
+        exact_toolchain_sources,
+        &mut lowered,
+    )
+    .map_err(LoweringError::Unsupported)?;
+    callback_applications::retain(
+        &mut identities,
+        checked,
+        exact_toolchain_sources,
+        &mut lowered,
+    )
+    .map_err(LoweringError::Unsupported)?;
+    lowered.semantic_module.identities = identities.build();
     Ok(lowered)
 }
 
