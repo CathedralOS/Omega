@@ -3148,6 +3148,12 @@ of a check the same flow already performed, not the check itself.
   Attribute remaining moves before claiming qualification; do not repin
   refusals. Include the std-dependent setter and const-container gates under
   **PIPELINE-ARCHITECTURE-ENFORCEMENT** in that qualification.
+  The const-container gate's independently named receiver variation remains:
+  rename `FixedBuffer::first`'s const binder to `Extent` and add a whole window
+  `&buffer.items[..Extent]`. Entry-context qualification currently rejects
+  `Main`'s zero image while inspecting the raw `FixedBuffer` declaration's
+  `N >= 1`, before final product field preparation. Keep that source variation
+  in the remaining lexical-owner qualification, not a rewritten entrypoint.
   Tuple bounds use the actual binding declaration, not an authored trait
   requirement. Only live private-graph roots own admission work. Universal
   template commitments use the retained authored graph, never a concrete

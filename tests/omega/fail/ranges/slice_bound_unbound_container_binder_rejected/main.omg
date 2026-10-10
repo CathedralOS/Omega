@@ -13,3 +13,18 @@ requires N >= 0;
 }
 
 machine main() {}
+
+// Crossing a growing referent cannot erase the receiver's bounds obligation.
+data Nest<'next, Value> {
+    value: Value;
+    next: &'next Nest<'next, [Value; 2]>;
+}
+machine nested_window<'storage, const Extent: u64, const Other: u64>(
+    node: &Nest<'storage, Buffer<Extent>>
+) -> u8
+requires Extent >= 0;
+requires Other >= 0;
+{
+    let view: &[u8] = &node.next.value[0].items[..Other];
+    transition { _ -> (0) }
+}

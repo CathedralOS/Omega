@@ -273,10 +273,25 @@ fn field_type_reference(
             arguments,
             ..
         } => {
-            if let Some(instance) = program.closed_data_definition(type_reference) {
+            // A private scoped walk can carry outer bindings through a
+            // referent not materialized by source preparation. Its raw type
+            // row is not the applied occurrence when those bindings change
+            // its identity, so that walk must retain its own substitutions.
+            let exact_application = substitutions.is_empty()
+                || program.normalized_type_identity(type_reference)
+                    == program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+                        substitutions,
+                        ..typed_trees::type_identity::TypeIdentityRequest::ordinary(type_reference)
+                    });
+            if let Some(instance) = program
+                .data_application_definition(type_reference)
+                .filter(|_| exact_application)
+                .or_else(|| program.closed_data_definition(type_reference))
+            {
                 // Canonical places use the selected instance's own fields.
                 // Do not reinterpret a template or sibling-instance field as
-                // though it belonged to this closed receiver.
+                // though it belonged to this applied receiver. Symbolic views
+                // retain caller binders just as closed views retain literals.
                 return data_field_type_reference(program, instance, field_symbol);
             }
             let data = data_definition_by_symbol_or_name(program, *base_symbol, base_name)?;

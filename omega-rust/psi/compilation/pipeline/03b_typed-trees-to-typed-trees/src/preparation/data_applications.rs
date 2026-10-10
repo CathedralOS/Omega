@@ -8,6 +8,12 @@
 //! the original declaration and every authored application; this derivation
 //! grants no bounds, loan, constructor or predicate authority.
 //!
+//! Open applications also need their own field telescope: `Buffer<M>::items`
+//! has extent `M`, not the declaration's unrelated `N`. Retain that symbolic
+//! view before freezing, separately from whether its storage is closed. A
+//! checker reading the raw declaration would reject valid caller bounds and
+//! accidentally accept bounds against the declaration's binder.
+//!
 //! The completed typed program owns the finite application roster, including
 //! inferred projection types and selected machine instances. Substituting a
 //! by-value field requires its own closed view: construction and disposal
@@ -15,9 +21,10 @@
 //! every newly generated type row. References stop expansion. A repeated
 //! declaration can continue only by descending into an existing actual type
 //! argument, so `Wrapper<Wrapper<T>>` closes without admitting a growing
-//! recursive field family. Consumers of
-//! an unmaterialized referent use read-only scoped queries instead of growing
-//! `Nest<T>`'s recursive `Nest<[T; 2]>` family behind a reference.
+//! recursive field family. References are expanded only for the finite member
+//! projections actually present in source, child before parent. Reading
+//! `node.next.value` prepares that reached referent, not every future
+//! `Nest<[T; 2]>` in a growing recursive family.
 
 use arena::HandleSpan;
 use symbols::SymbolHandle;
@@ -40,6 +47,7 @@ pub(super) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<diagnostics:
     for reference in applications {
         elaborate_value_fields(program, reference, &mut Vec::new());
     }
+    elaborate_projected_fields(program);
     let produced = program
         .type_reference_table
         .type_reference_rows()
@@ -50,7 +58,56 @@ pub(super) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<diagnostics:
         .map_err(|diagnostic| vec![diagnostic])
 }
 
-/// Close the finite by-value member roster without following referent families.
+/// A reference is not a storage-expansion edge. A source member occurrence is
+/// a finite demand for its receiver's fields, including symbolic applications.
+/// Complete children first so the next receiver reads their applied types.
+fn elaborate_projected_fields(program: &mut TypedTrees) {
+    let mut projections = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut expressions = Vec::new();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                validation::expression_traversal::collect_statement_expression_trees(
+                    program,
+                    statement,
+                    &mut expressions,
+                );
+            }
+            let mut visited = Vec::new();
+            for expression in expressions {
+                validation::expression_traversal::visit_post_order(
+                    program,
+                    expression,
+                    &mut visited,
+                    |_, node| {
+                        if let typed_trees::expression::ExpressionNode::Member(member) = node {
+                            projections.push((machine.symbol, state.symbol, member.receiver));
+                        }
+                    },
+                );
+            }
+        }
+    }
+    for (machine_symbol, state_symbol, receiver) in projections {
+        let Some(machine) = program.machine_by_symbol(machine_symbol) else {
+            continue;
+        };
+        let Some(state) = program.state_by_symbol(state_symbol) else {
+            continue;
+        };
+        let Some(reference) =
+            validation::expression_result_type_reference(program, machine, state, receiver)
+        else {
+            continue;
+        };
+        let reference = program
+            .type_reference_table
+            .peeled_type_reference(reference);
+        elaborate_value_fields(program, reference, &mut Vec::new());
+    }
+}
+
+/// Elaborate the finite by-value member roster without following referent families.
 /// This describes storage, not construction permission or layout admission;
 /// recursive proof-only declarations still receive their source root views.
 fn elaborate_value_fields(
@@ -94,7 +151,10 @@ fn elaborate_value_fields(
         }
     }
     elaborate_application(program, reference);
-    let Some(data) = program.closed_data_definition(reference) else {
+    let Some(data) = program
+        .data_application_definition(reference)
+        .or_else(|| program.closed_data_definition(reference))
+    else {
         return;
     };
     let mut children = Vec::new();
@@ -178,12 +238,12 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
         .to_vec();
     if parameters.len() != arguments.len()
         || template.lifetime_parameters.len() != lifetime_arguments.len()
-        || arguments
-            .iter()
-            .any(|argument| !closed_type(program, *argument))
     {
         return;
     }
+    let mut is_closed = arguments
+        .iter()
+        .all(|argument| closed_type(program, *argument));
     // Const evaluation can already have retained a declaration with exact
     // extents and constructor facts. Runtime carrier equality alone is not
     // enough to reuse its fields: it erases regions inside type arguments.
@@ -206,7 +266,7 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
         )
         .is_some_and(|retained| retained == identity)
     {
-        program.retain_data_application_definition(reference, instance);
+        program.retain_data_application_definition(reference, instance, true);
         return;
     }
     let substitutions = parameters
@@ -227,9 +287,7 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
             DataMember::Field(mut field) => {
                 field.type_reference =
                     instantiate_type(program, field.type_reference, &substitutions, &lifetimes);
-                if !closed_type(program, field.type_reference) {
-                    return;
-                }
+                is_closed &= closed_type(program, field.type_reference);
                 DataMember::Field(field)
             }
             DataMember::Variant(mut variant) => {
@@ -237,9 +295,7 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
                 for field in &mut fields {
                     field.type_reference =
                         instantiate_type(program, field.type_reference, &substitutions, &lifetimes);
-                    if !closed_type(program, field.type_reference) {
-                        return;
-                    }
+                    is_closed &= closed_type(program, field.type_reference);
                 }
                 variant.payload = program.data_payload_fields.insert_many(fields);
                 DataMember::Variant(variant)
@@ -252,10 +308,10 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
     application.type_parameters = HandleSpan::empty();
     application.lifetime_parameters.clear();
     application.generic_instance = Some(reference);
-    program.retain_data_application_definition(reference, application);
+    program.retain_data_application_definition(reference, application, is_closed);
 }
 
-/// This is closure, not admission: unknown/open operands retain no closed view.
+/// This is closure, not admission: unknown/open operands retain no closed storage.
 fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     let mut pending = vec![reference];
     while let Some(reference) = pending.pop() {
@@ -437,10 +493,15 @@ fn instantiate_type(
                     .find(|(parameter, _)| parameter == symbol)
                 && let TypeReferenceNode::Named { symbol, name } =
                     program.type_reference_table.type_reference(*actual)
-                && !symbol.is_valid()
-                && let Ok(value) = name.as_str().parse::<usize>()
             {
-                length = FixedArrayLength::Literal(value);
+                if symbol.is_valid() {
+                    length = FixedArrayLength::ConstParameter {
+                        symbol: *symbol,
+                        name: name.clone(),
+                    };
+                } else if let Ok(value) = name.as_str().parse::<usize>() {
+                    length = FixedArrayLength::Literal(value);
+                }
             }
             TypeReferenceNode::FixedArray {
                 element_type: instantiate_type(program, element_type, substitutions, lifetimes),

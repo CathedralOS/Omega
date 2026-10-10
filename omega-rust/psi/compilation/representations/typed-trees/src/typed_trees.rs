@@ -276,6 +276,14 @@ pub struct ProofOutputSelector {
     pub binding: crate::name::Identifier,
 }
 
+/// Producer-retained fields for one application and its separate closure
+/// status. Substitution alone grants no concrete storage or checking authority.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DataApplicationView {
+    definition: Handle<data::DataDefinition>,
+    is_closed: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedTreeTables {
     /// Package-agnostic authored-selection custody carried verbatim from
@@ -285,10 +293,11 @@ pub struct TypedTreeTables {
         language_semantics::declaration_selection::AuthoredDeclarationSelections,
     pub const_declarations: Arena<crate::constant::ConstDeclaration>,
     pub data_definitions: Arena<data::DataDefinition>,
-    /// Closed application views, indexed by the exact type-reference row.
+    /// Applied field views, indexed by the exact type-reference row. A symbolic
+    /// view retains its caller's binders without granting closed storage.
     /// Their definitions live in the declaration arena but not the authored
     /// root roster: substitution creates no new nominal or field identity.
-    pub data_application_definitions: Arena<Handle<data::DataDefinition>>,
+    pub data_application_definitions: Arena<DataApplicationView>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub data_members: Arena<data::DataMember>,
     pub data_payload_fields: Arena<data::DataField>,

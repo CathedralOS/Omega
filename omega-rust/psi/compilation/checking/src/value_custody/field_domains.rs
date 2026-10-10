@@ -297,9 +297,18 @@ pub fn data_field_type_reference_by_symbol_or_name(
             base_symbol,
             base_name,
             ..
-        } => data_definition(program, *base_symbol, base_name).and_then(|data_definition| {
-            data_field_type_by_symbol_or_name(program, data_definition, member_symbol, member_name)
-        }),
+        } => program
+            .data_application_definition(type_reference)
+            .or_else(|| program.closed_data_definition(type_reference))
+            .or_else(|| data_definition(program, *base_symbol, base_name))
+            .and_then(|data_definition| {
+                data_field_type_by_symbol_or_name(
+                    program,
+                    data_definition,
+                    member_symbol,
+                    member_name,
+                )
+            }),
         TypeReferenceNode::Named { symbol, name } => data_definition(program, *symbol, name)
             .and_then(|data_definition| {
                 data_field_type_by_symbol_or_name(

@@ -48,9 +48,7 @@ fn program_intern_type_identity(program: &TypedTrees, identity: String) -> TypeI
     // across arena revisions. See `arena::OwnedInterner`.
     program
         .type_identities
-        .with_mut(|table| {
-            table.intern(&identity)
-        })
+        .with_mut(|table| table.intern(&identity))
 }
 use crate::typed_trees::type_system::type_identity::constraint_identity::atom;
 use crate::typed_trees::type_system::type_identity::constraint_identity::compound;
@@ -218,7 +216,9 @@ impl TypedTrees {
             return None;
         }
         if let Some(application) = self.data_application_definition(reference) {
-            return Some(application);
+            return self
+                .data_application_is_closed(reference)
+                .then_some(application);
         }
         let data = match self.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Named { symbol, .. } => {
@@ -473,9 +473,7 @@ impl TypedTrees {
     /// and artifact encoding only. Identity comparisons read the handle.
     pub fn type_identity_text(&self, identity: TypeIdentityId) -> Option<String> {
         self.type_identities
-            .with(|table| {
-                table.text(identity).map(str::to_owned)
-            })
+            .with(|table| table.text(identity).map(str::to_owned))
     }
 
     /// Convenience render of the ordinary identity for boundary encoding
@@ -489,10 +487,7 @@ impl TypedTrees {
     /// when the text was never an identity of this program. Boundary readers
     /// rehydrate their `String` payload through this reverse join.
     pub fn type_identity_by_text(&self, text: &str) -> TypeIdentityId {
-        self.type_identities
-            .with(|table| {
-                table.by_text(text)
-            })
+        self.type_identities.with(|table| table.by_text(text))
     }
 
     /// The ordinary named-type identity of an exact resolved nominal symbol,

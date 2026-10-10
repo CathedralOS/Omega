@@ -72,17 +72,21 @@ impl TypedTrees {
         &mut self,
         application: crate::types::TypeReferenceHandle,
         definition: data::DataDefinition,
+        is_closed: bool,
     ) {
         while self.tables.data_application_definitions.len()
             < self.type_reference_table.type_reference_count()
         {
             self.tables
                 .data_application_definitions
-                .insert(Handle::invalid());
+                .insert(super::DataApplicationView::default());
         }
         let row = Handle::from_parts(application.arena_index(), application.generation());
         let definition = self.tables.data_definitions.insert(definition);
-        *self.tables.data_application_definitions.get_mut(row) = definition;
+        *self.tables.data_application_definitions.get_mut(row) = super::DataApplicationView {
+            definition,
+            is_closed,
+        };
     }
 
     /// Read only a producer-retained view for this exact application occurrence.
@@ -97,11 +101,21 @@ impl TypedTrees {
             return None;
         }
         let row = Handle::from_parts(application.arena_index(), application.generation());
-        let definition = *self.tables.data_application_definitions.get(row);
+        let definition = self.tables.data_application_definitions.get(row).definition;
         self.tables
             .data_definitions
             .is_valid(definition)
             .then(|| self.tables.data_definitions.get(definition))
+    }
+
+    /// Field substitution is not closure: open arguments remain universally
+    /// checked, and cannot supply a concrete storage declaration.
+    pub(crate) fn data_application_is_closed(
+        &self,
+        application: crate::types::TypeReferenceHandle,
+    ) -> bool {
+        let row = Handle::from_parts(application.arena_index(), application.generation());
+        self.tables.data_application_definitions.get(row).is_closed
     }
 
     /// The first data declaration `name` spells, if any.
