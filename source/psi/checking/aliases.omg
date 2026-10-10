@@ -16,12 +16,15 @@ use psi::types::types;
 
 // Record that Boolean `place` stands for the condition `root` bound to it,
 // whose value is `value`; a copy of an aliased place takes its condition.
-pub machine Checker::record_alias(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping, root: u64 in Trapping, value: Value)
+// The caller proves replayable before binding: evaluation changed no
+// storage, and the destination does not overwrite a read of this condition.
+// Later writes still retire aliases through forget_aliases below.
+pub machine Checker::record_alias(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping, root: u64 in Trapping, value: Value, replayable: bool)
 crashes Trap
 {
     let type_handle: u64 in Trapping = Typing::expression_type(typing, root);
     let expression: Expression = SyntaxTrees::expression(syntax, root);
-    transition place > 0 && type_handle == typing.boolean {
+    transition replayable && place > 0 && type_handle == typing.boolean {
         true -> condition(checker, place, root, expression, value)
         _ -> done()
     }

@@ -64,6 +64,10 @@ pub data Checker {
     frames: [TreeFrame; 8];
     frame_count: u64;
     replay: bool;
+    // Monotone through one machine's walks, including branch restoration.
+    // A nonempty call write frame advances it; proof-only nested trees and
+    // bookkeeping copies do not. Replay requires unchanged storage.
+    write_epoch: u64 in Trapping;
     context_starts: [u64; 64];
     context_operators: [u64; 64];
     context_first: u64;
@@ -302,6 +306,7 @@ crashes Trap
     checker.context_count = 0;
     checker.match_count = 0;
     checker.replay = false;
+    checker.write_epoch = 0;
     checker.substituting = false;
     checker.returning = false;
     checker.subjecting = false;
@@ -1087,6 +1092,15 @@ crashes Trap
         place: u64 in Trapping,
         whole: bool
     ) {
+        let changes: bool = Checker::frame_changes(checker, syntax, callee, whole);
+        transition changes {
+            true -> changed(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, lender, place, whole)
+            _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1)
+        }
+    }
+
+    state changed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, whole: bool) {
+        checker.write_epoch = checker.write_epoch + 1;
         Checker::snapshot_operands(checker, syntax, typing, expression, lender, place);
         transition whole {
             true -> released(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place)
@@ -1105,6 +1119,79 @@ crashes Trap
     }
 
     state done() {}
+}
+
+// Whether a selected invocation may change storage. This is also queried
+// before an assignment target is evaluated: its index expressions may call
+// writers after the RHS value has already been read.
+pub machine Checker::call_may_write(checker: &Checker, syntax: &SyntaxTrees, selection: Selection) -> bool
+crashes Trap
+{
+    transition selection {
+        Selection::Machine { handle } -> machine_frame(checker, syntax, handle)
+        Selection::Binder { parameter as _ } -> answer(true)
+        _ -> answer(false)
+    }
+
+    state machine_frame(checker: &Checker, syntax: &SyntaxTrees, handle: u64 in Trapping) -> bool {
+        let unknown: bool = Checker::writes_unknown(checker, handle);
+        let fields: bool = Checker::frame_changes(checker, syntax, handle, unknown);
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        transition fields {
+            true -> answer(true)
+            _ -> parameter(checker, item, 0)
+        }
+    }
+
+    state parameter(checker: &Checker, item: MachineItem, offset: u64 in Trapping) -> bool {
+        transition offset < item.parameter_count {
+            true -> inspected(checker, item, offset)
+            _ -> answer(false)
+        }
+    }
+
+    state inspected(checker: &Checker, item: MachineItem, offset: u64 in Trapping) -> bool {
+        let whole: bool = Checker::writes_whole(checker, item.first_parameter + offset);
+        transition whole {
+            true -> answer(true)
+            _ -> parameter(checker, item, offset + 1)
+        }
+    }
+
+    state answer(writes: bool) -> bool {
+        writes
+    }
+}
+
+// An empty complete write frame changes no storage and must not prevent
+// replay. Unknown/whole writes always count; named field writes may be
+// pending and therefore need not have a place yet.
+machine Checker::frame_changes(checker: &Checker, syntax: &SyntaxTrees, callee: u64 in Trapping, whole: bool) -> bool
+crashes Trap
+{
+    transition whole {
+        true -> answer(true)
+        _ -> field(checker, syntax, callee, 0)
+    }
+
+    state field(checker: &Checker, syntax: &SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
+        transition index < syntax.field_count {
+            true -> inspected(checker, syntax, callee, index)
+            _ -> answer(false)
+        }
+    }
+
+    state inspected(checker: &Checker, syntax: &SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
+        let writes: bool = Checker::writes_field(checker, callee, index);
+        transition writes {
+            true -> answer(true)
+            _ -> field(checker, syntax, callee, index + 1)
+        }
+    }
+
+    state answer(changes: bool) -> bool {
+        changes
+    }
 }
 
 // Forget each field place strictly below `place` (one-based) whose field

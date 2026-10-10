@@ -474,13 +474,15 @@ crashes Trap
     }
 }
 
-// Whether an expression's value is an exclusive (`&mut`) reference.
+// Whether an expression supplies a live exclusive (`&mut`) reference.
+// A scalar Read consumes the referent's captured value instead.
 pub machine Checker::exclusive_value(typing: &Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
-    row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable
+    let adaptation: Adaptation = Typing::adaptation(typing, handle);
+    row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable && adaptation != Adaptation::Read
 }
 
 // Whether an expression's value is a shared (`&`) reference.
@@ -489,7 +491,8 @@ crashes Trap
 {
     let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
-    row.kind == TypeKind::Reference && row.access == ReferenceAccess::Shared
+    let adaptation: Adaptation = Typing::adaptation(typing, handle);
+    row.kind == TypeKind::Reference && row.access == ReferenceAccess::Shared && adaptation != Adaptation::Read
 }
 
 // Frame tables, guarded by their bounds; a write beyond them is unknown.

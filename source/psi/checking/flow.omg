@@ -9,6 +9,7 @@ use psi::checking::matches;
 use psi::checking::obligations;
 use psi::checking::places;
 use psi::checking::qualification;
+use psi::checking::snapshots;
 use psi::checking::termination;
 use psi::checking::zone;
 use psi::checks::checks;
@@ -836,10 +837,12 @@ crashes Trap
         type_handle: u64 in Trapping,
         checking: bool
     ) {
+        let epoch: u64 in Trapping = checker.write_epoch;
         Checker::evaluate_tree(checker, syntax, resolution, typing, statement.value, checking);
         let value: Value = Checker::value_at(checker, statement.value);
+        let replayable: bool = Checker::alias_replayable(checker, syntax, resolution, typing, statement.value, place, epoch);
         Checker::bind_place(checker, typing, place, value);
-        Checker::record_alias(checker, syntax, typing, place, statement.value, value);
+        Checker::record_alias(checker, syntax, typing, place, statement.value, value, replayable);
         let bound: Value = Checker::place_value(checker, place);
         Checker::assume_qualification(checker, syntax, resolution, typing, type_handle, bound);
         transition checking {
@@ -860,15 +863,18 @@ crashes Trap
         statement: Statement,
         checking: bool
     ) {
+        let epoch: u64 in Trapping = checker.write_epoch;
         Checker::evaluate_tree(checker, syntax, resolution, typing, statement.value, checking);
+        Checker::snapshot_before_target(checker, syntax, typing, statement.value, statement.target);
         let value: Value = Checker::value_at(checker, statement.value);
         Checker::evaluate_tree(checker, syntax, resolution, typing, statement.target, checking);
         let target: Value = Checker::value_at(checker, statement.target);
         let owner: u64 in Trapping = Checker::window_owner(checker, syntax, typing, target.place);
         let destination: u64 in Trapping = Typing::expression_type(typing, statement.target);
         Checker::require_stored_qualification(checker, syntax, resolution, typing, destination, statement.value, value, statement.source_span, checking);
+        let replayable: bool = Checker::alias_replayable(checker, syntax, resolution, typing, statement.value, target.place, epoch);
         Checker::bind_place(checker, typing, target.place, value);
-        Checker::record_alias(checker, syntax, typing, target.place, statement.value, value);
+        Checker::record_alias(checker, syntax, typing, target.place, statement.value, value, replayable);
         transition owner > 0 {
             true -> window(checker, syntax, resolution, typing, statement, owner, checking)
             _ -> done()
@@ -956,6 +962,78 @@ crashes Trap
     state done() {}
 }
 
+// Replay is valid only while the expression still denotes the value read.
+// A call write during evaluation rules it out. The destination must also
+// not overwrite a scalar read of the expression (flag = !flag). Inspect a
+// proof-only copy before binding: assignment target evaluation has already
+// replaced the RHS tree, so its transient value slots cannot be consulted.
+// Nested proof evaluation preserves the caller's frame and has no effects.
+machine Checker::alias_replayable(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, destination: u64 in Trapping, epoch: u64 in Trapping) -> bool
+crashes Trap
+{
+    let type_handle: u64 in Trapping = Typing::expression_type(typing, root);
+    transition epoch == checker.write_epoch && type_handle == typing.boolean && destination > 0 {
+        true -> sized(checker, syntax, resolution, typing, root, destination)
+        _ -> answer(false)
+    }
+
+    state sized(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, destination: u64 in Trapping) -> bool {
+        let tree: Expression = SyntaxTrees::expression(syntax, root);
+        let size: u64 in Trapping = root - tree.first_row + 1;
+        let base: u64 in Trapping = Checker::next_base(checker);
+        transition base + size <= 4096 && checker.frame_count < 8 {
+            true -> framed(checker, syntax, resolution, typing, root, destination, tree.first_row, size, base)
+            _ -> answer(false)
+        }
+    }
+
+    state framed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, destination: u64 in Trapping, low: u64 in Trapping, size: u64 in Trapping, base: u64 in Trapping) -> bool {
+        Checker::push_frame(checker);
+        checker.tree_base = base;
+        checker.tree_low = low;
+        checker.tree_size = size;
+        checker.context_first = checker.context_count;
+        Checker::evaluate_fact_run(checker, syntax, resolution, typing, root, low);
+        let reads: bool = Checker::tree_reads_place(checker, root, low, destination);
+        Checker::pop_frame(checker);
+        !reads
+    }
+
+    state answer(replayable: bool) -> bool {
+        replayable
+    }
+}
+
+// A field receiver names storage; it does not read every field of that
+// storage. Scalar subjects distinguish guard.count from the destination
+// guard.valid, preserving aliases assigned into independent fields.
+machine Checker::tree_reads_place(checker: &Checker, root: u64 in Trapping, low: u64 in Trapping, destination: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> node(checker, root, destination, low) }
+
+    state node(checker: &Checker, root: u64 in Trapping, destination: u64 in Trapping, handle: u64 in Trapping) -> bool {
+        transition handle <= root {
+            true -> inspected(checker, root, destination, handle)
+            _ -> answer(false)
+        }
+    }
+
+    state inspected(checker: &Checker, root: u64 in Trapping, destination: u64 in Trapping, handle: u64 in Trapping) -> bool {
+        let value: Value = Checker::value_at(checker, handle);
+        let owner: u64 in Trapping = Checker::subject_place(checker, value.subject);
+        let reads: bool = value.known && value.subject > 0 && owner > 0 && Checker::within(checker, owner, destination);
+        transition reads {
+            true -> answer(true)
+            _ -> node(checker, root, destination, handle + 1)
+        }
+    }
+
+    state answer(reads: bool) -> bool {
+        reads
+    }
+}
+
 // A place takes a new value: its old facts and those of everything inside
 // it are forgotten, and an integer place takes the value's term or
 // interval.
@@ -1023,7 +1101,7 @@ crashes Trap
 {
     transition statement.has_value {
         true -> subject(checker, syntax, resolution, typing, statement, checking)
-        _ -> arms(checker, syntax, resolution, typing, statement, checking)
+        _ -> arms(checker, syntax, resolution, typing, statement, checking, true)
     }
 
     state subject(
@@ -1034,8 +1112,10 @@ crashes Trap
         statement: Statement,
         checking: bool
     ) {
+        let epoch: u64 in Trapping = checker.write_epoch;
         Checker::evaluate_tree(checker, syntax, resolution, typing, statement.value, checking);
-        transition { _ -> arms(checker, syntax, resolution, typing, statement, checking) }
+        let replayable: bool = epoch == checker.write_epoch;
+        transition { _ -> arms(checker, syntax, resolution, typing, statement, checking, replayable) }
     }
 
     state arms(
@@ -1044,11 +1124,12 @@ crashes Trap
         resolution: &NameResolution,
         typing: &Typing,
         statement: Statement,
-        checking: bool
+        checking: bool,
+        replayable: bool
     ) {
         let saved: bool = Checker::save_zone(checker, 0);
         transition saved {
-            true -> arm(checker, syntax, resolution, typing, statement, 0, checking)
+            true -> arm(checker, syntax, resolution, typing, statement, 0, checking, replayable)
             _ -> overflow(checker, statement)
         }
     }
@@ -1060,10 +1141,11 @@ crashes Trap
         typing: &Typing,
         statement: Statement,
         offset: u64 in Trapping,
-        checking: bool
+        checking: bool,
+        replayable: bool
     ) {
         transition offset < statement.arm_count && checker.output.machine_accepted {
-            true -> selected(checker, syntax, resolution, typing, statement, offset, checking)
+            true -> selected(checker, syntax, resolution, typing, statement, offset, checking, replayable)
             _ -> finished(checker)
         }
     }
@@ -1075,16 +1157,17 @@ crashes Trap
         typing: &Typing,
         statement: Statement,
         offset: u64 in Trapping,
-        checking: bool
+        checking: bool,
+        replayable: bool
     ) {
         let arm: TransitionArm = SyntaxTrees::arm(syntax, statement.first_arm + offset);
         Checker::restore_zone(checker);
-        Checker::select_arm(checker, syntax, resolution, typing, statement, arm, true, checking);
+        Checker::select_arm(checker, syntax, resolution, typing, statement, arm, true, checking, replayable);
         Checker::walk_target(checker, syntax, resolution, typing, arm, checking);
         Checker::restore_zone(checker);
-        Checker::select_arm(checker, syntax, resolution, typing, statement, arm, false, checking);
+        Checker::select_arm(checker, syntax, resolution, typing, statement, arm, false, checking, replayable);
         Checker::resave_zone(checker);
-        transition { _ -> arm(checker, syntax, resolution, typing, statement, offset + 1, checking) }
+        transition { _ -> arm(checker, syntax, resolution, typing, statement, offset + 1, checking, replayable) }
     }
 
     // Typing proved the arms cover the subject (typing/coverage.omg): no
@@ -1111,16 +1194,58 @@ machine Checker::select_arm(
     statement: Statement,
     arm: TransitionArm,
     chosen: bool,
-    checking: bool
+    checking: bool,
+    replayable: bool
 )
 crashes Trap
 {
-    let unknown: Value = Value::unknown();
-    transition arm.kind {
-        ArmPatternKind::Guard -> guard(checker, syntax, resolution, typing, statement, arm, chosen, checking, unknown)
-        ArmPatternKind::Literal -> literal(checker, syntax, resolution, typing, statement, arm, chosen, unknown)
-        ArmPatternKind::Case -> case_arm(checker, syntax, resolution, typing, statement, arm, chosen, unknown)
-        _ -> done()
+    // A subject whose evaluation wrote storage has captured reads that a
+    // replay cannot recover. Its post-evaluation zone remains usable, but
+    // syntax alone grants no additional subject facts on either arm.
+    transition statement.has_value && !replayable {
+        true -> captured(checker, typing, arm, chosen)
+        _ -> classify(checker, syntax, resolution, typing, statement, arm, chosen, checking)
+    }
+
+    state captured(checker: &mut Checker, typing: &Typing, arm: TransitionArm, chosen: bool) {
+        transition chosen {
+            true -> unknown_binders(checker, typing, arm, 0)
+            _ -> done()
+        }
+    }
+
+    // Withholding subject facts never preserves an old binder value.
+    // Ordinary pattern bindings still start from their declared type.
+    state unknown_binders(checker: &mut Checker, typing: &Typing, arm: TransitionArm, offset: u64 in Trapping) {
+        transition offset < arm.field_count {
+            true -> unknown_binder(checker, typing, arm, offset)
+            _ -> done()
+        }
+    }
+
+    state unknown_binder(checker: &mut Checker, typing: &Typing, arm: TransitionArm, offset: u64 in Trapping) {
+        let handle: u64 in Trapping = arm.first_field + offset;
+        let type_handle: u64 in Trapping = Typing::binder_type(typing, handle);
+        transition type_handle > 0 {
+            true -> reset_binder(checker, typing, arm, offset, handle, type_handle)
+            _ -> unknown_binders(checker, typing, arm, offset + 1)
+        }
+    }
+
+    state reset_binder(checker: &mut Checker, typing: &Typing, arm: TransitionArm, offset: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping) {
+        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Binder, handle, 0, type_handle);
+        Checker::forget_place(checker, typing, place);
+        transition { _ -> unknown_binders(checker, typing, arm, offset + 1) }
+    }
+
+    state classify(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, chosen: bool, checking: bool) {
+        let unknown: Value = Value::unknown();
+        transition arm.kind {
+            ArmPatternKind::Guard -> guard(checker, syntax, resolution, typing, statement, arm, chosen, checking, unknown)
+            ArmPatternKind::Literal -> literal(checker, syntax, resolution, typing, statement, arm, chosen, unknown)
+            ArmPatternKind::Case -> case_arm(checker, syntax, resolution, typing, statement, arm, chosen, unknown)
+            _ -> done()
+        }
     }
 
     state guard(

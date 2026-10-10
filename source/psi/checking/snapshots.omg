@@ -19,7 +19,58 @@ use psi::types::types;
 // fresh subject equal to the one it read, a record to a place holding the
 // fields known of it. Any other value keeps its interval and loses its
 // place. A reference denotes live storage, not its former contents, and
-// keeps its place; so does every exclusive operand the call writes through.
+// keeps its place; a Read adaptation instead consumes a scalar snapshot.
+// Every exclusive operand the call writes through keeps its live place.
+
+// Assignments currently evaluate RHS then target. Preserve the completed
+// RHS before opening the target tree when one of its selected calls may
+// write storage. The target's snapshot walk cannot see the departed RHS
+// tree; a stored Value naming its mutable subject would become stale.
+// This follows the existing order, without specifying a different one.
+pub machine Checker::snapshot_before_target(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, value: u64 in Trapping, target: u64 in Trapping)
+crashes Trap
+{
+    let tree: Expression = SyntaxTrees::expression(syntax, target);
+    transition { _ -> node(checker, syntax, typing, value, target, tree.first_row) }
+
+    state node(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, value: u64 in Trapping, target: u64 in Trapping, handle: u64 in Trapping) {
+        transition handle <= target {
+            true -> inspected(checker, syntax, typing, value, target, handle)
+            _ -> done()
+        }
+    }
+
+    state inspected(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, value: u64 in Trapping, target: u64 in Trapping, handle: u64 in Trapping) {
+        let selection: Selection = Typing::selection(typing, handle);
+        let writes: bool = Checker::call_may_write(checker, syntax, selection);
+        transition writes {
+            true -> captured(checker, typing, value, target)
+            _ -> node(checker, syntax, typing, value, target, handle + 1)
+        }
+    }
+
+    state captured(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, target: u64 in Trapping) {
+        let value: Value = Checker::value_at(checker, handle);
+        let owner: u64 in Trapping = Checker::subject_place(checker, value.subject);
+        transition value.known && value.subject > 0 {
+            true -> scalar(checker, typing, handle, target, owner)
+            _ -> scalar(checker, typing, handle, target, value.place)
+        }
+    }
+
+    state scalar(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, target: u64 in Trapping, place: u64 in Trapping) {
+        transition place > 0 {
+            true -> placed(checker, typing, handle, target, place)
+            _ -> done()
+        }
+    }
+
+    state placed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, target: u64 in Trapping, place: u64 in Trapping) {
+        Checker::snapshot_node(checker, typing, handle, target, place);
+    }
+
+    state done() {}
+}
 
 // Snapshot every operand evaluated before the call `expression` whose value
 // reads `place`, which the call's operand `lender` lends exclusively.
@@ -45,7 +96,7 @@ crashes Trap
 
     state operand(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, place: u64 in Trapping, offset: u64 in Trapping) {
         let handle: u64 in Trapping = Checker::operand(syntax, expression, offset);
-        Checker::snapshot_node(checker, typing, handle, lender, place);
+        Checker::snapshot_tree(checker, syntax, typing, handle, lender, place);
         transition { _ -> own(checker, syntax, typing, expression, lender, place, offset + 1) }
     }
 
@@ -61,11 +112,36 @@ crashes Trap
 
     state pending(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, lender: u64 in Trapping, place: u64 in Trapping, root: u64 in Trapping) {
         let tree: Expression = SyntaxTrees::expression(syntax, root);
-        Checker::snapshot_node(checker, typing, root, lender, place);
+        Checker::snapshot_tree(checker, syntax, typing, root, lender, place);
         transition tree.first_row > checker.tree_low {
             true -> pending(checker, syntax, typing, lender, place, tree.first_row - 1)
             _ -> done()
         }
+    }
+
+    state done() {}
+}
+
+// Facts may later inspect a completed operand's children: assuming a
+// comparison uses its two reads, even after the comparison itself became a
+// Boolean. Capture every evaluated descendant, not just the operand root.
+// The caller supplies completed subtrees only; later nodes have no values.
+machine Checker::snapshot_tree(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping)
+crashes Trap
+{
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    transition { _ -> node(checker, typing, root, lender, place, tree.first_row) }
+
+    state node(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, handle: u64 in Trapping) {
+        transition handle <= root {
+            true -> captured(checker, typing, root, lender, place, handle)
+            _ -> done()
+        }
+    }
+
+    state captured(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, handle: u64 in Trapping) {
+        Checker::snapshot_node(checker, typing, handle, lender, place);
+        transition { _ -> node(checker, typing, root, lender, place, handle + 1) }
     }
 
     state done() {}
@@ -84,7 +160,9 @@ crashes Trap
     state evaluated(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, offset: u64 in Trapping) {
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let row: TypeRow = TypeTable::row(&typing.types, type_handle);
-        transition offset < checker.tree_size && row.kind != TypeKind::Reference {
+        let adaptation: Adaptation = Typing::adaptation(typing, handle);
+        let read: bool = row.kind != TypeKind::Reference || adaptation == Adaptation::Read;
+        transition offset < checker.tree_size && read {
             true -> valued(checker, typing, handle, lender, place, type_handle, row)
             _ -> done()
         }

@@ -431,6 +431,7 @@ crashes Trap
     }
 
     state single(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping, selector: u64 in Trapping) {
+        Typer::record_scalar_read(typer, expression.right, selector);
         transition collection > 0 && selector > 0 {
             true -> typed(typer, syntax, index, expression, collection, selector)
             _ -> not_a_value(typer, expression)
@@ -693,6 +694,7 @@ crashes Trap
     }
 
     state not(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        Typer::record_scalar_read(typer, expression.left, operand);
         Typing::set_expression_type(&mut typer.output, index, operand);
         transition operand == typer.output.boolean {
             true -> done()
@@ -701,6 +703,7 @@ crashes Trap
     }
 
     state negate(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        Typer::record_scalar_read(typer, expression.left, operand);
         let signed_integer: bool = Typer::signed_type(typer, operand);
         let float: bool = Typer::float_like(typer, operand);
         let signed: bool = signed_integer || float;
@@ -725,6 +728,7 @@ crashes Trap
     }
 
     state complement(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        Typer::record_scalar_read(typer, expression.left, operand);
         let integer: bool = Typer::integer_type(typer, operand);
         Typing::set_expression_type(&mut typer.output, index, operand);
         transition integer {
@@ -929,6 +933,8 @@ crashes Trap
     }
 
     state builtin(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        Typer::record_scalar_read(typer, expression.left, left);
+        Typer::record_scalar_read(typer, expression.right, right);
         transition expression.operator {
             OperatorKind::Or -> logical(typer, index, expression, left, right)
             OperatorKind::And -> logical(typer, index, expression, left, right)
@@ -1263,6 +1269,7 @@ crashes Trap
     let written: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
     let target: u64 in Trapping = Typing::reference_type(&typer.output, expression.type_reference);
     let source: u64 in Trapping = Typer::cast_source(typer, written, target);
+    Typer::record_scalar_read(typer, expression.left, source);
     let target_integer: bool = Typer::integer_type(typer, target);
     let source_integer: bool = Typer::integer_type(typer, source);
     Typing::set_expression_type(&mut typer.output, index, target);
@@ -1324,6 +1331,26 @@ crashes Trap
 
     state out_of_range(typer: &mut Typer, expression: Expression) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::LiteralOutOfRange, expression.source_span);
+    }
+
+    state done() {}
+}
+
+// Builtin operators and selectors consume scalars just as admission to a
+// scalar parameter does. Preserve that use on the operand: its written
+// reference type still describes live storage, while Read marks the value
+// captured here before a later operand can mutate the referent.
+machine Typer::record_scalar_read(typer: &mut Typer, expression: u64 in Trapping, read: u64 in Trapping)
+crashes Trap
+{
+    let written: u64 in Trapping = Typing::expression_type(&typer.output, expression);
+    transition written != read {
+        true -> recorded(typer, expression)
+        _ -> done()
+    }
+
+    state recorded(typer: &mut Typer, expression: u64 in Trapping) {
+        Typing::set_adaptation(&mut typer.output, expression, Adaptation::Read);
     }
 
     state done() {}
