@@ -20,7 +20,7 @@ use omega::language::core::float_operations;
 pub domain [u8]::CString(bytes)
 requires
     no_nul(bytes);
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 pub boundary trait ObjectiveC {

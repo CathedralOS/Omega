@@ -7,7 +7,7 @@
 // position, proof-machine applications await unfolding) still fences
 // with the N3 pointer (fail/proofs/structural_ensures_unjudged_rejected).
 use omega::language::core::nat;
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Console { main.console.exit_process(70); }

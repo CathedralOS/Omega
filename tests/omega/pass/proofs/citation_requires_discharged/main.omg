@@ -4,7 +4,7 @@
 // minus is unlicensed/opaque, so only minus_swap's injected ensures links
 // minus(x, z) to minus(y, z). RUNS exit 70.
 use omega::language::core::nat;
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Console { main.console.exit_process(70); }

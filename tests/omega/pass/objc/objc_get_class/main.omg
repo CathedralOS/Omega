@@ -11,7 +11,7 @@
 pub domain [u8]::ClassName(bytes)
 requires
     no_nul(bytes);
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 pub boundary trait ObjectiveC {
