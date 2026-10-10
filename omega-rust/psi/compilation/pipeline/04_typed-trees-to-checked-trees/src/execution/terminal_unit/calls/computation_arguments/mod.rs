@@ -83,6 +83,7 @@ pub(crate) fn structural_computation_argument(
             state,
             call,
             &place,
+            &place,
             target.type_reference,
         );
     }
@@ -872,16 +873,22 @@ fn plain_primitive_referent(
     program.primitive_type_reference(*referee)
 }
 
+/// Bind the resolved storage home while retaining the authored access occurrence.
+/// An erased reference alias names the same home, but its declaration is a
+/// descriptor rather than the primitive owner. Using that descriptor for the
+/// storage/type lookup rejects valid reborrows; using the owner for access would
+/// instead lose the exact loan that authorizes the call.
 pub(super) fn primitive_local_argument(
     program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
-    place: &validation::CanonicalPlace,
+    storage: &validation::CanonicalPlace,
+    access_place: &validation::CanonicalPlace,
     target_type: TypeReferenceHandle,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let symbol = place.root.as_symbol()?;
+    let symbol = storage.root.as_symbol()?;
     let local = super::super::structural_scalar_store::primitive_local_before(
         program,
         state,
@@ -895,12 +902,12 @@ pub(super) fn primitive_local_argument(
         machine,
         state.symbol,
         call,
-        place,
+        access_place,
         target_access,
         &[],
     )?;
     let type_identity = base_type_identity(program, target_type, &[])?;
-    if !place.segments.is_empty()
+    if !storage.segments.is_empty()
         || target_access == CheckedStructuralAccess::Owned
         || access != target_access
         || base_type_identity(program, local.type_reference, &[])? != type_identity

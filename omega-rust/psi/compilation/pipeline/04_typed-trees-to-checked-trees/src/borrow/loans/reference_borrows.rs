@@ -37,7 +37,6 @@ pub(super) fn reference_local_borrow_loans(
     machine_symbol: SymbolHandle,
     local_data: &checked_trees::statement::TableLocalData,
     loan_trackers: &[StateLoanTracker],
-    allow_direct_reborrow_lineage: bool,
 ) -> Vec<StatementBorrowLoan> {
     let Some(local_access) = reference_borrow_access_kind(program, local_data.type_reference)
         .or_else(|| {
@@ -94,7 +93,6 @@ pub(super) fn reference_local_borrow_loans(
         local_data,
     );
     let explicit_reborrow_target = direct_reborrow_target(program, local_data.initial_value);
-    let is_explicit_reborrow = explicit_reborrow_target.is_some();
     // A call result keeps direct provenance only when its declared view
     // source resolves to storage carrying no live local loan: the callee
     // signature already names the exact parameter or receiver the return
@@ -105,23 +103,6 @@ pub(super) fn reference_local_borrow_loans(
     // local loan still stays derived below -- a call transfer never gains
     // reborrow ancestry. Non-borrow recast casts remain deliberately
     // unretained in every case.
-    let call_declares_direct_source = match program
-        .expression_table
-        .expression(local_data.initial_value)
-    {
-        checked_trees::expression::ExpressionNode::Call(call) => {
-            call_declares_direct_view_source(program, call.target_symbol)
-        }
-        _ => false,
-    };
-    let force_unretained = matches!(
-        program
-            .expression_table
-            .expression(local_data.initial_value),
-        checked_trees::expression::ExpressionNode::Cast(_)
-            | checked_trees::expression::ExpressionNode::Call(_)
-    ) && !call_declares_direct_source
-        && !is_explicit_reborrow;
     let explicit_reborrow_place = explicit_reborrow_target.and_then(|target| {
         whole_place_recast_borrow_place(
             program,
@@ -254,10 +235,10 @@ pub(super) fn reference_local_borrow_loans(
             source_owner_symbol: source.source_owner_symbol,
             supplying_loan: Default::default(),
             lineage: retained_reference_lineage(
+                program,
+                local_data.initial_value,
                 source,
                 &rebased,
-                allow_direct_reborrow_lineage && is_explicit_reborrow,
-                force_unretained,
             ),
             kind: local_access.clone(),
             call_result: is_call_result,
@@ -310,7 +291,7 @@ pub(super) fn selected_arm_borrow_loans(
                     place: source.place.clone(),
                     source_owner_symbol: source.source_owner_symbol,
                     supplying_loan: Default::default(),
-                    lineage: retained_reference_lineage(source, &rebased, false, false),
+                    lineage: retained_reference_lineage(program, arm.value, source, &rebased),
                     kind: kind.clone(),
                     call_result: false,
                 })

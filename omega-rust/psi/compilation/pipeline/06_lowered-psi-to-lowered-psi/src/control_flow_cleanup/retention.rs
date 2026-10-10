@@ -107,10 +107,15 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     }
     for plan in &module.suspension_call_plans {
         evidence.operations.insert(plan.operation);
-        for live in &plan.live_values {
-            live.place.visit_value_ids(|value| {
-                evidence.values.insert(value);
-            });
+        plan.visit_value_ids(|value| {
+            evidence.values.insert(value);
+        });
+        for (_, loan) in plan.loans.occurrences.iter() {
+            if let terminal_psi::TerminalSuspensionLoanCapture::Reference { formation, .. } =
+                loan.capture
+            {
+                evidence.operations.insert(formation);
+            }
         }
     }
     for call in &module.proof_output_calls {

@@ -29,6 +29,9 @@ pub struct CarryFacts {
     /// Current call-entry loans and the occurrences supplying or parenting
     /// them. These are preservation demands, not runtime backing receipts.
     pub suspension_loans: Arena<SuspensionCrossingLoanFact>,
+    /// Per-value edges into the exact invocation's loan roster. Grouping
+    /// records complete descriptor-leaf coverage, not parking permission.
+    pub suspension_value_loans: Arena<Handle<SuspensionCrossingLoanFact>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,9 +89,13 @@ pub struct SuspensionCrossingBorrowFrontier {
 /// owns its access, captured referent, carrier path, parent and supplying-loan
 /// identities. A supplying loan transports custody; it is not a reborrow
 /// parent. Neither edge is inferred from matching storage or source labels.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SuspensionCrossingLoanFact {
     pub loan: Handle<crate::BorrowLoanFact>,
+    /// The already checked resource owns captured place, access and lifetime.
+    /// A zero resource handle denotes missing construction, not permission to
+    /// reconstruct authority from this demand's backing coordinate.
+    pub resource: crate::CheckedParentBorrowResource,
     /// False for a dependency retained solely by a current descendant. This
     /// does not reactivate an expired/replaced descriptor or restore access.
     pub active_at_call: bool,
@@ -131,6 +138,30 @@ pub struct SuspensionCrossingLiveValueFact {
     /// compiler-owned permissions still attached to this place. This may be
     /// stricter than the transparent carrier's structural policy.
     pub effective: CarryPolicy,
+    /// Source checking groups the value's existing loan occurrences or
+    /// captured actual once. Lowering consumes this join rather than guessing
+    /// from its reference type or from equal backing coordinates.
+    pub borrow_frontier: SuspensionValueBorrowFrontier,
+}
+
+/// The value's stored-leaf join or its producer-owned operand capture.
+/// Neither alternative proves lifetime/access/backing preservation.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SuspensionValueBorrowFrontier {
+    #[default]
+    Unresolved,
+    ViewFree,
+    RetainedLoans {
+        /// These edges name this call's retained occurrences, including their
+        /// backing and resource join, rather than the historical loan arena.
+        loans: HandleSpan<Handle<SuspensionCrossingLoanFact>>,
+    },
+    CapturedOperand {
+        /// The actual's original evaluation epoch, including constructed
+        /// children. Presence does not establish complete borrowed-leaf
+        /// coverage or permit substitution of a later named descriptor.
+        operand: Handle<crate::FlowOperandFact>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

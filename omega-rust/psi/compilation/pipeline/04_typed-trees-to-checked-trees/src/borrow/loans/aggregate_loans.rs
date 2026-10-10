@@ -60,7 +60,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     match initializer.kind {
-        BorrowedInitializerKind::Reference { is_mutable } => {
+        BorrowedInitializerKind::Reference { access } => {
             if let Some(mut loans) = super::returned_carriers::result_loans(
                 program,
                 state_symbol,
@@ -71,12 +71,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                 &initializer.owner_path,
                 loan_trackers,
             ) {
-                if !is_mutable {
-                    super::returned_carriers::attenuate(
-                        &mut loans,
-                        &checked_trees::BorrowAccessKind::Read,
-                    );
-                }
+                super::returned_carriers::attenuate(&mut loans, &super::borrow_access_kind(access));
                 return loans;
             }
             // Aggregate leaves obey the same source-selection law as call
@@ -92,22 +87,24 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
             ) else {
                 return Vec::new();
             };
-            rebase_borrow_places_through_local_loans(program, place, loan_trackers)
-                .into_iter()
+            let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+            rebased
+                .iter()
                 .map(|source| StatementBorrowLoan {
                     formation_expression: initializer.expression,
                     owner_symbol: local_data.symbol,
                     owner_name: local_data.name.clone(),
                     owner_path: initializer.owner_path.clone(),
-                    place: source.place,
+                    place: source.place.clone(),
                     source_owner_symbol: source.source_owner_symbol,
                     supplying_loan: Default::default(),
-                    lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
-                    kind: if is_mutable {
-                        checked_trees::BorrowAccessKind::Mutable
-                    } else {
-                        checked_trees::BorrowAccessKind::Read
-                    },
+                    lineage: retained_reference_lineage(
+                        program,
+                        initializer.expression,
+                        source,
+                        &rebased,
+                    ),
+                    kind: super::borrow_access_kind(access),
                     call_result: false,
                 })
                 .collect()
@@ -162,17 +159,18 @@ pub(super) fn aggregate_expression_borrow_loans(
             ) else {
                 return Vec::new();
             };
-            rebase_borrow_places_through_local_loans(program, place, loan_trackers)
-                .into_iter()
+            let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+            rebased
+                .iter()
                 .map(|source| StatementBorrowLoan {
                     formation_expression: expression,
                     owner_symbol: local_data.symbol,
                     owner_name: local_data.name.clone(),
                     owner_path: owner_path_prefix.to_vec(),
-                    place: source.place,
+                    place: source.place.clone(),
                     source_owner_symbol: source.source_owner_symbol,
                     supplying_loan: Default::default(),
-                    lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
+                    lineage: retained_reference_lineage(program, expression, source, &rebased),
                     kind: if is_mutably_borrow_carrying_data(program, type_reference) {
                         checked_trees::BorrowAccessKind::Mutable
                     } else {
@@ -314,10 +312,12 @@ pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
             ) else {
                 return Vec::new();
             };
-            rebase_borrow_places_through_local_loans(program, place, loan_trackers)
-                .into_iter()
-                .map(|mut source| {
-                    source.place.segments.extend_from_slice(&projection);
+            let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+            rebased
+                .iter()
+                .map(|source| {
+                    let mut place = source.place.clone();
+                    place.segments.extend_from_slice(&projection);
                     let mut owner_path = owner_path_prefix.to_vec();
                     owner_path.extend(field.owner_path.iter().copied());
                     StatementBorrowLoan {
@@ -325,10 +325,10 @@ pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
                         owner_symbol: local_data.symbol,
                         owner_name: local_data.name.clone(),
                         owner_path,
-                        place: source.place,
+                        place,
                         source_owner_symbol: source.source_owner_symbol,
                         supplying_loan: Default::default(),
-                        lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
+                        lineage: retained_reference_lineage(program, argument, source, &rebased),
                         kind: field.kind.clone(),
                         call_result: false,
                     }

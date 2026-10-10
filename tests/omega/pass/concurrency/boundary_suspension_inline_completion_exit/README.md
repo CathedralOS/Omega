@@ -24,12 +24,12 @@ not evidence of parking, concurrency, cancellation or task settlement.
 
 ## Retained-loan implementation frontier
 
-To reproduce the next missing capability without changing the provider, add
-`let loan: &i32 = &addressed;` after `observed`, add
-`let retained_observation: bool = observe(loan);` after the suspending call,
-and require `retained_observation` in the final guard. The same run command
-currently refuses the call because `loan` has the fully strict carry policy.
-The working fixture deliberately keeps its loans within completed helper calls.
+`runtime_retained_reference_boundary_exit` pins a retained local reference and
+two borrowed leaves in a generic carrier without changing the inline provider.
+Source admission closes their actual owned backing and enclosing-invocation
+resources before judging carry. The next missing joins concern incoming
+referents and complete captured-actual leaf coverage, not a blanket ban on
+reference descriptors.
 
 The repair needs one per-value loan-to-backing join, not a permissive reference
 type or an exception for an inline provider. Checked `BorrowLoanFact` rows
@@ -48,12 +48,11 @@ only by the incomplete callee, without a later caller use or named descriptor.
 Both sources enter the same backing-liveness closure; the capture tree is not
 re-evaluated at invocation.
 Incoming referents stay distinct from the parameter slots holding descriptors.
-These checked demands are not yet a preservation proof or a canonical Terminal
-loan graph. Activation-wide analysis in stage 04 still assigns
-every borrow formation a strict CPU/thread contribution. Carry the loan
-lineage and lifetime obligations into the canonical frontier and activation
-envelope before relaxing admission; runtime backing, preservation and
-cancellation joins remain separate requirements.
+The canonical Terminal graph keeps formation captures, backing, access,
+parentage and supplier transport. These are demands, not a preservation proof.
+Activation-wide analysis in stage 04 keeps borrow formation's strict CPU/thread
+contribution. Runtime backing, preservation and cancellation joins remain
+separate requirements.
 
 `fail/concurrency/suspend_reference_permission_without_backing` also refuses
 descriptor carry permissions that would otherwise bypass this missing join,

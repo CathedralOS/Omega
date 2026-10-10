@@ -15,6 +15,7 @@ pub(super) struct CarryDerivation<'program> {
     )>,
     visiting: Vec<symbols::SymbolHandle>,
     requires_borrow_preservation: bool,
+    borrow_independent: language_semantics::CarryPolicy,
 }
 
 impl<'program> CarryDerivation<'program> {
@@ -41,6 +42,7 @@ impl<'program> CarryDerivation<'program> {
             substitutions: Vec::new(),
             visiting: Vec::new(),
             requires_borrow_preservation: false,
+            borrow_independent: language_semantics::CarryPolicy::PERMISSIVE,
         }
     }
 
@@ -51,6 +53,7 @@ impl<'program> CarryDerivation<'program> {
         let structural = self.derive(type_reference);
         super::TypeCarryRequirements {
             structural,
+            borrow_independent: self.borrow_independent,
             requires_borrow_preservation: self.requires_borrow_preservation,
         }
     }
@@ -105,6 +108,7 @@ impl<'program> CarryDerivation<'program> {
                     if policy.suspension == language_semantics::CarrySuspension::Forbidden {
                         self.requires_borrow_preservation = true;
                     }
+                    self.borrow_independent = self.borrow_independent.intersect(*policy);
                     return *policy;
                 }
                 self.derive_named_data(symbol, name.as_str(), None)
@@ -149,7 +153,10 @@ impl<'program> CarryDerivation<'program> {
                 self.requires_borrow_preservation = true;
                 CarryPolicy::STRICT
             }
-            TypeReferenceNode::DynamicTrait { .. } => CarryPolicy::STRICT,
+            TypeReferenceNode::DynamicTrait { .. } => {
+                self.borrow_independent = self.borrow_independent.intersect(CarryPolicy::STRICT);
+                CarryPolicy::STRICT
+            }
         }
     }
 
@@ -165,6 +172,7 @@ impl<'program> CarryDerivation<'program> {
             (symbol.is_valid() && definition.symbol == symbol)
                 || (!symbol.is_valid() && definition.name.as_str() == name)
         }) else {
+            self.borrow_independent = self.borrow_independent.intersect(CarryPolicy::STRICT);
             return CarryPolicy::STRICT;
         };
         // Missing representation is not an empty record. This applies equally
@@ -172,6 +180,7 @@ impl<'program> CarryDerivation<'program> {
         if definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
             || self.visiting.contains(&definition.symbol)
         {
+            self.borrow_independent = self.borrow_independent.intersect(CarryPolicy::STRICT);
             return CarryPolicy::STRICT;
         }
 
@@ -211,6 +220,10 @@ impl<'program> CarryDerivation<'program> {
             .properties
             .carry
             .unwrap_or(CarryPolicy::PERMISSIVE);
+        // All visited stored shapes contribute to the same meet. A view's
+        // conservative fence is separate; explicit floors and unknown shapes
+        // still contribute even when a descendant's loan can be preserved.
+        self.borrow_independent = self.borrow_independent.intersect(effective);
         for field_type in field_types {
             effective = effective.intersect(self.derive(field_type));
         }

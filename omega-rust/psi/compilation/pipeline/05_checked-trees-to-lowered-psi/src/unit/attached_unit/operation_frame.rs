@@ -280,10 +280,11 @@ impl OperationFrame<'_, '_> {
                 self.establish_structural_local(operation)
             }
             CheckedUnitEffectOperationPlan::EstablishReference {
+                formation_expression,
                 result,
                 source,
                 storage,
-            } => self.establish_reference(result, source, *storage),
+            } => self.establish_reference(*formation_expression, result, source, *storage),
             CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
                 self.release_reference(operation)
             }
@@ -299,6 +300,7 @@ impl OperationFrame<'_, '_> {
     /// all rejoin it by ordinal.
     fn establish_reference(
         &mut self,
+        formation_expression: checked_trees::expression::ExpressionHandle,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
         storage: checked_trees::CheckedReferenceStorage,
@@ -384,6 +386,12 @@ impl OperationFrame<'_, '_> {
             }
         };
         let declaration = reference_results::emit(
+            reference_results::Formation {
+                checked: self.checked,
+                state: self.state,
+                statement_index: result.statement_index as usize,
+                expression: formation_expression,
+            },
             result,
             argument,
             storage,

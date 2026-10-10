@@ -168,14 +168,17 @@ pub fn is_reference_record(
         seen.pop();
         Some(contains_reference)
     }
-    // A bare exclusive leaf — `&mut` over a primitive or named referent — is
+    // A bare exclusive leaf — mutable or write-only over a nominal referent — is
     // its own custody family, not a record, so the classifier stays out.
     // A shared `&T` borrow has no such family: it has always counted as
     // reference-bearing here, and the discarded-result and admission gates
     // rely on that classification.
-    parts(program, reference).is_none()
-        && stored_mutable_parts(program, reference).is_none()
-        && visit(program, reference, &mut Vec::new()) == Some(true)
+    !stored_loan_parts(program, reference).is_some_and(|(_, access)| {
+        matches!(
+            access,
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+        )
+    }) && visit(program, reference, &mut Vec::new()) == Some(true)
 }
 
 /// Reconstruct a leaf's exact formal ingress. Structural parameter ordinals
@@ -2188,28 +2191,11 @@ pub fn parts(
     Some((*referee, CheckedStructuralAccess::MutableBorrow))
 }
 
-/// The referee beneath an exclusive `&mut T` stored leaf whose referent is a
-/// `Named` declaration — primitive or record. `parts` keeps its
-/// primitive-only reference-result shape for the whole-return family; a
-/// record member or stored leaf admits a record referent under the same
-/// exclusive loan because a `&mut Record` names caller-frame storage just
-/// as a `&mut u8` does. Slice views and unclassified referees stay out:
-/// `&mut [T]` is a view descriptor, not a stored loan leaf.
-fn stored_mutable_parts(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-    mutable_borrowed_parts(program, reference).filter(|(referee, _)| {
-        matches!(
-            program.type_reference_table.type_reference(*referee),
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-        )
-    })
-}
-
-/// One stored carrier leaf's (referent, access): an exclusive `&mut` loan
-/// over a named referent or a shared `&` borrow — the two leaf families a
-/// reference record carries. Every consumer of the leaf family — the
+/// One stored carrier leaf's referent and exact access. Shared, mutable and
+/// write-only loans use the same nominal storage relation; access remains
+/// independent of the descriptor's representation. Slice views and
+/// unclassified referees remain outside this stored-leaf operation.
+/// Every consumer of the leaf family — the
 /// reference-record classifier, ingress reconstruction, construction-source
 /// rosters and formal forwarding — asks this one question so the admitted
 /// shape never drifts between them.
@@ -2217,9 +2203,14 @@ pub fn stored_loan_parts(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-    parts(program, reference)
-        .or_else(|| shared_borrowed_parts(program, reference))
-        .or_else(|| stored_mutable_parts(program, reference))
+    crate::reference_shell(program, reference)
+        .filter(|shell| {
+            matches!(
+                program.type_reference_table.type_reference(shell.referee),
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+            )
+        })
+        .map(|shell| (shell.referee, shell.access.into()))
 }
 
 /// The referee beneath any `&mut T` carrier, with constraint shells peeled.

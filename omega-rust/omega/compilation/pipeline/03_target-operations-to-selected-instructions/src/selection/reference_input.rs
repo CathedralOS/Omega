@@ -91,10 +91,16 @@ pub(super) fn establishment(
     else {
         return None;
     };
-    if !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!())
+    // Formation captures an address; it does not read the lent bytes. A
+    // write-only loan therefore forms the same descriptor while retaining
+    // its exact access. Only mutable access can attenuate to another kind.
+    if source.access == StructuralAccess::Owned
         || !(access == source.access
-            || access == StructuralAccess::SharedBorrow
-                && source.access == StructuralAccess::MutableBorrow)
+            || source.access == StructuralAccess::MutableBorrow
+                && matches!(
+                    access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                ))
     {
         return None;
     }

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 0.2, "load1_start": 0.22, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 16.8, "load1_start": 15.95, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -876,8 +876,27 @@ fail/concurrency/suspend_explicit_parameter_field_rejected rejected 578ms expect
 	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier
 fail/concurrency/suspend_later_operand_rejected rejected 138ms expected @c08960bee2b1+wt
 	suspending call to `park` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning
-fail/concurrency/suspend_live_value_rejected rejected 251ms expected @c08960bee2b1+wt
-	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier
+fail/concurrency/suspend_live_value_rejected rejected 919ms expected @1eb6badd8c99+wt
+	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
+fail/concurrency/suspend_reference_permission_without_backing rejected 1132ms expected @1eb6badd8c99+wt
+	call to `park` may suspend while `loan` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
+	call to `park` may suspend while `carrier` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
+	call to `park` may suspend while `view` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
+	call to `park_with` may suspend while `argument` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
+	call to `park` may suspend while `unknown` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
+fail/concurrency/suspend_retained_loan_conflicting_backing_write rejected 972ms expected @1eb6badd8c99+wt
+	statement 3 mutates `backing` while local borrow `retained` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+fail/concurrency/suspend_with_indirect_resource_backing rejected 1092ms expected @1eb6badd8c99+wt
+	call to `park` may suspend while `owned_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `direct_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `current_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `aggregate_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `nested_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `forwarded` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
+	call to `inspect` may suspend while `&call_only_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
+	call to `inspect` may suspend while `call_only_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `inspect_carrier` may suspend while `Envelope` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
+	call to `inspect_carrier` may suspend while `constructed_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/constants/affine_rational_named_constant rejected 612ms expected @2d8ed253669f
 	constant type must permit copying and contain no cleanup, shared ownership, or interior mutability
 fail/constants/const_shadows_case rejected 73ms expected @2d8ed253669f
@@ -3177,7 +3196,10 @@ pass/comptime/runtime_const_array_length_dependency_order_exit checked 9463ms ch
 pass/comptime/runtime_const_array_length_transitive_exit checked 1369ms check-target:macos_arm64 @2d8ed253669f
 pass/comptime/runtime_const_measured_recursion_exit checked 1661ms check-target:macos_arm64 @2d8ed253669f
 pass/comptime/selected_float_array_length_exit checked 6077ms check-target:macos_arm64 @2d8ed253669f
+pass/concurrency/boundary_suspension_inline_completion_exit checked 7077ms check-target:macos_arm64 @1eb6badd8c99+wt
+pass/concurrency/runtime_retained_reference_boundary_exit checked 7065ms check-target:macos_arm64 @1eb6badd8c99+wt
 pass/concurrency/runtime_suspension_repeated_actual_exit checked 3393ms check-target:macos_arm64 @874082e31128+wt
+pass/concurrency/runtime_zero_extent_carry_exit checked 7122ms check-target:macos_arm64 @1eb6badd8c99+wt
 pass/concurrency/suspend_after_last_use_compile checked 304ms @2d8ed253669f
 pass/concurrency/suspend_explicit_parameter_after_last_use checked 654ms @c4e692442075+wt
 pass/constants/lexical_aggregate_values checked 312ms @2d8ed253669f

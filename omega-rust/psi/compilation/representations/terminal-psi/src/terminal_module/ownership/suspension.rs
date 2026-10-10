@@ -6,6 +6,7 @@
 //! backing lifetime and runtime preservation still require their own joins.
 
 use crate::{StructuralAccess, StructuralArgument, StructuralPathSegment};
+use arena::{Arena, Handle, HandleSpan};
 use language_semantics::CarryPolicy;
 use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, IeeeFloatFormat, IntegerCarrier, IntegerSign, MachineId,
@@ -20,7 +21,7 @@ pub struct TerminalSuspensionCallSite {
     pub frontier_commitment: [u8; 32],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalSuspensionCallPlan {
     pub operation: OperationId,
     pub crossing: SuspensionCrossingId,
@@ -33,6 +34,94 @@ pub struct TerminalSuspensionCallPlan {
     /// Distinct actual positions may retain the same storage; each occurrence
     /// keeps its claims and policy and contributes to the committed count.
     pub live_values: Vec<TerminalSuspensionLiveValue>,
+    /// Source-free occurrence, capture and backing relationships. This is a
+    /// retention demand; the runtime still owes physical preservation.
+    pub loans: TerminalSuspensionLoans,
+}
+
+/// Each crossing owns its loan namespace. Parentage and transport remain
+/// distinct even when the two occurrences denote pointer-equivalent storage.
+/// Durable child paths and value-to-loan edges live in these arenas.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TerminalSuspensionLoans {
+    pub occurrences: Arena<TerminalSuspensionLoan>,
+    pub paths: Arena<StructuralPathSegment>,
+    pub value_links: Arena<Handle<TerminalSuspensionLoan>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalSuspensionLoan {
+    pub capture: TerminalSuspensionLoanCapture,
+    pub backing: TerminalSuspensionLoanBacking,
+    pub resource: TerminalSuspensionLoanResource,
+    pub parent: Handle<TerminalSuspensionLoan>,
+    pub supplier: Handle<TerminalSuspensionLoan>,
+    pub access: StructuralAccess,
+    /// A retired dependency remains constrained by its descendant. This flag
+    /// never reactivates that dependency's descriptor or restores access.
+    pub active_at_call: bool,
+}
+
+impl Default for TerminalSuspensionLoan {
+    fn default() -> Self {
+        Self {
+            capture: Default::default(),
+            backing: Default::default(),
+            resource: Default::default(),
+            parent: Handle::invalid(),
+            supplier: Handle::invalid(),
+            access: StructuralAccess::SharedBorrow,
+            active_at_call: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TerminalSuspensionLoanResource {
+    #[default]
+    Unresolved,
+    DirectRoot,
+    Reborrow,
+}
+
+/// The address captured by the named operation, not a path to reevaluate at
+/// the crossing. The carrier and its selector dependencies must remain in the
+/// activation's nonmoving backing while the call is incomplete. No retirement,
+/// restoration or cancellation settlement is implied by retaining this row.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum TerminalSuspensionLoanCapture {
+    #[default]
+    Unresolved,
+    Reference {
+        formation: OperationId,
+        carrier: semantic_vocabulary::PlaceId,
+        source: semantic_vocabulary::PlaceId,
+        source_access: StructuralAccess,
+        source_path: HandleSpan<StructuralPathSegment>,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum TerminalSuspensionLoanBacking {
+    #[default]
+    Unresolved,
+    /// Canonical live-value roster index of the retained owner. Its enclosing
+    /// activation lifetime covers the incomplete call, never a descriptor slot
+    /// standing in for an incoming referent.
+    RetainedOwner { live_value: u32 },
+    /// The call's incoming referent namespace. The argument is an ingress
+    /// coordinate, not proof that its descriptor owns or pins that storage.
+    IncomingReferent { argument: StructuralArgument },
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TerminalSuspensionValueLoans {
+    #[default]
+    Unresolved,
+    ViewFree,
+    Retained {
+        links: HandleSpan<Handle<TerminalSuspensionLoan>>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -41,7 +130,7 @@ pub enum TerminalSuspensionCallTarget {
     Boundary(BoundaryMachineId),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalSuspensionLiveValue {
     pub place: TerminalSuspensionPlace,
     pub value_type: TerminalSuspensionValueType,
@@ -50,6 +139,7 @@ pub struct TerminalSuspensionLiveValue {
     pub claim_count: u32,
     pub claims: Vec<ClaimId>,
     pub effective: CarryPolicy,
+    pub loans: TerminalSuspensionValueLoans,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -93,7 +183,7 @@ pub enum TerminalSuspensionStorage {
 
 pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8; 32] {
     let mut hash =
-        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v4\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v5\0");
     hash.raw(&plan.operation.get().to_le_bytes());
     hash.raw(&plan.crossing.get().to_le_bytes());
     match plan.target {
@@ -118,40 +208,10 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
             TerminalSuspensionPlace::Structural(argument) => {
                 hash.byte(2);
                 hash.raw(&argument.place.get().to_le_bytes());
-                hash.byte(match argument.access {
-                    StructuralAccess::Owned => 1,
-                    StructuralAccess::SharedBorrow => 2,
-                    StructuralAccess::MutableBorrow => 3,
-                    StructuralAccess::WriteOnlyBorrow => 4,
-                });
+                hash_access(&mut hash, argument.access);
                 hash.u64(argument.path.len() as u64);
                 for segment in &argument.path {
-                    match segment {
-                        StructuralPathSegment::Case(case) => {
-                            hash.byte(7);
-                            hash.raw(&case.get().to_le_bytes());
-                        }
-                        StructuralPathSegment::Field(field) => {
-                            hash.byte(1);
-                            hash.u64(field.len() as u64);
-                            hash.raw(field.as_bytes());
-                        }
-                        StructuralPathSegment::FixedIndex(index) => {
-                            hash.byte(2);
-                            hash.raw(&index.to_le_bytes());
-                        }
-                        StructuralPathSegment::Referent => hash.byte(3),
-                        StructuralPathSegment::FixedByteRange { start, end } => {
-                            hash.byte(4);
-                            hash.raw(&start.to_le_bytes());
-                            hash.raw(&end.to_le_bytes());
-                        }
-                        StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                            hash.byte(5);
-                            hash.raw(&index.get().to_le_bytes());
-                            hash.raw(&obligation.get().to_le_bytes());
-                        }
-                    }
+                    hash_loan_path_segment(&mut hash, segment);
                 }
             }
         }
@@ -176,8 +236,151 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
             hash.raw(&claim.get().to_le_bytes());
         }
         hash_carry_policy(&mut hash, live.effective);
+        match live.loans {
+            TerminalSuspensionValueLoans::Unresolved => hash.byte(0),
+            TerminalSuspensionValueLoans::ViewFree => hash.byte(1),
+            TerminalSuspensionValueLoans::Retained { links } => {
+                hash.byte(2);
+                hash_span(&mut hash, links);
+            }
+        }
     }
+    hash_loans(&mut hash, &plan.loans);
     hash.finish()
+}
+
+impl TerminalSuspensionCallPlan {
+    /// Captured selectors are uses of their formation-time values even when
+    /// the later call no longer names those values in its ordinary operands.
+    pub fn visit_value_ids(&self, mut visit: impl FnMut(ValueId)) {
+        for live in &self.live_values {
+            live.place.visit_value_ids(&mut visit);
+        }
+        for (_, path) in self.loans.paths.iter() {
+            if let StructuralPathSegment::RuntimeIndex { index, .. } = path {
+                visit(*index);
+            }
+        }
+        for (_, loan) in self.loans.occurrences.iter() {
+            if let TerminalSuspensionLoanBacking::IncomingReferent { argument } = &loan.backing {
+                for segment in &argument.path {
+                    if let StructuralPathSegment::RuntimeIndex { index, .. } = segment {
+                        visit(*index);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn hash_handle<T>(hash: &mut crate::digest_encoder::DomainDigestEncoder, handle: Handle<T>) {
+    hash.raw(&handle.arena_index().to_le_bytes());
+    hash.raw(&handle.generation().to_le_bytes());
+}
+
+fn hash_span<T>(hash: &mut crate::digest_encoder::DomainDigestEncoder, span: HandleSpan<T>) {
+    hash_handle(hash, span.start());
+    hash.raw(&span.count().to_le_bytes());
+}
+
+fn hash_loans(
+    hash: &mut crate::digest_encoder::DomainDigestEncoder,
+    loans: &TerminalSuspensionLoans,
+) {
+    hash.u64(loans.paths.len() as u64);
+    for (_, segment) in loans.paths.iter() {
+        hash_loan_path_segment(hash, segment);
+    }
+    hash.u64(loans.value_links.len() as u64);
+    for (_, link) in loans.value_links.iter() {
+        hash_handle(hash, *link);
+    }
+    hash.u64(loans.occurrences.len() as u64);
+    for (_, loan) in loans.occurrences.iter() {
+        match &loan.capture {
+            TerminalSuspensionLoanCapture::Unresolved => hash.byte(0),
+            TerminalSuspensionLoanCapture::Reference {
+                formation,
+                carrier,
+                source,
+                source_access,
+                source_path,
+            } => {
+                hash.byte(1);
+                hash.raw(&formation.get().to_le_bytes());
+                hash.raw(&carrier.get().to_le_bytes());
+                hash.raw(&source.get().to_le_bytes());
+                hash_access(hash, *source_access);
+                hash_span(hash, *source_path);
+            }
+        }
+        match &loan.backing {
+            TerminalSuspensionLoanBacking::Unresolved => hash.byte(0),
+            TerminalSuspensionLoanBacking::RetainedOwner { live_value } => {
+                hash.byte(1);
+                hash.raw(&live_value.to_le_bytes());
+            }
+            TerminalSuspensionLoanBacking::IncomingReferent { argument } => {
+                hash.byte(2);
+                hash.raw(&argument.place.get().to_le_bytes());
+                hash_access(hash, argument.access);
+                hash.u64(argument.path.len() as u64);
+                for segment in &argument.path {
+                    hash_loan_path_segment(hash, segment);
+                }
+            }
+        }
+        hash.byte(match loan.resource {
+            TerminalSuspensionLoanResource::Unresolved => 0,
+            TerminalSuspensionLoanResource::DirectRoot => 1,
+            TerminalSuspensionLoanResource::Reborrow => 2,
+        });
+        hash_handle(hash, loan.parent);
+        hash_handle(hash, loan.supplier);
+        hash_access(hash, loan.access);
+        hash.byte(u8::from(loan.active_at_call));
+    }
+}
+
+fn hash_access(hash: &mut crate::digest_encoder::DomainDigestEncoder, access: StructuralAccess) {
+    hash.byte(match access {
+        StructuralAccess::Owned => 1,
+        StructuralAccess::SharedBorrow => 2,
+        StructuralAccess::MutableBorrow => 3,
+        StructuralAccess::WriteOnlyBorrow => 4,
+    });
+}
+
+fn hash_loan_path_segment(
+    hash: &mut crate::digest_encoder::DomainDigestEncoder,
+    segment: &StructuralPathSegment,
+) {
+    match segment {
+        StructuralPathSegment::Case(case) => {
+            hash.byte(7);
+            hash.raw(&case.get().to_le_bytes());
+        }
+        StructuralPathSegment::Field(field) => {
+            hash.byte(1);
+            hash.u64(field.len() as u64);
+            hash.raw(field.as_bytes());
+        }
+        StructuralPathSegment::FixedIndex(index) => {
+            hash.byte(2);
+            hash.raw(&index.to_le_bytes());
+        }
+        StructuralPathSegment::Referent => hash.byte(3),
+        StructuralPathSegment::FixedByteRange { start, end } => {
+            hash.byte(4);
+            hash.raw(&start.to_le_bytes());
+            hash.raw(&end.to_le_bytes());
+        }
+        StructuralPathSegment::RuntimeIndex { index, obligation } => {
+            hash.byte(5);
+            hash.raw(&index.get().to_le_bytes());
+            hash.raw(&obligation.get().to_le_bytes());
+        }
+    }
 }
 
 fn hash_scalar_type(hash: &mut crate::digest_encoder::DomainDigestEncoder, scalar: ScalarType) {

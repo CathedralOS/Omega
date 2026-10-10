@@ -61,11 +61,9 @@ pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationSt
         }
     }
     for plan in &before.semantic_module.suspension_call_plans {
-        for value in &plan.live_values {
-            value.place.visit_value_ids(|value| {
-                retained_values.insert(value);
-            });
-        }
+        plan.visit_value_ids(|value| {
+            retained_values.insert(value);
+        });
     }
     for machine in &mut after.semantic_module.machines {
         equivalents::deduplicate(machine, &before.source_call_occurrences, &retained_values);

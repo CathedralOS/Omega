@@ -647,8 +647,11 @@ pub(crate) fn lower_unit_structural_type_roots(
                     checked_trees::CheckedStructuralAccess::SharedBorrow => {
                         StructuralAccess::SharedBorrow
                     }
-                    _ => {
-                        return unsupported("reference type has no retained mutable access");
+                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                        StructuralAccess::WriteOnlyBorrow
+                    }
+                    checked_trees::CheckedStructuralAccess::Owned => {
+                        return unsupported("reference type must retain borrowed access");
                     }
                 };
                 StructuralTypeShape::Reference {

@@ -1188,9 +1188,16 @@ impl Emission<'_, '_, '_> {
                     LoanAccess::Mutable,
                     continuation,
                 ),
-            CheckedStructuralValueKind::Reference { source } => {
-                self.reference_value(&source, continuation)
-            }
+            CheckedStructuralValueKind::Reference { source } => self.reference_value(
+                super::super::reference_results::Formation {
+                    checked: self.checked,
+                    state: node.state,
+                    statement_index: node.statement_index as usize,
+                    expression: node.expression,
+                },
+                &source,
+                continuation,
+            ),
             CheckedStructuralValueKind::Record { .. } => {
                 let place = self.record(value)?;
 

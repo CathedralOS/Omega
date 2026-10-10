@@ -10,7 +10,7 @@
 //! This graph names logical demands; it establishes no StackLease or permission
 //! to park. Incoming and unresolved actuals still require a per-value join.
 
-use arena::{Arena, Handle};
+use arena::{Arena, Handle, HandleSpan};
 use checked_trees::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, FlowCallFact, FlowFacts, StateBorrowFact,
     SuspensionCrossingBorrowFrontier, SuspensionCrossingLoanBacking, SuspensionCrossingLoanFact,
@@ -19,6 +19,130 @@ use diagnostics::Diagnostic;
 
 use super::StateCarryValue;
 
+/// Resource construction has already decided access, capture and lifetime.
+/// Build the occurrence join once for all crossings, without replaying that
+/// judgment or equating loans merely because they share backing storage.
+pub(super) fn resource_bindings(borrow: &BorrowFacts) -> Vec<LoanResourceBinding> {
+    let mut resources = Vec::new();
+    for (resource, row) in borrow.direct_loan_resources.iter() {
+        bind_resource(
+            &mut resources,
+            row.loan,
+            checked_trees::CheckedParentBorrowResource::DirectRoot { resource },
+        );
+    }
+    for (resource, row) in borrow.reborrow_loan_resources.iter() {
+        bind_resource(
+            &mut resources,
+            row.loan,
+            checked_trees::CheckedParentBorrowResource::Reborrow { resource },
+        );
+    }
+    resources
+}
+
+fn bind_resource(
+    resources: &mut Vec<LoanResourceBinding>,
+    loan: Handle<BorrowLoanFact>,
+    resource: checked_trees::CheckedParentBorrowResource,
+) {
+    let position = loan.arena_index() as usize;
+    if resources.len() <= position {
+        resources.resize_with(position + 1, Default::default);
+    }
+    resources[position] = LoanResourceBinding { loan, resource };
+}
+
+/// Construction scratch for the current checked loan generation. Slot index
+/// is a lookup coordinate, never identity: a reused slot cannot inherit the
+/// previous occurrence's resource even if its index is unchanged.
+#[derive(Default)]
+pub(super) struct LoanResourceBinding {
+    loan: Handle<BorrowLoanFact>,
+    resource: checked_trees::CheckedParentBorrowResource,
+}
+
+/// Bind a live value to its complete stored-leaf frontier, preserving the
+/// invocation's occurrence identities. A partial group is not evidence of
+/// complete coverage. Captured actuals remain their own evaluation namespace:
+/// a later operand may have replaced the named descriptor which supplied one.
+/// Lifetime, access and physical preservation still need independent joins.
+pub(super) fn value_frontier(
+    program: &dyn ::validation::CheckingInput,
+    borrow: &BorrowFacts,
+    flow: &FlowFacts,
+    frontier: &Arena<SuspensionCrossingLoanFact>,
+    frontier_span: HandleSpan<SuspensionCrossingLoanFact>,
+    operands: arena::HandleSpan<checked_trees::FlowOperandFact>,
+    value: &checked_trees::SuspensionCrossingLiveValueFact,
+    value_loans: &mut Arena<Handle<SuspensionCrossingLoanFact>>,
+) -> checked_trees::SuspensionValueBorrowFrontier {
+    use checked_trees::{SuspensionCrossingValueOrigin, SuspensionValueBorrowFrontier};
+
+    // Formal type parameters describe the callee's obligations, not the
+    // captured actual's stored leaves. Keep those floors on the live-value
+    // fact, but inspect the producer's original actual type for coverage.
+    // Neither a missing capture nor an absent type is the empty product.
+    let (type_reference, captured) = match value.origin {
+        SuspensionCrossingValueOrigin::CallArgument { position } => {
+            let Some(operand) = operands.handles().nth(position) else {
+                return SuspensionValueBorrowFrontier::Unresolved;
+            };
+            if !flow.control.operands.is_valid(operand) {
+                return SuspensionValueBorrowFrontier::Unresolved;
+            }
+            (flow.control.operands.get(operand).type_reference, operand)
+        }
+        _ => (value.type_reference, Handle::invalid()),
+    };
+    if !type_reference.is_valid() {
+        return SuspensionValueBorrowFrontier::Unresolved;
+    }
+    let Some(paths) =
+        crate::borrow::view_link::borrow_carrying_owner_paths(program, type_reference)
+    else {
+        return SuspensionValueBorrowFrontier::Unresolved;
+    };
+    if paths.is_empty() {
+        return SuspensionValueBorrowFrontier::ViewFree;
+    }
+    if captured.is_valid() {
+        return SuspensionValueBorrowFrontier::CapturedOperand { operand: captured };
+    }
+    let symbol = match value.origin {
+        SuspensionCrossingValueOrigin::Parameter { symbol, .. }
+        | SuspensionCrossingValueOrigin::Local { symbol, .. } => symbol,
+        SuspensionCrossingValueOrigin::CallArgument { .. } => {
+            return SuspensionValueBorrowFrontier::Unresolved;
+        }
+    };
+    let matching = frontier_span
+        .handles()
+        .filter(|handle| {
+            let entry = frontier.get(*handle);
+            entry.active_at_call
+                && entry.retained_for_crossing
+                && borrow.loans.get(entry.loan).owner_symbol == symbol
+        })
+        .collect::<Vec<_>>();
+    if !paths.iter().all(|path| {
+        matching.iter().any(|handle| {
+            let entry = frontier.get(*handle);
+            borrow.loan_owner_path(borrow.loans.get(entry.loan)) == path.as_slice()
+        })
+    }) || matching.iter().any(|handle| {
+        let entry = frontier.get(*handle);
+        !paths
+            .iter()
+            .any(|path| borrow.loan_owner_path(borrow.loans.get(entry.loan)) == path.as_slice())
+    }) {
+        return SuspensionValueBorrowFrontier::Unresolved;
+    }
+    SuspensionValueBorrowFrontier::RetainedLoans {
+        loans: value_loans.insert_many(matching),
+    }
+}
+
 pub(super) fn retain_call_frontier(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
@@ -26,6 +150,7 @@ pub(super) fn retain_call_frontier(
     state: &StateBorrowFact,
     call: &FlowCallFact,
     source_values: &[StateCarryValue<'_>],
+    resources: &[LoanResourceBinding],
     retained: &mut Arena<SuspensionCrossingLoanFact>,
 ) -> Result<SuspensionCrossingBorrowFrontier, Diagnostic> {
     let mut current = Vec::new();
@@ -64,6 +189,11 @@ pub(super) fn retain_call_frontier(
         };
         SuspensionCrossingLoanFact {
             loan: handle,
+            resource: resources
+                .get(handle.arena_index() as usize)
+                .filter(|binding| binding.loan == handle)
+                .map(|binding| binding.resource.clone())
+                .unwrap_or_default(),
             active_at_call: current.contains(&handle),
             retained_for_crossing: false,
             backing,
@@ -170,6 +300,115 @@ fn append_dependency(
         closure.push(loan);
     }
     Ok(())
+}
+
+/// Join the value's complete loan closure to the already constructed resource
+/// lifetimes and retained owner storage. The caller cannot leave its invocation
+/// while this ordinary call is incomplete. Keeping the original root in that
+/// invocation therefore extends no source lifetime and returns no parent access.
+/// Incoming referents still need their independent enclosing-activation join.
+///
+/// CPU/thread demands remain conservative and address stability remains a
+/// nonmoving-backing obligation. This is not a runtime park/resume receipt.
+pub(super) fn retained_lifetime_demand(
+    borrow: &BorrowFacts,
+    frontier_loans: &Arena<SuspensionCrossingLoanFact>,
+    value_loans: &Arena<Handle<SuspensionCrossingLoanFact>>,
+    state: &StateBorrowFact,
+    frontier: SuspensionCrossingBorrowFrontier,
+    value: &checked_trees::SuspensionCrossingLiveValueFact,
+    live_values: &[checked_trees::SuspensionCrossingLiveValueFact],
+) -> Result<language_semantics::CarryPolicy, &'static str> {
+    use checked_trees::{CheckedParentBorrowResource, SuspensionValueBorrowFrontier};
+    use language_semantics::{CarryPolicy, CarrySuspension};
+    let links = match value.borrow_frontier {
+        SuspensionValueBorrowFrontier::ViewFree => return Ok(CarryPolicy::PERMISSIVE),
+        SuspensionValueBorrowFrontier::RetainedLoans { loans } => value_loans
+            .span(loans)
+            .filter(|links| !links.is_empty())
+            .ok_or("the stored loan-leaf frontier is missing")?,
+        SuspensionValueBorrowFrontier::Unresolved
+        | SuspensionValueBorrowFrontier::CapturedOperand { .. } => {
+            return Err("the stored loan-leaf frontier is incomplete");
+        }
+    };
+    let rows = frontier_loans
+        .span(frontier.loans)
+        .ok_or("the crossing's loan closure is missing")?;
+    let mut pending = links.to_vec();
+    let mut visited = Vec::new();
+    while let Some(handle) = pending.pop() {
+        if visited.contains(&handle) {
+            continue;
+        }
+        visited.push(handle);
+        if !frontier.loans.handles().any(|member| member == handle) {
+            return Err("the value names another crossing's loan");
+        }
+        let row = frontier_loans.get(handle);
+        if !row.retained_for_crossing || !borrow.state_owns_loan(state, row.loan) {
+            return Err("the loan has no retained invocation owner");
+        }
+        let loan = borrow.loans.get(row.loan);
+        let origin = match row.backing {
+            SuspensionCrossingLoanBacking::StateValue { origin } => origin,
+            SuspensionCrossingLoanBacking::IncomingReferent { .. }
+            | SuspensionCrossingLoanBacking::Unresolved => {
+                return Err("the referent has no retained enclosing-activation lifetime");
+            }
+        };
+        if !live_values.iter().any(|live| live.origin == origin) {
+            return Err("the original backing is absent from retained storage");
+        }
+        match row.resource {
+            CheckedParentBorrowResource::DirectRoot { resource }
+                if borrow.direct_loan_resources.is_valid(resource) =>
+            {
+                let resource = borrow.direct_loan_resources.get(resource);
+                if resource.loan != row.loan
+                    || resource.parent_lifetime.machine_symbol != state.machine_symbol
+                    || resource.parent_lifetime.state_symbol != state.state_symbol
+                    || resource.parent_lifetime.root_symbol != loan.root_symbol
+                {
+                    return Err("the root loan has no exact enclosing-invocation lifetime");
+                }
+            }
+            CheckedParentBorrowResource::Reborrow { resource }
+                if borrow.reborrow_loan_resources.is_valid(resource) =>
+            {
+                let resource = borrow.reborrow_loan_resources.get(resource);
+                if resource.loan != row.loan
+                    || resource.machine_symbol != state.machine_symbol
+                    || resource.state_symbol != state.state_symbol
+                {
+                    return Err("the reborrow has no exact enclosing-invocation resource");
+                }
+                let parent = frontier
+                    .loans
+                    .handles()
+                    .zip(rows)
+                    .find(|(_, row)| row.loan == resource.parent_loan)
+                    .map(|(handle, _)| handle)
+                    .ok_or("the immediate parent resource is not retained")?;
+                pending.push(parent);
+            }
+            _ => return Err("the loan lifetime resource is unavailable"),
+        }
+        if loan.supplying_loan.is_valid() {
+            let supplier = frontier
+                .loans
+                .handles()
+                .zip(rows)
+                .find(|(_, row)| row.loan == loan.supplying_loan)
+                .map(|(handle, _)| handle)
+                .ok_or("the transported loan's supplier is not retained")?;
+            pending.push(supplier);
+        }
+    }
+    Ok(CarryPolicy {
+        suspension: CarrySuspension::Allowed,
+        ..CarryPolicy::STRICT
+    })
 }
 
 /// A live descriptor keeps its actual backing live even when later source

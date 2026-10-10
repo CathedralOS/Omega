@@ -1,0 +1,40 @@
+use omega::language::core::binding;
+
+pub boundary trait Scheduler {
+    machine advance(value: i32) -> i32 suspends;
+}
+
+data InlineScheduler {}
+machine InlineScheduler::advance(value: i32) -> i32 satisfies Scheduler::advance {
+    value
+}
+
+machine observe(value: &i32) -> i32 { value }
+machine overwrite(value: &write i32) { value = 99; }
+data Envelope<T> { marker: i32; first: T; second: T; }
+data Main { scheduler: Binding<Scheduler>; }
+machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
+    let backing: i32 = 40;
+    let retained: &i32 = &backing;
+    let other_backing: i32 = 19;
+    let carrier: Envelope<&i32> = Envelope {
+        marker: 7,
+        first: &retained,
+        second: &other_backing
+    };
+    let mut write_backing: i32 = 5;
+    let writable: &write i32 = &write write_backing;
+    let result: i32 = suspend main.scheduler.advance(42);
+    overwrite(&write writable);
+    let observation: i32 = observe(retained);
+    let first: i32 = observe(carrier.first);
+    let second: i32 = observe(carrier.second);
+    transition result == 42 && observation == 40
+        && carrier.marker == 7 && first == 40 && second == 19
+        && write_backing == 99 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

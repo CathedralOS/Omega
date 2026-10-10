@@ -359,6 +359,7 @@ pub(super) fn build(
                 state,
                 call,
                 &place,
+                &place,
                 formal,
             )?);
             continue;

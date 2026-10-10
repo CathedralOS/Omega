@@ -67,6 +67,14 @@ pub enum StructuralPathSegment {
     Referent,
 }
 
+impl Default for StructuralPathSegment {
+    fn default() -> Self {
+        // Arena zero is absent, not a projection. An empty field is invalid
+        // under the structural path contract, so its dummy grants no access.
+        Self::Field(String::new())
+    }
+}
+
 /// The projection inventories' exhaustiveness fallbacks share two runs of
 /// scalar-only catalog operations — each restated per inventory so a new
 /// operation edited into one arm silently escaped the other. One spec each;

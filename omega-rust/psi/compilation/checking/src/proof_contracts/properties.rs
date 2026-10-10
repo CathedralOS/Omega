@@ -12,6 +12,9 @@
 //!   portable fields cannot erase it during named/generic composition.
 //!   The same walk retains borrowed-storage requirements independently:
 //!   qualifying a descriptor's carry cannot prove its referent's preservation.
+//!   It also keeps the resource floor apart from the conservative view fence;
+//!   a per-value loan proof may discharge only that fence, never an authored
+//!   floor, opaque storage demand or unresolved parameter requirement.
 //!
 //! Whether zeroed storage establishes a type is derived from its default
 //! domain, fields, and zero-case payload in `data`; semantic emptiness is not
@@ -301,6 +304,11 @@ pub fn effective_type_carry_policy(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeCarryRequirements {
     pub structural: language_semantics::CarryPolicy,
+    /// Stored resource and declaration demands without the conservative view
+    /// fence. This is not an admissible value policy until its complete loan
+    /// frontier and backing preservation obligations have been established.
+    /// Qualifying the descriptor does not erase these independent demands.
+    pub borrow_independent: language_semantics::CarryPolicy,
     /// The shape contains views or cannot establish their absence. A concrete
     /// value needs loan preservation evidence before crossing suspension.
     pub requires_borrow_preservation: bool,

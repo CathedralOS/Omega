@@ -20,6 +20,8 @@ pub use cleanup::{NominalAffineCleanup, StructuralAffineDiscard, TerminalAffineC
 pub use placement::{TerminalPlacedViewInput, canonical_placed_view_identity};
 pub use suspension::{
     TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
-    TerminalSuspensionLiveValue, TerminalSuspensionPlace, TerminalSuspensionStorage,
+    TerminalSuspensionLiveValue, TerminalSuspensionLoan, TerminalSuspensionLoanBacking,
+    TerminalSuspensionLoanCapture, TerminalSuspensionLoanResource, TerminalSuspensionLoans,
+    TerminalSuspensionPlace, TerminalSuspensionStorage, TerminalSuspensionValueLoans,
     TerminalSuspensionValueType, suspension_frontier_commitment,
 };

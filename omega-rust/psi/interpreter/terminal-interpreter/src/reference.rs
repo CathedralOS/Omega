@@ -366,8 +366,10 @@ impl TerminalExecution<'_> {
             // not a valid operation awaiting an interpreter implementation.
             return Err(malformed());
         };
+        // A descriptor retains the loan's access; it need not permit reads.
+        // Individual observations and stores still check that authority.
         if !self.program.structural_types().contains_key(referent)
-            || !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
+            || *access == StructuralAccess::Owned
         {
             return Err(malformed());
         }

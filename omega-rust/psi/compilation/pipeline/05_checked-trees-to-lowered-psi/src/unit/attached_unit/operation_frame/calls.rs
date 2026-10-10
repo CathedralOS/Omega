@@ -367,6 +367,19 @@ impl OperationFrame<'_, '_> {
             claims: self.calls.claims.bindings().to_vec(),
             ..Default::default()
         };
+        for capture in &self.operations.loan_captures {
+            if self
+                .checked
+                .facts
+                .carry
+                .suspension_loans
+                .span_or_empty(crossing.borrows.loans)
+                .iter()
+                .any(|entry| entry.retained_for_crossing && entry.loan == capture.loan)
+            {
+                bindings.loan_captures.push(capture.clone());
+            }
+        }
         for live in &crossing.live_values {
             let (symbol, source_position) = match live.origin {
                 checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => {

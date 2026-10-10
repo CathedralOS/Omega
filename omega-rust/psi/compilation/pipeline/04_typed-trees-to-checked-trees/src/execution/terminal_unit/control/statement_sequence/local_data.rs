@@ -526,6 +526,7 @@ pub(super) fn plan(
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
         structural_local_symbols.push(local.symbol);
         operations.push(CheckedUnitEffectOperationPlan::EstablishReference {
+            formation_expression: local.initial_value,
             result,
             source: capture.source,
             storage: capture.storage,

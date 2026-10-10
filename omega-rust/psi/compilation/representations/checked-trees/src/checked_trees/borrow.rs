@@ -177,9 +177,9 @@ pub struct BorrowLoanFact {
     pub supplying_loan: Handle<BorrowLoanFact>,
     /// Checked formation lineage for this loan occurrence.
     ///
-    /// Only an explicit reference-local reborrow with one exact prior source
-    /// occurrence names a parent. Aggregate/helper transfers and ambiguous
-    /// source aliases remain deliberately unretained.
+    /// An explicit reborrow with one exact prior source occurrence names a
+    /// parent regardless of the descriptor's storage shape. Transports and
+    /// ambiguous source aliases do not manufacture a reborrow relationship.
     pub lineage: BorrowLoanLineage,
     pub root_symbol: SymbolHandle,
     pub segments: HandleSpan<facts::PlaceSegment>,
@@ -548,8 +548,8 @@ pub struct BorrowFacts {
     /// exact loan activation/weakening ledger. Reborrow parent identity is
     /// retained separately.
     pub direct_loan_resources: Arena<CheckedDirectBorrowLoanResource>,
-    /// Non-authorizing resource closures for the narrow explicit direct-
-    /// reborrow lineage. Rows form a topological arena through typed parent
+    /// Non-authorizing resource closures for explicit direct-reborrow lineage.
+    /// Rows form a topological arena through typed parent
     /// resource handles. Aggregate and otherwise unretained transfers have no
     /// row.
     pub reborrow_loan_resources: Arena<CheckedReborrowLoanResource>,

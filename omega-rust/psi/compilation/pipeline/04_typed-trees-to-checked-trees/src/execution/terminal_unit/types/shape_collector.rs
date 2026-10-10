@@ -311,31 +311,18 @@ impl<'program> ShapeCollector<'program> {
                         == Multiplicity::Unrestricted)
     }
 
-    /// A reference type whose shell loans its referent: `parts`' `&mut
-    /// <primitive>` and every other `&mut` referent, or a shared `&'a V`
-    /// named view. `parts` needs no arm of its own — a bare `&mut
-    /// <primitive>` is one of the `&mut` shells — and the two accesses
-    /// never classify the same shell.
+    /// Register an admitted reference carrier with its declared access.
+    /// Access selects the loan contract, not whether its descriptor exists.
     pub(in crate::execution::terminal_unit) fn add_reference_type(
         &mut self,
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
     ) -> Option<String> {
-        self.add_view_type(
-            reference,
-            binders,
-            language_semantics::ReferenceAccess::Mutable,
-        )
-        .or_else(|| {
-            self.add_view_type(
-                reference,
-                binders,
-                language_semantics::ReferenceAccess::Shared,
-            )
-        })
+        let shell = validation::reference_shell(self.program, reference)?;
+        self.add_view_type(reference, binders, shell.access)
     }
 
-    /// A `&'a V` shared view or a `&mut R`/`&mut [T]` exclusive view spells
+    /// A shared, mutable or write-only view spells
     /// its own type reference: the reference shell is the loan custody the
     /// plan carries, so unlike `add_type` it is retained as a `Reference`
     /// shape over the peeled referee rather than peeled away. The accesses
@@ -365,18 +352,14 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         access: language_semantics::ReferenceAccess,
     ) -> Option<String> {
-        let referee = match access {
-            language_semantics::ReferenceAccess::Mutable => {
-                validation::reference_result_custody::mutable_borrowed_parts(
-                    self.program,
-                    reference,
-                )?
-                .0
-            }
-            language_semantics::ReferenceAccess::Shared => {
-                borrowed_view_referent(self.program, reference, access)?
-            }
-            language_semantics::ReferenceAccess::WriteOnly => return None,
+        let shell = validation::reference_shell(self.program, reference)?;
+        if shell.access != access {
+            return None;
+        }
+        let referee = if access == language_semantics::ReferenceAccess::Shared {
+            borrowed_view_referent(self.program, reference, access)?
+        } else {
+            shell.referee
         };
         let referent_identity =
             validation::structural_type_identity(self.program, referee, binders, substitutions);

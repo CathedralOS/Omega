@@ -383,11 +383,27 @@ pub(super) fn rebase_borrow_places_through_local_loans(
 }
 
 pub(super) fn retained_reference_lineage(
+    program: &dyn ::validation::CheckingInput,
+    formation: ExpressionHandle,
     source: &RebasedBorrowPlace,
     rebased: &[RebasedBorrowPlace],
-    is_explicit_reborrow: bool,
-    force_unretained: bool,
 ) -> checked_trees::BorrowLoanLineage {
+    // The formation operation decides lineage, not whether the descriptor is
+    // stored in a reference local, an aggregate leaf or a replacement slot.
+    let is_explicit_reborrow =
+        super::reference_borrows::direct_reborrow_target(program, formation).is_some();
+    let declared_source = match program.expression_table.expression(formation) {
+        checked_trees::expression::ExpressionNode::Call(call) => {
+            call_declares_direct_view_source(program, call.target_symbol)
+        }
+        _ => false,
+    };
+    let force_unretained = matches!(
+        program.expression_table.expression(formation),
+        checked_trees::expression::ExpressionNode::Cast(_)
+            | checked_trees::expression::ExpressionNode::Call(_)
+    ) && !declared_source
+        && !is_explicit_reborrow;
     if force_unretained {
         return checked_trees::BorrowLoanLineage::UnretainedDerived;
     }

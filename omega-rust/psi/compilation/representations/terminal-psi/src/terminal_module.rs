@@ -67,7 +67,9 @@ pub use ownership::{
     TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff,
     TerminalReborrowRootHandoffStep, TerminalReborrowSharedCohortMember,
     TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
-    TerminalSuspensionLiveValue, TerminalSuspensionPlace, TerminalSuspensionStorage,
+    TerminalSuspensionLiveValue, TerminalSuspensionLoan, TerminalSuspensionLoanBacking,
+    TerminalSuspensionLoanCapture, TerminalSuspensionLoanResource, TerminalSuspensionLoans,
+    TerminalSuspensionPlace, TerminalSuspensionStorage, TerminalSuspensionValueLoans,
     TerminalSuspensionValueType, canonical_placed_view_identity, suspension_frontier_commitment,
 };
 pub use proof::{

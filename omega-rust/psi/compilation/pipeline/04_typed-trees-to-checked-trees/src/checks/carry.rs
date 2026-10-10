@@ -4,9 +4,11 @@
 //! then close continuation liveness over backing dependencies before weighing
 //! type floors and resource permissions. Parameters and locals share one
 //! source-coordinate table, independent of lowering's sparse operand lanes.
-//! Logical backing demands are not preservation proofs: until the lifetime,
-//! access, canonical Terminal and runtime joins exist, carry qualification
-//! cannot discharge the borrowed-storage admission fence.
+//! Policy judgment follows that closure. Complete stored-leaf coverage joins
+//! the checked enclosing-invocation resources to retained owner storage; an
+//! incoming referent or incomplete capture still lacks that lifetime join.
+//! Canonical lowering carries these demands, not physical preservation receipts.
+//! CPU/thread affinity remains conservative and parking still owes stable backing.
 
 use diagnostics::Diagnostic;
 use facts::QualificationEvidence;
@@ -231,6 +233,16 @@ fn permission_event_order_before_call(
 struct CrossingAccumulator {
     effective: CarryPolicy,
     live_values: Vec<checked_trees::SuspensionCrossingLiveValueFact>,
+    obligations: Vec<PendingCarryObligation>,
+}
+
+/// Retention closes before policy judgment. A descriptor's conservative type
+/// fence and a resource's independent floor must not erase one another.
+struct PendingCarryObligation {
+    name: String,
+    ordinary: CarryPolicy,
+    borrow_independent: CarryPolicy,
+    requires_borrow_preservation: bool,
 }
 
 impl Default for CrossingAccumulator {
@@ -238,6 +250,7 @@ impl Default for CrossingAccumulator {
         Self {
             effective: CarryPolicy::PERMISSIVE,
             live_values: Vec::new(),
+            obligations: Vec::new(),
         }
     }
 }
@@ -259,6 +272,8 @@ pub(super) fn check_suspension_carry(
     let mut diagnostics = Vec::new();
     let mut suspension_crossings = Vec::new();
     let mut suspension_loans = arena::Arena::new();
+    let mut suspension_value_loans = arena::Arena::new();
+    let mut loan_resources = None;
 
     for state_borrows in facts.borrow.states.iter().map(|(_, state)| state) {
         let Some(machine) = program.machine_by_symbol(state_borrows.machine_symbol) else {
@@ -310,6 +325,8 @@ pub(super) fn check_suspension_carry(
                 call.call_ordinal,
             );
             let mut crossing = CrossingAccumulator::default();
+            let resources =
+                loan_resources.get_or_insert_with(|| loans::resource_bindings(&facts.borrow));
             let borrows = match loans::retain_call_frontier(
                 program,
                 &facts.borrow,
@@ -317,6 +334,7 @@ pub(super) fn check_suspension_carry(
                 state_borrows,
                 call_flow,
                 &source_values,
+                resources,
                 &mut suspension_loans,
             ) {
                 Ok(frontier) => frontier,
@@ -344,13 +362,12 @@ pub(super) fn check_suspension_carry(
                     .collect(),
             };
 
-            append_call_carried_argument_diagnostics(
+            collect_call_carried_values(
                 program,
                 call,
                 call_site.as_ref(),
                 &claim_carry,
                 &mut crossing,
-                &mut diagnostics,
             );
             append_live_value_diagnostics(
                 program,
@@ -364,6 +381,29 @@ pub(super) fn check_suspension_carry(
                 borrows,
                 suspension_loans.span_mut_or_empty(borrows.loans),
                 &claim_carry,
+                &mut crossing,
+                &mut diagnostics,
+            );
+            for live in &mut crossing.live_values {
+                live.borrow_frontier = loans::value_frontier(
+                    program,
+                    &facts.borrow,
+                    &facts.flow,
+                    &suspension_loans,
+                    borrows.loans,
+                    borrows.operands,
+                    live,
+                    &mut suspension_value_loans,
+                );
+            }
+            resolve_crossing_carry(
+                program,
+                &facts.borrow,
+                &suspension_loans,
+                &suspension_value_loans,
+                state_borrows,
+                call,
+                borrows,
                 &mut crossing,
                 &mut diagnostics,
             );
@@ -382,6 +422,7 @@ pub(super) fn check_suspension_carry(
 
     facts.carry.suspension_crossings = suspension_crossings;
     facts.carry.suspension_loans = suspension_loans;
+    facts.carry.suspension_value_loans = suspension_value_loans;
 
     if diagnostics.is_empty() {
         Ok(())
@@ -468,13 +509,12 @@ fn derive_claim_carry_policies(
     policies
 }
 
-fn append_call_carried_argument_diagnostics(
+fn collect_call_carried_values(
     program: &dyn ::validation::CheckingInput,
     call: &checked_trees::BorrowCallFact,
     call_site: Option<&validation::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
-    diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(call_site) = call_site else {
         return;
@@ -485,17 +525,15 @@ fn append_call_carried_argument_diagnostics(
     let arguments = validation::call_site_argument_expressions(program, call_site);
     for (position, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
         let display_name = program.expression_table.display_name(*argument);
-        append_if_suspension_forbidden_with_type_parameters(
+        collect_value_carry_obligation(
             program,
             validation::call_target_type_parameters(program, call.target_symbol),
             parameter.type_reference,
             &display_name,
-            call,
             claim_carry,
             checked_trees::SuspensionCrossingStorage::CallArgument,
             checked_trees::SuspensionCrossingValueOrigin::CallArgument { position },
             crossing,
-            diagnostics,
         );
     }
 }
@@ -598,75 +636,67 @@ fn append_live_value_diagnostics(
         if !value.available_before(call.statement_index) || !live_symbols.contains(&value.symbol) {
             continue;
         }
-        append_if_suspension_forbidden(
+        collect_live_value_carry_obligation(
             program,
             machine,
             value.type_reference,
             value.name,
-            call,
             claim_carry,
             value.storage,
             value.origin,
             crossing,
-            diagnostics,
         );
     }
 }
 
-fn append_if_suspension_forbidden(
+fn collect_live_value_carry_obligation(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     type_reference: typed_trees::types::TypeReferenceHandle,
     value_name: &str,
-    call: &checked_trees::BorrowCallFact,
     claim_carry: &ClaimCarryContext<'_>,
     storage: checked_trees::SuspensionCrossingStorage,
     origin: checked_trees::SuspensionCrossingValueOrigin,
     crossing: &mut CrossingAccumulator,
-    diagnostics: &mut Vec<Diagnostic>,
 ) {
-    append_if_suspension_forbidden_with_type_parameters(
+    collect_value_carry_obligation(
         program,
         program.machine_type_parameters(machine),
         type_reference,
         value_name,
-        call,
         claim_carry,
         storage,
         origin,
         crossing,
-        diagnostics,
     );
 }
 
-fn append_if_suspension_forbidden_with_type_parameters(
+fn collect_value_carry_obligation(
     program: &dyn ::validation::CheckingInput,
     type_parameters: &[typed_trees::data::TypeParameter],
     type_reference: typed_trees::types::TypeReferenceHandle,
     value_name: &str,
-    call: &checked_trees::BorrowCallFact,
     claim_carry: &ClaimCarryContext<'_>,
     storage: checked_trees::SuspensionCrossingStorage,
     origin: checked_trees::SuspensionCrossingValueOrigin,
     crossing: &mut CrossingAccumulator,
-    diagnostics: &mut Vec<Diagnostic>,
 ) {
     let requirements =
         validation::effective_type_carry_requirements(program, type_parameters, type_reference);
     let claims = claim_carry.live_claim_identities(program, value_name);
-    let mut policy =
+    let policy =
         claim_carry.effective_policy(program, value_name, requirements.structural, &claims);
-    // Claim qualification and loan preservation are independent judgments.
-    // There is not yet a checked per-value backing/lifetime join to consume
-    // here or retain in Terminal. Until that producer and its consumers exist,
-    // an AcrossSuspend permission must not bypass the missing loan obligation.
-    // Keep ordinary unqualified diagnostics and resource-claim relaxation intact.
-    let missing_borrow_preservation =
-        requirements.requires_borrow_preservation && policy.suspension == CarrySuspension::Allowed;
-    if missing_borrow_preservation {
-        policy = policy.intersect(CarryPolicy::STRICT);
-    }
-    crossing.effective = crossing.effective.intersect(policy);
+    crossing.obligations.push(PendingCarryObligation {
+        name: value_name.to_owned(),
+        ordinary: policy,
+        borrow_independent: claim_carry.effective_policy(
+            program,
+            value_name,
+            requirements.borrow_independent,
+            &claims,
+        ),
+        requires_borrow_preservation: requirements.requires_borrow_preservation,
+    });
     crossing
         .live_values
         .push(checked_trees::SuspensionCrossingLiveValueFact {
@@ -675,26 +705,84 @@ fn append_if_suspension_forbidden_with_type_parameters(
             origin,
             claims,
             effective: policy,
+            borrow_frontier: checked_trees::SuspensionValueBorrowFrontier::Unresolved,
         });
-    if policy.suspension == CarrySuspension::Allowed {
-        return;
-    }
+}
 
-    let target_name = crate::labels::symbol_name(program, call.target_symbol);
-    let message = if missing_borrow_preservation {
-        format!(
-            "call to `{target_name}` may suspend while `{value_name}` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation"
-        )
-    } else {
-        format!(
-            "call to `{target_name}` may suspend while `{value_name}` remains live, but its effective policy is `{policy}`; consume the value before the call or use a suspension-safe carrier"
-        )
-    };
-    if diagnostics
+fn resolve_crossing_carry(
+    program: &dyn ::validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
+    loans: &arena::Arena<checked_trees::SuspensionCrossingLoanFact>,
+    value_loans: &arena::Arena<arena::Handle<checked_trees::SuspensionCrossingLoanFact>>,
+    state: &checked_trees::StateBorrowFact,
+    call: &checked_trees::BorrowCallFact,
+    frontier: checked_trees::SuspensionCrossingBorrowFrontier,
+    crossing: &mut CrossingAccumulator,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let lifetime_demands = crossing
+        .live_values
         .iter()
-        .any(|diagnostic| diagnostic.message == message)
+        .map(|live| {
+            loans::retained_lifetime_demand(
+                borrow,
+                loans,
+                value_loans,
+                state,
+                frontier,
+                live,
+                &crossing.live_values,
+            )
+        })
+        .collect::<Vec<_>>();
+    crossing.effective = CarryPolicy::PERMISSIVE;
+    let target_name = crate::labels::symbol_name(program, call.target_symbol);
+    for ((live, obligation), lifetime) in crossing
+        .live_values
+        .iter_mut()
+        .zip(&crossing.obligations)
+        .zip(lifetime_demands)
     {
-        return;
+        let missing_borrow_obligation = obligation
+            .requires_borrow_preservation
+            .then(|| lifetime.as_ref().err().copied())
+            .flatten();
+        let policy = if obligation.requires_borrow_preservation {
+            match lifetime {
+                Ok(demand) => obligation.borrow_independent.intersect(demand),
+                Err(_) => obligation.ordinary.intersect(CarryPolicy::STRICT),
+            }
+        } else {
+            obligation.ordinary
+        };
+        live.effective = policy;
+        crossing.effective = crossing.effective.intersect(policy);
+        if policy.suspension == CarrySuspension::Allowed {
+            continue;
+        }
+
+        let value_name = &obligation.name;
+        let mut message = if missing_borrow_obligation.is_some()
+            && obligation.ordinary.suspension == CarrySuspension::Allowed
+        {
+            format!(
+                "call to `{target_name}` may suspend while `{value_name}` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation"
+            )
+        } else {
+            format!(
+                "call to `{target_name}` may suspend while `{value_name}` remains live, but its effective policy is `{policy}`; consume the value before the call or use a suspension-safe carrier"
+            )
+        };
+        if let Some(reason) = missing_borrow_obligation {
+            message.push_str("; missing retained-loan obligation: ");
+            message.push_str(reason);
+        }
+        if diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message == message)
+        {
+            continue;
+        }
+        diagnostics.push(Diagnostic::error(message));
     }
-    diagnostics.push(Diagnostic::error(message));
 }

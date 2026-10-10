@@ -10,6 +10,7 @@ name = "terminal_codec"
 path = "src/lib.rs"
 
 [dependencies]
+arena = { path = "../../../../foundation/arena" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../../foundation/language-semantics" }
 optimization = { path = "../../../../foundation/optimization-selections" }
@@ -17,4 +18,3 @@ proof-admission = { path = "../../../proof/admission" }
 terminal-psi = { path = ".." }
 terminal-semantics = { path = "../semantics" }
 sha2 = "0.10"
-

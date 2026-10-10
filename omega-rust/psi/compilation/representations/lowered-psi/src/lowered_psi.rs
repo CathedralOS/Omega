@@ -5,7 +5,8 @@ pub use source_custody::{
     LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
     LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
     LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceFrontierBindings,
-    LoweredSourceScalarBinding, LoweredSourceStructuralBinding, LoweredStateBlock,
+    LoweredSourceLoanCapture, LoweredSourceScalarBinding, LoweredSourceStructuralBinding,
+    LoweredStateBlock,
 };
 use terminal_psi::{TerminalDebugMap, TerminalModule};
 

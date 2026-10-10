@@ -5327,28 +5327,29 @@ wait for Cathedral's instruction coverage. The interpreter is
     `task_frame_summary` (`task_plans/stack_graphs.rs`) measures checked locals
     and parked arguments; the activation plan describes shape, not backing.
     Keep unresolved-call refusal and same-stack/separately provisioned demand.
-  - Retained reference/slice loans need a per-value backing, lifetime and access
-    join in stage 04 `checks/carry.rs`, its activation envelope and stage 05
-    `retention/suspension_call_plan.rs`. The
-    [local-loan reproduction](tests/omega/pass/concurrency/boundary_suspension_inline_completion_exit/README.md#retained-loan-implementation-frontier)
-    first rejects the live reference's strict type policy. Checked crossings
-    retain exact call-entry loan occurrences, parent/supplier dependency closure,
-    captured operands and logical backing coordinates. Continuation-live loans
-    retain backing demands to a fixed point; captured actual referents and
-    constructed children also retain backing needed only by the incomplete
-    callee. Descriptor replacement keeps only current occurrences. Incoming
-    referents remain a separate namespace from descriptor slots. Keep
+  - Complete incoming-referent and captured-actual loan-leaf/lifetime joins in
+    stage 04 `checks/carry.rs` and stage 05 `retention/suspension_call_plan.rs`;
+    descriptor slots cannot stand in for caller-supplied referents. Complete
+    the selected runtime's physical backing and cancellation preservation.
+    Keep `pass/concurrency/runtime_retained_reference_boundary_exit` (0) for
+    enclosing-invocation roots, a multi-leaf generic carrier with a retained
+    parent reborrow, and a write-only reference used after the call, plus
+    `fail/concurrency/suspend_retained_loan_conflicting_backing_write` for
+    access exclusion. Checked crossings retain current occurrences and
+    parent/supplier closure; continuation and captured-actual backing demands
+    close to a fixed point without reviving replaced descriptors. Keep
     `fail/concurrency/suspend_with_indirect_resource_backing`
     for resource floors and indirect backing. The canonical Terminal frontier
-    retains current structural access but no loan lineage/lifetime relation.
+    retains formation captures, backing coordinates, accesses and loan links;
+    it is a demand, not physical-preservation or completed-restoration evidence.
     Preserve distinct demand occurrences at equal storage coordinates, pinned
     by `pass/concurrency/runtime_suspension_repeated_actual_exit` (0).
     Activation-wide analysis separately treats borrow formation as strict.
-    Descriptor `Carry::AcrossSuspend` permission cannot substitute for that
-    missing join, including borrowed fields, slices and unknown generic shapes;
+    Descriptor `Carry::AcrossSuspend` permission cannot substitute for a
+    missing lifetime join, including incoming fields, slices and unknown shapes;
     keep `fail/concurrency/suspend_reference_permission_without_backing`.
-    Connect the existing checked loan facts to all three consumers before
-    relaxing admission, without a reference-type or inline-provider exception. Keep
+    Join the remaining obligations without a reference-type or inline-provider
+    exception. Keep
     `pass/concurrency/boundary_suspension_inline_completion_exit` (0) as the
     inline boundary-completion control, not a park/resume witness.
     Keep storage lifetime, pinning, aliasing,

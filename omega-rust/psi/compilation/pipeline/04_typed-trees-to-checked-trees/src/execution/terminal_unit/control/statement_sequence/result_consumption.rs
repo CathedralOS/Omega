@@ -679,10 +679,14 @@ pub(in crate::execution::terminal_unit) fn consume_result(
         // A whole owned operand transfers the descriptor itself, including
         // its loan and later retirement, to the receiving value. Lending the
         // referent keeps that descriptor in this holder instead.
-        return ((!projected && access == CheckedStructuralAccess::Owned)
-            || access == CheckedStructuralAccess::SharedBorrow
-            || (projected && access == CheckedStructuralAccess::MutableBorrow))
-            .then_some(());
+        return match access {
+            CheckedStructuralAccess::Owned => !projected,
+            CheckedStructuralAccess::SharedBorrow => true,
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow => {
+                projected
+            }
+        }
+        .then_some(());
     }
     // Unrestricted whole-value arguments copy their payload. They retain
     // a live producer without acquiring an affine disposal obligation. A

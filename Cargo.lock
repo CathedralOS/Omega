@@ -964,6 +964,7 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 name = "lowered-psi"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "checked-trees",
  "language-semantics",
  "semantic-vocabulary",
@@ -2076,6 +2077,7 @@ dependencies = [
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "language-semantics",
  "optimization",
  "proof-admission",
@@ -2136,6 +2138,7 @@ dependencies = [
 name = "terminal-psi"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "language-core",
  "language-semantics",
  "semantic-vocabulary",

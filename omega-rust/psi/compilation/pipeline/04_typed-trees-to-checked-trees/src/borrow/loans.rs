@@ -20,7 +20,8 @@
 //! (`helper_call_borrow_loan_place`, which resolves the call's returned-view
 //! source through `view_link`). A place rooted at a local that already holds
 //! a loan in this state is rebased onto that loan's place, once per such
-//! loan. `retained_reference_lineage` gives a cast, or a call that declares
+//! loan. Locals, stored leaves and replacements use the same formation rule:
+//! `retained_reference_lineage` gives a cast, or a call that declares
 //! no direct view source, `UnretainedDerived` unless it is an explicit
 //! reborrow; otherwise a place that was not rebased is `DirectRoot`, an
 //! explicit reborrow through a single retained parent loan is `Reborrow`,
@@ -239,7 +240,6 @@ pub(super) fn statement_borrow_loans(
                 machine_symbol,
                 local_data,
                 loan_trackers,
-                true,
             )
         }
         StatementNode::Call(_) => {
@@ -314,7 +314,6 @@ fn assignment_borrow_loans(
             machine_symbol,
             &synthetic_local,
             loan_trackers,
-            false,
         )
     } else {
         borrow_carrying_data_loans(
@@ -361,12 +360,8 @@ pub(crate) fn borrow_access_kind(
     access: language_semantics::ReferenceAccess,
 ) -> checked_trees::BorrowAccessKind {
     match access {
-        language_semantics::ReferenceAccess::Shared => {
-            checked_trees::BorrowAccessKind::Read
-        }
-        language_semantics::ReferenceAccess::Mutable => {
-            checked_trees::BorrowAccessKind::Mutable
-        }
+        language_semantics::ReferenceAccess::Shared => checked_trees::BorrowAccessKind::Read,
+        language_semantics::ReferenceAccess::Mutable => checked_trees::BorrowAccessKind::Mutable,
         language_semantics::ReferenceAccess::WriteOnly => {
             checked_trees::BorrowAccessKind::WriteOnly
         }

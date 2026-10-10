@@ -11,6 +11,7 @@ use checked_trees::CheckedUnitStructuralArgumentPlan;
 impl Emission<'_, '_, '_> {
     pub(super) fn reference_value(
         &mut self,
+        formation: super::super::super::reference_results::Formation<'_>,
         source: &CheckedUnitStructuralArgumentPlan,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
@@ -72,6 +73,7 @@ impl Emission<'_, '_, '_> {
                 ))?;
         if let StructuralTypeShape::Reference { .. } = &declaration.shape {
             let carrier = super::super::super::reference_results::emit_carrier(
+                formation,
                 self.structural_type,
                 argument,
                 None,

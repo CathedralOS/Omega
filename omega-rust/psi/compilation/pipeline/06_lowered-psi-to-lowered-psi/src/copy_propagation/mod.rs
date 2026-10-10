@@ -53,11 +53,9 @@ pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
             }
         }
         for plan in &after.semantic_module.suspension_call_plans {
-            for value in &plan.live_values {
-                value.place.visit_value_ids(|value| {
-                    retained_values.insert(value);
-                });
-            }
+            plan.visit_value_ids(|value| {
+                retained_values.insert(value);
+            });
         }
         if !rewrite_invariants {
             for invariant in &after.semantic_module.scalar_block_invariants {

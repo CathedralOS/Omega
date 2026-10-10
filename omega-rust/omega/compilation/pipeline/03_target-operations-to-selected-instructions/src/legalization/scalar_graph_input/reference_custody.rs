@@ -2368,16 +2368,9 @@ pub(in crate::legalization) fn referent_argument(
     else {
         return Err(invalid());
     };
-    let allowed = match access {
-        StructuralAccess::MutableBorrow => matches!(
-            argument.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        ),
-        StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
-        _ => false,
-    };
+    // Transport borrows the captured referent without changing its authority.
+    // Write-only descriptors can supply write-only access, never observations.
+    let allowed = access != StructuralAccess::Owned && access_covers(access, argument.access);
     let projection = crate::structural_inputs::structural_reference_input::reference_projection(
         root_type,
         &argument.path,

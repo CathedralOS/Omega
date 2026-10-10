@@ -199,6 +199,9 @@ pub(crate) struct OperationBuffer {
         ValueId,
     )>,
     pub(crate) source_calls: Vec<LoweredSourceCallOccurrence>,
+    /// Source-only associations created by the actual reference emitter.
+    /// The source operand belongs to its formation epoch, not current storage.
+    pub(crate) loan_captures: Vec<lowered_psi::LoweredSourceLoanCapture>,
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     /// The module's selector interfaces and tables, by identity.
     pub(crate) dynamic_dispatch:
@@ -262,6 +265,7 @@ impl OperationBuffer {
             element_lengths: Vec::new(),
             field_byte_lengths: Vec::new(),
             source_calls: Vec::new(),
+            loan_captures: Vec::new(),
             loan_completions: Vec::new(),
             selected_ieee_float_comparisons: Vec::new(),
             selected_integer_comparisons: Vec::new(),

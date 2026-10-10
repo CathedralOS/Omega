@@ -13,7 +13,7 @@ pub(in crate::borrow) struct BorrowedInitializer {
 #[derive(Clone, Copy)]
 pub(in crate::borrow) enum BorrowedInitializerKind {
     Reference {
-        is_mutable: bool,
+        access: language_semantics::ReferenceAccess,
     },
     Aggregate {
         type_reference: typed_trees::types::TypeReferenceHandle,
@@ -57,9 +57,7 @@ pub(super) fn borrowed_initializers(
         TypeReferenceNode::Reference { access, .. } => vec![BorrowedInitializer {
             owner_path: owner_path.to_vec(),
             expression,
-            kind: BorrowedInitializerKind::Reference {
-                is_mutable: access.is_exclusive(),
-            },
+            kind: BorrowedInitializerKind::Reference { access: *access },
         }],
         TypeReferenceNode::Constrained { base_type, .. } => {
             borrowed_initializers(program, *base_type, expression, substitutions, owner_path)

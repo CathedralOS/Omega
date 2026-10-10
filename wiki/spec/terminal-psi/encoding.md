@@ -592,7 +592,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 135 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 136 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -1338,8 +1338,8 @@ sites, then counted call plans.
 | Row | Fields |
 | --- | --- |
 | suspension call site | operation id + crossing id + suspension call target + 32-byte frontier commitment |
-| suspension call plan | operation id + crossing id + suspension call target + carry policy + `u32` live value count + counted live values |
-| suspension live value | suspension place + suspension value type + suspension storage + `u32` claim count + counted claim ids + carry policy |
+| suspension call plan | operation id + crossing id + suspension call target + carry policy + `u32` live value count + counted live values + loan graph |
+| suspension live value | suspension place + suspension value type + suspension storage + `u32` claim count + counted claim ids + carry policy + value-loan tag and optional link span |
 | carry policy | carry suspension + carry cpu + carry host thread + carry address (one tag byte each) |
 
 <!-- suspension-target-tags -->
@@ -1382,7 +1382,7 @@ sites, then counted call plans.
 | tag | Suspension place |
 | --- | --- |
 | 1 | Scalar | value id |
-| 2 | Structural | place id + counted structural path segments |
+| 2 | Structural | place id + structural access + counted structural path segments |
 
 <!-- suspension-value-type-tags -->
 
@@ -1406,8 +1406,28 @@ identities: two actual positions may name the same storage and still contribute
 separate rows, claims and policies. Preserve every occurrence and the complete
 count; do not deduplicate equal coordinates. Each live value's claims are
 strictly ordered by claim id. The frontier commitment uses the
-`terminal-suspension-frontier-v4` domain and includes the ordered roster and
-its cardinality.
+`terminal-suspension-frontier-v5` domain and includes the ordered roster and
+its cardinality, each value's loan links and the complete loan graph. Marker
+136 adds these graph payloads; marker 135 has no graph and is not reinterpreted.
+
+Each live value ends with a loan tag: `0` unresolved, `1` view-free, or `2`
+followed by a span into the plan's loan-link arena. The plan then encodes counted
+structural path segments, counted loan handles and counted loan occurrences.
+Handles are `u32` one-based slot plus `u32` generation: zero/zero is absent,
+and resident slots use generation 1. Spans add a `u32` count and retain the
+zero/zero/zero empty representation. Decoder bounds checks concern foreign
+coordinates, not source borrow admission.
+
+A loan occurrence encodes capture, backing, resource kind, parent handle,
+supplier handle, structural access and an active-at-call Boolean. Capture is
+`0` unresolved, or `1` followed by formation operation, carrier place, source
+place, source access and a source-path span. Backing is `0` unresolved,
+`1` plus a `u32` retained-owner live-value position, or `2` plus an incoming
+structural argument. Resource kind is `0` unresolved, `1` direct root, or
+`2` reborrow. Parentage and supplier transport are distinct relationships.
+Incoming referents are not descriptor-slot ownership; retired dependencies do
+not become active because descendants retain them. These rows record demands,
+not a completed lifetime, activation or physical-preservation judgment.
 
 ### Operation crash contracts
 

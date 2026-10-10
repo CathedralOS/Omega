@@ -162,10 +162,25 @@ pub struct LoweredSourceStructuralBinding {
     pub structural_type: semantic_vocabulary::StructuralTypeId,
 }
 
+/// The reference emitter's capture-time address and result, joined to the
+/// exact checked occurrence. Source handles never enter portable Terminal.
+/// The source operand is interpreted at `formation`, not read again at a
+/// later crossing; descriptor replacement cannot retarget this capture.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredSourceLoanCapture {
+    pub loan: arena::Handle<checked_trees::BorrowLoanFact>,
+    pub formation: OperationId,
+    pub carrier: semantic_vocabulary::PlaceId,
+    pub source: terminal_psi::StructuralArgument,
+}
+
 /// The call emitter's source-to-Terminal namespaces at a checked crossing.
 /// Claims are mappings of established identities, not new establishments.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LoweredSourceFrontierBindings {
+    /// Formation-time observations retained for this invocation's loans and
+    /// their parent/supplier closure. These establish no parking authority.
+    pub loan_captures: Vec<LoweredSourceLoanCapture>,
     pub scalars: Vec<LoweredSourceScalarBinding>,
     pub structural: Vec<LoweredSourceStructuralBinding>,
     pub claims: Vec<(
@@ -183,6 +198,13 @@ impl LoweredSourceFrontierBindings {
         }
         for binding in &self.structural {
             for segment in &binding.argument.path {
+                if let terminal_psi::StructuralPathSegment::RuntimeIndex { index, .. } = segment {
+                    visit(*index);
+                }
+            }
+        }
+        for capture in &self.loan_captures {
+            for segment in &capture.source.path {
                 if let terminal_psi::StructuralPathSegment::RuntimeIndex { index, .. } = segment {
                     visit(*index);
                 }

@@ -279,6 +279,7 @@ pub(crate) fn structural_call_arguments(
                 caller_machine.symbol,
                 caller_state,
                 call,
+                &place,
                 &authored_place,
                 target.type_reference,
             )?);

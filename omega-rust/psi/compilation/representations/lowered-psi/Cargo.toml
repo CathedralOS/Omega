@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+arena = { path = "../../../foundation/arena" }
 terminal-psi = { path = "../terminal-psi" }
 checked-trees = { path = "../checked-trees" }
 language-semantics = { path = "../../../foundation/language-semantics" }

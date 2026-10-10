@@ -47,11 +47,7 @@ pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
         }
     }
     for plan in &before.semantic_module.suspension_call_plans {
-        for value in &plan.live_values {
-            value
-                .place
-                .visit_value_ids(|value| retained_values.push(value));
-        }
+        plan.visit_value_ids(|value| retained_values.push(value));
     }
     // Join predicates remain the same proof questions. A value explicitly
     // named by a retained header is a semantic use, even when no executable

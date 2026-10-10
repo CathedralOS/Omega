@@ -61,7 +61,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Owned state arrivals can bind their live claims into block-local names.
 // Stored references retain identity-only targets without demanding storage.
 // Computed dispatch slots retain their public relative claim paths.
-pub(crate) const FORMAT_MARKER: u16 = 135;
+pub(crate) const FORMAT_MARKER: u16 = 136;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
