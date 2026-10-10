@@ -4,6 +4,10 @@
 //! for declaration readiness without rewriting the identifier: substitution and
 //! receiving typing still need its selected origin. Binder-headed paths cannot
 //! fall through to a same-spelled global declaration during specialization.
+//! Generic arguments follow the same recursive substitution rules as fields.
+//! Closed children keep their existing sharing route; parameter-bearing arrays
+//! and applications must be substitutable throughout, rather than only at a
+//! named leaf. Receiving typing still checks each constructor's argument kinds.
 use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::GenericDataShape;
@@ -242,7 +246,15 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
             arguments,
             ..
         } => {
-            selected_generic_data(syntax, generic_data, selection, base_name).is_some()
+            let head = base_name
+                .as_str()
+                .split_once("::")
+                .map_or(base_name.as_str(), |(head, _)| head);
+            // A template binder does not select a global constructor. The
+            // declaration selector has no template roster, so preserve that
+            // lexical boundary before recursing into an application.
+            !parameters.contains_key(head)
+                && selected_generic_data(syntax, generic_data, selection, base_name).is_some()
                 && syntax
                     .tables
                     .type_references
@@ -251,8 +263,16 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
                     .all(|&argument| {
                         matches!(
                             syntax.tables.type_references.type_reference(argument),
-                            TypeReferenceNode::Named(_) | TypeReferenceNode::ConstExpression(_)
+                            TypeReferenceNode::ConstExpression(_)
                         ) || !type_reference_mentions_parameter(syntax, argument, parameters)
+                            || type_reference_handle_is_substitutable(
+                                syntax,
+                                generic_data,
+                                selection,
+                                base_info,
+                                argument,
+                                parameters,
+                            )
                     })
         }
         TypeReferenceNode::FixedArray {

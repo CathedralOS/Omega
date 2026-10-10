@@ -5042,8 +5042,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   and `.../preparation/machine_equations.rs`; array, anonymous reference/slice
   and integer/Boolean application matching exist, including source-selected
   constructor constants with declared-carrier custody and closed named actual
-  array extents with source selection retained through instance identity and
-  substitution of selected closed extent fields.
+  array extents with source selection retained through instance identity.
+  Closed instances substitute selected extent fields and composite generic
+  field arguments recursively.
 
   - Combine equations with argument/result inference and keep obligations
     through forwarding beyond closed scalar constructor indices, retained
