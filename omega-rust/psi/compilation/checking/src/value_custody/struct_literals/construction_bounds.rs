@@ -10,8 +10,7 @@ use typed_trees::state::State;
 /// A conservative value interval (both ends optional).
 #[derive(Clone, Copy)]
 pub(super) struct Bounds {
-    low: Option<i64>,
-    high: Option<i64>,
+    interval: crate::proof_contracts::arithmetic_domains::Interval,
     symbol: symbols::SymbolHandle,
     length: Option<i64>,
     capacity: Option<i64>,
@@ -19,19 +18,15 @@ pub(super) struct Bounds {
 
 impl Bounds {
     const UNKNOWN: Bounds = Bounds {
-        low: None,
-        high: None,
+        interval: crate::proof_contracts::arithmetic_domains::Interval::UNBOUNDED,
         symbol: symbols::SymbolHandle::invalid(),
         length: None,
         capacity: None,
     };
     fn point(value: i64) -> Bounds {
         Bounds {
-            low: Some(value),
-            high: Some(value),
-            symbol: symbols::SymbolHandle::invalid(),
-            length: None,
-            capacity: None,
+            interval: crate::proof_contracts::arithmetic_domains::Interval::constant(value),
+            ..Bounds::UNKNOWN
         }
     }
 
@@ -95,8 +90,7 @@ fn value_bounds(
     );
     let mut bounds = if diagnostics.is_empty() {
         Bounds {
-            low: interval.low,
-            high: interval.high,
+            interval,
             ..Bounds::UNKNOWN
         }
     } else {
@@ -130,7 +124,7 @@ pub(super) fn bounds_fold(
     expression: ExpressionHandle,
 ) -> Truth {
     let bounds = bounds_eval(program, valuation, declared, expression);
-    match (bounds.low, bounds.high) {
+    match (bounds.interval.low, bounds.interval.high) {
         (Some(low), _) if low >= 1 => Truth::True,
         (_, Some(high)) if high <= 0 => Truth::False,
         _ => Truth::Unknown,
@@ -206,30 +200,16 @@ fn bounds_eval(
             let right = bounds_eval(program, valuation, declared, binary.right);
             match binary.operator {
                 BinaryOperator::Add => Bounds {
-                    low: left.low.zip(right.low).map(|(a, b)| a.saturating_add(b)),
-                    high: left.high.zip(right.high).map(|(a, b)| a.saturating_add(b)),
+                    interval: left.interval.saturating_add(right.interval),
                     ..Bounds::UNKNOWN
                 },
                 BinaryOperator::Subtract => Bounds {
-                    low: left.low.zip(right.high).map(|(a, b)| a.saturating_sub(b)),
-                    high: left.high.zip(right.low).map(|(a, b)| a.saturating_sub(b)),
+                    interval: left.interval.saturating_subtract(right.interval),
                     ..Bounds::UNKNOWN
                 },
-                BinaryOperator::Multiply => match (left.low, left.high, right.low, right.high) {
-                    (Some(a), Some(b), Some(c), Some(d)) => {
-                        let products = [
-                            a.saturating_mul(c),
-                            a.saturating_mul(d),
-                            b.saturating_mul(c),
-                            b.saturating_mul(d),
-                        ];
-                        Bounds {
-                            low: products.iter().min().copied(),
-                            high: products.iter().max().copied(),
-                            ..Bounds::UNKNOWN
-                        }
-                    }
-                    _ => Bounds::UNKNOWN,
+                BinaryOperator::Multiply => Bounds {
+                    interval: left.interval.saturating_multiply(right.interval),
+                    ..Bounds::UNKNOWN
                 },
                 BinaryOperator::LessOrEqual => tri(compare(left, right, |a, b| a <= b)),
                 BinaryOperator::Less => tri(compare(left, right, |a, b| a < b)),
@@ -250,12 +230,12 @@ fn bounds_eval(
 /// `left OP right` decided from interval ends: definitely true when every
 /// left value relates to every right value; definitely false when none do.
 fn compare(left: Bounds, right: Bounds, relates: fn(i64, i64) -> bool) -> Truth {
-    if let (Some(left_high), Some(right_low)) = (left.high, right.low)
+    if let (Some(left_high), Some(right_low)) = (left.interval.high, right.interval.low)
         && relates(left_high, right_low)
     {
         return Truth::True;
     }
-    if let (Some(left_low), Some(right_high)) = (left.low, right.high)
+    if let (Some(left_low), Some(right_high)) = (left.interval.low, right.interval.high)
         && !relates(left_low, right_high)
     {
         return Truth::False;
@@ -266,13 +246,13 @@ fn compare(left: Bounds, right: Bounds, relates: fn(i64, i64) -> bool) -> Truth 
 fn equality(left: Bounds, right: Bounds, wants_equal: bool) -> Truth {
     // Equal iff both are the SAME point; definitely unequal iff the
     // intervals are disjoint.
-    let same_point = left.low == left.high
-        && right.low == right.high
-        && left.low.is_some()
-        && left.low == right.low;
+    let same_point = left.interval.low == left.interval.high
+        && right.interval.low == right.interval.high
+        && left.interval.low.is_some()
+        && left.interval.low == right.interval.low;
     let same_symbol = left.symbol.is_valid() && left.symbol == right.symbol;
-    let disjoint = matches!((left.high, right.low), (Some(a), Some(b)) if a < b)
-        || matches!((right.high, left.low), (Some(a), Some(b)) if a < b);
+    let disjoint = matches!((left.interval.high, right.interval.low), (Some(a), Some(b)) if a < b)
+        || matches!((right.interval.high, left.interval.low), (Some(a), Some(b)) if a < b);
     match (same_point || same_symbol, disjoint, wants_equal) {
         (true, _, true) | (_, true, false) => Truth::True,
         (true, _, false) | (_, true, true) => Truth::False,
@@ -281,7 +261,7 @@ fn equality(left: Bounds, right: Bounds, wants_equal: bool) -> Truth {
 }
 
 fn to_truth(bounds: Bounds) -> Truth {
-    match (bounds.low, bounds.high) {
+    match (bounds.interval.low, bounds.interval.high) {
         (Some(low), _) if low >= 1 => Truth::True,
         (_, Some(high)) if high <= 0 => Truth::False,
         _ => Truth::Unknown,
@@ -309,8 +289,10 @@ fn tri(truth: Truth) -> Bounds {
         Truth::True => Bounds::point(1),
         Truth::False => Bounds::point(0),
         Truth::Unknown => Bounds {
-            low: Some(0),
-            high: Some(1),
+            interval: crate::proof_contracts::arithmetic_domains::Interval {
+                low: Some(0),
+                high: Some(1),
+            },
             ..Bounds::UNKNOWN
         },
     }
