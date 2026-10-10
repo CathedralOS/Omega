@@ -1,0 +1,25 @@
+{
+  "base_revision": "9d4451128dd05885e7b9c591796b2760189851db",
+  "starting_revision": "6e4f0c37ec",
+  "branch": "nf05-views",
+  "host": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "cpu_logical": 5,
+  "cpu_quota": "400000/100000 = 4 CPUs",
+  "memory_limit_bytes": 17179869184,
+  "memory_available_bytes_during_build": 15851237376,
+  "disk_available_bytes_during_build": 31205003264,
+  "ownership": "status exit 3: coordination deadline exceeded; registration exit 1: NF05 marker absent from TASKS.md; no claim registered",
+  "dependencies": "NF01 descriptor/admission and NF03 Complex64 signatures unavailable",
+  "rust_build_command": "source /workspace/cloud-setup/activate.sh && mbx build --release -p omega",
+  "oracles_sha256": "df02cb98ef75686c23241ff9876a5e224e261b4e18965534a43887a9f5bbb545",
+  "independent_oracle_command": "python samples/cli/scientific/w100/nf05_views_transpose_adjoint/verify_oracles.py",
+  "independent_oracle_result": "19 frozen oracle comparisons passed",
+  "frozen_source_hashes": {
+    "hermitian_energy/build.omg": "69508f1da2034435d87fde96732b6203e2c1d9badc96ed0453c2d94759a32492",
+    "hermitian_energy/main.omg": "4ff1fb0cb2b9347cbe4479fa1c288e0824db10a1d849457ff4c32294c1b60e32",
+    "invalid_readonly_write/build.omg": "4c1db5d11e48ffaabf8ef2cd7141c0487d49472a6653f7b4c210e3745e32d4a0",
+    "invalid_readonly_write/main.omg": "220b584f3f232236aa75fae51af5e5dab340888bc753e9b8d59a635faae49419",
+    "sensor_patch/build.omg": "3fcb100f392cececf063a74b17d3bfcb8c0f4608cb1a22bf4b71531312de09dd",
+    "sensor_patch/main.omg": "f889226ea4e56adb60bbe2fd18343288675f812cc6a5fc53006174ae8178524e"
+  }
+}

@@ -1,0 +1,43 @@
+// Independent mathematical fixture; NF01 descriptor integration is pending.
+// All indices and expected results were frozen before execution. No descriptor
+// implementation is duplicated here: fixed coordinates expose the oracle.
+use omega_language_std::console;
+
+machine main() reaches Console {
+    let packed: [i32; 6] = [2, 3, 5, 7, 11, 13];
+    let mut padded: [i32; 10] = [-99, 2, 3, -99, 5, 7, -99, 11, 13, -99];
+    // Caller-owned output: explicit copying, not a descriptor transformation.
+    let copied_transpose: [i32; 6] = [
+        packed[0], packed[2], packed[4], packed[1], packed[3], packed[5]
+    ];
+    let padded_transpose: [i32; 6] = [
+        padded[1], padded[4], padded[7], padded[2], padded[5], padded[8]
+    ];
+    // Reshape 2x3 -> 3x2 retains column-major scalar order.
+    let reshaped_last_column_sum: i32 = packed[3] + packed[4] + packed[5];
+    // A readonly repeated-row view is legal: both rows read the same address.
+    let repeated_row_sum: i32 = packed[0] + packed[0] + packed[1]
+        + packed[1] + packed[2] + packed[2];
+    // Patch (row 1, columns 1..3), transpose and mutate its first coordinate.
+    let original_patch_sum: i32 = padded[5] + padded[8];
+    padded[5] = 17;
+    let mutated_patch_sum: i32 = padded[5] + padded[8];
+    transition copied_transpose[0] == 2 && copied_transpose[1] == 5
+        && copied_transpose[2] == 11 && copied_transpose[3] == 3
+        && copied_transpose[4] == 7 && copied_transpose[5] == 13
+        && padded_transpose[0] == 2 && padded_transpose[1] == 5
+        && padded_transpose[2] == 11 && padded_transpose[3] == 3
+        && padded_transpose[4] == 7 && padded_transpose[5] == 13
+        && reshaped_last_column_sum == 31 && repeated_row_sum == 20
+        && original_patch_sum == 20 && mutated_patch_sum == 30
+        && padded[0] == -99 && padded[3] == -99
+        && padded[6] == -99 && padded[9] == -99 {
+        true -> pass()
+        false -> fail()
+    }
+    state pass() reaches Console {
+        Console::write_line("NF05 sensor patch oracle: PASS");
+        Console::exit_process(0);
+    }
+    state fail() reaches Console { Console::exit_process(1); }
+}

@@ -1,0 +1,10 @@
+// Intended rejection: store through a shared backing slice. This must be an
+// ownership/mutability rejection, never a missing-package or parsing rejection.
+use omega_language_std::console;
+
+machine main() reaches Console {
+    let values: [i32; 4] = [1, 3, 5, 7];
+    let readonly: &[i32] = &values[..];
+    readonly[0] = 99;
+    Console::exit_process(0);
+}

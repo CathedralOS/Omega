@@ -1,0 +1,38 @@
+// Independent complex mathematical fixture, with split scalar components.
+// NF03 complex storage/conjugation and NF01 descriptor integration are pending.
+use omega_language_std::console;
+
+machine main() reaches Console {
+    // Column-major A = [[1+2i, 5+6i], [3-4i, 7+8i]].
+    let real: [i32; 4] = [1, 3, 5, 7];
+    let imaginary: [i32; 4] = [2, -4, 6, 8];
+    // Caller explicitly allocates the copied adjoint's component arrays.
+    let adjoint_real: [i32; 4] = [real[0], real[2], real[1], real[3]];
+    let adjoint_imaginary: [i32; 4] = [
+        -imaginary[0], -imaginary[2], -imaginary[1], -imaginary[3]
+    ];
+    let energy_first: i32 = real[0]*real[0] + imaginary[0]*imaginary[0]
+        + real[1]*real[1] + imaginary[1]*imaginary[1];
+    let energy_second: i32 = real[2]*real[2] + imaginary[2]*imaginary[2]
+        + real[3]*real[3] + imaginary[3]*imaginary[3];
+    let cross_real: i32 = real[0]*real[2] + imaginary[0]*imaginary[2]
+        + real[1]*real[3] + imaginary[1]*imaginary[3];
+    let cross_imaginary: i32 = real[0]*imaginary[2] - imaginary[0]*real[2]
+        + real[1]*imaginary[3] - imaginary[1]*real[3];
+    // Ordinary transpose has +2i here; adjoint must have -2i.
+    transition adjoint_real[0] == 1 && adjoint_real[1] == 5
+        && adjoint_real[2] == 3 && adjoint_real[3] == 7
+        && adjoint_imaginary[0] == -2 && adjoint_imaginary[1] == -6
+        && adjoint_imaginary[2] == 4 && adjoint_imaginary[3] == -8
+        && energy_first == 30 && energy_second == 174
+        && cross_real == 6 && cross_imaginary == 48
+        && imaginary[0] == 2 && imaginary[1] == -4 {
+        true -> pass()
+        false -> fail()
+    }
+    state pass() reaches Console {
+        Console::write_line("NF05 Hermitian energy oracle: PASS");
+        Console::exit_process(0);
+    }
+    state fail() reaches Console { Console::exit_process(1); }
+}

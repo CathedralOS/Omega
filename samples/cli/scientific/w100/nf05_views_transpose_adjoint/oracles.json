@@ -1,0 +1,193 @@
+{
+  "policy": {
+    "frozen_before_execution": true,
+    "absolute_tolerance": 0,
+    "relative_tolerance": 0,
+    "reason": "integer and exactly representable complex component fixtures; no NF02 policy invented"
+  },
+  "packed": {
+    "backing": [
+      2,
+      3,
+      5,
+      7,
+      11,
+      13
+    ],
+    "shape": [
+      2,
+      3
+    ],
+    "offset": 0,
+    "strides": [
+      1,
+      2
+    ],
+    "transpose_flat": [
+      2,
+      5,
+      11,
+      3,
+      7,
+      13
+    ],
+    "reshape_shape": [
+      3,
+      2
+    ],
+    "reshape_flat": [
+      2,
+      3,
+      5,
+      7,
+      11,
+      13
+    ]
+  },
+  "padded": {
+    "backing": [
+      -99,
+      2,
+      3,
+      -99,
+      5,
+      7,
+      -99,
+      11,
+      13,
+      -99
+    ],
+    "shape": [
+      2,
+      3
+    ],
+    "offset": 1,
+    "strides": [
+      1,
+      3
+    ],
+    "transpose_flat": [
+      2,
+      5,
+      11,
+      3,
+      7,
+      13
+    ],
+    "reshape_error": "NonContiguous"
+  },
+  "patch": {
+    "origin": [
+      1,
+      1
+    ],
+    "shape": [
+      1,
+      2
+    ],
+    "offset": 5,
+    "strides": [
+      1,
+      3
+    ],
+    "flat": [
+      7,
+      13
+    ],
+    "mutated_backing": [
+      -99,
+      2,
+      3,
+      -99,
+      5,
+      17,
+      -99,
+      11,
+      13,
+      -99
+    ]
+  },
+  "empty": {
+    "origin": [
+      2,
+      3
+    ],
+    "shape": [
+      0,
+      0
+    ],
+    "canonical_offset": 1,
+    "reads": 0,
+    "writes": 0
+  },
+  "readonly_alias": {
+    "shape": [
+      2,
+      3
+    ],
+    "offset": 0,
+    "strides": [
+      0,
+      1
+    ],
+    "flat": [
+      2,
+      2,
+      3,
+      3,
+      5,
+      5
+    ],
+    "mutable_error": "NonInjective"
+  },
+  "adjoint": {
+    "real": [
+      1,
+      3,
+      5,
+      7
+    ],
+    "imaginary": [
+      2,
+      -4,
+      6,
+      8
+    ],
+    "shape": [
+      2,
+      2
+    ],
+    "adjoint_real": [
+      1,
+      5,
+      3,
+      7
+    ],
+    "adjoint_imaginary": [
+      -2,
+      -6,
+      4,
+      -8
+    ],
+    "gram_real": [
+      30,
+      6,
+      6,
+      174
+    ],
+    "gram_imaginary": [
+      0,
+      -48,
+      48,
+      0
+    ]
+  },
+  "errors": [
+    "OutOfBounds",
+    "SizeOverflow",
+    "ElementCountMismatch",
+    "NonContiguous",
+    "NonInjective",
+    "InsufficientBacking"
+  ]
+}
