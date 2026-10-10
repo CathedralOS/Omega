@@ -14,12 +14,7 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
     let block = &function.blocks[block_position];
     let removed = block.nodes.get(node_position)?;
     block.nodes.get(node_position.checked_add(1)?)?;
-    let mut provenance = vec![optimization_unit::ProvenanceRewrite {
-        input: PsiRealizationSite::Node(patch.location),
-        disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(patch.location)),
-        sources: removed.provenance.clone(),
-        fuel: removed.fuel.clone(),
-    }];
+    let mut provenance = vec![provenance_realized_at(PsiRealizationSite::Node(patch.location), PsiRealizationSite::Node(patch.location), &removed.provenance, &removed.fuel)];
     for (index, node) in block.nodes.iter().enumerate().skip(node_position + 1) {
         if node.provenance.is_empty() {
             continue;
@@ -33,12 +28,7 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
             node: old.node.checked_sub(1)?,
             ..old
         };
-        provenance.push(optimization_unit::ProvenanceRewrite {
-            input: PsiRealizationSite::Node(old),
-            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(new)),
-            sources: node.provenance.clone(),
-            fuel: node.fuel.clone(),
-        });
+        provenance.push(provenance_realized_at(PsiRealizationSite::Node(old), PsiRealizationSite::Node(new), &node.provenance, &node.fuel));
     }
     let mut blocks = vec![block.id];
     for later in function.blocks.iter().skip(block_position + 1) {

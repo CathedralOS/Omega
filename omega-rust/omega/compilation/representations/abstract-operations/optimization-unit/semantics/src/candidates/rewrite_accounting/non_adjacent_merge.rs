@@ -28,27 +28,12 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
         edge: patch.incoming_edge,
     };
     let mut realized = if !first.provenance.is_empty() {
-        vec![optimization_unit::ProvenanceRewrite {
-            input: incoming_site,
-            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(
-                patch.predecessor,
-            )),
-            sources: incoming.provenance.clone(),
-            fuel: incoming.fuel.clone(),
-        }]
+        vec![provenance_realized_at(incoming_site, PsiRealizationSite::Node( patch.predecessor, ), &incoming.provenance, &incoming.fuel)]
     } else if !first.successors.is_empty() {
         first
             .successors
             .iter()
-            .map(|successor| optimization_unit::ProvenanceRewrite {
-                input: incoming_site,
-                disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Edge {
-                    machine: function.machine,
-                    edge: successor.psi_edge,
-                }),
-                sources: incoming.provenance.clone(),
-                fuel: incoming.fuel.clone(),
-            })
+            .map(|successor| provenance_realized_at(incoming_site, PsiRealizationSite::Edge { machine: function.machine, edge: successor.psi_edge, }, &incoming.provenance, &incoming.fuel))
             .collect()
     } else {
         return None;
@@ -71,12 +56,7 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
                 .node
                 .checked_add(u32::try_from(node_index).ok()?)?,
         });
-        realized.push(optimization_unit::ProvenanceRewrite {
-            input,
-            disposition: ProvenanceDisposition::RealizedAt(output),
-            sources: node.provenance.clone(),
-            fuel: node.fuel.clone(),
-        });
+        realized.push(provenance_realized_at(input, output, &node.provenance, &node.fuel));
     }
 
     let mut input_effect = 0u64;

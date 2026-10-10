@@ -1,5 +1,5 @@
 //! Independent constant-conditional replay mechanics.
-use crate::candidates::provenance_realized_at;
+use crate::candidates::{provenance_proven_unreachable_at, provenance_realized_at};
 use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::sparse_conditional_constant_propagation::literal_boolean_fact;
 use crate::candidates::{candidate_block, candidate_function, set_node_effect_link};
@@ -222,12 +222,7 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
     let mut affected = BTreeSet::from([decision.block]);
     affected.extend(removed.iter().copied());
     let mut realized = vec![provenance_realized_at(selected_site, selected_site, &selected.provenance, &selected.fuel)];
-    let mut unreachable = vec![optimization_unit::ProvenanceRewrite {
-        input: rejected_site,
-        disposition: ProvenanceDisposition::ProvenUnreachableAt(rejected_site),
-        sources: rejected.provenance.clone(),
-        fuel: rejected.fuel.clone(),
-    }];
+    let mut unreachable = vec![provenance_proven_unreachable_at(rejected_site, rejected_site, &rejected.provenance, &rejected.fuel)];
     let mut expected_effect = 0u64;
     for block in &function.blocks {
         if removed.contains(&block.id) {
@@ -239,24 +234,14 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
                 };
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    unreachable.push(optimization_unit::ProvenanceRewrite {
-                        input: site,
-                        disposition: ProvenanceDisposition::ProvenUnreachableAt(site),
-                        sources: node.provenance.clone(),
-                        fuel: node.fuel.clone(),
-                    });
+                    unreachable.push(provenance_proven_unreachable_at(site, site, &node.provenance, &node.fuel));
                 }
                 for edge in &node.successors {
                     let site = PsiRealizationSite::Edge {
                         machine: function.machine,
                         edge: edge.psi_edge,
                     };
-                    unreachable.push(optimization_unit::ProvenanceRewrite {
-                        input: site,
-                        disposition: ProvenanceDisposition::ProvenUnreachableAt(site),
-                        sources: edge.provenance.clone(),
-                        fuel: edge.fuel.clone(),
-                    });
+                    unreachable.push(provenance_proven_unreachable_at(site, site, &edge.provenance, &edge.fuel));
                 }
             }
             continue;

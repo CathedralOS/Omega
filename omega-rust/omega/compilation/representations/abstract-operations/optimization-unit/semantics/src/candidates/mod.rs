@@ -170,6 +170,24 @@ pub(crate) fn provenance_realized_at(
     }
 }
 
+/// One proven-unreachable rewrite: the mirror of `provenance_realized_at` for
+/// sites a candidate family proved dead rather than landed.
+pub(crate) fn provenance_proven_unreachable_at(
+    input: optimization_unit::PsiRealizationSite,
+    unreachable_at: optimization_unit::PsiRealizationSite,
+    sources: &[optimization_unit::PsiProvenance],
+    fuel: &[optimization_unit::FuelSettlement],
+) -> ProvenanceRewrite {
+    ProvenanceRewrite {
+        input,
+        disposition: optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(
+            unreachable_at,
+        ),
+        sources: sources.to_vec(),
+        fuel: fuel.to_vec(),
+    }
+}
+
 pub(crate) fn candidate_function(
     input: &PsiOptimizationUnit,
     machine: semantic_vocabulary::MachineId,

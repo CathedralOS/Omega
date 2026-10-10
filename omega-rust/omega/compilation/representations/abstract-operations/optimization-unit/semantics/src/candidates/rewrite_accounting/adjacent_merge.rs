@@ -82,31 +82,12 @@ pub(crate) fn reconstruct_adjacent_merge_accounting(
     let mut affected = BTreeSet::from([predecessor.id, target.id]);
     let first = target.nodes.first()?;
     let mut realized = if first.successors.is_empty() {
-        vec![optimization_unit::ProvenanceRewrite {
-            input: incoming_site,
-            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(
-                NodeLocation {
-                    machine: function.machine,
-                    block: predecessor.id,
-                    node: patch.predecessor.node,
-                },
-            )),
-            sources: incoming.provenance.clone(),
-            fuel: incoming.fuel.clone(),
-        }]
+        vec![provenance_realized_at(incoming_site, PsiRealizationSite::Node( NodeLocation { machine: function.machine, block: predecessor.id, node: patch.predecessor.node, }, ), &incoming.provenance, &incoming.fuel)]
     } else {
         first
             .successors
             .iter()
-            .map(|successor| optimization_unit::ProvenanceRewrite {
-                input: incoming_site,
-                disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Edge {
-                    machine: function.machine,
-                    edge: successor.psi_edge,
-                }),
-                sources: incoming.provenance.clone(),
-                fuel: incoming.fuel.clone(),
-            })
+            .map(|successor| provenance_realized_at(incoming_site, PsiRealizationSite::Edge { machine: function.machine, edge: successor.psi_edge, }, &incoming.provenance, &incoming.fuel))
             .collect()
     };
     for (node_index, node) in target.nodes.iter().enumerate() {
@@ -126,12 +107,7 @@ pub(crate) fn reconstruct_adjacent_merge_accounting(
                 .node
                 .checked_add(u32::try_from(node_index).ok()?)?,
         });
-        realized.push(optimization_unit::ProvenanceRewrite {
-            input,
-            disposition: ProvenanceDisposition::RealizedAt(output),
-            sources: node.provenance.clone(),
-            fuel: node.fuel.clone(),
-        });
+        realized.push(provenance_realized_at(input, output, &node.provenance, &node.fuel));
     }
     for block in function.blocks.iter().skip(target_position + 1) {
         affected.insert(block.id);
