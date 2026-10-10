@@ -7,7 +7,7 @@ use super::super::{
 use super::bodies::UnitPlans;
 use super::parameters::call_index_selectors;
 use super::{
-    CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Operation,
+    CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError,
     OperationResult, PlaceId, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeId, UnitBody, ValueDeclaration, allocate_dense,
     argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
@@ -49,24 +49,39 @@ pub(super) struct PreparedCall {
 }
 
 impl PreparedCall {
-    /// The prepared lanes as one direct call to `callee`, for `result` to
-    /// choose its Terminal operation.
-    pub(super) fn into_direct_call(
+    /// Emit the prepared lanes as one direct call to `callee` through the
+    /// single call emitter, for `result` to choose its Terminal operation.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn emit(
         self,
+        operations: &mut OperationBuffer,
+        coordinate: SourceCallCoordinate,
+        source_site: Option<checked_trees::NominalMachineUseSite>,
+        source_target: symbols::SymbolHandle,
+        record: crate::direct_calls::CallRecord<'_>,
+        result: OperationResult,
         callee: MachineId,
-        result: DirectCallResult,
-    ) -> DirectCall {
-        DirectCall {
-            callee,
-            arguments: self.arguments,
-            erased_arguments: self.erased_arguments,
-            erased_proof_arguments: self.erased_proof_arguments,
-            structural_arguments: self.structural_arguments,
-            claim_transfers: self.claim_transfers,
-            requirement_obligations: self.requirement_obligations,
-            crash_continuations: self.crash_continuations,
+        result_kind: DirectCallResult,
+    ) -> Result<semantic_vocabulary::OperationId, LoweringError> {
+        crate::direct_calls::emit_direct_call(
+            operations,
+            coordinate,
+            source_site,
+            source_target,
+            record,
             result,
-        }
+            DirectCall::new(
+                callee,
+                self.arguments,
+                self.erased_arguments,
+                self.erased_proof_arguments,
+                self.structural_arguments,
+                self.claim_transfers,
+                self.requirement_obligations,
+                self.crash_continuations,
+                result_kind,
+            ),
+        )
     }
 }
 
@@ -318,20 +333,8 @@ pub(super) fn emit_structural(
     let coordinate = &call.coordinate;
     let target_state = &call.target.state;
     let target_machine = &call.target.machine;
-    let id = operations.allocate();
     let place = place_id(allocate_dense(next_place)?);
     let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
-    operations.record_source_call(
-        SourceCallCoordinate {
-            state,
-            statement_index: coordinate.statement_index as usize,
-            call_ordinal: coordinate.call_ordinal as usize,
-        },
-        call.source_site().flatten(),
-        id,
-        *target_state,
-        frontier_before_call,
-    )?;
     let mut returned = StructuralOperationResult {
         qualification_establishments: Vec::new(),
         place,
@@ -381,21 +384,22 @@ pub(super) fn emit_structural(
     // Scalar values and structural custody are separate operand namespaces,
     // not different ownership rules: a mixed call retains the same checked
     // claim and content correspondence as the scalar-free encoding.
-    let kind = prepared
-        .into_direct_call(
-            callee,
-            DirectCallResult::Structural {
-                multiplicity: returned.multiplicity,
-            },
-        )
-        .into_operation_kind();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result: OperationResult::Structural(returned.clone()),
-        kind,
-    });
+    let id = prepared.emit(
+        operations,
+        SourceCallCoordinate {
+            state,
+            statement_index: coordinate.statement_index as usize,
+            call_ordinal: coordinate.call_ordinal as usize,
+        },
+        call.source_site().flatten(),
+        *target_state,
+        crate::direct_calls::CallRecord::Frontier(frontier_before_call),
+        OperationResult::Structural(returned.clone()),
+        callee,
+        DirectCallResult::Structural {
+            multiplicity: returned.multiplicity,
+        },
+    )?;
     if register_binding
         && operations
             .structural_values

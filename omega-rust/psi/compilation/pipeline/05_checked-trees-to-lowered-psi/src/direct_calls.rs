@@ -22,8 +22,12 @@
 
 use semantic_vocabulary::{MachineId, ObligationId, ProofTerm, ScalarTerm, ValueId};
 use terminal_psi::{
-    ClaimTransfer, CrashRouteBucket, OperationKind, StructuralArgument, StructuralMultiplicity,
+    ClaimTransfer, CrashRouteBucket, Operation, OperationKind, OperationResult, StructuralArgument,
+    StructuralMultiplicity, ValueDeclaration,
 };
+use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
+use lowered_psi::LoweredSourceFrontierBindings;
+use crate::lowering_error::LoweringError;
 
 /// One direct in-module call, before its Terminal spelling is chosen.
 /// Lanes the chosen operation does not carry must be empty; the result mode
@@ -38,6 +42,85 @@ pub(crate) struct DirectCall {
     pub(crate) requirement_obligations: Vec<ObligationId>,
     pub(crate) crash_continuations: Vec<CrashRouteBucket>,
     pub(crate) result: DirectCallResult,
+}
+
+impl DirectCall {
+    /// The one direct-call construction every lowering route shares; a route
+    /// fills the lanes it prepared and hands the record to
+    /// [`emit_direct_call`].
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        callee: MachineId,
+        arguments: Vec<ValueId>,
+        erased_arguments: Vec<ScalarTerm>,
+        erased_proof_arguments: Vec<ProofTerm>,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+        result: DirectCallResult,
+    ) -> Self {
+        DirectCall {
+            callee,
+            arguments,
+            erased_arguments,
+            erased_proof_arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            result,
+        }
+    }
+}
+
+/// How an emitted call operation records its source-call occurrence: against
+/// the caller's lowered frontier rows, or against the scalar values live in
+/// its operand frame before the call.
+pub(crate) enum CallRecord<'a> {
+    Frontier(&'a LoweredSourceFrontierBindings),
+    Values(&'a [ValueDeclaration]),
+}
+
+/// The one call emitter: every direct-call route resolves its callee, mints
+/// its result, prepares the operand lanes and lands here to record the
+/// source-call occurrence and push the operation. The boundary route keeps
+/// its own operation kind — a boundary application is not a machine call.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_direct_call(
+    operations: &mut OperationBuffer,
+    coordinate: SourceCallCoordinate,
+    source_site: Option<checked_trees::NominalMachineUseSite>,
+    source_target: symbols::SymbolHandle,
+    record: CallRecord<'_>,
+    result: OperationResult,
+    call: DirectCall,
+) -> Result<semantic_vocabulary::OperationId, LoweringError> {
+    let operation = operations.allocate();
+    match record {
+        CallRecord::Frontier(frontier_before_call) => operations.record_source_call(
+            coordinate,
+            source_site,
+            operation,
+            source_target,
+            frontier_before_call,
+        )?,
+        CallRecord::Values(source_values_before_call) => operations.record_source_call_with_values(
+            coordinate,
+            source_site,
+            operation,
+            source_target,
+            source_values_before_call,
+        )?,
+    }
+    operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation,
+        result,
+        kind: call.into_operation_kind(),
+    });
+    Ok(operation)
 }
 
 /// What successful return binds, with the facts that choose its operation.

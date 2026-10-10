@@ -16,7 +16,7 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::expression_preparation::bindings::structural_paths::{
-    lower_structural_path, structural_access_can_supply, terminal_access,
+    lower_structural_path, structural_access_can_supply, structural_argument, terminal_access,
 };
 use crate::expression_preparation::bindings::{
     StructuralLocalBinding, StructuralScalarFieldBinding,
@@ -532,11 +532,11 @@ pub(crate) fn lower_structural_arguments(
                 // A published local may own a projected subtree without a
                 // separate place. Continue from its retained path and type.
                 let path = lower_path(argument, binding.structural_type, binding.argument.place, &binding.argument.path)?;
-                return Ok(StructuralArgument {
-                    place: binding.argument.place,
+                return Ok(structural_argument(
+                    binding.argument.place,
                     path,
                     access,
-                });
+                ));
             }
             if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } = argument.source {
                 let local = super::primitive_locals::find(primitive_locals, symbol)?;
@@ -548,7 +548,11 @@ pub(crate) fn lower_structural_arguments(
                     checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => StructuralAccess::WriteOnlyBorrow,
                     checked_trees::CheckedStructuralAccess::Owned => return unsupported("primitive local cannot transfer owned custody"),
                 };
-                return Ok(StructuralArgument { place: local.declaration.id, path: Vec::new(), access });
+                return Ok(structural_argument(
+                    local.declaration.id,
+                    Vec::new(),
+                    access,
+                ));
             }
             // Literals and view ranges of either family were staged into
             // places of their own, in argument order.
@@ -561,11 +565,11 @@ pub(crate) fn lower_structural_arguments(
                         "byte-sequence argument place is absent",
                     ))?;
                 next_byte_argument += 1;
-                return Ok(StructuralArgument {
+                return Ok(structural_argument(
                     place,
-                    path: Vec::new(),
-                    access: terminal_access(argument.access),
-                });
+                    Vec::new(),
+                    terminal_access(argument.access),
+                ));
             }
             if let Some(declaration_ordinal) = argument.source_local_declaration_ordinal() {
                 let source = trivial_affine_locals
@@ -575,11 +579,11 @@ pub(crate) fn lower_structural_arguments(
                     .ok_or(LoweringError::Unsupported(
                         "Unit local argument has an invalid declaration ordinal",
                     ))?;
-                return Ok(StructuralArgument {
-                    place: source.id,
-                    path: Vec::new(),
-                    access: StructuralAccess::Owned,
-                });
+                return Ok(structural_argument(
+                    source.id,
+                    Vec::new(),
+                    StructuralAccess::Owned,
+                ));
             }
             if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
                 // A projected owned alias declares no place: it names an
@@ -589,11 +593,11 @@ pub(crate) fn lower_structural_arguments(
                 // lane Terminal Psi admits for a partial move.
                 if let Some(projected_alias) = projected_alias(completed_results, binding_ordinal) {
                     let path = lower_path(argument, projected_alias.structural_type, projected_alias.place, projected_alias.path)?;
-                    return Ok(StructuralArgument {
-                        place: projected_alias.place,
+                    return Ok(structural_argument(
+                        projected_alias.place,
                         path,
-                        access: terminal_access(argument.access),
-                    });
+                        terminal_access(argument.access),
+                    ));
                 }
                 let source = structural_result_source(structural_results, binding_ordinal, argument)?;
                 let structural_type = match source.kind {
@@ -619,11 +623,11 @@ pub(crate) fn lower_structural_arguments(
                     }
                     _ => return unsupported("structural result argument has no declared type"),
                 };
-                return Ok(StructuralArgument {
-                    place: source.id,
-                    path: lower_path(argument, structural_type, source.id, &[])?,
-                    access: terminal_access(argument.access),
-                });
+                return Ok(structural_argument(
+                    source.id,
+                    lower_path(argument, structural_type, source.id, &[])?,
+                    terminal_access(argument.access),
+                ));
             }
             if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. } =
                 argument.source
@@ -647,11 +651,11 @@ pub(crate) fn lower_structural_arguments(
                 .ok_or(LoweringError::Unsupported(
                     "Unit structural argument has an invalid caller parameter index",
                 ))?;
-            Ok(StructuralArgument {
-                place: parameter.place,
-                path: lower_path(argument, parameter.structural_type, parameter.place, &[])?,
-                access: terminal_access(argument.access),
-            })
+            Ok(structural_argument(
+                parameter.place,
+                lower_path(argument, parameter.structural_type, parameter.place, &[])?,
+                terminal_access(argument.access),
+            ))
         })
         .collect::<Result<Vec<_>, _>>()
         .and_then(|lowered| {

@@ -1,6 +1,6 @@
 //! Scalar operand evaluation within an existing machine's structural frontier.
 use super::super::{
-    BlockId, QualifiedScalarType, StructuralAccess, StructuralArgument,
+    BlockId, QualifiedScalarType, StructuralAccess,
     StructuralParameterDeclaration, StructuralTypeDeclaration, block_id, scalar_carriers,
 };
 use super::{
@@ -435,15 +435,16 @@ impl Evaluation {
                     result_binding_ordinal: Some(result.binding_ordinal),
                     root: facts::PlaceRoot::Symbol(local.symbol),
                     structural_type: produced.structural_type(),
-                    argument: StructuralArgument {
-                        place: produced.place(),
-                        path: produced.path().to_vec(),
-                        access: if reference_carrier {
-                            StructuralAccess::Owned
-                        } else {
-                            access
-                        },
-                    },
+                    argument:
+                        crate::expression_preparation::bindings::structural_paths::structural_argument(
+                            produced.place(),
+                            produced.path().to_vec(),
+                            if reference_carrier {
+                                StructuralAccess::Owned
+                            } else {
+                                access
+                            },
+                        ),
                 },
             );
             // A view local's published place is what its lengths and element

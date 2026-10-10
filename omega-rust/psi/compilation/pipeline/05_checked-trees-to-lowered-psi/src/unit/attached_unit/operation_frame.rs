@@ -460,11 +460,13 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "primitive reference ingress lost its original home",
             ))?;
-        Ok(StructuralArgument {
-            place,
-            path: Vec::new(),
-            access: StructuralAccess::SharedBorrow,
-        })
+        Ok(
+            crate::expression_preparation::bindings::structural_paths::structural_argument(
+                place,
+                Vec::new(),
+                StructuralAccess::SharedBorrow,
+            ),
+        )
     }
 
     /// End the exact current carrier through the shared storage namespace.

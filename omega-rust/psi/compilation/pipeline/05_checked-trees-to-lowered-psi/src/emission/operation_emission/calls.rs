@@ -9,7 +9,7 @@ use crate::proofs::crash_routes::{lower_checked_crash_route_buckets, lowered_dir
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{MachineId, ObligationId, QualifiedScalarType, ValueId};
-use terminal_psi::{Operation, StructuralArgument, ValueDeclaration};
+use terminal_psi::{StructuralArgument, ValueDeclaration};
 
 /// The source place is known during preparation; runtime path values and their
 /// bounds obligations belong to the emitting call's actual scalar frame.
@@ -76,11 +76,13 @@ impl PreparedStructuralArgument {
         if selectors.next().is_some() {
             return unsupported("captured selectors exceed the structural argument path");
         }
-        Ok(StructuralArgument {
-            place: self.place,
-            access: self.access,
-            path,
-        })
+        Ok(
+            crate::expression_preparation::bindings::structural_paths::structural_argument(
+                self.place,
+                path,
+                self.access,
+            ),
+        )
     }
 }
 
@@ -206,14 +208,6 @@ fn emit_direct_call_operation(
     *next_value_identity = next_value_identity
         .checked_add(1)
         .expect("generated value identity advances after a direct call");
-    let operation = operations.allocate();
-    operations.record_source_call_with_values(
-        call.source_coordinate,
-        None,
-        operation,
-        call.target_machine,
-        source_values_before_call,
-    )?;
     let erased_arguments = call
         .erased_arguments
         .iter()
@@ -248,27 +242,28 @@ fn emit_direct_call_operation(
         &call.claim_transfers,
         call_emission.claims.bindings(),
     )?;
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
-        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+    crate::direct_calls::emit_direct_call(
+        operations,
+        call.source_coordinate,
+        None,
+        call.target_machine,
+        crate::direct_calls::CallRecord::Values(source_values_before_call),
+        terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: call.result_type.qualifications,
             id: result,
             scalar_type: call.result_type.scalar_type,
         }),
-        kind: DirectCall {
+        DirectCall::new(
             callee,
-            arguments: arguments.iter().map(|argument| argument.id).collect(),
+            arguments.iter().map(|argument| argument.id).collect(),
             erased_arguments,
             erased_proof_arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
-            result: DirectCallResult::Scalar,
-        }
-        .into_operation_kind(),
-    });
+            DirectCallResult::Scalar,
+        ),
+    )?;
     Ok(result)
 }

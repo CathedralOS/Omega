@@ -26,7 +26,7 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use crate::terminal_identities::lookup_type_id;
 use crate::unit::{
-    CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationResult, PlaceId,
+    CheckedUnitEffectOperationPlan, LoweringError, OperationResult, PlaceId,
     StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
     lookup_machine_id, lower_checked_crash_route_buckets, terminal_scalar_type, unsupported,
     value_id,
@@ -304,16 +304,19 @@ impl OperationFrame<'_, '_> {
         Ok(())
     }
 
-    /// The source-call row every call records beside its operation.
-    pub(super) fn record_source_call(
-        &mut self,
+    /// The source-call coordinate and suspension frontier every call records
+    /// beside its operation.
+    pub(super) fn source_call_record(
+        &self,
         coordinate: checked_trees::CheckedUnitCallCoordinate,
-        source_site: Option<checked_trees::NominalMachineUseSite>,
-        operation: semantic_vocabulary::OperationId,
-        target: symbols::SymbolHandle,
-    ) -> Result<(), LoweringError> {
-        let frontier = self.suspension_source_frontier(coordinate)?;
-        self.operations.record_source_call(
+    ) -> Result<
+        (
+            SourceCallCoordinate,
+            lowered_psi::LoweredSourceFrontierBindings,
+        ),
+        LoweringError,
+    > {
+        Ok((
             SourceCallCoordinate {
                 state: self.state,
                 statement_index: usize::try_from(coordinate.statement_index).map_err(|_| {
@@ -323,6 +326,21 @@ impl OperationFrame<'_, '_> {
                     LoweringError::Unsupported("Unit call ordinal coordinate exceeds usize")
                 })?,
             },
+            self.suspension_source_frontier(coordinate)?,
+        ))
+    }
+
+    /// The source-call row every call records beside its operation.
+    pub(super) fn record_source_call(
+        &mut self,
+        coordinate: checked_trees::CheckedUnitCallCoordinate,
+        source_site: Option<checked_trees::NominalMachineUseSite>,
+        operation: semantic_vocabulary::OperationId,
+        target: symbols::SymbolHandle,
+    ) -> Result<(), LoweringError> {
+        let (coordinate, frontier) = self.source_call_record(coordinate)?;
+        self.operations.record_source_call(
+            coordinate,
             source_site,
             operation,
             target,
@@ -625,17 +643,17 @@ impl OperationFrame<'_, '_> {
             )?;
             return self.publish_result(operation, result, declaration, *discard_result_on_return);
         }
-        let id = self.operations.allocate();
-        self.record_source_call(*coordinate, None, id, *target_state)?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Unit,
-            kind: prepared
-                .into_direct_call(callee, DirectCallResult::Unit)
-                .into_operation_kind(),
-        });
+        let (coordinate, frontier) = self.source_call_record(*coordinate)?;
+        prepared.emit(
+            self.operations,
+            coordinate,
+            None,
+            *target_state,
+            crate::direct_calls::CallRecord::Frontier(&frontier),
+            OperationResult::Unit,
+            callee,
+            DirectCallResult::Unit,
+        )?;
         Ok(())
     }
 
@@ -979,8 +997,6 @@ impl OperationFrame<'_, '_> {
             id: value_id(allocate_dense(self.next_value)?),
             scalar_type: target_result,
         };
-        let operation_id = self.operations.allocate();
-        self.record_source_call(*coordinate, None, operation_id, source_target)?;
         let callee = lookup_machine_id(self.calls.machine_ids, *realization_machine)?;
         let arguments = arguments.iter().map(|argument| argument.id).collect();
         let structural_arguments = &call.structural_arguments;
@@ -1023,25 +1039,26 @@ impl OperationFrame<'_, '_> {
                 )?,
             )
         };
-        let kind = DirectCall {
-            callee,
-            arguments,
-            erased_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-            result: DirectCallResult::Scalar,
-        }
-        .into_operation_kind();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation_id,
-            result: OperationResult::Scalar(value),
-            kind,
-        });
+        let (coordinate, frontier) = self.source_call_record(*coordinate)?;
+        crate::direct_calls::emit_direct_call(
+            self.operations,
+            coordinate,
+            None,
+            source_target,
+            crate::direct_calls::CallRecord::Frontier(&frontier),
+            OperationResult::Scalar(value),
+            DirectCall::new(
+                callee,
+                arguments,
+                erased_arguments,
+                erased_proof_arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                DirectCallResult::Scalar,
+            ),
+        )?;
         Ok(value)
     }
 }

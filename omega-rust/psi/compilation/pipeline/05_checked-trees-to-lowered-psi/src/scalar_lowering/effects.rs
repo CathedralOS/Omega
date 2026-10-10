@@ -1,7 +1,7 @@
 //! A branch state's non-scalar effects consume completed operands without
 //! adding value slots.
 use super::{
-    LoweringError, Operation, OperationKind, OperationResult, ValueDeclaration,
+    LoweringError, OperationKind, OperationResult, ValueDeclaration,
     emit_direct_expression, lookup_machine_id, lower_checked_crash_route_buckets, unsupported,
     validate_direct_parameter_types,
 };
@@ -159,11 +159,11 @@ pub(crate) fn emit(
                 );
                 view_subslice::emit(
                     source.family,
-                    terminal_psi::StructuralArgument {
-                        place: source.place,
+                    crate::expression_preparation::bindings::structural_paths::structural_argument(
+                        source.place,
                         path,
-                        access: source.access,
-                    },
+                        source.access,
+                    ),
                     Some(start),
                     end.as_ref(),
                     *place,
@@ -194,14 +194,6 @@ pub(crate) fn emit(
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
-                let id = operations.allocate();
-                operations.record_source_call_with_values(
-                    call.source_coordinate,
-                    None,
-                    id,
-                    call.target_state,
-                    values,
-                )?;
                 let erased_proof_arguments = call
                     .erased_proof_arguments
                     .iter()
@@ -223,36 +215,33 @@ pub(crate) fn emit(
                         &mut calls.claims,
                     )?;
                 }
-                operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id,
-                    result: result
+                crate::direct_calls::emit_direct_call(
+                    operations,
+                    call.source_coordinate,
+                    None,
+                    call.target_state,
+                    crate::direct_calls::CallRecord::Values(values),
+                    result
                         .map(OperationResult::Structural)
                         .unwrap_or(OperationResult::Unit),
-                    kind: DirectCall {
-                        callee: lookup_machine_id(calls.machine_ids, call.target_machine)?,
-                        arguments: arguments.iter().map(|argument| argument.id).collect(),
-                        erased_arguments: Vec::new(),
+                    DirectCall::new(
+                        lookup_machine_id(calls.machine_ids, call.target_machine)?,
+                        arguments.iter().map(|argument| argument.id).collect(),
+                        Vec::new(),
                         erased_proof_arguments,
-                        structural_arguments: call.structural_arguments.clone(),
+                        call.structural_arguments.clone(),
                         claim_transfers,
-                        requirement_obligations: Vec::new(),
-                        crash_continuations: lower_checked_crash_route_buckets(
-                            &call.crash_routes,
-                            &arguments,
-                        )?,
-                        result: call
-                            .result
+                        Vec::new(),
+                        lower_checked_crash_route_buckets(&call.crash_routes, &arguments)?,
+                        call.result
                             .as_ref()
                             .map_or(DirectCallResult::Unit, |result| {
                                 DirectCallResult::Structural {
                                     multiplicity: result.multiplicity,
                                 }
                             }),
-                    }
-                    .into_operation_kind(),
-                });
+                    ),
+                )?;
             }
         }
     }

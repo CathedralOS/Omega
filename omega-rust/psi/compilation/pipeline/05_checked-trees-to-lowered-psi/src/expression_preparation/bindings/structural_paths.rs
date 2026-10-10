@@ -12,6 +12,21 @@ use semantic_vocabulary::{ScalarType, ValueId};
 use terminal_psi::ValueDeclaration;
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
 
+/// The one call structural-argument construction: every lowering route
+/// resolves an argument's home and path, then mints its `StructuralArgument`
+/// here so call argument shape has a single spelling.
+pub(crate) fn structural_argument(
+    place: semantic_vocabulary::PlaceId,
+    path: Vec<StructuralPathSegment>,
+    access: StructuralAccess,
+) -> terminal_psi::StructuralArgument {
+    terminal_psi::StructuralArgument {
+        place,
+        path,
+        access,
+    }
+}
+
 /// The Terminal access a checked structural access lowers to: the two
 /// vocabularies correspond one to one. A lane that admits only some
 /// accesses matches the checked access itself.

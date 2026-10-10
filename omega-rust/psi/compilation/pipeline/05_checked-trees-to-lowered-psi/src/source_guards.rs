@@ -201,3 +201,68 @@ fn successor_transitions_have_one_plan_and_one_lowering() {
         "exactly one lowering of successor transfers: {lowerings:?}"
     );
 }
+
+/// One emitter mints every direct machine call: `DirectCall::new` holds the
+/// single construction inside `direct_calls.rs` and `emit_direct_call` pushes
+/// it, so scalar operands, graph effects, ordinary and composed bodies share
+/// the operation. Call structural arguments are minted by the one
+/// `structural_argument` constructor; files that resolve call operand lanes
+/// never spell a bare `StructuralArgument { ... }` themselves. Boundary
+/// applications keep their own operation kind — a boundary is not a machine
+/// call.
+#[test]
+fn calls_have_one_emitter_and_one_argument_constructor() {
+    let stage_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    // Files that resolve call operand lanes or emit call operations.
+    // Structural arguments for views, stores and successor transfers have
+    // their own routes and stay outside this set.
+    const CALL_FILES: &[&str] = &[
+        "unit/attached_unit/parameters.rs",
+        "unit/attached_unit/ordinary_calls.rs",
+        "unit/attached_unit/operation_frame.rs",
+        "unit/attached_unit/operation_frame/calls.rs",
+        "unit/attached_unit/operation_frame/boundary_calls.rs",
+        "unit/attached_unit/argument_evaluation.rs",
+        "emission/operation_emission/calls.rs",
+        "emission/operation_emission/boundary_calls.rs",
+        "scalar_lowering/effects.rs",
+        "scalar_lowering/computations/calls.rs",
+        "scalar_lowering/computations/structural_arguments.rs",
+        "scalar_lowering/branch_states/structural_values/calls.rs",
+    ];
+    let mut emitters = Vec::new();
+    let mut constructors = Vec::new();
+    let mut free_mints = Vec::new();
+    for (file, line_number, line) in lines_under(&stage_root) {
+        let trimmed = line.trim_start();
+        if trimmed.contains(concat!("Direct", "Call {"))
+            && !trimmed.starts_with(concat!("struct", " "))
+            && !trimmed.starts_with(concat!("pub", " struct"))
+            && !trimmed.starts_with(concat!("pub", "(crate) struct"))
+            && !trimmed.starts_with(concat!("impl", " "))
+        {
+            emitters.push(format!("{file}:{line_number}: {}", trimmed));
+        }
+        if trimmed.contains(concat!("fn ", "structural_argument(")) {
+            constructors.push(format!("{file}:{line_number}: {}", trimmed));
+        }
+        if CALL_FILES.iter().any(|call_file| file.ends_with(call_file))
+            && trimmed.contains(concat!(" StructuralArg", "ument {"))
+        {
+            free_mints.push(format!("{file}:{line_number}: {}", trimmed));
+        }
+    }
+    emitters.sort();
+    constructors.sort();
+    free_mints.sort();
+    assert_eq!(emitters.len(), 1, "exactly one direct-call construction: {emitters:?}");
+    assert_eq!(
+        constructors.len(),
+        1,
+        "exactly one call structural-argument constructor: {constructors:?}"
+    );
+    assert!(
+        free_mints.is_empty(),
+        "call files mint structural arguments through the shared constructor: {free_mints:?}"
+    );
+}
