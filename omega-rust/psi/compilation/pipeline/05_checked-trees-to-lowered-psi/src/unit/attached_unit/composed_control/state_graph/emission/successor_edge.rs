@@ -321,8 +321,8 @@ impl StateGraphEmission<'_, '_> {
                                     let value = edge_evaluation.source_value(
                                         identities,
                                         checked,
-                                        state.state,
                                         owner,
+                                        state.state,
                                         edge.statement_ordinal,
                                         root.role,
                                         &checked_trees::CheckedCallScalarArgument::Computation(*handle),
