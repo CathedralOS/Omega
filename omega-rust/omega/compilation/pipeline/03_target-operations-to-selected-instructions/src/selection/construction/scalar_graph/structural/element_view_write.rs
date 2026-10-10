@@ -107,13 +107,11 @@ pub(super) fn write(
             ..Default::default()
         },
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset,
-            byte_size: u8::try_from(byte_count).map_err(|_| invalid())?,
-        },
-        builder.constraints.keys.store.ok_or_else(|| invalid())?,
-        &[address, value_register],
+    builder.emit_store(
+        byte_offset,
+        u8::try_from(byte_count).map_err(|_| invalid())?,
+        address,
+        value_register,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![index, value, length],

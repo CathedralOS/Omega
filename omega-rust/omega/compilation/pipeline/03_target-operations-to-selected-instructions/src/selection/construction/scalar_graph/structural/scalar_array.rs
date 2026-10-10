@@ -1,7 +1,7 @@
 //! Establish the exact ordered array payload in one activation-local home.
 use super::{
-    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, memory,
+    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, SelectedInstructionProvenance,
+    SelectedMemoryAccessRole, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::local_storage;
@@ -57,17 +57,11 @@ pub(super) fn establish(
             u32::from(width),
             SelectedMemoryAccessRole::WritePlace,
         )?;
-        builder.emit(
-            SelectedInstructionKind::Store {
-                byte_offset: displacement,
-                byte_size: width,
-            },
-            builder
-                .constraints
-                .keys
-                .store
-                .ok_or_else(|| SelectedInstructionError::custody())?,
-            &[element_pointer, value],
+        builder.emit_store(
+            displacement,
+            width,
+            element_pointer,
+            value,
             SelectedInstructionProvenance {
                 values: vec![element],
                 ..provenance(row)

@@ -86,15 +86,7 @@ pub(super) fn establish(
         layout.shape.byte_size,
         SelectedMemoryAccessRole::WritePlace,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: 0,
-            byte_size: 8,
-        },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
-        &[pointer, packed],
-        provenance(row),
-    )?;
+    builder.emit_store(0, 8, pointer, packed, provenance(row))?;
     builder.transport.pointers.push((result.place, pointer));
     Ok(())
 }

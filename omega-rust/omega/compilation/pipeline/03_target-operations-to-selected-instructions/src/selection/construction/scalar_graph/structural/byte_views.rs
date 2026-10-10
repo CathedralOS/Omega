@@ -105,13 +105,11 @@ pub(super) fn write(
             },
         )?,
     }
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: 0,
-            byte_size: 1,
-        },
-        builder.constraints.keys.store.ok_or_else(|| invalid())?,
-        &[address, value_register],
+    builder.emit_store(
+        0,
+        1,
+        address,
+        value_register,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![index, value, length],

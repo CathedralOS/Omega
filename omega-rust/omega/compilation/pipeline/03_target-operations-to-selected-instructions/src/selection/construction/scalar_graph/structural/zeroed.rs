@@ -94,19 +94,7 @@ fn store_each_leaf(
             u32::from(width),
             SelectedMemoryAccessRole::WritePlace,
         )?;
-        builder.emit(
-            SelectedInstructionKind::Store {
-                byte_offset: displacement,
-                byte_size: width,
-            },
-            builder
-                .constraints
-                .keys
-                .store
-                .ok_or(SelectedInstructionError::custody())?,
-            &[pointer, zero],
-            provenance(row),
-        )?;
+        builder.emit_store(displacement, width, pointer, zero, provenance(row))?;
     }
     Ok(())
 }

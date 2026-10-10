@@ -4,7 +4,7 @@
 //! applies the static offset.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -276,13 +276,11 @@ pub(super) fn emit(
         leaf_indices,
         super::runtime_address::Written::Scalar(value.value),
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: displacement,
-            byte_size: u8::try_from(byte_size).map_err(|_| invalid())?,
-        },
-        builder.constraints.keys.store.ok_or_else(|| invalid())?,
-        &[address, register],
+    builder.emit_store(
+        displacement,
+        u8::try_from(byte_size).map_err(|_| invalid())?,
+        address,
+        register,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: indices

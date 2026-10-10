@@ -353,15 +353,7 @@ fn copy_bytes(
             to.elements,
             super::runtime_address::Written::Structural,
         )?;
-        builder.emit(
-            SelectedInstructionKind::Store {
-                byte_offset: store_displacement,
-                byte_size: width,
-            },
-            builder.constraints.keys.store.ok_or_else(|| invalid())?,
-            &[output, value],
-            provenance(row),
-        )?;
+        builder.emit_store(store_displacement, width, output, value, provenance(row))?;
         cursor += u32::from(width);
     }
     Ok(())
@@ -465,13 +457,11 @@ fn copy_from_fragments(
             destination.elements,
             super::runtime_address::Written::Structural,
         )?;
-        builder.emit(
-            SelectedInstructionKind::Store {
-                byte_offset: displacement,
-                byte_size: u8::try_from(width).map_err(|_| invalid())?,
-            },
-            builder.constraints.keys.store.ok_or_else(|| invalid())?,
-            &[pointer, value],
+        builder.emit_store(
+            displacement,
+            u8::try_from(width).map_err(|_| invalid())?,
+            pointer,
+            value,
             provenance(row),
         )?;
     }

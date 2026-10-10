@@ -310,15 +310,7 @@ pub(super) fn write(
             if !operation_provenance.values.contains(&value) {
                 operation_provenance.values.push(value);
             }
-            builder.emit(
-                SelectedInstructionKind::Store {
-                    byte_offset: displacement,
-                    byte_size: 1,
-                },
-                builder.constraints.keys.store.ok_or_else(invalid)?,
-                &[address, payload],
-                operation_provenance,
-            )?;
+            builder.emit_store(displacement, 1, address, payload, operation_provenance)?;
         }
     }
     Ok(())

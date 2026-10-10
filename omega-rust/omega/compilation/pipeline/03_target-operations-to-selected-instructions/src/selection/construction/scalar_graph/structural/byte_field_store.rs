@@ -259,13 +259,11 @@ pub(super) fn replace(
         8,
         SelectedMemoryAccessRole::WritePlace,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: metadata_offset,
-            byte_size: 8,
-        },
-        builder.constraints.keys.store.ok_or_else(|| invalid())?,
-        &[root, count],
+    builder.emit_store(
+        metadata_offset,
+        8,
+        root,
+        count,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![*length],
@@ -382,13 +380,11 @@ pub(super) fn replace_byte(
     )?;
     // Metadata and displaced content are not loaded. Only this committing byte
     // store carries fuel; the original inline backing and live length survive.
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: 0,
-            byte_size: 1,
-        },
-        builder.constraints.keys.store.ok_or_else(|| invalid())?,
-        &[address, value_register],
+    builder.emit_store(
+        0,
+        1,
+        address,
+        value_register,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![*index, *value, *length],

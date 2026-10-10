@@ -670,6 +670,31 @@ impl Builder<'_> {
         )
     }
 
+    /// Every `Store` emission shares the kind and its constraint-key lookup;
+    /// call sites differ only in offset, width, the operand pair, and the
+    /// provenance they attach.
+    fn emit_store(
+        &mut self,
+        byte_offset: u32,
+        byte_size: u8,
+        pointer: VirtualRegisterId,
+        value: VirtualRegisterId,
+        provenance: SelectedInstructionProvenance,
+    ) -> Result<(), SelectedInstructionError> {
+        self.emit(
+            SelectedInstructionKind::Store {
+                byte_offset,
+                byte_size,
+            },
+            self.constraints
+                .keys
+                .store
+                .ok_or_else(|| SelectedInstructionError::custody())?,
+            &[pointer, value],
+            provenance,
+        )
+    }
+
     fn emit(
         &mut self,
         kind: SelectedInstructionKind,

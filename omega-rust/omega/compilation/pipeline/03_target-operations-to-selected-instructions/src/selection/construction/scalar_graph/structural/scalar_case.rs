@@ -98,13 +98,11 @@ fn store(
         u32::from(width),
         SelectedMemoryAccessRole::WritePlace,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: offset,
-            byte_size: width,
-        },
-        builder.constraints.keys.store.ok_or_else(|| invalid())?,
-        &[pointer, value],
+    builder.emit_store(
+        offset,
+        width,
+        pointer,
+        value,
         SelectedInstructionProvenance {
             values,
             ..provenance(row)

@@ -111,13 +111,11 @@ pub(super) fn establish(
         8,
         SelectedMemoryAccessRole::WritePlace,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: 0,
-            byte_size: 8,
-        },
-        builder.constraints.keys.store.ok_or(invalid())?,
-        &[owner, length],
+    builder.emit_store(
+        0,
+        8,
+        owner,
+        length,
         SelectedInstructionProvenance {
             fuel: row.fuel.clone(),
             ..evidence

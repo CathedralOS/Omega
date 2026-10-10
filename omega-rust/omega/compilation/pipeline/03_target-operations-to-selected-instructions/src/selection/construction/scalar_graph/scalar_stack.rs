@@ -224,18 +224,6 @@ pub(super) fn invocation_argument(
         &[address],
         provenance.clone(),
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: 0,
-            byte_size: byte_size as u8,
-        },
-        builder
-            .constraints
-            .keys
-            .store
-            .ok_or_else(|| SelectedInstructionError::custody())?,
-        &[address, input],
-        provenance.clone(),
-    )?;
+    builder.emit_store(0, byte_size as u8, address, input, provenance.clone())?;
     Ok(true)
 }

@@ -179,15 +179,7 @@ pub(super) fn establish(
             8,
             SelectedMemoryAccessRole::WritePlace,
         )?;
-        builder.emit(
-            SelectedInstructionKind::Store {
-                byte_offset: 8,
-                byte_size: 8,
-            },
-            builder.constraints.keys.store.ok_or(invalid())?,
-            &[home, codec],
-            provenance(row),
-        )?;
+        builder.emit_store(8, 8, home, codec, provenance(row))?;
     }
     memory(
         builder,
@@ -197,15 +189,7 @@ pub(super) fn establish(
         8,
         SelectedMemoryAccessRole::WritePlace,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: 0,
-            byte_size: 8,
-        },
-        builder.constraints.keys.store.ok_or(invalid())?,
-        &[home, value],
-        provenance(row),
-    )?;
+    builder.emit_store(0, 8, home, value, provenance(row))?;
     // This table always addresses value storage. Consumers dereferencing the
     // reference must load the pointer word, not borrow this home as its referent.
     builder.transport.pointers.push((result.place, home));

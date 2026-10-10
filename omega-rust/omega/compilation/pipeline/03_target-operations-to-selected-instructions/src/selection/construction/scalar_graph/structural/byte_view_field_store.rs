@@ -145,15 +145,7 @@ pub(super) fn replace(
         indices,
         super::runtime_address::Written::Structural,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: descriptor_offset,
-            byte_size: 8,
-        },
-        builder.constraints.keys.store.ok_or(invalid())?,
-        &[root, backing],
-        provenance(row),
-    )?;
+    builder.emit_store(descriptor_offset, 8, root, backing, provenance(row))?;
     // The extent word commits the replacement and carries the fuel charge.
     super::runtime_address::footprint(
         builder,
@@ -164,13 +156,11 @@ pub(super) fn replace(
         indices,
         super::runtime_address::Written::Structural,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: extent_offset,
-            byte_size: 8,
-        },
-        builder.constraints.keys.store.ok_or(invalid())?,
-        &[root, extent],
+    builder.emit_store(
+        extent_offset,
+        8,
+        root,
+        extent,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             fuel: row.fuel.clone(),

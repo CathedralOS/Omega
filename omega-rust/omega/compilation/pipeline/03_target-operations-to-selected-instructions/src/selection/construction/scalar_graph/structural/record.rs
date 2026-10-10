@@ -261,13 +261,11 @@ pub(super) fn store(
         u32::from(width),
         SelectedMemoryAccessRole::WritePlace,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: displacement,
-            byte_size: width,
-        },
-        builder.constraints.keys.store.ok_or_else(|| invalid())?,
-        &[pointer, value],
+    builder.emit_store(
+        displacement,
+        width,
+        pointer,
+        value,
         SelectedInstructionProvenance {
             values,
             obligations,
