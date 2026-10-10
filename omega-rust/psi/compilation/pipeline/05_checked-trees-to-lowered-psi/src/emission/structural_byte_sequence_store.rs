@@ -544,7 +544,8 @@ pub(crate) fn emit_descriptor_store(
     if destination.field.is_none() {
         // A whole replacement changes the home's own extent as well.
         operations
-            .byte_lengths
+            .length_observations
+            .bytes
             .retain(|(place, _)| *place != destination.destination);
     }
     Ok(OperationKind::StructuralByteViewFieldStore {

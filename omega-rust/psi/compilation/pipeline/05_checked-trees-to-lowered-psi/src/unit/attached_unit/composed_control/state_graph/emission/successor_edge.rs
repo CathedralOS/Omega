@@ -3,15 +3,15 @@
 //! erased actuals, and the rank it arrives with.
 
 use super::super::super::super::super::{
-    StructuralAccess, StructuralArgument, StructuralFieldId, StructuralParameterDeclaration,
-    SuccessorEdge, ValueId, block_id,
+    StructuralAccess, StructuralArgument, StructuralParameterDeclaration, SuccessorEdge, ValueId,
+    block_id,
 };
 use super::super::super::super::{
     Block, CheckedScalarExpression, CheckedScalarExpressionRole, Operation, OperationKind,
-    OperationResult, PlaceId, StructuralMultiplicity, StructuralPlaceDeclaration,
-    StructuralPlaceKind, Terminator, ValueDeclaration, allocate_dense,
-    direct_expression_contains_short_circuit, edge_id, emit_direct_expression, place_id,
-    terminal_scalar_type, unsupported, validate_direct_parameter_types,
+    OperationResult, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
+    Terminator, ValueDeclaration, allocate_dense, direct_expression_contains_short_circuit,
+    edge_id, emit_direct_expression, place_id, terminal_scalar_type, unsupported,
+    validate_direct_parameter_types,
 };
 use super::super::super::LoweringError;
 use super::super::{
@@ -19,7 +19,7 @@ use super::super::{
     scalars, subslices,
 };
 use super::StateGraphEmission;
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{CollectionLengthObservations, OperationBuffer};
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
@@ -47,7 +47,6 @@ impl StateGraphEmission<'_, '_> {
             bindings,
             current_rank,
             inherited_lengths,
-            inherited_field_lengths,
         } = *frame;
         let state = &plan.states[position];
         let arrival_decided = checked.facts.call_requires_decided(
@@ -67,8 +66,7 @@ impl StateGraphEmission<'_, '_> {
             next_edge,
             edge_blocks,
         } = emitted;
-        operations.byte_lengths = inherited_lengths.to_vec();
-        operations.field_byte_lengths = inherited_field_lengths.to_vec();
+        operations.length_observations.clone_from(inherited_lengths);
         let target = plan
             .state_position(edge.target_state)
             .ok_or(LoweringError::Unsupported(
@@ -1014,13 +1012,7 @@ pub(super) struct SuccessorFrame<'f> {
     pub(super) state_parameters: &'f [StructuralParameterDeclaration],
     pub(super) bindings: &'f ScalarBindings,
     pub(super) current_rank: Option<ValueId>,
-    pub(super) inherited_lengths: &'f [(PlaceId, ValueId)],
-    pub(super) inherited_field_lengths: &'f [(
-        PlaceId,
-        Vec<terminal_psi::StructuralPathSegment>,
-        StructuralFieldId,
-        ValueId,
-    )],
+    pub(super) inherited_lengths: &'f CollectionLengthObservations,
 }
 
 /// The state's emission in flight that each successor edge extends.

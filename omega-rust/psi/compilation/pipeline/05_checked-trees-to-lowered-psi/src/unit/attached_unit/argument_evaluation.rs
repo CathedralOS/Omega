@@ -1353,9 +1353,7 @@ impl Evaluation {
                 &mut self.blocks,
             )?;
         }
-        operations.byte_lengths.clear();
-        operations.element_lengths.clear();
-        operations.field_byte_lengths.clear();
+        operations.length_observations.clear();
         let result = completion_parameters[source_types.len()..].to_vec();
         *values = completion_parameters[..source_types.len()].to_vec();
         self.current = completion;

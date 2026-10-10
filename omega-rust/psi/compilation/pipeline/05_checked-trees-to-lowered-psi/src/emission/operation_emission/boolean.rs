@@ -351,7 +351,8 @@ fn byte_sequence_operand(
                 operations,
             );
             operations
-                .field_byte_lengths
+                .length_observations
+                .field_bytes
                 .push((source, path.clone(), field, length));
             terminal_psi::control_flow::ByteSequenceOperand::Field {
                 source: terminal_psi::StructuralArgument {

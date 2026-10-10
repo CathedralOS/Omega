@@ -4,5 +4,10 @@ Both the refined field and the nested primitive-array element are written
 through a borrowed window of records. The caller must observe the selected
 backing at physical index 2, without changes to neighboring elements or fields.
 
+The nested view's guarded successor carries two refined fields, an inline-array
+element and a Boolean into another state. Its length observations must stay in
+the block that defines them, even when successors are emitted before the guard.
+An empty outer view takes the fallback without observing any nested element.
+
 The corpus `--both` gate also runs the shared Terminal interpreter; the CLI's
 `--both` comparison runs the checked interpreter.

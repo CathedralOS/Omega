@@ -19,7 +19,7 @@ use super::super::{CheckedStructuralControlSuccessorPlan, case_emission, ranking
 use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{CollectionLengthObservations, OperationBuffer};
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_checked_crash_predicates};
 
@@ -568,8 +568,7 @@ impl StateGraphEmission<'_, '_> {
             )?),
             None => None,
         };
-        let inherited_lengths = operations.byte_lengths.clone();
-        let inherited_field_lengths = operations.field_byte_lengths.clone();
+        let inherited_lengths = operations.length_observations.clone();
         // Ordered multi-arm guards: every later guard is observed inside its
         // own private block reached only along the previous decision's false
         // edge. Their evaluation drafts are staged before the successor-edge
@@ -915,7 +914,6 @@ impl StateGraphEmission<'_, '_> {
             bindings: &bindings,
             current_rank,
             inherited_lengths: &inherited_lengths,
-            inherited_field_lengths: &inherited_field_lengths,
         };
         let mut successor = |edge: &CheckedStructuralControlSuccessorPlan,
                              payload_values: &[(u32, ValueDeclaration)],
@@ -1097,7 +1095,7 @@ impl StateGraphEmission<'_, '_> {
                             erased_scalar_formals: &self.state_erased[position],
                             erased_proof_formals: &self.state_erased_proof[position],
                             current_rank,
-                            inherited_lengths: (&inherited_lengths, &inherited_field_lengths),
+                            inherited_lengths: &inherited_lengths,
                         },
                         &mut self.block_ranks,
                         &mut self.rank_edges,
@@ -1208,7 +1206,7 @@ impl StateGraphEmission<'_, '_> {
                                 erased_scalar_formals: &self.state_erased[position],
                                 erased_proof_formals: &self.state_erased_proof[position],
                                 current_rank,
-                                inherited_lengths: (&inherited_lengths, &inherited_field_lengths),
+                                inherited_lengths: &inherited_lengths,
                             },
                             &mut self.block_ranks,
                             &mut self.rank_edges,
@@ -1252,7 +1250,7 @@ impl StateGraphEmission<'_, '_> {
                             erased_scalar_formals: &self.state_erased[position],
                             erased_proof_formals: &self.state_erased_proof[position],
                             current_rank,
-                            inherited_lengths: (&inherited_lengths, &inherited_field_lengths),
+                            inherited_lengths: &inherited_lengths,
                         },
                         &mut self.block_ranks,
                         &mut self.rank_edges,
@@ -1452,17 +1450,9 @@ struct ShortCircuitFrame<'a> {
     erased_scalar_formals: &'a [ValueDeclaration],
     erased_proof_formals: &'a [checked_trees::CheckedErasedProofParameterPlan],
     current_rank: Option<semantic_vocabulary::ValueId>,
-    /// The byte-length observations the state held before any successor
+    /// The length observations the state held before any successor
     /// staging; the decision cannot reuse observations staged after it.
-    inherited_lengths: (
-        &'a [(semantic_vocabulary::PlaceId, semantic_vocabulary::ValueId)],
-        &'a [(
-            semantic_vocabulary::PlaceId,
-            Vec<terminal_psi::StructuralPathSegment>,
-            semantic_vocabulary::StructuralFieldId,
-            semantic_vocabulary::ValueId,
-        )],
-    ),
+    inherited_lengths: &'a CollectionLengthObservations,
 }
 
 /// Lower one planned short-circuit guard whose outcomes take `when_true` and
@@ -1497,8 +1487,9 @@ fn emit_short_circuit_decision(
 ) -> Result<Terminator, LoweringError> {
     // Successor staging runs only after selection. Its length observations
     // cannot be reused while evaluating the guard.
-    operations.byte_lengths = frame.inherited_lengths.0.to_vec();
-    operations.field_byte_lengths = frame.inherited_lengths.1.to_vec();
+    operations
+        .length_observations
+        .clone_from(frame.inherited_lengths);
     let true_block = block_id(allocate_dense(next_block)?);
     let false_block = block_id(allocate_dense(next_block)?);
     for (id, successor) in [(true_block, when_true), (false_block, when_false)] {

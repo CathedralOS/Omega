@@ -3123,12 +3123,6 @@ of a check the same flow already performed, not the check itself.
   independent validation/proof owners; no checking-time mutation or typed
   commitment fallback is permitted.
 
-  Multi-field arrivals below nested descriptor windows stop in native target
-  lowering (`UnknownValue` for a composed record-field, inline-array and Boolean
-  arrival at `820596967a9`). Repair the value join while preserving captured
-  length guards, descriptor-replacement rejection, nested windows and stored
-  re-view controls.
-
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
   corpus and focused native cohort. Stored references now retain finite closed

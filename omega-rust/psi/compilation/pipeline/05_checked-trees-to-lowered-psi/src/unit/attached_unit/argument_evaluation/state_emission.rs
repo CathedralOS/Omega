@@ -48,9 +48,7 @@ pub(super) fn emit_state(
     let mut block_erased_formals = erased_formals.clone();
     // Expansion-state order is not dominance order. Only observations made
     // within this state's path may be reused while emitting its decisions.
-    operations.byte_lengths.clear();
-    operations.element_lengths.clear();
-    operations.field_byte_lengths.clear();
+    operations.length_observations.clear();
     let mut values = parameters.to_vec();
     let mut block_parameters = parameters.to_vec();
     let mut operation_start = operations.len();

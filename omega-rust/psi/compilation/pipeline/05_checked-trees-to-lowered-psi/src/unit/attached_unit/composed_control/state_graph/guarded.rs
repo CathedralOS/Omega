@@ -147,8 +147,7 @@ pub(super) fn emit(
         let retained_bindings = operations.structural_values.len();
         let mut selected_evaluation = evaluation.branch(selected, operations.len());
         let mut selected_values = values.clone();
-        operations.byte_lengths.clear();
-        operations.field_byte_lengths.clear();
+        operations.length_observations.clear();
         let terminator = emit_return(
             checked,
             plan,
@@ -187,8 +186,7 @@ pub(super) fn emit(
         evaluation.current = remaining;
         evaluation.operation_start = operations.len();
         operations.structural_values.truncate(retained_bindings);
-        operations.byte_lengths.clear();
-        operations.field_byte_lengths.clear();
+        operations.length_observations.clear();
     }
     let fallback_exit = super::cleanup::destination(
         checked,
@@ -308,7 +306,7 @@ pub(super) fn complete_structural_return(
         returned_claims,
         cleanup_actions: Vec::new(),
     };
-// Every structural completion consumes its selected subtree at the exit.
+    // Every structural completion consumes its selected subtree at the exit.
     // Returning an alias's containing root instead would change both the value
     // contract and its residual ownership. Use the ordinary return transport,
     // independent of whether a conditional or ordered guard selected the exit.

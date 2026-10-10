@@ -337,7 +337,8 @@ pub(crate) fn emit_byte_length(
     if source.path.is_empty()
         && source.access == terminal_psi::StructuralAccess::SharedBorrow
         && let Some(value) = operations
-            .byte_lengths
+            .length_observations
+            .bytes
             .iter()
             .rev()
             .find_map(|(place, value)| (*place == source.place).then_some(*value))
@@ -360,7 +361,7 @@ pub(crate) fn emit_byte_length(
         operations,
     );
     if cache {
-        operations.byte_lengths.push((place, value));
+        operations.length_observations.bytes.push((place, value));
     }
     value
 }
@@ -377,7 +378,8 @@ pub(crate) fn emit_element_length(
     // count. Branch emitters scope whole observations to their path.
     if source.path.is_empty()
         && let Some(value) = operations
-            .element_lengths
+            .length_observations
+            .elements
             .iter()
             .rev()
             .find_map(|(place, value)| (place == &source).then_some(*value))
@@ -398,7 +400,10 @@ pub(crate) fn emit_element_length(
         operations,
     );
     if source.path.is_empty() {
-        operations.element_lengths.push((source, value));
+        operations
+            .length_observations
+            .elements
+            .push((source, value));
     }
     value
 }
@@ -651,7 +656,8 @@ pub(crate) fn emit_direct_expression(
                 operations,
             );
             operations
-                .field_byte_lengths
+                .length_observations
+                .field_bytes
                 .push((*source, path.clone(), *field, value));
             value
         }
@@ -663,7 +669,8 @@ pub(crate) fn emit_direct_expression(
         } => {
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
             let length = operations
-                .byte_lengths
+                .length_observations
+                .bytes
                 .iter()
                 .rev()
                 .find_map(|(place, value)| (*place == *source).then_some(*value))
@@ -710,7 +717,8 @@ pub(crate) fn emit_direct_expression(
             // dominating value; otherwise mint a current observation, whose
             // bound the certificate must then derive from the extent itself.
             let length = operations
-                .field_byte_lengths
+                .length_observations
+                .field_bytes
                 .iter()
                 .rev()
                 .find_map(|(place, carrier, named, value)| {
@@ -806,7 +814,8 @@ pub(crate) fn emit_direct_expression(
         } => {
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
             let length = operations
-                .element_lengths
+                .length_observations
+                .elements
                 .iter()
                 .rev()
                 .find_map(|(observed, value)| {

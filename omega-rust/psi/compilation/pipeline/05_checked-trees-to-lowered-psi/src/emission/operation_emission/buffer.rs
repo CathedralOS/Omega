@@ -1,4 +1,9 @@
 //! Invocation-owned operation identities and exact source-occurrence companions.
+//!
+//! Length observations belong to a control-flow scope, not to the append-only
+//! operation roster. Successors can be staged before their guard is emitted;
+//! restoring the whole observation scope prevents a guard or sibling from
+//! borrowing a value defined only in one of those successors.
 
 use crate::lowering_error::LoweringError;
 use crate::terminal_identities::operation_id;
@@ -164,6 +169,29 @@ pub(crate) fn structural_result_declaration(
     })
 }
 
+/// Length values available on one emission path. Carrier kinds retain their
+/// distinct lookup and mutation rules, but branch entry and exit carry this
+/// state as a whole: every reused value must dominate its consumer.
+#[derive(Clone, Default)]
+pub(crate) struct CollectionLengthObservations {
+    pub(crate) bytes: Vec<(PlaceId, ValueId)>,
+    pub(crate) elements: Vec<(terminal_psi::StructuralArgument, ValueId)>,
+    pub(crate) field_bytes: Vec<(
+        PlaceId,
+        Vec<terminal_psi::StructuralPathSegment>,
+        StructuralFieldId,
+        ValueId,
+    )>,
+}
+
+impl CollectionLengthObservations {
+    pub(crate) fn clear(&mut self) {
+        self.bytes.clear();
+        self.elements.clear();
+        self.field_bytes.clear();
+    }
+}
+
 /// Module-wide operation identities for one machine namespace. Machine zero
 /// uses the historical one-based range; additional machines receive disjoint
 /// ranges when source call-closure production composes them.
@@ -185,19 +213,7 @@ pub(crate) struct OperationBuffer {
     pub(crate) source_checked_obligations: Vec<ObligationId>,
     pub(crate) next_identity: u64,
     pub(crate) operations: Vec<Operation>,
-    /// Temporary observations available on the current emission path only.
-    pub(crate) byte_lengths: Vec<(PlaceId, ValueId)>,
-    pub(crate) element_lengths: Vec<(terminal_psi::StructuralArgument, ValueId)>,
-    /// Field-length observations reuse their dominating value so an
-    /// index bound proven against an earlier `.len` discharges the read's
-    /// certificate. A replacement or call may change the extent, so the
-    /// verifier independently re-checks that the observation is current.
-    pub(crate) field_byte_lengths: Vec<(
-        PlaceId,
-        Vec<terminal_psi::StructuralPathSegment>,
-        StructuralFieldId,
-        ValueId,
-    )>,
+    pub(crate) length_observations: CollectionLengthObservations,
     pub(crate) source_calls: Vec<LoweredSourceCallOccurrence>,
     /// Source-only associations created by the actual reference emitter.
     /// The source operand belongs to its formation epoch, not current storage.
@@ -261,9 +277,7 @@ impl OperationBuffer {
                 .checked_add(1)
                 .expect("operation identity base admits one-based identities"),
             operations: Vec::new(),
-            byte_lengths: Vec::new(),
-            element_lengths: Vec::new(),
-            field_byte_lengths: Vec::new(),
+            length_observations: CollectionLengthObservations::default(),
             source_calls: Vec::new(),
             loan_captures: Vec::new(),
             loan_completions: Vec::new(),
@@ -282,9 +296,6 @@ impl OperationBuffer {
         id
     }
 
-    /// Drop field-length observations a field subtree store or move makes
-    /// stale: every cached carrier at or under `path` on `place` loses its
-    /// dominating length (over-clears sibling fields on the same carrier).
     /// Allocate and push an operation carrying no reach binding or
     /// suspension demand.
     pub(crate) fn push_leaf(
@@ -303,18 +314,23 @@ impl OperationBuffer {
         id
     }
 
+    /// Drop live storage observations a subtree store or move makes stale.
+    /// Whole immutable byte-view extents remain captured values; field lengths
+    /// and element descriptors may have changed beneath the written path.
     pub(crate) fn invalidate_field_lengths_under(
         &mut self,
         place: PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
     ) {
-        self.element_lengths.retain(|(source, _)| {
+        self.length_observations.elements.retain(|(source, _)| {
             source.place != place
                 || !terminal_semantics::structural_paths_may_overlap(&source.path, path)
         });
-        self.field_byte_lengths.retain(|(root, carrier, _, _)| {
-            *root != place || !terminal_semantics::structural_paths_may_overlap(carrier, path)
-        });
+        self.length_observations
+            .field_bytes
+            .retain(|(root, carrier, _, _)| {
+                *root != place || !terminal_semantics::structural_paths_may_overlap(carrier, path)
+            });
     }
 
     pub(crate) fn record_source_call(

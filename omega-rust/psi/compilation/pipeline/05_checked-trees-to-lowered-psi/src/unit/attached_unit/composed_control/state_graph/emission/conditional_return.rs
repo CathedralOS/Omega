@@ -62,12 +62,14 @@ impl StateGraphEmission<'_, '_> {
             .filter_map(|operation| operation.result.scalar().map(|value| value.id))
             .collect::<std::collections::BTreeSet<_>>();
         operations
-            .byte_lengths
+            .length_observations
+            .bytes
             .retain(|(_, value)| decided.contains(value));
         operations
-            .element_lengths
+            .length_observations
+            .elements
             .retain(|(_, value)| decided.contains(value));
-        operations.field_byte_lengths.clear();
+        operations.length_observations.field_bytes.clear();
         let mut terminator = match return_arm {
             checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
                 self.crash_completion(position, *statement_ordinal, next_edge)?
@@ -321,9 +323,7 @@ impl StateGraphEmission<'_, '_> {
         });
         evaluation.blocks.extend(arm_evaluation.blocks);
         operations.structural_values.truncate(retained_bindings);
-        operations.byte_lengths.clear();
-        operations.element_lengths.clear();
-        operations.field_byte_lengths.clear();
+        operations.length_observations.clear();
         Ok(SuccessorEdge {
             edge: edge_id(allocate_dense(next_edge)?),
             target,

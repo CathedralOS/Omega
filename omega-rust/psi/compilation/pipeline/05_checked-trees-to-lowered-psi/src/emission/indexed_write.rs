@@ -415,12 +415,16 @@ impl Destination {
                 ),
             },
             DestinationShape::ByteField { path, field } => {
-                if let Some(length) = operations.field_byte_lengths.iter().rev().find_map(
-                    |(place, carrier, named, value)| {
+                if let Some(length) = operations
+                    .length_observations
+                    .field_bytes
+                    .iter()
+                    .rev()
+                    .find_map(|(place, carrier, named, value)| {
                         (*place == self.place && carrier == path && named == field)
                             .then_some(*value)
-                    },
-                ) {
+                    })
+                {
                     return Ok(length);
                 }
                 OperationKind::StructuralByteSequenceFieldLength {
@@ -442,9 +446,12 @@ impl Destination {
             kind,
         );
         if let DestinationShape::ByteField { path, field } = &self.shape {
-            operations
-                .field_byte_lengths
-                .push((self.place, path.clone(), *field, length));
+            operations.length_observations.field_bytes.push((
+                self.place,
+                path.clone(),
+                *field,
+                length,
+            ));
         }
         Ok(length)
     }
