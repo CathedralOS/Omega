@@ -7,7 +7,7 @@
 
 use super::{BoundaryParameters, CheckedTrees, LoweringError, UnitPlans, unsupported};
 use checked_trees::{CheckedUnitRecordStorage, CheckedUnitStructuralTypeShape};
-use semantic_vocabulary::{AuthoredRecordStorage, MachineId};
+use semantic_vocabulary::{AuthoredRecordStorage, MachineId, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_psi::{
     BoundaryMachineDeclaration, StructuralFieldDeclaration, StructuralRecordStorage,
@@ -16,11 +16,13 @@ use terminal_psi::{
     TargetLayoutSchemaField, TargetLayoutSchemaFieldKind, TargetMachineCallable,
     TargetMachineFamily, TargetMachineSupply,
 };
+use typed_trees::type_identity::TypeIdentityId;
 
 pub(super) fn lower(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     types: &[StructuralTypeDeclaration],
+    type_ids: &[(TypeIdentityId, StructuralTypeId)],
     machines: &[(SymbolHandle, MachineId)],
     boundary_parameters: &[BoundaryParameters],
     boundaries: &[BoundaryMachineDeclaration],
@@ -35,7 +37,13 @@ pub(super) fn lower(
         else {
             continue;
         };
-        let checked_record = super::catalog::selected_declaration(plans, &record.identity)?;
+        let type_identity = type_ids
+            .iter()
+            .find_map(|(identity, id)| (*id == record.id).then_some(*identity))
+            .ok_or(LoweringError::Unsupported(
+                "target layout record lost its exact type identity mapping",
+            ))?;
+        let checked_record = super::catalog::selected_declaration(plans, type_identity)?;
         let CheckedUnitStructuralTypeShape::Record {
             storage:
                 CheckedUnitRecordStorage::TargetLayout {
@@ -65,9 +73,10 @@ pub(super) fn lower(
                 .ok_or(LoweringError::Unsupported(
                     "target layout application lost its alternative span",
                 ))?;
+        let schema_id = crate::terminal_identities::lookup_type_id(type_ids, schema_type_identity)?;
         let schema = types
             .iter()
-            .find(|candidate| candidate.identity == *schema_type_identity)
+            .find(|candidate| candidate.id == schema_id)
             .ok_or(LoweringError::Unsupported(
                 "target layout application lost its retained schema",
             ))?;

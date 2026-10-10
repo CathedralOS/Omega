@@ -246,7 +246,12 @@ pub(super) fn lower_program_local_root_introductions(
                     && candidate.carrier_type_identity == parameter.type_identity
             })
             .map(|candidate| {
-                structural_domain_identity(&candidate.name, &checked.type_identity_text(candidate.carrier_type_identity).unwrap_or_default())
+                structural_domain_identity(
+                    &candidate.name,
+                    &checked
+                        .type_identity_text(candidate.carrier_type_identity)
+                        .unwrap_or_default(),
+                )
             })
             .ok_or(LoweringError::Unsupported(
                 "program-local root qualification has no normalized identity",
@@ -566,7 +571,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                     ..
                 } = storage
                 {
-                    collect(checked, plans, schema_type_identity, active, selected)?;
+                    collect(checked, plans, *schema_type_identity, active, selected)?;
                 }
                 for type_identity in fields.iter().flat_map(
                     checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
@@ -804,7 +809,13 @@ pub(crate) fn lower_unit_structural_type_roots(
             }
             CheckedUnitStructuralTypeShape::Mixed { fields, cases } => StructuralTypeShape::Mixed {
                 fields: lower_mixed_fields(checked, fields, &type_ids, &mut next_field)?,
-                cases: lower_mixed_cases(checked, cases, &type_ids, &mut next_field, &mut next_case)?,
+                cases: lower_mixed_cases(
+                    checked,
+                    cases,
+                    &type_ids,
+                    &mut next_field,
+                    &mut next_case,
+                )?,
             },
         };
         declarations.push(StructuralTypeDeclaration {
@@ -950,9 +961,7 @@ pub(super) fn lower_unit_structural_domains(
                 return unsupported("Unit closure has duplicate structural domain ownership");
             }
             carriers.push(plan.carrier_type_identity);
-            if !domain.is_valid()
-                || plan.name.is_empty()
-                || !plan.carrier_type_identity.is_valid()
+            if !domain.is_valid() || plan.name.is_empty() || !plan.carrier_type_identity.is_valid()
             {
                 return Err(LoweringError::Unsupported(
                     "Unit structural domain is duplicate, null, or incomplete",
@@ -968,8 +977,7 @@ pub(super) fn lower_unit_structural_domains(
     // Keep every reachable instantiation; never select one capacity by source
     // declaration order or let it authorize another capacity's membership.
     selected_plans.sort_by(|left, right| {
-        (&left.name, &left.carrier_type_identity)
-            .cmp(&(&right.name, &right.carrier_type_identity))
+        (&left.name, &left.carrier_type_identity).cmp(&(&right.name, &right.carrier_type_identity))
     });
     if selected_plans.windows(2).any(|pair| {
         pair[0].name == pair[1].name
@@ -1011,11 +1019,11 @@ pub(super) fn lower_unit_structural_domains(
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,
                 identity: structural_domain_identity(
-                &plan.name,
-                &checked
-                    .type_identity_text(plan.carrier_type_identity)
-                    .unwrap_or_default(),
-            ),
+                    &plan.name,
+                    &checked
+                        .type_identity_text(plan.carrier_type_identity)
+                        .unwrap_or_default(),
+                ),
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
                 content_projection,
             })

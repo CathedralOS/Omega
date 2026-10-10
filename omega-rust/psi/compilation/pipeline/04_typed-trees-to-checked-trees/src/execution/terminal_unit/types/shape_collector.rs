@@ -22,7 +22,8 @@ use super::*;
 
 pub(crate) struct ShapeCollector<'program> {
     pub(in crate::execution::terminal_unit) program: &'program dyn ::validation::CheckingInput,
-    pub(in crate::execution::terminal_unit) types: BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
+    pub(in crate::execution::terminal_unit) types:
+        BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
     pub(in crate::execution::terminal_unit) domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub(in crate::execution::terminal_unit) cleanup_control:
         checked_trees::CheckedCleanupControlPlans,
@@ -356,13 +357,11 @@ impl<'program> ShapeCollector<'program> {
         referent_identity: typed_trees::type_identity::TypeIdentityId,
         access: CheckedStructuralAccess,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        let identity = self
-            .program
-            .type_identity(TypeIdentityRequest {
-                binders,
-                substitutions,
-                ..TypeIdentityRequest::ordinary(reference)
-            });
+        let identity = self.program.type_identity(TypeIdentityRequest {
+            binders,
+            substitutions,
+            ..TypeIdentityRequest::ordinary(reference)
+        });
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
             no_code_affine_cleanup: false,
@@ -831,7 +830,10 @@ impl<'program> ShapeCollector<'program> {
                             payload_fields.push(field);
                         }
                         cases.push(checked_trees::CheckedUnitStructuralCasePlan {
-                            identity: checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
+                            identity: checked_trees::CheckedMemberIdentity::of_member(
+                                variant.identity,
+                                variant.name.clone(),
+                            ),
                             fields: payload_fields,
                         });
                     }
@@ -930,24 +932,20 @@ impl<'program> ShapeCollector<'program> {
             substituted_formal_type(self.program, field.type_reference, substitutions);
         let field_type = if field.relevance.is_erased() {
             CheckedUnitStructuralFieldType::Erased {
-                type_identity: self
-                    .program
-                    .type_identity(TypeIdentityRequest {
-                        binders,
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(field_type_reference)
-                    }),
+                type_identity: self.program.type_identity(TypeIdentityRequest {
+                    binders,
+                    substitutions,
+                    ..TypeIdentityRequest::ordinary(field_type_reference)
+                }),
             }
         } else if let Some((binding_carrier, provider_node)) =
             provider_backed_field(self.program, field_type_reference)
         {
-            let provider_type_identity =
-                self.program
-                    .type_identity(TypeIdentityRequest {
-                        binders,
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(provider_node)
-                    });
+            let provider_type_identity = self.program.type_identity(TypeIdentityRequest {
+                binders,
+                substitutions,
+                ..TypeIdentityRequest::ordinary(provider_node)
+            });
             match binding_carrier {
                 Some(receipt) => {
                     self.add_binding_carrier_type(provider_node, binders)?;
@@ -1039,7 +1037,10 @@ impl<'program> ShapeCollector<'program> {
             }
         }
         Some(CheckedUnitStructuralFieldPlan {
-            identity: checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+            identity: checked_trees::CheckedMemberIdentity::of_member(
+                field.identity,
+                field.name.clone(),
+            ),
             relevance: field.relevance,
             field_type,
             storage: None,
@@ -1057,12 +1058,10 @@ impl<'program> ShapeCollector<'program> {
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         typed_trees::service::classify_exact_bound_service_carrier(self.program, type_reference)
             .ok()??;
-        let identity = self
-            .program
-            .type_identity(TypeIdentityRequest {
-                binders,
-                ..TypeIdentityRequest::ordinary(type_reference)
-            });
+        let identity = self.program.type_identity(TypeIdentityRequest {
+            binders,
+            ..TypeIdentityRequest::ordinary(type_reference)
+        });
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
             no_code_affine_cleanup: false,
@@ -1087,7 +1086,10 @@ impl<'program> ShapeCollector<'program> {
         type_reference: TypeReferenceHandle,
         source_parameter: SymbolHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<(typed_trees::type_identity::TypeIdentityId, checked_trees::CheckedBindingParameterReceipt)> {
+    ) -> Option<(
+        typed_trees::type_identity::TypeIdentityId,
+        checked_trees::CheckedBindingParameterReceipt,
+    )> {
         let parameter_carrier = typed_trees::service::classify_exact_service_parameter_carrier(
             self.program,
             type_reference,
@@ -1105,12 +1107,10 @@ impl<'program> ShapeCollector<'program> {
             type_identity,
             checked_trees::CheckedBindingParameterReceipt {
                 source_parameter,
-                carrier_type_identity: self.program.type_identity(
-                    TypeIdentityRequest {
-                        binders,
-                        ..TypeIdentityRequest::ordinary(type_reference)
-                    },
-                ),
+                carrier_type_identity: self.program.type_identity(TypeIdentityRequest {
+                    binders,
+                    ..TypeIdentityRequest::ordinary(type_reference)
+                }),
                 requirement: carrier.requirement,
             },
         ))
@@ -1148,7 +1148,7 @@ impl<'program> ShapeCollector<'program> {
                             ..
                         } = storage
                         {
-                            retained.insert(schema_type_identity.clone());
+                            retained.insert(*schema_type_identity);
                         }
                         retained.extend(
                             fields

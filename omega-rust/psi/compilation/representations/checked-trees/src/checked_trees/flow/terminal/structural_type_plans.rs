@@ -71,7 +71,7 @@ pub enum CheckedUnitRecordStorage {
     Authored(semantic_vocabulary::AuthoredRecordStorage),
     TargetLayout {
         application: SymbolHandle,
-        schema_type_identity: String,
+        schema_type_identity: TypeIdentityId,
     },
 }
 
@@ -117,7 +117,9 @@ pub enum CheckedUnitStructuralTypeShape {
     /// that carries the view, exactly as it does for the borrowed
     /// `ByteSequence` carrier, and the pointer/length descriptor that realizes
     /// it stays a target-side implementation detail.
-    BorrowedSliceView { element_type_identity: TypeIdentityId },
+    BorrowedSliceView {
+        element_type_identity: TypeIdentityId,
+    },
     /// A closed pure sum. Each case owns its exact payload-field roster; an
     /// empty roster is the payload-less case form.
     Sum {

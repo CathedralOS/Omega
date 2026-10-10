@@ -99,6 +99,11 @@ impl Extend<SymbolHandle> for PortableReferences<'_> {
 }
 
 impl TypedReferences for PortableReferences<'_> {
+    fn layout_realization_dependency(&mut self, _: SymbolHandle) {
+        // The layout retains every member's fold dependency. This does not
+        // grant portable source access to any selected body's guarantees.
+    }
+
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
         // A named implementation's row is an authored selection candidate,
         // not a use of that body's semantics. Its machine is checked separately.

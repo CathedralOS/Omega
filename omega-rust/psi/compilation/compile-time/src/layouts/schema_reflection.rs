@@ -136,6 +136,25 @@ pub(crate) fn require_invariant_schema(
     schema: symbols::SymbolHandle,
     pending: &[symbols::SymbolHandle],
 ) -> Result<(), String> {
+    require_schema_layouts(typed, schema, pending, "target-dependent")
+}
+
+/// A pending ordinary policy is not ordinary packing. Family fold inputs may
+/// observe it only after its exact invariant geometry has been installed.
+pub(crate) fn require_materialized_schema(
+    typed: &TypedTrees,
+    schema: symbols::SymbolHandle,
+    pending: &[symbols::SymbolHandle],
+) -> Result<(), String> {
+    require_schema_layouts(typed, schema, pending, "unmaterialized policy")
+}
+
+fn require_schema_layouts(
+    typed: &TypedTrees,
+    schema: symbols::SymbolHandle,
+    pending: &[symbols::SymbolHandle],
+    pending_kind: &str,
+) -> Result<(), String> {
     let mut records = vec![schema];
     let mut visited = Vec::new();
     while let Some(symbol) = records.pop() {
@@ -143,14 +162,18 @@ pub(crate) fn require_invariant_schema(
             continue;
         }
         visited.push(symbol);
-        if pending.contains(&symbol)
-            || typed.plan_laid_layout(symbol).is_some_and(|layout| {
-                matches!(
-                    layout.realizations,
-                    typed_trees::PlanLaidRealizations::TargetFamily(_)
-                )
-            })
-        {
+        if pending.contains(&symbol) {
+            return Err(format!(
+                "schema contains {pending_kind} layout `{}`; nested schema arguments require exact retained invariant geometry",
+                typed.symbols.name(symbol)
+            ));
+        }
+        if typed.plan_laid_layout(symbol).is_some_and(|layout| {
+            matches!(
+                layout.realizations,
+                typed_trees::PlanLaidRealizations::TargetFamily(_)
+            )
+        }) {
             return Err(format!(
                 "schema contains target-dependent layout `{}`; nested target-dependent schema arguments are not yet supported",
                 typed.symbols.name(symbol)

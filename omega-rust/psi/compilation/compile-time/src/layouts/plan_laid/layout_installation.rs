@@ -111,7 +111,24 @@ pub(crate) fn compute_plan_laid_layouts_in(
             ))]);
         }
         let family_schema = family
-            .map(|_| prepare_family_schema(&execution, schema_symbol, &record.schema_data))
+            .map(|_| {
+                let pending = records
+                    .iter()
+                    .filter_map(|record| {
+                        let data = execution.data_definition_by_name_str(&record.synthetic_name)?;
+                        execution
+                            .plan_laid_layout(data.symbol)
+                            .is_none()
+                            .then_some(data.symbol)
+                    })
+                    .collect::<Vec<_>>();
+                super::super::schema_reflection::require_materialized_schema(
+                    &execution,
+                    schema_symbol,
+                    &pending,
+                )?;
+                prepare_family_schema(&execution, schema_symbol, &record.schema_data)
+            })
             .transpose()
             .map_err(|reason| {
                 vec![Diagnostic::error(format!(

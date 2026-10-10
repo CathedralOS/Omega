@@ -94,6 +94,11 @@ pub type StaticArgumentClassifier = fn(&TypedTrees, StaticArgumentCall<'_>) -> S
 /// when a node was already visited; symbol consumers may preserve repeated edges.
 pub trait TypedReferences: Extend<SymbolHandle> {
     fn authored_selection(&mut self, _: crate::AuthoredDeclarationSelectionOccurrenceId) {}
+    /// Exact member body retained for a materialized target layout, distinct
+    /// from an authored use of that member in portable source.
+    fn layout_realization_dependency(&mut self, symbol: SymbolHandle) {
+        self.extend([symbol]);
+    }
     fn declaration(&mut self, _: SymbolHandle) -> bool {
         true
     }
@@ -549,7 +554,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_symbol(retained, plan.policy_symbol);
             visit_symbol(retained, plan.policy_plan_machine_symbol);
             for alternative in plan.target_layouts(program) {
-                visit_symbol(retained, alternative.machine);
+                retained.layout_realization_dependency(alternative.machine);
             }
             for geometry in plan.geometries(program) {
                 for demand in &geometry.private_callback_demands {

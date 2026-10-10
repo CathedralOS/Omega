@@ -478,6 +478,7 @@ pub(crate) fn lower_unit_closure(
         checked,
         plans,
         &structural_types,
+        &type_ids,
         &machine_ids,
         &lowered_boundary_parameters,
         &boundary_machines,
