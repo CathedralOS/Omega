@@ -4,7 +4,7 @@
 //! not reinterpret both observations as the invocation's final storage value.
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
-use facts::{Fact, FactPayload, PlaceRoot};
+use facts::{Fact, FactPayload};
 
 use super::super::call_values;
 
@@ -93,6 +93,10 @@ fn captured_contract_proven(
     expression: typed_trees::expression::ExpressionHandle,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
+    if call_values::proves_captured_arithmetic_requirement(program, facts, state, call, expression)
+    {
+        return true;
+    }
     let prove_scalar = |expression| {
         let predicate = bound_contract_predicate(program, facts, contract, target, expression)?;
         call_values::proves_bound_predicate(
@@ -373,32 +377,16 @@ fn capture_preserves_source(
         return Some(true);
     }
     if crate::flow::operand_binds_live_view(program, reference) {
-        // A borrowed child denotes the invocation-live referent.
-        return Some(true);
+        // Referent contents are invocation-live; construction selected its
+        // address and descriptor geometry earlier. Authored source substitution
+        // is valid only when those independent binding/selector epochs agree.
+        return reference_construction_preserves_source(
+            program, facts, state, capture, remaining, invocation,
+        );
     }
-    // A whole capture rooted in its own expression is a closed temporary: the
-    // children branch above already consumed every projectable capture, so an
-    // empty path here names a value with no caller storage behind it.
-    // Substitution names that expression, not a place the caller still reads,
-    // so no later operand can write what the capture observed and there is no
-    // source to re-observe. `copied_guarantees::observation_survives` states
-    // the same rule for expression-rooted sources. This judgment also holds no
-    // place fact about such a value, so claiming it would refuse every callee
-    // guarantee rather than decide one.
-    if remaining.is_empty()
-        && matches!(
-            validation::canonical_place_from_expression_in_state(
-                program,
-                state.state_symbol,
-                call.statement_index,
-                capture.expression,
-            )
-            .map(|place| place.root),
-            Some(PlaceRoot::Expression(_))
-        )
-    {
-        return Some(true);
-    }
+    // Expression-rooted temporaries can still depend on earlier caller reads.
+    // Their actual dependencies below, not root category, establish whether
+    // source substitution preserves the completed value.
     if !computed_values_have_source_identity(program, facts, capture.expression) {
         return Some(false);
     }
@@ -434,6 +422,101 @@ fn capture_preserves_source(
             invocation,
             &place,
         ) {
+            return Some(false);
+        }
+    }
+    Some(true)
+}
+
+/// One shared source-coordinate walk distinguishes captured reference/descriptor
+/// bindings and address selectors from their invocation-live referent contents.
+/// A later payload write may change content facts, but cannot donate a new
+/// selector or descriptor epoch to an already completed operand.
+fn reference_construction_preserves_source(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    capture: &checked_trees::FlowOperandFact,
+    remaining: &[facts::PlaceSegment],
+    invocation: &checked_trees::FlowOperandFact,
+) -> Option<bool> {
+    if !computed_values_have_source_identity(program, facts, capture.expression) {
+        return Some(false);
+    }
+    let mut selectors = Vec::new();
+    crate::facts::contract_occurrences::append_selector_occurrences(
+        program,
+        capture.expression,
+        &mut selectors,
+    );
+    for segment in remaining {
+        if let facts::PlaceSegment::Index { expression } = segment {
+            crate::facts::contract_occurrences::append_expression_occurrences(
+                program,
+                *expression,
+                &mut selectors,
+            );
+        }
+    }
+    for selector in selectors {
+        let place = validation::canonical_place_from_expression_in_state(
+            program,
+            state.state_symbol,
+            capture.statement_index,
+            selector,
+        )?;
+        if !crate::flow::operand_observations_agree(
+            program,
+            &facts.flow,
+            capture,
+            invocation,
+            &place,
+        ) {
+            return Some(false);
+        }
+    }
+    let mut sources = Vec::new();
+    validation::expression_traversal::collect_expression_tree(
+        program,
+        capture.expression,
+        &mut sources,
+    );
+    for source in sources {
+        let Some(mut place) = validation::canonical_place_from_expression_in_state(
+            program,
+            state.state_symbol,
+            capture.statement_index,
+            source,
+        ) else {
+            continue;
+        };
+        // Produced temporaries have no mutable stored binding. Their selected
+        // source prefixes and selectors are visited independently by this walk.
+        if !place
+            .root
+            .as_symbol()
+            .is_some_and(|symbol| symbol.is_valid())
+        {
+            continue;
+        }
+        if source == capture.expression {
+            place.extend_segments(remaining);
+        }
+        let reference = validation::canonical_place_type_reference(
+            program,
+            state.state_symbol,
+            capture.statement_index,
+            &place,
+        )?;
+        if crate::flow::operand_binds_live_view(program, reference)
+            && !crate::flow::operand_bindings_agree(
+                program,
+                &facts.flow,
+                capture,
+                invocation,
+                &place,
+            )
+        {
             return Some(false);
         }
     }

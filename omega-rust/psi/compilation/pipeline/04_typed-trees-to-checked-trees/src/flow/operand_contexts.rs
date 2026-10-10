@@ -156,6 +156,41 @@ pub(crate) fn entry_origin_is_stable(
     unknown: bool,
     place: &validation::CanonicalPlace,
 ) -> bool {
+    entry_origin_is_stable_when(program, control, writes, unknown, place, contents_overlap)
+}
+
+fn contents_overlap(
+    program: &dyn ::validation::CheckingInput,
+    place: &validation::CanonicalPlace,
+    segments: &[facts::PlaceSegment],
+) -> bool {
+    crate::flow::canonical_place_segments_may_overlap(program, &place.segments, segments)
+}
+
+fn binding_overwrite(
+    program: &dyn ::validation::CheckingInput,
+    place: &validation::CanonicalPlace,
+    segments: &[facts::PlaceSegment],
+) -> bool {
+    // A write replacing this binding or an enclosing owner changes its stored
+    // descriptor/pointer. A descendant referent write changes contents only.
+    segments.len() <= place.segments.len() && contents_overlap(program, place, segments)
+}
+
+type SourceWriteRelation = fn(
+    &dyn ::validation::CheckingInput,
+    &validation::CanonicalPlace,
+    &[facts::PlaceSegment],
+) -> bool;
+
+fn entry_origin_is_stable_when(
+    program: &dyn ::validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    unknown: bool,
+    place: &validation::CanonicalPlace,
+    write_changes: SourceWriteRelation,
+) -> bool {
     !unknown
         && control
             .operand_origin_writes
@@ -163,13 +198,10 @@ pub(crate) fn entry_origin_is_stable(
             .is_some_and(|writes| {
                 writes.iter().all(|write| {
                     place.root != write.root
-                        || !crate::flow::canonical_place_segments_may_overlap(
-                            program,
-                            &place.segments,
-                            control
-                                .operand_referent_segments
-                                .span_or_empty(write.segments),
-                        )
+                        || control
+                            .operand_referent_segments
+                            .span(write.segments)
+                            .is_some_and(|segments| !write_changes(program, place, segments))
                 })
             })
 }
@@ -184,6 +216,30 @@ pub(crate) fn operand_observations_agree(
     first: &FlowOperandFact,
     second: &FlowOperandFact,
     place: &validation::CanonicalPlace,
+) -> bool {
+    operand_sources_agree(program, flow, first, second, place, contents_overlap)
+}
+
+/// Stored reference/descriptor identity is captured independently of its live
+/// referent contents. The caller supplies an authentic typed binding place;
+/// this judgment grants no referent access, value equality or loan permission.
+pub(crate) fn operand_bindings_agree(
+    program: &dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
+    first: &FlowOperandFact,
+    second: &FlowOperandFact,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    operand_sources_agree(program, flow, first, second, place, binding_overwrite)
+}
+
+fn operand_sources_agree(
+    program: &dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
+    first: &FlowOperandFact,
+    second: &FlowOperandFact,
+    place: &validation::CanonicalPlace,
+    write_changes: SourceWriteRelation,
 ) -> bool {
     if std::ptr::eq(first, second) {
         return true;
@@ -224,6 +280,7 @@ pub(crate) fn operand_observations_agree(
                 earlier.entry_origin_writes,
                 statement.completed_writes,
                 place,
+                write_changes,
             )
             && statements
                 .iter()
@@ -232,20 +289,22 @@ pub(crate) fn operand_observations_agree(
                         && statement.statement_index < later.statement_index
                 })
                 .all(|statement| {
-                    entry_origin_is_stable(
+                    entry_origin_is_stable_when(
                         program,
                         &flow.control,
                         statement.completed_writes,
                         statement.completed_unknown_write,
                         place,
+                        write_changes,
                     )
                 })
-            && entry_origin_is_stable(
+            && entry_origin_is_stable_when(
                 program,
                 &flow.control,
                 later.entry_origin_writes,
                 later.entry_origin_unknown_write,
                 place,
+                write_changes,
             );
     }
     prefixes_agree(
@@ -254,6 +313,7 @@ pub(crate) fn operand_observations_agree(
         first.entry_origin_writes,
         second.entry_origin_writes,
         place,
+        write_changes,
     )
 }
 
@@ -263,6 +323,7 @@ fn prefixes_agree(
     first: HandleSpan<checked_trees::FlowOperandReferent>,
     second: HandleSpan<checked_trees::FlowOperandReferent>,
     place: &validation::CanonicalPlace,
+    write_changes: SourceWriteRelation,
 ) -> bool {
     let Some(first) = control.operand_origin_writes.span(first) else {
         return false;
@@ -290,12 +351,6 @@ fn prefixes_agree(
             || control
                 .operand_referent_segments
                 .span(write.segments)
-                .is_some_and(|segments| {
-                    !crate::flow::canonical_place_segments_may_overlap(
-                        program,
-                        &place.segments,
-                        segments,
-                    )
-                })
+                .is_some_and(|segments| !write_changes(program, place, segments))
     })
 }

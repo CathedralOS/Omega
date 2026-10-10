@@ -132,7 +132,9 @@ pub(crate) fn append_expression_occurrences(
 
 /// A selected field remains one complete storage dependency, but selectors
 /// beneath its receiver are independent values that can redirect the read.
-fn append_selector_occurrences(
+/// Non-place producers compute a completed value from their operands, so their
+/// ordinary value dependencies must also survive any later source replay.
+pub(crate) fn append_selector_occurrences(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     occurrences: &mut Vec<ExpressionHandle>,
@@ -148,6 +150,7 @@ fn append_selector_occurrences(
         ExpressionNode::Borrow(borrow) => {
             append_selector_occurrences(program, borrow.target, occurrences)
         }
-        _ => {}
+        ExpressionNode::Name(_) | typed_trees::literal_expression_pattern!() => {}
+        _ => append_expression_occurrences(program, expression, occurrences),
     }
 }

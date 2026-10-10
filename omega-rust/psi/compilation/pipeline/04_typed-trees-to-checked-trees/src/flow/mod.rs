@@ -50,7 +50,7 @@ mod operand_values;
 pub(crate) use operand_values::{CapturedValue, captured_operand_values};
 mod operator_calls;
 pub(crate) use operand_contexts::{
-    entry_origin_is_stable, operand_binds_live_view, operand_contexts,
+    entry_origin_is_stable, operand_bindings_agree, operand_binds_live_view, operand_contexts,
     operand_entry_origin_is_stable, operand_observations_agree,
 };
 mod state;
@@ -187,12 +187,12 @@ pub(crate) use ownership::{
 };
 pub(crate) use place::{
     LiteralValueProjection, canonical_place_from_semantic_place, canonical_place_from_symbol,
-    canonical_place_joined_segments_may_overlap,
-    canonical_place_segments_equal, canonical_place_segments_may_overlap, canonical_places_agree,
-    compose_captured_view_segments, literal_argument_access_places, literal_value_path_is_inactive,
-    literal_value_projections, narrow_pinned_index_segments, place_case_has_value,
-    place_case_path_is_inactive, place_cases_are_selected, place_segment_has_unresolved_identity,
-    projected_leaf_place, reference_source_place, reference_source_place_through_collection_views,
+    canonical_place_joined_segments_may_overlap, canonical_place_segments_equal,
+    canonical_place_segments_may_overlap, canonical_places_agree, compose_captured_view_segments,
+    literal_argument_access_places, literal_value_path_is_inactive, literal_value_projections,
+    narrow_pinned_index_segments, place_case_has_value, place_case_path_is_inactive,
+    place_cases_are_selected, place_segment_has_unresolved_identity, projected_leaf_place,
+    reference_source_place, reference_source_place_through_collection_views,
     source_independent_place, static_place_segment_pair_equal,
 };
 pub(crate) use reach::attach_reach_summaries;

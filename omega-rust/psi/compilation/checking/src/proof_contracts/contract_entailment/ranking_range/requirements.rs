@@ -55,9 +55,9 @@ struct ArithmeticRequirement<'program> {
 fn prepare_requirement<'program>(
     program: &'program dyn crate::CheckingInput,
     callee: &Machine,
+    target: &'program State,
     goal: ExpressionHandle,
 ) -> Option<ArithmeticRequirement<'program>> {
-    let target = program.machine_states(callee).first()?;
     meanings::builtin(program, callee, target, goal, 0)?;
     let bindings = integer_bindings(program, target)?;
     let mut engine = Engine::strict_with_symbol_bindings(program, callee, &bindings);
@@ -105,15 +105,17 @@ pub enum ArithmeticCallObservation<'path> {
 pub fn prove_captured_arithmetic_call_requirement(
     program: &dyn crate::CheckingInput,
     callee: &Machine,
+    target: &State,
     goal: ExpressionHandle,
     mut observation: impl FnMut(symbols::SymbolHandle, ArithmeticCallObservation<'_>) -> Option<BigInt>,
 ) -> bool {
-    captured_requirement(program, callee, goal, &mut observation).unwrap_or(false)
+    captured_requirement(program, callee, target, goal, &mut observation).unwrap_or(false)
 }
 
 fn captured_requirement(
     program: &dyn crate::CheckingInput,
     callee: &Machine,
+    target: &State,
     goal: ExpressionHandle,
     observation: &mut dyn FnMut(
         symbols::SymbolHandle,
@@ -127,7 +129,7 @@ fn captured_requirement(
         lengths,
         projected_lengths,
         comparisons: obligations,
-    } = prepare_requirement(program, callee, goal)?;
+    } = prepare_requirement(program, callee, target, goal)?;
     let demanded = |identity: &str| {
         obligations.iter().any(|(_, left, right)| {
             [left, right].into_iter().any(|value| {
@@ -295,7 +297,7 @@ fn prove(
         lengths: goal_lengths,
         comparisons: obligations,
         ..
-    } = prepare_requirement(program, callee, goal)?;
+    } = prepare_requirement(program, callee, target, goal)?;
     // A ranged caller member's own authored range is proven site evidence at
     // an internal call site: the member's state-edge judgment re-establishes
     // the produced rank's membership and endpoint pinning on every internal

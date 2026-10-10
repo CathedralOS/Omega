@@ -190,6 +190,34 @@ fn captured_value<'facts>(
     values.pop()
 }
 
+/// Complete ordered operand evidence supplies closed arithmetic observations
+/// before any source-substitution tier can reinterpret an earlier descriptor.
+pub(crate) fn proves_captured_arithmetic_requirement(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some((machine, body)) = validation::find_state_with_machine(program, call.target_symbol)
+        .or_else(|| validation::find_machine_head(program, call.target_symbol))
+    else {
+        return false;
+    };
+    if captured_argument_expressions(program, facts, state, call).is_none() {
+        return false;
+    }
+    validation::prove_captured_arithmetic_call_requirement(
+        program,
+        machine,
+        body,
+        expression,
+        |formal, observation| {
+            captured_arithmetic_observation(program, facts, state, call, formal, observation)
+        },
+    )
+}
+
 /// A requirement observes only its demanded formal coordinate. The complete
 /// ordered call roster remains authenticated by `captured_operands`; this
 /// projection does not suppress evaluation or availability of another actual.
@@ -257,6 +285,10 @@ pub(crate) fn captured_arithmetic_observation(
             }
         }
         validation::ArithmeticCallObservation::CollectionLength(_) => {
+            // This closes produced geometry only: the empty-symbol length
+            // engine has no live descriptor/formal length hypotheses. Stored
+            // descriptor references remain unresolved unless the ordinary
+            // immutable initializer owner authenticates their saved value.
             if !captured.projection.remaining.is_empty() {
                 return None;
             }

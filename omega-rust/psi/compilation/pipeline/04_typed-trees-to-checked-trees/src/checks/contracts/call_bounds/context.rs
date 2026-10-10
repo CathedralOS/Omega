@@ -204,25 +204,9 @@ fn prove(
     ) {
         return Some(true);
     }
-    if head.is_some()
-        && super::super::call_values::captured_argument_expressions(program, facts, caller, call)
-            .is_some_and(|captured| captured == arguments)
-        && validation::prove_captured_arithmetic_call_requirement(
-            program,
-            callee,
-            goal,
-            |formal, observation| {
-                super::super::call_values::captured_arithmetic_observation(
-                    program,
-                    facts,
-                    caller,
-                    call,
-                    formal,
-                    observation,
-                )
-            },
-        )
-    {
+    if super::super::call_values::proves_captured_arithmetic_requirement(
+        program, facts, caller, call, goal,
+    ) {
         return Some(true);
     }
     let caller_parameters = program.state_parameters(caller_state);
