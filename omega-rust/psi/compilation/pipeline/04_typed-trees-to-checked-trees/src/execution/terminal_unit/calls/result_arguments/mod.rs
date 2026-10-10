@@ -518,28 +518,34 @@ fn argument_contract(
         || if access == CheckedStructuralAccess::Owned {
             result.type_identity == target_identity
         } else {
-            base_type_identity(program, referent, &[],
-        &[])? == result.type_identity
+            base_type_identity(program, referent, &[], &[])? == result.type_identity
         };
     // A projection selects the referent's type, not the containing owner's
     // multiplicity: an affine owner can hold linear members. Its resolved
     // storage/formal correspondence was checked by the presentation above;
     // the local declaration separately rejoins the complete owner below.
-    // Whole operands retain their result contract.
+    // Whole operands retain their result contract. Compare materialized
+    // custody on both sides, not source-use multiplicity: an array of shared
+    // references is reusable at source but owns affine descriptor lifetimes.
+    // This is the same classification its producer used for the result.
     let selected_multiplicity = if projected_borrow {
-        program.type_multiplicity(storage_type?)
+        validation::reference_result_custody::result_multiplicity(program, storage_type?)
     } else if projected {
-        program.type_multiplicity(validation::canonical_place_type_reference(
+        validation::reference_result_custody::result_multiplicity(
             program,
-            state,
-            call.statement_index,
-            place,
-        )?)
+            validation::canonical_place_type_reference(
+                program,
+                state,
+                call.statement_index,
+                place,
+            )?,
+        )
     } else {
         result.multiplicity
     };
     if !storage_identity_matches
-        || (program.type_multiplicity(referent) != selected_multiplicity
+        || (validation::reference_result_custody::result_multiplicity(program, referent)
+            != selected_multiplicity
             // A shared loan presents unrestricted regardless of the referent's
             // own cleanup profile: the viewed element is already rejoined by
             // the projected path's identity check, and the binding stores
@@ -641,7 +647,10 @@ fn argument_contract(
                             && !linear
                             && !owned_reference_record
                             && !owned_contents)
-                        || program.type_multiplicity(local.type_reference) != result.multiplicity
+                        || validation::reference_result_custody::result_multiplicity(
+                            program,
+                            local.type_reference,
+                        ) != result.multiplicity
                         || (access == CheckedStructuralAccess::Owned
                             && unrestricted
                             && !(validation::is_closed_primitive_array_type(
@@ -652,8 +661,7 @@ fn argument_contract(
                                 local.type_reference,
                                 validation::ContentsRequirement::RepresentedOwned,
                             )))
-                        || base_type_identity(program, local.type_reference, &[],
-        &[])?
+                        || base_type_identity(program, local.type_reference, &[], &[])?
                             != result.type_identity)
                 {
                     return None;
@@ -711,7 +719,8 @@ fn argument_contract(
                 source_type
             };
             let contract = validation::structural_result_contract(program, source_type).ok()?;
-            if program.type_multiplicity(source_type) != result.multiplicity
+            if validation::reference_result_custody::result_multiplicity(program, source_type)
+                != result.multiplicity
                 || validation::structural_type_identity(program, source_type, &[], &[])
                     != result.type_identity
                 || (!projected

@@ -928,6 +928,9 @@ fail/concurrency/suspend_later_operand_rejected rejected 138ms expected @c08960b
 	suspending call to `park` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning
 fail/concurrency/suspend_live_value_rejected rejected 919ms expected @1eb6badd8c99+wt
 	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
+fail/concurrency/suspend_reference_array_backing_write rejected 1718ms expected @a1a656f68a44+wt
+	statement 4 mutates `backing` while local borrow `references` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `backing` while local borrow `references` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
 fail/concurrency/suspend_reference_permission_without_backing rejected 959ms expected @a6cabfd6a9f7+wt
 	call to `park` may suspend while `loan` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
 	call to `park` may suspend while `carrier` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
@@ -3398,6 +3401,7 @@ pass/comptime/runtime_const_array_length_transitive_exit checked 1369ms check-ta
 pass/comptime/runtime_const_measured_recursion_exit checked 1661ms check-target:macos_arm64 @2d8ed253669f
 pass/comptime/selected_float_array_length_exit checked 6077ms check-target:macos_arm64 @2d8ed253669f
 pass/concurrency/boundary_suspension_inline_completion_exit checked 7077ms check-target:macos_arm64 @1eb6badd8c99+wt
+pass/concurrency/runtime_array_loan_suspension_exit checked 4185ms check-target:macos_arm64 @a1a656f68a44+wt
 pass/concurrency/runtime_retained_reference_boundary_exit checked 7065ms check-target:macos_arm64 @1eb6badd8c99+wt
 pass/concurrency/runtime_suspension_repeated_actual_exit checked 3393ms check-target:macos_arm64 @874082e31128+wt
 pass/concurrency/runtime_zero_extent_carry_exit checked 7122ms check-target:macos_arm64 @1eb6badd8c99+wt

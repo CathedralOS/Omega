@@ -245,7 +245,12 @@ pub(super) fn indexed_scalar_read(
             }
         }
     }
-    let primitive_type = program.primitive_type_reference(element_type)?;
+    // Selection retains the descriptor's declared type and full projection.
+    // Observation reads its readable endpoint, not the pointer-sized carrier.
+    // Stage 05 makes every declared reference crossing explicit on this same
+    // path; its custody and bounds remain obligations of the concrete read.
+    let readable_type = validation::field_domains::readable_type_reference(program, element_type)?;
+    let primitive_type = program.primitive_type_reference(readable_type)?;
     if !is_integer(primitive_type)
         && !matches!(
             primitive_type,

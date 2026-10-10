@@ -3947,6 +3947,11 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   - general aggregate and `[copy]` sum replacement beyond scalar-field record
     literals, preserving displaced custody and whole-value validity;
   - runtime domain-qualified byte-field replacement with encoding evidence;
+  - stored write-only leaves need the same non-observation check as direct
+    roots: `machine invalid(references: &[&write i32; 1]) -> i32 {
+    references[0] }` is checked on macOS ARM64 at `a1a656f68a4`, although
+    scalar lowering refuses the unreadable endpoint. Join selected-place access
+    to observation generally; the direct-root collector misses this carrier;
   - computed IEEE store/readback (through **FLOAT-PROVIDERS**; the mutable
     controls stop in caller guard planning);
   - computed-index aggregate stores and local affine backing through the
@@ -5397,6 +5402,11 @@ wait for Cathedral's instruction coverage. The interpreter is
     parent reborrow, and a write-only reference used after the call. It also
     exercises fresh and forwarded reference actuals and stored/constructed
     two-leaf generic actuals whose backing has no continuation use. Keep
+    `runtime_array_loan_suspension_exit` (0) for a lent descriptor array and
+    both backing roots, followed by an ordinary runtime-selected referent read;
+    this inline-completion control still needs physical park/resume preservation.
+    Keep `fail/concurrency/suspend_reference_array_backing_write` for the
+    array's retained sibling loan after one leaf is observed. Keep
     `fail/concurrency/suspend_retained_loan_conflicting_backing_write` for
     access exclusion. Checked crossings retain current occurrences and
     parent/supplier closure; continuation and captured-actual backing demands
