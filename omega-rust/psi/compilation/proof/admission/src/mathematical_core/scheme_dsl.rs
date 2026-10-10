@@ -50,6 +50,30 @@ pub(super) enum Syntax {
     CaseTwo(Box<Syntax>, Box<Syntax>, Box<Syntax>, Box<Syntax>),
 }
 
+/// Build a statement and body then declare them — the epilogue every
+/// scheme declaration in this module repeats by hand.
+pub(super) fn define(
+    arena: &mut TermArena,
+    level_arity: u32,
+    statement: &Syntax,
+    body: &Syntax,
+) -> super::signature::Declaration {
+    super::signature::Declaration::definition(
+        level_arity,
+        build(arena, &mut Vec::new(), statement),
+        build(arena, &mut Vec::new(), body),
+    )
+}
+
+/// `define` without a body — assumptions declare the statement alone.
+pub(super) fn assume(
+    arena: &mut TermArena,
+    level_arity: u32,
+    statement: &Syntax,
+) -> super::signature::Declaration {
+    super::signature::Declaration::assumption(level_arity, build(arena, &mut Vec::new(), statement))
+}
+
 pub(super) fn build(
     arena: &mut TermArena,
     scope: &mut Vec<&'static str>,

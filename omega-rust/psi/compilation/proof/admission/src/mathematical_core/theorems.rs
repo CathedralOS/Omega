@@ -12,7 +12,7 @@
 //! by consumers, rather than a producer-local proof term re-elaborated at
 //! every use.
 
-use super::scheme_dsl::{app, build, id, jelim, lam, pi, ty, v};
+use super::scheme_dsl::{app, define, id, jelim, lam, pi, ty, v};
 use super::signature::Declaration;
 use super::term::TermArena;
 
@@ -87,7 +87,5 @@ pub fn identity_substitution(arena: &mut TermArena) -> Declaration {
             ),
         ),
     );
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(2, statement, body)
+    define(arena, 2, &statement, &body)
 }

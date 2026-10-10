@@ -88,8 +88,8 @@
 //! only each other, so a producer's own declarations append after them.
 
 use super::scheme_dsl::{
-    Syntax, app, apps, box_elim, box_intro, boxed, build, id, jelim, lam, pair, pi, pis, refl,
-    scheme_at, sigma, sort, squash, squash_intro, strict, ty, v,
+    Syntax, app, apps, assume, box_elim, box_intro, boxed, define, id, jelim, lam, pair, pi, pis,
+    refl, scheme_at, sigma, sort, squash, squash_intro, strict, ty, v,
 };
 use super::signature::Declaration;
 use super::term::{Level, Term, TermArena, TermHandle};

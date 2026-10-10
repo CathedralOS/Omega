@@ -17,9 +17,7 @@ fn is_set_declaration(arena: &mut TermArena) -> Declaration {
             id(id(v("X"), v("x"), v("y")), v("p"), v("q")),
         ),
     );
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(1, statement, body)
+    define(arena, 1, &statement, &body)
 }
 
 /// `Q` — declaration 1, an assumption:
@@ -27,24 +25,21 @@ fn is_set_declaration(arena: &mut TermArena) -> Declaration {
 /// carrier carries no destructuring or recursor by declaration.
 fn quotient_declaration(arena: &mut TermArena) -> Declaration {
     let statement = pi_description(sort(carrier_level()));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    Declaration::assumption(2, statement)
+    assume(arena, 2, &statement)
 }
 
 /// `project` — declaration 2, an assumption:
 /// `Π A R. Π(_ : A). Q A R`.
 fn project_declaration(arena: &mut TermArena) -> Declaration {
     let statement = pi_description(pi("_", v("A"), quotient_of()));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    Declaration::assumption(2, statement)
+    assume(arena, 2, &statement)
 }
 
 /// `setQ` — declaration 3, an assumption: `Π A R. isSet (Q A R)` —
 /// the quotient is a set, propositionally.
 fn set_quotient_declaration(arena: &mut TermArena) -> Declaration {
     let statement = pi_description(is_set(carrier_level(), quotient_of()));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    Declaration::assumption(2, statement)
+    assume(arena, 2, &statement)
 }
 
 /// `sound` — declaration 4, an assumption:
@@ -54,8 +49,7 @@ fn sound_declaration(arena: &mut TermArena) -> Declaration {
         [("a", v("A")), ("b", v("A")), ("_", related(v("a"), v("b")))],
         id(quotient_of(), project_of(v("a")), project_of(v("b"))),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    Declaration::assumption(2, statement)
+    assume(arena, 2, &statement)
 }
 
 /// `effective` — declaration 5, an assumption:
@@ -74,8 +68,7 @@ fn effective_declaration(arena: &mut TermArena) -> Declaration {
         ],
         related(v("a"), v("b")),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    Declaration::assumption(2, statement)
+    assume(arena, 2, &statement)
 }
 
 /// `transport` — declaration 6, a *definition*: forward premise
@@ -132,9 +125,7 @@ fn transport_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(3, statement, body)
+    define(arena, 3, &statement, &body)
 }
 
 /// The `sets`/`d`/`c` telescope `elim` and `beta` share, under the
@@ -189,8 +180,7 @@ fn pi_cases(rest: Syntax) -> Syntax {
 /// parallel transport proofs are propositionally unique.
 fn elim_declaration(arena: &mut TermArena) -> Declaration {
     let statement = pi_description(pi_cases(pi("z", quotient_of(), app(v("P"), v("z")))));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    Declaration::assumption(3, statement)
+    assume(arena, 3, &statement)
 }
 
 /// `beta` — declaration 8, an assumption: the point computation
@@ -218,8 +208,7 @@ fn beta_declaration(arena: &mut TermArena) -> Declaration {
             app(v("d"), v("a")),
         ),
     )));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    Declaration::assumption(3, statement)
+    assume(arena, 3, &statement)
 }
 
 /// `idTrans` — declaration 9, a *definition*: transitivity of `Id`,
@@ -283,9 +272,7 @@ fn id_trans_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     );
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(1, statement, body)
+    define(arena, 1, &statement, &body)
 }
 
 /// `transportConst` — declaration 10, a *definition*: transport across a
@@ -359,9 +346,7 @@ fn transport_const_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     );
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(2, statement, body)
+    define(arena, 2, &statement, &body)
 }
 
 /// `lift` — declaration 11, a *definition*: the quotient-owned
@@ -516,9 +501,7 @@ fn lift_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(3, statement, body)
+    define(arena, 3, &statement, &body)
 }
 
 /// `liftPre` — declaration 12, an assumption: the optional
@@ -610,8 +593,7 @@ fn lift_precondition_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    Declaration::assumption(5, statement)
+    assume(arena, 5, &statement)
 }
 
 /// `idSym` — declaration 13, a *definition*: symmetry of `Id`,
@@ -658,9 +640,7 @@ fn id_sym_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     );
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(1, statement, body)
+    define(arena, 1, &statement, &body)
 }
 
 /// `trans (sym p) p` over `p : Id X x e` — the inverse-law left side,
@@ -747,9 +727,7 @@ fn id_cancel_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     );
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(1, statement, body)
+    define(arena, 1, &statement, &body)
 }
 
 /// `propIsSet` — declaration 15, a *definition*: a mere proposition is
@@ -857,9 +835,7 @@ fn prop_is_set_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     );
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(1, statement, body)
+    define(arena, 1, &statement, &body)
 }
 
 /// `boxProp` — declaration 16, a *definition*: a boxed strict
@@ -922,9 +898,7 @@ fn box_prop_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     );
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(1, statement, body)
+    define(arena, 1, &statement, &body)
 }
 
 /// `indProp` — declaration 17, a *definition*: proposition-valued
@@ -1027,9 +1001,7 @@ fn ind_prop_declaration(arena: &mut TermArena) -> Declaration {
         family_type,
         lam("d", case_type, lam("z", quotient_of(), unboxed)),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(3, statement, body)
+    define(arena, 3, &statement, &body)
 }
 
 /// `coverage` — declaration 18, a *definition*: the specification's
@@ -1074,9 +1046,7 @@ fn coverage_declaration(arena: &mut TermArena) -> Declaration {
             [v("A"), v("R"), motive, case, v("z")],
         ),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(2, statement, body)
+    define(arena, 2, &statement, &body)
 }
 
 /// `unique` — declaration 19, a *definition*: pointwise uniqueness of
@@ -1243,9 +1213,7 @@ fn unique_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(3, statement, body)
+    define(arena, 3, &statement, &body)
 }
 
 /// The twenty declarations of the set-quotient scheme, in signature

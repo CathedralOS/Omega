@@ -59,8 +59,8 @@
 //! only each other, so a producer's own declarations append after them.
 
 use super::scheme_dsl::{
-    Syntax, app, apps, build, fst, id, indw, lam, pair, pi, refl, scheme_at, sigma, snd, sort, sup,
-    ty, v, w,
+    Syntax, app, apps, define, fst, id, indw, lam, pair, pi, refl, scheme_at, sigma, snd, sort,
+    sup, ty, v, w,
 };
 use super::signature::Declaration;
 use super::term::{Level, Term, TermArena, TermHandle};
@@ -218,9 +218,7 @@ fn indexed_at_declaration(arena: &mut TermArena) -> Declaration {
             app(indw(motive, step, v("t")), v("i")),
         ),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(3, statement, body)
+    define(arena, 3, &statement, &body)
 }
 
 /// `IW : Π I A B out next. Π(i : I). Type s` defined as
@@ -232,9 +230,7 @@ fn indexed_w_declaration(arena: &mut TermArena) -> Declaration {
         v("I"),
         sigma("t", w(v("A"), v("B")), at(v("i"), v("t"))),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(3, statement, body)
+    define(arena, 3, &statement, &body)
 }
 
 /// `iwPack : Π I A B out next. Π(i : I). Π(t : W A B). Π(e : IndexedAt i
@@ -270,9 +266,7 @@ fn indexed_pack_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(3, statement, body)
+    define(arena, 3, &statement, &body)
 }
 
 /// `isup : Π I A B out next. Π(a : A). Π(g : Π(b : B a). IW (next a
@@ -317,9 +311,7 @@ fn indexed_sup_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(3, statement, body)
+    define(arena, 3, &statement, &body)
 }
 
 /// `iindW` — the derived dependent eliminator, universe-polymorphic
@@ -505,9 +497,7 @@ fn indexed_ind_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(4, statement, body)
+    define(arena, 4, &statement, &body)
 }
 
 /// `indexCorrect` — the scheme's index-soundness theorem, a proved
@@ -625,9 +615,7 @@ fn indexed_correctness_declaration(arena: &mut TermArena) -> Declaration {
             ),
         ),
     ));
-    let statement = build(arena, &mut Vec::new(), &statement);
-    let body = build(arena, &mut Vec::new(), &body);
-    Declaration::definition(3, statement, body)
+    define(arena, 3, &statement, &body)
 }
 
 /// The index-soundness theorem of [`indexed_scheme`] as a checked
