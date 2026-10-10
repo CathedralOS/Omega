@@ -1,21 +1,8 @@
-# drop hook body
+# drop_hook_body
 
-Compile-scope probe. No standard-library dependency.
+`use omega::language::core::drop` — the owner hook body is an ordinary
+Unit machine: it reads and writes its subject, calls helpers with
+arguments, repeats calls, and reaches nested helpers, on both the
+contextual scope-exit edge and an explicit `drop(explicit)` consume.
 
-- float_builtins: builtin `min`/`max`/`sqrt` on f32/f64 —
-  no import; anonymous literals land at the annotation format.
-- target_scoped_machines: `linux_x86_64 machine probe()` —
-  target-prefixed bodies; Psi checks every target's body, only
-  realization narrows.
-- drop_hook_body: owner-attached `Guard::drop(guard: &mut Guard)`
-  with a multi-statement hook calling machines and writing
-  fields; `drop(local)` disposal.
-
-Compile-checked only (no ProcessExit provider):
-
-```sh
-mbx run -p omega -- --check samples/cli/probes/drop_hook_body/main.omg
-mbx run -p omega -- update --project samples/cli/probes/drop_hook_body
-```
-
-Both green on Linux x86-64; `omega.lock` publishes locally, ignored.
+Compile-checked only: `core::drop` is depend-free.
