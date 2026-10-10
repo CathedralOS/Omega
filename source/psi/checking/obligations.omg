@@ -106,7 +106,8 @@ crashes Trap
 
     state name(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, type_handle: u64 in Trapping) {
         let value: Value = Checker::name_value(checker, syntax, resolution, typing, handle, type_handle);
-        Checker::set_value(checker, handle, value);
+        let read: Value = Checker::read_interval(typing, type_handle, value);
+        Checker::set_value(checker, handle, read);
     }
 
     state literal(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping) {

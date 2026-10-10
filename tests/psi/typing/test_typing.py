@@ -36,7 +36,7 @@ DIAGNOSTICS = (
     "UncoveredDispatch", "ImmutablePlace",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
-ADAPTATIONS = ("", "landed", "lent", "qualified")
+ADAPTATIONS = ("", "landed", "lent", "qualified", "read")
 
 
 @dataclass(frozen=True)
@@ -1401,6 +1401,27 @@ def main() -> None:
         b"machine f() -> u8 { let bytes: [u8; 2] = \"abc\"; bytes[0] }",
         "MismatchedTypes",
         b"\"abc\"",
+    )
+    # A reference to a builtin scalar reads its referent wherever the scalar
+    # is needed: an admitted value, an operand, a cast or an index.
+    accepted(
+        program,
+        "reference-reads-its-scalar",
+        b"machine read(value: &u8) -> u8 { value }\n"
+        b"machine bump(count: &mut u64) { count = ((count as u64 in Wrapping) + 1) as u64; }\n"
+        b"machine above(count: &u64) -> bool { count > 3 }\n"
+        b"machine flip(flag: &bool) -> bool { !flag }\n"
+        b"machine pick(items: &[u8; 4], at: &u64) -> u8 { items[at] }",
+        ((b"value!2", "&u8"), (b"count as u64 in Wrapping", "u64 in Wrapping"), (b"count > 3", "bool"),
+         (b"items[at]", "u8")),
+        adaptations=((b"value!2", "read"),),
+    )
+    rejected(
+        program,
+        "only-a-scalar-reads-through-a-reference",
+        b"data Token { x: u64; }\nmachine f(token: &Token) -> Token { token }",
+        "MismatchedTypes",
+        b"token!2",
     )
     rejected(
         program,

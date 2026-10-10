@@ -149,7 +149,8 @@ crashes Trap
 {
     let source: Value = Checker::value_at(checker, expression.left);
     let source_type: u64 in Trapping = Typing::expression_type(typing, expression.left);
-    let source_row: TypeRow = TypeTable::row(&typing.types, source_type);
+    let read_source: u64 in Trapping = Checker::read_type(typing, source_type);
+    let source_row: TypeRow = TypeTable::row(&typing.types, read_source);
     transition source_row.kind == TypeKind::Builtin && source_row.builtin == BuiltinType::Bool {
         true -> boolean()
         _ -> converted(checker, expression, row, source, checking)

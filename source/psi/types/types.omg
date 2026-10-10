@@ -97,6 +97,9 @@ pub data Adaptation [copy] {
     // A value of a type's carrier admitted where the type is qualified by a
     // declared domain: checking proves its predicates.
     case Qualified;
+    // A reference to a builtin scalar read where the scalar is needed: the
+    // value is its referent's.
+    case Read;
 }
 
 pub data TypeDiagnosticCode [copy] {

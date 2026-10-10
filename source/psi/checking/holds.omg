@@ -173,14 +173,16 @@ crashes Trap
 }
 
 // What an argument holds: the place an implicit shared loan or a borrow
-// lends, or a reference value's referent.
+// lends, or a reference value's referent; a reference read for its scalar
+// holds nothing.
 machine Checker::argument_hold(syntax: &SyntaxTrees, typing: &Typing, argument: u64 in Trapping) -> Hold
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, argument);
     let adaptation: Adaptation = Typing::adaptation(typing, argument);
-    transition adaptation == Adaptation::SharedLend {
-        true -> answer(Hold::Shared { place: argument })
+    transition adaptation {
+        Adaptation::SharedLend -> answer(Hold::Shared { place: argument })
+        Adaptation::Read -> answer(Hold::Released)
         _ -> lent(typing, argument, expression)
     }
 
@@ -327,13 +329,15 @@ crashes Trap
 }
 
 // Whether a place access is exclusive: lent `&mut`, or an exclusive
-// reference passed on.
+// reference passed on rather than read.
 machine Checker::exclusive_access(typing: &Typing, node: u64 in Trapping, role: UseRole) -> bool
 crashes Trap
 {
     let node_type: u64 in Trapping = Typing::expression_type(typing, node);
     let row: TypeRow = TypeTable::row(&typing.types, node_type);
-    let reference: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable;
+    let adaptation: Adaptation = Typing::adaptation(typing, node);
+    let reference: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable
+        && adaptation != Adaptation::Read;
     let exclusive: bool = role == UseRole::Exclusive || (role == UseRole::Value && reference);
     transition { _ -> answer(exclusive) }
 

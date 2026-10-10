@@ -422,7 +422,8 @@ machine Typer::type_index(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in
 crashes Trap
 {
     let collection: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
-    let selector: u64 in Trapping = Typing::expression_type(&typer.output, expression.right);
+    let written_selector: u64 in Trapping = Typing::expression_type(&typer.output, expression.right);
+    let selector: u64 in Trapping = Typer::read_type(typer, written_selector);
     let operand: Expression = SyntaxTrees::expression(syntax, expression.right);
     transition collection > 0 && selector > 0 && operand.kind == ExpressionKind::Range {
         true -> sliced(typer, index, expression, collection)
@@ -678,11 +679,13 @@ crashes Trap
         _ -> not_a_value(typer, expression)
     }
 
+    // `!`, `-` and `~` read a scalar through references.
     state typed(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        let read: u64 in Trapping = Typer::read_type(typer, operand);
         transition expression.operator {
-            OperatorKind::Not -> not(typer, index, expression, operand)
-            OperatorKind::Negate -> negate(typer, index, expression, operand)
-            OperatorKind::BitNot -> complement(typer, index, expression, operand)
+            OperatorKind::Not -> not(typer, index, expression, read)
+            OperatorKind::Negate -> negate(typer, index, expression, read)
+            OperatorKind::BitNot -> complement(typer, index, expression, read)
             OperatorKind::Borrow -> borrow(typer, index, expression, operand, ReferenceAccess::Shared)
             OperatorKind::BorrowMutable -> borrow_mutable(typer, syntax, resolution, index, expression, operand)
             _ -> acknowledged(typer, syntax, index, expression, operand)
@@ -891,8 +894,10 @@ machine Typer::type_binary(
 )
 crashes Trap
 {
-    let left: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
-    let right: u64 in Trapping = Typing::expression_type(&typer.output, expression.right);
+    let written_left: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
+    let written_right: u64 in Trapping = Typing::expression_type(&typer.output, expression.right);
+    let left: u64 in Trapping = Typer::read_type(typer, written_left);
+    let right: u64 in Trapping = Typer::read_type(typer, written_right);
     transition left > 0 && right > 0 {
         true -> typed(typer, sources, syntax, resolution, index, expression, left, right)
         _ -> not_a_value(typer, expression)
@@ -1255,8 +1260,9 @@ crashes Trap
 machine Typer::type_cast(typer: &mut Typer, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
-    let source: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
+    let written: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
     let target: u64 in Trapping = Typing::reference_type(&typer.output, expression.type_reference);
+    let source: u64 in Trapping = Typer::cast_source(typer, written, target);
     let target_integer: bool = Typer::integer_type(typer, target);
     let source_integer: bool = Typer::integer_type(typer, source);
     Typing::set_expression_type(&mut typer.output, index, target);
@@ -1321,6 +1327,23 @@ crashes Trap
     }
 
     state done() {}
+}
+
+// What a cast converts: its operand read through references, unless the
+// target is itself a reference.
+machine Typer::cast_source(typer: &Typer, written: u64 in Trapping, target: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typer.output.types, target);
+    let read: u64 in Trapping = Typer::read_type(typer, written);
+    transition row.kind == TypeKind::Reference {
+        true -> answer(written)
+        _ -> answer(read)
+    }
+
+    state answer(source: u64 in Trapping) -> u64 in Trapping {
+        source
+    }
 }
 
 // `handle` with the generic parameters of the data type `owner` replaced by

@@ -15,7 +15,8 @@ use psi::typing::typer;
 // its referent implicitly and accepts an exclusive loan as a shared one
 // (wiki/spec/language/expressions.md#calls-places-and-temporaries); and a
 // payload-free case of generic data, which spells no arguments, meets any
-// application of its data. A quoted literal copies its bytes into an
+// application of its data; a reference to a builtin scalar meets the scalar
+// by reading its referent (`Typer::read_type`). A quoted literal copies its bytes into an
 // unqualified fixed byte array of exactly its length
 // (wiki/spec/language/data_and_literals.md#quoted-bytes), and a range
 // slice is a view a shared-reference destination lends from wherever it
@@ -34,6 +35,7 @@ pub data Admission [copy] {
     case Landed;
     case SharedLend;
     case Qualified;
+    case Read;
 }
 
 pub machine Typer::admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
@@ -53,6 +55,14 @@ crashes Trap
     }
 
     state different(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
+        let read: u64 in Trapping = Typer::read_type(typer, actual);
+        transition read != actual && read == destination {
+            true -> reading()
+            _ -> kinds(typer, syntax, destination, expression, actual)
+        }
+    }
+
+    state kinds(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
         let wanted: TypeRow = TypeTable::row(&typer.output.types, destination);
         let given: TypeRow = TypeTable::row(&typer.output.types, actual);
         transition given.kind {
@@ -187,6 +197,10 @@ crashes Trap
         Admission::SharedLend
     }
 
+    state reading() -> Admission {
+        Admission::Read
+    }
+
     state rejected() -> Admission {
         Admission::Rejected
     }
@@ -269,6 +283,7 @@ crashes Trap
         Admission::Landed -> landing(typer, syntax, destination, expression, chosen)
         Admission::SharedLend -> lent(typer, syntax, written, expression, lend)
         Admission::Qualified -> qualified(typer, expression)
+        Admission::Read -> read(typer, expression)
         Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
         Admission::NotAValue -> reject(typer, written, TypeDiagnosticCode::NotAValue)
         Admission::Rejected -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
@@ -305,6 +320,11 @@ crashes Trap
 
     state qualified(typer: &mut Typer, expression: u64 in Trapping) -> bool {
         Typing::set_adaptation(&mut typer.output, expression, Adaptation::Qualified);
+        transition { _ -> admitted() }
+    }
+
+    state read(typer: &mut Typer, expression: u64 in Trapping) -> bool {
+        Typing::set_adaptation(&mut typer.output, expression, Adaptation::Read);
         transition { _ -> admitted() }
     }
 
@@ -358,6 +378,7 @@ crashes Trap
         Admission::Landed -> yes()
         Admission::SharedLend -> yes()
         Admission::Qualified -> yes()
+        Admission::Read -> yes()
         _ -> no()
     }
 

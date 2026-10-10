@@ -176,6 +176,59 @@ crashes Trap
     }
 }
 
+// A name of a reference to a builtin integer reads as its referent where the
+// integer is needed (typing's `Typer::read_type`): unbounded, its value lies
+// in the referent's carrier.
+pub machine Checker::read_interval(typing: &Typing, type_handle: u64 in Trapping, value: Value) -> Value
+crashes Trap
+{
+    let read: u64 in Trapping = Checker::read_type(typing, type_handle);
+    let row: TypeRow = TypeTable::row(&typing.types, read);
+    let referenced: TypeRow = TypeTable::row(&typing.types, type_handle);
+    let integer: bool = row.kind == TypeKind::Builtin && ExactInteger::is_carrier(row.builtin);
+    transition referenced.kind == TypeKind::Reference && integer && !value.ceiling.finite && !value.floor.finite {
+        true -> carried(value, row)
+        _ -> answer(value)
+    }
+
+    state carried(value: Value, row: TypeRow) -> Value {
+        let range: Value = Value::carrier(row.builtin);
+        Value { place: value.place, known: false, subject: 0, offset: range.offset, ceiling: range.ceiling, floor: range.floor }
+    }
+
+    state answer(value: Value) -> Value {
+        value
+    }
+}
+
+// The type a value reads as: a reference to a builtin scalar, through every
+// layer, reads as the scalar; any other type as itself.
+pub machine Checker::read_type(typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> layer(typing, handle, handle, 0) }
+
+    state layer(typing: &Typing, written: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        let row: TypeRow = TypeTable::row(&typing.types, current);
+        let builtin: bool = row.kind == TypeKind::Builtin;
+        transition row.kind == TypeKind::Reference && depth < 8 {
+            true -> layer(typing, written, row.inner, depth + 1)
+            _ -> settled(written, current, builtin)
+        }
+    }
+
+    state settled(written: u64 in Trapping, current: u64 in Trapping, builtin: bool) -> u64 in Trapping {
+        transition builtin {
+            true -> answer(current)
+            _ -> answer(written)
+        }
+    }
+
+    state answer(handle: u64 in Trapping) -> u64 in Trapping {
+        handle
+    }
+}
+
 pub machine Checker::set_value(checker: &mut Checker, handle: u64 in Trapping, value: Value)
 crashes Trap
 {

@@ -299,7 +299,8 @@ call's unit, whose parameters admit its arguments
 ([`typing/admission.omg`](typing/admission.omg)) is equal types, a landing, a
 value of type `Never`, a shared-reference parameter implicitly lending its
 referent or accepting an exclusive loan, a range slice lent as a view at any
-shared-reference destination, a quoted literal copied into an unqualified
+shared-reference destination, a reference to a builtin scalar read as its
+referent, a quoted literal copied into an unqualified
 byte array of its exact length, or a payload-free case of generic data
 meeting any application. A construction names each of its record's or case's
 fields once; a case pattern names a case of its subject's data and types its

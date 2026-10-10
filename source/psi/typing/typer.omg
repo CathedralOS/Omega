@@ -295,6 +295,33 @@ crashes Trap
     }
 }
 
+// The type a value is read as: a reference to a builtin scalar, through
+// every layer, reads as its referent where the scalar is needed, as a place
+// of reference type denotes its referent's storage; any other type reads as
+// itself.
+pub machine Typer::read_type(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+    transition row.kind == TypeKind::Reference {
+        true -> referenced(typer, handle)
+        _ -> result(handle)
+    }
+
+    state referenced(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping {
+        let referent: u64 in Trapping = Typer::referent(typer, handle);
+        let row: TypeRow = TypeTable::row(&typer.output.types, referent);
+        transition row.kind == TypeKind::Builtin {
+            true -> result(referent)
+            _ -> result(handle)
+        }
+    }
+
+    state result(handle: u64 in Trapping) -> u64 in Trapping {
+        handle
+    }
+}
+
 // Intern a row the typer builds; a full table rejects at `source_span` and
 // yields the absent type.
 pub machine Typer::intern(typer: &mut Typer, row: TypeRow, source_span: SourceSpan) -> u64 in Trapping

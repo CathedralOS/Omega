@@ -2056,6 +2056,29 @@ def main() -> None:
         b"((255u8 as u8 in Wrapping) + 2) as u8",
     )
 
+    # A reference read for its scalar holds nothing beside the call's other
+    # arguments, but reading a place an earlier argument lends exclusively
+    # still overlaps it.
+    accepted(
+        program,
+        "reference-read-wraps-its-referent",
+        b"machine bump(count: &mut u64) { count = ((count as u64 in Wrapping) + 1) as u64; }",
+    )
+    accepted(
+        program,
+        "read-before-an-exclusive-loan",
+        b"machine take(a: u64, b: &mut u64) -> u64 { a }\n"
+        b"machine run(count: &mut u64) -> u64 { take(count, count) }",
+    )
+    rejected(
+        program,
+        "read-after-an-exclusive-loan",
+        b"machine take(b: &mut u64, a: u64) -> u64 { a }\n"
+        b"machine run(count: &mut u64) -> u64 { take(count, count) }",
+        "OverlappingArguments",
+        b"count!3",
+    )
+
     # The product's own psi package, each module under source/psi as
     # `<directory>::<file>` of package `psi`: how far checking reaches today.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"
