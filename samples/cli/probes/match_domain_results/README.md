@@ -1,20 +1,7 @@
-# match domain results
+# match_domain_results
 
-Compile-scope probe. No standard-library dependency.
+`domain i64::Km` — a requires-free marker domain; `as i64 in Km` inside
+each match arm result delivers the `-> i64 in Km` declared return.
 
-- case_call_premises: `requires v in T::Case` call premises +
-  ensures-position calls discharged on literals, gated symbolic
-  subjects, and `requires v == alias` aliases.
-- equivalence_lemma_trio: `proposition equivalent(a,b) = a == b`
-  definitional body + refl/sym/trans lemma triple.
-- match_domain_results: every match arm `as`-grants into a bare
-  domain; the match types `i64 in Km` and feeds a domain result.
-- interleaved_match_locals: match moves two of three interleaved
-  locals; the one declared between them survives.
-
-Compile-checked only (no ProcessExit provider):
-
-```sh
-mbx run -p omega -- --check samples/cli/probes/match_domain_results/main.omg
-mbx run -p omega -- update --project samples/cli/probes/match_domain_results
-```
+Compile-checked only: no standard-library dependency and
+no `Main::exit` — run a check target, not native.

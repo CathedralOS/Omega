@@ -1,34 +1,20 @@
-// Match arms producing domain-qualified results: `domain i64::Km`
-// (bare — no requires) and each arm `as`-grants its operand into
-// `i64 in Km`, so the match itself types `i64 in Km` and feeds a
-// `-> i64 in Km` machine result.
-//
-//   * `true -> left as i64 in Km` per-arm grants.
-//   * `hits` records the reached arm.
-//
-// Compile-checked only: no standard-library dependency, no
-// ProcessExit provider.
-
+// `as i64 in Km` inside match arm results delivers each arm in the
+// marker domain the `-> i64 in Km` return declares.
 domain i64::Km;
-
 machine choose(select_left: bool, left: i64, right: i64) -> i64 in Km {
     match select_left {
         true -> left as i64 in Km,
         false -> right as i64 in Km
     }
 }
-
-data Main {
-    hits: i32 in Wrapping;
-}
-
+data Main { left: i64; }
 machine Main::main(main: &mut Main) {
-    main.hits = 0;
-    let far: i64 in Km = choose(true, 30, 70);
-    transition far > 0 {
-        true -> pass(main)
-        _ -> fail(main)
+    main.left = 40;
+    let picked: i64 in Km = choose(true, main.left, 3);
+    transition picked == 40 {
+        true -> done()
+        _ -> bad()
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    state done() {}
+    state bad() {}
 }
