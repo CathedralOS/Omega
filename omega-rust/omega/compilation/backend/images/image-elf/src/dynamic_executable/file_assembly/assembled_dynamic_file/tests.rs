@@ -9,8 +9,8 @@ use super::{
 };
 use crate::{
     apply_elf_dynamic_address_fixups, apply_elf_procedure_linkage_fixups,
-    apply_elf_section_header_placements, plan_elf_dynamic_load_layout, plan_elf_indexed_section_payloads,
-    plan_elf_relative_section_payload_layout,
+    apply_elf_section_header_placements, plan_elf_dynamic_load_layout,
+    plan_elf_indexed_section_payloads, plan_elf_relative_section_payload_layout,
     serialize_elf_dynamic_file_envelope,
 };
 use arena::Handle;
@@ -96,8 +96,7 @@ fn resolved_linkage(
     );
 
     let linkage = crate::test_support::resolved_linkage(image, target);
-    let headers =
-        crate::test_support::section_header_table_from_linkage(linkage);
+    let headers = crate::test_support::section_header_table_from_linkage(linkage);
     let payloads = plan_elf_indexed_section_payloads(headers).unwrap();
     let relative = plan_elf_relative_section_payload_layout(payloads).unwrap();
     let load = plan_elf_dynamic_load_layout(relative).unwrap();

@@ -6,15 +6,17 @@ use super::{
     derive_contents, elf_hash, gnu_hash, plan_elf_dynamic_sections, validate_candidate,
     validate_contents, validate_gnu_hash_reachability, validate_hash_reachability,
 };
-use target::TargetProfile;
 use crate::test_support::{SINGLE_SITE_IMPORTS as IMPORTS, SingleSiteImportFixture};
-
+use target::TargetProfile;
 
 fn interpreter_path(target: TargetProfile) -> &'static [u8] {
     crate::test_support::import_fixture_interpreter_path(target)
 }
 
-fn input(target: TargetProfile, imports: &[SingleSiteImportFixture]) -> PlannedElfDynamicLinkInputs {
+fn input(
+    target: TargetProfile,
+    imports: &[SingleSiteImportFixture],
+) -> PlannedElfDynamicLinkInputs {
     input_with_interpreter(target, imports, interpreter_path(target))
 }
 

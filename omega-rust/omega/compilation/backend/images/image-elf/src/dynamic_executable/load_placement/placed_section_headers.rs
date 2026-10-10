@@ -12,6 +12,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::{
     checked_product, checked_sum, read_u32, read_u64, require,
 };
@@ -108,11 +109,6 @@ struct Candidate {
     load_layout: ValidatedElfDynamicLoadLayout,
     contents: ElfPlacedSectionHeaderContents,
     non_authoritative_placed_compatibility_fingerprint: u64,
-}
-
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -212,33 +208,26 @@ fn derive_contents(
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfPlacedSectionHeaderTable, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.load_layout, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    let expected_identity = non_authoritative_placed_compatibility_fingerprint(
-        &candidate.load_layout,
-        &candidate.contents,
-    );
-    if candidate.non_authoritative_placed_compatibility_fingerprint == 0
-        || candidate.non_authoritative_placed_compatibility_fingerprint != expected_identity
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "placed ELF section-header compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfPlacedSectionHeaderTable {
-        load_layout: candidate.load_layout,
-        contents: candidate.contents,
-        non_authoritative_placed_compatibility_fingerprint: candidate
-            .non_authoritative_placed_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfPlacedSectionHeaderTable, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.load_layout, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_placed_compatibility_fingerprint != 0
+                && candidate.non_authoritative_placed_compatibility_fingerprint
+                    == non_authoritative_placed_compatibility_fingerprint(
+                        &candidate.load_layout,
+                        &candidate.contents,
+                    )
+        },
+        "placed ELF section-header compatibility fingerprint does not replay",
+        |candidate| ValidatedElfPlacedSectionHeaderTable {
+            load_layout: candidate.load_layout,
+            contents: candidate.contents,
+            non_authoritative_placed_compatibility_fingerprint: candidate
+                .non_authoritative_placed_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

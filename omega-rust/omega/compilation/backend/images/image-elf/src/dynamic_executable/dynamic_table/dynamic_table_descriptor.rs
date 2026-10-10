@@ -12,6 +12,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::ValidatedElfDynamicTablePayload;
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
@@ -141,11 +142,6 @@ struct Candidate {
     non_authoritative_descriptor_compatibility_fingerprint: u64,
 }
 
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
-}
-
 /// Consume the exact serialized `.dynamic` payload into one address-free
 /// semantic section descriptor and append its raw name to the owning seed.
 ///
@@ -223,32 +219,25 @@ fn base_name_seed(payload: &ValidatedElfDynamicTablePayload) -> &[u8] {
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfDynamicTableSectionDescriptorPlan, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.payload, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    if candidate.non_authoritative_descriptor_compatibility_fingerprint
-        != non_authoritative_descriptor_compatibility_fingerprint(
-            &candidate.payload,
-            &candidate.contents,
-        )
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "ELF dynamic-table descriptor compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfDynamicTableSectionDescriptorPlan {
-        payload: candidate.payload,
-        contents: candidate.contents,
-        non_authoritative_descriptor_compatibility_fingerprint: candidate
-            .non_authoritative_descriptor_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfDynamicTableSectionDescriptorPlan, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.payload, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_descriptor_compatibility_fingerprint
+                == non_authoritative_descriptor_compatibility_fingerprint(
+                    &candidate.payload,
+                    &candidate.contents,
+                )
+        },
+        "ELF dynamic-table descriptor compatibility fingerprint does not replay",
+        |candidate| ValidatedElfDynamicTableSectionDescriptorPlan {
+            payload: candidate.payload,
+            contents: candidate.contents,
+            non_authoritative_descriptor_compatibility_fingerprint: candidate
+                .non_authoritative_descriptor_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

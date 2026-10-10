@@ -7,6 +7,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::{
     ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload,
@@ -139,11 +140,6 @@ struct Candidate {
     section_headers: ValidatedElfSectionHeaderTableTemplate,
     contents: ElfIndexedSectionPayloadContents,
     non_authoritative_payload_roster_compatibility_fingerprint: u64,
-}
-
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
 }
 
 /// Consume exact section-header templates into a numeric byte roster with
@@ -336,32 +332,25 @@ const fn dynamic_target_section(target: ElfDynamicAddressTarget) -> u32 {
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfIndexedSectionPayloadPlan, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.section_headers, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    if candidate.non_authoritative_payload_roster_compatibility_fingerprint
-        != non_authoritative_payload_roster_compatibility_fingerprint(
-            &candidate.section_headers,
-            &candidate.contents,
-        )
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "ELF indexed payload-roster compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfIndexedSectionPayloadPlan {
-        section_headers: candidate.section_headers,
-        contents: candidate.contents,
-        non_authoritative_payload_roster_compatibility_fingerprint: candidate
-            .non_authoritative_payload_roster_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfIndexedSectionPayloadPlan, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.section_headers, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_payload_roster_compatibility_fingerprint
+                == non_authoritative_payload_roster_compatibility_fingerprint(
+                    &candidate.section_headers,
+                    &candidate.contents,
+                )
+        },
+        "ELF indexed payload-roster compatibility fingerprint does not replay",
+        |candidate| ValidatedElfIndexedSectionPayloadPlan {
+            section_headers: candidate.section_headers,
+            contents: candidate.contents,
+            non_authoritative_payload_roster_compatibility_fingerprint: candidate
+                .non_authoritative_payload_roster_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

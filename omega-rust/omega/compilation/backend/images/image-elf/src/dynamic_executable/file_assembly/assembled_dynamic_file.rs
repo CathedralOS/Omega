@@ -13,6 +13,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{
     ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,
     ValidatedElfResolvedProcedureLinkage,
@@ -189,11 +190,6 @@ struct Candidate {
     resolved_linkage: ValidatedElfResolvedProcedureLinkage,
     contents: ElfAssembledDynamicFileContents,
     non_authoritative_assembled_file_compatibility_fingerprint: u64,
-}
-
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
 }
 
 /// Assemble every exact file-backed dynamic ELF fragment at its validated
@@ -509,33 +505,26 @@ fn derive_contents(
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfAssembledDynamicFile, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.resolved_linkage, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    let expected = non_authoritative_assembled_file_compatibility_fingerprint(
-        &candidate.resolved_linkage,
-        &candidate.contents,
-    );
-    if candidate.non_authoritative_assembled_file_compatibility_fingerprint == 0
-        || candidate.non_authoritative_assembled_file_compatibility_fingerprint != expected
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "assembled dynamic ELF compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfAssembledDynamicFile {
-        resolved_linkage: candidate.resolved_linkage,
-        contents: candidate.contents,
-        non_authoritative_assembled_file_compatibility_fingerprint: candidate
-            .non_authoritative_assembled_file_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfAssembledDynamicFile, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.resolved_linkage, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_assembled_file_compatibility_fingerprint != 0
+                && candidate.non_authoritative_assembled_file_compatibility_fingerprint
+                    == non_authoritative_assembled_file_compatibility_fingerprint(
+                        &candidate.resolved_linkage,
+                        &candidate.contents,
+                    )
+        },
+        "assembled dynamic ELF compatibility fingerprint does not replay",
+        |candidate| ValidatedElfAssembledDynamicFile {
+            resolved_linkage: candidate.resolved_linkage,
+            contents: candidate.contents,
+            non_authoritative_assembled_file_compatibility_fingerprint: candidate
+                .non_authoritative_assembled_file_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

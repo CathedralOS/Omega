@@ -12,9 +12,7 @@ use crate::{
     serialize_elf_dynamic_sections,
 };
 use arena::Handle;
-use image::{
-    FinalImage, FinalImageMemory, FinalImageRelocation,
-};
+use image::{FinalImage, FinalImageMemory, FinalImageRelocation};
 use target::normalize_elf_interpreter_plan;
 
 use crate::test_support::{IMPORTS, ImportFixture, import_fixture_interpreter_path};
@@ -42,8 +40,14 @@ fn image(
     let mut relocation_handles = Vec::with_capacity(relocation_count);
     for (index, fixture) in imports.iter().enumerate() {
         let symbol_handle = crate::test_support::insert_import_fixture(
-            &mut image, "__omega_procedure_import_", index, fixture.object, fixture.symbol,
-            fixture.version, target, "valid procedure-linkage locator",
+            &mut image,
+            "__omega_procedure_import_",
+            index,
+            fixture.object,
+            fixture.symbol,
+            fixture.version,
+            target,
+            "valid procedure-linkage locator",
         );
         for instruction_offset in fixture.instruction_offsets {
             let (relocation_offset, kind) = match target {

@@ -7,11 +7,8 @@ use super::{
     serialize_elf_dynamic_sections, validate_candidate, validate_payloads,
 };
 use crate::plan_elf_dynamic_sections;
-use target::TargetProfile;
 use crate::test_support::{SINGLE_SITE_IMPORTS as IMPORTS, SingleSiteImportFixture};
-
-
-
+use target::TargetProfile;
 
 fn interpreter_path(target: TargetProfile) -> &'static [u8] {
     crate::test_support::import_fixture_interpreter_path(target)

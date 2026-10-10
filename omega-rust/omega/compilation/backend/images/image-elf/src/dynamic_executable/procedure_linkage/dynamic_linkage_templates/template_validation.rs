@@ -9,36 +9,30 @@ use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::can
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::compatibility_fingerprint::{non_authoritative_template_compatibility_fingerprint};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_plans::{ElfProcedureLinkageFixup, ElfProcedureLinkageFixupStorage, ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplateBytes, ElfProcedureLinkageTemplateContents, ElfProcedureLinkageTemplatePolicy};
 use crate::dynamic_executable::checked::{require};
+use super::super::super::checked;
 pub(super) use crate::dynamic_executable::checked::{read_u32, read_u64};
 
 pub(crate) fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfProcedureLinkageTemplatePlan, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.linkage, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    if candidate.non_authoritative_template_compatibility_fingerprint
-        != non_authoritative_template_compatibility_fingerprint(
-            &candidate.linkage,
-            &candidate.contents,
-        )
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "ELF GOT/PLT template compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfProcedureLinkageTemplatePlan {
-        linkage: candidate.linkage,
-        contents: candidate.contents,
-        non_authoritative_template_compatibility_fingerprint: candidate
-            .non_authoritative_template_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfProcedureLinkageTemplatePlan, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.linkage, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_template_compatibility_fingerprint
+                == non_authoritative_template_compatibility_fingerprint(
+                    &candidate.linkage,
+                    &candidate.contents,
+                )
+        },
+        "ELF GOT/PLT template compatibility fingerprint does not replay",
+        |candidate| ValidatedElfProcedureLinkageTemplatePlan {
+            linkage: candidate.linkage,
+            contents: candidate.contents,
+            non_authoritative_template_compatibility_fingerprint: candidate
+                .non_authoritative_template_compatibility_fingerprint,
+        },
+    )
 }
 
 pub(crate) fn validate_contents(

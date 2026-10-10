@@ -93,3 +93,35 @@ pub(super) fn checked_product_u64(
     left.checked_mul(right)
         .ok_or_else(|| Diagnostic::error(format!("{context} overflows {bound}")))
 }
+
+/// A rejected candidate together with the diagnostic that rejected it: every
+/// dynamic-lane section validator builds this same two-field envelope.
+pub(crate) struct CandidateValidationError<C> {
+    pub(crate) candidate: C,
+    pub(crate) diagnostic: Diagnostic,
+}
+
+/// Shared validation envelope: run the contents validator, replay the
+/// non-authoritative compatibility fingerprint, and on success assemble the
+/// validated record from the consumed candidate.
+pub(crate) fn validate_candidate<C, T>(
+    candidate: C,
+    valid: impl Fn(&C) -> Result<(), Diagnostic>,
+    replays: impl Fn(&C) -> bool,
+    replay_diagnostic: &'static str,
+    validated: impl Fn(C) -> T,
+) -> Result<T, CandidateValidationError<C>> {
+    if let Err(diagnostic) = valid(&candidate) {
+        return Err(CandidateValidationError {
+            candidate,
+            diagnostic,
+        });
+    }
+    if !replays(&candidate) {
+        return Err(CandidateValidationError {
+            candidate,
+            diagnostic: Diagnostic::error(replay_diagnostic),
+        });
+    }
+    Ok(validated(candidate))
+}

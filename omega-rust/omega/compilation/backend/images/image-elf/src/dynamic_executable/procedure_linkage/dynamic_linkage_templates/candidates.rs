@@ -26,10 +26,7 @@ pub(crate) struct Candidate {
     pub(super) non_authoritative_template_compatibility_fingerprint: u64,
 }
 
-pub(crate) struct CandidateValidationError {
-    pub(super) candidate: Candidate,
-    pub(super) diagnostic: Diagnostic,
-}
+pub(crate) use super::super::super::checked::CandidateValidationError;
 
 pub(crate) fn derive_contents(
     linkage: &ValidatedElfProcedureLinkageRelocationPlan,

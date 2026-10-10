@@ -11,6 +11,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::{write_u32, write_u64};
 use crate::dynamic_executable::checked::{
     checked_product, checked_sum, read_u32, read_u64, require,
@@ -142,11 +143,6 @@ struct Candidate {
     non_authoritative_template_compatibility_fingerprint: u64,
 }
 
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
-}
-
 /// Serialize the exact numeric roster as thirteen 64-byte ELF64-LSB section
 /// headers with zero placement placeholders and typed fixup coordinates.
 ///
@@ -248,32 +244,25 @@ fn placement_fixup(
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfSectionHeaderTableTemplate, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.roster, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    if candidate.non_authoritative_template_compatibility_fingerprint
-        != non_authoritative_template_compatibility_fingerprint(
-            &candidate.roster,
-            &candidate.contents,
-        )
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "ELF section-header template compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfSectionHeaderTableTemplate {
-        roster: candidate.roster,
-        contents: candidate.contents,
-        non_authoritative_template_compatibility_fingerprint: candidate
-            .non_authoritative_template_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfSectionHeaderTableTemplate, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.roster, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_template_compatibility_fingerprint
+                == non_authoritative_template_compatibility_fingerprint(
+                    &candidate.roster,
+                    &candidate.contents,
+                )
+        },
+        "ELF section-header template compatibility fingerprint does not replay",
+        |candidate| ValidatedElfSectionHeaderTableTemplate {
+            roster: candidate.roster,
+            contents: candidate.contents,
+            non_authoritative_template_compatibility_fingerprint: candidate
+                .non_authoritative_template_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

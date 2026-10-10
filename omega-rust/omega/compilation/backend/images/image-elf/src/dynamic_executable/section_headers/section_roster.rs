@@ -12,6 +12,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
@@ -140,11 +141,6 @@ struct Candidate {
     section_names: ValidatedElfSectionNameTablePlan,
     contents: ElfDynamicSectionRosterContents,
     non_authoritative_roster_compatibility_fingerprint: u64,
-}
-
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
 }
 
 /// Consume the completed section-name-table carrier and close the current ELF
@@ -340,32 +336,25 @@ const fn index_for_kind(kind: ElfDynamicRosterSectionKind) -> u32 {
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfDynamicSectionRoster, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.section_names, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    if candidate.non_authoritative_roster_compatibility_fingerprint
-        != non_authoritative_roster_compatibility_fingerprint(
-            &candidate.section_names,
-            &candidate.contents,
-        )
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "ELF dynamic section-roster compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfDynamicSectionRoster {
-        section_names: candidate.section_names,
-        contents: candidate.contents,
-        non_authoritative_roster_compatibility_fingerprint: candidate
-            .non_authoritative_roster_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfDynamicSectionRoster, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.section_names, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_roster_compatibility_fingerprint
+                == non_authoritative_roster_compatibility_fingerprint(
+                    &candidate.section_names,
+                    &candidate.contents,
+                )
+        },
+        "ELF dynamic section-roster compatibility fingerprint does not replay",
+        |candidate| ValidatedElfDynamicSectionRoster {
+            section_names: candidate.section_names,
+            contents: candidate.contents,
+            non_authoritative_roster_compatibility_fingerprint: candidate
+                .non_authoritative_roster_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

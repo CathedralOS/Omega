@@ -16,6 +16,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::ValidatedElfProcedureLinkageTemplatePlan;
 use diagnostics::Diagnostic;
@@ -170,11 +171,6 @@ struct Candidate {
     templates: ValidatedElfProcedureLinkageTemplatePlan,
     contents: ElfProcedureLinkageSectionDescriptorContents,
     non_authoritative_descriptor_compatibility_fingerprint: u64,
-}
-
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
 }
 
 /// Consume validated target templates into four address-free semantic section
@@ -368,32 +364,26 @@ fn target(templates: &ValidatedElfProcedureLinkageTemplatePlan) -> TargetProfile
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfProcedureLinkageSectionDescriptorPlan, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.templates, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    if candidate.non_authoritative_descriptor_compatibility_fingerprint
-        != non_authoritative_descriptor_compatibility_fingerprint(
-            &candidate.templates,
-            &candidate.contents,
-        )
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "ELF linkage-descriptor compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfProcedureLinkageSectionDescriptorPlan {
-        templates: candidate.templates,
-        contents: candidate.contents,
-        non_authoritative_descriptor_compatibility_fingerprint: candidate
-            .non_authoritative_descriptor_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfProcedureLinkageSectionDescriptorPlan, CandidateValidationError<Candidate>>
+{
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.templates, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_descriptor_compatibility_fingerprint
+                == non_authoritative_descriptor_compatibility_fingerprint(
+                    &candidate.templates,
+                    &candidate.contents,
+                )
+        },
+        "ELF linkage-descriptor compatibility fingerprint does not replay",
+        |candidate| ValidatedElfProcedureLinkageSectionDescriptorPlan {
+            templates: candidate.templates,
+            contents: candidate.contents,
+            non_authoritative_descriptor_compatibility_fingerprint: candidate
+                .non_authoritative_descriptor_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

@@ -5,7 +5,8 @@ use crate::dynamic_executable::load_placement::load_layout::abi_validation::{
     align_for_region, placed_coordinates, retained_image, retained_target, section, validate_abi,
 };
 use crate::dynamic_executable::load_placement::load_layout::compatibility_fingerprint::{
-    checked_align, non_authoritative_layout_compatibility_fingerprint};
+    checked_align, non_authoritative_layout_compatibility_fingerprint,
+};
 use crate::dynamic_executable::load_placement::load_layout::{
     DYNAMIC_MAX_PAGE_SIZE, DYNAMIC_PROGRAM_HEADER_COUNT, ElfLoadImageMemoryPlacement,
     ElfLoadProgramHeader, ElfLoadProgramHeaderKind, ElfPlacedDynamicSection,
@@ -33,10 +34,7 @@ pub(crate) struct Candidate {
     pub(super) non_authoritative_layout_compatibility_fingerprint: u64,
 }
 
-pub(super) struct CandidateValidationError {
-    pub(super) candidate: Candidate,
-    pub(super) diagnostic: Diagnostic,
-}
+pub(super) use super::super::super::checked::CandidateValidationError;
 
 type DerivedContents = (
     Vec<ElfLoadProgramHeader>,
@@ -52,11 +50,13 @@ pub(super) fn derive_contents(
 ) -> Result<DerivedContents, Diagnostic> {
     crate::dynamic_executable::checked::require(
         matches!(target, TargetProfile::LinuxX64 | TargetProfile::LinuxArm64),
-        "dynamic ELF load placement requires an exact Linux x86-64 or AArch64 target")?;
+        "dynamic ELF load placement requires an exact Linux x86-64 or AArch64 target",
+    )?;
     let relative_contents = relative.contents();
     crate::dynamic_executable::checked::require(
         relative_contents.rows.len() == SECTION_COUNT,
-        "dynamic ELF load placement requires the exact fourteen-row relative roster")?;
+        "dynamic ELF load placement requires the exact fourteen-row relative roster",
+    )?;
     for region in [
         ElfRelativeSectionPayloadRegion::ReadOnly,
         ElfRelativeSectionPayloadRegion::ReadExecute,
@@ -65,7 +65,8 @@ pub(super) fn derive_contents(
     ] {
         crate::dynamic_executable::checked::require(
             relative.region_span(region) != 0,
-            "dynamic ELF load placement requires every closed relative region")?;
+            "dynamic ELF load placement requires every closed relative region",
+        )?;
     }
 
     let header_end = crate::dynamic_executable::checked::checked_sum_u64(
@@ -73,8 +74,12 @@ pub(super) fn derive_contents(
         crate::dynamic_executable::checked::checked_product_u64(
             PROGRAM_HEADER_SIZE as u64,
             DYNAMIC_PROGRAM_HEADER_COUNT,
-            "dynamic ELF program-header bytes", "Elf64_Off")?,
-        "dynamic ELF header prefix", "Elf64_Off")?;
+            "dynamic ELF program-header bytes",
+            "Elf64_Off",
+        )?,
+        "dynamic ELF header prefix",
+        "Elf64_Off",
+    )?;
     let read_only_base = align_for_region(
         relative,
         ElfRelativeSectionPayloadRegion::ReadOnly,
@@ -83,7 +88,9 @@ pub(super) fn derive_contents(
     let read_only_end = crate::dynamic_executable::checked::checked_sum_u64(
         read_only_base,
         relative.region_span(ElfRelativeSectionPayloadRegion::ReadOnly),
-        "read-only ELF load end", "Elf64_Off")?;
+        "read-only ELF load end",
+        "Elf64_Off",
+    )?;
     let read_execute_base = checked_align(
         read_only_end,
         DYNAMIC_MAX_PAGE_SIZE,
@@ -100,16 +107,24 @@ pub(super) fn derive_contents(
         .map_err(|_| Diagnostic::error("source BSS alignment exceeds Elf64_Xword"))?;
     crate::dynamic_executable::checked::require(
         bss_alignment != 0 && bss_alignment.is_power_of_two(),
-        "source BSS alignment must be a nonzero power of two")?;
+        "source BSS alignment must be a nonzero power of two",
+    )?;
     let read_execute_section_base = align_for_region(
         relative,
         ElfRelativeSectionPayloadRegion::ReadExecute,
-        crate::dynamic_executable::checked::checked_sum_u64(read_execute_base, text_size, "source text end", "Elf64_Off")?,
+        crate::dynamic_executable::checked::checked_sum_u64(
+            read_execute_base,
+            text_size,
+            "source text end",
+            "Elf64_Off",
+        )?,
     )?;
     let read_execute_end = crate::dynamic_executable::checked::checked_sum_u64(
         read_execute_section_base,
         relative.region_span(ElfRelativeSectionPayloadRegion::ReadExecute),
-        "read-execute ELF load end", "Elf64_Off")?;
+        "read-execute ELF load end",
+        "Elf64_Off",
+    )?;
     let read_write_base = checked_align(
         read_execute_end,
         DYNAMIC_MAX_PAGE_SIZE,
@@ -118,15 +133,27 @@ pub(super) fn derive_contents(
     let read_write_section_end = crate::dynamic_executable::checked::checked_sum_u64(
         read_write_base,
         relative.region_span(ElfRelativeSectionPayloadRegion::ReadWrite),
-        "read-write ELF load end", "Elf64_Off")?;
+        "read-write ELF load end",
+        "Elf64_Off",
+    )?;
     let data_file_offset = checked_align(
         read_write_section_end,
         image.target.pointer_alignment as u64,
         "source data placement",
     )?;
-    let data_end = crate::dynamic_executable::checked::checked_sum_u64(data_file_offset, data_size, "source data end", "Elf64_Off")?;
+    let data_end = crate::dynamic_executable::checked::checked_sum_u64(
+        data_file_offset,
+        data_size,
+        "source data end",
+        "Elf64_Off",
+    )?;
     let bss_file_cursor = checked_align(data_end, bss_alignment, "source BSS placement")?;
-    let read_write_memory_end = crate::dynamic_executable::checked::checked_sum_u64(bss_file_cursor, bss_size, "source BSS end", "Elf64_Off")?;
+    let read_write_memory_end = crate::dynamic_executable::checked::checked_sum_u64(
+        bss_file_cursor,
+        bss_size,
+        "source BSS end",
+        "Elf64_Off",
+    )?;
     let file_only_base = align_for_region(
         relative,
         ElfRelativeSectionPayloadRegion::FileOnly,
@@ -165,18 +192,35 @@ pub(super) fn derive_contents(
     let section_name_table_end = crate::dynamic_executable::checked::checked_sum_u64(
         section_name_table.file_offset,
         section_name_table.byte_size,
-        "section-name table end", "Elf64_Off")?;
+        "section-name table end",
+        "Elf64_Off",
+    )?;
     let section_header_table_file_offset =
         checked_align(section_name_table_end, 8, "section-header table placement")?;
 
     let image_memory = ElfLoadImageMemoryPlacement {
         text_file_offset: read_execute_base,
-        text_virtual_address: crate::dynamic_executable::checked::checked_sum_u64(IMAGE_BASE, read_execute_base, "source text address", "Elf64_Off")?,
+        text_virtual_address: crate::dynamic_executable::checked::checked_sum_u64(
+            IMAGE_BASE,
+            read_execute_base,
+            "source text address",
+            "Elf64_Off",
+        )?,
         text_size,
         data_file_offset,
-        data_virtual_address: crate::dynamic_executable::checked::checked_sum_u64(IMAGE_BASE, data_file_offset, "source data address", "Elf64_Off")?,
+        data_virtual_address: crate::dynamic_executable::checked::checked_sum_u64(
+            IMAGE_BASE,
+            data_file_offset,
+            "source data address",
+            "Elf64_Off",
+        )?,
         data_size,
-        bss_virtual_address: crate::dynamic_executable::checked::checked_sum_u64(IMAGE_BASE, bss_file_cursor, "source BSS address", "Elf64_Off")?,
+        bss_virtual_address: crate::dynamic_executable::checked::checked_sum_u64(
+            IMAGE_BASE,
+            bss_file_cursor,
+            "source BSS address",
+            "Elf64_Off",
+        )?,
         bss_size,
         bss_alignment,
     };
@@ -215,8 +259,18 @@ pub(super) fn derive_contents(
             kind: ElfLoadProgramHeaderKind::LoadReadExecute,
             flags: PF_R | PF_X,
             file_offset: read_execute_base,
-            virtual_address: crate::dynamic_executable::checked::checked_sum_u64(IMAGE_BASE, read_execute_base, "RX load address", "Elf64_Off")?,
-            physical_address: crate::dynamic_executable::checked::checked_sum_u64(IMAGE_BASE, read_execute_base, "RX load address", "Elf64_Off")?,
+            virtual_address: crate::dynamic_executable::checked::checked_sum_u64(
+                IMAGE_BASE,
+                read_execute_base,
+                "RX load address",
+                "Elf64_Off",
+            )?,
+            physical_address: crate::dynamic_executable::checked::checked_sum_u64(
+                IMAGE_BASE,
+                read_execute_base,
+                "RX load address",
+                "Elf64_Off",
+            )?,
             file_size: read_execute_end - read_execute_base,
             memory_size: read_execute_end - read_execute_base,
             alignment: DYNAMIC_MAX_PAGE_SIZE,
@@ -225,8 +279,18 @@ pub(super) fn derive_contents(
             kind: ElfLoadProgramHeaderKind::LoadReadWrite,
             flags: PF_R | PF_W,
             file_offset: read_write_base,
-            virtual_address: crate::dynamic_executable::checked::checked_sum_u64(IMAGE_BASE, read_write_base, "RW load address", "Elf64_Off")?,
-            physical_address: crate::dynamic_executable::checked::checked_sum_u64(IMAGE_BASE, read_write_base, "RW load address", "Elf64_Off")?,
+            virtual_address: crate::dynamic_executable::checked::checked_sum_u64(
+                IMAGE_BASE,
+                read_write_base,
+                "RW load address",
+                "Elf64_Off",
+            )?,
+            physical_address: crate::dynamic_executable::checked::checked_sum_u64(
+                IMAGE_BASE,
+                read_write_base,
+                "RW load address",
+                "Elf64_Off",
+            )?,
             file_size: data_end - read_write_base,
             memory_size: read_write_memory_end - read_write_base,
             alignment: DYNAMIC_MAX_PAGE_SIZE,
@@ -246,7 +310,8 @@ pub(super) fn derive_contents(
     let header_contents = relative.payloads().section_headers().contents();
     crate::dynamic_executable::checked::require(
         header_contents.placement_fixups.len() == PLACEMENT_FIXUP_COUNT,
-        "dynamic ELF load placement requires exactly twenty-five section-header fixups")?;
+        "dynamic ELF load placement requires exactly twenty-five section-header fixups",
+    )?;
     let mut resolutions = Vec::with_capacity(PLACEMENT_FIXUP_COUNT);
     for fixup in &header_contents.placement_fixups {
         let placed = sections
@@ -290,7 +355,7 @@ pub(super) fn derive_contents(
 
 pub(super) fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfDynamicLoadLayout, CandidateValidationError> {
+) -> Result<ValidatedElfDynamicLoadLayout, CandidateValidationError<Candidate>> {
     let expected = match derive_contents(&candidate.relative, candidate.target) {
         Ok(expected) => expected,
         Err(diagnostic) => {

@@ -9,6 +9,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::{
     checked_product, checked_sum, read_i64, read_u64, require,
 };
@@ -202,11 +203,6 @@ struct Candidate {
     non_authoritative_resolved_compatibility_fingerprint: u64,
 }
 
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
-}
-
 /// Apply the exact eight indexed `.dynamic` address fixups from the retained
 /// absolute section layout.
 pub(crate) fn apply_elf_dynamic_address_fixups(
@@ -320,35 +316,26 @@ fn application_for_fixup(
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfResolvedDynamicTable, CandidateValidationError> {
-    if let Err(diagnostic) =
-        validate_contents(&candidate.placed_section_headers, &candidate.contents)
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    let expected_identity = non_authoritative_resolved_compatibility_fingerprint(
-        &candidate.placed_section_headers,
-        &candidate.contents,
-    );
-    if candidate.non_authoritative_resolved_compatibility_fingerprint == 0
-        || candidate.non_authoritative_resolved_compatibility_fingerprint != expected_identity
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "resolved ELF dynamic-table compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfResolvedDynamicTable {
-        placed_section_headers: candidate.placed_section_headers,
-        contents: candidate.contents,
-        non_authoritative_resolved_compatibility_fingerprint: candidate
-            .non_authoritative_resolved_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfResolvedDynamicTable, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.placed_section_headers, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_resolved_compatibility_fingerprint != 0
+                && candidate.non_authoritative_resolved_compatibility_fingerprint
+                    == non_authoritative_resolved_compatibility_fingerprint(
+                        &candidate.placed_section_headers,
+                        &candidate.contents,
+                    )
+        },
+        "resolved ELF dynamic-table compatibility fingerprint does not replay",
+        |candidate| ValidatedElfResolvedDynamicTable {
+            placed_section_headers: candidate.placed_section_headers,
+            contents: candidate.contents,
+            non_authoritative_resolved_compatibility_fingerprint: candidate
+                .non_authoritative_resolved_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

@@ -18,6 +18,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ValidatedElfDynamicSectionDescriptorPlan;
 use crate::dynamic_executable::import_sections::dynamic_sections::ElfDynamicImportBinding;
@@ -169,11 +170,6 @@ struct Candidate {
     descriptors: ValidatedElfDynamicSectionDescriptorPlan,
     contents: ElfProcedureLinkageRelocationContents,
     non_authoritative_linkage_compatibility_fingerprint: u64,
-}
-
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
 }
 
 /// Consume exact dynamic-section descriptors into one canonical, address-free
@@ -484,32 +480,25 @@ fn site_end(site: &ElfDirectImportCallSite) -> Result<usize, Diagnostic> {
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfProcedureLinkageRelocationPlan, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.descriptors, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    if candidate.non_authoritative_linkage_compatibility_fingerprint
-        != non_authoritative_linkage_compatibility_fingerprint(
-            &candidate.descriptors,
-            &candidate.contents,
-        )
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "ELF procedure-linkage compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfProcedureLinkageRelocationPlan {
-        descriptors: candidate.descriptors,
-        contents: candidate.contents,
-        non_authoritative_linkage_compatibility_fingerprint: candidate
-            .non_authoritative_linkage_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfProcedureLinkageRelocationPlan, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.descriptors, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_linkage_compatibility_fingerprint
+                == non_authoritative_linkage_compatibility_fingerprint(
+                    &candidate.descriptors,
+                    &candidate.contents,
+                )
+        },
+        "ELF procedure-linkage compatibility fingerprint does not replay",
+        |candidate| ValidatedElfProcedureLinkageRelocationPlan {
+            descriptors: candidate.descriptors,
+            contents: candidate.contents,
+            non_authoritative_linkage_compatibility_fingerprint: candidate
+                .non_authoritative_linkage_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

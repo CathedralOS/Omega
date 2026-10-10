@@ -187,11 +187,6 @@ struct Candidate {
     contents: ElfDynamicSectionContents,
 }
 
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
-}
-
 /// Consume one exact dynamic-link preflight into a concrete, address-free ELF
 /// table plan and independently replay every table relationship before sealing
 /// it.
@@ -528,17 +523,17 @@ fn build_version_needs(
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfDynamicSectionPlan, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.inputs, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    Ok(ValidatedElfDynamicSectionPlan {
-        inputs: candidate.inputs,
-        contents: candidate.contents,
-    })
+) -> Result<ValidatedElfDynamicSectionPlan, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.inputs, &candidate.contents),
+        |_| true,
+        "",
+        |candidate| ValidatedElfDynamicSectionPlan {
+            inputs: candidate.inputs,
+            contents: candidate.contents,
+        },
+    )
 }
 
 fn validate_contents(
@@ -696,6 +691,7 @@ fn validate_gnu_hash_reachability(hash: &ElfGnuHash, names: &[&[u8]]) -> Result<
 }
 
 use super::super::checked::require as require_equal;
+use super::super::checked::{self, CandidateValidationError};
 
 fn elf_hash(bytes: &[u8]) -> u32 {
     let mut hash = 0u32;

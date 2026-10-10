@@ -9,6 +9,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::dynamic_table::dynamic_table_descriptor::ValidatedElfDynamicTableSectionDescriptorPlan;
 use crate::dynamic_executable::section_headers::section_payload_roster::ValidatedElfIndexedSectionPayloadPlan;
@@ -166,11 +167,6 @@ struct Candidate {
     non_authoritative_layout_compatibility_fingerprint: u64,
 }
 
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
-}
-
 /// Pack the closed indexed payload roster relative to a future dynamic-section
 /// file region.
 ///
@@ -257,32 +253,25 @@ fn derive_contents(
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfRelativeSectionPayloadLayout, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.payloads, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    if candidate.non_authoritative_layout_compatibility_fingerprint
-        != non_authoritative_layout_compatibility_fingerprint(
-            &candidate.payloads,
-            &candidate.contents,
-        )
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "relative ELF payload-layout compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfRelativeSectionPayloadLayout {
-        payloads: candidate.payloads,
-        contents: candidate.contents,
-        non_authoritative_layout_compatibility_fingerprint: candidate
-            .non_authoritative_layout_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfRelativeSectionPayloadLayout, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.payloads, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_layout_compatibility_fingerprint
+                == non_authoritative_layout_compatibility_fingerprint(
+                    &candidate.payloads,
+                    &candidate.contents,
+                )
+        },
+        "relative ELF payload-layout compatibility fingerprint does not replay",
+        |candidate| ValidatedElfRelativeSectionPayloadLayout {
+            payloads: candidate.payloads,
+            contents: candidate.contents,
+            non_authoritative_layout_compatibility_fingerprint: candidate
+                .non_authoritative_layout_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

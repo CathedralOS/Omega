@@ -8,14 +8,10 @@ use super::{
     non_authoritative_descriptor_compatibility_fingerprint, plan_elf_dynamic_section_descriptors,
     read_u32, validate_candidate, validate_contents,
 };
-use crate::{
-    plan_elf_dynamic_sections, serialize_elf_dynamic_sections,
-};
 use crate::dynamic_executable::interpreter_path;
-use target::TargetProfile;
 use crate::test_support::SingleSiteImportFixture;
-
-
+use crate::{plan_elf_dynamic_sections, serialize_elf_dynamic_sections};
+use target::TargetProfile;
 
 const IMPORTS: [SingleSiteImportFixture; 3] = [
     SingleSiteImportFixture {
@@ -34,7 +30,6 @@ const IMPORTS: [SingleSiteImportFixture; 3] = [
         version: b"V1\xfd",
     },
 ];
-
 
 fn payloads(
     target: TargetProfile,

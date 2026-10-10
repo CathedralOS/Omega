@@ -11,6 +11,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::write_u64;
 use crate::dynamic_executable::checked::{
     checked_product, checked_sum, read_i64, read_u64, require,
@@ -121,11 +122,6 @@ struct Candidate {
     non_authoritative_payload_compatibility_fingerprint: u64,
 }
 
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
-}
-
 /// Serialize the exact semantic tag plan as ELF64-LSB `Elf64_Dyn` rows and
 /// independently decode every row and address-fixup coordinate before sealing
 /// success.
@@ -203,29 +199,25 @@ fn encode_contents(
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfDynamicTablePayload, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.plan, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    if candidate.non_authoritative_payload_compatibility_fingerprint
-        != non_authoritative_payload_compatibility_fingerprint(&candidate.plan, &candidate.contents)
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "ELF dynamic payload compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfDynamicTablePayload {
-        plan: candidate.plan,
-        contents: candidate.contents,
-        non_authoritative_payload_compatibility_fingerprint: candidate
-            .non_authoritative_payload_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfDynamicTablePayload, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.plan, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_payload_compatibility_fingerprint
+                == non_authoritative_payload_compatibility_fingerprint(
+                    &candidate.plan,
+                    &candidate.contents,
+                )
+        },
+        "ELF dynamic payload compatibility fingerprint does not replay",
+        |candidate| ValidatedElfDynamicTablePayload {
+            plan: candidate.plan,
+            contents: candidate.contents,
+            non_authoritative_payload_compatibility_fingerprint: candidate
+                .non_authoritative_payload_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

@@ -15,6 +15,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::import_sections::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads;
 use diagnostics::Diagnostic;
@@ -175,11 +176,6 @@ struct Candidate {
     non_authoritative_descriptor_compatibility_fingerprint: u64,
 }
 
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
-}
-
 /// Consume exact serialized payloads into canonical address-free ELF section
 /// descriptors and independently replay all names, metadata, semantic links,
 /// and cross-payload counts before sealing success.
@@ -335,32 +331,25 @@ fn descriptor(
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfDynamicSectionDescriptorPlan, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.payloads, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    if candidate.non_authoritative_descriptor_compatibility_fingerprint
-        != non_authoritative_descriptor_compatibility_fingerprint(
-            &candidate.payloads,
-            &candidate.contents,
-        )
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "ELF dynamic descriptor compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfDynamicSectionDescriptorPlan {
-        payloads: candidate.payloads,
-        contents: candidate.contents,
-        non_authoritative_descriptor_compatibility_fingerprint: candidate
-            .non_authoritative_descriptor_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfDynamicSectionDescriptorPlan, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.payloads, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_descriptor_compatibility_fingerprint
+                == non_authoritative_descriptor_compatibility_fingerprint(
+                    &candidate.payloads,
+                    &candidate.contents,
+                )
+        },
+        "ELF dynamic descriptor compatibility fingerprint does not replay",
+        |candidate| ValidatedElfDynamicSectionDescriptorPlan {
+            payloads: candidate.payloads,
+            contents: candidate.contents,
+            non_authoritative_descriptor_compatibility_fingerprint: candidate
+                .non_authoritative_descriptor_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

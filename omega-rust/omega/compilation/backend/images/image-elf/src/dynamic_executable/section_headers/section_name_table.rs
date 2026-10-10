@@ -12,6 +12,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_table_descriptor::ValidatedElfDynamicTableSectionDescriptorPlan;
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
@@ -138,11 +139,6 @@ struct Candidate {
     non_authoritative_table_compatibility_fingerprint: u64,
 }
 
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
-}
-
 /// Consume the exact `.dynamic` descriptor carrier, adopt its already reserved
 /// `.shstrtab` name seed as the complete section-name-table payload, and seal
 /// one address-free semantic string-table descriptor.
@@ -211,32 +207,25 @@ fn upstream_name_seed(dynamic_table: &ValidatedElfDynamicTableSectionDescriptorP
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfSectionNameTablePlan, CandidateValidationError> {
-    if let Err(diagnostic) = validate_contents(&candidate.dynamic_table, &candidate.contents) {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    if candidate.non_authoritative_table_compatibility_fingerprint
-        != non_authoritative_table_compatibility_fingerprint(
-            &candidate.dynamic_table,
-            &candidate.contents,
-        )
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "ELF section-name-table compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfSectionNameTablePlan {
-        dynamic_table: candidate.dynamic_table,
-        contents: candidate.contents,
-        non_authoritative_table_compatibility_fingerprint: candidate
-            .non_authoritative_table_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfSectionNameTablePlan, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.dynamic_table, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_table_compatibility_fingerprint
+                == non_authoritative_table_compatibility_fingerprint(
+                    &candidate.dynamic_table,
+                    &candidate.contents,
+                )
+        },
+        "ELF section-name-table compatibility fingerprint does not replay",
+        |candidate| ValidatedElfSectionNameTablePlan {
+            dynamic_table: candidate.dynamic_table,
+            contents: candidate.contents,
+            non_authoritative_table_compatibility_fingerprint: candidate
+                .non_authoritative_table_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(

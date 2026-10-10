@@ -13,6 +13,7 @@
 
 use target::compatibility_fingerprint::Fnv1a;
 
+use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::dynamic_executable::checked::{
     checked_product, checked_sum, read_u16, read_u32, read_u64, require,
@@ -130,11 +131,6 @@ struct Candidate {
     non_authoritative_envelope_compatibility_fingerprint: u64,
 }
 
-struct CandidateValidationError {
-    candidate: Candidate,
-    diagnostic: Diagnostic,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct DecodedElf64Header {
     object_type: u16,
@@ -247,35 +243,26 @@ fn write_program_header(bytes: &mut Vec<u8>, header: &ElfLoadProgramHeader) {
 
 fn validate_candidate(
     candidate: Candidate,
-) -> Result<ValidatedElfDynamicFileEnvelope, CandidateValidationError> {
-    if let Err(diagnostic) =
-        validate_contents(&candidate.resolved_dynamic_table, &candidate.contents)
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic,
-        });
-    }
-    let expected_fingerprint = non_authoritative_envelope_compatibility_fingerprint(
-        &candidate.resolved_dynamic_table,
-        &candidate.contents,
-    );
-    if candidate.non_authoritative_envelope_compatibility_fingerprint == 0
-        || candidate.non_authoritative_envelope_compatibility_fingerprint != expected_fingerprint
-    {
-        return Err(CandidateValidationError {
-            candidate,
-            diagnostic: Diagnostic::error(
-                "dynamic ELF envelope compatibility fingerprint does not replay",
-            ),
-        });
-    }
-    Ok(ValidatedElfDynamicFileEnvelope {
-        resolved_dynamic_table: candidate.resolved_dynamic_table,
-        contents: candidate.contents,
-        non_authoritative_envelope_compatibility_fingerprint: candidate
-            .non_authoritative_envelope_compatibility_fingerprint,
-    })
+) -> Result<ValidatedElfDynamicFileEnvelope, CandidateValidationError<Candidate>> {
+    checked::validate_candidate(
+        candidate,
+        |candidate| validate_contents(&candidate.resolved_dynamic_table, &candidate.contents),
+        |candidate| {
+            candidate.non_authoritative_envelope_compatibility_fingerprint != 0
+                && candidate.non_authoritative_envelope_compatibility_fingerprint
+                    == non_authoritative_envelope_compatibility_fingerprint(
+                        &candidate.resolved_dynamic_table,
+                        &candidate.contents,
+                    )
+        },
+        "dynamic ELF envelope compatibility fingerprint does not replay",
+        |candidate| ValidatedElfDynamicFileEnvelope {
+            resolved_dynamic_table: candidate.resolved_dynamic_table,
+            contents: candidate.contents,
+            non_authoritative_envelope_compatibility_fingerprint: candidate
+                .non_authoritative_envelope_compatibility_fingerprint,
+        },
+    )
 }
 
 fn validate_contents(
