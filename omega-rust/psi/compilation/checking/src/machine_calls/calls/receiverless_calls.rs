@@ -45,6 +45,7 @@ pub(super) fn validate_receiverless_call(
             value_environment,
             arguments,
             signature,
+            &call.machine_arguments,
             writable_roots,
             diagnostics,
         );

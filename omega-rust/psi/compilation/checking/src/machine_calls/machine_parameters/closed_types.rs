@@ -41,12 +41,26 @@ pub fn closed_static_call_type_bindings(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if selected.is_empty() || selected.len() != requirements.len() {
+    let machine_arguments =
+        super::machine_selection_arguments(program, selected).collect::<Vec<_>>();
+    if machine_arguments.len() != requirements.len() {
         return None;
     }
     let index = machine_state_index(program);
-    let mut bindings = Vec::<TypeBinding>::new();
-    for (requirement, selected) in requirements.into_iter().zip(selected) {
+    let selected_types =
+        super::type_selections::selected_types(program, selected).collect::<Vec<_>>();
+    if selected_types.len() > generic_types.len() {
+        return None;
+    }
+    let mut bindings = generic_types
+        .iter()
+        .zip(selected_types)
+        .map(|(parameter, actual)| TypeBinding {
+            symbol: parameter.symbol,
+            actual,
+        })
+        .collect::<Vec<_>>();
+    for (requirement, selected) in requirements.into_iter().zip(machine_arguments) {
         if selected.application.is_some()
             || selected.const_literal.is_some()
             || selected.evidence_projection.is_some()

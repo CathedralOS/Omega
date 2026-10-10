@@ -21,12 +21,35 @@ pub fn call_type_arguments(
     selected: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
 ) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
-    let parameters = program.machine_type_parameters(callee);
-    // Specialization already owns retained authored static operands. A concrete
-    // entry has no formal type environment left to instantiate here.
-    if parameters.is_empty() {
+    // A concrete entry retains authored operands for source admission even
+    // after specialization removed its formals. A static callable signature
+    // never has that history and must validate its exact current telescope.
+    if program.machine_type_parameters(callee).is_empty() {
         return Some(Vec::new());
     }
+    callable_type_arguments(
+        program,
+        caller,
+        state,
+        program.machine_type_parameters(callee),
+        program.state_parameters(entry),
+        selected,
+        arguments,
+    )
+}
+
+/// Ordinary entries and static callable signatures instantiate the same
+/// ordered type/const telescope. Their ownership differs, not their inference.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn callable_type_arguments(
+    program: &dyn crate::CheckingInput,
+    caller: &Machine,
+    state: Option<&State>,
+    parameters: &[typed_trees::data::TypeParameter],
+    value_parameters: &[typed_trees::signature::StateParameter],
+    selected: &[StaticMachineArgument],
+    arguments: &[ExpressionHandle],
+) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
     let type_parameters = parameters
         .iter()
         .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
@@ -120,7 +143,7 @@ pub fn call_type_arguments(
             .iter()
             .any(|(symbol, _)| *symbol == parameter.symbol)
     }) {
-        for (parameter, argument) in program.state_parameters(entry).iter().zip(arguments) {
+        for (parameter, argument) in value_parameters.iter().zip(arguments) {
             let actual = crate::value_custody::places::declared_place_type_raw(
                 program, caller, state, *argument,
             )

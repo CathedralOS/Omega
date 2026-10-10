@@ -12,6 +12,7 @@ mod family_demands;
 mod selected_dependencies;
 pub(crate) use selected_dependencies::machine_selection_dependency_symbols;
 mod closed_types;
+mod type_selections;
 pub use closed_types::closed_static_call_type_bindings;
 pub(crate) mod contract_facts;
 mod nominal_admission;
@@ -457,32 +458,40 @@ fn form_call_selection(
     {
         return;
     }
-    let (requirements, generic_types): (Vec<_>, Vec<_>) = if let Some((callee, _)) =
-        machine_and_state(program, index, target_symbol)
-    {
-        contract_and_type_parameters(program.machine_type_parameters(callee))
-    } else if let Some((declaring_machine, signature)) =
-        program.machine_parameter_signature(target_symbol)
-    {
-        (
-            contract_and_type_parameters(program.state_signature_type_parameters(signature)).0,
-            contract_and_type_parameters(program.machine_type_parameters(declaring_machine)).1,
-        )
-    } else if let Some(signature) = program
-        .traits()
-        .iter()
-        .flat_map(|definition| program.trait_machine_signatures(definition))
-        .find(|signature| signature.symbol == target_symbol)
-    {
-        contract_and_type_parameters(program.state_signature_type_parameters(signature))
-    } else {
-        if !arguments.is_empty() {
-            diagnostics.push(Diagnostic::error(format!(
+    let (requirements, generic_types, invocation_type_count): (Vec<_>, Vec<_>, usize) =
+        if let Some((callee, _)) = machine_and_state(program, index, target_symbol) {
+            let (requirements, generic_types) =
+                contract_and_type_parameters(program.machine_type_parameters(callee));
+            let invocation_type_count = generic_types.len();
+            (requirements, generic_types, invocation_type_count)
+        } else if let Some((declaring_machine, signature)) =
+            program.machine_parameter_signature(target_symbol)
+        {
+            let (requirements, mut generic_types) =
+                contract_and_type_parameters(program.state_signature_type_parameters(signature));
+            let invocation_type_count = generic_types.len();
+            generic_types.extend(
+                contract_and_type_parameters(program.machine_type_parameters(declaring_machine)).1,
+            );
+            (requirements, generic_types, invocation_type_count)
+        } else if let Some(signature) = program
+            .traits()
+            .iter()
+            .flat_map(|definition| program.trait_machine_signatures(definition))
+            .find(|signature| signature.symbol == target_symbol)
+        {
+            let (requirements, generic_types) =
+                contract_and_type_parameters(program.state_signature_type_parameters(signature));
+            let invocation_type_count = generic_types.len();
+            (requirements, generic_types, invocation_type_count)
+        } else {
+            if !arguments.is_empty() {
+                diagnostics.push(Diagnostic::error(format!(
                     "call `{target_name}` supplies static machine arguments, but its generic callee did not resolve"
                 )));
-        }
-        return;
-    };
+            }
+            return;
+        };
 
     if let Some(projection) = arguments
         .iter()
@@ -506,6 +515,24 @@ fn form_call_selection(
     }
 
     let mut bindings = initial_bindings.to_vec();
+    // Invocation-local arguments bind the callable's telescope, not the
+    // enclosing machine's. Establish authored type selections before matching
+    // nested callbacks, so their shapes cannot reselect a fixed argument.
+    for (parameter, selected) in generic_types
+        .iter()
+        .take(invocation_type_count)
+        .zip(type_selections::selected_types(program, arguments))
+    {
+        if !bindings
+            .iter()
+            .any(|binding| binding.symbol == parameter.symbol)
+        {
+            bindings.push(TypeBinding {
+                symbol: parameter.symbol,
+                actual: selected,
+            });
+        }
+    }
     let mut machine_selections = Vec::new();
 
     for (static_machine_ordinal, ((parameter, requirement), selected)) in

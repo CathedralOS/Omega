@@ -594,6 +594,7 @@ fn validate_expression_call_bounds(
                 value_environment,
                 arguments,
                 signature,
+                &call.machine_arguments,
                 writable_roots,
                 diagnostics,
             );
