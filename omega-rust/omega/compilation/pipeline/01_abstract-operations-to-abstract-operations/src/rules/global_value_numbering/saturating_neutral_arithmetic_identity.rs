@@ -16,14 +16,10 @@ psi_rule_contract!(
     exact_total_scalar_identity(
                 b"omega.psi-rule.live-obligation-free-saturating-integer-neutral-arithmetic-identity-elimination.v1",
             ),
+    propose = propose_total_scalar_identities,
+    classify,
 );
 
-psi_optimization_rule_delegate!(
-    SaturatingNeutralArithmeticIdentityRule,
-    propose = propose_total_scalar_identities,
-    contract = Self::contract(),
-    classify
-);
 
 /// Return the five saturating neutral laws in canonical tie order.
 ///

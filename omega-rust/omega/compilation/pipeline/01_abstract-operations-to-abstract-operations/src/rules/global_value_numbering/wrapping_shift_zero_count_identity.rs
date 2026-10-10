@@ -15,14 +15,10 @@ psi_rule_contract!(
     exact_total_scalar_identity(
                 b"omega.psi-rule.live-obligation-free-wrapping-integer-shift-zero-count-elimination.v1",
             ),
+    propose = propose_total_scalar_identities,
+    classify,
 );
 
-psi_optimization_rule_delegate!(
-    WrappingShiftZeroCountIdentityRule,
-    propose = propose_total_scalar_identities,
-    contract = Self::contract(),
-    classify
-);
 
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     let Some(operands) = operation.integer_shift() else {

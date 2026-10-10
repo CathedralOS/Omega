@@ -4,8 +4,8 @@
 use std::collections::BTreeSet;
 
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
+    OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
     BlockParameterIncomingBinding, NodeLocation, PsiOptimizationUnit, PsiRealizationSite,
@@ -29,13 +29,9 @@ psi_rule_contract!(
                     AnalysisKind::EffectSummaries,
                 ]),
                 OptimizationSafetyClass::StructuralIdentity),
+    propose = propose,
 );
 
-psi_optimization_rule_delegate!(
-    RedundantBlockParameterRule,
-    propose = propose,
-    contract = Self::contract()
-);
 
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,

@@ -101,11 +101,7 @@ psi_rule_contract!(
                     AnalysisKind::EffectSummaries,
                 ]),
             ),
+    propose = propose_proof_certified_scalar_identities,
+    proof_certified_scalar_identity_shapes,
 );
 
-psi_optimization_rule_delegate!(
-    LiveProofCertifiedIntegerIdentityEliminationRule,
-    propose = propose_proof_certified_scalar_identities,
-    contract = Self::contract(),
-    proof_certified_scalar_identity_shapes
-);

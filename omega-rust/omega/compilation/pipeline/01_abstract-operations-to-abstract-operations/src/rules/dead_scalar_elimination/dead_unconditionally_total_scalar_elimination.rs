@@ -3,8 +3,8 @@
 
 use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
+    OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 use semantic_vocabulary::ScalarType;
@@ -22,14 +22,10 @@ psi_rule_contract!(
                     AnalysisKind::EffectSummaries,
                 ]),
                 OptimizationSafetyClass::ExactOperationSemantics),
+    propose = propose_unproved_dead_scalar_nodes,
+    classify,
 );
 
-psi_optimization_rule_delegate!(
-    DeadUnconditionallyTotalScalarEliminationRule,
-    propose = propose_unproved_dead_scalar_nodes,
-    contract = Self::contract(),
-    classify
-);
 
 pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
     let (source_operation, result, scalar_type) = match operation {

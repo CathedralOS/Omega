@@ -1,7 +1,5 @@
 //! Proof-certified translation from exact redundants to total-policy leaders.
 
-
-
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
     PhiTranslatedScalarGvnRewrite,

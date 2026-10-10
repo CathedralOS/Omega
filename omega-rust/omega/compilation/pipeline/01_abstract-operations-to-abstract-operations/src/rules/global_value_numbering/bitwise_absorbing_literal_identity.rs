@@ -17,14 +17,10 @@ psi_rule_contract!(
     exact_total_scalar_identity(
                 b"omega.psi-rule.live-obligation-free-integer-bitwise-absorbing-literal-elimination.v1",
             ),
+    propose = propose_total_scalar_identities,
+    classify,
 );
 
-psi_optimization_rule_delegate!(
-    BitwiseAbsorbingLiteralIdentityRule,
-    propose = propose_total_scalar_identities,
-    contract = Self::contract(),
-    classify
-);
 
 /// Return the four exact-width absorbing laws in canonical operation and
 /// left-literal/right-literal order. The law operand is also the replacement.

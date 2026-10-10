@@ -1,7 +1,5 @@
 //! Proof-certified total-scalar translation across join parameters.
 
-
-
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
     NodeLocation, PhiTranslatedScalarGvnRewrite, PsiOptimizationUnit,

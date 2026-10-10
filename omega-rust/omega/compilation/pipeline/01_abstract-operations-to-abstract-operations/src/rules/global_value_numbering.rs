@@ -11,8 +11,8 @@
 use std::collections::BTreeMap;
 
 use optimization_core::{AcceptedObligationFactIdentity, 
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
+    OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
     NodeLocation, OptimizationFact, PsiOptimizationFunction, PsiOptimizationUnit,

@@ -22,13 +22,9 @@ psi_rule_contract!(
                 b"omega.psi-rule.exact-integer-cast-constants.v1",
                 OptimizationSafetyClass::ProofCertified,
             ),
+    propose = propose,
 );
 
-psi_optimization_rule_delegate!(
-    ExactIntegerCastConstantsRule,
-    propose = propose,
-    contract = Self::contract()
-);
 
 fn propose(
     unit: &PsiOptimizationUnit,

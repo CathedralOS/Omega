@@ -72,6 +72,31 @@ macro_rules! psi_rule_contract {
             }
         }
     };
+    ($(#[$meta:meta])* $name:ident, $contract:expr, propose = $propose:ident $(, $extra:expr)* $(,)?) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, Default)]
+        pub(crate) struct $name;
+
+        impl $name {
+            pub fn contract() -> OptimizationRuleContract {
+                $contract
+            }
+        }
+
+        impl PsiOptimizationRule for $name {
+            fn contract(&self) -> OptimizationRuleContract {
+                Self::contract()
+            }
+
+            fn propose(
+                &self,
+                unit: &PsiOptimizationUnit,
+                analyses: RuleAnalysisView<'_>,
+            ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+                $propose(unit, analyses, Self::contract(), $($extra),*)
+            }
+        }
+    };
 }
 
 /// does its own analysis plumbing keep their handwritten impl.

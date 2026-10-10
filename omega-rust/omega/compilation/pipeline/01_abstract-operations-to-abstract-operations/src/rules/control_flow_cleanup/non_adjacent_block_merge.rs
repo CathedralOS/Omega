@@ -6,8 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
+    OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
     NodeLocation, NonAdjacentBlockMergeRewrite, OptimizationBlock, ProvenanceRewrite,
