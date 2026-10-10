@@ -627,6 +627,20 @@ fn validate_type_reference_handle_with_context(
     allow_bare_str: bool,
     type_parameter_scope: TypeParameterScope<'_>,
 ) {
+    // Generic-argument sites below validate every spelled argument under the
+    // application owner's custody.
+    let validate_generic_argument =
+        |argument: TypeReferenceHandle, diagnostics: &mut Vec<Diagnostic>| {
+            validate_type_reference_handle_with_context(
+                program,
+                argument,
+                symbols,
+                diagnostics,
+                owner.generic_argument(),
+                false,
+                type_parameter_scope,
+            );
+        };
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
             referee,
@@ -777,16 +791,8 @@ fn validate_type_reference_handle_with_context(
                 // schema, not a data-generic argument.
                 if parameters.is_empty() {
                     for argument in argument_handles {
-                        validate_type_reference_handle_with_context(
-                            program,
-                            *argument,
-                            symbols,
-                            diagnostics,
-                            owner.generic_argument(),
-                            false,
-                            type_parameter_scope,
-                        );
-                    }
+                        validate_generic_argument(*argument, diagnostics);
+}
                     return;
                 }
                 if parameters.len() != argument_handles.len() {
@@ -844,30 +850,14 @@ fn validate_type_reference_handle_with_context(
                                 )));
                                 continue;
                             }
-                            validate_type_reference_handle_with_context(
-                                program,
-                                *argument,
-                                symbols,
-                                diagnostics,
-                                owner.generic_argument(),
-                                false,
-                                type_parameter_scope,
-                            );
+                            validate_generic_argument(*argument, diagnostics);
                         }
                     }
                 }
             } else {
                 for argument in argument_handles {
-                    validate_type_reference_handle_with_context(
-                        program,
-                        *argument,
-                        symbols,
-                        diagnostics,
-                        owner.generic_argument(),
-                        false,
-                        type_parameter_scope,
-                    );
-                }
+                    validate_generic_argument(*argument, diagnostics);
+}
             }
         }
         TypeReferenceNode::DynamicTrait {
@@ -906,16 +896,8 @@ fn validate_type_reference_handle_with_context(
                 )));
             }
             for argument in arguments {
-                validate_type_reference_handle_with_context(
-                    program,
-                    *argument,
-                    symbols,
-                    diagnostics,
-                    owner.generic_argument(),
-                    false,
-                    type_parameter_scope,
-                );
-            }
+                validate_generic_argument(*argument, diagnostics);
+}
         }
         TypeReferenceNode::Named { symbol, name } => {
             if type_parameter_scope
