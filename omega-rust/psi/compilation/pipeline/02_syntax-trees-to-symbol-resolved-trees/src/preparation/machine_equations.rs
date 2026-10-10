@@ -6,6 +6,10 @@
 //! bounded preparation route completes explicit static tuples, including full
 //! tuples, before ordinary checked monomorphization. Open applications remain
 //! obligations and reject rather than entering later inference unchecked.
+//! Selected scalar constants share declaration canonicalization across direct
+//! and nested arguments. Nested constructor slots consume the selected declared
+//! carrier before scalar normalization erases it; direct arguments retain their
+//! authored syntax for the ordinary immutable static-argument checker.
 
 use super::{
     declaration_selection::ConstantSelection,
@@ -543,6 +547,19 @@ fn supplied_const_argument_reference(
     argument: &StaticMachineArgument,
     selection: &ConstantSelection<'_>,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
+    let (value, _) = scalar_const_argument(syntax, argument, selection)?;
+    scalar_const_argument_reference(syntax, value)
+}
+
+/// Select one scalar value while retaining its declaration's type separately.
+/// A Boolean keyword/atom has known Boolean authority and no declaration type.
+/// Direct machine arguments keep their original syntax for immutable checking;
+/// constructor normalization must consume the declared type before erasure.
+fn scalar_const_argument(
+    syntax: &SyntaxTrees,
+    argument: &StaticMachineArgument,
+    selection: &ConstantSelection<'_>,
+) -> Result<(CanonicalConstValue, TypeReferenceHandle), Diagnostic> {
     let reject = |reason: &str| Diagnostic::error(format!("machine equation application {reason}"));
     if argument.type_reference.is_valid()
         || argument.application.is_some()
@@ -556,26 +573,39 @@ fn supplied_const_argument_reference(
     };
     let name =
         syntax_trees::identifier::Identifier::new(argument.path.joined_path(), first.source_span());
-    let value = if let Some(value) = type_equations::normalized_boolean_argument(name.as_str()) {
-        CanonicalConstValue::boolean(value)
-    } else {
-        let definition = selection.select(syntax, &name)?.ok_or_else(|| {
-            reject("requires an unambiguous selected scalar const argument")
-                .with_source_span(name.source_span())
-        })?;
-        super::generic_data::canonicalize_selected_declared_const_definition(
-            syntax,
-            &definition,
-            Some(selection),
-        )
-        .map_err(|reason| reject(&reason).with_source_span(name.source_span()))?
-    };
+    if let Some(value) = type_equations::normalized_boolean_argument(name.as_str()) {
+        return Ok((
+            CanonicalConstValue::boolean(value),
+            TypeReferenceHandle::default(),
+        ));
+    }
+    let definition = selection.select(syntax, &name)?.ok_or_else(|| {
+        reject("requires an unambiguous selected scalar const argument")
+            .with_source_span(name.source_span())
+    })?;
+    let value = super::generic_data::canonicalize_selected_declared_const_definition(
+        syntax,
+        &definition,
+        Some(selection),
+    )
+    .map_err(|reason| reject(&reason).with_source_span(name.source_span()))?;
+    Ok((value, definition.type_reference))
+}
+
+fn scalar_const_argument_reference(
+    syntax: &mut SyntaxTrees,
+    value: CanonicalConstValue,
+) -> Result<TypeReferenceHandle, Diagnostic> {
     let spelling = match value.decode_encoding() {
         Some(DecodedCanonicalConstValue::Integer { value, .. }) => value.to_string(),
         Some(DecodedCanonicalConstValue::Boolean(value)) => {
             CanonicalConstValue::boolean(value).atom()
         }
-        _ => return Err(reject("requires an integer or Boolean const argument")),
+        _ => {
+            return Err(Diagnostic::error(
+                "machine equation application requires an integer or Boolean const argument",
+            ));
+        }
     };
     Ok(syntax.type_references.insert(TypeReferenceNode::Named(
         syntax_trees::identifier::Identifier::generated(spelling),
@@ -604,28 +634,45 @@ fn application_argument_reference(
             else {
                 return Err(reject("requires a builtin integer constructor parameter"));
             };
-            if super::generic_data::closed_name_identity(syntax, Some(selection), carrier)
+            let required_carrier =
+                super::generic_data::closed_name_identity(syntax, Some(selection), carrier);
+            let boolean = required_carrier
                 == Some(super::generic_data::ClosedArgumentIdentity::Builtin(
                     symbols::BuiltinTypeAtom::Bool,
-                ))
-            {
-                if argument.const_literal.is_some()
-                    || argument.application.is_some()
-                    || argument.type_reference.is_valid()
+                ));
+            if argument.const_literal.is_none() {
+                let (value, declared_type) = scalar_const_argument(syntax, argument, selection)?;
+                // The nested argument will become a mathematical integer or
+                // canonical Boolean leaf. Its encoded payload is no authority
+                // to change carriers: compare the selected declaration first.
+                if declared_type.is_valid()
+                    && super::generic_data::closed_argument_identity(
+                        syntax,
+                        Some(selection),
+                        declared_type,
+                        false,
+                    ) != required_carrier
                 {
-                    return Err(reject("requires a closed Boolean constructor argument"));
+                    return Err(reject(
+                        "has a constructor argument with a different declared carrier",
+                    ));
                 }
-                let [name] = argument.path.as_ref() else {
-                    return Err(reject("requires a closed Boolean constructor argument"));
-                };
-                let value = type_equations::normalized_boolean_argument(name.as_str())
-                    .ok_or_else(|| reject("requires a closed Boolean constructor argument"))?;
-                return Ok(syntax.type_references.insert(TypeReferenceNode::Named(
-                    syntax_trees::identifier::Identifier::new(
-                        CanonicalConstValue::boolean(value).atom(),
-                        name.source_span(),
-                    ),
-                )));
+                match value.decode_encoding() {
+                    Some(DecodedCanonicalConstValue::Boolean(_)) if boolean => {}
+                    Some(DecodedCanonicalConstValue::Integer { .. })
+                        if !boolean
+                            && type_equations::const_binder_envelope(carrier.as_str())
+                                .is_some() => {}
+                    _ => {
+                        return Err(reject(
+                            "has a constructor argument with a different scalar kind",
+                        ));
+                    }
+                }
+                return scalar_const_argument_reference(syntax, value);
+            }
+            if boolean {
+                return Err(reject("requires a closed Boolean constructor argument"));
             }
             let literal = argument
                 .const_literal
