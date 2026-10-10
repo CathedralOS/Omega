@@ -1365,6 +1365,43 @@ def main() -> None:
          (b"1..3", "()"), (b"3!2", "u64"), (b"a[..=5]", "[u8]")),
         adaptations=((b"a[1..3]", "lent"),),
     )
+    # A range slice is a view wherever a shared-reference destination
+    # stands, not only at a call's argument; no other place lends implicitly.
+    accepted(
+        program,
+        "range-slice-views-at-any-shared-destination",
+        b"data Sample { bytes: &[u8]; }\n"
+        b"machine f(a: &[u8; 8]) -> u64 {\n"
+        b"    let view: &[u8] = a[1..3];\n    let sample: Sample = Sample { bytes: a[..2] };\n    view.len\n}",
+        ((b"a[1..3]", "[u8]"), (b"a[..2]", "[u8]")),
+        adaptations=((b"a[1..3]", "lent"), (b"a[..2]", "lent")),
+    )
+    rejected(
+        program,
+        "only-a-range-slice-lends-implicitly",
+        b"machine f(owned: [u8; 8]) -> u64 { let view: &[u8; 8] = owned; 0 }",
+        "MismatchedTypes",
+        b"owned!2",
+    )
+    # A quoted literal copies its bytes into an unqualified fixed byte array
+    # of exactly its length; each escape is one byte.
+    accepted(
+        program,
+        "quoted-literal-copies-into-a-byte-array",
+        b"data Record { bytes: [u8; 3]; }\n"
+        b"machine f() -> u8 {\n"
+        b"    let none: [u8; 0] = \"\";\n    let escaped: [u8; 2] = \"\\x41\\n\";\n"
+        b"    let record: Record = Record { bytes: \"abc\" };\n    escaped[0]\n}",
+        ((b"\"\"", "[u8; 0]"), (b"\"\\x41\\n\"", "[u8; 2]"), (b"\"abc\"", "[u8; 3]")),
+        adaptations=((b"\"abc\"", "landed"),),
+    )
+    rejected(
+        program,
+        "quoted-literal-length-must-match",
+        b"machine f() -> u8 { let bytes: [u8; 2] = \"abc\"; bytes[0] }",
+        "MismatchedTypes",
+        b"\"abc\"",
+    )
     rejected(
         program,
         "range-endpoint-is-an-index",

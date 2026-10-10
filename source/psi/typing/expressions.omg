@@ -73,7 +73,7 @@ crashes Trap
         ExpressionKind::Path -> named(typer, syntax, resolution, index, expression)
         ExpressionKind::Integer -> integer(typer, sources, index, expression)
         ExpressionKind::Boolean -> boolean(typer, index)
-        ExpressionKind::String -> string(typer, index, expression)
+        ExpressionKind::String -> string(typer, sources, index, expression)
         ExpressionKind::Field -> field(typer, sources, syntax, index, expression)
         ExpressionKind::Index -> indexed(typer, syntax, index, expression)
         ExpressionKind::Unary -> unary(typer, syntax, resolution, index, expression)
@@ -165,8 +165,9 @@ crashes Trap
     }
 
     // A quoted literal is a shared byte view, `&[u8]`
-    // (wiki/spec/language/data_and_literals.md#quoted-bytes).
-    state string(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
+    // (wiki/spec/language/data_and_literals.md#quoted-bytes); its value is
+    // its byte count, for a fixed byte array it copies into.
+    state string(typer: &mut Typer, sources: &SourceSet, index: u64 in Trapping, expression: Expression) {
         let mut byte_row: TypeRow = TypeRow::of(TypeKind::Builtin);
         byte_row.builtin = BuiltinType::U8;
         let byte: u64 in Trapping = Typer::intern(typer, byte_row, expression.source_span);
@@ -177,6 +178,8 @@ crashes Trap
         reference_row.inner = view;
         let handle: u64 in Trapping = Typer::intern(typer, reference_row, expression.source_span);
         Typing::set_expression_type(&mut typer.output, index, handle);
+        let length: u64 in Trapping = Typer::quoted_length(sources, expression.source_span);
+        Typing::set_value(&mut typer.output, index, ExactInteger::of(length as u64 in Wrapping));
     }
 
     state field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {

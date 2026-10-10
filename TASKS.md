@@ -6208,7 +6208,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   intrinsically comparable subject, and checking values a constant at its
   landed literal. A fixed-array literal joins its elements into one type,
   its extent its element count, and unlanded elements land level by level
-  at a destination of the literal's shape. An assignment writes a `let mut`
+  at a destination of the literal's shape. A quoted literal copies into an
+  unqualified byte array of its exact length, and a range slice is a view
+  wherever a shared reference stands. An assignment writes a `let mut`
   local, a `mut` parameter or a place behind an exclusive reference, and
   checking walks every state, an unreached one from its own `requires`
   facts. A membership is a Boolean, and a whole membership fact decides as

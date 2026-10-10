@@ -255,3 +255,42 @@ crashes Trap
         SuffixCarrier { known: false, builtin: BuiltinType::U64 }
     }
 }
+
+// The bytes a quoted literal spells between its quotes, each escape one
+// byte: `\xNN` four characters, any other escape two
+// (wiki/spec/language/data_and_literals.md#quoted-bytes).
+pub machine Typer::quoted_length(sources: &SourceSet, span: SourceSpan) -> u64 in Trapping
+crashes Trap
+{
+    transition span.span.start + 2 <= span.span.end {
+        true -> next(sources, span, span.span.start + 1, span.span.end - 1, 0)
+        _ -> answer(0)
+    }
+
+    state next(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {
+        transition index < end {
+            true -> byte(sources, span, index, end, count)
+            _ -> answer(count)
+        }
+    }
+
+    state byte(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {
+        let byte: u8 = SourceSet::byte_or_nul(sources, span.source, index);
+        transition byte == 92 {
+            true -> escape(sources, span, index, end, count)
+            _ -> next(sources, span, index + 1, end, count + 1)
+        }
+    }
+
+    state escape(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, end: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {
+        let kind: u8 = SourceSet::byte_or_nul(sources, span.source, index + 1);
+        transition kind == 120 {
+            true -> next(sources, span, index + 4, end, count + 1)
+            _ -> next(sources, span, index + 2, end, count + 1)
+        }
+    }
+
+    state answer(count: u64 in Trapping) -> u64 in Trapping {
+        count
+    }
+}

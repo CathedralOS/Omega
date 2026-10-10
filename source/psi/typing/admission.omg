@@ -15,7 +15,11 @@ use psi::typing::typer;
 // its referent implicitly and accepts an exclusive loan as a shared one
 // (wiki/spec/language/expressions.md#calls-places-and-temporaries); and a
 // payload-free case of generic data, which spells no arguments, meets any
-// application of its data. Of two types qualifying one carrier
+// application of its data. A quoted literal copies its bytes into an
+// unqualified fixed byte array of exactly its length
+// (wiki/spec/language/data_and_literals.md#quoted-bytes), and a range
+// slice is a view a shared-reference destination lends from wherever it
+// stands (wiki/spec/language/expressions.md#indexing-and-ranges). Of two types qualifying one carrier
 // (wiki/spec/language/domains.md#exact-coercion-and-erasure), a value meets
 // a destination its declared domain qualifies by a membership checking
 // proves, and a predicate-only declared domain disappears implicitly; a
@@ -56,7 +60,28 @@ crashes Trap
             TypeKind::AnonymousFloat -> literal(typer, expression, wanted)
             TypeKind::AnonymousChoice -> unlanded(typer, syntax, destination, expression)
             TypeKind::AnonymousArray -> unlanded(typer, syntax, destination, expression)
+            _ -> quoted(typer, syntax, wanted, given, actual, expression)
+        }
+    }
+
+    state quoted(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        let written: Expression = SyntaxTrees::expression(syntax, expression);
+        transition written.kind == ExpressionKind::String && wanted.kind == TypeKind::Array {
+            true -> copied(typer, expression, wanted)
             _ -> typed(typer, syntax, wanted, given, actual)
+        }
+    }
+
+    state copied(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission {
+        let element: TypeRow = TypeTable::row(&typer.output.types, wanted.inner);
+        let extent: TypeRow = TypeTable::row(&typer.output.types, wanted.length);
+        let length: ExactInteger = Typing::value(&typer.output, expression);
+        let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8
+            && element.domain == DomainBinding::Unqualified && wanted.domain == DomainBinding::Unqualified;
+        let exact: bool = extent.kind == TypeKind::StaticInteger && extent.length == (length.magnitude as u64 in Trapping);
+        transition bytes && exact {
+            true -> landed()
+            _ -> rejected()
         }
     }
 
@@ -242,7 +267,7 @@ crashes Trap
     transition admission {
         Admission::Exact -> admitted()
         Admission::Landed -> landing(typer, syntax, destination, expression, chosen)
-        Admission::SharedLend -> lent(typer, written, expression, lend)
+        Admission::SharedLend -> lent(typer, syntax, written, expression, lend)
         Admission::Qualified -> qualified(typer, expression)
         Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
         Admission::NotAValue -> reject(typer, written, TypeDiagnosticCode::NotAValue)
@@ -267,8 +292,12 @@ crashes Trap
         transition { _ -> admitted() }
     }
 
-    state lent(typer: &mut Typer, written: Expression, expression: u64 in Trapping, lend: bool) -> bool {
-        transition lend {
+    // A call argument lends implicitly; elsewhere only a range slice, a
+    // view of its collection.
+    state lent(typer: &mut Typer, syntax: &SyntaxTrees, written: Expression, expression: u64 in Trapping, lend: bool) -> bool {
+        let selector: Expression = SyntaxTrees::expression(syntax, written.right);
+        let sliced: bool = written.kind == ExpressionKind::Index && selector.kind == ExpressionKind::Range;
+        transition lend || sliced {
             true -> mark_lent(typer, expression)
             _ -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
         }
