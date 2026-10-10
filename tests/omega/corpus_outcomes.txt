@@ -5106,3 +5106,8 @@ fail/slices/copied_record_window_insufficient_extent rejected 563ms @97bca654182
 	cannot prove requires contract for call visit from Main::exercise: 1 < rooms.len (needs fact `index < rooms.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 pass/borrows/runtime_copied_range_record_domains_exit checked 3858ms check-target:macos_arm64 @97bca654182d
 pass/borrows/runtime_nested_array_range_record_domains_exit checked 3858ms check-target:macos_arm64 @97bca654182d
+fail/operators/declared_index_named_call_requires_explicit_borrow rejected 291ms expected @809b88c4b692
+	argument `frame` for state `at` expects `&mut Frame`, got `member access`
+fail/operators/declared_index_shared_collection_cannot_mutate rejected 290ms expected @809b88c4b692
+	mutable argument `main` for state `at` is not writable in this state; the source cannot lend the requested exclusive access
+pass/operators/runtime_declared_index_collection_loans_exit checked 3896ms check-target:macos_arm64 @809b88c4b692

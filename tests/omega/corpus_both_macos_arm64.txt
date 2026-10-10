@@ -766,3 +766,4 @@ pass/generics/contextual_static_machine_captured_operand_return_exit built 2923m
 pass/generics/contextual_static_machine_returned_view_local_exit built 4858ms exit:0 interpreter-exit:0 interpreter:agrees @e681aea9cbbb+wt
 pass/borrows/runtime_copied_range_record_domains_exit built 3884ms exit:0 interpreter-exit:0 interpreter:agrees @97bca654182d
 pass/borrows/runtime_nested_array_range_record_domains_exit built 3884ms exit:0 interpreter-exit:0 interpreter:agrees @97bca654182d
+pass/operators/runtime_declared_index_collection_loans_exit built 3920ms exit:0 interpreter-exit:0 interpreter:agrees @809b88c4b692
