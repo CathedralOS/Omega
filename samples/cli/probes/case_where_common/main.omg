@@ -1,0 +1,25 @@
+// Case-where spanning payload and common fields:
+// `case Within(hi) where lo <= hi` reads the case's own
+// payload binding AND the data's common `lo`. Omitted
+// declared fields read the ZII zero — `Window::Within
+// { hi: 4 }` folds `0 <= 4` and still proves.
+//
+//   * Common field + payload in one case-where.
+//   * Partial construction `Within { hi: 4 }`.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+data Window {
+    lo: u64;
+    case Within(hi: u64) where lo <= hi;
+    case Empty;
+}
+
+data Main { window: Window; }
+
+machine Main::main(main: &mut Main) {
+    main.window = Window::Within { lo: 3, hi: 10 };
+    main.window = Window::Within { hi: 4 };
+    main.window = Window::Empty;
+}
