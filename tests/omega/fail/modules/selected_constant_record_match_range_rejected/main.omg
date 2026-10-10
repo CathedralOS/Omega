@@ -1,0 +1,1 @@
+data Token [copy]{value:u64 [0..=2];} const GOOD:Token=Token{value:1}; const ALIAS:Token=match false {true->Token{value:3},false->GOOD}; machine main(){}

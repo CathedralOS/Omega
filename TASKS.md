@@ -4942,11 +4942,12 @@ wait for Cathedral's instruction coverage. The interpreter is
     abstract-carrier constraints over explicit named subjects. Keep alias-owned
     bounds/index tuples
     through `omega-rust/psi/compilation/checking/src/proof_contracts/domains.rs`.
-    Computed payloads cannot establish qualifications. The unused alias in
-    `pending/modules/selected_constant_array_alias_false_qualification`
-    incorrectly accepts `[3]` as `[u64 [0..=2]; 1]`; establish each routed
-    element qualification separately from carrier correspondence. Computed extents
-    in declaration aliases still require dependency readiness:
+    Computed payloads cannot establish qualifications. Direct literal
+    declarations such as `const BAD: [u64 [0..=2]; 1] = [3]` still bypass the
+    evaluated structured-result route and incorrectly accept the element;
+    establish qualifications at literal declaration admission independently of
+    carrier correspondence. Computed extents in declaration aliases still
+    require dependency readiness:
     changing `SIZE = 1` to `SIZE = 1 + 0` in
     `pass/modules/selected_constant_array_alias_named_extent` stops at
     `initializer selected a dependency without an evaluated value`. Retain the

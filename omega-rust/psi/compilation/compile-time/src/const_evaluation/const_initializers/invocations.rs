@@ -11,8 +11,14 @@
 //! Structured probes also retain the selected result carrier before interpretation.
 //! Materialization writes into the declared destination; equal encoded payloads
 //! cannot authorize changing a nominal owner. Evaluation and receiving replay
-//! therefore share the same declaration-backed result check. Scalar probes keep
-//! their exact evaluator rather than acquiring runtime return-range obligations.
+//! therefore share the same declaration-backed result check. Constructed integer
+//! members also owe their declared range independently: use the shared checker
+//! at the actual return statement, including every match arm, before selective
+//! interpretation can erase a bad sibling. This proves a predicate, never a
+//! domain issuer or carrier from an encoded payload. Direct literals that do not
+//! need a structured probe retain their separate declaration-admission route.
+//! Scalar probes keep their exact evaluator rather than acquiring runtime
+//! return-range obligations.
 
 use std::sync::Arc;
 
@@ -790,10 +796,15 @@ impl Invocation<'_> {
     /// Establish the selected structured result independently of its destination.
     /// These private probes return a value, including a hoisted call temporary;
     /// unrelated local initializers and call arguments are not return values.
-    fn require_result_carrier(&self) -> Result<(), String> {
+    fn require_result_obligations(&self) -> Result<(), String> {
         let typed = self.program.typed();
         let mut returns_value = false;
-        for statement in typed.statement_table.statements(self.state.statement_nodes) {
+        for (statement_index, statement) in typed
+            .statement_table
+            .statements(self.state.statement_nodes)
+            .iter()
+            .enumerate()
+        {
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
@@ -810,7 +821,11 @@ impl Invocation<'_> {
                     continue;
                 };
                 returns_value = true;
-                self.require_structured_expression_carrier(*expression, self.state.return_type)?;
+                self.require_structured_expression_result(
+                    *expression,
+                    self.state.return_type,
+                    statement_index,
+                )?;
             }
         }
         if !returns_value {
@@ -823,30 +838,57 @@ impl Invocation<'_> {
     /// can forget different qualifications without having a common existing type
     /// reference; checking each actual avoids guessing a result from the destination.
     /// Primitive components retain the existing concrete scalar admission, including
-    /// anonymous landing and proven stores. This check supplies no membership proof.
-    fn require_structured_expression_carrier(
+    /// anonymous landing and proven stores. Integer range predicates owe the
+    /// shared checker proof separately; this walk supplies no domain authority.
+    fn require_structured_expression_result(
         &self,
         expression: ExpressionHandle,
         destination: typed_trees::types::TypeReferenceHandle,
+        statement_index: usize,
     ) -> Result<(), String> {
         let typed = self.program.typed();
-        if typed.primitive_type_reference(destination).is_some() {
+        // Each arm owes its result obligations even when selective interpretation
+        // will skip it. The destination cannot certify an invalid sibling.
+        if let ExpressionNode::Match(dispatch) = typed.expression_table.expression(expression) {
+            let arms = typed.expression_table.match_arms(dispatch.arms);
+            if arms.is_empty() {
+                return Err("constant initializer lost its selected result carrier".into());
+            }
+            for arm in arms {
+                self.require_structured_expression_result(arm.value, destination, statement_index)?;
+            }
+            return Ok(());
+        }
+        if let Some(primitive) = typed.primitive_type_reference(destination) {
+            if primitive.is_integer() {
+                // Carrier correspondence supplies no refinement proof. Reuse the
+                // ordinary checker at the exact returning occurrence, before any
+                // payload is materialized into a qualified destination.
+                let ranges = validation::constrained_range_bounds(typed, destination, false)
+                    .ok_or("constant initializer result has an unresolved integer range")?;
+                for (minimum, maximum) in ranges {
+                    if !validation::occurrence_integer_expression_fits_range(
+                        typed,
+                        self.machine.symbol,
+                        self.state.symbol,
+                        statement_index,
+                        expression,
+                        &minimum,
+                        &maximum,
+                    ) {
+                        return Err(
+                            "constant initializer result does not prove its declared integer range"
+                                .into(),
+                        );
+                    }
+                }
+            }
             return Ok(());
         }
         let carrier = typed
             .type_reference_table
             .unconstrained_type_reference(destination);
         match typed.expression_table.expression(expression) {
-            ExpressionNode::Match(dispatch) => {
-                let arms = typed.expression_table.match_arms(dispatch.arms);
-                if arms.is_empty() {
-                    return Err("constant initializer lost its selected result carrier".into());
-                }
-                for arm in arms {
-                    self.require_structured_expression_carrier(arm.value, destination)?;
-                }
-                return Ok(());
-            }
             ExpressionNode::ArrayLiteral(elements) => {
                 // Substitution can retain a declared array's carrier on literal
                 // syntax. Keep that receipt before checking constructed children.
@@ -877,7 +919,11 @@ impl Invocation<'_> {
                     );
                 }
                 for value in values {
-                    self.require_structured_expression_carrier(*value, *element_type)?;
+                    self.require_structured_expression_result(
+                        *value,
+                        *element_type,
+                        statement_index,
+                    )?;
                 }
                 return Ok(());
             }
@@ -906,7 +952,11 @@ impl Invocation<'_> {
                             .map(|field| field.type_reference)
                     })
                     .ok_or("constant initializer lost its selected construction field")?;
-                    self.require_structured_expression_carrier(field.value, field_type)?;
+                    self.require_structured_expression_result(
+                        field.value,
+                        field_type,
+                        statement_index,
+                    )?;
                 }
                 return Ok(());
             }
@@ -930,7 +980,7 @@ impl Invocation<'_> {
     /// per-call concrete discharge evidence produced while admitting each
     /// authored call is what allows the premise-discharge entry point here.
     fn interpret(&self, reference: source::SourceSpan) -> Result<BuildTimeValue, String> {
-        self.require_result_carrier()?;
+        self.require_result_obligations()?;
         let typed = self.program.typed();
         let custody = BuildTimeInvocationCustody::Source(reference);
         if self

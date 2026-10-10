@@ -1856,6 +1856,8 @@ fail/modules/runtime_fixed_array_index rejected 21ms expected @2d8ed253669f
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/modules/selected_constant_array_alias_policy_mismatch rejected 19ms expected @ccf1a63b5e21+wt
 	constant initializer: constant initializer result does not match its declared carrier
+fail/modules/selected_constant_array_alias_range_rejected rejected 151ms expected @8efa47caea3c
+	constant initializer: constant initializer result does not prove its declared integer range
 fail/modules/selected_constant_nominal_alias_mismatch rejected 24ms expected @ccf1a63b5e21+wt
 	constant initializer: constant initializer result does not match its declared carrier
 fail/modules/selected_constant_nominal_alias_nested_mismatch rejected 20ms expected @ccf1a63b5e21+wt
@@ -1874,6 +1876,8 @@ fail/modules/selected_constant_nominal_match_skipped_mismatch rejected 21ms expe
 	constant initializer: constant initializer result does not match its declared carrier
 fail/modules/selected_constant_nominal_record_match_field_mismatch rejected 23ms expected @ccf1a63b5e21+wt
 	constant initializer: constant initializer result does not match its declared carrier
+fail/modules/selected_constant_record_match_range_rejected rejected 156ms expected @8efa47caea3c
+	constant initializer: constant initializer result does not prove its declared integer range
 fail/modules/unused_scalar_constant_range rejected 12ms expected @2d8ed253669f
 	module scalar constant `VALUE` is invalid: const value `256` does not fit `u8`
 fail/modules/use_unresolved_path rejected 0ms expected @2d8ed253669f
