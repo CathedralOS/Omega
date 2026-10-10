@@ -81,6 +81,46 @@ RUST_FILE = re.compile(r"\.rs$|(?:^|/)Cargo\.toml$|(?:^|/)build\.rs$")
 PACKAGE_TABLE = re.compile(r"(?ms)^\[package\](.*?)(?=^\[|\Z)")
 PACKAGE_NAME = re.compile(r'^\s*name\s*=\s*"([^"]+)"', re.M)
 RECEIPT_SCHEMA = "omega-landing-receipt-v1"
+CORPUS_GOLDEN = re.compile(r"^tests/omega/corpus_[^/]*\.txt$")
+
+def golden_rows(text):
+    """The fixture keys a corpus golden records: the first token of each
+    data line. `#` comments and tab-indented diagnostics are not rows."""
+    rows = set()
+    for line in text.splitlines():
+        if not line or line[0].isspace():
+            continue
+        rows.add(line.split()[0])
+    return rows
+
+def lost_golden_rows(repository, base, candidate):
+    """Corpus golden rows `candidate` silently drops relative to `base`.
+
+    For every tests/omega/corpus_*.txt changed by base..candidate, a row key
+    present at base but absent at candidate is a loss only while its fixture
+    directory still exists there — a key removed together with
+    tests/omega/<key> is a retirement, and a rename retires the old key and
+    records a new one. Both the losing commit and the blocked publish can
+    then point at the surviving fixture. Pure git reads: it runs inside the
+    publish lease as well as ahead of it.
+    """
+    changed = coordination.git(repository, "diff", "--name-only", base,
+                               candidate).stdout.splitlines()
+    lost = {}
+    for path in changed:
+        if not CORPUS_GOLDEN.match(path):
+            continue
+        before = coordination.git(repository, "show", f"{base}:{path}",
+                                  allow_failure=True)
+        if before.returncode:
+            continue
+        after = coordination.git(repository, "show", f"{candidate}:{path}",
+                                 allow_failure=True)
+        after_rows = golden_rows(after.stdout) if not after.returncode else set()
+        for key in sorted(golden_rows(before.stdout) - after_rows):
+            if (repository / "tests" / "omega" / key).is_dir():
+                lost.setdefault(path, []).append(key)
+    return lost
 
 def package_name(manifest: Path):
     """The `name = "..."` of the manifest's [package] table, or None for a
@@ -166,9 +206,23 @@ def verify(repository, base):
         for package in packages:
             command += ["-p", package]
         exit_code = subprocess.run(command, cwd=repository).returncode
+    # A golden corpus row can only vanish through a record/history accident;
+    # an intended retirement deletes the fixture with it, which
+    # lost_golden_rows does not flag. Block the publish here, before the
+    # rework cycle, rather than rediscovering the loss in a bisect.
+    lost = lost_golden_rows(repository, base, head)
+    if lost:
+        exit_code = 1
+        print("landing: candidate loses golden corpus rows whose fixtures "
+              "still exist:", file=sys.stderr)
+        for path, keys in lost.items():
+            for key in keys:
+                print(f"landing:   {path}: {key}", file=sys.stderr)
     receipt = {"schema": RECEIPT_SCHEMA, "candidate": head, "base": base,
                "packages": packages, "command": command,
                "exit_code": exit_code, "utc": now()}
+    if lost:
+        receipt["lost_rows"] = lost
     write_receipt(repository, receipt)
     emit(receipt)
     return 0 if exit_code == 0 else 1
@@ -186,6 +240,9 @@ def receipt_failure(repository, candidate, affected):
         return f"build receipt {path} is not {RECEIPT_SCHEMA}"
     if receipt.get("candidate") != candidate:
         return f"build receipt {path} covers {receipt.get('candidate')}, not this candidate"
+    if receipt.get("lost_rows"):
+        return (f"build receipt {path} recorded lost corpus rows "
+                f"{receipt['lost_rows']}")
     if receipt.get("exit_code") != 0:
         return f"build receipt {path} recorded exit {receipt.get('exit_code')}"
     missing = affected - set(receipt.get("packages") or [])
@@ -455,6 +512,18 @@ class Landing:
                                "(TASKS*.md, OWNER_QUESTIONS.md, tools/swarm/waves/). Worker "
                                "evidence belongs in `claims.py note --ticket <claim>` and the "
                                "session report; a coordinator board sweep passes --board-update.")
+        # The lost-row gate re-runs inside the lease: it is a few git
+        # reads, so publish blocks a row-losing candidate even when its
+        # receipt predates this check.
+        lost = lost_golden_rows(self.repository, options.base,
+                                options.candidate)
+        if lost:
+            keys = sum(lost.values(), [])
+            raise LandingError(
+                "The candidate loses golden corpus rows whose fixtures "
+                f"still exist ({len(keys)} across {len(lost)} golden files, "
+                f"e.g. {keys[:5]}). Delete the fixtures with the rows, or "
+                "restore the rows and re-verify.")
         # Publish must not build: the head lease is 180s and a rebuild has
         # already cost a session its reservation. A Rust-touching candidate
         # needs a `verify` receipt for this exact sha instead.
