@@ -2950,37 +2950,6 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   and `arithmetic/zero_product_operand_{overflow,division}_rejected` constrain
   that invariant at every migrated client.
 
-- **CHECKER-RECORDS-ONCE.** (new-scope) Stop these consumers from re-deriving
-  checker decisions instead of reading retained facts:
-  - `trust_model::AcceptedTemplateClassifications::capture` reruns operational
-    and service-reach inference to hash each `AdmissionClaim` template that
-    stage 04 already committed on its specializations; an unspecialized
-    accepted template has no stored row yet.
-  - Stage 00 `boundary_application_settlement.rs` reads typed trees through
-    `IntrinsicRequirement::by_symbol` for the requirement identity and
-    re-derives operator application realizations and compiler-intrinsic
-    execution identities; checked facts carry no requirement identity on
-    `CheckedBoundaryOperatorApplicationDemand`.
-
-  Replace the commitments with a plain identity key where one is needed and
-  delete the hashing; record what stage 00 reads in checked trees or Terminal
-  Psi. Acceptance: those modules hold no replay; no Omega crate references
-  `checked.typed`; corpus unchanged.
-
-- **LOWERING-GATES-OUT-OF-CHECKER.** (new-scope) The checker carries lowering
-  capability gates and per-shape query variants:
-  - 16 `*_supported` functions (for example
-    `result_initializer_call_is_supported`, which matches
-    `if let [state] = … && matches!(…last(), Some(StatementNode::Expression(e)) …)`);
-  - about 50 `…_with_…` function variants (for example
-    `land_anonymous_integer_expression{,_with_selected_match_arms,_with_warning}`).
-
-  Delete the `*_supported` gates: the checker decides legality and a unit
-  plan builder reports its own gap at the construct's source span. Replace each
-  variant family with one parameterized query. Acceptance: no `*_supported`
-  function remains in `omega-rust/psi/compilation/checking/src/` or `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`; corpus unchanged.
-
-
 ## Data-flow defects
 
 Each item removes one verified copy, rescan or repeated validation in the
