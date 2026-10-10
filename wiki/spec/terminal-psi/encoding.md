@@ -592,7 +592,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 134 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 135 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -1400,9 +1400,14 @@ sites, then counted call plans.
 | 4 | CallArgument |
 
 Suspension call sites and plans are strictly ordered by operation id and
-crossing id; each plan's live values are strictly ordered by place, storage,
-value type, and carry policy, and each live value's claims are strictly
-ordered by claim id.
+crossing id; each plan's live values are nondecreasing by place, storage,
+value type, and carry policy. These are demand occurrences, not unique storage
+identities: two actual positions may name the same storage and still contribute
+separate rows, claims and policies. Preserve every occurrence and the complete
+count; do not deduplicate equal coordinates. Each live value's claims are
+strictly ordered by claim id. The frontier commitment uses the
+`terminal-suspension-frontier-v4` domain and includes the ordered roster and
+its cardinality.
 
 ### Operation crash contracts
 

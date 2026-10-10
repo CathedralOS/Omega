@@ -198,11 +198,16 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         ));
     }
     for plan in &module.suspension_call_plans {
-        if !strictly_increasing(
-            plan.live_values
-                .iter()
-                .map(|live| (&live.place, live.storage, live.value_type, live.effective)),
-        ) {
+        // Storage identity is not value-occurrence identity. A repeated actual
+        // still occupies two formal positions, and each row retains its own
+        // claims and policy. This roster is an ordered multiset of demands;
+        // equality is valid here, unlike declaration/claim identity tables.
+        if !plan
+            .live_values
+            .iter()
+            .map(|live| (&live.place, live.storage, live.value_type, live.effective))
+            .is_sorted()
+        {
             return Err(CodecError::NonCanonicalOrder(
                 "suspension live values by place, storage, type, and policy",
             ));

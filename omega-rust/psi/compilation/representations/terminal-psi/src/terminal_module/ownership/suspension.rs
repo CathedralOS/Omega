@@ -29,6 +29,9 @@ pub struct TerminalSuspensionCallPlan {
     /// Independent checked-frontier cardinality commitment. The verifier
     /// compares this with the encoded roster before inspecting any member.
     pub live_value_count: u32,
+    /// Ordered demand occurrences, not a set of physical storage coordinates.
+    /// Distinct actual positions may retain the same storage; each occurrence
+    /// keeps its claims and policy and contributes to the committed count.
     pub live_values: Vec<TerminalSuspensionLiveValue>,
 }
 
@@ -90,7 +93,7 @@ pub enum TerminalSuspensionStorage {
 
 pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8; 32] {
     let mut hash =
-        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v3\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v4\0");
     hash.raw(&plan.operation.get().to_le_bytes());
     hash.raw(&plan.crossing.get().to_le_bytes());
     match plan.target {

@@ -1,0 +1,30 @@
+use omega::language::core::binding;
+
+pub boundary trait Scheduler {
+    machine advance(first: i32, second: i32, left: Marker, right: Marker) -> i32 suspends;
+}
+
+pub data Marker [copy] { value: i32; }
+
+data InlineScheduler {}
+
+machine InlineScheduler::advance(first: i32, second: i32, left: Marker, right: Marker) -> i32
+    satisfies Scheduler::advance {
+    first
+}
+
+data Main {
+    scheduler: Binding<Scheduler>;
+}
+
+machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
+    let value: i32 = 42;
+    let marker: Marker = Marker { value: 19 };
+    let result: i32 = suspend main.scheduler.advance(value, value, marker, marker);
+    transition result == 42 && marker.value == 19 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

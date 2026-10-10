@@ -5305,8 +5305,10 @@ wait for Cathedral's instruction coverage. The interpreter is
     referents remain a separate namespace from descriptor slots. Keep
     `fail/concurrency/suspend_with_indirect_resource_backing`
     for resource floors and indirect backing. The canonical Terminal frontier
-    retains current structural access but no loan lineage/lifetime relation;
-    activation-wide analysis separately treats borrow formation as strict.
+    retains current structural access but no loan lineage/lifetime relation.
+    Preserve distinct demand occurrences at equal storage coordinates, pinned
+    by `pass/concurrency/runtime_suspension_repeated_actual_exit` (0).
+    Activation-wide analysis separately treats borrow formation as strict.
     Descriptor `Carry::AcrossSuspend` permission cannot substitute for that
     missing join, including borrowed fields, slices and unknown generic shapes;
     keep `fail/concurrency/suspend_reference_permission_without_backing`.

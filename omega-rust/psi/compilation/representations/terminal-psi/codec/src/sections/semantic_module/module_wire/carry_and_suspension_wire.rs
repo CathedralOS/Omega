@@ -278,6 +278,24 @@ mod tests {
                 .place
                 .visit_value_ids(|value| retained_values.push(value));
             assert_eq!(retained_values, vec![selector]);
+            // Equal physical coordinates can occur in two formal positions.
+            // The wire must keep both occurrence positions, not coalesce
+            // equal storage or erase their ordering from the commitment.
+            let mut repeated = plan.clone();
+            repeated.live_values.push(repeated.live_values[0].clone());
+            repeated.live_value_count = 2;
+            let mut writer = Writer::default();
+            encode_suspension_call_plan(&mut writer, &repeated).expect("encode repeated storage");
+            let bytes = writer.finish();
+            assert_eq!(
+                decode_suspension_call_plan(&mut Reader::new(&bytes))
+                    .expect("decode repeated storage"),
+                repeated
+            );
+            assert_ne!(
+                suspension_frontier_commitment(&repeated),
+                suspension_frontier_commitment(&plan)
+            );
             let commitment = suspension_frontier_commitment(&decoded);
             assert!(!encodings.contains(&encoded));
             assert!(!commitments.contains(&commitment));
