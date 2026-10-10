@@ -243,11 +243,7 @@ pub(crate) fn indexed_element_scalar_type(
 /// assignment's target.
 /// The walk's current position: a declared structural type, or a byte
 /// carrier's element — the u8 scalar that rides no declared identity.
-enum Walked {
-    Declared(StructuralTypeId),
-    ScalarField(ScalarType),
-    ByteElement,
-}
+type Walked = terminal_semantics::Position;
 
 fn walk_path(
     structural_type: StructuralTypeId,
