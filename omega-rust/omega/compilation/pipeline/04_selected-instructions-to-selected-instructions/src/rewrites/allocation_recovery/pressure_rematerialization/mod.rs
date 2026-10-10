@@ -116,8 +116,7 @@ impl PressureRematerializationPlan {
         let content = encode_terminal_pressure_rematerialization_content(self);
         let identity = pressure_rematerialization_identity(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
-        encoded.extend_from_slice(MAGIC);
-        crate::codec_bytes::push_encoded(&mut encoded, VERSION.to_le_bytes());
+        crate::codec_bytes::encode_header(&mut encoded, MAGIC, VERSION);
         encoded.extend_from_slice(&identity.bytes());
         encoded.extend_from_slice(&content);
         encoded
@@ -125,15 +124,13 @@ impl PressureRematerializationPlan {
 
     pub fn decode(encoded: &[u8]) -> Result<Self, PressureRematerializationDecodeError> {
         let mut cursor = Cursor::new(encoded);
-        if cursor.take(8)? != MAGIC {
-            return Err(PressureRematerializationDecodeError::WrongMagic);
-        }
-        let version = cursor.u32()?;
-        if version != VERSION {
-            return Err(PressureRematerializationDecodeError::UnsupportedVersion(
-                version,
-            ));
-        }
+        crate::codec_bytes::decode_header(
+            &mut cursor,
+            MAGIC,
+            VERSION,
+            || PressureRematerializationDecodeError::WrongMagic,
+            PressureRematerializationDecodeError::UnsupportedVersion,
+        )?;
         let identity = PressureRematerializationIdentity::from_bytes(cursor.array()?);
         let source_selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
         let spill_choices = SpillChoiceIdentity::from_bytes(cursor.array()?);

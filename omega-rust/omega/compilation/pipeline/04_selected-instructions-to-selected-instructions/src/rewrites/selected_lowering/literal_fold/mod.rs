@@ -714,8 +714,7 @@ impl LiteralFoldPlan {
         let content = encode_terminal_literal_fold_content(self);
         let identity = literal_fold_identity(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
-        encoded.extend_from_slice(LITERAL_FOLD_MAGIC);
-        crate::codec_bytes::push_encoded(&mut encoded, LITERAL_FOLD_VERSION.to_le_bytes());
+        crate::codec_bytes::encode_header(&mut encoded, LITERAL_FOLD_MAGIC, LITERAL_FOLD_VERSION);
         encoded.extend_from_slice(&identity.bytes());
         encoded.extend_from_slice(&content);
         encoded
@@ -723,13 +722,13 @@ impl LiteralFoldPlan {
 
     pub fn decode(encoded: &[u8]) -> Result<Self, LiteralFoldDecodeError> {
         let mut cursor = Cursor::new(encoded);
-        if cursor.take(LITERAL_FOLD_MAGIC.len())? != LITERAL_FOLD_MAGIC {
-            return Err(LiteralFoldDecodeError::WrongMagic);
-        }
-        let version = cursor.u32()?;
-        if version != LITERAL_FOLD_VERSION {
-            return Err(LiteralFoldDecodeError::UnsupportedVersion(version));
-        }
+        crate::codec_bytes::decode_header(
+            &mut cursor,
+            LITERAL_FOLD_MAGIC,
+            LITERAL_FOLD_VERSION,
+            || LiteralFoldDecodeError::WrongMagic,
+            LiteralFoldDecodeError::UnsupportedVersion,
+        )?;
         let identity = LiteralFoldIdentity::from_bytes(cursor.array()?);
         let source_selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
         let spill_choices = SpillChoiceIdentity::from_bytes(cursor.array()?);
