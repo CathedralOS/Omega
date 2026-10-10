@@ -1,8 +1,7 @@
 //! Integer constant-evaluation candidate acceptance.
 use crate::candidates::sparse_conditional_constant_propagation::{
-    observation_at, same_closed_scalar_observation,
+    observation_at,
 };
-use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
     validate_psi_optimization_unit,
@@ -13,8 +12,7 @@ use optimization_core::{
 };
 use optimization_unit::{
     IntegerConstantRewrite, IntegerEvaluationWitness, OptimizationFact, ProvenanceDisposition,
-    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ValueDefinition,
-    ValueDefinitionSite, recompute_psi_optimization_unit_identity,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
 };
 use semantic_vocabulary::ScalarType;
 
@@ -121,49 +119,20 @@ pub(crate) fn validate_integer_evaluation_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidateEvaluationMismatch);
     }
-    let mut output = input.clone();
-    let function = output
-        .function_mut(patch.location.machine)
-        .expect("candidate source function exists");
-    let block = function
-        .block_mut(patch.location.block)
-        .expect("candidate source block exists");
-    let node = &mut block.nodes[usize::try_from(patch.location.node).expect("u32 fits usize")];
-    node.operation = abstract_operations::AbstractOperation::IntegerConstant {
-        psi_operation: patch.source_operation,
-        result: patch.result,
-        scalar_type: ScalarType::Integer(patch.scalar_type),
-        value: patch.constant,
-    };
-    node.definitions = vec![ValueDefinition {
-        value: patch.result,
-        scalar_type: ScalarType::Integer(patch.scalar_type),
-        site: ValueDefinitionSite::Node {
-            block: patch.location.block,
-            node: patch.location.node,
+    let output = super::constant_installation::install_evaluated_constant(
+        input,
+        patch.location,
+        abstract_operations::AbstractOperation::IntegerConstant {
+            psi_operation: patch.source_operation,
+            result: patch.result,
+            scalar_type: ScalarType::Integer(patch.scalar_type),
+            value: patch.constant,
         },
-    }];
-    node.uses.clear();
-    node.successors.clear();
-    node.ownership.clear();
-    function.facts = reconstruct_fact_index(function);
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
-    let output_observation = observation_at(&output, patch.location)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    if !same_closed_scalar_observation(&input_observation, &output_observation) {
-        return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
-    }
-    let output_live = reconstruct_closed_scalar_node_boundary(&output, patch.location)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    if input_live.live_out != output_live.live_out
-        || output_live
-            .live_in
-            .iter()
-            .any(|value| !input_live.live_in.contains(value))
-    {
-        return Err(OptimizationUnitValidationError::CandidateLiveBoundaryMismatch);
-    }
+        patch.result,
+        ScalarType::Integer(patch.scalar_type),
+        &input_observation,
+        &input_live,
+    )?;
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
