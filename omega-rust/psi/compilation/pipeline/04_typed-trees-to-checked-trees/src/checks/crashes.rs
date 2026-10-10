@@ -129,17 +129,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
     let mut integer_types = None;
     for machine in program.machines() {
         let incoming = incoming_guards.for_machine(machine.symbol);
-        let parameter_names = program
-            .machine_states(machine)
-            .first()
-            .map(|entry| {
-                program
-                    .state_parameters(entry)
-                    .iter()
-                    .map(|parameter| parameter.name.as_str().to_owned())
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+        let parameter_names = crate::facts::machine_entry_parameter_names(program, machine);
         let Some(contract_index) = facts
             .contract_plans
             .machines

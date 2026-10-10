@@ -117,15 +117,8 @@ pub(super) fn lower(
             )?)))
         }
         ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Equal
-                    | BinaryOperator::NotEqual
-                    | BinaryOperator::Less
-                    | BinaryOperator::LessOrEqual
-                    | BinaryOperator::Greater
-                    | BinaryOperator::GreaterOrEqual
-            ) && operator_is_builtin(operators, expression) =>
+            if binary.operator.is_comparison()
+                && operator_is_builtin(operators, expression) =>
         {
             if matches!(
                 binary.operator,

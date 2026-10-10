@@ -370,11 +370,13 @@ fn build_structural_runtime_guarantees(
         .collect()
 }
 
-pub(crate) fn derive_authored_machine_crash_buckets(
+/// The entry state's declared parameter names, in declaration order — the
+/// positional row every machine-level contract and crash surface builds.
+pub(crate) fn machine_entry_parameter_names(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
-) -> Vec<checked_trees::CrashRouteBucket> {
-    let parameter_names = program
+) -> Vec<String> {
+    program
         .machine_states(machine)
         .first()
         .map(|entry| {
@@ -384,7 +386,14 @@ pub(crate) fn derive_authored_machine_crash_buckets(
                 .map(|parameter| parameter.name.as_str().to_owned())
                 .collect::<Vec<_>>()
         })
-        .unwrap_or_default();
+        .unwrap_or_default()
+}
+
+pub(crate) fn derive_authored_machine_crash_buckets(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> Vec<checked_trees::CrashRouteBucket> {
+    let parameter_names = machine_entry_parameter_names(program, machine);
     let conservation = validation::content_conservation_plans(program);
     build_published_crash_buckets(
         program,

@@ -1778,6 +1778,20 @@ pub enum BinaryOperator {
 }
 
 impl BinaryOperator {
+    /// `left <self> right` is one of the six ordering comparisons — the set
+    /// `evaluate_comparison`, `mirrored_comparison` and `complement` serve.
+    pub fn is_comparison(self) -> bool {
+        matches!(
+            self,
+            BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+                | BinaryOperator::Less
+                | BinaryOperator::LessOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual
+        )
+    }
+
     /// `left <self> right` evaluated as an ordering comparison; `None` when
     /// the operator is not one of the six comparisons.
     pub fn evaluate_comparison<T: Ord>(self, left: &T, right: &T) -> Option<bool> {

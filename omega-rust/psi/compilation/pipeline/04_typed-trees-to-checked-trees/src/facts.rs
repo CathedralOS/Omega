@@ -48,6 +48,7 @@ pub(crate) use crash_plan_facts::{
     canonical_crash_binary_path_predicate, canonical_crash_operand_identity,
     canonical_crash_path_predicate, derive_authored_machine_crash_buckets,
     derive_authored_operator_crash_buckets, derive_authored_signature_crash_buckets,
+    machine_entry_parameter_names,
 };
 pub(crate) use dynamic_conformance::normalized_dynamic_row_identities;
 

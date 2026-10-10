@@ -210,15 +210,8 @@ impl BooleanLowering<'_> {
                 )))
             }
             ExpressionNode::Binary(binary)
-                if matches!(
-                    binary.operator,
-                    BinaryOperator::Equal
-                        | BinaryOperator::NotEqual
-                        | BinaryOperator::Less
-                        | BinaryOperator::LessOrEqual
-                        | BinaryOperator::Greater
-                        | BinaryOperator::GreaterOrEqual
-                ) && operator_is_builtin(self.operators, expression) =>
+                if binary.operator.is_comparison()
+                    && operator_is_builtin(self.operators, expression) =>
             {
                 let integer_comparison = (|| {
                     let ((left, _), (right, _)) = lower_scalar_operands(

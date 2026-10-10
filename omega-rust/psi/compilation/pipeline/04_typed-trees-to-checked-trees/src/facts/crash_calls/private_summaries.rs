@@ -121,17 +121,8 @@ pub(crate) fn infer_private_body_summaries(
                     .state_in_machine(target_machine, invocation.target_state)
                     .expect("a local crash invocation has its typed state");
                 let target_parameters = program.state_parameters(target_state);
-                let target_parameter_names = program
-                    .machine_states(target_machine)
-                    .first()
-                    .map(|entry| {
-                        program
-                            .state_parameters(entry)
-                            .iter()
-                            .map(|parameter| parameter.name.as_str().to_owned())
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
+                let target_parameter_names =
+                    crate::facts::machine_entry_parameter_names(program, target_machine);
                 if target_machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
                     && target_plan.crash.published().is_empty()
                 {

@@ -134,7 +134,7 @@ fn stable_guard(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
-    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    use typed_trees::expression::UnaryOperator;
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(name) => program.state_parameters(state).iter().any(|parameter| {
             (parameter.symbol == name.symbol)
@@ -146,17 +146,7 @@ fn stable_guard(
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             stable_guard(program, state, unary.operand)
         }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Equal
-                    | BinaryOperator::NotEqual
-                    | BinaryOperator::Less
-                    | BinaryOperator::LessOrEqual
-                    | BinaryOperator::Greater
-                    | BinaryOperator::GreaterOrEqual
-            ) =>
-        {
+        ExpressionNode::Binary(binary) if binary.operator.is_comparison() => {
             stable_guard(program, state, binary.left) && stable_guard(program, state, binary.right)
         }
         _ => false,
