@@ -10,8 +10,7 @@ use proof_admission::{Declaration, Level, Sort, Term, TermHandle};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use typed_trees::data::DataMember;
 use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableMemberExpression, TableNamePath,
-    UnaryOperator,
+    ExpressionHandle, ExpressionNode, TableMemberExpression, TableNamePath, UnaryOperator,
 };
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -46,16 +45,7 @@ impl<'a> Elaborator<'a> {
             // and one operand's carrier when an anonymous literal defers.
             // Operands that disagree determine no carrier.
             ExpressionNode::Binary(binary) => match binary.operator {
-                BinaryOperator::Add
-                | BinaryOperator::Subtract
-                | BinaryOperator::Multiply
-                | BinaryOperator::Divide
-                | BinaryOperator::Modulo
-                | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight
-                | BinaryOperator::BitwiseAnd
-                | BinaryOperator::BitwiseOr
-                | BinaryOperator::BitwiseXor => {
+                op if op.is_arithmetic() => {
                     match (
                         self.operand_carrier(binary.left),
                         self.operand_carrier(binary.right),

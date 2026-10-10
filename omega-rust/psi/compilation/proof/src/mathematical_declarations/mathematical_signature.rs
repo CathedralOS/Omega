@@ -568,16 +568,7 @@ impl<'a> Elaborator<'a> {
             ExpressionNode::Binary(binary) => {
                 let binary = *binary;
                 match binary.operator {
-                    BinaryOperator::Add
-                    | BinaryOperator::Subtract
-                    | BinaryOperator::Multiply
-                    | BinaryOperator::Divide
-                    | BinaryOperator::Modulo
-                    | BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight
-                    | BinaryOperator::BitwiseAnd
-                    | BinaryOperator::BitwiseOr
-                    | BinaryOperator::BitwiseXor => match self.operand_carrier(handle) {
+                    op if op.is_arithmetic() => match self.operand_carrier(handle) {
                         // Open arithmetic at another determined carrier —
                         // floats, `data` carriers — composes no named
                         // function and interns opaquely there. An

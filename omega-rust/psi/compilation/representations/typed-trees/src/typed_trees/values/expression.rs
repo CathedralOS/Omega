@@ -1778,6 +1778,25 @@ pub enum BinaryOperator {
 }
 
 impl BinaryOperator {
+    /// `left <self> right` is one of the ten arithmetic and bitwise
+    /// operators — everything but the two logicals, the six comparisons
+    /// and `CaseMembership`.
+    pub fn is_arithmetic(self) -> bool {
+        matches!(
+            self,
+            BinaryOperator::Add
+                | BinaryOperator::Subtract
+                | BinaryOperator::Multiply
+                | BinaryOperator::Divide
+                | BinaryOperator::Modulo
+                | BinaryOperator::ShiftLeft
+                | BinaryOperator::ShiftRight
+                | BinaryOperator::BitwiseAnd
+                | BinaryOperator::BitwiseOr
+                | BinaryOperator::BitwiseXor
+        )
+    }
+
     /// `left <self> right` is one of the six ordering comparisons — the set
     /// `evaluate_comparison`, `mirrored_comparison` and `complement` serve.
     pub fn is_comparison(self) -> bool {

@@ -67,20 +67,7 @@ impl<'a> Elaborator<'a> {
                     ))),
                 }
             }
-            ExpressionNode::Binary(binary)
-                if matches!(
-                    binary.operator,
-                    BinaryOperator::Add
-                        | BinaryOperator::Subtract
-                        | BinaryOperator::Multiply
-                        | BinaryOperator::Divide
-                        | BinaryOperator::Modulo
-                        | BinaryOperator::ShiftLeft
-                        | BinaryOperator::ShiftRight
-                        | BinaryOperator::BitwiseAnd
-                        | BinaryOperator::BitwiseOr
-                        | BinaryOperator::BitwiseXor
-                ) =>
+            ExpressionNode::Binary(binary) if binary.operator.is_arithmetic() =>
             {
                 let binary = *binary;
                 match carrier {
