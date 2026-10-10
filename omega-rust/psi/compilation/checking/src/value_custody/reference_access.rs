@@ -261,7 +261,7 @@ fn source_place_root(
         root = receiver;
     }
     let path = program.expression_table.name_path_node(root)?;
-    let [name] = program.expression_table.name_path_members(path.members) else {
+    let [_] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
     if path.head_symbol != path.symbol {

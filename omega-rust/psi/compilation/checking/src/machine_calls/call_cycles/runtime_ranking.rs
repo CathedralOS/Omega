@@ -412,7 +412,6 @@ pub(super) fn project_component(
                                     target_symbol,
                                     transition.target,
                                     statement_ordinal,
-                                    machine,
                                     body_witnesses[position].unwrap().edges,
                                 )
                             {

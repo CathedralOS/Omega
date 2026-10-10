@@ -682,7 +682,6 @@ pub(super) fn retain_internal_transfer(
     target: SymbolHandle,
     target_handle: typed_trees::statement::TransitionTargetHandle,
     statement_ordinal: usize,
-    machine: &Machine,
     judgments: &[checked_trees::CheckedRankArrivalEdge],
 ) -> bool {
     let target = program

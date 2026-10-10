@@ -96,17 +96,6 @@ impl DeclarationScopes {
         )
     }
 
-    pub(crate) fn type_identity_text(
-        &self,
-        program: &dyn crate::CheckingInput,
-        reference: TypeReferenceHandle,
-        scope: usize,
-    ) -> String {
-        program
-            .type_identity_text(self.type_identity(program, reference, scope))
-            .unwrap_or_default()
-    }
-
     pub(crate) fn definition<'program>(
         &mut self,
         program: &'program dyn crate::CheckingInput,
