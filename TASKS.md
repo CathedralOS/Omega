@@ -2951,22 +2951,6 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   and `arithmetic/zero_product_operand_{overflow,division}_rejected` constrain
   that invariant at every migrated client.
 
-- **ONE-ENSURES-PROVER.** (new-scope) Exit guarantees are decided twice:
-  program validation's contract entailment
-  (`omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment`,
-  including its inductive body judge `inductive_judgment.rs`) judges
-  requires⇒ensures over checked bodies, and
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/{exits,prover}`
-  independently proves exit `ensures` from flow; `checks/contracts/entailment.rs`
-  joins them through `validation::proven_machine_contract_expressions`, which
-  re-runs the first judgment when validation's retained result is absent. The
-  stand-down bridge between them is gone. Make the stage 04 prover the one
-  decision over bodies and have it call the entailment engine only for
-  proof-only and contract-to-contract judgments. Acceptance: contract
-  entailment no longer judges checked bodies and
-  `proven_machine_contract_expressions` is gone; corpus
-  `--filter contracts,proofs/,ensures` unchanged.
-
 - **CHECKER-RECORDS-ONCE.** (new-scope) Stop these consumers from re-deriving
   checker decisions instead of reading retained facts:
   - `trust_model::AcceptedTemplateClassifications::capture` reruns operational
