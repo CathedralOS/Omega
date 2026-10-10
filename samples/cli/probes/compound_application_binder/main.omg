@@ -1,0 +1,20 @@
+pub trait Readable<Field> {
+    machine read<Value>(field: &Field, value: Value) -> Value;
+}
+pub data Reader {}
+machine Reader::read<Element, const Width: u32, Value>(
+    field: &[Element; Width], value: Value
+) -> Value satisfies Readable<[Element; Width]>::read { value }
+data Main { hits: i32 in Wrapping; }
+machine Main::main(main: &mut Main) {
+    let elements: [u8; 2] = [1u8, 2u8];
+    let value: i32 = Reader::read<u8, 2, i32>(&elements, 70);
+    let other_elements: [u16; 3] = [1u16, 2u16, 3u16];
+    let other_value: u64 = Reader::read<u16, 3, u64>(&other_elements, 1u64);
+    transition value == 70 && other_value == 1u64 {
+        (true) -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) -> i32 { 1 }
+    state bad(main: &mut Main) -> i32 { 0 }
+}
