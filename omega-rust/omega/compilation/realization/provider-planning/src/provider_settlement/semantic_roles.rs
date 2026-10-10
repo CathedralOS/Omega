@@ -67,7 +67,7 @@ pub(super) fn attach_proposed(
         let Some(package) = plan.provider_type_package_identity else {
             continue;
         };
-        if plan.schema.trait_name != "Console"
+        if plan.schema.identity_text(plan.schema.trait_name) != "Console"
             || plan.schema.trait_package_identity != Some(package)
             || plan.origin_package_identity != Some(package)
             || typed.symbols.symbol_package_identity(owner) != Some(package)

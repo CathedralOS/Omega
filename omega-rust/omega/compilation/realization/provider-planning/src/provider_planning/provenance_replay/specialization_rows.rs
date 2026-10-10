@@ -148,7 +148,9 @@ pub(crate) fn derive_selected_requirement_specializations(
                 rows.push(effects::SelectedRequirementSpecialization {
                     provider_plan_report_identity: plan.report_fingerprint(),
                     selected_requirement_identity: row.requirement_identity.clone(),
-                    selected_machine_identity: selected_machine_identity.clone(),
+                    selected_machine_identity: plan
+                        .identity_text(*selected_machine_identity)
+                        .to_owned(),
                     requirement_identity,
                     machine_identity,
                 });

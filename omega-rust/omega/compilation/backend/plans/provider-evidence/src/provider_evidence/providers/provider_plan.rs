@@ -541,7 +541,7 @@ impl ProviderPlan {
         if self.name.is_empty() {
             errors.push("provider plan has no exact selection name".to_owned());
         }
-        if !self.schema.identity_text(self.schema.trait_name).is_empty() {
+        if self.schema.identity_text(self.schema.trait_name).is_empty() {
             errors.push(format!(
                 "plan `{}` schema has no exact boundary-slot identity",
                 self.name

@@ -60,7 +60,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
             requirements => {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "selected provider schema `{}` resolves to {} exact top-level boundary requirements",
-                    plan.schema.trait_name,
+                    plan.schema.identity_text(plan.schema.trait_name),
                     requirements.len(),
                 )));
                 continue;

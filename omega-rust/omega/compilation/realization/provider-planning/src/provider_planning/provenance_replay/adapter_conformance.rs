@@ -10,7 +10,11 @@ pub(crate) fn exact_row_for_schema_method<'plan>(
     plan: &'plan ProviderPlan,
     method: &effects::provider_plan::ServiceMethod,
 ) -> Result<&'plan ProviderPlanRow, diagnostics::Diagnostic> {
-    if method.requirement_identity.is_empty() {
+    if plan
+        .schema
+        .identity_text(method.requirement_identity)
+        .is_empty()
+    {
         return Err(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` schema method `{}` has no exact synchronous-invocation overload identity",
             plan.name, method.name,
@@ -25,7 +29,8 @@ pub(crate) fn exact_row_for_schema_method<'plan>(
     if method_count != 1 {
         return Err(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` contains {method_count} schema methods for exact synchronous-invocation overload `{}`",
-            plan.name, method.requirement_identity,
+            plan.name,
+            plan.schema.identity_text(method.requirement_identity),
         )));
     }
     let rows = plan
@@ -38,7 +43,7 @@ pub(crate) fn exact_row_for_schema_method<'plan>(
             "ProviderPlan `{}` schema method `{}` / `{}` binds {} exact synchronous-invocation rows",
             plan.name,
             method.name,
-            method.requirement_identity,
+            plan.schema.identity_text(method.requirement_identity),
             rows.len(),
         )));
     };
@@ -81,7 +86,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
         ));
     };
     let overload_identity = &required_method.requirement_identity;
-    if overload_identity.is_empty() {
+    if schema.identity_text(*overload_identity).is_empty() {
         return Err(diagnostics::Diagnostic::error(format!(
             "selected build-time requirement for ProviderPlan `{}` has an empty canonical overload identity",
             plan.name,
@@ -101,8 +106,9 @@ pub fn selected_requirement_checked_adapter<'typed>(
     };
     if plan.schema != schema || !plan.schema.row_binds_method(row, method) {
         return Err(diagnostics::Diagnostic::error(format!(
-            "selected build-time operator ProviderPlan `{}` does not bind exact overload `{overload_identity}`",
+            "selected build-time operator ProviderPlan `{}` does not bind exact overload `{}`",
             plan.name,
+            schema.identity_text(*overload_identity),
         )));
     }
     let ProviderBinding::CheckedAdapter { .. } = &row.binding else {
@@ -135,7 +141,7 @@ pub fn exact_checked_adapter<'typed>(
             plan.name, row.requirement_identity,
         )));
     };
-    if machine_identity.is_empty() {
+    if plan.identity_text(*machine_identity).is_empty() {
         return Err(diagnostics::Diagnostic::error(format!(
             "checked adapter for ProviderPlan `{}` row `{}` has no complete machine identity",
             plan.name, row.requirement_identity,
@@ -143,7 +149,8 @@ pub fn exact_checked_adapter<'typed>(
     }
     if *machine_package_identity != plan.origin_package_identity {
         return Err(diagnostics::Diagnostic::error(format!(
-            "checked adapter `{machine_identity}` for ProviderPlan `{}` does not belong to the package realizing the plan",
+            "checked adapter `{}` for ProviderPlan `{}` does not belong to the package realizing the plan",
+            plan.identity_text(*machine_identity),
             plan.name,
         )));
     }
@@ -154,7 +161,7 @@ pub fn exact_checked_adapter<'typed>(
             crate::target_machines::realizes_machine(context, candidate, Some(&plan.target))
                 && typed
                     .machine_callable_identity_text(candidate)
-                    .is_some_and(|identity| identity == *machine_identity)
+                    .is_some_and(|identity| identity == plan.identity_text(*machine_identity))
         })
         .collect::<Vec<_>>();
     let matches = identity_matches
@@ -168,19 +175,23 @@ pub fn exact_checked_adapter<'typed>(
         [adapter] => *adapter,
         [] if identity_matches.is_empty() => {
             return Err(diagnostics::Diagnostic::error(format!(
-                "checked adapter `{machine_identity}` for `{}::{}` is absent from typed machines",
-                plan.schema.trait_name, row.method,
+                "checked adapter `{}` for `{}::{}` is absent from typed machines",
+                plan.identity_text(*machine_identity),
+                plan.schema.identity_text(plan.schema.trait_name),
+                row.method,
             )));
         }
         [] => {
             return Err(diagnostics::Diagnostic::error(format!(
-                "checked adapter `{machine_identity}` for ProviderPlan `{}` does not belong to its retained package identity",
+                "checked adapter `{}` for ProviderPlan `{}` does not belong to its retained package identity",
+                plan.identity_text(*machine_identity),
                 plan.name,
             )));
         }
         _ => {
             return Err(diagnostics::Diagnostic::error(format!(
-                "checked adapter `{machine_identity}` for ProviderPlan `{}` row `{}` resolves to {} exact typed machines",
+                "checked adapter `{}` for ProviderPlan `{}` row `{}` resolves to {} exact typed machines",
+                plan.identity_text(*machine_identity),
                 plan.name,
                 row.requirement_identity,
                 matches.len(),
@@ -189,14 +200,17 @@ pub fn exact_checked_adapter<'typed>(
     };
     if !adapter.symbol.is_valid() {
         return Err(diagnostics::Diagnostic::error(format!(
-            "checked adapter `{machine_identity}` for ProviderPlan `{}` has no exact typed machine symbol",
+            "checked adapter `{}` for ProviderPlan `{}` has no exact typed machine symbol",
+            plan.identity_text(*machine_identity),
             plan.name,
         )));
     }
     if adapter.attached_data_symbol.is_valid() && !context.contains(adapter.attached_data_symbol) {
         return Err(diagnostics::Diagnostic::error(format!(
-            "checked adapter `{machine_identity}` for ProviderPlan `{}` retains a provider outside the {:?} planning context",
-            plan.name, context.scope,
+            "checked adapter `{}` for ProviderPlan `{}` retains a provider outside the {:?} planning context",
+            plan.identity_text(*machine_identity),
+            plan.name,
+            context.scope,
         )));
     }
     if typed
@@ -208,14 +222,17 @@ pub fn exact_checked_adapter<'typed>(
         })
     {
         return Err(diagnostics::Diagnostic::error(format!(
-            "checked adapter `{machine_identity}` for ProviderPlan `{}` retains a satisfies edge outside the {:?} planning context",
-            plan.name, context.scope,
+            "checked adapter `{}` for ProviderPlan `{}` retains a satisfies edge outside the {:?} planning context",
+            plan.identity_text(*machine_identity),
+            plan.name,
+            context.scope,
         )));
     }
     let actual_package_identity = typed.symbols.symbol_package_identity(adapter.symbol);
     if actual_package_identity != *machine_package_identity {
         return Err(diagnostics::Diagnostic::error(format!(
-            "checked adapter `{machine_identity}` for ProviderPlan `{}` does not belong to its retained package identity",
+            "checked adapter `{}` for ProviderPlan `{}` does not belong to its retained package identity",
+            plan.identity_text(*machine_identity),
             plan.name,
         )));
     }
@@ -223,8 +240,10 @@ pub fn exact_checked_adapter<'typed>(
         && !crate::provider_identity::provider_row_matches(context, plan, row, adapter)
     {
         return Err(diagnostics::Diagnostic::error(format!(
-            "checked adapter `{machine_identity}` does not rejoin provider `{}` row `{}`",
-            plan.provider_type, row.requirement_identity,
+            "checked adapter `{}` does not rejoin provider `{}` row `{}`",
+            plan.identity_text(*machine_identity),
+            plan.provider_type,
+            row.requirement_identity,
         )));
     }
     validate_exact_requirement_lifetime_partition(context, plan, row, adapter)?;
@@ -378,7 +397,8 @@ pub(crate) fn exact_checked_adapter_invocations(
         .collect::<Vec<_>>();
     let [summary] = summaries.as_slice() else {
         return Err(diagnostics::Diagnostic::error(format!(
-            "checked adapter `{machine_identity}` resolves to {} exact synchronous-invocation inference summaries",
+            "checked adapter `{}` resolves to {} exact synchronous-invocation inference summaries",
+            plan.identity_text(*machine_identity),
             summaries.len(),
         )));
     };
@@ -386,7 +406,9 @@ pub(crate) fn exact_checked_adapter_invocations(
         requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
             && typed
                 .machine_callable_identity_text(requirement)
-                .is_some_and(|identity| identity == method.requirement_identity)
+                .is_some_and(|identity| {
+                    identity == plan.schema.identity_text(method.requirement_identity)
+                })
             && context.contains(requirement.symbol)
             && typed.symbols.symbol_package_identity(requirement.symbol)
                 == method.requirement_owner_package_identity
@@ -472,7 +494,8 @@ pub(crate) fn exact_authored_invocations(
     {
         return Err(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` exact overload `{}` has an empty synchronous-invocation identity",
-            plan.name, method.requirement_identity,
+            plan.name,
+            plan.schema.identity_text(method.requirement_identity),
         )));
     }
     if method
@@ -482,7 +505,8 @@ pub(crate) fn exact_authored_invocations(
     {
         return Err(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` exact overload `{}` synchronous-invocation identities are not strictly increasing",
-            plan.name, method.requirement_identity,
+            plan.name,
+            plan.schema.identity_text(method.requirement_identity),
         )));
     }
     Ok(method.synchronous_invocations.clone())

@@ -196,22 +196,24 @@ impl<'typed> IntrinsicRequirement<'typed> {
     ) -> bool {
         let owner_matches = plan.schema.trait_package_identity == self.package_identity
             && method.requirement_owner_package_identity == self.package_identity
-            && method.requirement_identity == self.requirement_identity
+            && plan.schema.identity_text(method.requirement_identity) == self.requirement_identity
             && row.requirement_identity == self.requirement_identity
             && plan.schema.row_binds_method(row, method);
         match self.kind {
             IntrinsicRequirementKind::Operator => {
                 owner_matches
-                    && plan.schema.trait_name == self.requirement_identity
+                    && plan.schema.identity_text(plan.schema.trait_name)
+                        == self.requirement_identity
                     && method.name == "realize"
                     && method.requirement_owner == self.requirement_identity
             }
             IntrinsicRequirementKind::TopLevelRequirement => {
                 owner_matches
                     && if self.operator.is_some() {
-                        plan.schema.trait_name == self.requirement_identity
+                        plan.schema.identity_text(plan.schema.trait_name)
+                            == self.requirement_identity
                     } else {
-                        plan.schema.trait_name == self.display()
+                        plan.schema.identity_text(plan.schema.trait_name) == self.display()
                     }
                     && method.name == self.name
                     && method.requirement_owner == self.namespace

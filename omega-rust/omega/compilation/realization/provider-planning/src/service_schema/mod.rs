@@ -223,6 +223,12 @@ pub fn from_typed_boundary_requirement(
 
     let mut identities = ProviderIdentityTable::default();
     let requirement_identity_id = identities.intern(&requirement_identity);
+    let termination_premises = service_progress_premises_for_parameters(
+        program,
+        published_termination,
+        parameters,
+        &mut identities,
+    );
     Some(ServiceSchema {
         // A token family contains separate overloaded requirement slots. Its
         // Build selection covers all coordinates atomically, but each row
@@ -258,12 +264,7 @@ pub fn from_typed_boundary_requirement(
             may_suspend: requirement.suspends,
             may_block: requirement.blocks,
             terminates_guarantee: published_termination.promises_termination(),
-            termination_premises: service_progress_premises_for_parameters(
-                program,
-                published_termination,
-                parameters,
-                &mut identities,
-            ),
+            termination_premises,
             calling_plan_report_fingerprint: None,
             calling_plan_commitment: None,
         }],

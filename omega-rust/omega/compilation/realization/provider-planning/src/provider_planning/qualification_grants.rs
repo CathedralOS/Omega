@@ -127,7 +127,10 @@ pub(super) fn validate(
                     .schema
                     .methods
                     .iter()
-                    .any(|method| method.requirement_identity == requirement_identity)
+                    .any(|method| {
+                        grant.selected_plan.schema.identity_text(method.requirement_identity)
+                            == requirement_identity
+                    })
             })
             .collect::<Vec<_>>();
         // A shared requirement identity — an inherited requirement carried
