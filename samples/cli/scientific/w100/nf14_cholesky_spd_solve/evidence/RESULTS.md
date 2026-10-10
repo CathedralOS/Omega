@@ -30,7 +30,7 @@ shared dependency; this candidate does not repair or bypass it.
 
 The separate source-only probes are retained in source-only/ with complete
 sources, exact command vectors, hashes and raw stdout/stderr. Both valid probes
-passed. The invalid probe rejected (exit 1, 1.997s) with:
+passed. The invalid probe rejected (exit 1, 2.018s) with:
 
 ```
 error: machine `overwrite_readonly` state `entry` assignment cannot write `source` because it is not mutable in this state (if `source` is undeclared -- a typo -- no such field or local exists)

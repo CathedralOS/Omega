@@ -14,5 +14,5 @@ machine overwrite_readonly(source: &[f64; 9]) {
 
 machine Main::main(main: &mut Main) {
     overwrite_readonly(&main.matrix);
-    
+
 }

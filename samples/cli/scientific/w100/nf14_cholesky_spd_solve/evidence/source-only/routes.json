@@ -31,8 +31,8 @@
       "samples/cli/scientific/w100/nf14_cholesky_spd_solve/evidence/source-only/invalid_readonly_write.omg"
     ],
     "exit_status": 1,
-    "elapsed_seconds": 1.997,
-    "source_sha256": "ddd46edaf8e8ba660499a43c9ec5d92ae1556e624fd7fe8da7acdc80f119cc65",
+    "elapsed_seconds": 2.018,
+    "source_sha256": "fdcec01a2727c986af029037ead08b76e49f562f1a4311e9c8d266330da02e9c",
     "qualification": "source-only; not equivalent to full project"
   }
 ]
