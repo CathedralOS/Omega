@@ -10,7 +10,6 @@ use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 pub(super) fn establish(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
@@ -51,20 +50,14 @@ pub(super) fn initialize_storage(
     destination: PlaceId,
     shape: calling_conventions::ValueShape,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let slot = LocalStorageSlotId::Structural {
-        operation: row.operation,
-        place: destination,
-    };
-    builder
-        .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            // Even an empty record can be borrowed. Reserve an addressable
-            // home without adding a byte to its semantic value or ABI shape.
-            byte_size: shape.byte_size.max(1),
-            alignment: shape.alignment,
-        });
+    // Even an empty record can be borrowed. Reserve an addressable
+    // home without adding a byte to its semantic value or ABI shape.
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        destination,
+        shape.byte_size.max(1),
+        shape.alignment,
+    );
     let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size.max(1), true)?;
     if shape.byte_size == 0 {
         return Ok(pointer);

@@ -11,7 +11,7 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot, VirtualRegisterId};
+use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::{IntegerValue, PlaceId};
 
 /// The largest home established by per-leaf stores. Up to one 4 KiB page
@@ -39,18 +39,12 @@ pub(super) fn establish(
     let leaf_stores = (shape.byte_size <= PER_LEAF_ZEROING_MAX_BYTES)
         .then(|| crate::selection::zeroed_structural_input::storage(source, established))
         .flatten();
-    let slot = LocalStorageSlotId::Structural {
-        operation: row.operation,
-        place: established.place,
-    };
-    builder
-        .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: shape.byte_size.max(1),
-            alignment: shape.alignment,
-        });
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        established.place,
+        shape.byte_size.max(1),
+        shape.alignment,
+    );
     // The address instruction charges construction once; the payload stores
     // carry the row's provenance without introducing additional semantic work.
     // Empty values still lend an address. Match record construction's anchor

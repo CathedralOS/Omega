@@ -8,7 +8,6 @@ use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
 
 pub(super) fn establish(
@@ -38,18 +37,9 @@ pub(super) fn establish(
     // the two-word descriptor is activation-local, so a stored copy of it
     // outlives the activation that established it.
     let length = u64::try_from(bytes.len()).map_err(|_| invalid())?;
-    let slot = LocalStorageSlotId::Structural {
-        operation: row.operation,
-        place: destination.id,
-    };
-    builder
+    let slot = builder
         .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 16,
-            alignment: 8,
-        });
+        .push_structural_local_slot(row.operation, destination.id, 16, 8);
     let backing = transport_register(builder, destination.id, 16)?;
     builder.emit(
         SelectedInstructionKind::ImmutableImageAddress {

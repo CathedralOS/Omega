@@ -6,7 +6,6 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(super) fn establish(
     source: &LegalizedScalarFunction,
@@ -26,18 +25,12 @@ pub(super) fn establish(
             .extend(row.fuel.iter().cloned());
         return Ok(());
     }
-    let slot = LocalStorageSlotId::Structural {
-        operation: row.operation,
-        place: established.place,
-    };
-    builder
-        .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: shape.byte_size,
-            alignment: shape.alignment,
-        });
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        established.place,
+        shape.byte_size,
+        shape.alignment,
+    );
     // The address instruction charges construction once; payload stores carry
     // exact operand provenance without introducing additional semantic work.
     let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;

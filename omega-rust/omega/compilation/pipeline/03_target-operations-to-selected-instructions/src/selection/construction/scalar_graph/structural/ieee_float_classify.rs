@@ -6,9 +6,7 @@ use super::{
     transport_register,
 };
 use crate::SelectedInstructionError;
-use selected_instructions::{
-    IeeeFloatArithmeticForm, LocalStorageSlotId, MachineSemanticKind, SelectedLocalStorageSlot,
-};
+use selected_instructions::{IeeeFloatArithmeticForm, LocalStorageSlotId, MachineSemanticKind};
 use target_operations::IeeeFloatArithmeticOperation;
 
 pub(super) fn establish(
@@ -73,14 +71,12 @@ pub(super) fn establish(
     {
         return Err(invalid());
     }
-    builder
-        .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: layout.shape.byte_size,
-            alignment: layout.shape.alignment,
-        });
+    builder.transport.push_structural_local_slot(
+        row.operation,
+        result.place,
+        layout.shape.byte_size,
+        layout.shape.alignment,
+    );
     let pointer = local_storage::address(builder, row, slot, 0, layout.shape.byte_size, false)?;
     memory(
         builder,

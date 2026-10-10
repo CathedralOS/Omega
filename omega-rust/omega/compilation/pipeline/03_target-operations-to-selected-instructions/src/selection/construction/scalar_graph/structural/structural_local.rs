@@ -8,7 +8,6 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::IntegerValue;
 
 pub(super) fn establish(
@@ -18,18 +17,12 @@ pub(super) fn establish(
 ) -> Result<(), SelectedInstructionError> {
     let (established, shape) = crate::selection::structural_local_input::storage(source, row)
         .ok_or(SelectedInstructionError::custody())?;
-    let slot = LocalStorageSlotId::Structural {
-        operation: row.operation,
-        place: established.place,
-    };
-    builder
-        .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: shape.byte_size.max(1),
-            alignment: shape.alignment,
-        });
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        established.place,
+        shape.byte_size.max(1),
+        shape.alignment,
+    );
     let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size.max(1), true)?;
     if shape.byte_size == 0 {
         builder

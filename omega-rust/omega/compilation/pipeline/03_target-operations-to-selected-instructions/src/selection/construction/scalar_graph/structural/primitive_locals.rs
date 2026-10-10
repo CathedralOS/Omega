@@ -7,7 +7,7 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
+use selected_instructions::LocalStorageSlotId;
 
 pub(super) fn write(
     source: &LegalizedScalarFunction,
@@ -42,14 +42,12 @@ pub(super) fn write(
             operation: producer,
             place,
         };
-        builder
-            .transport
-            .local_slots
-            .push(SelectedLocalStorageSlot {
-                id: slot,
-                byte_size: shape.byte_size,
-                alignment: shape.alignment,
-            });
+        builder.transport.push_structural_local_slot(
+            producer,
+            place,
+            shape.byte_size,
+            shape.alignment,
+        );
         let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, false)?;
         builder.transport.pointers.push((place, pointer));
         pointer
