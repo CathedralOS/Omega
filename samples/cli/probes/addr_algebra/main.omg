@@ -1,0 +1,40 @@
+// `addr` — a pointer-width ADDRESS type, distinct from `u64` counts —
+// and the legal half of its algebra.
+//
+//   * `let a: addr = 4096` — integer literals into addr fields/locals.
+//   * `addr - count -> addr` — offset backward.
+//   * `addr - addr -> u64` — distance between addresses.
+//   * `addr < addr` — unsigned ordering.
+//   * `a as i32 in Trapping` — addr to i32 conversion through the
+//     Trapping domain.
+//   * (The illegal half — `addr + addr`, `addr * x`, shifts — rejects
+//     at compile; fail-corpus territory.)
+//
+// Compile-checked only: no standard-library dependency, no ProcessExit
+// provider.
+
+data EfiHandle { raw: addr; }
+data ConsolePtr { raw: addr; }
+
+data Main {
+    handle: EfiHandle;
+    console_ptr: ConsolePtr;
+    result: i32;
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    main.handle = EfiHandle { raw: 4096 };
+    main.console_ptr = ConsolePtr { raw: 88 };
+    let back: addr = main.handle.raw - 16;
+    let distance: u64 = main.handle.raw - back;
+    main.result = (main.console_ptr.raw as i32 in Trapping) as i32;
+    transition back < main.handle.raw && distance == 16
+        && main.result == 88 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
