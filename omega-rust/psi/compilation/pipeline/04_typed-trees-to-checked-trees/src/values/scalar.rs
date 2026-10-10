@@ -14,29 +14,31 @@
 //! a view, and
 //! `expression_facts.rs` answers the questions they share. The remaining
 //! modules own array constructions, call arguments, case membership,
-//! computations, constant array projection, contract entries, primitive
+//! constant array projection, contract entries, primitive
 //! reference reads, result contracts, selected-operator operands, semantic
-//! casts and structural fields.
+//! casts and structural fields. The computation graph builder itself lives
+//! in `execution::scalar_computations`, the one plan builder producing
+//! scalar and Unit computations; these members stay `pub(crate)` so that
+//! builder consumes the same lowering utilities the pure plans use.
 
-mod array_constructions;
-mod atomic_operands;
-mod boolean_lowering;
-mod call_arguments;
-mod call_lowering;
-mod case_membership;
-mod computations;
-mod constant_array_projection;
-mod contract_entry;
-mod expression_facts;
-mod expression_plans;
-mod machine_parameter_booleans;
-mod primitive_reference_read;
-mod result_contract;
-mod scalar_lowering;
-mod selected_operator_operands;
-mod semantic_casts;
-mod structural_fields;
-mod subslice_endpoints;
+pub(crate) mod array_constructions;
+pub(crate) mod atomic_operands;
+pub(crate) mod boolean_lowering;
+pub(crate) mod call_arguments;
+pub(crate) mod call_lowering;
+pub(crate) mod case_membership;
+pub(crate) mod constant_array_projection;
+pub(crate) mod contract_entry;
+pub(crate) mod expression_facts;
+pub(crate) mod expression_plans;
+pub(crate) mod machine_parameter_booleans;
+pub(crate) mod primitive_reference_read;
+pub(crate) mod result_contract;
+pub(crate) mod scalar_lowering;
+pub(crate) mod selected_operator_operands;
+pub(crate) mod semantic_casts;
+pub(crate) mod structural_fields;
+pub(crate) mod subslice_endpoints;
 pub(crate) use subslice_endpoints::subslice_endpoints;
 
 pub(crate) use boolean_lowering::evaluate_closed_boolean_expression;
@@ -44,7 +46,6 @@ pub(crate) use call_arguments::is_scalar_return_call;
 pub(crate) use call_arguments::{
     nested_structural_call_return_type, retain_nested_structural_call_arguments,
 };
-pub(crate) use computations::build_checked_value_computation_plans;
 pub(crate) use contract_entry::{
     lower_entry_predicate, lower_entry_scalar,
     lower_machine_entry_boolean_expression, lower_machine_entry_crash_contract_expression,

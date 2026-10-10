@@ -43,7 +43,7 @@ fn declared_data_field(
     }
 }
 
-pub(super) fn structural_sequence_length(
+pub(crate) fn structural_sequence_length(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -152,7 +152,7 @@ pub(super) fn structural_sequence_length(
 /// names the local: the plan that sequences the body decides whether the
 /// local's view was established before this use, and lowering resolves the
 /// symbol to its published place or refuses.
-pub(super) fn view_local_root(
+pub(crate) fn view_local_root(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -189,7 +189,7 @@ pub(super) fn view_local_root(
 /// view local. The plan that sequences the body decides whether the local's
 /// place was established before this use; lowering resolves the symbol to
 /// that place or refuses.
-pub(super) fn owned_local_root(
+pub(crate) fn owned_local_root(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -218,7 +218,7 @@ pub(super) fn owned_local_root(
 
 /// Empty spelling resolution is builtin only when the exact operand types
 /// independently carry the builtin index meaning.
-pub(super) fn indexed_read_is_builtin(
+pub(crate) fn indexed_read_is_builtin(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     parameters: &[StateParameter],
@@ -268,7 +268,7 @@ fn indexed_read_has_builtin_meaning(
     )
 }
 
-pub(super) fn structural_parameter_field_path(
+pub(crate) fn structural_parameter_field_path(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -530,7 +530,7 @@ fn peeled_indexed_carrier(
     }
 }
 
-pub(super) fn fixed_index_element_type(
+pub(crate) fn fixed_index_element_type(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     element_index: u64,
@@ -557,7 +557,7 @@ pub(super) fn fixed_index_element_type(
 /// The element type a runtime selector reaches inside a collection: the
 /// same unwrap `fixed_index_element_type` walks, with no literal to prove
 /// against the extent — the read's own obligation checks the bound.
-pub(super) fn runtime_index_element_type(
+pub(crate) fn runtime_index_element_type(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -615,7 +615,7 @@ pub(crate) fn structural_data(
     }
 }
 
-pub(super) fn lower_structural_parameter_field(
+pub(crate) fn lower_structural_parameter_field(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -685,7 +685,7 @@ pub(crate) fn structural_parameter_place(
 /// Authenticate one authored storage occurrence and resolve its entire static
 /// projection. Root classification supplies custody only; all roots use the
 /// same canonical place and declaration traversal below.
-pub(super) fn structural_storage_place(
+pub(crate) fn structural_storage_place(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -856,7 +856,7 @@ pub(super) fn structural_storage_place(
 /// element type supplies the declaration, while any retained symbol must agree.
 /// This is the same nominal selection for every indexed field, not permission
 /// to capture the containing row or copy its ownership-bearing siblings.
-pub(super) fn element_member_field<'program>(
+pub(crate) fn element_member_field<'program>(
     program: &'program dyn ::validation::CheckingInput,
     element: TypeReferenceHandle,
     member: &typed_trees::expression::TableMemberExpression,

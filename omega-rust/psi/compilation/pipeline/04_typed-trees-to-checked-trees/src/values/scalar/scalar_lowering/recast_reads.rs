@@ -42,7 +42,7 @@ pub(crate) fn recast_view_operand(
 
 /// One whole scalar place's storage site, recovered from its checked read.
 /// A recast view re-reads the same site through its target carrier.
-pub(super) enum PlaceReadSite {
+pub(crate) enum PlaceReadSite {
     Storage(symbols::SymbolHandle),
     Parameter(usize),
     Local(usize),
@@ -52,7 +52,7 @@ pub(super) enum PlaceReadSite {
 /// Recover the storage site of one checked read when it is a whole scalar
 /// place. Boolean place leaves unwrap to their site as well; any composed
 /// value (operations, literals, indexed reads) is not a place.
-pub(super) fn place_read_site(read: &CheckedScalarExpression) -> Option<PlaceReadSite> {
+pub(crate) fn place_read_site(read: &CheckedScalarExpression) -> Option<PlaceReadSite> {
     match read {
         CheckedScalarExpression::StorageRead { symbol, .. } => {
             Some(PlaceReadSite::Storage(*symbol))
@@ -104,7 +104,7 @@ pub(super) fn place_read_site(read: &CheckedScalarExpression) -> Option<PlaceRea
 /// read so stage 05 can replay the region byte by byte, each byte owing its
 /// own index obligation. Any other width change is not a whole-place view and
 /// stays unlowered.
-pub(super) fn view_place_read(
+pub(crate) fn view_place_read(
     read: CheckedScalarExpression,
     primitive_type: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
@@ -157,7 +157,7 @@ pub(super) fn view_place_read(
 }
 
 /// The storage width of one primitive scalar carrier, in bytes.
-pub(super) fn scalar_byte_width(primitive_type: PrimitiveType) -> Option<u32> {
+pub(crate) fn scalar_byte_width(primitive_type: PrimitiveType) -> Option<u32> {
     Some(match primitive_type {
         PrimitiveType::Bool | PrimitiveType::U8 | PrimitiveType::I8 => 1,
         PrimitiveType::U16 | PrimitiveType::I16 => 2,
@@ -169,7 +169,7 @@ pub(super) fn scalar_byte_width(primitive_type: PrimitiveType) -> Option<u32> {
 
 /// Re-read one place site through the bool carrier -- the checked form of
 /// `&place as &bool` in a Boolean position.
-pub(super) fn place_read_site_as_boolean(site: PlaceReadSite) -> CheckedBooleanExpression {
+pub(crate) fn place_read_site_as_boolean(site: PlaceReadSite) -> CheckedBooleanExpression {
     match site {
         PlaceReadSite::Storage(symbol) => CheckedBooleanExpression::StorageRead { symbol },
         PlaceReadSite::Parameter(position) => CheckedBooleanExpression::Parameter { position },

@@ -19,7 +19,7 @@ pub(crate) use crash_entry::{
 /// The structural crash reader additionally needs a closed signature. This is
 /// execution eligibility, not the identity of a concrete scalar contract leaf
 /// on a generic declaration awaiting application.
-pub(super) fn entry_parameters<'program>(
+pub(crate) fn entry_parameters<'program>(
     program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Option<&'program [StateParameter]> {
@@ -41,7 +41,7 @@ pub(super) fn entry_parameters<'program>(
 /// Scalar contracts and structural crash predicates share exact authored
 /// machine/state/formal identity, without borrowing each other's leaf vocabulary
 /// or eligibility policy. Unread type parameters do not erase concrete clauses.
-pub(super) fn authored_entry_parameters<'program>(
+pub(crate) fn authored_entry_parameters<'program>(
     program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Option<&'program [StateParameter]> {

@@ -470,7 +470,7 @@ fn byte_sequence_equal_atom(
 /// The storage root, path and carrier of a byte carrier whose live length and
 /// bytes a content comparison may observe, or `None` when `carrier` names no
 /// such place.
-pub(super) fn comparable_byte_carrier(
+pub(crate) fn comparable_byte_carrier(
     program: &dyn ::validation::CheckingInput,
     authored_parameters: &[StateParameter],
     carrier: ExpressionHandle,
@@ -491,7 +491,7 @@ pub(super) fn comparable_byte_carrier(
 /// The carrier of `type_reference` when it has a live byte length and
 /// readable bytes: a bounded owned byte buffer, or a shared or mutable
 /// borrowed byte view.
-pub(super) fn comparable_byte_carrier_type(
+pub(crate) fn comparable_byte_carrier_type(
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedByteSequenceCarrier> {

@@ -47,7 +47,7 @@ pub(super) fn structural_call_carrier_matches(
 /// A case literal carrying non-scalar payload registers its construction root
 /// the same way a record literal does: each authored field keeps its own
 /// scalar or nested structural value under the selected case.
-pub(in crate::values::scalar::computations) fn is_structural_case_value(
+pub(in crate::execution::scalar_computations) fn is_structural_case_value(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
@@ -69,7 +69,7 @@ pub(in crate::values::scalar::computations) fn is_structural_case_value(
         == program.normalized_type_identity(reference)
 }
 
-pub(in crate::values::scalar::computations) fn is_record_value(
+pub(in crate::execution::scalar_computations) fn is_record_value(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
@@ -187,7 +187,7 @@ pub(in crate::values::scalar::computations) fn is_record_value(
 /// value itself is adjudicated by `slice_view_place`, which rejoins
 /// the checked loan the view holds; this only decides that the destination is
 /// a view at all, so the ordinary owned classifications keep every other local.
-pub(in crate::values::scalar::computations) fn is_borrowed_slice_view_value(
+pub(in crate::execution::scalar_computations) fn is_borrowed_slice_view_value(
     program: &dyn ::validation::CheckingInput,
     expected: TypeReferenceHandle,
 ) -> bool {
@@ -265,7 +265,7 @@ pub(super) fn plain_or_policy_scalar_field(
 /// A fixed-array construction of structural elements spelled as a literal. Primitive arrays keep
 /// their scalar-element route; structural elements each register their own
 /// value node, the same way record fields do inside a constructor.
-pub(in crate::values::scalar::computations) fn is_fixed_array_value(
+pub(in crate::execution::scalar_computations) fn is_fixed_array_value(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,

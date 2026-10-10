@@ -32,7 +32,7 @@ pub(crate) use snapshots::{
     literal_at_place, prepare_assignment_observations, scalar_value_at_place,
     scalar_value_from_payloads,
 };
-mod scalar;
+pub(crate) mod scalar;
 pub(crate) use scalar::subslice_endpoints;
 
 /// Owned mutable parameters use current-state scalar storage, never reference
@@ -51,7 +51,7 @@ pub(crate) fn mutable_scalar_parameter_type(
 
 pub(crate) use scalar::{
     assignment_target_primitive_type, build_checked_scalar_expression_plans,
-    build_checked_value_computation_plans, evaluate_closed_boolean_expression, exclusive_reference,
+    evaluate_closed_boolean_expression, exclusive_reference,
     is_scalar_return_call, landed_for_primitive, lower_callable_parameter_range_requirements,
     lower_callable_scalar_contract_predicate, lower_entry_predicate,
     lower_entry_scalar, lower_machine_entry_boolean_expression,

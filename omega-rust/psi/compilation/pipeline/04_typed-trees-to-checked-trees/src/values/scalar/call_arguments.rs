@@ -200,7 +200,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
 /// acquire a flow call, and execution order never becomes occurrence identity.
 /// `source` is the state's unique flow fact, which the caller resolves once
 /// per state.
-pub(super) fn nested_structural_call_sites<'program>(
+pub(crate) fn nested_structural_call_sites<'program>(
     program: &'program dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     source: &checked_trees::FlowStateFact,

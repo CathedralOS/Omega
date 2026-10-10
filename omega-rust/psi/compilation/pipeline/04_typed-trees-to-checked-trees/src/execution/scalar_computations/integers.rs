@@ -412,7 +412,7 @@ impl Builder<'_, '_> {
         if let Some(destination) = operand_type(&left)
             && let Some(operand) = land(
                 binary.right,
-                super::super::scalar_lowering::subtraction_count_context(
+                crate::values::scalar::scalar_lowering::subtraction_count_context(
                     binary.operator,
                     destination,
                 ),

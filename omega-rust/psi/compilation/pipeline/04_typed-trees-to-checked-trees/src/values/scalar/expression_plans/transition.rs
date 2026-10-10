@@ -7,7 +7,7 @@ use super::{
     TransitionTargetNode, lower_boolean_guard, lower_return_expression,
 };
 
-pub(super) fn plan(
+pub(crate) fn plan(
     planner: StatementPlanner<'_, '_>,
     transition: &typed_trees::statement::TableTransition,
 ) {

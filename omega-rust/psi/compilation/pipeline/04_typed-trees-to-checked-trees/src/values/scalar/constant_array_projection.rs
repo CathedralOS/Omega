@@ -11,7 +11,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn selected_leaf(
+pub(crate) fn selected_leaf(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     parameters: &[StateParameter],

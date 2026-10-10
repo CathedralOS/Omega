@@ -22,7 +22,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// `left == right` over two structural parameter places of one data type, or
 /// `None` when either side is not such a place or the type cannot decompose.
-pub(super) fn lower(
+pub(crate) fn lower(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     left: ExpressionHandle,

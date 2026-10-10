@@ -18,16 +18,16 @@ use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 /// element's type, whether the collection is a borrowed view, and the lowered
 /// selector. A whole view local reads the view its establishment published,
 /// the same element selection a whole view parameter takes.
-pub(in crate::values::scalar) struct ElementSelection {
-    pub(in crate::values::scalar) root: checked_trees::CheckedStorageRoot,
-    pub(in crate::values::scalar) path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
-    pub(in crate::values::scalar) element_type: typed_trees::types::TypeReferenceHandle,
-    pub(in crate::values::scalar) through_view: bool,
-    pub(in crate::values::scalar) index: checked_trees::CheckedScalarSelector,
+pub(crate) struct ElementSelection {
+    pub(crate) root: checked_trees::CheckedStorageRoot,
+    pub(crate) path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    pub(crate) element_type: typed_trees::types::TypeReferenceHandle,
+    pub(crate) through_view: bool,
+    pub(crate) index: checked_trees::CheckedScalarSelector,
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::values::scalar) fn selected_element(
+pub(crate) fn selected_element(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
@@ -104,7 +104,7 @@ pub(in crate::values::scalar) fn selected_element(
 /// Storage roots and declared carriers, not source nesting families, determine
 /// how the observation is emitted. Static literal geometry remains explicit.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn indexed_scalar_read(
+pub(crate) fn indexed_scalar_read(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
@@ -275,7 +275,7 @@ pub(super) fn indexed_scalar_read(
 /// `literal`'s bit-width admission against `landed_type` plus the landed
 /// expression it mints — both integer-literal lowering paths share the
 /// signed/unsigned bound test and the `Exact` domain landing.
-pub(super) fn landed_integer_literal_fits(
+pub(crate) fn landed_integer_literal_fits(
     literal: &numerics::literals::IntegerLiteral,
     landed_type: LandedIntegerType,
 ) -> Option<CheckedScalarExpression> {

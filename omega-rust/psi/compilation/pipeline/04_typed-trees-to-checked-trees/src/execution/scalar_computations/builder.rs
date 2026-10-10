@@ -166,7 +166,7 @@ impl Builder<'_, '_> {
             // expression. Preserve its exact landing and source occurrence;
             // the qualification remains an authored cast with its own proof.
             let target = self.program.primitive_type_reference(cast.target_type)?;
-            let value = super::super::scalar_lowering::land_anonymous_scalar_expression(
+            let value = crate::values::scalar::scalar_lowering::land_anonymous_scalar_expression(
                 self.program,
                 self.operators,
                 cast.value,

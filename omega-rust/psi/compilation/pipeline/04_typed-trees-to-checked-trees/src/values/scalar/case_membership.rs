@@ -12,7 +12,7 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::signature::StateParameter;
 
-pub(super) fn lower(
+pub(crate) fn lower(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -58,7 +58,7 @@ pub(super) fn lower(
     })
 }
 
-pub(super) fn lower_result(
+pub(crate) fn lower_result(
     program: &dyn ::validation::CheckingInput,
     owner: symbols::SymbolHandle,
     result_type: typed_trees::types::TypeReferenceHandle,
@@ -175,7 +175,7 @@ fn case_identity(
 /// The discriminant key a checked case-membership test stores: the declared
 /// `#<decimal>` identity an authored discriminant value writes, or the case's
 /// declared name when no identity exists.
-pub(super) fn structural_case_name(
+pub(crate) fn structural_case_name(
     program: &dyn ::validation::CheckingInput,
     selected: symbols::SymbolHandle,
 ) -> Option<String> {

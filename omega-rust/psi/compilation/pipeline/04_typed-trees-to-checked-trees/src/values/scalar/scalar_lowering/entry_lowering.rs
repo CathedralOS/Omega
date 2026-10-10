@@ -148,7 +148,7 @@ pub(crate) fn lower_unit_scalar_argument_for_places(
     Some(value)
 }
 
-pub(super) fn unit_scalar_context(
+pub(crate) fn unit_scalar_context(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     before_statement: usize,

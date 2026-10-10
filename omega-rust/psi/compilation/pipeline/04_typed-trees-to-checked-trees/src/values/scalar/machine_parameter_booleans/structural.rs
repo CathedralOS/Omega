@@ -20,7 +20,7 @@ use typed_trees::types::PrimitiveType;
 
 /// Lower `expression` in the entry parameters' namespace, or `None` when no
 /// structural form describes it.
-pub(super) fn lower(
+pub(crate) fn lower(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operators: &CheckedOperatorFacts,

@@ -23,7 +23,7 @@ fn field_type(
     })
 }
 
-pub(super) fn path_type_reference(
+pub(crate) fn path_type_reference(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     parameter_position: u32,
@@ -79,7 +79,7 @@ pub(super) fn path_type_reference(
     selected_case.is_none().then_some(receiver)
 }
 
-pub(super) fn path_primitive_type(
+pub(crate) fn path_primitive_type(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     parameter_position: u32,
@@ -93,7 +93,7 @@ pub(super) fn path_primitive_type(
     )?)
 }
 
-pub(super) fn structural_record_fields(
+pub(crate) fn structural_record_fields(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<Vec<&typed_trees::data::DataField>> {
@@ -109,7 +109,7 @@ pub(super) fn structural_record_fields(
     Some(fields)
 }
 
-pub(super) fn payloadless_sum_cases(
+pub(crate) fn payloadless_sum_cases(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<Vec<String>> {

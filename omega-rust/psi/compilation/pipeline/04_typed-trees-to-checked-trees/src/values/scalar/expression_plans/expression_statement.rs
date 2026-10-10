@@ -7,7 +7,7 @@ use super::{
     retain_expression_call_arguments,
 };
 
-pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHandle) {
+pub(crate) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHandle) {
     let StatementPlanner {
         program,
         operators,

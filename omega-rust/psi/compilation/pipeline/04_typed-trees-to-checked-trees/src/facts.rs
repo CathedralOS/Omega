@@ -254,7 +254,7 @@ pub(crate) fn build_check_facts(
     (
         prepared.values.scalar_computations,
         prepared.values.structural_values,
-    ) = crate::values::build_checked_value_computation_plans(
+    ) = crate::execution::scalar_computations::build_checked_value_computation_plans(
         program,
         &prepared.operators,
         &prepared.flow,

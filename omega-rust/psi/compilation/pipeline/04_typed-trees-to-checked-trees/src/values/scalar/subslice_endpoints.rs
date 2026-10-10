@@ -65,7 +65,7 @@ pub(crate) fn subslice_endpoints<Value>(
 
 /// The source occurrence, not the result's destination or the endpoint's syntax,
 /// identifies a range operand. Both scalar plan producers consume this inventory.
-pub(super) fn sites(
+pub(crate) fn sites(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

@@ -7,7 +7,7 @@ use typed_trees::{
     types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode},
 };
 
-pub(super) fn lower(
+pub(crate) fn lower(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -20,7 +20,7 @@ pub(super) fn lower(
 /// Primitive reference reads are ordinary leaves, including below operators.
 /// Their declared referee supplies both carrier and arithmetic semantics; an
 /// enclosing expression's expected result must not invent either property.
-pub(super) fn declared(
+pub(crate) fn declared(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -71,7 +71,7 @@ pub(super) fn declared(
 /// Observation depends on the declared referee and current carrier, never on
 /// whether its producer was a borrow, recast, call, or transferred reference.
 /// Access and live custody are independently checked when that read is lowered.
-pub(super) fn local(
+pub(crate) fn local(
     program: &dyn ::validation::CheckingInput,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<super::expression_plans::ScalarLocal> {

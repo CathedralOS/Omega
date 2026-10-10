@@ -12,10 +12,15 @@
 //! builders use to accept a two-guard tail without an authored fallback.
 //! `citation_erasure` retires fact-only citation calls before any of them
 //! plans, so no planner sequences a theorem that emits no runtime work.
+//! `scalar_computations` is this home's other builder: the values pass calls
+//! it to produce the checked scalar computation plans that `terminal_unit`
+//! and `terminal_scalar` consume, so one plan builder produces scalar and
+//! Unit computations.
 
 pub(crate) mod citation_erasure;
 pub(crate) mod finalize_execution;
 pub(crate) mod guard_complement;
+pub(crate) mod scalar_computations;
 pub(crate) mod terminal_cleanup;
 pub(crate) mod terminal_debug;
 pub(crate) mod terminal_scalar;

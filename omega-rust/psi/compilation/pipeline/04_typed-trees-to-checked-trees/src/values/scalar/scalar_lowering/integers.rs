@@ -194,7 +194,7 @@ pub(crate) fn construct_integer_cast(
 /// two literal bounds. This is a value fact, not a backend fold: retaining the
 /// landed `u64` here lets later checked control replay the exact initializer
 /// without consulting a target representation.
-pub(super) fn exact_inline_literal_subslice_length(
+pub(crate) fn exact_inline_literal_subslice_length(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CheckedScalarExpression> {
@@ -223,7 +223,7 @@ pub(super) fn exact_inline_literal_subslice_length(
     })
 }
 
-pub(super) fn land_anonymous_zero(
+pub(crate) fn land_anonymous_zero(
     expression: CheckedScalarExpression,
     primitive_type: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {

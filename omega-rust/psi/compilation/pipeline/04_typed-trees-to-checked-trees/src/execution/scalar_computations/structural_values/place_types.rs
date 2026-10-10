@@ -76,7 +76,7 @@ pub(super) fn projected_leaf_type(
 /// exactly the carrier `borrowed_place` can rebuild into a `SharedBorrow`
 /// source -- a computed root cannot be re-derived at replay, and a dynamic
 /// index or range segment has no statically checkable ordinal.
-pub(in crate::values::scalar::computations) fn canonical_place_is_borrowable(
+pub(in crate::execution::scalar_computations) fn canonical_place_is_borrowable(
     place: &validation::CanonicalPlace,
 ) -> bool {
     matches!(place.root, facts::PlaceRoot::Symbol(_))
@@ -185,7 +185,7 @@ pub(super) fn copied_place_type(
 /// contents copy out whole, no loan involved.
 /// Retain that snapshot at the operand's evaluation point; passing an earlier
 /// constructor's result would confuse mutable storage with its initial value.
-pub(in crate::values::scalar::computations) fn needs_copied_place_root(
+pub(in crate::execution::scalar_computations) fn needs_copied_place_root(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,

@@ -21,7 +21,7 @@ use typed_trees::types::PrimitiveType;
 /// at the place's carrier retains the rows it could lower; planning refuses
 /// the event when one is missing.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower(
+pub(crate) fn lower(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,

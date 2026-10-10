@@ -119,7 +119,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 // Endpoints are ordinary operands. Capture every occurrence
                 // before constructing consumers, so a call result and a pure
                 // bound supply the same range operation at its authored site.
-                for (expression, site) in super::subslice_endpoints::sites(
+                for (expression, site) in crate::values::scalar::subslice_endpoints::sites(
                     program,
                     machine,
                     state,
@@ -129,7 +129,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 .into_iter()
                 .rev()
                 {
-                    for (endpoint, role, ()) in super::subslice_endpoints::subslice_endpoints(
+                    for (endpoint, role, ()) in crate::values::scalar::subslice_endpoints::subslice_endpoints(
                         program,
                         operators,
                         expression,
@@ -250,7 +250,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 }
                 for (call_ordinal, site) in captured
                     .map(|captured| {
-                        super::call_arguments::nested_structural_call_sites(
+                        crate::values::scalar::call_arguments::nested_structural_call_sites(
                             program,
                             flow,
                             captured,
@@ -334,7 +334,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         // The initializer may read earlier locals, never its own binding.
                         locals.push(ScalarLocal::from_local_data(program, local, primitive_type));
                     } else if let Some(binding) =
-                        super::primitive_reference_read::local(program, local)
+                        crate::values::scalar::primitive_reference_read::local(program, local)
                     {
                         locals.push(binding);
                     }

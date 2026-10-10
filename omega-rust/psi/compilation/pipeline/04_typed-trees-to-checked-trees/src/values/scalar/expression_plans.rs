@@ -30,7 +30,7 @@ mod array_elements;
 mod assignment;
 mod call_statement;
 mod expression_statement;
-pub(super) mod local_data;
+pub(crate) mod local_data;
 mod range_operands;
 mod transition;
 
@@ -76,7 +76,7 @@ impl ScalarLocal {
 
 /// The scalar-parameter plus value-binding-local symbol roster every
 /// located expression binding carries.
-pub(super) fn located_binding_symbols<'a>(
+pub(crate) fn located_binding_symbols<'a>(
     scalar_parameters: &'a [typed_trees::signature::StateParameter],
     locals: &'a [ScalarLocal],
 ) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
@@ -147,7 +147,7 @@ impl<'p> StatementPlanner<'p, '_> {
 /// source test (`value_call_expression` for assignment and local data, the
 /// statement's own expression for an expression statement).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn retain_expression_call_arguments(
+pub(crate) fn retain_expression_call_arguments(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     state: &typed_trees::state::State,

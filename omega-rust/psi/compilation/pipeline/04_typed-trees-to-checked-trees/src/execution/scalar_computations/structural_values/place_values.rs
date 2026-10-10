@@ -27,7 +27,7 @@ impl Builder<'_, '_> {
         if !is_view_element_copy(self.program, expression, expected) {
             return None;
         }
-        let selection = super::super::super::scalar_lowering::selected_element(
+        let selection = crate::values::scalar::scalar_lowering::selected_element(
             self.program,
             self.operators,
             expression,

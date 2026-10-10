@@ -5,7 +5,7 @@ use super::{
     retain_subslice_endpoints,
 };
 
-pub(super) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode) {
+pub(crate) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode) {
     let StatementPlanner {
         program,
         operators,

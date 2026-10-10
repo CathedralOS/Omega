@@ -677,7 +677,7 @@ fn contract_storage_root(
 
 /// Subject readers retain their own namespace custody. Comparison selection,
 /// contextual literal landing, and same-carrier construction have one owner.
-pub(super) fn lower_integer_contract_comparison(
+pub(crate) fn lower_integer_contract_comparison(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     owner: symbols::SymbolHandle,

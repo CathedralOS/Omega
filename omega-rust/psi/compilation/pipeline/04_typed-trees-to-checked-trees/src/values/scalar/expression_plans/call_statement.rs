@@ -2,7 +2,7 @@
 
 use super::{StatementPlanner, lower_call_arguments, retain_call_arguments};
 
-pub(super) fn plan(planner: StatementPlanner<'_, '_>, call: &typed_trees::statement::TableCall) {
+pub(crate) fn plan(planner: StatementPlanner<'_, '_>, call: &typed_trees::statement::TableCall) {
     let StatementPlanner {
         program,
         operators,

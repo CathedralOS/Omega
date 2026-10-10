@@ -5,7 +5,7 @@ use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
 use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode};
 
-pub(super) fn result_type(
+pub(crate) fn result_type(
     program: &dyn ::validation::CheckingInput,
     state_symbol: symbols::SymbolHandle,
     expression: ExpressionHandle,
@@ -19,7 +19,7 @@ pub(super) fn result_type(
 /// domain whose membership is exactly an integer interval is not one: like a
 /// bracketed range it only bounds the value, so reading or casting it needs
 /// no qualification custody.
-pub(super) fn has_declared_domains(
+pub(crate) fn has_declared_domains(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
@@ -57,7 +57,7 @@ fn is_interval_domain(
         .is_some()
 }
 
-pub(super) fn has_only_vacuous_tags(
+pub(crate) fn has_only_vacuous_tags(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
@@ -98,7 +98,7 @@ pub(super) fn has_only_vacuous_tags(
     }
 }
 
-pub(super) fn requires_custody(
+pub(crate) fn requires_custody(
     program: &dyn ::validation::CheckingInput,
     state: symbols::SymbolHandle,
     expression: ExpressionHandle,

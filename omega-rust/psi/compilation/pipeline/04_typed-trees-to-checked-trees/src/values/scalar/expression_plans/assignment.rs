@@ -7,7 +7,7 @@ use super::{
     retain_expression_call_arguments, retain_subslice_endpoints,
 };
 
-pub(super) fn plan(
+pub(crate) fn plan(
     planner: StatementPlanner<'_, '_>,
     assignment: &typed_trees::statement::TableAssignment,
 ) {
