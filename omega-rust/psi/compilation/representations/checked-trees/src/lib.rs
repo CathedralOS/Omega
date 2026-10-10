@@ -6,6 +6,9 @@
 pub mod checked_trees;
 pub(crate) use optimization::digest_encoder;
 
+#[cfg(test)]
+mod source_guards;
+
 pub use checked_trees::{CheckedCleanupCaseCondition, CheckedCleanupControlPlans};
 pub use checked_trees::{CheckedStructuralCaseRoot, CheckedStructuralCaseSubject};
 
@@ -143,7 +146,8 @@ pub use checked_trees::{
     CheckedUnitStructuralCasePlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
+    CheckedMemberIdentity, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralResultBindingPlan,
     CheckedUnitStructuralReturnPlan, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
     CheckedValueFact, CheckedValueFacts, CheckedValueHandle, CheckedValueOrigin,
     CheckedValueStatementRole, ClaimCarryPolicyFact, ClosedConformanceConstArgument,
