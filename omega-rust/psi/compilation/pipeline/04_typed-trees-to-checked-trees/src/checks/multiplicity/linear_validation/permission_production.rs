@@ -250,6 +250,7 @@ pub(crate) fn apply_statement_permission_production(
                     conditional_carrier_transfers.push(permission_events.len());
                 }
                 permission_events.push(FlowPermissionEventFact {
+                    expression: event.expression,
                     evaluation: checked_trees::FlowPermissionEvaluation::Statement,
                     machine_symbol,
                     state_symbol,
@@ -363,6 +364,7 @@ pub(crate) fn apply_statement_permission_production(
                     .segments
                     .insert_many(discarded.segments);
                 permission_events.push(FlowPermissionEventFact {
+                    expression: Default::default(),
                     evaluation: checked_trees::FlowPermissionEvaluation::Statement,
                     machine_symbol,
                     state_symbol,
@@ -409,6 +411,7 @@ pub(crate) fn apply_statement_permission_production(
                 .unwrap_or_else(|| established_provenance(machine_symbol, state_symbol, source)),
         );
         permission_events.push(FlowPermissionEventFact {
+            expression: Default::default(),
             evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             machine_symbol,
             state_symbol,
@@ -444,6 +447,7 @@ pub(crate) fn apply_statement_permission_production(
             .filter(|place| place.root == facts::PlaceRoot::Expression(expression) && place.live)
         {
             permission_events.push(FlowPermissionEventFact {
+                expression,
                 evaluation,
                 machine_symbol,
                 state_symbol,

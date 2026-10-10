@@ -719,6 +719,17 @@ impl ScalarBindings {
         self
     }
 
+    /// Resolve the actual incoming declaration for a deferred member operand.
+    pub(crate) fn structural_parameter_by_place(
+        &self,
+        place: PlaceId,
+    ) -> Option<&StructuralParameterDeclaration> {
+        self.structural_parameters
+            .iter()
+            .find(|(_, parameter)| parameter.place == place)
+            .map(|(_, parameter)| parameter)
+    }
+
     /// Register initialized primitive places supplied by the enclosing Unit producer.
     pub(crate) fn with_primitive_storage(
         mut self,
@@ -1160,11 +1171,12 @@ impl ScalarBindings {
             ))?;
         if argument.access != checked_trees::CheckedStructuralAccess::Owned
             || parameter.access != StructuralAccess::Owned
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
         {
             return unsupported("computed owned operand changes its source custody");
         }
+        // Memberships qualify this owned value; they do not turn its home
+        // into a loan. The checked construction and invocation retain their
+        // membership obligations separately from this storage/access join.
         Ok(StructuralArgument {
             place: parameter.place,
             path: Vec::new(),

@@ -13,7 +13,7 @@ use crate::values::{
     StructuralByteSequenceRuntimeField, StructuralRuntimePlace, StructuralScalarRuntimeField,
 };
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
-use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
+use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeMap;
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
@@ -47,13 +47,6 @@ impl<'execution> ConstructorValue<'execution> {
         match self {
             Self::Placed(value) => value.structural_type,
             Self::ScalarArray(value) => value.structural_type,
-        }
-    }
-
-    pub(crate) fn qualifications(&self) -> &[StructuralDomainId] {
-        match self {
-            Self::Placed(value) => &value.qualifications,
-            Self::ScalarArray(_) => &[],
         }
     }
 

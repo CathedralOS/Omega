@@ -40,8 +40,6 @@ impl emission::Emission<'_, '_, '_> {
         let source_count = self.values.len();
         let mut operands = Vec::with_capacity(elements.len());
         let mut claims = Vec::new();
-        let element_has_claims =
-            !validation::linear_claim_frontier(&self.checked.typed, element_reference).is_empty();
         for (element_position, value) in elements.iter().enumerate() {
             let element_index = u64::try_from(element_position)
                 .map_err(|_| LoweringError::Unsupported("array element identity overflow"))?;
@@ -53,19 +51,17 @@ impl emission::Emission<'_, '_, '_> {
                     element_index,
                 )],
             )?;
-            if element_has_claims {
-                for claim in self.claims_held_by(&operand)? {
-                    let mut path = vec![terminal_psi::StructuralPathSegment::FixedIndex(
-                        element_index,
-                    )];
-                    path.extend(claim.path);
-                    claims.push(terminal_psi::StructuralResultClaimBinding {
-                        claim: claim.claim,
-                        path,
-                    });
-                }
+            for claim in operand.claims {
+                let mut path = vec![terminal_psi::StructuralPathSegment::FixedIndex(
+                    element_index,
+                )];
+                path.extend(claim.path);
+                claims.push(terminal_psi::StructuralResultClaimBinding {
+                    claim: claim.claim,
+                    path,
+                });
             }
-            operands.push(operand);
+            operands.push(operand.argument);
         }
         claims.sort();
         let place = place_id(allocate_dense(self.next_place)?);
@@ -74,6 +70,10 @@ impl emission::Emission<'_, '_, '_> {
             parent_type,
             parent_multiplicity,
             operands,
+            self.evaluation
+                .structural_parameters
+                .iter()
+                .map(|(_, parameter)| parameter),
             self.operations,
         )?);
         self.operations
@@ -107,34 +107,24 @@ impl emission::Emission<'_, '_, '_> {
 /// Assemble already completed element owners. Unit sequencing and scalar
 /// continuations share this operation; each caller schedules evaluation before
 /// transferring those owners into the final array atomically.
-pub(crate) fn emit_completed(
+pub(crate) fn emit_completed<'parameter>(
     place: PlaceId,
     structural_type: semantic_vocabulary::StructuralTypeId,
     multiplicity: terminal_psi::StructuralMultiplicity,
     elements: Vec<terminal_psi::StructuralArgument>,
+    parameters: impl Iterator<Item = &'parameter terminal_psi::StructuralParameterDeclaration> + Clone,
     operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let mut projected_qualifications = Vec::new();
     for (ordinal, argument) in elements.iter().enumerate() {
-        let Some(source) = operations
-            .iter()
-            .filter_map(|operation| operation.result.structural())
-            .find(|result| result.place == argument.place)
-        else {
-            continue;
-        };
-        let (whole, projected) = terminal_psi::StructuralPathQualification::select(
-            &source.qualifications,
-            &source.projected_qualifications,
-            &argument.path,
-        );
-        terminal_psi::StructuralPathQualification::append_under(
-            &whole,
-            &projected,
+        super::member_memberships::append(
+            argument,
             &[terminal_psi::StructuralPathSegment::FixedIndex(
                 u64::try_from(ordinal)
                     .map_err(|_| LoweringError::Unsupported("array ordinal overflow"))?,
             )],
+            parameters.clone(),
+            operations,
             &mut projected_qualifications,
         );
     }

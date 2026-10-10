@@ -93,6 +93,7 @@ impl emission::Emission<'_, '_, '_> {
         let source_count = self.values.len();
         let mut initialized = Vec::new();
         let mut scalar_positions = Vec::new();
+        let mut claims = Vec::new();
         for (ordinal, field) in fields.iter().enumerate() {
             // Common and payload identities live in separate namespaces; the
             // declaring member decides which half of the roster it indexes.
@@ -151,13 +152,23 @@ impl emission::Emission<'_, '_, '_> {
                     prefix.push(terminal_psi::StructuralPathSegment::Field(
                         target.identity.clone(),
                     ));
-                    let argument = self.child_constructor_operand(
+                    let completed = self.child_constructor_operand(
                         child_type,
                         value,
                         field.type_reference,
                         &prefix,
                     )?;
-                    terminal_psi::RecordFieldValue::Structural(argument)
+                    if self.multiplicity == StructuralMultiplicity::Affine {
+                        for claim in completed.claims {
+                            let mut path = prefix.clone();
+                            path.extend(claim.path);
+                            claims.push(terminal_psi::StructuralResultClaimBinding {
+                                claim: claim.claim,
+                                path,
+                            });
+                        }
+                    }
+                    terminal_psi::RecordFieldValue::Structural(completed.argument)
                 }
             };
             initialized.push((
@@ -220,8 +231,17 @@ impl emission::Emission<'_, '_, '_> {
             self.multiplicity,
             shape_case.id,
             initialized.into_iter().map(|(_, field)| field).collect(),
+            &shape_fields,
+            common.len(),
+            self.evaluation
+                .structural_parameters
+                .iter()
+                .map(|(_, parameter)| parameter),
             self.operations,
-        ));
+        )?);
+        claims.sort();
+        self.operations
+            .set_structural_result_claims(place, claims)?;
         Ok(place)
     }
 }
@@ -229,26 +249,61 @@ impl emission::Emission<'_, '_, '_> {
 /// Commit completed, declaration-ordered payload fields under the selected
 /// case tag. Operand evaluation and source custody remain with their shared
 /// scalar/structural semantic owners.
-pub(crate) fn emit_completed(
+pub(crate) fn emit_completed<'parameter>(
     place: PlaceId,
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
     result_case: semantic_vocabulary::StructuralCaseId,
     fields: Vec<terminal_psi::RecordFieldInitializer>,
+    declarations: &[terminal_psi::StructuralFieldDeclaration],
+    common_fields: usize,
+    parameters: impl Iterator<Item = &'parameter terminal_psi::StructuralParameterDeclaration> + Clone,
     operations: &mut OperationBuffer,
-) -> StructuralPlaceDeclaration {
+) -> Result<StructuralPlaceDeclaration, LoweringError> {
+    let mut projected_qualifications = Vec::new();
+    for field in &fields {
+        let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
+            continue;
+        };
+        let position = declarations
+            .iter()
+            .position(|declaration| declaration.id == field.field)
+            .ok_or(LoweringError::Unsupported(
+                "completed case field has no declaration",
+            ))?;
+        let mut prefix = Vec::new();
+        if position >= common_fields {
+            prefix.push(terminal_psi::StructuralPathSegment::Case(result_case));
+        }
+        prefix.push(terminal_psi::StructuralPathSegment::Field(
+            declarations[position].identity.clone(),
+        ));
+        super::member_memberships::append(
+            argument,
+            &prefix,
+            parameters.clone(),
+            operations,
+            &mut projected_qualifications,
+        );
+    }
+    projected_qualifications.sort();
+    projected_qualifications.dedup();
+    let mut result = structural_result_declaration(place, structural_type, multiplicity);
+    if let terminal_psi::OperationResult::Structural(result) = &mut result {
+        result.projected_qualifications = projected_qualifications;
+    }
     let operation = operations.push_leaf(
-        structural_result_declaration(place, structural_type, multiplicity),
+        result,
         OperationKind::EstablishStructuralCase {
             result_case,
             fields,
         },
     );
-    StructuralPlaceDeclaration {
+    Ok(StructuralPlaceDeclaration {
         id: place,
         kind: StructuralPlaceKind::OperationResult {
             producer: operation,
             structural_type,
         },
-    }
+    })
 }

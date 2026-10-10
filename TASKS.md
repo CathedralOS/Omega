@@ -550,7 +550,10 @@ defines the complete product bar.
     and reuse of the transferred original must reject. Preserve
     `pass/ownership/linear_qualified_call_result_claims` at 0 in both engines:
     indirect 40-byte results, nested calls, owned/local reseating and whole
-    post-repair transfer retain current claims and independent detached bytes.
+    post-repair transfer retain current claims and independent detached bytes;
+    record/array/case children, guard arguments and both selected return arms
+    retain exact consuming custody and transported memberships. Qualified
+    unrestricted parameters retain their source memberships through copy arrivals.
     `pass/effects/structural_callback_reach/projected.omg` is only a control.
   - **Saved observations and arithmetic.** Stable unwritten mutable carriers
     contribute saved facts in

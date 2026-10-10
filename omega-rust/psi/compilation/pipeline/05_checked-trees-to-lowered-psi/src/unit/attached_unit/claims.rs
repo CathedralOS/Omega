@@ -108,6 +108,43 @@ pub(super) fn lower_owned_transfer_claims(
     structural_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
+    lower_owned_operand_claims(
+        checked,
+        machine,
+        state,
+        statement_index,
+        expression,
+        Some(evaluation),
+        Some(language_semantics::PermissionEventSource::Statement {
+            statement_index: statement_index as usize,
+        }),
+        bindings,
+        structural_type,
+        structural_types,
+    )
+}
+
+/// Resolve one consumed occurrence, not every move from its source place in
+/// the same statement. A constructor's exact operand can inherit either a
+/// statement consumer or a call consumer; its checked events must name one
+/// unique coordinate. Conditional operands use their selection receipt instead
+/// of importing the unconditional permission stream into an arm.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn lower_owned_operand_claims(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement_index: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+    expected_evaluation: Option<checked_trees::FlowPermissionEvaluation>,
+    expected_source: Option<language_semantics::PermissionEventSource>,
+    bindings: &[(PermissionClaimIdentity, ClaimId)],
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
+    if !expression.is_valid() {
+        return unsupported("owned operand has no exact consuming expression");
+    }
     let statement = usize::try_from(statement_index)
         .map_err(|_| LoweringError::Unsupported("structural return coordinate exceeds usize"))?;
     let place = validation::canonical_place_from_expression_in_state(
@@ -140,22 +177,37 @@ pub(super) fn lower_owned_transfer_claims(
     let (prefix, _) = validation::structural_owned_path(&checked.typed, root_type, &prefix)
         .map_err(LoweringError::Unsupported)?;
     let mut claims = Vec::new();
+    let mut consumer = expected_source;
+    let mut evaluation = expected_evaluation;
     for (_, event) in checked.facts.flow.ownership.permissions.iter() {
         if event.machine_symbol != machine
             || event.state_symbol != state
             || event.root != root
+            || event.expression != expression
             || event.kind != language_semantics::PermissionEventKind::Transfer
             || event.access != language_semantics::PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Linear
             || !event.obligation_live
-            || event.evaluation != evaluation
-            || event.source
-                != (language_semantics::PermissionEventSource::Statement {
-                    statement_index: statement,
-                })
         {
             continue;
         }
+        if event.evaluation == checked_trees::FlowPermissionEvaluation::Unknown
+            || evaluation.is_some_and(|lane| lane != event.evaluation)
+        {
+            return unsupported("owned operand has ambiguous consuming evaluation");
+        }
+        evaluation = Some(event.evaluation);
+        match event.source {
+            language_semantics::PermissionEventSource::Statement { statement_index }
+            | language_semantics::PermissionEventSource::Call {
+                statement_index, ..
+            } if statement_index == statement => {}
+            _ => return unsupported("owned operand transfer has another consumer statement"),
+        }
+        if consumer.is_some_and(|source| source != event.source) {
+            return unsupported("owned operand has multiple consuming coordinates");
+        }
+        consumer = Some(event.source);
         let path = validation::structural_claim_path(
             &checked.typed,
             root_type,
@@ -175,7 +227,93 @@ pub(super) fn lower_owned_transfer_claims(
             path: lower_static_argument_path(relative, structural_type, structural_types)?,
         });
     }
+    if let Some((_, receipt)) = checked
+        .facts
+        .flow
+        .ownership
+        .owned_selection_at(state, statement_index)
+    {
+        let transfers = checked
+            .facts
+            .flow
+            .ownership
+            .selection_transfers
+            .span(receipt.transfers)
+            .ok_or(LoweringError::Unsupported(
+                "owned operand selection transfers are stale",
+            ))?;
+        let mut matching = transfers
+            .iter()
+            .filter(|transfer| transfer.expression == expression);
+        if let Some(transfer) = matching.next() {
+            if matching.next().is_some() || !claims.is_empty() || expected_source.is_some() {
+                return unsupported("owned operand has ambiguous selected custody");
+            }
+            let source = checked
+                .facts
+                .flow
+                .ownership
+                .selection_sources
+                .get(transfer.source);
+            let source_path = validation::structural_owned_path(
+                &checked.typed,
+                root_type,
+                checked
+                    .facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(transfer.path),
+            )
+            .map_err(LoweringError::Unsupported)?
+            .0;
+            if receipt.machine != machine
+                || root != facts::PlaceRoot::Symbol(source.symbol)
+                || prefix != source_path
+            {
+                return unsupported("selected custody names another operand source");
+            }
+            let selected = checked
+                .facts
+                .flow
+                .ownership
+                .selection_transfer_claims
+                .span(transfer.claims)
+                .ok_or(LoweringError::Unsupported(
+                    "owned operand selection claims are stale",
+                ))?;
+            for claim in selected {
+                let path = validation::structural_claim_path(
+                    &checked.typed,
+                    root_type,
+                    checked
+                        .facts
+                        .flow
+                        .ownership
+                        .segments
+                        .span_or_empty(claim.path),
+                )
+                .map_err(LoweringError::Unsupported)?;
+                let relative =
+                    path.strip_prefix(prefix.as_slice())
+                        .ok_or(LoweringError::Unsupported(
+                            "selected claim is outside its operand",
+                        ))?;
+                claims.push(terminal_psi::StructuralResultClaimBinding {
+                    claim: lookup_claim_id(bindings, claim.claim_identity)?,
+                    path: lower_static_argument_path(relative, structural_type, structural_types)?,
+                });
+            }
+        }
+    }
     claims.sort();
+    if claims.iter().enumerate().any(|(index, claim)| {
+        claims[..index]
+            .iter()
+            .any(|prior| prior.claim == claim.claim || prior.path == claim.path)
+    }) {
+        return unsupported("owned operand repeats a claim identity or path");
+    }
     Ok(claims)
 }
 

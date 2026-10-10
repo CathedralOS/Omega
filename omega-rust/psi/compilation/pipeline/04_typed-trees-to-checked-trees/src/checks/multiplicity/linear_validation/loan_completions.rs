@@ -176,6 +176,7 @@ pub(crate) fn restore(
             place.claim_identity = Some(identity);
             place.provenance = Some(provenance);
             events.push(FlowPermissionEventFact {
+                expression: Default::default(),
                 machine_symbol: machine,
                 state_symbol: state,
                 source,

@@ -32,6 +32,7 @@ pub(in crate::checks::multiplicity) fn append_owned_transfer(
             .filter(|place| place.root == root && place.live)
         {
             permissions.push(FlowPermissionEventFact {
+                expression: owner.expression,
                 evaluation,
                 machine_symbol: machine,
                 state_symbol: state,

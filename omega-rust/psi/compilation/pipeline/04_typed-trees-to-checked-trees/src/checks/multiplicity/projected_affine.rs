@@ -93,6 +93,7 @@ pub(super) fn append_transfer(
         return;
     }
     permissions.push(FlowPermissionEventFact {
+        expression: event.expression,
         evaluation: checked_trees::FlowPermissionEvaluation::Statement,
         machine_symbol: machine,
         state_symbol: state,
@@ -286,6 +287,7 @@ pub(super) fn append_replacement(
             .segments
             .insert_many(discarded.segments);
         permissions.push(FlowPermissionEventFact {
+            expression: Default::default(),
             evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             machine_symbol: machine,
             state_symbol: state,
@@ -301,6 +303,7 @@ pub(super) fn append_replacement(
         });
     }
     permissions.push(FlowPermissionEventFact {
+        expression: Default::default(),
         evaluation: checked_trees::FlowPermissionEvaluation::Statement,
         machine_symbol: machine,
         state_symbol: state,

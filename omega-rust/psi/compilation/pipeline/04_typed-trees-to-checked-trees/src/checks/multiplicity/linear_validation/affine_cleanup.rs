@@ -83,6 +83,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
                 continue;
             }
             permission_events.push(FlowPermissionEventFact {
+                expression: Default::default(),
                 evaluation,
                 machine_symbol,
                 state_symbol: state.symbol,

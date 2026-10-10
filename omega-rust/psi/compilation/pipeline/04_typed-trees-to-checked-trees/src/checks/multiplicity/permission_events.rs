@@ -104,6 +104,7 @@ pub(crate) fn prepare_permission_events(
                 .segments
                 .insert_many(place.path.iter().copied());
             permission_events.push(FlowPermissionEventFact {
+                expression: Default::default(),
                 evaluation: checked_trees::FlowPermissionEvaluation::Statement,
                 machine_symbol: state_flow.machine_symbol,
                 state_symbol: state.symbol,

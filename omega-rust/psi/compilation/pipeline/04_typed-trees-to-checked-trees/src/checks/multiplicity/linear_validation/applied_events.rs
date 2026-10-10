@@ -266,6 +266,7 @@ fn append_borrow_permission_event(
         _ => checked_trees::FlowPermissionEvaluation::Statement,
     };
     permission_events.push(FlowPermissionEventFact {
+        expression: Default::default(),
         evaluation,
         machine_symbol,
         state_symbol,

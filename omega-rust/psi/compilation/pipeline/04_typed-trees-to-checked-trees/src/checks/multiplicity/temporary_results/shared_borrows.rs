@@ -56,6 +56,7 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
             });
         }
         permissions.push(FlowPermissionEventFact {
+            expression: Default::default(),
             evaluation, machine_symbol: machine, state_symbol: state, source: owner.consumer,
             kind: PermissionEventKind::Establish,
             multiplicity: Multiplicity::Unrestricted, access: PermissionAccess::Shared,
@@ -66,6 +67,7 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
         });
         for place in places.iter_mut().filter(|place| place.root == root && place.live) {
             permissions.push(FlowPermissionEventFact {
+                expression: Default::default(),
                 evaluation, machine_symbol: machine, state_symbol: state, source: owner.consumer,
                 kind: if place.multiplicity == Multiplicity::Linear { PermissionEventKind::Consume } else { PermissionEventKind::AffineDrop },
                 multiplicity: place.multiplicity, access: PermissionAccess::Owned,

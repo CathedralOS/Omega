@@ -14,11 +14,19 @@ unreachable, not another returning claim source.
 Owned local and mutable-parameter replacements check the detached old code
 after the store, then return the new code and acknowledge its current claim.
 A whole local transfer after repair must not recover the owner's birth claim.
+The repaired owner also becomes a record child, an array element and a case
+payload. Its exact consuming expression carries the current claim into each
+constructor; the original call result's birth claim is not rewritten. Guard
+arguments and both selected return arms use the same owned operand contract.
+Case payload memberships travel under logical Case/Field paths while their
+bytes occupy the selected payload's ordinary physical fields.
 A small register-carried Counter replacement forces its home through the store
 alone, without a preceding field read or extraction.
 Counter borrows distinguish direct construction, omitted-field construction
 through a normalized alias, and a nested qualified child. A local annotation
 cannot substitute for the checked initializer judgment or an established child.
+A qualified unrestricted parameter also becomes a generic record child through
+an ordinary copy arrival; that ingress retains the source's memberships.
 
 The final Slot receives a child with an additional predicate-only membership.
 Repair through the weaker Slot parameter owes its declared Issued membership,

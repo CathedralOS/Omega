@@ -110,6 +110,7 @@ pub(super) fn append(
         source,
     };
     let base = FlowPermissionEventFact {
+        expression: Default::default(),
         evaluation: event.evaluation,
         machine_symbol: machine,
         state_symbol: state,
@@ -125,6 +126,7 @@ pub(super) fn append(
     };
     permissions.push(base.clone());
     permissions.push(FlowPermissionEventFact {
+        expression: event.expression,
         source: permission_source(event.source),
         kind: PermissionEventKind::Transfer,
         segments: event.segments,

@@ -121,7 +121,7 @@ pub(super) fn validate_establish_structural_case(
     let Some(result) = operation.result.structural() else {
         return malformed("structural case establishment has no structural result");
     };
-    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
+    if !result.qualifications.is_empty() {
         return malformed("structural case establishment has an invalid result surface");
     }
     validate_constructor_claims(module, result)?;

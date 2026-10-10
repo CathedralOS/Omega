@@ -131,6 +131,10 @@ pub(crate) struct Construction {
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
     claims: Vec<PreparedClaim>,
+    /// Only direct member homes supplied by the enclosing state. Their actual
+    /// ingress memberships accompany the deferred emission; fresh children
+    /// publish their own result memberships when their schedules complete.
+    source_parameters: Vec<StructuralParameterDeclaration>,
     contents: AggregateContents,
 }
 
@@ -140,6 +144,7 @@ enum AggregateContents {
         kind: AggregateKind,
         fields: Vec<(StructuralFieldId, Field)>,
         declarations: Vec<terminal_psi::StructuralFieldDeclaration>,
+        common_fields: usize,
     },
     Elements(Vec<PlaceId>),
 }
@@ -512,6 +517,7 @@ impl Preparation<'_> {
                     structural_type: declaration.id,
                     multiplicity,
                     claims: claims_below_path(&self.claims, claim_path),
+                    source_parameters: self.member_parameters(completed.iter().copied()),
                     contents: AggregateContents::Elements(completed),
                 },
                 prefix: self.prefix.clone(),
@@ -519,8 +525,9 @@ impl Preparation<'_> {
             return Ok(place);
         }
         let (data_symbol, fields) = match node.kind {
-            checked_trees::record_or_structural_case_pattern!(data_symbol,
-                fields, ..) => (data_symbol, fields),
+            checked_trees::record_or_structural_case_pattern!(data_symbol, fields, ..) => {
+                (data_symbol, fields)
+            }
             _ => return unsupported("structural construction requires aggregate value custody"),
         };
         let owner = self.checked.data_definition_by_symbol(data_symbol).ok_or(
@@ -733,6 +740,12 @@ impl Preparation<'_> {
                 structural_type: declaration.id,
                 multiplicity,
                 claims: claims_below_path(&self.claims, claim_path),
+                source_parameters: self.member_parameters(initialized.iter().filter_map(
+                    |(_, (_, field))| match field {
+                        Field::Structural(place) => Some(*place),
+                        _ => None,
+                    },
+                )),
                 contents: AggregateContents::Fields {
                     kind,
                     fields: initialized.into_iter().map(|(_, field)| field).collect(),
@@ -740,11 +753,33 @@ impl Preparation<'_> {
                         .iter()
                         .map(|(_, field, _)| (*field).clone())
                         .collect(),
+                    common_fields: common.len(),
                 },
             },
             prefix: self.prefix.clone(),
         });
         Ok(place)
+    }
+
+    fn member_parameters(
+        &self,
+        places: impl Iterator<Item = PlaceId>,
+    ) -> Vec<StructuralParameterDeclaration> {
+        places
+            .filter_map(|place| {
+                self.bindings
+                    .structural_parameter_by_place(place)
+                    .or_else(|| {
+                        self.steps.iter().find_map(|step| match step {
+                            Step::Bind { destination, .. } if destination.place == place => {
+                                Some(destination)
+                            }
+                            _ => None,
+                        })
+                    })
+                    .cloned()
+            })
+            .collect()
     }
 
     fn bind_place(
@@ -755,6 +790,19 @@ impl Preparation<'_> {
         multiplicity: StructuralMultiplicity,
     ) -> Result<PlaceId, LoweringError> {
         let place = self.reserved.place(value)?;
+        // An unrestricted copy arrival retains the selected source's evidence;
+        // the new ingress or its eventual containing field grants none.
+        let (qualifications, projected_qualifications) = self
+            .bindings
+            .structural_parameter_by_place(source.place)
+            .map(|parameter| {
+                terminal_psi::StructuralPathQualification::select(
+                    &parameter.qualifications,
+                    &parameter.projected_qualifications,
+                    &source.path,
+                )
+            })
+            .unwrap_or_default();
         self.steps.push(Step::Bind {
             source,
             destination: StructuralParameterDeclaration {
@@ -763,8 +811,8 @@ impl Preparation<'_> {
                 structural_type,
                 multiplicity,
                 access: StructuralAccess::Owned,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
+                qualifications,
+                projected_qualifications,
             },
             prefix: self.prefix.clone(),
         });
@@ -919,12 +967,13 @@ pub(crate) fn emit(
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<(), LoweringError> {
     let claims = emit_establishment_claims(&construction.claims, &mut calls.claims)?;
-    let (kind, selected_fields, declarations) = match &construction.contents {
+    let (kind, selected_fields, declarations, common_fields) = match &construction.contents {
         AggregateContents::Fields {
             kind,
             fields,
             declarations,
-        } => (kind, fields, declarations),
+            common_fields,
+        } => (kind, fields, declarations, *common_fields),
         AggregateContents::Elements(elements) => {
             crate::unit::attached_unit::structural_values::fixed_array::emit_completed(
                 construction.place,
@@ -938,6 +987,7 @@ pub(crate) fn emit(
                         access: StructuralAccess::Owned,
                     })
                     .collect(),
+                construction.source_parameters.iter(),
                 operations,
             )?;
             operations.set_structural_result_claims(construction.place, claims)?;
@@ -1004,6 +1054,7 @@ pub(crate) fn emit(
                 construction.multiplicity,
                 fields,
                 declarations,
+                construction.source_parameters.iter(),
                 operations,
             )?
         }
@@ -1014,8 +1065,11 @@ pub(crate) fn emit(
                 construction.multiplicity,
                 case,
                 fields,
+                declarations,
+                common_fields,
+                construction.source_parameters.iter(),
                 operations,
-            )
+            )?
         }
     };
     operations.set_structural_result_claims(construction.place, claims)?;

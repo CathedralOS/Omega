@@ -1080,7 +1080,7 @@ impl Emission<'_, '_, '_> {
         value: CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
         prefix: &[terminal_psi::StructuralPathSegment],
-    ) -> Result<StructuralArgument, LoweringError> {
+    ) -> Result<super::operand_claims::CompletedOperand, LoweringError> {
         let parent_type = self.structural_type;
         let parent_multiplicity = self.multiplicity;
         let child_claims = self
@@ -1114,7 +1114,9 @@ impl Emission<'_, '_, '_> {
         &mut self,
         value: CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
-    ) -> Result<StructuralArgument, LoweringError> {
+    ) -> Result<super::operand_claims::CompletedOperand, LoweringError> {
+        let first_new_place = *self.next_place;
+        let first_new_operation = self.operations.next_identity;
         let node = self.structural_value_node(value);
         if let CheckedStructuralValueKind::Projection {
             source,
@@ -1127,11 +1129,15 @@ impl Emission<'_, '_, '_> {
             )
         {
             let projected = self.projected_root(source, path, type_identity)?;
-            return Ok(StructuralArgument {
-                place: projected.root,
-                path: projected.lowered_path(self.type_ids, self.structural_types)?,
-                access: StructuralAccess::Owned,
-            });
+            return self.capture_operand(
+                StructuralArgument {
+                    place: projected.root,
+                    path: projected.lowered_path(self.type_ids, self.structural_types)?,
+                    access: StructuralAccess::Owned,
+                },
+                node.expression,
+                first_new_place,
+            );
         }
         // A fresh operand has its own continuation, not the enclosing
         // selection's result/residual slots. Incoming owners remain live
@@ -1144,10 +1150,11 @@ impl Emission<'_, '_, '_> {
             .and_then(|place| {
                 if !self.completion_claims.is_empty()
                     && self.operations.operations.iter().any(|operation| {
-                        operation
-                            .result
-                            .structural()
-                            .is_some_and(|result| result.place == place)
+                        operation.id.get() >= first_new_operation
+                            && operation
+                                .result
+                                .structural()
+                                .is_some_and(|result| result.place == place)
                     })
                 {
                     Self::bind_completion_claims(self.operations, place, &self.completion_claims)?;
@@ -1158,10 +1165,16 @@ impl Emission<'_, '_, '_> {
         self.type_reference = parent_reference;
         self.sources = sources;
         self.owners = owners;
-        result.map(|place| StructuralArgument {
-            place,
-            path: Vec::new(),
-            access: StructuralAccess::Owned,
+        result.and_then(|place| {
+            self.capture_operand(
+                StructuralArgument {
+                    place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+                node.expression,
+                first_new_place,
+            )
         })
     }
 
@@ -1611,25 +1624,16 @@ impl Emission<'_, '_, '_> {
         value: CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
         let node = structural_values(self.checked).nodes.get(value);
-        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
-        let evaluation = self
-            .checked
-            .statement_table
-            .statement_at(authored, self.statement as usize)
-            .and_then(typed_trees::statement::StatementNode::as_transition)
-            .map_or(
-                checked_trees::FlowPermissionEvaluation::Statement,
-                |transition| {
-                    checked_trees::FlowPermissionEvaluation::TransitionTarget(transition.target)
-                },
-            );
-        let source_claims = super::super::claims::lower_owned_transfer_claims(
+        let source_claims = super::super::claims::lower_owned_operand_claims(
             self.checked,
             self.machine,
             self.state,
             self.statement,
             node.expression,
-            evaluation,
+            None,
+            Some(language_semantics::PermissionEventSource::Statement {
+                statement_index: self.statement as usize,
+            }),
             self.calls.claims.bindings(),
             self.structural_type,
             self.structural_types,
@@ -1859,6 +1863,10 @@ impl Emission<'_, '_, '_> {
             self.multiplicity,
             initialized,
             &fields,
+            self.evaluation
+                .structural_parameters
+                .iter()
+                .map(|(_, parameter)| parameter),
             self.operations,
         )?);
         let Some(continuation) = continuation else {

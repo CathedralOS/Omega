@@ -37,6 +37,11 @@ pub struct FlowPermissionEventFact {
     pub state_symbol: SymbolHandle,
     pub source: language_semantics::PermissionEventSource,
     pub evaluation: FlowPermissionEvaluation,
+    /// Exact consuming operand retained by move discovery. Equal source places
+    /// at different occurrences can carry different claims after restoration.
+    /// Zero means this event has no operand (ingress, establishment or disposal),
+    /// never a wildcard for a later consumer.
+    pub expression: typed_trees::expression::ExpressionHandle,
     pub kind: language_semantics::PermissionEventKind,
     pub multiplicity: language_semantics::Multiplicity,
     pub access: language_semantics::PermissionAccess,

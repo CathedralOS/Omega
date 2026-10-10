@@ -155,10 +155,7 @@ impl TerminalExecution<'_> {
         result_case: semantic_vocabulary::StructuralCaseId,
         fields: &[terminal_psi::RecordFieldInitializer],
     ) -> Result<(), TerminalInterpretError> {
-        if self.structural_values.contains_key(&result.place)
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-        {
+        if self.structural_values.contains_key(&result.place) || !result.qualifications.is_empty() {
             return Err(malformed());
         }
         let (common, cases) = match self
@@ -192,7 +189,7 @@ impl TerminalExecution<'_> {
         if roster.len() != fields.len() {
             return Err(malformed());
         }
-        let value = TerminalStructuralValue {
+        let mut value = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
@@ -246,7 +243,7 @@ impl TerminalExecution<'_> {
                     // overlays the sum and therefore omits its Case segment.
                     let mut claim_path = vec![StructuralPathSegment::Case(result_case)];
                     claim_path.extend_from_slice(&member.path);
-                    claim_operands.push((argument, claim_path));
+                    claim_operands.push((argument, claim_path.clone()));
                     let transfers_custody =
                         self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
                     if transfers_custody
@@ -255,17 +252,28 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     let child = ConstructorValue::resolve(self, argument)?;
-                    if !child.qualifications().is_empty()
-                        || declaration.field_type
-                            != StructuralFieldType::Structural(child.structural_type())
+                    if declaration.field_type
+                        != StructuralFieldType::Structural(child.structural_type())
                     {
                         return Err(malformed());
                     }
+                    // Logical membership paths retain the selected Case even
+                    // though its payload bytes overlay the sum's physical root.
+                    child.append_memberships(&claim_path, &mut value.projected_qualifications);
                     storage.stage(self, argument, &child, &member, transfers_custody)?;
                 }
             }
         }
         storage.stage_case(member_root, result.structural_type, result_case);
+        value.projected_qualifications.sort();
+        value.projected_qualifications.dedup();
+        if result
+            .projected_qualifications
+            .iter()
+            .any(|row| !value.projected_qualifications.contains(row))
+        {
+            return Err(malformed());
+        }
         let claims =
             self.stage_constructor_claims(result, &claim_operands, &mut frontier, &|current| {
                 storage.case_at_projection(self, &value, &current.path)

@@ -74,8 +74,7 @@ impl emission::Emission<'_, '_, '_> {
         let source_count = self.values.len();
         let mut initialized = Vec::new();
         let mut scalar_positions = Vec::new();
-        // Members whose type carries linear claims; only they bring custody.
-        let mut claim_bearing_fields = Vec::new();
+        let mut claims = Vec::new();
         for (ordinal, field) in fields.iter().enumerate() {
             let declaration = declarations
                 .iter()
@@ -164,7 +163,7 @@ impl emission::Emission<'_, '_, '_> {
                             &target.field_type,
                             field.type_reference,
                         )?;
-                        let argument = self.child_constructor_operand(
+                        let completed = self.child_constructor_operand(
                             child_type,
                             value,
                             field.type_reference,
@@ -172,15 +171,19 @@ impl emission::Emission<'_, '_, '_> {
                                 target.identity.clone(),
                             )],
                         )?;
-                        if !validation::linear_claim_frontier(
-                            &self.checked.typed,
-                            field.type_reference,
-                        )
-                        .is_empty()
-                        {
-                            claim_bearing_fields.push(target.id);
+                        if self.multiplicity == StructuralMultiplicity::Affine {
+                            for claim in completed.claims {
+                                let mut path = vec![terminal_psi::StructuralPathSegment::Field(
+                                    target.identity.clone(),
+                                )];
+                                path.extend(claim.path);
+                                claims.push(terminal_psi::StructuralResultClaimBinding {
+                                    claim: claim.claim,
+                                    path,
+                                });
+                            }
                         }
-                        terminal_psi::RecordFieldValue::Structural(argument)
+                        terminal_psi::RecordFieldValue::Structural(completed.argument)
                     }
                 }
             };
@@ -197,35 +200,7 @@ impl emission::Emission<'_, '_, '_> {
         // An affine record contributes no claim of its own; each owned member
         // brings the claims it already holds, rebased under its field. A
         // linear record's whole-root claim is minted at its binding instead.
-        let mut claims = Vec::new();
-        if self.multiplicity == StructuralMultiplicity::Affine {
-            for (_, initializer) in &initialized {
-                let terminal_psi::RecordFieldValue::Structural(argument) = &initializer.value
-                else {
-                    continue;
-                };
-                if argument.access != terminal_psi::StructuralAccess::Owned
-                    || !claim_bearing_fields.contains(&initializer.field)
-                {
-                    continue;
-                }
-                let field = shape_fields
-                    .iter()
-                    .find(|field| field.id == initializer.field)
-                    .ok_or(LoweringError::Unsupported("record field identity missing"))?;
-                for claim in self.claims_held_by(argument)? {
-                    let mut path = vec![terminal_psi::StructuralPathSegment::Field(
-                        field.identity.clone(),
-                    )];
-                    path.extend(claim.path);
-                    claims.push(terminal_psi::StructuralResultClaimBinding {
-                        claim: claim.claim,
-                        path,
-                    });
-                }
-            }
-            claims.sort();
-        }
+        claims.sort();
         let place = place_id(allocate_dense(self.next_place)?);
         let declaration = emit_completed(
             place,
@@ -233,6 +208,10 @@ impl emission::Emission<'_, '_, '_> {
             self.multiplicity,
             initialized.into_iter().map(|(_, field)| field).collect(),
             &shape_fields,
+            self.evaluation
+                .structural_parameters
+                .iter()
+                .map(|(_, parameter)| parameter),
             self.operations,
         )?;
         if !claims.is_empty() {
@@ -247,24 +226,18 @@ impl emission::Emission<'_, '_, '_> {
 /// Commit completed, declaration-ordered fields. Both structural statement
 /// evaluation and scalar graphs use this operation; operand evaluation and
 /// source custody remain with their shared scalar/structural semantic owners.
-pub(crate) fn emit_completed(
+pub(crate) fn emit_completed<'parameter>(
     place: PlaceId,
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
     fields: Vec<terminal_psi::RecordFieldInitializer>,
     declarations: &[terminal_psi::StructuralFieldDeclaration],
+    parameters: impl Iterator<Item = &'parameter terminal_psi::StructuralParameterDeclaration> + Clone,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let mut projected_qualifications = Vec::new();
     for field in &fields {
         let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
-            continue;
-        };
-        let Some(source) = operations
-            .iter()
-            .filter_map(|operation| operation.result.structural())
-            .find(|result| result.place == argument.place)
-        else {
             continue;
         };
         let declaration = declarations
@@ -279,15 +252,11 @@ pub(crate) fn emit_completed(
             continue;
         }
         let identity = &declaration.identity;
-        let (whole, projected) = terminal_psi::StructuralPathQualification::select(
-            &source.qualifications,
-            &source.projected_qualifications,
-            &argument.path,
-        );
-        terminal_psi::StructuralPathQualification::append_under(
-            &whole,
-            &projected,
+        super::member_memberships::append(
+            argument,
             &[terminal_psi::StructuralPathSegment::Field(identity.clone())],
+            parameters.clone(),
+            operations,
             &mut projected_qualifications,
         );
     }

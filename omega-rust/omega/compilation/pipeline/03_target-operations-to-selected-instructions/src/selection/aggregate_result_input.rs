@@ -792,12 +792,10 @@ pub(super) fn fields(
         return None;
     };
     // A constructor's claims describe its transferred obligations, not its
-    // storage layout. As for record fields, rejoin each owned operand and the
+    // storage layout. Projected memberships likewise add no bytes. As for
+    // record fields, rejoin each owned operand and the
     // selected payload's declared geometry without granting fresh custody.
-    if row.result.is_some()
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-    {
+    if row.result.is_some() || !result.qualifications.is_empty() {
         return None;
     }
     let signature = source.structural.as_ref()?;
