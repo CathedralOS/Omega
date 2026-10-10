@@ -157,8 +157,20 @@ pub(crate) fn check_law_conformance(
             continue;
         };
         let (Some(law_left), Some(law_right)) = (
-            structural_term(program, binary.left),
-            structural_term(program, binary.right),
+            structural_term(
+            program,
+            None,
+            None,
+            binary.left,
+            None
+        ),
+            structural_term(
+            program,
+            None,
+            None,
+            binary.right,
+            None
+        ),
         ) else {
             continue; // out-of-language law conjunct: nothing to enforce yet
         };
@@ -200,8 +212,20 @@ pub(crate) fn check_law_conformance(
                 return None;
             };
             let (Some(proven_left), Some(proven_right)) = (
-                structural_term(program, proven_binary.left),
-                structural_term(program, proven_binary.right),
+                structural_term(
+            program,
+            None,
+            None,
+            proven_binary.left,
+            None
+        ),
+                structural_term(
+            program,
+            None,
+            None,
+            proven_binary.right,
+            None
+        ),
             ) else {
                 return None;
             };

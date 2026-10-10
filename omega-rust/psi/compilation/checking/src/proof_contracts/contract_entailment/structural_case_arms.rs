@@ -14,7 +14,7 @@ use crate::proof_contracts::contract_entailment::self_induction::intake_availabl
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralJudgment, StructuralTerm,
 };
-use crate::proof_contracts::contract_entailment::structural_terms::structural_term_in_scope;
+use crate::proof_contracts::contract_entailment::structural_terms::structural_term;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -593,11 +593,13 @@ fn recognize_structural_state_leaves_from(
                 ) {
                     return None;
                 }
-                let raw_subject = structural_term_in_scope(
-                    program,
-                    Some((machine, state, Default::default())),
-                    comparison.left,
-                )?;
+                let raw_subject = structural_term(
+            program,
+            Some((machine, state, Default::default())),
+            None,
+            comparison.left,
+            None
+        )?;
                 let subject = judge.callee_term_in_scope(
                     Some((machine, state, Default::default())),
                     comparison.left,

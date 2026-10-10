@@ -69,28 +69,37 @@ impl<'program> SpecificationCaller<'program> {
     ) -> Option<StructuralTerm> {
         match self {
             Self::Machine(machine, Some(state)) => {
-                super::structural_terms::structural_term_in_scope(
-                    program,
-                    Some((machine, state, Default::default())),
-                    expression,
-                )
+                super::structural_terms::structural_term(
+            program,
+            Some((machine, state, Default::default())),
+            None,
+            expression,
+            None
+        )
             }
             Self::Machine(machine, None) => {
-                super::structural_terms::structural_term_for_parameters(
-                    program,
-                    machine.symbol,
-                    program
+                super::structural_terms::structural_term(
+            program,
+            None,
+            Some((machine.symbol,
+                program
                         .machine_states(machine)
                         .first()
                         .map(|entry| program.state_parameters(entry))
-                        .unwrap_or_default(),
-                    expression,
-                )
+                        .unwrap_or_default())),
+            expression,
+            None
+        )
             }
             Self::Declaration(symbol, parameters) => {
-                super::structural_terms::structural_term_for_parameters(
-                    program, symbol, parameters, expression,
-                )
+                super::structural_terms::structural_term(
+            program,
+            None,
+            Some((symbol,
+                parameters)),
+            expression,
+            None
+        )
             }
         }
     }
@@ -470,7 +479,13 @@ fn structurally_substitutable_fact(
     if super::structural_terms::is_case_observation(program, expression) {
         // Classification is not a value operand. Exact selected meaning is
         // checked at intake/judgment in the declaration's own scope.
-        return structural_term(program, binary.left)
+        return structural_term(
+            program,
+            None,
+            None,
+            binary.left,
+            None
+        )
             .is_some_and(|term| term_has_complete_substitution(program, &term));
     }
     if binary.operator == BinaryOperator::And {
@@ -481,7 +496,13 @@ fn structurally_substitutable_fact(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
     ) && [binary.left, binary.right].iter().all(|operand| {
-        structural_term(program, *operand)
+        structural_term(
+            program,
+            None,
+            None,
+            *operand,
+            None
+        )
             .is_some_and(|term| term_has_complete_substitution(program, &term))
     })
 }

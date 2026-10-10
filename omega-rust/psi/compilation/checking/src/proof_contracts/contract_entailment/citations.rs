@@ -17,7 +17,7 @@ use crate::proof_contracts::contract_entailment::structural_judgment::{
     CaseGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm,
 };
 use crate::proof_contracts::contract_entailment::structural_terms::{
-    structural_term_in_scope, structural_term_pair,
+    structural_term, structural_term_pair,
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -102,10 +102,12 @@ fn citation_call_bindings<'program>(
     }
     let mut argument_terms = Vec::with_capacity(argument_handles.len());
     for (position, argument) in argument_handles.iter().enumerate() {
-        let term = structural_term_in_scope(
+        let term = structural_term(
             program,
             Some((machine, state, parameters[position].type_reference)),
+            None,
             *argument,
+            None
         )?;
         argument_terms.push(term);
     }
@@ -249,11 +251,13 @@ pub(crate) fn collect_citation_equations(
                     &environment,
                     0,
                 ),
-                None => structural_term_in_scope(
-                    program,
-                    Some((machine, entry, Default::default())),
-                    *argument,
-                ),
+                None => structural_term(
+            program,
+            Some((machine, entry, Default::default())),
+            None,
+            *argument,
+            None
+        ),
             };
             let Some(term) = term else {
                 arguments_termify = false;

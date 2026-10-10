@@ -425,7 +425,13 @@ pub(super) fn bound_term(
             })
         }
         ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {
-            super::super::structural_terms::structural_term(program, expression)
+            super::super::structural_terms::structural_term(
+            program,
+            None,
+            None,
+            expression,
+            None
+        )
         }
         ExpressionNode::Binary(binary) => {
             if !crate::has_builtin_parameter_bound_expression_meaning(

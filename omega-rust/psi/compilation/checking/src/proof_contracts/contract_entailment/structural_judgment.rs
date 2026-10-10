@@ -315,20 +315,24 @@ impl<'program> StructuralJudge<'program> {
             .iter()
             .find(|definition| definition.symbol == self.machine_symbol)
         {
-            return super::structural_terms::structural_term_for_parameters(
-                self.program,
-                definition.symbol,
-                &crate::mathematical_applications::ordinary_parameters(self.program, definition),
-                expression,
-            );
+            return super::structural_terms::structural_term(
+            self.program,
+            None,
+            Some((definition.symbol,
+                &crate::mathematical_applications::ordinary_parameters(self.program, definition))),
+            expression,
+            None
+        );
         }
         let machine = self.program.machine(self.machine_symbol)?;
         let state = self.program.machine_states(machine).first()?;
-        super::structural_terms::structural_term_for_parameters(
+        super::structural_terms::structural_term(
             self.program,
-            machine.symbol,
-            self.program.state_parameters(state),
+            None,
+            Some((machine.symbol,
+                self.program.state_parameters(state))),
             expression,
+            None
         )
     }
 
@@ -952,11 +956,13 @@ impl<'program> StructuralJudge<'program> {
                     ) {
                         return None;
                     }
-                    let subject = super::structural_terms::structural_term_in_scope(
-                        program,
-                        Some((machine, state, Default::default())),
-                        comparison.left,
-                    )?;
+                    let subject = super::structural_terms::structural_term(
+            program,
+            Some((machine, state, Default::default())),
+            None,
+            comparison.left,
+            None
+        )?;
                     let StructuralTerm::Variable(subject_name) = subject else {
                         return None;
                     };
@@ -1013,7 +1019,7 @@ impl<'program> StructuralJudge<'program> {
     /// result carriers/policies and builtin computation meaning. The final
     /// reference is only a caller's retained landing for anonymous arithmetic;
     /// it does not replace an expression's own selected result type. Abstract
-    /// contract telescopes use `structural_term_for_parameters` instead.
+    /// contract telescopes use `structural_term` instead.
     pub(super) fn callee_term_in_scope(
         &self,
         scope: Option<(&Machine, &typed_trees::state::State, TypeReferenceHandle)>,
@@ -1538,18 +1544,22 @@ impl<'program> StructuralJudge<'program> {
                     .and_then(|state| {
                         let parameters = self.program.state_parameters(state);
                         Some((
-                            super::structural_terms::structural_term_for_parameters(
-                                program,
-                                self.machine_symbol,
-                                parameters,
-                                binary.left,
-                            )?,
-                            super::structural_terms::structural_term_for_parameters(
-                                program,
-                                self.machine_symbol,
-                                parameters,
-                                binary.right,
-                            )?,
+                            super::structural_terms::structural_term(
+            program,
+            None,
+            Some((self.machine_symbol,
+                parameters)),
+            binary.left,
+            None
+        )?,
+                            super::structural_terms::structural_term(
+            program,
+            None,
+            Some((self.machine_symbol,
+                parameters)),
+            binary.right,
+            None
+        )?,
                         ))
                     });
                 let Some((left, right)) = pair else {
@@ -1621,11 +1631,13 @@ impl<'program> StructuralJudge<'program> {
         else {
             return StructuralJudgment::Unknown;
         };
-        let Some(subject) = super::structural_terms::structural_term_for_parameters(
+        let Some(subject) = super::structural_terms::structural_term(
             self.program,
-            scope,
-            parameters,
+            None,
+            Some((scope,
+                parameters)),
             binary.left,
+            None
         ) else {
             return StructuralJudgment::Unknown;
         };
@@ -1676,11 +1688,13 @@ impl<'program> StructuralJudge<'program> {
         let Some(entry) = self.program.machine_states(callee).first() else {
             return;
         };
-        let Some(subject) = super::structural_terms::structural_term_for_parameters(
+        let Some(subject) = super::structural_terms::structural_term(
             self.program,
-            callee.symbol,
-            self.program.state_parameters(entry),
+            None,
+            Some((callee.symbol,
+                self.program.state_parameters(entry))),
             binary.left,
+            None
         ) else {
             return;
         };

@@ -143,7 +143,13 @@ fn constant_machine_constructor(
     else {
         return None;
     };
-    let term = structural_term(program, *value)?;
+    let term = structural_term(
+            program,
+            None,
+            None,
+            *value,
+            None
+        )?;
 
     fn is_closed(term: &StructuralTerm) -> bool {
         match term {
@@ -206,12 +212,6 @@ pub(super) fn structural_call_target(
 /// Without a declaring frame, selected applications retain absent result-type
 /// authority. This route serves closed literals and structural shape matching;
 /// semantic premises/goals must use the state or parameter-frame entry point.
-pub(super) fn structural_term(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<StructuralTerm> {
-    structural_term_in_scope(program, None, expression)
-}
 
 /// Both operands of `binary` read as structural terms, or `None` when
 /// either stays opaque — the pair every equality/ordering consumer opens.
@@ -220,8 +220,20 @@ pub(super) fn structural_term_pair(
     binary: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(StructuralTerm, StructuralTerm)> {
     Some((
-        structural_term(program, binary.left)?,
-        structural_term(program, binary.right)?,
+        structural_term(
+            program,
+            None,
+            None,
+            binary.left,
+            None
+        )?,
+        structural_term(
+            program,
+            None,
+            None,
+            binary.right,
+            None
+        )?,
     ))
 }
 
@@ -234,8 +246,20 @@ pub(super) fn structural_term_pair_for_parameters(
     binary: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(StructuralTerm, StructuralTerm)> {
     Some((
-        structural_term_for_parameters(program, owner, parameters, binary.left)?,
-        structural_term_for_parameters(program, owner, parameters, binary.right)?,
+        structural_term(
+            program,
+            None,
+            Some((owner, parameters)),
+            binary.left,
+            None
+        )?,
+        structural_term(
+            program,
+            None,
+            Some((owner, parameters)),
+            binary.right,
+            None
+        )?,
     ))
 }
 
@@ -243,26 +267,7 @@ pub(super) fn structural_term_pair_for_parameters(
 /// name-free binary operands and selected application result references. The
 /// runtime state binds actual source storage; abstract declaration telescopes
 /// use `structural_term_for_parameters` and never borrow a caller's state.
-pub(super) fn structural_term_in_scope(
-    program: &dyn crate::CheckingInput,
-    scope: Option<(
-        &typed_trees::machine::Machine,
-        &typed_trees::state::State,
-        typed_trees::types::TypeReferenceHandle,
-    )>,
-    expression: ExpressionHandle,
-) -> Option<StructuralTerm> {
-    structural_term_with_frame(program, scope, None, expression)
-}
 
-pub(super) fn structural_term_for_parameters(
-    program: &dyn crate::CheckingInput,
-    owner: symbols::SymbolHandle,
-    parameters: &[typed_trees::signature::StateParameter],
-    expression: ExpressionHandle,
-) -> Option<StructuralTerm> {
-    structural_term_with_frame(program, None, Some((owner, parameters)), expression)
-}
 
 /// Compare selected scalar value operations in one exact declaration scope.
 /// Symbol leaves stay exact even though the specification equation vocabulary
@@ -304,7 +309,7 @@ pub(crate) fn source_operations_have_same_meaning(
         }
     }
     let form = |expression| {
-        structural_term_with_bindings(
+        structural_term(
             program,
             None,
             Some((owner, parameters)),
@@ -318,23 +323,8 @@ pub(crate) fn source_operations_have_same_meaning(
     }
 }
 
-fn structural_term_with_frame(
-    program: &dyn crate::CheckingInput,
-    scope: Option<(
-        &typed_trees::machine::Machine,
-        &typed_trees::state::State,
-        typed_trees::types::TypeReferenceHandle,
-    )>,
-    frame: Option<(
-        symbols::SymbolHandle,
-        &[typed_trees::signature::StateParameter],
-    )>,
-    expression: ExpressionHandle,
-) -> Option<StructuralTerm> {
-    structural_term_with_bindings(program, scope, frame, expression, None)
-}
 
-fn structural_term_with_bindings(
+pub(super) fn structural_term(
     program: &dyn crate::CheckingInput,
     scope: Option<(
         &typed_trees::machine::Machine,
@@ -377,7 +367,7 @@ fn structural_term_with_bindings(
         }
         ExpressionNode::StructLiteral(literal) => {
             constructor_literal_term(program, literal, |field| {
-                structural_term_with_bindings(program, scope, frame, field.value, bindings)
+                structural_term(program, scope, frame, field.value, bindings)
             })
         }
         ExpressionNode::Binary(binary) => binary_term_in_scope(
@@ -385,8 +375,8 @@ fn structural_term_with_bindings(
             scope,
             frame,
             expression,
-            structural_term_with_bindings(program, scope, frame, binary.left, bindings)?,
-            structural_term_with_bindings(program, scope, frame, binary.right, bindings)?,
+            structural_term(program, scope, frame, binary.left, bindings)?,
+            structural_term(program, scope, frame, binary.right, bindings)?,
         ),
         ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
         // A determinate float literal carries its exact decimal spelling; the
@@ -403,7 +393,7 @@ fn structural_term_with_bindings(
                 let arguments: Vec<StructuralTerm> = handles
                     .iter()
                     .filter_map(|argument| {
-                        structural_term_with_bindings(program, scope, frame, *argument, bindings)
+                        structural_term(program, scope, frame, *argument, bindings)
                     })
                     .collect();
                 if arguments.len() == handles.len() {
@@ -458,7 +448,7 @@ fn structural_term_with_bindings(
                 let arguments = handles
                     .iter()
                     .filter_map(|argument| {
-                        structural_term_with_bindings(program, scope, frame, *argument, bindings)
+                        structural_term(program, scope, frame, *argument, bindings)
                     })
                     .collect::<Vec<_>>();
                 if arguments.len() == handles.len() {
@@ -519,7 +509,7 @@ fn structural_term_with_bindings(
             // a substitutable projection so call instantiation can recover
             // the actual extent. Ordinary symbolic fields retain the same
             // vocabulary as callee_term_with_machines and citation intake.
-            match structural_term_with_bindings(program, scope, frame, member.receiver, bindings) {
+            match structural_term(program, scope, frame, member.receiver, bindings) {
                 Some(StructuralTerm::Constructor { fields, .. }) => fields
                     .into_iter()
                     .find(|(name, _)| name == member.member.as_str())
@@ -549,7 +539,7 @@ fn structural_term_with_bindings(
         // referent's storage and a `.len` over it folds to the declared
         // extent.
         ExpressionNode::Borrow(borrow) => {
-            structural_term_with_bindings(program, scope, frame, borrow.target, bindings)
+            structural_term(program, scope, frame, borrow.target, bindings)
         }
         _ => None,
     }
