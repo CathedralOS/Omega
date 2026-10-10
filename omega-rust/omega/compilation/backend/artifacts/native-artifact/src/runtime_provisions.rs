@@ -113,7 +113,7 @@ impl TerminalRuntimeProvisions {
                 if plan.schema.methods.iter().any(|method| {
                     selected.selected_row_matches_requirement(
                         identities.text(boundary.identity).unwrap_or_default(),
-                        &method.requirement_identity,
+                        plan.schema.identity_text(method.requirement_identity),
                         plan.report_fingerprint(),
                     )
                 }) {

@@ -147,7 +147,7 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
         many => {
             return Err(Diagnostic::error(format!(
                 "selected checked-adapter selected schema `{}` resolves to {} exact top-level boundary requirements",
-                plan.schema.trait_name,
+                plan.schema.identity_text(plan.schema.trait_name),
                 many.len(),
             )));
         }
@@ -155,7 +155,7 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
 
     let receiver_trait = exact_boundary_trait(
         typed,
-        &plan.schema.trait_name,
+        plan.schema.identity_text(plan.schema.trait_name),
         plan.schema.trait_package_identity,
         "selected schema",
     )?;
@@ -171,20 +171,20 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
         .filter(|signature| {
             signature.name.as_str() == method.name
                 && typed.trait_requirement_callable_identity_text(requirement_owner, signature)
-                    == method.requirement_identity
+                    == plan.schema.identity_text(method.requirement_identity)
         })
         .collect::<Vec<_>>();
     let [signature] = signatures.as_slice() else {
         return Err(Diagnostic::error(format!(
             "selected checked-adapter requirement `{}` resolves to {} exact typed signatures",
-            method.requirement_identity,
+            plan.schema.identity_text(method.requirement_identity),
             signatures.len(),
         )));
     };
     if !signature.symbol.is_valid() {
         return Err(Diagnostic::error(format!(
             "selected checked-adapter requirement `{}` has no exact typed symbol",
-            method.requirement_identity,
+            plan.schema.identity_text(method.requirement_identity),
         )));
     }
     Ok(Some(SelectedAdapterTarget::TraitRequirement {
@@ -210,6 +210,7 @@ pub(crate) fn resolve_selected_adapter_row(
     else {
         return Ok(Vec::new());
     };
+    let machine_identity = plan.identity_text(*machine_identity);
     let (method, receiver_trait, requirement_owner, signature) =
         match resolve_selected_adapter_target(typed, plan, row)? {
             Some(SelectedAdapterTarget::TopLevelRequirement {
@@ -265,19 +266,22 @@ pub(crate) fn resolve_selected_adapter_row(
     ) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` has no exact selected provider association for overload `{}`",
-            method.requirement_identity,
+            plan.schema.identity_text(method.requirement_identity),
         )));
     }
 
     let actual_parameters = typed.state_parameters(entry);
-    require_parameter_count(method, actual_parameters.len())?;
+    require_parameter_count(plan, method, actual_parameters.len())?;
 
     Ok(vec![ResolvedAdapterRow::Adapter(AdapterRow {
         receiver_trait: receiver_trait.symbol,
         provider_plan_digest: *plan.identity_digest().as_bytes(),
         receiver_trait_name: receiver_trait.name.as_str().to_owned(),
         requirement: method.name.clone(),
-        requirement_identity: method.requirement_identity.clone(),
+        requirement_identity: plan
+            .schema
+            .identity_text(method.requirement_identity)
+            .to_owned(),
         requirement_symbol: signature.symbol,
         adapter_target: adapter.name.as_str().to_owned(),
         symbol: entry.symbol,
@@ -321,13 +325,14 @@ pub(crate) fn resolve_selected_adapter_row(
 /// Execution consumes the association while Terminal retains the
 /// requirement.
 fn require_parameter_count(
+    plan: &effects::provider_plan::ProviderPlan,
     method: &effects::provider_plan::ServiceMethod,
     actual: usize,
 ) -> Result<(), Diagnostic> {
     if actual != method.parameter_count {
         return Err(Diagnostic::error(format!(
             "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
-            method.requirement_identity, actual, method.parameter_count,
+            plan.schema.identity_text(method.requirement_identity), actual, method.parameter_count,
         )));
     }
     Ok(())
@@ -379,11 +384,12 @@ fn resolve_top_level_requirement_adapter_row(
         adapter,
         requirement,
         machine_identity,
+        plan,
         method,
         "requirement",
     )?;
     let actual_parameters = typed.state_parameters(adapter_entry);
-    require_parameter_count(method, actual_parameters.len())?;
+    require_parameter_count(plan, method, actual_parameters.len())?;
     // A direct machine call targets the requirement's entry state, exactly
     // as the realization is keyed by its own entry state.
     Ok(vec![ResolvedAdapterRow::Adapter(AdapterRow {
@@ -391,7 +397,10 @@ fn resolve_top_level_requirement_adapter_row(
         provider_plan_digest: *plan.identity_digest().as_bytes(),
         receiver_trait_name: requirement_name.to_owned(),
         requirement: method.name.clone(),
-        requirement_identity: method.requirement_identity.clone(),
+        requirement_identity: plan
+            .schema
+            .identity_text(method.requirement_identity)
+            .to_owned(),
         requirement_symbol: entry.symbol,
         adapter_target: adapter.name.as_str().to_owned(),
         symbol: adapter_entry.symbol,
@@ -435,6 +444,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
         adapter,
         requirement,
         machine_identity,
+        plan,
         method,
         "requirement template",
     )?;
@@ -537,7 +547,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             )));
         }
         let actual_parameters = typed.state_parameters(instance_entry);
-        require_parameter_count(method, actual_parameters.len())?;
+        require_parameter_count(plan, method, actual_parameters.len())?;
         resolved.push(ResolvedAdapterRow::Adapter(AdapterRow {
             receiver_trait: closed.symbol,
             provider_plan_digest: *plan.identity_digest().as_bytes(),
@@ -570,7 +580,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             "selected provider plan `{}` settles {} specialization rows for requirement template `{}` but checking retained {retained} closed requirement instances",
             plan.name,
             resolved.len(),
-            method.requirement_identity,
+            plan.schema.identity_text(method.requirement_identity),
         )));
     }
     Ok(resolved)
@@ -599,7 +609,10 @@ fn resolve_family_adapter_row(
                 receiver_trait: receiver_trait.symbol,
                 provider_plan_digest: *plan.identity_digest().as_bytes(),
                 requirement_symbol: signature.symbol,
-                requirement_identity: method.requirement_identity.clone(),
+                requirement_identity: plan
+            .schema
+            .identity_text(method.requirement_identity)
+            .to_owned(),
                 reason,
             },
         )]
@@ -609,7 +622,7 @@ fn resolve_family_adapter_row(
         FamilyProbe::NotFinite(reason) => {
             return Ok(ineligible(format!(
                 "finite generic requirement `{}` is ineligible: {reason}",
-                method.requirement_identity,
+                plan.schema.identity_text(method.requirement_identity),
             )));
         }
     };
@@ -632,7 +645,7 @@ fn resolve_family_adapter_row(
     if provider_value_parameters != arity {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` takes {provider_value_parameters} value binders but requirement `{}` declares a family of arity {arity}",
-            method.requirement_identity,
+            plan.schema.identity_text(method.requirement_identity),
         )));
     }
     let Some(template_entry) = typed.machine_states(adapter).first() else {
@@ -651,14 +664,14 @@ fn resolve_family_adapter_row(
     ) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` has no exact selected provider association for overload `{}`",
-            method.requirement_identity,
+            plan.schema.identity_text(method.requirement_identity),
         )));
     }
 
     // The template entry's parameter shape is invariant under const
     // specialization, so the arity check is computed once on the template.
     let actual_parameters = typed.state_parameters(template_entry);
-    require_parameter_count(method, actual_parameters.len())?;
+    require_parameter_count(plan, method, actual_parameters.len())?;
 
     let mut rows = Vec::new();
     let mut missing = Vec::new();
@@ -688,7 +701,7 @@ fn resolve_family_adapter_row(
             return Err(Diagnostic::error(format!(
                 "finite family tuple `({})` of requirement `{}` resolves to multiple retained specializations of `{machine_identity}`",
                 tuple.display.join(", "),
-                method.requirement_identity,
+                plan.schema.identity_text(method.requirement_identity),
             )));
         }
         let Some(instance) = typed.machine(specialization.instance) else {
@@ -714,7 +727,10 @@ fn resolve_family_adapter_row(
             provider_plan_digest: *plan.identity_digest().as_bytes(),
             receiver_trait_name: receiver_trait.name.as_str().to_owned(),
             requirement: method.name.clone(),
-            requirement_identity: method.requirement_identity.clone(),
+            requirement_identity: plan
+            .schema
+            .identity_text(method.requirement_identity)
+            .to_owned(),
             requirement_symbol: signature.symbol,
             adapter_target: instance.name.as_str().to_owned(),
             symbol: entry.symbol,
@@ -734,7 +750,7 @@ fn resolve_family_adapter_row(
         };
         return Ok(ineligible(format!(
             "finite generic requirement `{}` declares {} tuples but {coverage}; partial provider coverage cannot supply the dynamic family (missing: {})",
-            method.requirement_identity,
+            plan.schema.identity_text(method.requirement_identity),
             tuples.len(),
             missing.join(", "),
         )));
@@ -816,6 +832,7 @@ fn sole_boundary_conformance(
     adapter: &typed_trees::machine::Machine,
     requirement: &typed_trees::machine::Machine,
     machine_identity: &str,
+    plan: &effects::provider_plan::ProviderPlan,
     method: &effects::provider_plan::ServiceMethod,
     spelled: &str,
 ) -> Result<(), Diagnostic> {
@@ -831,7 +848,7 @@ fn sole_boundary_conformance(
     if conformances != 1 {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` binds top-level boundary {spelled} `{}` through {conformances} checked conformances",
-            method.requirement_identity,
+            plan.schema.identity_text(method.requirement_identity),
         )));
     }
     Ok(())

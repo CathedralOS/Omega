@@ -374,7 +374,10 @@ fn validate_terminal_authority_permissions(
         let matches = schema
             .methods
             .iter()
-            .filter(|method| method.requirement_identity == permission.requirement_identity())
+            .filter(|method| {
+                schema.identity_text(method.requirement_identity)
+                    == permission.requirement_identity()
+            })
             .count();
         if matches != 1 {
             return Err(Diagnostic::error(format!(

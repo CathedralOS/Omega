@@ -550,7 +550,7 @@ fn boundary_row_shape(
         definition,
     ) || method.name != requirement_name
         || method.requirement_owner != typed.trait_declaration_path(definition)
-        || method.requirement_identity != requirement_identity
+        || plan.schema.identity_text(method.requirement_identity) != requirement_identity
         || row.requirement_identity != requirement_identity
         || !exact_console_signature(typed, requirement, requirement_name, trait_symbol, shape)
     {
