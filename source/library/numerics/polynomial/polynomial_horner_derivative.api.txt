@@ -1,0 +1,52 @@
+NF17 interface checkpoint (candidate; NF01/NF02 integration pending)
+
+Coefficient order: ascending; coefficients[k] multiplies query^k.
+Empty coefficient input is invalid; one coefficient is degree zero.
+Stored degree is coefficient_count - 1; trailing zero coefficients are retained.
+Scalar format is the explicit Value type and named Operations implementation.
+Arithmetic uses separate multiply and add, never an implicit fused operation.
+No allocation or format conversion. Value must be copyable; scalar reads copy.
+
+PolynomialScalar<Value [copy]>:
+  zero() -> Value (additive identity)
+  add(left: Value, right: Value) -> Value
+  multiply(left: Value, right: Value) -> Value
+PolynomialValue<Value [copy]> [copy]: { value: Value; derivative: Value }
+PolynomialStatus: Ready | EmptyCoefficients | OutputLengthMismatch
+
+polynomial_horner_derivative<Value, Operations satisfies PolynomialScalar<Value>>
+  (coefficients: &[Value], query: Value) -> PolynomialValue<Value>
+  requires coefficients.len > 0
+try_polynomial_horner_derivative<Value, Operations>
+  (coefficients: &[Value], query: Value, output: &mut PolynomialValue<Value>)
+  -> PolynomialStatus; error leaves output untouched
+polynomial_horner_derivative_batch<Value, Operations>
+  (coefficients: &[Value], queries: &[Value], values: &mut [Value], derivatives: &mut [Value])
+  requires nonempty coefficients and queries.len == values.len == derivatives.len
+try_polynomial_horner_derivative_batch<Value, Operations>
+  (same explicit slices) -> PolynomialStatus
+  empty coefficients take precedence; validation completes before output mutation
+  empty query batches with nonempty coefficients and empty outputs are valid
+
+NF01 required signatures (semantic signature requests, no competing definitions):
+  canonical numerics package/import name
+  rank-two column-major descriptor type and its row/column accessors
+  validate_backing(descriptor: &Descriptor, backing_length: u64) -> checked/try status
+  checked_linear_index(descriptor: &Descriptor, row: u64, column: u64) -> u64
+    with bounds and backing-length guarantees
+  coefficient vector convention (n x 1 or 1 x n); query/result batch layout
+These kernels intentionally operate on explicit backing slices; descriptor
+adapters await NF01 and will not define another descriptor.
+
+NF02 required signatures (semantic requests, no competing policy):
+  scalar-format-specific finite validation: try_validate_f32/f64(value) -> status
+  configured tolerance acceptance: within_tolerance_f32/f64(actual, expected, policy) -> bool
+  numeric error status mapping for non-finite inputs and intermediate overflow
+Qualification frontier on current main:
+  generic PolynomialValue<Value> return has incomplete structural lifetime frontier
+  checked nonempty slice length facts do not discharge predecessor/index/subslice bounds
+  batch slice equality and rank-decrease obligations remain rejected
+Full source and exact diagnostics are in the samples verification directory.
+
+No finite/overflow policy is promised by the generic scalar trait: named
+operations define arithmetic. Fixture tolerance is independently frozen at zero.
