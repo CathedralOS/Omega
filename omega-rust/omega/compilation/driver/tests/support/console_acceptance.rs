@@ -17,7 +17,7 @@ pub fn candidate_console_exit_binding(
         .iter()
         .zip(checked.execution().selected_provider_provenance.as_slice())
         .filter(|(plan, provenance)| {
-            plan.schema.trait_name == "Console"
+            plan.schema.identity_text(plan.schema.trait_name) == "Console"
                 && plan.rows.iter().any(|row| row.method == "exit_process")
                 && checked
                     .typed
@@ -62,7 +62,7 @@ pub fn candidate_console_exit_binding(
         .map(|method| {
             effects::ServiceTerminalAuthorityPermission::new(
                 plan.schema.identity_digest(),
-                method.requirement_identity.clone(),
+                plan.schema.identity_text(method.requirement_identity).to_owned(),
                 effects::TerminalAuthorityDisposition::from_classes(match method.name.as_str() {
                     "exit_process" => {
                         vec![effects::TerminalAuthorityClass::ProcessTermination]

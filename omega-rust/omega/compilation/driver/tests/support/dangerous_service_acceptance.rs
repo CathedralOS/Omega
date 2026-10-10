@@ -103,7 +103,7 @@ pub fn required_dangerous_services(
         // a package-authored body exercises no host authority, so the program
         // needs no acceptance for it.
         let host_exit = host_realized_methods(plan).contains(&"exit_process");
-        match plan.schema.trait_name.as_str() {
+        match plan.schema.identity_text(plan.schema.trait_name) {
             "Console" if owned_by_package(schema) && host_exit => {
                 for method in resolved_boundary_call_names(checked, schema) {
                     match method {

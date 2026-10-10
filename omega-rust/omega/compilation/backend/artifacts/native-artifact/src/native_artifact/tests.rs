@@ -8,7 +8,8 @@ use super::{
     derive_native_artifact_identity,
 };
 use effects::provider_plan::{
-    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+    ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow, ServiceMethod,
+    ServiceSchema,
 };
 use effects::{SelectedProviderPlanFacts, SelectedRequirementSpecialization};
 
@@ -147,31 +148,40 @@ fn kernel_custody_identity_binds_target_number_requirement_and_provider() {
 
 #[test]
 fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
-    let plans = ["Generic", "Ordinary"].map(|name| ProviderPlan {
-        name: name.into(),
-        provider_type: format!("{name}Provider"),
-        target: "macos_arm64".into(),
-        schema: ServiceSchema {
-            trait_name: name.into(),
-            methods: vec![ServiceMethod {
-                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-                name: "read".into(),
-                requirement_owner: name.into(),
-                requirement_identity: format!("{name}::read"),
-                ..ServiceMethod::default()
-            }],
-            ..ServiceSchema::default()
-        },
-        rows: vec![ProviderPlanRow {
-            method: "read".into(),
-            requirement_identity: format!("{name}::read"),
-            requirement_lifetime_partition: Vec::new(),
-            binding: ProviderBinding::CheckedAdapter {
-                machine_identity: format!("{name}Provider::read"),
-                machine_package_identity: None,
+    let plans = ["Generic", "Ordinary"].map(|name| {
+        let mut schema_identities = ProviderIdentityTable::default();
+        let trait_name = schema_identities.intern(name);
+        let requirement_identity = schema_identities.intern(&format!("{name}::read"));
+        let mut identities = ProviderIdentityTable::default();
+        let machine_identity = identities.intern(&format!("{name}Provider::read"));
+        ProviderPlan {
+            name: name.into(),
+            provider_type: format!("{name}Provider"),
+            target: "macos_arm64".into(),
+            schema: ServiceSchema {
+                trait_name,
+                identities: schema_identities,
+                methods: vec![ServiceMethod {
+                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                    name: "read".into(),
+                    requirement_owner: name.into(),
+                    requirement_identity,
+                    ..ServiceMethod::default()
+                }],
+                ..ServiceSchema::default()
             },
-        }],
-        ..ProviderPlan::default()
+            identities,
+            rows: vec![ProviderPlanRow {
+                method: "read".into(),
+                requirement_identity: format!("{name}::read"),
+                requirement_lifetime_partition: Vec::new(),
+                binding: ProviderBinding::CheckedAdapter {
+                    machine_identity,
+                    machine_package_identity: None,
+                },
+            }],
+            ..ProviderPlan::default()
+        }
     });
     let generic_report_identity = plans[0].report_fingerprint();
     let selection = SelectedProviderPlanFacts::from_selected_plans(plans.into())
