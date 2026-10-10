@@ -84,20 +84,23 @@ pub(in crate::legalization) fn extent(
             parameter.structural_type
         }
         abstract_operations::StructuralWindowRoot::Parameter(root) => {
-            if root.access != StructuralAccess::MutableBorrow
-                || !(function.structural_parameters.contains(root)
-                    || (function
-                        .blocks
-                        .iter()
-                        .any(|block| block.structural_parameters.contains(root))
-                        && abstract_operations::control_flow::address_joins::is_address_join_in(
-                            root,
-                            &plan.structural_types,
-                        )))
-                || function
-                    .entry_claim_declarations
+            if !matches!(
+                root.access,
+                StructuralAccess::Owned | StructuralAccess::MutableBorrow
+            ) || !(function.structural_parameters.contains(root)
+                || (function
+                    .blocks
                     .iter()
-                    .any(|claim| claim.input == root.place)
+                    .any(|block| block.structural_parameters.contains(root))
+                    && abstract_operations::control_flow::address_joins::is_address_join_in(
+                        root,
+                        &plan.structural_types,
+                    )))
+                || (root.access == StructuralAccess::MutableBorrow
+                    && function
+                        .entry_claim_declarations
+                        .iter()
+                        .any(|claim| claim.input == root.place))
             {
                 return Err(LegalizationError::custody());
             }

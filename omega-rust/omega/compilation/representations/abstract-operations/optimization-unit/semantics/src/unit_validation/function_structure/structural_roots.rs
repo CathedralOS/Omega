@@ -1173,11 +1173,7 @@ fn root_window_loan(
         // current_ownership::references::check_window_access.
         || (path.first() == Some(&terminal_psi::StructuralPathSegment::Referent)
             && root.parameter().is_none())
-        || (path.is_empty()
-            && matches!(
-                root,
-                abstract_operations::StructuralWindowRoot::Parameter(_)
-            ))
+        || (path.is_empty() && root.parameter().is_some())
 }
 
 /// The declared `Structural` type of the field a window operation names,

@@ -7,6 +7,33 @@ use super::{
 };
 
 impl Emission<'_, '_, '_> {
+    /// A private whole-value edge changes storage identity, not membership.
+    /// Carry the actual source declaration into its new parameter instead of
+    /// erasing predicates or treating a receiver annotation as evidence.
+    pub(super) fn transported_parameter(
+        &self,
+        source: PlaceId,
+        place: PlaceId,
+        position: u32,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        multiplicity: StructuralMultiplicity,
+    ) -> Result<StructuralParameterDeclaration, LoweringError> {
+        let (qualifications, projected_qualifications) =
+            self.completed_memberships(source)
+                .ok_or(LoweringError::Unsupported(
+                    "owned transport has no source membership declaration",
+                ))?;
+        Ok(StructuralParameterDeclaration {
+            place,
+            position,
+            structural_type,
+            multiplicity,
+            access: StructuralAccess::Owned,
+            qualifications: qualifications.to_vec(),
+            projected_qualifications: projected_qualifications.to_vec(),
+        })
+    }
+
     /// Producer and ingress homes retain their actual occurrence-relative
     /// memberships. A receiving annotation is never a source contract.
     pub(super) fn completed_memberships(

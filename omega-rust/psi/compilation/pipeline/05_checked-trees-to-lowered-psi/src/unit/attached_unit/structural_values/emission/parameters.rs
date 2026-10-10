@@ -92,8 +92,8 @@ impl Emission<'_, '_, '_> {
             }
             _ => return Ok(None),
         };
-        if parameter.is_const || parameter.is_mutable {
-            return unsupported("owned selection parameter is not immutable owned ingress");
+        if parameter.is_const {
+            return unsupported("owned selection parameter is not runtime ingress");
         }
         let declaration = self
             .evaluation
@@ -104,6 +104,13 @@ impl Emission<'_, '_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "owned selection parameter has no signature place",
             ))?;
+        // Mutability permits later writes; it does not turn an owned formal
+        // into a loan. Source checking selected this occurrence's move, and
+        // the emitter preserves its current custody rather than requiring the
+        // binding to have been immutable since invocation.
+        if declaration.access != StructuralAccess::Owned {
+            return unsupported("owned selection parameter lacks owned ingress");
+        }
         Ok(Some(declaration))
     }
 

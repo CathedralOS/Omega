@@ -189,7 +189,9 @@ pub(super) fn checked_terminator(
 ) -> Option<CheckedScalarStateTerminator> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let terminator_ordinal = u32::try_from(binding_count).ok()?;
-    Some(match &statements[binding_count..] {
+    let reachable =
+        typed_trees::statement::reachable_transition_prefix(&statements[binding_count..]);
+    Some(match reachable {
         [StatementNode::Expression(_)] => CheckedScalarStateTerminator::Return {
             statement_ordinal: terminator_ordinal,
         },

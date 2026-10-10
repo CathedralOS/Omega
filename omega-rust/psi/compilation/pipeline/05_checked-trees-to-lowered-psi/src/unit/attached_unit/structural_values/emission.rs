@@ -442,7 +442,7 @@ pub(crate) fn emit(
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
             )
         {
-            emission.materialize_place(place, &result_claims)?
+            emission.materialize_place(place, *value)?
         } else {
             place
         }
@@ -551,6 +551,11 @@ fn prepare_owners(
                 return Ok(false);
             }
         }
+        // A historical extraction is not a permanent hole. Fold the checked
+        // storage events in evaluation order: establishment or exclusive-call
+        // restoration reseats its subtree, while transfer/disposal removes it.
+        // Claim identities are resolved separately at the consuming operand.
+        let mut vacancies = Vec::new();
         for (_, event) in checked.facts.flow.ownership.permissions.iter() {
             if event.machine_symbol != machine
                 || event.state_symbol != state
@@ -566,23 +571,63 @@ fn prepare_owners(
                 } => statement_index,
                 _ => continue,
             };
-            if (!entry && ordinal <= formation as usize)
-                || ordinal >= statement as usize
-                || event.kind == language_semantics::PermissionEventKind::Establish
-            {
+            if (!entry && ordinal <= formation as usize) || ordinal >= statement as usize {
                 continue;
             }
-            if !event.segments.is_empty() {
-                return unsupported(
-                    "selection pass-through of partially moved roots requires retained residual frontier correspondence",
-                );
+            let path = checked
+                .facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(event.segments);
+            match event.kind {
+                language_semantics::PermissionEventKind::Establish
+                | language_semantics::PermissionEventKind::Restore => {
+                    vacancies.retain(|vacancy: &Vec<_>| !vacancy.starts_with(path));
+                }
+                language_semantics::PermissionEventKind::Transfer
+                | language_semantics::PermissionEventKind::Consume
+                | language_semantics::PermissionEventKind::AffineDrop => {
+                    if !vacancies.iter().any(|vacancy| path.starts_with(vacancy)) {
+                        vacancies.retain(|vacancy| !vacancy.starts_with(path));
+                        vacancies.push(path.to_vec());
+                    }
+                }
             }
+        }
+        if vacancies.iter().any(Vec::is_empty) {
             return Ok(false);
+        }
+        if !vacancies.is_empty() {
+            if residual_complement::is_empty(
+                checked,
+                state,
+                statement as usize,
+                symbol,
+                &vacancies,
+            )? {
+                return Ok(false);
+            }
+            return unsupported(
+                "selection pass-through of partially moved roots requires retained residual frontier correspondence",
+            );
         }
         Ok(true)
     };
     let mut owners = Vec::new();
     for owner in &evaluation.structural_value_owners {
+        // Anonymous completed operands have no authored symbol to query.
+        // Actual whole-owned consumption retires their unique emitted home,
+        // just as it does named homes; borrowing or a child transfer does not.
+        if operations.iter().any(|operation| {
+            crate::emission::affine_cleanup::structural_operands(&operation.kind).any(|argument| {
+                argument.place == owner.value.place
+                    && argument.access == StructuralAccess::Owned
+                    && argument.path.is_empty()
+            })
+        }) {
+            continue;
+        }
         if available(owner.symbol, owner.statement)? {
             owners.push(owner.clone());
         }
@@ -1563,43 +1608,32 @@ impl Emission<'_, '_, '_> {
     fn materialize_place(
         &mut self,
         source: PlaceId,
-        expected_claims: &[terminal_psi::StructuralResultClaimBinding],
+        value: CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
-        // The checked move receipt and the already emitted source must name
-        // the same complete claim set before binding its successor place.
-        let mut bindings = self
-            .operations
-            .structural_values
-            .iter()
-            .filter(|(_, binding)| binding.place() == source);
-        let binding = bindings.next().map(|(_, binding)| binding);
-        if bindings.next().is_some() {
-            return unsupported("owned move source has duplicate completed bindings");
-        }
-        let source_claims = if let Some(binding) = binding {
-            binding.claims().to_vec()
-        } else if let Some(result) = self
-            .operations
-            .iter()
-            .filter_map(|operation| operation.result.structural())
-            .find(|result| result.place == source)
-        {
-            result.claims.clone()
-        } else {
-            if !self
-                .evaluation
-                .structural_root_parameters()
-                .any(|parameter| parameter.place == source)
-            {
-                return unsupported("owned move has no source custody");
-            }
-            // Ingress identities have no operation result, including homes
-            // transported through already emitted private blocks. Replay joined
-            // the exact Transfer/Establish pair, and ClaimBindings resolved
-            // those identities without minting at this move. The receiver
-            // independently derives the live set from the actual incoming edge.
-            expected_claims.to_vec()
-        };
+        let node = structural_values(self.checked).nodes.get(value);
+        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let evaluation = self
+            .checked
+            .statement_table
+            .statement_at(authored, self.statement as usize)
+            .and_then(typed_trees::statement::StatementNode::as_transition)
+            .map_or(
+                checked_trees::FlowPermissionEvaluation::Statement,
+                |transition| {
+                    checked_trees::FlowPermissionEvaluation::TransitionTarget(transition.target)
+                },
+            );
+        let source_claims = super::super::claims::lower_owned_transfer_claims(
+            self.checked,
+            self.machine,
+            self.state,
+            self.statement,
+            node.expression,
+            evaluation,
+            self.calls.claims.bindings(),
+            self.structural_type,
+            self.structural_types,
+        )?;
         let block = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.next_place)?);
         if self.multiplicity == StructuralMultiplicity::Affine {
@@ -1631,25 +1665,25 @@ impl Emission<'_, '_, '_> {
             })?;
             self.temporary_places
                 .push(block_parameter_declaration(target, block, position));
-            structural_parameters.push(structural_parameter_declaration(
+            structural_parameters.push(self.transported_parameter(
+                owner.value.place,
                 target,
                 position,
                 owner.value.structural_type,
                 owner.value.multiplicity,
-                StructuralAccess::Owned,
-            ));
+            )?);
             pass_through.push((owner.value.place, target));
             owner.value.place = target;
         }
         let position = u32::try_from(structural_parameters.len())
             .map_err(|_| LoweringError::Unsupported("owned move parameter count exceeds u32"))?;
-        structural_parameters.push(structural_parameter_declaration(
+        structural_parameters.push(self.transported_parameter(
+            source,
             place,
             position,
             self.structural_type,
             self.multiplicity,
-            StructuralAccess::Owned,
-        ));
+        )?);
         let parameters = fresh_value_declarations(self.next_value, self.values)?;
         self.temporary_places.push(StructuralPlaceDeclaration {
             id: place,

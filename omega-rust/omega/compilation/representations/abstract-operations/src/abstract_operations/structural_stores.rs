@@ -9,8 +9,9 @@ use terminal_psi::{
 /// position or a borrowed ABI identity merely because a field is written.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructuralScalarStoreDestination {
-    /// A mutable or write-only loan: an entry parameter's ABI slot, or a
-    /// non-entry block's address join carrying its referent's address.
+    /// An exact entry ABI slot, owned or borrowed, or a non-entry address
+    /// join carrying a loan. The retained access distinguishes owned bytes
+    /// from referent authority; writing never changes that access.
     Parameter(StructuralParameterDeclaration),
     OwnedResult {
         producer: OperationId,
@@ -61,7 +62,12 @@ impl StructuralScalarStoreDestination {
     /// including an owned block parameter, carry their own authority.
     pub fn parameter(&self) -> Option<&StructuralParameterDeclaration> {
         match self {
-            Self::Parameter(parameter) => Some(parameter),
+            Self::Parameter(parameter)
+                if parameter.access != terminal_psi::StructuralAccess::Owned =>
+            {
+                Some(parameter)
+            }
+            Self::Parameter(_) => None,
             Self::OwnedResult { .. } | Self::OwnedBlockParameter { .. } => None,
         }
     }

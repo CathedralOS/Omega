@@ -101,6 +101,36 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             .structural_values
             .root_for_expression(state.symbol, ordinal, expression)
     });
+    let exit = tail
+        .map(|(statement_index, expression)| {
+            checked_trees::CheckedStructuralReturnCompletion::Value {
+                statement_index,
+                expression,
+                evaluation: checked_trees::FlowPermissionEvaluation::Statement,
+            }
+        })
+        .or_else(|| {
+            let binding = returned_call.as_ref()?;
+            let mut matching = operations
+                .iter()
+                .filter_map(CheckedUnitEffectOperationPlan::call)
+                .filter(|call| {
+                    call.structural_result()
+                        .is_some_and(|result| result.binding_ordinal == binding.binding_ordinal)
+                });
+            let call = matching.next()?;
+            if matching.next().is_some() {
+                return None;
+            }
+            Some(checked_trees::CheckedStructuralReturnCompletion::Call {
+                coordinate: call.coordinate,
+            })
+        });
+    let return_binding = |binding| {
+        Some(CheckedUnitStructuralReturnPlan::from_binding(
+            binding, exit?,
+        ))
+    };
     let returned_local = statements.last().and_then(|statement| {
         // A scalar result observes a reference local's value; it does not
         // return that local's permission carrier. Keep the establishment and
@@ -173,7 +203,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 *discard_result_on_return = false;
             }
         }
-        Some(binding.into())
+        return_binding(binding)
     } else if let Some(root) = returned_value {
         // The checked expression owns its value operation. In particular,
         // selecting an owned reference field transfers that descriptor through
@@ -255,7 +285,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 &mut operations,
             )?;
             operations.push(establishment);
-            Some(result.into())
+            return_binding(result)
         }
     } else if let Some((ordinal, expression)) = tail
         && let Some(operation) = super::super::super::state_graph::returns::literal_result_operation(
@@ -274,7 +304,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         trace.phase("statement sequence: structural result: literal value");
         let result = operation.structural_result_binding()?.clone();
         operations.push(operation);
-        Some(result.into())
+        return_binding(result)
     } else if let Some(binding) = returned_call {
         // A call result forwarded straight to the machine's structural return
         // is consumed by that return; it must not also carry disposal debt.
@@ -298,7 +328,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 *discard_result_on_return = false;
             }
         }
-        Some(binding.into())
+        return_binding(binding)
     } else if validation::is_closed_primitive_array_type(program, state.return_type) {
         trace.phase("statement sequence: structural result: returned scalar array");
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -314,7 +344,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 {
                     return None;
                 }
-                Some(binding.clone().into())
+                return_binding(binding.clone())
             } else {
                 return None;
             }
@@ -341,7 +371,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 result: result.clone(),
                 elements,
             });
-            Some(result.into())
+            return_binding(result)
         }
     } else {
         None
@@ -528,6 +558,11 @@ fn forwarded_parameter(
         }
         return Some(CheckedUnitStructuralReturnPlan {
             source: source_plan,
+            completion: checked_trees::CheckedStructuralReturnCompletion::Value {
+                statement_index: root.statement_ordinal,
+                expression: root.expression,
+                evaluation: checked_trees::FlowPermissionEvaluation::Statement,
+            },
             type_identity: parameter.type_identity.clone(),
             multiplicity: parameter.multiplicity,
             reference_sources: Vec::new(),
@@ -563,6 +598,11 @@ fn forwarded_parameter(
     }
     Some(CheckedUnitStructuralReturnPlan {
         source: source_plan,
+        completion: checked_trees::CheckedStructuralReturnCompletion::Value {
+            statement_index: root.statement_ordinal,
+            expression: root.expression,
+            evaluation: checked_trees::FlowPermissionEvaluation::Statement,
+        },
         type_identity: parameter.type_identity.clone(),
         multiplicity: parameter.multiplicity,
         reference_sources: if validation::reference_result_custody::is_reference_record(

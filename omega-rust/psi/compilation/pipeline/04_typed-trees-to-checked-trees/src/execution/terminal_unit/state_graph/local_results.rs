@@ -93,6 +93,12 @@ fn validate(
     // The result already identifies its established structural storage. A
     // whole-type content gate would reject a valid residual disposition after
     // contained claims leave; selected normal-edge actions own that geometry.
-    (result.multiplicity == Multiplicity::Affine && disposable_locals.contains(&local.symbol))
-        .then_some(())
+    // Several producers may complete in this declaration's expression. Only
+    // the one actually received by this local owns its lexical disposal;
+    // a nested call or constructor operand belongs to its real consumer.
+    (result.multiplicity == Multiplicity::Affine
+        && result.local.is_named()
+        && result.local.symbol == local.symbol
+        && disposable_locals.contains(&local.symbol))
+    .then_some(())
 }

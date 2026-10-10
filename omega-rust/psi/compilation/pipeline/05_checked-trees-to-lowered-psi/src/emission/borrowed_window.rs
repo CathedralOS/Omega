@@ -1,6 +1,8 @@
-//! Borrowed-storage restoration windows: `MoveStructuralField` at the move
-//! out of exclusive borrowed storage and `StoreStructuralField` at the
-//! restoring assignment on the same exact place.
+//! Detached structural storage: `MoveStructuralField` removes a child from
+//! owned or exclusive borrowed storage; `StoreStructuralField` reseats the
+//! same exact place. Detached bytes and claims belong to the new value, not
+//! to an alias that a later store can overwrite. Owned partial roots retain
+//! their checked residual custody; only borrowed roots owe restoration.
 //!
 //! The source checker (`typed-trees-to-checked-trees`
 //! `checks/multiplicity/borrowed_windows.rs`) admits a consuming move through
@@ -26,7 +28,7 @@
 //! a scalar or ambiguous field, a moved type that
 //! differs from the declared field, extraction over an open hole, a repair at
 //! another place, a repair value that is not a whole owned value of the hole's
-//! type, or an open hole at a sequence exit — is a
+//! type, or an open borrowed hole at a sequence exit — is a
 //! `LoweringError::UnpinnedBorrowedStorageWindow` naming
 //! the place.
 //!
@@ -88,6 +90,7 @@ pub(crate) struct OpenBorrowedWindow {
     /// a restoration: its selectors name evaluation roles, not storage ids.
     checked_path: Vec<CheckedUnitStructuralPathSegment>,
     spelling: String,
+    restoration_required: bool,
 }
 
 /// The restoring value: an already-owned whole structural place of the hole's
@@ -392,6 +395,7 @@ impl BorrowedWindowLedger {
             hole_type: place.hole_type,
             checked_path: place.checked_path,
             spelling: place.spelling,
+            restoration_required: place.restoration_required,
         });
         Ok(moved_place)
     }
@@ -544,7 +548,7 @@ impl BorrowedWindowLedger {
     /// Every non-crash exit (return, transition edge, or end of body) must
     /// find no open window on its path.
     pub(crate) fn require_closed(&self) -> Result<(), LoweringError> {
-        match self.open.first() {
+        match self.open.iter().find(|absent| absent.restoration_required) {
             None => Ok(()),
             Some(absent) => Err(unpinned(
                 &absent.spelling,
@@ -612,17 +616,22 @@ fn resolve_window_place(
                 let parameter = parameters
                     .get(parameter_index as usize)
                     .ok_or_else(|| unpinned(&spelling, "the parameter root is not declared"))?;
-                if parameter.access != StructuralAccess::MutableBorrow {
+                if !matches!(
+                    parameter.access,
+                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
+                ) {
                     return Err(unpinned(
                         &spelling,
                         "the root is not an exclusive `&mut` borrow: shared and write-only loans \
                      admit no extraction and owned roots use ordinary partial moves",
                     ));
                 }
-                if !matches!(
-                    parameter.multiplicity,
-                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                ) {
+                if parameter.access == StructuralAccess::MutableBorrow
+                    && !matches!(
+                        parameter.multiplicity,
+                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                    )
+                {
                     return Err(unpinned(
                         &spelling,
                         "the root carries linear custody the window does not restore",
@@ -631,7 +640,7 @@ fn resolve_window_place(
                 (
                     parameter.place,
                     parameter.structural_type,
-                    true,
+                    parameter.access == StructuralAccess::MutableBorrow,
                     parameter.qualifications.clone(),
                     parameter.projected_qualifications.clone(),
                 )

@@ -29,6 +29,21 @@ pub fn reachable_transition_prefix(statements: &[StatementNode]) -> &[StatementN
     }
 }
 
+/// A state's ordinary body followed by its executable transition tail. Keep
+/// authored ordinals unchanged and trim only alternatives after an explicit
+/// unconditional arm. A mixed tail remains intact, as it does in the narrower
+/// transition query, so reachability never disguises unsupported sequencing.
+pub fn reachable_state_statements(statements: &[StatementNode]) -> &[StatementNode] {
+    let Some(start) = statements
+        .iter()
+        .position(|statement| matches!(statement, StatementNode::Transition(_)))
+    else {
+        return statements;
+    };
+    let tail = reachable_transition_prefix(&statements[start..]);
+    &statements[..start + tail.len()]
+}
+
 /// A Build declaration with product-context operands, never a runtime call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootBinding {

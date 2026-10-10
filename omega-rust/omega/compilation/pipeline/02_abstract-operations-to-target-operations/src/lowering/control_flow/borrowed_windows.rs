@@ -270,10 +270,7 @@ fn root_window_loan(
         return true;
     }
     if path.is_empty() {
-        return matches!(
-            root,
-            abstract_operations::StructuralWindowRoot::Parameter(_)
-        );
+        return root.parameter().is_some();
     }
     if path.first() != Some(&StructuralPathSegment::Referent) {
         return false;
@@ -317,16 +314,17 @@ fn window_root(
                     && parameter.access == StructuralAccess::Owned
             }),
         abstract_operations::StructuralWindowRoot::Parameter(root) => {
-            root.access == StructuralAccess::MutableBorrow
-                && ((function.structural_parameters.contains(root)
-                    && super::structural_case::parameter_root(prepared, root.place).is_some_and(
-                        |parameter| {
-                            parameter.access == StructuralAccess::MutableBorrow
-                                && parameter.structural_type == root.structural_type
-                        },
-                    ))
-                    || super::transfers::address_parameter(function, live, root.place)
-                        == Some(root))
+            matches!(
+                root.access,
+                StructuralAccess::Owned | StructuralAccess::MutableBorrow
+            ) && ((function.structural_parameters.contains(root)
+                && super::structural_case::parameter_root(prepared, root.place).is_some_and(
+                    |parameter| {
+                        parameter.access == root.access
+                            && parameter.structural_type == root.structural_type
+                    },
+                ))
+                || super::transfers::address_parameter(function, live, root.place) == Some(root))
         }
         // An owned local home's authority is its live home row: the producer
         // completed it under transferable custody. Its original claims do not

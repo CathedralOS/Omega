@@ -698,7 +698,7 @@ pub(super) fn build_traced(
                             // Finite storage arrives as one whole move even
                             // when an affine root contains linear descendants.
                             // Edge custody separately transports their claims.
-                            validation::ContentsRequirement::LinearOwned,
+                            validation::ContentsRequirement::StructuralConstruction,
                         ]
                         .into_iter()
                         .any(|requirement| validation::has_contents(program, reference(), requirement))

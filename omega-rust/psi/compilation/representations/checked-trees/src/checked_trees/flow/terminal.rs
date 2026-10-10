@@ -78,7 +78,10 @@ pub use structural_control_plans::{
     CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
 };
-pub use structural_return::{CheckedReferenceResultSourcePlan, CheckedUnitStructuralReturnPlan};
+pub use structural_return::{
+    CheckedReferenceResultSourcePlan, CheckedStructuralReturnCompletion,
+    CheckedUnitStructuralReturnPlan,
+};
 pub use structural_type_plans::{
     CheckedAffineConstructionElementPlan, CheckedBindingFieldReceipt,
     CheckedBindingParameterReceipt, CheckedByteSequenceCarrier, CheckedRuntimeIndex,

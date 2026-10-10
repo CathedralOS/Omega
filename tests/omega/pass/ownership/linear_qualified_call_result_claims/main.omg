@@ -3,20 +3,30 @@
 // forgetting its qualification or consuming the claim acknowledged later.
 use omega::language::core::drop;
 
-pub data Receipt [linear] { code: i32; }
+pub data Receipt [linear] {
+    code: i32;
+    first: u64;
+    second: u64;
+    third: u64;
+    fourth: u64;
+}
 machine Receipt::drop(receipt: &mut Receipt) {}
 pub domain Receipt::Issued;
 domain Receipt::Extra(receipt) requires receipt.code >= 0;
 domain Receipt::ExtraIssued = Issued & Extra;
 
 pub boundary trait Acknowledgement {
-    machine acknowledge(receipt: Receipt in Receipt::Issued);
+    machine acknowledge(receipt: Receipt in Receipt::Issued) crashes Trap;
 }
 Acknowledged satisfies Acknowledgement {
-    machine acknowledge(receipt: Receipt in Receipt::Issued) { drop(receipt); }
+    machine acknowledge(receipt: Receipt in Receipt::Issued) crashes Trap {
+        verify_payload(&receipt);
+        drop(receipt);
+    }
 }
 
 data Slot { receipt: Receipt in Receipt::Issued; }
+data ReceiptBox { receipts: [Receipt in Receipt::Issued; 2]; }
 data Counter [copy] { code: i32; }
 domain Counter::Ready;
 domain Counter::ReadyAlias = Ready;
@@ -30,12 +40,59 @@ machine is_zero(counter: &Counter in Counter::Ready) -> bool {
 
 machine pass(receipt: Receipt in Receipt::Issued) -> Receipt in Receipt::Issued { receipt }
 machine issue(code: i32) -> Receipt in Receipt::Issued {
-    let issued: Receipt in Receipt::Issued = Receipt { code: code };
+    let issued: Receipt in Receipt::Issued = Receipt {
+        code: code, first: 11, second: 22, third: 33, fourth: 44
+    };
     issued
 }
 
+machine forward(receipt: Receipt in Receipt::Issued) -> Receipt in Receipt::Issued {
+    transition { _ -> returning(receipt) }
+    state returning(held: Receipt in Receipt::Issued) -> Receipt in Receipt::Issued { held }
+}
+
+machine make_slot(code: i32) -> Slot { Slot { receipt: pass(issue(code)) } }
+
+// No preceding read forces a home: the store itself must preserve a direct
+// register-carried owner's bytes, and return must observe the current home.
+machine replace_counter(mut holder: Holder<Counter>, counter: Counter) -> Holder<Counter> {
+    holder.value = counter;
+    holder
+}
+
+// The first unconditional arm is the completion even when authored storage
+// retains a later unreachable arm. Value and named-call exits carry the same
+// owned result without inventing a callee-template claim in the caller.
+machine value_slot(code: i32) -> Slot {
+    transition { _ -> (make_slot(code)) _ -> (make_slot(0)) }
+}
+machine terminal_slot(code: i32) -> Slot {
+    transition { _ -> make_slot(code) _ -> make_slot(0) }
+}
+
+machine replace_owned(mut slot: Slot, replacement: Receipt in Receipt::Issued) -> Slot
+    reaches Acknowledgement crashes Trap {
+    let original_code: i32 = slot.receipt.code;
+    let previous: Receipt in Receipt::Issued = slot.receipt;
+    slot.receipt = replacement;
+    verify(previous.code == original_code);
+    Acknowledgement::acknowledge(previous);
+    slot
+}
+
+machine replace_local(code: i32, replacement: Receipt in Receipt::Issued) -> Slot
+    reaches Acknowledgement crashes Trap {
+    let mut slot: Slot = make_slot(code);
+    let previous: Receipt in Receipt::Issued = slot.receipt;
+    slot.receipt = replacement;
+    verify(previous.code == code);
+    Acknowledgement::acknowledge(previous);
+    let current: Slot = slot;
+    current
+}
+
 machine replace(slot: &mut Slot, replacement: Receipt in Receipt::Issued)
-    reaches Acknowledgement {
+    reaches Acknowledgement crashes Trap {
     let previous: Receipt in Receipt::Issued = slot.receipt;
     slot.receipt = replacement;
     Acknowledgement::acknowledge(previous);
@@ -45,6 +102,13 @@ machine verify(correct: bool) crashes Trap {
     transition correct { true -> good() _ -> bad() }
     state good() {}
     state bad() { crash Trap; }
+}
+
+machine verify_payload(receipt: &Receipt in Receipt::Issued) crashes Trap {
+    verify(receipt.first == 11);
+    verify(receipt.second == 22);
+    verify(receipt.third == 33);
+    verify(receipt.fourth == 44);
 }
 
 machine main() reaches Acknowledgement crashes Trap {
@@ -57,14 +121,20 @@ machine main() reaches Acknowledgement crashes Trap {
     verify(is_zero(&omitted));
     let holder: Holder<Counter in Counter::Ready> = Holder { value: counter };
     verify(holder.value.code == 0);
+    let repaired_counter: Holder<Counter> = replace_counter(
+        Holder { value: Counter { code: 1 } }, Counter { code: 42 }
+    );
+    verify(repaired_counter.value.code == 42);
     verify(is_zero(&holder.value));
     untouched();
     verify(holder.value.code == 0);
-    let fresh: Receipt in Receipt::Issued = Receipt { code: 6 };
-    let passed: Receipt in Receipt::Issued = pass(fresh);
+    let fresh: Receipt in Receipt::Issued = Receipt {
+        code: 6, first: 11, second: 22, third: 33, fourth: 44
+    };
+    let passed: Receipt in Receipt::Issued = forward(pass(fresh));
     verify(passed.code == 6);
     Acknowledgement::acknowledge(passed);
-    let mut slot: Slot = Slot { receipt: issue(1) };
+    let mut slot: Slot = make_slot(1);
     verify(slot.receipt.code == 1);
     let vacated: Receipt in Receipt::Issued = slot.receipt;
     verify(vacated.code == 1);
@@ -78,9 +148,34 @@ machine main() reaches Acknowledgement crashes Trap {
     replace(&mut slot, issue(4));
     verify(slot.receipt.code == 4);
     Acknowledgement::acknowledge(slot.receipt);
-    let stronger: Receipt in Receipt::ExtraIssued = Receipt { code: 5 };
+    let stronger: Receipt in Receipt::ExtraIssued = Receipt {
+        code: 5, first: 11, second: 22, third: 33, fourth: 44
+    };
     let mut stronger_slot: Slot = Slot { receipt: stronger };
     replace(&mut stronger_slot, issue(6));
-    verify(stronger_slot.receipt.code == 6);
-    Acknowledgement::acknowledge(stronger_slot.receipt);
+    let current_slot: Slot = stronger_slot;
+    verify(current_slot.receipt.code == 6);
+    Acknowledgement::acknowledge(current_slot.receipt);
+    let repaired: Slot = replace_owned(make_slot(7), issue(8));
+    verify(repaired.receipt.code == 8);
+    Acknowledgement::acknowledge(repaired.receipt);
+    let repaired_local: Slot = replace_local(9, issue(10));
+    verify(repaired_local.receipt.code == 10);
+    Acknowledgement::acknowledge(repaired_local.receipt);
+    let value_returned: Slot = value_slot(11);
+    verify(value_returned.receipt.code == 11);
+    Acknowledgement::acknowledge(value_returned.receipt);
+    let terminal_returned: Slot = terminal_slot(12);
+    verify(terminal_returned.receipt.code == 12);
+    Acknowledgement::acknowledge(terminal_returned.receipt);
+    // Each element's hook moves with that whole element. The array container
+    // owes no nominal hook after both elements have left its plain owner.
+    let boxed: ReceiptBox = ReceiptBox { receipts: [issue(13), issue(14)] };
+    let first: Receipt in Receipt::Issued = boxed.receipts[0];
+    let second: Receipt in Receipt::Issued = boxed.receipts[1];
+    Acknowledgement::acknowledge(first);
+    Acknowledgement::acknowledge(second);
+    let after_box: Slot = make_slot(15);
+    verify(after_box.receipt.code == 15);
+    Acknowledgement::acknowledge(after_box.receipt);
 }

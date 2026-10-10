@@ -351,17 +351,17 @@ pub(crate) fn prepare_establishment_claims(
             && matches!(event.source, language_semantics::PermissionEventSource::Statement { statement_index }
                 | language_semantics::PermissionEventSource::Call { statement_index, .. } if statement_index == statement))
         .map(|event| {
-            // A claim moved in from another owner continues that owner's
-            // identity. The completed owner's own later transfer to its
-            // consuming call is not provenance.
-            let transferred = checked.facts.flow.ownership.permissions.iter().any(|(_, source)| {
-                source.machine_symbol == machine && source.state_symbol == state && source.evaluation == event.evaluation
-                    && source.root != event.root
-                    && source.kind == language_semantics::PermissionEventKind::Transfer
-                    && source.access == language_semantics::PermissionAccess::Owned
-                    && source.claim_identity == event.claim_identity && source.obligation_live
-                    && matches!(source.source, language_semantics::PermissionEventSource::Statement { statement_index }
-                        | language_semantics::PermissionEventSource::Call { statement_index, .. } if statement_index == statement)
+            // Reserving a name is not establishing live custody. A completed
+            // child can transfer through another call before this aggregate
+            // receives it, all within one evaluation. Its authenticated first
+            // completion still permits namespace reservation before operand
+            // emission; an intervening transfer does not erase that origin.
+            // A claim from an earlier statement or invocation instead resolves
+            // its existing binding and cannot acquire a replacement identity.
+            let established_here = checked.facts.flow.ownership.permissions.iter().any(|(_, source)| {
+                source.evaluation == event.evaluation
+                    && source.claim_identity == event.claim_identity
+                    && claim_established_here(machine, state, statement, source)
             });
             let path = validation::structural_claim_path(&checked.typed, type_reference,
                 checked.facts.flow.ownership.segments.span_or_empty(event.segments))
@@ -369,7 +369,7 @@ pub(crate) fn prepare_establishment_claims(
             Ok(PreparedClaim {
                 identity: event.claim_identity,
                 path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(&path, structural_type, structural_types)?,
-                fresh: !transferred && claim_established_here(machine, state, statement, event),
+                fresh: established_here,
             })
         }).collect()
 }

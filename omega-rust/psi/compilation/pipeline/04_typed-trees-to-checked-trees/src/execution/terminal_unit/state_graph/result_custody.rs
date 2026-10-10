@@ -74,19 +74,6 @@ pub(super) fn account(
                         || argument.access == CheckedStructuralAccess::Owned)
                     && argument.path.is_empty()
             };
-        // An operand constructed for a call argument belongs to that call.
-        // Its statement declares the call's result local, not the operand,
-        // so the statement local's disposal permit would book a second owner
-        // beside the call that takes it.
-        let call_operand = matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                operand_source: Some(
-                    checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
-                ),
-                ..
-            }
-        );
         // A whole in-sequence cleanup already owns this result's retirement.
         // Its lexical state-exit disposal permit cannot book a second owner;
         // moves, returns, and duplicate cleanups still count independently.
@@ -136,8 +123,7 @@ pub(super) fn account(
             return None;
         }
         let permits_disposal = |successors: &[&CheckedStructuralControlSuccessorPlan]| {
-            !call_operand
-                && !retired_whole
+            !retired_whole
                 && local_results::permits_disposal(
                     program,
                     state,

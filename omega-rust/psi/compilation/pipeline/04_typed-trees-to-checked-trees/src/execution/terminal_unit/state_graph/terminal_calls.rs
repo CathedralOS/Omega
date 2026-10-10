@@ -148,11 +148,13 @@ pub(super) fn completion(
                 == CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                     binding_ordinal: binding.binding_ordinal,
                 })
-            .then(
-                || CheckedComposedUnitControlTerminatorPlan::ReturnStructural {
-                    result: returned.clone(),
-                },
-            )
+            .then(|| {
+                let mut returned = returned.clone();
+                returned.completion = checked_trees::CheckedStructuralReturnCompletion::Call {
+                    coordinate: call.coordinate,
+                };
+                CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned }
+            })
         }
         _ => None,
     }

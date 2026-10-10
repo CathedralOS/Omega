@@ -35,7 +35,9 @@ pub(in crate::execution::terminal_unit) fn terminal_named_call(
     statement_index: usize,
 ) -> Option<SymbolHandle> {
     use typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
-    let statements = program.statement_table.statements(state.statement_nodes);
+    let statements = typed_trees::statement::reachable_state_statements(
+        program.statement_table.statements(state.statement_nodes),
+    );
     if statement_index.checked_add(1)? != statements.len() {
         return None;
     }

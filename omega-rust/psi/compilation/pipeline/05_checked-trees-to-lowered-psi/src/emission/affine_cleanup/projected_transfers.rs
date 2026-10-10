@@ -12,9 +12,9 @@ use crate::direct_calls::call_structural_arguments;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeSet, VecDeque};
 use terminal_psi::{
-    Block, OperationKind, RecordFieldValue, StructuralAccess, StructuralAffineDiscard,
-    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, Terminator,
+    Block, OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    TerminalAffineCleanupAction, Terminator,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,7 +33,7 @@ pub(super) fn complete(
     if !blocks.iter().any(|block| {
         block.operations.iter().any(|operation| {
             matches!(&operation.kind, OperationKind::ReleaseReference { path, .. } if !path.is_empty())
-                || operands(&operation.kind).iter().any(|argument| {
+                || operands(&operation.kind).any(|argument| {
                 argument.access == StructuralAccess::Owned && !argument.path.is_empty()
             })
         }) || block
@@ -196,20 +196,14 @@ pub(super) fn complete(
     Ok(())
 }
 
-pub(super) fn operands(kind: &OperationKind) -> Vec<&StructuralArgument> {
-    match kind {
-        OperationKind::StoreStructuralField { value, .. } => vec![value],
-        OperationKind::EstablishStructuralArray { elements } => elements.iter().collect(),
-        OperationKind::EstablishRecord { fields }
-        | OperationKind::EstablishStructuralCase { fields, .. } => fields
-            .iter()
-            .filter_map(|field| match &field.value {
-                RecordFieldValue::Structural(argument) => Some(argument),
-                _ => None,
-            })
-            .collect(),
-        _ => call_structural_arguments(kind).iter().collect(),
-    }
+pub(crate) fn operands(kind: &OperationKind) -> impl Iterator<Item = &StructuralArgument> {
+    let stored = match kind {
+        OperationKind::StoreStructuralField { value, .. } => Some(value),
+        _ => None,
+    };
+    kind.constructor_arguments()
+        .chain(stored)
+        .chain(call_structural_arguments(kind))
 }
 
 fn transfer(frontier: &mut Frontier, argument: &StructuralArgument) -> Result<(), LoweringError> {

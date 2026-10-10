@@ -93,7 +93,10 @@ pub(in crate::execution::terminal_unit) fn signature(
         && validation::has_contents(
             program,
             reference,
-            validation::ContentsRequirement::LinearOwned,
+            // The graph retains each member's exact qualification and claim
+            // path. This is finite carrier admission, not permission to erase
+            // a routed domain or substitute a plain cleanup contract.
+            validation::ContentsRequirement::StructuralConstruction,
         );
     if (is_reference(program, reference) && !view_result)
         || (multiplicity != Multiplicity::Linear

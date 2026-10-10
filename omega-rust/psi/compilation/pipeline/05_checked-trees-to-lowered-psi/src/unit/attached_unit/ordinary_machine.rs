@@ -42,11 +42,11 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::{
     Block, CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    LoweringError, MachineContract, Multiplicity, Operation, PlaceId, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, TerminalMachine,
-    TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense, content_conservation,
-    contract_id, dense_identity, edge_id, lookup_type_id, lower_checked_crash_route_buckets,
-    lower_structural_crash_route_buckets, place_id, terminal_scalar_type, unsupported, value_id,
+    LoweringError, MachineContract, Operation, PlaceId, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, TerminalMachine, TerminalMachineResult, Terminator,
+    ValueDeclaration, allocate_dense, content_conservation, contract_id, dense_identity, edge_id,
+    lookup_type_id, lower_checked_crash_route_buckets, lower_structural_crash_route_buckets,
+    place_id, terminal_scalar_type, unsupported, value_id,
 };
 use crate::unit::{
     MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
@@ -808,6 +808,16 @@ pub(super) fn emit(
                     }
                 };
                 let source = evaluation.current_structural_place(source);
+                let returned_claims = super::claims::lower_return_claims(
+                    checked,
+                    plan.machine,
+                    plan.state,
+                    result,
+                    &operations,
+                    scalar_calls.claims.bindings(),
+                    lookup_type_id(type_ids, &result.type_identity)?,
+                    structural_types,
+                )?;
                 Ok::<_, LoweringError>((
                     source,
                     lower_structural_result_declaration(
@@ -820,6 +830,7 @@ pub(super) fn emit(
                         domain_ids,
                         &mut next_place,
                     )?,
+                    returned_claims,
                 ))
             })
             .transpose()?;
@@ -893,11 +904,11 @@ pub(super) fn emit(
                     value: *source,
                     cleanup_actions,
                 }
-            } else if let Some((source, _)) = &structural_return {
+            } else if let Some((source, _, returned_claims)) = &structural_return {
                 Terminator::ReturnStructural {
                     edge,
                     source: *source,
-                    returned_claims: Vec::new(),
+                    returned_claims: returned_claims.clone(),
                     cleanup_actions,
                 }
             } else {
@@ -933,7 +944,7 @@ pub(super) fn emit(
         } else {
             structural_return
                 .as_ref()
-                .map_or(TerminalMachineResult::Unit, |(_, result)| {
+                .map_or(TerminalMachineResult::Unit, |(_, result, _)| {
                     TerminalMachineResult::Structural(result.clone())
                 })
         }
@@ -1142,15 +1153,15 @@ fn lower_structural_result_declaration(
     Ok(terminal_psi::StructuralResultDeclaration {
         place,
         structural_type,
-        multiplicity: match result.multiplicity {
-            Multiplicity::Affine => StructuralMultiplicity::Affine,
-            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-            Multiplicity::Linear => {
-                return unsupported("structural completion requires retained linear result claims");
-            }
-        },
+        multiplicity: crate::terminal_identities::structural_multiplicity(result.multiplicity),
         qualifications,
-        projected_qualifications: Vec::new(),
+        projected_qualifications: parameters::lower_projected_qualifications(
+            &validation::structural_result_projected_qualifications(&checked.typed, return_type)
+                .map_err(LoweringError::Unsupported)?,
+            domain_ids,
+            structural_type,
+            structural_types,
+        )?,
         reference_sources: parameters::lower_reference_result_sources(
             &result.reference_sources,
             structural_type,

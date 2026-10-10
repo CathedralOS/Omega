@@ -87,7 +87,20 @@ pub(super) fn build(
          shapes: &mut ShapeCollector<'_>,
          operations: &mut Vec<CheckedUnitEffectOperationPlan>| {
             trace.phase("state graph: terminator: return expression");
-            if let Some(result) = structural_result.cloned() {
+            let evaluation = match statements.get(terminator_index)? {
+                StatementNode::Expression(_) => checked_trees::FlowPermissionEvaluation::Statement,
+                StatementNode::Transition(transition) => {
+                    checked_trees::FlowPermissionEvaluation::TransitionTarget(transition.target)
+                }
+                _ => return None,
+            };
+            let completion = checked_trees::CheckedStructuralReturnCompletion::Value {
+                statement_index: ordinal,
+                expression,
+                evaluation,
+            };
+            if let Some(mut result) = structural_result.cloned() {
+                result.completion = completion;
                 return Some(CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result });
             }
             let mut count = returns::next_result_ordinal(operations)?;
@@ -105,7 +118,10 @@ pub(super) fn build(
                 expression,
                 trace,
             )?;
-            let result = operation.structural_result_binding()?.clone().into();
+            let result = checked_trees::CheckedUnitStructuralReturnPlan::from_binding(
+                operation.structural_result_binding()?.clone(),
+                completion,
+            );
             operations.extend(operand_calls);
             operations.push(operation);
             Some(CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result })

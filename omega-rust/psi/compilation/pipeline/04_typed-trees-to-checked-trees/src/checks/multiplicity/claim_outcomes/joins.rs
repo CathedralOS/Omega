@@ -104,7 +104,9 @@ fn state_frontiers(
     }
     active.push(state.symbol);
     let result = (|| {
-        let statements = program.statement_table.statements(state.statement_nodes);
+        let statements = typed_trees::statement::reachable_state_statements(
+            program.statement_table.statements(state.statement_nodes),
+        );
         let transition_indices = statements
             .iter()
             .enumerate()

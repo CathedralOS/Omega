@@ -279,7 +279,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     || (parameter.multiplicity != Multiplicity::Linear
                         && !validation::has_contents(
                             &checked.typed,
-                            source.type_reference, validation::ContentsRequirement::LinearOwned)
+                            source.type_reference, validation::ContentsRequirement::StructuralConstruction)
                         && !validation::has_contents(
                             &checked.typed,
                             source.type_reference, validation::ContentsRequirement::CleanupOwned)

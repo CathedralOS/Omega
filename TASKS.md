@@ -547,9 +547,10 @@ defines the complete product bar.
     `fail/ownership/linear_replaced_field_second_use`. Preserve ordinary
     qualified result, state-return and disposal custody in
     `pass/ownership/linear_call_result_claims_exit`; missing result membership
-    and reuse of the transferred original must reject. Wider/nested
-    structural results (indirect/stack ABI slots such as Windows x64's
-    12-byte Msg) do not reach target lowering.
+    and reuse of the transferred original must reject. Preserve
+    `pass/ownership/linear_qualified_call_result_claims` at 0 in both engines:
+    indirect 40-byte results, nested calls, owned/local reseating and whole
+    post-repair transfer retain current claims and independent detached bytes.
     `pass/effects/structural_callback_reach/projected.omg` is only a control.
   - **Saved observations and arithmetic.** Stable unwritten mutable carriers
     contribute saved facts in

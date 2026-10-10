@@ -134,6 +134,9 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             // pointer encoded in its first incoming register fragment.
             LegalizedScalarInstructionKind::ByteSequenceStore { destination, source, .. } => *destination == place || *source == place,
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { destination, source, .. } => destination.place == place || *source == place,
+            // Reseating register-carried owned storage requires an addressable
+            // home even when no separate read or projection exposed it first.
+            LegalizedScalarInstructionKind::StoreStructuralField { destination, .. } => destination.place() == place,
             LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
                 matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }

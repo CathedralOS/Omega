@@ -1,6 +1,9 @@
-//! Ordinary move-out/restore statements as borrowed-window operations. A
-//! `let local: T = root.field...;` move opens a window and an owned store to
-//! that exact place closes it. The replacement may be the removed value, a
+//! Detach structural children and reseat their exact storage. A
+//! `let local: T = root.field...;` move creates independent owned value custody;
+//! an owned store to that exact place closes its hole. Only extraction through
+//! exclusive borrowed storage owes restoration at every normal exit. An owned
+//! root may remain partially moved under its checked residual disposal plan.
+//! The replacement may be the removed value, a
 //! construction, or a call result: its custody belongs to the ordinary result
 //! bindings, not to the hole. An occupied destination first displaces its old
 //! value; an already-open hole must not be read or disposed again. The lowered
@@ -85,6 +88,39 @@ fn assignment_path(
     .map(|(_, path)| path)
 }
 
+/// Owned mutable storage has no borrowed restoration debt. A formal and a
+/// local have different physical coordinates, but replacing either retires
+/// only the old custody selected by source checking. Reference carriers still
+/// route through the loan/window ledger below.
+fn owned_assignment_source(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    statement_index: usize,
+    root: PlaceRoot,
+) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
+    let symbol = root.as_symbol()?;
+    if let Some((ordinal, local)) = program.state_local_declaration(state, symbol) {
+        return (ordinal < statement_index
+            && local.is_mutable
+            && !crate::checks::type_reference_is_reference(program, local.type_reference))
+        .then_some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
+    }
+    let authored = program.state_parameter_by_symbol(state, symbol)?;
+    if !authored.is_mutable {
+        return None;
+    }
+    let position =
+        typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)?;
+    let (parameter_index, _) = parameters.iter().enumerate().find(|(_, parameter)| {
+        parameter.position as usize == position
+            && parameter.access == CheckedStructuralAccess::Owned
+    })?;
+    Some(CheckedUnitStructuralArgumentSourcePlan::Parameter {
+        parameter_index: u32::try_from(parameter_index).ok()?,
+    })
+}
+
 /// Retain the assignment target once, before evaluating any structural RHS.
 /// The target is independent of its replacement's producer and of the fixed
 /// leaves a whole-array replacement will store beneath it.
@@ -116,26 +152,20 @@ pub(super) fn capture_assignment_destination(
         &access.segments,
     );
     let place = CanonicalPlace { root, segments };
-    let owned_local = match access.root {
-        PlaceRoot::Symbol(symbol) => program
-            .state_local_declaration(state, symbol)
-            .filter(|(position, local)| {
-                *position < ordinal
-                    && local.is_mutable
-                    && !crate::checks::type_reference_is_reference(program, local.type_reference)
-            })
-            .map(|_| symbol),
-        _ => None,
-    };
-    if owned_local.is_some() && place.segments.is_empty() {
+    let owned_source = owned_assignment_source(program, state, parameters, ordinal, access.root);
+    if matches!(
+        owned_source,
+        Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. })
+    ) && place.segments.is_empty()
+    {
         // Rebinding a variable evaluates no address or selector. Its prior
         // occurrence may already be moved out; only projected or borrowed
         // storage needs a pre-RHS physical destination capture.
         return None;
     }
-    let (source, path) = if let Some(symbol) = owned_local {
+    let (source, path) = if let Some(source) = owned_source {
         (
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+            source,
             assignment_path(
                 program,
                 facts,
@@ -198,6 +228,7 @@ pub(in crate::execution::terminal_unit) struct WindowPlace {
     storage: CanonicalPlace,
     source: CheckedUnitStructuralArgumentSourcePlan,
     path: Vec<CheckedUnitStructuralPathSegment>,
+    restoration_required: bool,
 }
 
 /// The exact field chain beneath an exclusive structural loan.
@@ -238,10 +269,15 @@ pub(in crate::execution::terminal_unit) fn window_place(
     let local = program
         .state_local_declaration(state, root_symbol)
         .filter(|(ordinal, _)| *ordinal < statement_index);
-    let (source, path) = if let Some((_, local)) = local {
-        let (_, access) =
-            super::reference_results::mutable_borrowed_parts(program, local.type_reference)?;
-        if access != CheckedStructuralAccess::MutableBorrow {
+    let (source, path, restoration_required) = if let Some((_, local)) = local {
+        let borrowed = crate::checks::type_reference_is_reference(program, local.type_reference);
+        if borrowed
+            && super::reference_results::mutable_borrowed_parts(program, local.type_reference)?.1
+                != CheckedStructuralAccess::MutableBorrow
+        {
+            return None;
+        }
+        if !borrowed && place.segments.is_empty() {
             return None;
         }
         (
@@ -249,6 +285,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
                 symbol: root_symbol,
             },
             place.segments.as_slice(),
+            borrowed,
         )
     } else {
         let symbol = root.as_symbol()?;
@@ -261,8 +298,12 @@ pub(in crate::execution::terminal_unit) fn window_place(
             .iter()
             .enumerate()
             .find(|(_, parameter)| parameter.position == position)?;
-        if parameter.access != CheckedStructuralAccess::MutableBorrow
-            || parameter.multiplicity == Multiplicity::Linear
+        if !matches!(
+            parameter.access,
+            CheckedStructuralAccess::Owned | CheckedStructuralAccess::MutableBorrow
+        ) || (parameter.access == CheckedStructuralAccess::MutableBorrow
+            && parameter.multiplicity == Multiplicity::Linear)
+            || (parameter.access == CheckedStructuralAccess::Owned && storage.segments.is_empty())
         {
             return None;
         }
@@ -275,6 +316,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
             storage.segments.as_slice(),
+            parameter.access == CheckedStructuralAccess::MutableBorrow,
         )
     };
     let lower_path = |segments: &[PlaceSegment]| {
@@ -296,6 +338,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
         storage,
         source,
         path,
+        restoration_required,
     })
 }
 
@@ -366,6 +409,7 @@ pub(super) struct OpenWindows {
 struct OpenWindow {
     storage: CanonicalPlace,
     opening_binding: u32,
+    restoration_required: bool,
 }
 
 /// The exact storage place an immutable, non-reference, ownership-carrying
@@ -506,6 +550,12 @@ impl OpenWindows {
             multiplicity: program.type_multiplicity(type_reference),
             local: Default::default(),
         };
+        // An owned call operand already transfers through its checked argument
+        // schedule. Only extracting through a loan needs an extra detached
+        // result and the original referent's restoration debt here.
+        if !place.restoration_required {
+            return None;
+        }
         self.bind_extraction(program, facts, place, result, expression)
     }
 
@@ -532,6 +582,7 @@ impl OpenWindows {
         self.open.push(OpenWindow {
             storage: place.storage,
             opening_binding: binding_ordinal,
+            restoration_required: place.restoration_required,
         });
         Some((
             CheckedUnitEffectOperationPlan::MoveStructuralField {
@@ -632,22 +683,19 @@ impl OpenWindows {
             root: resolved_root,
             segments: resolved_segments,
         };
-        let owned_local = match access_place.root {
-            PlaceRoot::Symbol(symbol) => program
-                .state_local_declaration(state, symbol)
-                .filter(|(ordinal, local)| {
-                    *ordinal < index
-                        && local.is_mutable
-                        && !crate::checks::type_reference_is_reference(
-                            program,
-                            local.type_reference,
-                        )
-                })
-                .map(|_| symbol),
-            _ => None,
-        };
+        let owned_source = owned_assignment_source(
+            program,
+            state,
+            structural_parameters,
+            index,
+            access_place.root,
+        );
+        let local_rebind = matches!(
+            owned_source,
+            Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. })
+        );
         let (source, path, opening_binding, needs_displacement, needs_cleanup) =
-            if let Some(symbol) = owned_local {
+            if let Some(source) = owned_source {
                 let path = assignment_path(
                     program,
                     facts,
@@ -680,13 +728,14 @@ impl OpenWindows {
                                     .span_or_empty(disposition.path)
                                     .starts_with(&destination_place.segments)
                         });
-                (
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
-                    path,
-                    None,
-                    false,
-                    occupied,
-                )
+                let opening = self
+                    .open
+                    .iter()
+                    .position(|open| {
+                        same_storage_place(program, facts, &open.storage, &destination_place)
+                    })
+                    .map(|position| self.open.remove(position).opening_binding);
+                (source, path, opening, false, occupied)
             } else {
                 let selectors = TargetSelectors::resolve(
                     program,
@@ -754,7 +803,7 @@ impl OpenWindows {
             _ => return None,
         };
         let type_identity = produced.type_identity.clone();
-        let leaf = if owned_local.is_some() && place.path.is_empty() {
+        let leaf = if local_rebind && place.path.is_empty() {
             checked_trees::CheckedStoreLeaf::LocalRebind { type_identity }
         } else {
             checked_trees::CheckedStoreLeaf::WindowRepair {
@@ -812,11 +861,12 @@ impl OpenWindows {
         })
     }
 
-    /// Every opened window must be repaired before the body completes; the
-    /// checker already rejects an open window at the state's exits, so a
-    /// leftover here is a sequencing fault rather than a language decision.
+    /// Borrowed holes must be repaired before the body completes. Owned
+    /// projected moves may leave partial custody; the source checker owns
+    /// their residual disposal. A borrowed
+    /// leftover is a sequencing fault rather than a language decision.
     pub(super) fn is_closed(&self) -> bool {
-        self.open.is_empty()
+        self.open.iter().all(|open| !open.restoration_required)
     }
 }
 

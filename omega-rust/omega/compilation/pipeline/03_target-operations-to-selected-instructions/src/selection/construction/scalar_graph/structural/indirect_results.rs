@@ -30,18 +30,15 @@ pub(in crate::selection) fn entry(
     }
     let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
     let result = signature.result.as_ref().ok_or_else(|| invalid())?;
-    // Predicate qualifications are proof facts the optimization unit already
-    // authenticated; they change no storage geometry, so hidden result storage
-    // admits them exactly as the register-returned form and the caller's
-    // `call_result` do. Win64 sends every result wider than eight bytes here,
-    // including a qualified `&[u8]` view that SysV and AArch64 return in two
-    // registers.
-    if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !result.projected_qualifications.is_empty()
-        || crate::structural_inputs::structural_reference_input::shape(
-            result.structural_type,
-            &signature.structural_types,
-        ) != Some(placement.shape)
+    // The hidden pointer transports the complete declared carrier, not its
+    // ownership or domain facts. Linear claims and projected qualifications
+    // stay on the retained structural signature and returning edge, exactly as
+    // for register results. Width can select indirection (even a 12-byte
+    // record on Win64), but cannot change which semantic results may return.
+    if crate::structural_inputs::structural_reference_input::shape(
+        result.structural_type,
+        &signature.structural_types,
+    ) != Some(placement.shape)
     {
         return Err(invalid());
     }

@@ -1,8 +1,9 @@
 //! Admit whole shared or exclusive byte views, address joins over plain
 //! referents or borrowed bounded byte owners, and whole owned structural
-//! arrivals. An owner loan, a shared byte view, or a whole owned bounded-byte
-//! value may carry qualifications. Loans retain their declared access;
-//! only shared loans freeze their referent. An owned arrival moves its complete `{length, bytes}` payload and
+//! arrivals. Owned arrivals carry whole and projected qualifications without
+//! changing their physical transport; loan qualification admission remains
+//! separate. Loans retain their declared access; only shared loans freeze
+//! their referent. An owned arrival moves its complete carrier payload and
 //! exact predicate and claim rosters, which Terminal verification replayed at
 //! every edge. Linear moves retain their existing claim identities; an arrival
 //! declaration neither issues nor disposes an obligation.
@@ -37,17 +38,18 @@ pub(super) fn validate_structural_block_bindings(
                 .any(|(position, parameter)| {
                     block.id == machine.entry
                         || parameter.position as usize != position
-                        || (!parameter.qualifications.is_empty()
+                        || (parameter.access != terminal_psi::StructuralAccess::Owned
+                            && !parameter.qualifications.is_empty()
                             && !abstract_operations::control_flow::owner_loans::is_bounded_owner_loan_in(
                                 parameter,
                                 &module.structural_types,
                             )
-                            && !qualified_owned_bounded_bytes(module, parameter)
                             && !abstract_operations::control_flow::owner_loans::is_shared_byte_view_in(
                                 parameter,
                                 &module.structural_types,
                             ))
-                        || !parameter.projected_qualifications.is_empty()
+                        || (parameter.access != terminal_psi::StructuralAccess::Owned
+                            && !parameter.projected_qualifications.is_empty())
                         || !module.structural_types.iter().any(|declaration| {
                             declaration.id == parameter.structural_type
                                 && match parameter.access {
@@ -82,7 +84,8 @@ pub(super) fn validate_structural_block_bindings(
             let unsupported =
                 |target: semantic_vocabulary::BlockId,
                  arguments: &[terminal_psi::StructuralArgument]| {
-                    let parameters = machine.block(&target)
+                    let parameters = machine
+                        .block(&target)
                         .map(|candidate| candidate.structural_parameters.as_slice())
                         .filter(|parameters| parameters.len() == arguments.len());
                     arguments.iter().enumerate().any(|(position, argument)| {
@@ -125,18 +128,6 @@ pub(super) fn validate_structural_block_bindings(
         }
     }
     Ok(())
-}
-
-fn qualified_owned_bounded_bytes(
-    module: &TerminalModule,
-    parameter: &terminal_psi::StructuralParameterDeclaration,
-) -> bool {
-    !parameter.qualifications.is_empty()
-        && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
-            parameter,
-            &module.structural_types,
-        )
-        && terminal_semantics::byte_parameter_predicates(module, parameter).is_some()
 }
 
 fn unsupported_argument(

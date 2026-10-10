@@ -177,19 +177,20 @@ fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<Str
     // transfers the loan; it does not turn that arrival into an ABI parameter.
     if let Some(parameter) =
         exact_parameter(machine, place).or_else(|| block_parameter(machine, place).cloned())
-        && parameter.access == StructuralAccess::MutableBorrow
-        && matches!(
-            parameter.multiplicity,
-            terminal_psi::nonlinear_multiplicity_pair_pattern!()
-        )
-        && !machine
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == place)
-        && !machine
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == place)
+        && (parameter.access == StructuralAccess::Owned
+            || (parameter.access == StructuralAccess::MutableBorrow
+                && matches!(
+                    parameter.multiplicity,
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                )
+                && !machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == place)
+                && !machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == place)))
     {
         return Some(StructuralWindowRoot::Parameter(parameter));
     }
@@ -226,7 +227,7 @@ fn root_window_loan(
         // authenticates all of its parameter origins before realization.
         || (path.first() == Some(&StructuralPathSegment::Referent)
             && root.parameter().is_none())
-        || (path.is_empty() && matches!(root, StructuralWindowRoot::Parameter(_)))
+        || (path.is_empty() && root.parameter().is_some())
 }
 
 /// The declared `Structural` type of the field a window operation names,

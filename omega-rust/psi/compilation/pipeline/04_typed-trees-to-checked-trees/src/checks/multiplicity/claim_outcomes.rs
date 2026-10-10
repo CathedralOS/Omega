@@ -82,7 +82,9 @@ fn derive_checked_claim_outcome_map(
     if expected_paths.is_empty() {
         return None;
     }
-    let statements = program.statement_table.statements(state.statement_nodes);
+    let statements = typed_trees::statement::reachable_state_statements(
+        program.statement_table.statements(state.statement_nodes),
+    );
     // Owned receivers are terminal-consumer inputs and do not enter the
     // ordinary parameter permission ledger. The exact identity body still
     // supplies an input/result correspondence: it performs no intervening
