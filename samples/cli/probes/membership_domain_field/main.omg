@@ -1,0 +1,29 @@
+// Byte-predicate membership in a data default domain:
+// `domain [u8]::NonEmpty(bytes) requires non_empty(bytes)`
+// — the literal's bytes establish the otherwise
+// zero-invalid gate at `Message { text: "omega" }`
+// construction.
+//
+//   * `data Message where text in NonEmpty` on the header.
+//   * `text: &[u8]` slice-typed field.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+domain [u8]::NonEmpty(bytes)
+requires
+    non_empty(bytes);
+
+data Message
+where
+    text in NonEmpty,
+{
+    text: &[u8];
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 1;
+    let message: Message = Message { text: "omega" };
+}
