@@ -244,7 +244,11 @@ pub(crate) use load_forwarding::{
 };
 
 use crate::rewrites::block_edges::function_at;
-use optimization_core::OptimizationWorkBudget;
+use crate::rewrites::catalog::selected_stage_catalog_contains;
+use optimization_core::{
+    Optimization, OptimizationExecutionPhase, OptimizationPhaseMismatch,
+    OptimizationPhaseSelections, OptimizationSelections, OptimizationWorkBudget,
+};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
@@ -603,4 +607,28 @@ pub(crate) fn constant_fold_measured_steps<E>(
         })
         .ok_or_else(overflow)?;
     u64::try_from(steps).map_err(|_| overflow())
+}
+
+/// Shared phase validation for rewrite-stage rule catalogs: the required
+/// phase must be present, non-empty, and every selected optimization must
+/// belong to the stage's catalog.
+pub(crate) fn required_stage_phase<E>(
+    selections: &OptimizationPhaseSelections,
+    phase_kind: OptimizationExecutionPhase,
+    wrong_phase: impl FnOnce(OptimizationPhaseMismatch) -> E,
+    missing_selection: impl FnOnce() -> E,
+    unsupported: impl FnOnce(Optimization) -> E,
+) -> Result<OptimizationSelections, E> {
+    let phase = selections.require_phase(phase_kind).map_err(wrong_phase)?;
+    if phase.is_empty() {
+        return Err(missing_selection());
+    }
+    if let Some(unsupported_selection) = phase
+        .as_slice()
+        .iter()
+        .find(|selected| !selected_stage_catalog_contains(phase_kind, **selected))
+    {
+        return Err(unsupported(*unsupported_selection));
+    }
+    Ok(phase.clone())
 }

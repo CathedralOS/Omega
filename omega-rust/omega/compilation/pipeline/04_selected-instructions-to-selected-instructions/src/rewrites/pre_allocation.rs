@@ -14,7 +14,6 @@ use optimization_core::{
     OptimizationExecutionPhase, OptimizationPhaseSelections, OptimizationSelections,
 };
 
-use super::catalog::selected_stage_catalog_contains;
 use crate::StagedOptimizedAllocationLegality;
 
 pub(crate) use catalog::{
@@ -53,26 +52,20 @@ impl From<PreAllocationRuleCatalogError> for OptimizedPreAllocationCustodyError 
 pub(crate) fn resolve_pre_allocation_rules(
     selections: &OptimizationPhaseSelections,
 ) -> Result<(OptimizationSelections, PreAllocationPolicy), PreAllocationRuleCatalogError> {
-    let phase = selections
-        .require_phase(OptimizationExecutionPhase::PreAllocation)
-        .map_err(PreAllocationRuleCatalogError::WrongPhase)?;
-    if phase.is_empty() {
-        return Err(PreAllocationRuleCatalogError::MissingSelection);
-    }
-    if let Some(unsupported) = phase.as_slice().iter().find(|selected| {
-        !selected_stage_catalog_contains(OptimizationExecutionPhase::PreAllocation, **selected)
-    }) {
-        return Err(PreAllocationRuleCatalogError::UnsupportedSelection(
-            *unsupported,
-        ));
-    }
+    let phase = crate::rewrites::required_stage_phase(
+        selections,
+        OptimizationExecutionPhase::PreAllocation,
+        PreAllocationRuleCatalogError::WrongPhase,
+        || PreAllocationRuleCatalogError::MissingSelection,
+        PreAllocationRuleCatalogError::UnsupportedSelection,
+    )?;
     let policy = PRE_ALLOCATION_RULE_CATALOG
         .iter()
         .filter(|entry| phase.contains(entry.optimization()))
         .fold(PreAllocationPolicy::empty(), |policy, entry| {
             policy.union(entry.payload().policy())
         });
-    Ok((phase.clone(), policy))
+    Ok((phase, policy))
 }
 
 /// Execute the exact pre-allocation projection to a validated joint fixed

@@ -11,8 +11,6 @@ use optimization_core::{
     OptimizationExecutionPhase, OptimizationPhaseSelections, OptimizationSelections,
 };
 
-use super::catalog::selected_stage_catalog_contains;
-
 pub(crate) use catalog::enabled_pair_rules;
 pub(crate) use catalog::{
     SELECTED_LOWERING_RULE_CATALOG, SelectedLoweringRuleCatalogEntry,
@@ -34,24 +32,18 @@ pub(crate) use literal_fold::{fold_selected_incoming_literal, literal_fold_ident
 pub(crate) fn resolve_selected_lowering_rules(
     selections: &OptimizationPhaseSelections,
 ) -> Result<(OptimizationSelections, LiteralFoldPolicy), SelectedLoweringRuleCatalogError> {
-    let phase = selections
-        .require_phase(OptimizationExecutionPhase::SelectedLowering)
-        .map_err(SelectedLoweringRuleCatalogError::WrongPhase)?;
-    if phase.is_empty() {
-        return Err(SelectedLoweringRuleCatalogError::MissingSelection);
-    }
-    if let Some(unsupported) = phase.as_slice().iter().find(|selected| {
-        !selected_stage_catalog_contains(OptimizationExecutionPhase::SelectedLowering, **selected)
-    }) {
-        return Err(SelectedLoweringRuleCatalogError::UnsupportedSelection(
-            *unsupported,
-        ));
-    }
+    let phase = super::required_stage_phase(
+        selections,
+        OptimizationExecutionPhase::SelectedLowering,
+        SelectedLoweringRuleCatalogError::WrongPhase,
+        || SelectedLoweringRuleCatalogError::MissingSelection,
+        SelectedLoweringRuleCatalogError::UnsupportedSelection,
+    )?;
     let policy = SELECTED_LOWERING_RULE_CATALOG
         .iter()
         .filter(|entry| phase.contains(entry.optimization()))
         .fold(LiteralFoldPolicy::empty(), |policy, entry| {
             policy.union(entry.payload().policy())
         });
-    Ok((phase.clone(), policy))
+    Ok((phase, policy))
 }
