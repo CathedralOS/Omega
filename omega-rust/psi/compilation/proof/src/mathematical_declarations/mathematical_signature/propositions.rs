@@ -203,14 +203,7 @@ impl<'a> Elaborator<'a> {
             self.integer_less_or_equal()
         };
         let relation = self.constant(position);
-        let function = self.arena.insert(Term::Apply {
-            function: relation,
-            argument: left,
-        });
-        Ok(self.arena.insert(Term::Apply {
-            function,
-            argument: right,
-        }))
+        Ok(self.arena.apply_binary(relation, left, right))
     }
 
     /// `a && b` denotes a right-nested `Σ` and `a || b` the tagged

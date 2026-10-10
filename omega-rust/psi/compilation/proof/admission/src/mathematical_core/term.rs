@@ -424,6 +424,24 @@ impl TermArena {
         self.terms.insert(term)
     }
 
+    /// `relation left right`: every binary-relation elaboration ends on
+    /// this pair of applications.
+    pub fn apply_binary(
+        &mut self,
+        relation: TermHandle,
+        left: TermHandle,
+        right: TermHandle,
+    ) -> TermHandle {
+        let function = self.insert(Term::Apply {
+            function: relation,
+            argument: left,
+        });
+        self.insert(Term::Apply {
+            function,
+            argument: right,
+        })
+    }
+
     pub fn get(&self, handle: TermHandle) -> Term {
         self.terms.get(handle).clone()
     }
