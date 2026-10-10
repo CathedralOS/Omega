@@ -11,6 +11,34 @@ use typed_trees::types::TypeReferenceHandle;
 
 use validation::{expression_type_reference_for_origin, indexed_operand_types};
 
+/// The requirement-slot identity stage 00 binds on one boundary application:
+/// the canonical operator overload identity, or the normalized machine
+/// overload when the operator is a token view of a requirement machine.
+fn boundary_application_requirement_identity(
+    program: &dyn ::validation::CheckingInput,
+    operator: &typed_trees::operator::OperatorDefinition,
+) -> String {
+    let typed = program.typed_program();
+    if let Some(requirement) = typed.machine(operator.symbol) {
+        return typed
+            .machine_callable_identity_text(requirement)
+            .unwrap_or_default();
+    }
+    typed_trees::operator::boundary_operator_requirement_identity(typed, operator)
+}
+
+/// The requirement-slot identity for a direct requirement-machine use.
+fn requirement_machine_identity(
+    program: &dyn ::validation::CheckingInput,
+    requirement_symbol: symbols::SymbolHandle,
+) -> String {
+    program
+        .typed_program()
+        .machine_by_symbol(requirement_symbol)
+        .and_then(|requirement| program.typed_program().machine_callable_identity_text(requirement))
+        .unwrap_or_default()
+}
+
 pub(crate) fn bind_boundary_operator_application_demands(
     program: &dyn ::validation::CheckingInput,
     validated: &[validation::ValidatedBoundaryOperatorApplication],
@@ -154,6 +182,9 @@ pub(crate) fn bind_boundary_operator_application_demands(
                                 origin: operator_use.origin,
                             },
                             requirement_symbol: operator.symbol,
+                            requirement_identity: boundary_application_requirement_identity(
+                                program, operator,
+                            ),
                             arguments,
                             body_candidates: Default::default(),
                         });
@@ -195,6 +226,9 @@ pub(crate) fn bind_boundary_operator_application_demands(
                     applications.push(CheckedBoundaryOperatorApplicationDemand {
                         site: CheckedBoundaryOperatorApplicationUseSite::Statement(statement),
                         requirement_symbol: operator.symbol,
+                        requirement_identity: boundary_application_requirement_identity(
+                            program, operator,
+                        ),
                         arguments,
                         body_candidates: Default::default(),
                     });
@@ -246,6 +280,10 @@ pub(crate) fn bind_boundary_operator_application_demands(
                 origin: requirement_use.origin,
             },
             requirement_symbol: requirement_use.requirement_symbol,
+            requirement_identity: requirement_machine_identity(
+                program,
+                requirement_use.requirement_symbol,
+            ),
             arguments: Vec::new(),
             body_candidates: Default::default(),
         });
@@ -286,7 +324,8 @@ fn checked_spelled_boundary_application(
     };
     validation::validate_closed_operator_application(program, symbols, operator, &bindings)?;
     Ok(Some(checked_boundary_application_from_bindings(
-        operator,
+            program,
+            operator,
         operator_use.application_site(),
         bindings,
     )))
@@ -342,6 +381,7 @@ fn spelled_symbolic_boundary_application(
 }
 
 fn checked_boundary_application_from_bindings(
+    program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
     site: CheckedBoundaryOperatorApplicationUseSite,
     bindings: Vec<ClosedOperatorApplicationArgument>,
@@ -379,6 +419,7 @@ fn checked_boundary_application_from_bindings(
     CheckedBoundaryOperatorApplicationDemand {
         site,
         requirement_symbol: operator.symbol,
+        requirement_identity: boundary_application_requirement_identity(program, operator),
         arguments,
         body_candidates: Default::default(),
     }

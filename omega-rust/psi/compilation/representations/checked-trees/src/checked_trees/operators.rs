@@ -221,6 +221,12 @@ pub enum CheckedCrashQualifiedUse {
 pub struct CheckedBoundaryOperatorApplicationDemand {
     pub site: CheckedBoundaryOperatorApplicationUseSite,
     pub requirement_symbol: SymbolHandle,
+    /// The overload-slot identity a provider plan binds, computed by
+    /// checking where the operator's parameter and result types are known.
+    /// Downstream consumers read this row instead of rederiving the identity
+    /// from the typed declaration; the empty string marks a demand whose
+    /// requirement declared no resolvable overload identity.
+    pub requirement_identity: String,
     pub arguments: Vec<CheckedBoundaryOperatorApplicationArgument>,
     /// Bodies checked for this exact application. Equal applications share a
     /// span in `CheckedOperatorFacts::boundary_body_candidates`.

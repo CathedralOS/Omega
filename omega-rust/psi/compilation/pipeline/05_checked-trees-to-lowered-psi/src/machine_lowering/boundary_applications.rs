@@ -121,7 +121,7 @@ pub(super) fn retain(
             .ok_or("boundary requirement has no exact package or toolchain owner")?;
         let requirement = BoundaryOperatorRequirement::new(
             NominalDeclarationIdentity::new(declaration.into_string())?,
-            requirement_identity(checked, application.requirement_symbol)?,
+            application.requirement_identity.clone(),
             checked
                 .symbols
                 .symbol_package_identity(application.requirement_symbol),
@@ -174,36 +174,6 @@ fn application_occurrence(
     })
 }
 
-fn requirement_identity(
-    checked: &CheckedTrees,
-    symbol: symbols::SymbolHandle,
-) -> Result<String, &'static str> {
-    // A machine's token view names the machine requirement, not a second
-    // operator slot. Preserve the same overload identity used at checking.
-    if let Some(machine) = checked.typed.machines().iter().find(|machine| {
-        machine.symbol == symbol
-            || checked
-                .typed
-                .machine_states(machine)
-                .first()
-                .is_some_and(|entry| entry.symbol == symbol)
-    }) {
-        if machine.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement {
-            return Err("boundary application names a non-boundary machine");
-        }
-        return checked
-            .typed
-            .machine_callable_identity_text(machine)
-            .ok_or("boundary machine requirement has no callable identity");
-    }
-    let operator = checked
-        .typed
-        .operators()
-        .iter()
-        .find(|operator| operator.symbol == symbol && operator.is_boundary)
-        .ok_or("boundary application names no boundary requirement")?;
-    Ok(typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator))
-}
 
 fn project_application(
     checked: &CheckedTrees,
