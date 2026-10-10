@@ -143,33 +143,8 @@ pub struct StagedOptimizedRegisterHomeCustodyReceipt {
 }
 
 impl StagedOptimizedRegisterHomeCustodyReceipt {
-    pub const fn psi(self) -> TerminalPsiIdentity {
-        self.psi
-    }
-    pub const fn target(self) -> target::NativeTarget {
-        self.target
-    }
-    pub const fn entry(self) -> MachineId {
-        self.entry
-    }
-    pub const fn optimization(self) -> OptimizationIdentityBundleIdentity {
-        self.optimization
-    }
-    pub const fn projection(self) -> OptimizedAbstractPlanProjectionIdentity {
-        self.projection
-    }
-    pub const fn manifest(self) -> PrePhysicalOptimizationManifestIdentity {
-        self.manifest
-    }
-    pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
-    pub const fn register_environment(self) -> register_model::TargetRegisterEnvironmentIdentity {
-        self.register_environment
-    }
+    target_operations_to_selected_instructions::staging_custody_core_accessors!();
+
     pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
         self.allocator_availability
     }

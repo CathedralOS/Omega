@@ -56,3 +56,51 @@ pub use legalization::{
 // The unit tests allocate heavily across nextest's parallel processes;
 // mimalloc avoids the system allocator's zone locks and free lists.
 // Test-only: the product keeps the system allocator.
+
+/// Minted by `staging_custody_core_accessors!`: the nine pipeline-custody
+/// identity getters every staged receipt shares — terminal psi, target,
+/// entry, optimization bundle, projection, manifest, optimization unit,
+/// fuel schedule, and the validated register environment.
+#[macro_export]
+macro_rules! staging_custody_core_accessors {
+    () => {
+        /// Terminal Psi identity of the staged upstream result.
+        pub const fn psi(self) -> TerminalPsiIdentity {
+            self.psi
+        }
+        /// Native target of the staged upstream result.
+        pub const fn target(self) -> target::NativeTarget {
+            self.target
+        }
+        /// Entry machine the staged result lowers.
+        pub const fn entry(self) -> MachineId {
+            self.entry
+        }
+        /// Optimization identity bundle of the staged result.
+        pub const fn optimization(self) -> OptimizationIdentityBundleIdentity {
+            self.optimization
+        }
+        /// Optimized-plan projection identity of the staged result.
+        pub const fn projection(self) -> OptimizedAbstractPlanProjectionIdentity {
+            self.projection
+        }
+        /// Pre-physical manifest identity of the staged result.
+        pub const fn manifest(self) -> PrePhysicalOptimizationManifestIdentity {
+            self.manifest
+        }
+        /// Optimization-unit identity of the staged result.
+        pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
+            self.optimization_unit
+        }
+        /// Fuel-schedule identity of the staged result.
+        pub const fn fuel_schedule(self) -> FuelScheduleIdentity {
+            self.fuel_schedule
+        }
+        /// Validated target-register-environment identity of the staged result.
+        pub const fn register_environment(
+            self,
+        ) -> register_model::TargetRegisterEnvironmentIdentity {
+            self.register_environment
+        }
+    };
+}
