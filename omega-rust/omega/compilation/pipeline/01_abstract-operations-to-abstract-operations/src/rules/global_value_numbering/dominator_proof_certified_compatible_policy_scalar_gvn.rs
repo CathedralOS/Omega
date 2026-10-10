@@ -2,14 +2,12 @@
 
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
-    DominatingScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact,
+    DominatingScalarCommonSubexpressionRewrite,
     PsiOptimizationUnit, PsiRewriteCandidate,
 };
 
-use super::exact_pure_scalar_effect;
-use super::expression_keys::{compatible_policy_scalar_leader, compatible_policy_scalar_redundant};
+use crate::rules::global_value_numbering::collect_compatible_policy_scalar_rows;
 use crate::analyses::block_dominates;
-use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::global_value_numbering::dominating_contract;
 use crate::rules::node_elision::node_elision_accounting;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
@@ -45,56 +43,8 @@ impl PsiOptimizationRule for DominatorProofCertifiedCompatiblePolicyScalarGvnRul
                 .function(function.machine)
                 .map(|(_, rows)| rows.as_slice())
                 .unwrap_or_default();
-            let mut leaders = Vec::new();
-            let mut redundants = Vec::new();
-            for block in &function.blocks {
-                for (index, node) in block.nodes.iter().enumerate() {
-                    let node_index =
-                        u32::try_from(index).expect("optimization node index fits u32");
-                    let location = NodeLocation {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    };
-                    if let Some((key, operation, result, scalar_type)) =
-                        compatible_policy_scalar_leader(&node.operation)
-                        && exact_pure_scalar_effect(
-                            unit,
-                            effects,
-                            function.machine,
-                            block.id,
-                            node_index,
-                        )
-                        && !function.facts.iter().any(|fact| {
-                            matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
-                                if *support == operation)
-                        })
-                    {
-                        leaders.push((key, location, operation, result, scalar_type));
-                    }
-                    if let Some((key, operation, result, scalar_type)) =
-                        compatible_policy_scalar_redundant(&node.operation)
-                        && let Ok(obligation_fact) =
-                            accepted_obligation_fact(unit, function.machine, operation)
-                        && exact_pure_scalar_effect(
-                            unit,
-                            effects,
-                            function.machine,
-                            block.id,
-                            node_index,
-                        )
-                    {
-                        redundants.push((
-                            key,
-                            location,
-                            operation,
-                            result,
-                            scalar_type,
-                            obligation_fact,
-                        ));
-                    }
-                }
-            }
+            let (leaders, redundants) =
+                collect_compatible_policy_scalar_rows(unit, function, effects);
             for (key, redundant, redundant_operation, redundant_result, scalar_type, fact) in
                 redundants
             {

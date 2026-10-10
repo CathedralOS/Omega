@@ -10,15 +10,20 @@
 
 use std::collections::BTreeMap;
 
-use optimization_core::{
+use optimization_core::{AcceptedObligationFactIdentity, 
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate};
+use optimization_unit::{
+    NodeLocation, OptimizationFact, PsiOptimizationFunction, PsiOptimizationUnit,
+    PsiRewriteCandidate,
+};
+use semantic_vocabulary::OperationId;
 
 use expression_keys::ScalarExpressionRow;
 use semantic_vocabulary::{BlockId, MachineId, ScalarType, ValueId};
 
+use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::EffectSummaryAnalysis;
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;
@@ -455,4 +460,82 @@ where
         }
     }
     Ok(candidates)
+}
+
+/// Compatible-policy leader/redundant collection shared by the dominator- and
+/// phi-translated proof-certified rules: leaders must be obligation-free exact
+/// pure scalars; redundants must carry an accepted obligation fact and the
+/// same effect purity.
+pub(super) fn collect_compatible_policy_scalar_rows(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    effects: &EffectSummaryAnalysis,
+) -> (
+    Vec<(
+        expression_keys::CompatiblePolicyScalarExpressionKey,
+        NodeLocation,
+        OperationId,
+        ValueId,
+        ScalarType,
+    )>,
+    Vec<(
+        expression_keys::CompatiblePolicyScalarExpressionKey,
+        NodeLocation,
+        OperationId,
+        ValueId,
+        ScalarType,
+        AcceptedObligationFactIdentity,
+    )>,
+) {
+    let mut leaders = Vec::new();
+    let mut redundants = Vec::new();
+    for block in &function.blocks {
+        for (index, node) in block.nodes.iter().enumerate() {
+            let node_index =
+                u32::try_from(index).expect("optimization node index fits u32");
+            let location = NodeLocation {
+                machine: function.machine,
+                block: block.id,
+                node: node_index,
+            };
+            if let Some((key, operation, result, scalar_type)) =
+                expression_keys::compatible_policy_scalar_leader(&node.operation)
+                && exact_pure_scalar_effect(
+                    unit,
+                    effects,
+                    function.machine,
+                    block.id,
+                    node_index,
+                )
+                && !function.facts.iter().any(|fact| {
+                    matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
+                        if *support == operation)
+                })
+            {
+                leaders.push((key, location, operation, result, scalar_type));
+            }
+            if let Some((key, operation, result, scalar_type)) =
+                expression_keys::compatible_policy_scalar_redundant(&node.operation)
+                && let Ok(obligation_fact) =
+                    accepted_obligation_fact(unit, function.machine, operation)
+                && exact_pure_scalar_effect(
+                    unit,
+                    effects,
+                    function.machine,
+                    block.id,
+                    node_index,
+                )
+            {
+                redundants.push((
+                    key,
+                    location,
+                    operation,
+                    result,
+                    scalar_type,
+                    obligation_fact,
+                ));
+            }
+        }
+    }
+    (leaders, redundants)
 }
