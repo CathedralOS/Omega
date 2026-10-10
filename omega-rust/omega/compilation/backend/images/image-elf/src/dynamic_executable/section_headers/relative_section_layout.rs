@@ -16,11 +16,8 @@ use crate::dynamic_executable::section_headers::section_payload_roster::Validate
 use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 
-const SECTION_COUNT: usize = 14;
-const SHF_WRITE: u64 = 0x1;
-const SHF_ALLOC: u64 = 0x2;
-const SHF_EXECINSTR: u64 = 0x4;
 
+use crate::constants::{SECTION_COUNT, SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE};
 /// Closed relative-packing domain derived from exact ELF section flags.
 ///
 /// This classifies candidate section payloads; it does not grant a load

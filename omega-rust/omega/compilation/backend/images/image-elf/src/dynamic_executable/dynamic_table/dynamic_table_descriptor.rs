@@ -18,9 +18,8 @@ use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::ValidatedElfDyn
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
 use diagnostics::Diagnostic;
 
+use crate::constants::{SHF_ALLOC, SHF_WRITE};
 const SHT_DYNAMIC: u32 = 6;
-const SHF_WRITE: u64 = 0x1;
-const SHF_ALLOC: u64 = 0x2;
 const ELF64_DYNAMIC_ALIGNMENT: u64 = 8;
 const ELF64_DYNAMIC_ENTRY_SIZE: u64 = 16;
 const UPSTREAM_DESCRIPTOR_COUNT: usize = 11;

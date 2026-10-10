@@ -20,6 +20,7 @@ use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::import_sections::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads;
 use diagnostics::Diagnostic;
 
+use crate::constants::{SHF_ALLOC};
 const SHT_PROGBITS: u32 = 1;
 const SHT_STRTAB: u32 = 3;
 const SHT_HASH: u32 = 5;
@@ -27,7 +28,6 @@ const SHT_DYNSYM: u32 = 11;
 const SHT_GNU_HASH: u32 = 0x6fff_fff6;
 const SHT_GNU_VERNEED: u32 = 0x6fff_fffe;
 const SHT_GNU_VERSYM: u32 = 0x6fff_ffff;
-const SHF_ALLOC: u64 = 0x2;
 
 const INTERPRETER_NAME_OFFSET: u32 = 1;
 const DYNAMIC_STRING_NAME_OFFSET: u32 = 9;

@@ -253,7 +253,7 @@ fn live_place_identity(
             hash.usize(position);
         }
     }
-    hash.finish_normalized()
+    hash.finish_or(1)
 }
 
 /// Stable identity of a live value's checked type: the canonical type
@@ -265,7 +265,7 @@ fn live_type_identity(
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x54);
     hash.string_terminated(&program.normalized_type_identity_text(live.type_reference));
-    hash.finish_normalized()
+    hash.finish_or(1)
 }
 
 /// Stable identity of one live claim attached to a crossing place. The
@@ -310,7 +310,7 @@ fn live_claim_identity(
         language_semantics::PermissionEventSource::StateExit => hash.byte(4),
     }
     hash.u64(u64::from(ordinal));
-    semantic_vocabulary::ClaimId::new(hash.finish_normalized()).ok_or_else(|| {
+    semantic_vocabulary::ClaimId::new(hash.finish_or(1)).ok_or_else(|| {
         vec![Diagnostic::error(
             "task activation carry crossing claim identity resolved to the reserved zero \
              coordinate",

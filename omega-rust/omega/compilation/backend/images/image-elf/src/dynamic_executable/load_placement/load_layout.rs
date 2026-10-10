@@ -17,6 +17,7 @@
 //! the report-only compatibility fingerprint and `tests.rs` the layout
 //! tests.
 
+use crate::constants::{SECTION_COUNT};
 mod abi_validation;
 mod candidates;
 mod compatibility_fingerprint;
@@ -42,7 +43,6 @@ use crate::dynamic_executable::load_placement::load_layout::candidates::{
 use crate::dynamic_executable::load_placement::load_layout::compatibility_fingerprint::non_authoritative_layout_compatibility_fingerprint;
 use crate::dynamic_executable::section_headers::relative_section_layout::ValidatedElfRelativeSectionPayloadLayout;
 
-const SECTION_COUNT: usize = 14;
 
 const PLACEMENT_FIXUP_COUNT: usize = 25;
 

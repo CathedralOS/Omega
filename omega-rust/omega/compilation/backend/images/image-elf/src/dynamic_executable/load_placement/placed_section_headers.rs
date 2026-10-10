@@ -16,6 +16,7 @@ use super::super::checked::{self, CandidateValidationError};
 use crate::dynamic_executable::checked::{
     checked_product, checked_sum, read_u32, read_u64, require,
 };
+use crate::constants::{ELF64_SECTION_HEADER_SIZE, SECTION_COUNT};
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfResolvedSectionHeaderPlacement, ElfSectionPlacementResolutionKind,
     ValidatedElfDynamicLoadLayout, public_section_kind,
@@ -23,11 +24,9 @@ use crate::dynamic_executable::load_placement::load_layout::{
 use crate::dynamic_executable::section_headers::section_roster::ElfNumericSectionDescriptor;
 use diagnostics::Diagnostic;
 
-const ELF64_SECTION_HEADER_SIZE: usize = 64;
 const ELF64_SECTION_ADDRESS_OFFSET: usize = 16;
 const ELF64_SECTION_FILE_OFFSET: usize = 24;
 const ELF64_PLACEMENT_FIELD_SIZE: u8 = 8;
-const SECTION_COUNT: usize = 14;
 const FILE_OFFSET_PLACEMENT_COUNT: usize = 13;
 const VIRTUAL_ADDRESS_PLACEMENT_COUNT: usize = 12;
 const PLACEMENT_COUNT: usize = 25;

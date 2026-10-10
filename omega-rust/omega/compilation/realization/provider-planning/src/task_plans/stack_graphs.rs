@@ -455,7 +455,7 @@ fn frame_identity(
     hash.string_terminated(callable.as_str());
     hash.string_terminated(entry.name.as_str());
     super::normalized_id(
-        hash.finish_normalized(),
+        hash.finish_or(1),
         TaskStackFrameId::from_normalized_identity,
     )
 }

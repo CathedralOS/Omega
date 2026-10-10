@@ -211,7 +211,7 @@ fn append_task_start_selection(
         requirement,
         target_machine: target_machine.symbol,
         target_entry: target_entry.symbol,
-        report_fingerprint: hash.finish_normalized(),
+        report_fingerprint: hash.finish_or(1),
         operation,
     };
     if !selections.contains(&selection) {

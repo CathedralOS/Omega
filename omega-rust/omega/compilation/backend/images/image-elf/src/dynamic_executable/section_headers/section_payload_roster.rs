@@ -12,6 +12,7 @@ use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::{
     ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload,
 };
+use crate::constants::{SECTION_COUNT};
 use crate::dynamic_executable::dynamic_table::dynamic_tags::ElfDynamicAddressTarget;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{
     ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage,
@@ -22,7 +23,6 @@ use crate::dynamic_executable::section_headers::section_header_bytes::ValidatedE
 use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 
-const SECTION_COUNT: usize = 14;
 const DYNAMIC_FIXUP_COUNT: usize = 9;
 /// Independently replayed numeric payload rows and indexed unresolved fixups.
 ///

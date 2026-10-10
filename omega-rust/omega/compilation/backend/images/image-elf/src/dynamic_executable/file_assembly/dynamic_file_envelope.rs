@@ -18,6 +18,7 @@ use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::dynamic_executable::checked::{
     checked_product, checked_sum, read_u16, read_u32, read_u64, require,
 };
+use crate::constants::{ELF64_SECTION_HEADER_SIZE};
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfLoadProgramHeader, ElfLoadProgramHeaderKind, ValidatedElfDynamicLoadLayout,
 };
@@ -33,7 +34,6 @@ const ELF64_PROGRAM_HEADER_SIZE: usize = 56;
 const ELF64_PROGRAM_HEADER_COUNT: usize = 5;
 const ELF64_HEADER_PREFIX_SIZE: usize =
     ELF64_HEADER_SIZE + ELF64_PROGRAM_HEADER_SIZE * ELF64_PROGRAM_HEADER_COUNT;
-const ELF64_SECTION_HEADER_SIZE: usize = 64;
 const ELF64_SECTION_HEADER_COUNT: usize = 14;
 const ELF64_SECTION_HEADER_TABLE_SIZE: usize =
     ELF64_SECTION_HEADER_SIZE * ELF64_SECTION_HEADER_COUNT;

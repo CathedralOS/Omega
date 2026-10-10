@@ -19,6 +19,7 @@ use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
     ElfProcedureLinkageSectionKind, ValidatedElfProcedureLinkageSectionDescriptorPlan,
 };
+use crate::constants::{ELF64_RELA_SIZE};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{
     ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage,
     ElfProcedureLinkageSemanticTarget,
@@ -27,7 +28,6 @@ use diagnostics::Diagnostic;
 use target::TargetProfile;
 
 const ELF64_DYNAMIC_SYMBOL_SIZE: u64 = 24;
-const ELF64_RELA_SIZE: usize = 24;
 const ELF64_DYN_VALUE_SIZE: u8 = 8;
 const FIXED_NON_NEEDED_ROW_COUNT: usize = 17;
 const ADDRESS_OBLIGATION_COUNT: usize = 9;

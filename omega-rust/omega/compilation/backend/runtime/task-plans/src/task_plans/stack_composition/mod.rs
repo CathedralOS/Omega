@@ -372,24 +372,24 @@ pub fn task_stack_frame_validation_identity(
     unresolved_calls.sort_unstable();
     let mut hash = Fnv1a::new();
     hash.byte(0x56);
-    hash.word(frame.normalized_identity());
-    hash.word(local_bytes);
-    hash.word(alignment);
-    hash.word(calls.len() as u64);
+    hash.u64(frame.normalized_identity());
+    hash.u64(local_bytes);
+    hash.u64(alignment);
+    hash.u64(calls.len() as u64);
     for call in &calls {
         match call {
             StackCallContribution::Checked { callee } => {
                 hash.byte(1);
-                hash.word(callee.normalized_identity());
+                hash.u64(callee.normalized_identity());
             }
             StackCallContribution::AdmittedSameStack(contribution) => {
                 hash.byte(2);
-                hash.word(contribution.report_identity().normalized_identity());
+                hash.u64(contribution.report_identity().normalized_identity());
             }
         }
     }
     hash_unresolved_calls(&mut hash, unresolved_calls.iter());
-    TaskStackFrameValidationId::from_normalized_identity(hash.finish())
+    TaskStackFrameValidationId::from_normalized_identity(hash.finish_or(Fnv1a::OFFSET_BASIS))
         .expect("normalized frame validation identity is never zero")
 }
 
@@ -783,49 +783,49 @@ fn composition_report_fingerprint(
     alignment: u64,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.word(root.normalized_identity());
-    hash.word(frames.len() as u64);
+    hash.u64(root.normalized_identity());
+    hash.u64(frames.len() as u64);
     for summary in frames.values() {
         let summary = summary.summary();
-        hash.word(summary.frame.normalized_identity());
-        hash.word(summary.local_bytes);
-        hash.word(summary.alignment);
-        hash.word(summary.validation.normalized_identity());
-        hash.word(summary.calls.len() as u64);
+        hash.u64(summary.frame.normalized_identity());
+        hash.u64(summary.local_bytes);
+        hash.u64(summary.alignment);
+        hash.u64(summary.validation.normalized_identity());
+        hash.u64(summary.calls.len() as u64);
         for call in &summary.calls {
             match call {
                 StackCallContribution::Checked { callee } => {
                     hash.byte(1);
-                    hash.word(callee.normalized_identity());
+                    hash.u64(callee.normalized_identity());
                 }
                 StackCallContribution::AdmittedSameStack(contribution) => {
                     hash.byte(2);
-                    hash.word(contribution.report_identity().normalized_identity());
-                    hash.word(contribution.bytes());
-                    hash.word(contribution.alignment());
+                    hash.u64(contribution.report_identity().normalized_identity());
+                    hash.u64(contribution.bytes());
+                    hash.u64(contribution.alignment());
                 }
             }
         }
         hash_unresolved_calls(&mut hash, summary.unresolved_calls.iter());
     }
-    hash.word(bytes);
-    hash.word(alignment);
-    hash.finish()
+    hash.u64(bytes);
+    hash.u64(alignment);
+    hash.finish_or(Fnv1a::OFFSET_BASIS)
 }
 
 fn hash_unresolved_calls<'a>(
     hash: &mut Fnv1a,
     sites: impl ExactSizeIterator<Item = &'a UnresolvedCallSite>,
 ) {
-    hash.word(sites.len() as u64);
+    hash.u64(sites.len() as u64);
     for site in sites {
-        hash.word(site.frame.normalized_identity());
+        hash.u64(site.frame.normalized_identity());
         for byte in site.state.as_bytes() {
             hash.byte(*byte);
         }
         hash.byte(0);
-        hash.word(site.statement_index as u64);
-        hash.word(site.call_ordinal as u64);
+        hash.u64(site.statement_index as u64);
+        hash.u64(site.call_ordinal as u64);
         hash.byte(match site.kind {
             UnresolvedCallKind::UnresolvedTarget => 1,
             UnresolvedCallKind::NonCheckedSupply => 2,
@@ -837,15 +837,15 @@ fn admitted_contribution_report_fingerprint(
     candidate: &SameStackContributionAdmissionCandidate,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.word(candidate.provider_plan_report_identity);
+    hash.u64(candidate.provider_plan_report_identity);
     for byte in candidate.provider_plan_commitment.as_bytes() {
         hash.byte(byte);
     }
-    hash.string(&candidate.requirement_identity);
-    hash.word(candidate.receipt.normalized_identity());
-    hash.word(candidate.bytes);
-    hash.word(candidate.alignment);
-    hash.finish()
+    hash.string_framed(&candidate.requirement_identity);
+    hash.u64(candidate.receipt.normalized_identity());
+    hash.u64(candidate.bytes);
+    hash.u64(candidate.alignment);
+    hash.finish_or(Fnv1a::OFFSET_BASIS)
 }
 
 fn admitted_contribution_commitment(
@@ -875,25 +875,25 @@ fn stack_plan_projection_report_fingerprint(
     representation: StackRepresentationId,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.word(composition.normalized_identity());
-    hash.word(root.normalized_identity());
-    hash.word(bytes);
-    hash.word(alignment);
-    hash.word(frame_validations.len() as u64);
+    hash.u64(composition.normalized_identity());
+    hash.u64(root.normalized_identity());
+    hash.u64(bytes);
+    hash.u64(alignment);
+    hash.u64(frame_validations.len() as u64);
     for validation in frame_validations {
-        hash.word(validation.normalized_identity());
+        hash.u64(validation.normalized_identity());
     }
-    hash.word(admitted_contribution_report_identities.len() as u64);
+    hash.u64(admitted_contribution_report_identities.len() as u64);
     for contribution in admitted_contribution_report_identities {
-        hash.word(contribution.normalized_identity());
+        hash.u64(contribution.normalized_identity());
     }
-    hash.word(admitted_contribution_commitments.len() as u64);
+    hash.u64(admitted_contribution_commitments.len() as u64);
     for commitment in admitted_contribution_commitments {
         for byte in commitment.as_bytes() {
             hash.byte(byte);
         }
     }
     hash_unresolved_calls(&mut hash, unresolved_calls.iter());
-    hash.word(representation.normalized_identity());
-    hash.finish()
+    hash.u64(representation.normalized_identity());
+    hash.finish_or(Fnv1a::OFFSET_BASIS)
 }

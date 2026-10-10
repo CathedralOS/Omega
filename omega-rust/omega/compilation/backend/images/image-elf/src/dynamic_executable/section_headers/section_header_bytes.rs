@@ -16,20 +16,18 @@ use crate::bytes::{write_u32, write_u64};
 use crate::dynamic_executable::checked::{
     checked_product, checked_sum, read_u32, read_u64, require,
 };
+use crate::constants::{ELF64_SECTION_HEADER_SIZE, SECTION_COUNT, SHF_ALLOC};
 use crate::dynamic_executable::section_headers::section_roster::{
     ElfDynamicRosterSectionKind, ElfNumericSectionDescriptor, ValidatedElfDynamicSectionRoster,
 };
 use diagnostics::Diagnostic;
 
-const ELF64_SECTION_HEADER_SIZE: usize = 64;
 const ELF64_SECTION_ADDRESS_OFFSET: usize = 16;
 const ELF64_SECTION_FILE_OFFSET: usize = 24;
 const ELF64_PLACEMENT_FIELD_SIZE: u8 = 8;
-const SECTION_COUNT: usize = 14;
 const FILE_OFFSET_FIXUP_COUNT: usize = 13;
 const VIRTUAL_ADDRESS_FIXUP_COUNT: usize = 12;
 const PLACEMENT_FIXUP_COUNT: usize = FILE_OFFSET_FIXUP_COUNT + VIRTUAL_ADDRESS_FIXUP_COUNT;
-const SHF_ALLOC: u64 = 0x2;
 /// Independently decoded and replayed ELF64-LSB section-header table
 /// templates.
 ///

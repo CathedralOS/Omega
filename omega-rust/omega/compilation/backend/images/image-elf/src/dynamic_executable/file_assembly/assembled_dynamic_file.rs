@@ -18,6 +18,7 @@ use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{
     ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,
     ValidatedElfResolvedProcedureLinkage,
 };
+use crate::constants::{SECTION_COUNT};
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout, public_section_kind,
 };
@@ -29,7 +30,6 @@ use image::{
 };
 use target::TargetProfile;
 
-const SECTION_COUNT: usize = 14;
 /// Exact owner of one fragment copied into the assembled dynamic ELF file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ElfDynamicFileFragmentKind {

@@ -77,8 +77,18 @@ impl Fnv1a {
         self.bytes(value.as_bytes());
     }
 
+    /// Machine-width word feed (cast to u64).
+    pub fn usize(&mut self, value: usize) {
+        self.u64(value as u64);
+    }
+
     /// The raw digest. Sites that reserve a zero sentinel normalize on top.
     pub const fn finish(self) -> u64 {
         self.0
+    }
+
+    /// The digest, or `fallback` when it is the reserved zero sentinel.
+    pub const fn finish_or(self, fallback: u64) -> u64 {
+        if self.0 == 0 { fallback } else { self.0 }
     }
 }

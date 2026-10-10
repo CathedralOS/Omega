@@ -18,12 +18,12 @@ use crate::dynamic_executable::import_sections::dynamic_section_descriptors::Elf
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
     ElfProcedureLinkageSectionInfo, ElfProcedureLinkageSectionKind, ElfProcedureLinkageSectionLink,
 };
+use crate::constants::{SECTION_COUNT};
 use crate::dynamic_executable::section_headers::section_name_table::{
     ElfSectionNameTableSectionKind, ValidatedElfSectionNameTablePlan,
 };
 use diagnostics::Diagnostic;
 
-const SECTION_COUNT: usize = 14;
 const SECTION_NAME_TABLE_INDEX: u32 = 13;
 const SHT_NULL: u32 = 0;
 const CANONICAL_KINDS: [ElfDynamicRosterSectionKind; SECTION_COUNT] = [

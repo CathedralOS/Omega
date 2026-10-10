@@ -232,7 +232,7 @@ fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
     });
     hash.usize(target.pointer_size);
     hash.usize(target.pointer_alignment);
-    hash.finish_normalized()
+    hash.finish_or(1)
 }
 
 /// The concrete per-parameter layouts a start signature marshals under, in
@@ -279,7 +279,7 @@ fn signature_layout_report_fingerprint(
         hash.usize(layout.alignment);
         hash.byte(0xff);
     }
-    hash.finish_normalized()
+    hash.finish_or(1)
 }
 
 fn entry_report_fingerprint(
@@ -297,7 +297,7 @@ fn entry_report_fingerprint(
     }
     hash.byte(0xfe);
     hash.string_terminated(&program.normalized_type_identity_text(entry.return_type));
-    hash.finish_normalized()
+    hash.finish_or(1)
 }
 
 fn calling_plan_report_fingerprint(
@@ -321,7 +321,7 @@ fn calling_plan_report_fingerprint(
     hash.u64(entry_report_fingerprint);
     hash.u64(arguments_report_fingerprint);
     hash.u64(outcome_report_fingerprint);
-    hash.finish_normalized()
+    hash.finish_or(1)
 }
 
 fn normalized_id<T>(

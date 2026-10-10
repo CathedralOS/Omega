@@ -705,19 +705,19 @@ fn selected_closure_report_fingerprint(
         hash.u64(resolution.provider_plan_report_identity);
         hash.u64(resolution.upper_bound.len() as u64);
         for service in &resolution.upper_bound {
-            hash.bytes_terminated(service.as_bytes());
+            hash.bytes_terminated(service.as_bytes(), 0);
         }
         hash.u64(resolution.resolved_row.len() as u64);
         for service in &resolution.resolved_row {
-            hash.bytes_terminated(service.as_bytes());
+            hash.bytes_terminated(service.as_bytes(), 0);
         }
     }
     for row in specialization_rows {
         hash.u64(row.provider_plan_report_identity);
-        hash.bytes_terminated(row.selected_requirement_identity.as_bytes());
-        hash.bytes_terminated(row.selected_machine_identity.as_bytes());
-        hash.bytes_terminated(row.requirement_identity.as_bytes());
-        hash.bytes_terminated(row.machine_identity.as_bytes());
+        hash.bytes_terminated(row.selected_requirement_identity.as_bytes(), 0);
+        hash.bytes_terminated(row.selected_machine_identity.as_bytes(), 0);
+        hash.bytes_terminated(row.requirement_identity.as_bytes(), 0);
+        hash.bytes_terminated(row.machine_identity.as_bytes(), 0);
     }
     hash.finish()
 }

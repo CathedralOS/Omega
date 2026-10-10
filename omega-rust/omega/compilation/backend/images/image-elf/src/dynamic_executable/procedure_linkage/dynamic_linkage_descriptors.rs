@@ -22,14 +22,12 @@ use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::Val
 use diagnostics::Diagnostic;
 use target::TargetProfile;
 
+use crate::constants::{SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE};
+const ELF64_RELA_SIZE: u64 = crate::constants::ELF64_RELA_SIZE as u64;
 const SHT_PROGBITS: u32 = 1;
 const SHT_RELA: u32 = 4;
-const SHF_WRITE: u64 = 0x1;
-const SHF_ALLOC: u64 = 0x2;
-const SHF_EXECINSTR: u64 = 0x4;
 const SHF_INFO_LINK: u64 = 0x40;
 const SHF_AARCH64_PURECODE: u64 = 0x2000_0000;
-const ELF64_RELA_SIZE: u64 = 24;
 const PROCEDURE_LINKAGE_ALIGNMENT: u64 = 16;
 const PROCEDURE_GOT_ALIGNMENT: u64 = 8;
 const PROCEDURE_RELOCATION_ALIGNMENT: u64 = 8;
