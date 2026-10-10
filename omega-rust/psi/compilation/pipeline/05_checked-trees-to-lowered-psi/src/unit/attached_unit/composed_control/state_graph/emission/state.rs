@@ -614,7 +614,7 @@ impl StateGraphEmission<'_, '_> {
             } else {
                 (Vec::new(), Vec::new(), Vec::new())
             };
-        // The authored `(identities, expression)` arm lowers its value producer into its
+        // The authored `(expression)` arm lowers its value producer into its
         // own block closed by ReturnStructural now, before the successor-edge
         // closure borrows this state's emission slots. The staged edge joins
         // the conditional arms below as the return block's jump target.

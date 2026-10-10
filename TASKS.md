@@ -628,6 +628,10 @@ defines the complete product bar.
     disjoint siblings and exact open-place agreement across recoverable failure,
     suspension/resume/cancellation and process-exit abandonment;
     do not invent rollback. Qualify those remaining paths on supported hosts.
+    Keep `pass/collections/runtime_bounded_byte_reference_{read,forward}_exit`
+    (70) for shared observation and mutable forwarding over caller-backed
+    fixed byte storage in native and Terminal execution; qualify the remaining
+    supported hosts without treating bounded loans as pointer/length views.
     The ordinary cases below still need Windows x86-64 and matching-host
     Linux x86-64 execution; the bounded
     [Linux qualification](wiki/drafts/reference/rust_compiler_completion.md#borrowed-storage-linux-qualification)

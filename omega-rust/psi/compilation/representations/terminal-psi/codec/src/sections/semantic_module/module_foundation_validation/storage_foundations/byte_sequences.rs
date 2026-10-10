@@ -360,8 +360,9 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     Ok(())
 }
 
-/// Validate declaration geometry only; live descriptor access and bounds are
-/// independently reconstructed at the Terminal trust boundary.
+/// Validate the selected byte carrier, not its descriptor word count. Bounded
+/// loans carry static extents; live access and bounds are independently
+/// reconstructed at the Terminal trust boundary.
 fn validate_byte_descriptor_source(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -376,7 +377,7 @@ fn validate_byte_descriptor_source(
     };
     let selected = validate_structural_path(module, root, &source.path)?;
     if !module.structural_type(selected).is_some_and(|declaration| {
-        declaration.shape.is_borrowed_byte_view()
+        declaration.shape.is_borrowed_byte_carrier()
             || (!borrowed_only && declaration.shape.is_bounded_owned_byte_sequence())
     }) {
         return malformed("byte operation requires its exact selected byte descriptor");

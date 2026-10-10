@@ -334,18 +334,18 @@ impl StateGraphEmission<'_, '_> {
                             }
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
                             self.structural_places.push(case_leaf_copy::emit(
-identities,
-&self.catalogs.structural_types,
-source,
-root_type,
-&subject.path,
-&case_identity.spelling(),
-&field_identity.spelling(),
-path,
-target_parameter,
-destination,
-operations,
-)?);
+                                identities,
+                                &self.catalogs.structural_types,
+                                source,
+                                root_type,
+                                &subject.path,
+                                &case_identity.spelling(),
+                                &field_identity.spelling(),
+                                path,
+                                target_parameter,
+                                destination,
+                                operations,
+                            )?);
                             destination
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {

@@ -1,4 +1,10 @@
 //! Scalar operand evaluation within an existing machine's structural frontier.
+//!
+//! Runtime values, erased formals and captured selectors occupy separate
+//! namespaces even though all are value-declaration slices. Expansions bind
+//! against the runtime prefix; proof-only actuals read the erased roster. The
+//! value, block, edge and place allocators likewise remain distinct through
+//! nested emission. Sharing the identity table changes neither correspondence.
 use super::super::{
     BlockId, QualifiedScalarType, StructuralAccess, StructuralParameterDeclaration,
     StructuralTypeDeclaration, block_id, scalar_carriers,

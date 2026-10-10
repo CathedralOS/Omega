@@ -194,7 +194,9 @@ impl TerminalExecution<'_> {
                 .structural_types()
                 .get(&selected.structural_type)
                 .is_some_and(|row| {
-                    row.shape.is_borrowed_byte_view() || row.shape.is_bounded_owned_byte_sequence()
+                    // This selects frame custody, not descriptor words. A
+                    // bounded loan keeps its statically known extent.
+                    row.shape.is_borrowed_byte_carrier() || row.shape.is_bounded_owned_byte_sequence()
                 })
         {
             return Err(malformed());

@@ -6,6 +6,9 @@
 //! Unsupported constructs fail closed; this stage does not optimize or publish.
 //! Expression place/result types and storage carriers come from the frozen
 //! checked facts; lowering does not resolve them again from source context.
+//! The identity table is shared across bodies and retained declarations, then
+//! sealed at the production handoff. It does not merge the machine,
+//! state, value, block, edge or place namespaces, or runtime and erased formals.
 //!
 //! One entrance: [`lower_machine`], in `machine_lowering.rs`. Read
 //! `lower_terminal_selection` there to read this stage — the module order

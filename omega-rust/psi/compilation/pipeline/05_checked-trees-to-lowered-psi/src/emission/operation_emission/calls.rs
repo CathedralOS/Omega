@@ -174,6 +174,9 @@ pub(super) fn emit_scalar_call_binding(
         identities,
         checked,
         call,
+        // Crash routes substitute the evaluated actuals, not the caller's
+        // retained prefix or its erased formals. Source-refined buckets may
+        // fold guards, but are not the callee's published runtime contract.
         &call.parameter_relative_crash_routes,
         &arguments,
         parameters,
