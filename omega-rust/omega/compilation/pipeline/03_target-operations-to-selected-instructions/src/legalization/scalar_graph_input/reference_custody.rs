@@ -867,15 +867,6 @@ fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bo
 
 mod call_paths;
 
-/// Whether `place` is currently suspended as a live loan's referent root.
-/// Cleanup cannot discard storage that an outstanding carrier still names.
-pub(in crate::legalization) fn is_suspended_root(custody: &Custody, place: PlaceId) -> bool {
-    custody
-        .leaves
-        .values()
-        .any(|reference| reference.root.contains_place(place))
-}
-
 /// Ingress reference leaves identify external pointees, not descriptor storage.
 /// Ordinary origin fields still suspend their exact storage regions; unresolved
 /// declarations cannot establish disjointness. This matches lowering's custody
@@ -1487,11 +1478,21 @@ fn transferred_ingress_leaf(
 /// resolve later `.., Referent` spellings and result rosters independently.
 pub(in crate::legalization) fn apply(
     custody: &mut Custody,
-    operation: &AbstractOperation,
+    node: &optimization_unit::OptimizationNode,
     function: &PsiOptimizationFunction,
+    native: &target_operations::TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
+    // A selected Omega provider has ordinary call custody, including owned
+    // reference carriers. Reuse the exact retained-origin join used by row
+    // validation; a boundary declaration or candidate roster alone cannot
+    // turn a foreign ABI call into an in-module ownership transfer.
+    let installed = super::call_origin::installed_operation(node, function, native, plan)?;
+    let operation = installed
+        .as_ref()
+        .map(|(operation, _)| operation)
+        .unwrap_or(&node.operation);
     let types = &plan.structural_types[..];
     match operation {
         AbstractOperation::StructuralLeafCopy {
@@ -2011,7 +2012,7 @@ fn apply_cleanup_actions(
             }
         };
         // A suspended referent root cannot be discarded while its loan lives.
-        if is_suspended_root(custody, place) {
+        if is_suspended_storage_region(function, custody, types, place, &[]) {
             return Err(invalid());
         }
         discard_owned(function, custody, types, place)?;
@@ -2091,6 +2092,7 @@ fn borrowed_sources(
 /// exactly. Final entries equal the complete merge of every incoming edge.
 pub(in crate::legalization) fn block_entry_states(
     function: &PsiOptimizationFunction,
+    native: &target_operations::TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<BTreeMap<BlockId, Custody>, LegalizationError> {
@@ -2160,7 +2162,7 @@ pub(in crate::legalization) fn block_entry_states(
             ) {
                 apply_terminator(&mut custody, &node.operation, function, plan)?;
             } else {
-                apply(&mut custody, &node.operation, function, plan, unit).map_err(|error| {
+                apply(&mut custody, node, function, native, plan, unit).map_err(|error| {
                     error.attributed(function.machine, node.operation.psi_operation())
                 })?;
             }

@@ -10,7 +10,13 @@ carrier retains two borrowed leaves beside a non-borrowed marker: one reborrows
 the retained reference, and the other borrows a separate owned root.
 A local retains write-only access and writes its original backing after
 the call, without acquiring read permission.
-Its authored exit is 0 only when the call returns 42, the reference still
+The incomplete call also receives a fresh borrow, a forwarded reference, a
+stored generic carrier and a directly constructed generic carrier. Its fresh
+root and one stored leaf's root have no later caller use. Each actual's completed
+evaluation, not its former descriptor home, must retain the original backing.
+Closed constructor fields use the same declaration correspondence as ordinary
+structural values; template `T` fields cannot erase their borrowed leaves.
+Its authored exit is 0 only when the call returns 241, the reference still
 observes 40, both shared carrier leaves and the marker retain their original
 values, and the write-only reference stores 99 into its original backing.
 
@@ -24,6 +30,8 @@ judging carry. Each admitted root keeps its checked enclosing-invocation
 lifetime; the canonical Terminal graph preserves formation, access, parent and
 supplier relationships. Activation-wide CPU/thread preservation stays strict
 rather than becoming portable just because a descriptor can survive the call.
-Incoming referents and incomplete captured-actual leaf coverage still reject.
+The canonical graph names each evaluated actual and exact borrowed leaf beside
+the retained formation captures. Incoming referents and incomplete actual
+frontiers still reject; descriptor permission alone establishes no lifetime.
 Real start/park/resume/cancellation execution remains the separate TR3-TR8
 frontier. The conflicting-backing-write failure fixture pins access exclusion.

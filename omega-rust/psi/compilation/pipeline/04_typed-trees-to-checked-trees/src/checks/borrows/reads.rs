@@ -105,12 +105,7 @@ pub(super) struct StagedOperands {
 }
 
 impl StagedOperands {
-    fn contains(
-        &mut self,
-        program: &dyn ::validation::CheckingInput,
-        facts: &CheckFacts,
-        read: &StatementRead<'_>,
-    ) -> bool {
+    fn contains(&mut self, facts: &CheckFacts, read: &StatementRead<'_>) -> bool {
         if !read.expression.is_valid() {
             return false;
         }
@@ -124,23 +119,13 @@ impl StagedOperands {
                 .iter()
                 .filter(|call| call.statement_index == statement_index)
             {
-                let Some(site) = validation::find_call_site(
-                    program,
-                    read.state.machine_symbol,
-                    read.state.state_symbol,
-                    statement_index,
-                    call.call_ordinal,
-                ) else {
-                    continue;
-                };
-                crate::borrow::accesses::collect_call_argument_access_expressions(
-                    program,
-                    validation::call_site_argument_expressions(program, &site),
-                    read.state.state_symbol,
-                    statement_index,
-                    read.state.machine_symbol,
-                    call.target_symbol,
-                    &mut expressions,
+                expressions.extend(
+                    facts
+                        .borrow
+                        .argument_accesses
+                        .span_or_empty(call.accesses)
+                        .iter()
+                        .map(|access| access.expression),
                 );
             }
             expressions
@@ -219,7 +204,7 @@ pub(super) fn check_storage_read<'p>(
                 && loan.formation_expression == read.expression
                 && facts.borrow.state_owns_loan(read.borrow_state, handle)
         });
-    if forms_loan || staged_operands.contains(program, facts, &read) {
+    if forms_loan || staged_operands.contains(facts, &read) {
         return;
     }
     let label = read.place.label(program);

@@ -592,7 +592,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 136 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 137 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -1406,9 +1406,9 @@ identities: two actual positions may name the same storage and still contribute
 separate rows, claims and policies. Preserve every occurrence and the complete
 count; do not deduplicate equal coordinates. Each live value's claims are
 strictly ordered by claim id. The frontier commitment uses the
-`terminal-suspension-frontier-v5` domain and includes the ordered roster and
+`terminal-suspension-frontier-v6` domain and includes the ordered roster and
 its cardinality, each value's loan links and the complete loan graph. Marker
-136 adds these graph payloads; marker 135 has no graph and is not reinterpreted.
+137 adds evaluated-actual captures; earlier markers are not reinterpreted.
 
 Each live value ends with a loan tag: `0` unresolved, `1` view-free, or `2`
 followed by a span into the plan's loan-link arena. The plan then encodes counted
@@ -1421,7 +1421,11 @@ coordinates, not source borrow admission.
 A loan occurrence encodes capture, backing, resource kind, parent handle,
 supplier handle, structural access and an active-at-call Boolean. Capture is
 `0` unresolved, or `1` followed by formation operation, carrier place, source
-place, source access and a source-path span. Backing is `0` unresolved,
+place, source access and a source-path span, or `2` followed by a `u32`
+call-argument live-value position and a captured-leaf path span. This position
+must name a structural CallArgument occurrence. Its path selects the already
+evaluated descriptor, not a source expression to evaluate again. Backing is
+`0` unresolved,
 `1` plus a `u32` retained-owner live-value position, or `2` plus an incoming
 structural argument. Resource kind is `0` unresolved, `1` direct root, or
 `2` reborrow. Parentage and supplier transport are distinct relationships.

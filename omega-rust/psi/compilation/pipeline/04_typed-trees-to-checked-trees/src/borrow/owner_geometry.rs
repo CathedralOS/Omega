@@ -8,7 +8,7 @@ use typed_trees::data::DataMember;
 
 /// Translate an occurrence's symbolic owner path through its declarations.
 /// Common fields and active payload fields keep distinct nominal namespaces.
-pub(in crate::execution::terminal_unit::control::statement_sequence::reference_retirement) fn carrier_path(
+pub(crate) fn carrier_path(
     program: &dyn ::validation::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
     owner_path: &[BorrowLoanOwnerSegment],

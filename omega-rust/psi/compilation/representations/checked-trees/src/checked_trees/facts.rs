@@ -65,8 +65,9 @@ pub use calls::{
 pub use carry::{
     CarryFacts, ClaimCarryPolicyFact, DataCarryFact, MachineActivationCarryFact,
     SuspensionCrossingBorrowFrontier, SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact,
-    SuspensionCrossingLoanBacking, SuspensionCrossingLoanFact, SuspensionCrossingStorage,
-    SuspensionCrossingValueOrigin, SuspensionValueBorrowFrontier, canonical_suspension_crossing_id,
+    SuspensionCrossingLoanBacking, SuspensionCrossingLoanFact, SuspensionCrossingLoanSource,
+    SuspensionCrossingStorage, SuspensionCrossingValueOrigin, SuspensionValueBorrowFrontier,
+    canonical_suspension_crossing_id,
 };
 pub use checked_crash_operator_site::{CheckedCrashOperatorSite, OperatorSiteLocation};
 pub use collection::{CheckFacts, DecidedCallRequires, ProvenAssignmentIndex};

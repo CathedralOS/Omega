@@ -1,17 +1,19 @@
 use omega::language::core::binding;
 
 pub boundary trait Scheduler {
-    machine advance(value: i32) -> i32 suspends;
+    machine advance(value: &i32, forwarded: &i32, stored: Envelope<&i32>, constructed: Envelope<&i32>) -> i64 suspends;
 }
 
 data InlineScheduler {}
-machine InlineScheduler::advance(value: i32) -> i32 satisfies Scheduler::advance {
-    value
+machine InlineScheduler::advance(value: &i32, forwarded: &i32, stored: Envelope<&i32>, constructed: Envelope<&i32>) -> i64 satisfies Scheduler::advance {
+    (value as i64) + (forwarded as i64)
+        + (stored.first as i64) + (stored.second as i64) + (stored.marker as i64)
+        + (constructed.first as i64) + (constructed.second as i64) + (constructed.marker as i64)
 }
 
 machine observe(value: &i32) -> i32 { value }
 machine overwrite(value: &write i32) { value = 99; }
-data Envelope<T> { marker: i32; first: T; second: T; }
+pub data Envelope<T> { marker: i32; first: T; second: T; }
 data Main { scheduler: Binding<Scheduler>; }
 machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     let backing: i32 = 40;
@@ -24,12 +26,23 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     };
     let mut write_backing: i32 = 5;
     let writable: &write i32 = &write write_backing;
-    let result: i32 = suspend main.scheduler.advance(42);
+    let call_backing: i32 = 42;
+    let argument_backing: i32 = 55;
+    let argument_carrier: Envelope<&i32> = Envelope {
+        marker: 2,
+        first: &retained,
+        second: &argument_backing
+    };
+    let result: i64 = suspend main.scheduler.advance(&call_backing, retained, argument_carrier, Envelope {
+        marker: 3,
+        first: &retained,
+        second: &other_backing
+    });
     overwrite(&write writable);
     let observation: i32 = observe(retained);
     let first: i32 = observe(carrier.first);
     let second: i32 = observe(carrier.second);
-    transition result == 42 && observation == 40
+    transition result == 241 && observation == 40
         && carrier.marker == 7 && first == 40 && second == 19
         && write_backing == 99 {
         true -> done()

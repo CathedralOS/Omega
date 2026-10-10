@@ -136,6 +136,9 @@ pub enum CheckedReborrowAccessEffect {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowArgumentAccessFact {
+    /// The evaluated operand that produced this access in its owning call's
+    /// ordered roster. Equal places do not identify equal evaluations.
+    pub expression: ExpressionHandle,
     pub root_symbol: SymbolHandle,
     pub segments: HandleSpan<facts::PlaceSegment>,
     pub kind: BorrowAccessKind,
@@ -211,6 +214,45 @@ pub struct CheckedDirectBorrowParentLifetime {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub root_symbol: SymbolHandle,
+}
+
+/// A borrowed leaf of one completed call operand. Its owning evaluation and
+/// checked access stay distinct from another operand at equal storage.
+/// Construction records existing authority, not permission to park.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedCallBorrowLoanResource {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub call: Handle<crate::FlowCallFact>,
+    pub owner_operand: Handle<crate::FlowOperandFact>,
+    pub operand: Handle<crate::FlowOperandFact>,
+    pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
+    /// The same leaf in the closed actual carrier's structural namespace.
+    pub capture_path: HandleSpan<crate::CheckedUnitStructuralPathSegment>,
+    /// Exact stored occurrence or invocation access supplying this permission.
+    pub source: CheckedCallBorrowLoanSource,
+    pub access: BorrowAccessKind,
+    pub parent_lifetime: CheckedDirectBorrowParentLifetime,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedCallBorrowLoanSource {
+    /// Transport preserves the exact stored occurrence observed at completion.
+    StoredLoan { loan: Handle<BorrowLoanFact> },
+    /// The call holds this access until completion. The referent and ancestors
+    /// were captured at this operand's evaluation, not at invocation entry.
+    CallAccess {
+        access: Handle<BorrowArgumentAccessFact>,
+        parents: HandleSpan<Handle<BorrowLoanFact>>,
+    },
+}
+
+impl Default for CheckedCallBorrowLoanSource {
+    fn default() -> Self {
+        Self::StoredLoan {
+            loan: Handle::invalid(),
+        }
+    }
 }
 
 /// Restoration obligation retained for one direct-root loan.
@@ -553,6 +595,9 @@ pub struct BorrowFacts {
     /// resource handles. Aggregate and otherwise unretained transfers have no
     /// row.
     pub reborrow_loan_resources: Arena<CheckedReborrowLoanResource>,
+    pub call_loan_resources: Arena<CheckedCallBorrowLoanResource>,
+    pub call_loan_parents: Arena<Handle<BorrowLoanFact>>,
+    pub call_loan_paths: Arena<crate::CheckedUnitStructuralPathSegment>,
     /// Checked-only resource-lifecycle dispositions for available direct
     /// reborrows at their weakening boundary. Suspended carriers remain
     /// pending and therefore have no premature disposition row.
@@ -590,6 +635,9 @@ impl BorrowFacts {
             state_index: OwnedIndex::default(),
             direct_loan_resources: Arena::new(),
             reborrow_loan_resources: Arena::new(),
+            call_loan_resources: Arena::new(),
+            call_loan_parents: Arena::new(),
+            call_loan_paths: Arena::new(),
             reborrow_disposition_events: Arena::new(),
             reborrow_containment_certificates: Arena::new(),
             reborrow_restored_call_use_certificates: Arena::new(),

@@ -59,7 +59,7 @@ pub(crate) fn store_destination_places<'loan>(
     destinations
 }
 
-pub(super) fn owner_path_from_place_segments(
+pub(crate) fn owner_path_from_place_segments(
     program: &dyn ::validation::CheckingInput,
     segments: &[facts::PlaceSegment],
 ) -> Vec<BorrowOwnerSegment> {

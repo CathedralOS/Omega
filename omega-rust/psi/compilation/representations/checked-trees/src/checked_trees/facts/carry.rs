@@ -91,11 +91,7 @@ pub struct SuspensionCrossingBorrowFrontier {
 /// parent. Neither edge is inferred from matching storage or source labels.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SuspensionCrossingLoanFact {
-    pub loan: Handle<crate::BorrowLoanFact>,
-    /// The already checked resource owns captured place, access and lifetime.
-    /// A zero resource handle denotes missing construction, not permission to
-    /// reconstruct authority from this demand's backing coordinate.
-    pub resource: crate::CheckedParentBorrowResource,
+    pub source: SuspensionCrossingLoanSource,
     /// False for a dependency retained solely by a current descendant. This
     /// does not reactivate an expired/replaced descriptor or restore access.
     pub active_at_call: bool,
@@ -104,6 +100,35 @@ pub struct SuspensionCrossingLoanFact {
     /// This demand neither reactivates a descriptor nor establishes access.
     pub retained_for_crossing: bool,
     pub backing: SuspensionCrossingLoanBacking,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SuspensionCrossingLoanSource {
+    Stored {
+        loan: Handle<crate::BorrowLoanFact>,
+        resource: crate::CheckedParentBorrowResource,
+    },
+    CapturedActual {
+        resource: Handle<crate::CheckedCallBorrowLoanResource>,
+    },
+}
+
+impl Default for SuspensionCrossingLoanSource {
+    fn default() -> Self {
+        Self::Stored {
+            loan: Handle::invalid(),
+            resource: Default::default(),
+        }
+    }
+}
+
+impl SuspensionCrossingLoanFact {
+    pub fn stored_loan(&self) -> Handle<crate::BorrowLoanFact> {
+        match self.source {
+            SuspensionCrossingLoanSource::Stored { loan, .. } => loan,
+            SuspensionCrossingLoanSource::CapturedActual { .. } => Handle::invalid(),
+        }
+    }
 }
 
 /// Logical backing identity, kept separate from the descriptor containing a
@@ -144,8 +169,8 @@ pub struct SuspensionCrossingLiveValueFact {
     pub borrow_frontier: SuspensionValueBorrowFrontier,
 }
 
-/// The value's stored-leaf join or its producer-owned operand capture.
-/// Neither alternative proves lifetime/access/backing preservation.
+/// Complete borrowed-leaf coverage by stored and captured occurrences.
+/// Coverage alone does not prove lifetime/access/backing preservation.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum SuspensionValueBorrowFrontier {
     #[default]
@@ -155,12 +180,6 @@ pub enum SuspensionValueBorrowFrontier {
         /// These edges name this call's retained occurrences, including their
         /// backing and resource join, rather than the historical loan arena.
         loans: HandleSpan<Handle<SuspensionCrossingLoanFact>>,
-    },
-    CapturedOperand {
-        /// The actual's original evaluation epoch, including constructed
-        /// children. Presence does not establish complete borrowed-leaf
-        /// coverage or permit substitution of a later named descriptor.
-        operand: Handle<crate::FlowOperandFact>,
     },
 }
 

@@ -5,6 +5,7 @@
 //! These latter records still have live consumers; they are not the removed
 //! checker-only compatibility ledgers. No second construction replays them.
 
+mod call_operands;
 mod certificate_planning;
 mod disposition_events;
 mod lifecycle;
@@ -56,6 +57,7 @@ pub(super) fn initialize_checked_direct_borrow_resources(
         &containments,
         &restored_uses,
     );
+    call_operands::install(program, facts);
     Ok(())
 }
 

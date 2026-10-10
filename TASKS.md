@@ -5334,13 +5334,16 @@ wait for Cathedral's instruction coverage. The interpreter is
     `task_frame_summary` (`task_plans/stack_graphs.rs`) measures checked locals
     and parked arguments; the activation plan describes shape, not backing.
     Keep unresolved-call refusal and same-stack/separately provisioned demand.
-  - Complete incoming-referent and captured-actual loan-leaf/lifetime joins in
-    stage 04 `checks/carry.rs` and stage 05 `retention/suspension_call_plan.rs`;
+  - Complete incoming-referent and remaining incomplete actual loan-leaf/lifetime
+    joins in stage 04 `checks/carry.rs` and stage 05
+    `retention/suspension_call_plan.rs`;
     descriptor slots cannot stand in for caller-supplied referents. Complete
     the selected runtime's physical backing and cancellation preservation.
     Keep `pass/concurrency/runtime_retained_reference_boundary_exit` (0) for
     enclosing-invocation roots, a multi-leaf generic carrier with a retained
-    parent reborrow, and a write-only reference used after the call, plus
+    parent reborrow, and a write-only reference used after the call. It also
+    exercises fresh and forwarded reference actuals and stored/constructed
+    two-leaf generic actuals whose backing has no continuation use. Keep
     `fail/concurrency/suspend_retained_loan_conflicting_backing_write` for
     access exclusion. Checked crossings retain current occurrences and
     parent/supplier closure; continuation and captured-actual backing demands

@@ -369,7 +369,7 @@ pub(super) fn check_suspension_carry(
                 &claim_carry,
                 &mut crossing,
             );
-            append_live_value_diagnostics(
+            append_live_value_carry_demands(
                 program,
                 machine,
                 state,
@@ -377,12 +377,9 @@ pub(super) fn check_suspension_carry(
                 call_site.as_ref(),
                 &source_values,
                 &facts.borrow,
-                &facts.flow,
-                borrows,
                 suspension_loans.span_mut_or_empty(borrows.loans),
                 &claim_carry,
                 &mut crossing,
-                &mut diagnostics,
             );
             for live in &mut crossing.live_values {
                 live.borrow_frontier = loans::value_frontier(
@@ -581,7 +578,7 @@ fn state_carry_values<'program>(
     values
 }
 
-fn append_live_value_diagnostics(
+fn append_live_value_carry_demands(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -589,12 +586,9 @@ fn append_live_value_diagnostics(
     call_site: Option<&validation::CallSite<'_>>,
     source_values: &[StateCarryValue<'_>],
     borrow: &checked_trees::BorrowFacts,
-    flow: &checked_trees::FlowFacts,
-    frontier: checked_trees::SuspensionCrossingBorrowFrontier,
     frontier_loans: &mut [checked_trees::SuspensionCrossingLoanFact],
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
-    diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut live_symbols = Vec::new();
     for value in source_values
@@ -619,17 +613,6 @@ fn append_live_value_diagnostics(
         }) {
             live_symbols.push(value.symbol);
         }
-    }
-    if let Err(diagnostic) = loans::retain_operand_backing(
-        program,
-        flow,
-        frontier,
-        source_values,
-        call.statement_index,
-        &mut live_symbols,
-    ) {
-        diagnostics.push(diagnostic);
-        return;
     }
     loans::retain_backing_values(borrow, frontier_loans, &mut live_symbols);
     for value in source_values {

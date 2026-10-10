@@ -9,8 +9,7 @@ use super::{
 };
 use checked_trees::BorrowLoanFact;
 
-mod paths;
-pub(super) use paths::carrier_path;
+pub(super) use crate::borrow::carrier_path;
 
 /// Historical carrier transport, not a new loan descent. A copy and an owned
 /// move retain the supplying occurrence's immediate parents; neither makes
@@ -82,7 +81,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
             else {
                 continue;
             };
-            let path = paths::carrier_path(
+            let path = carrier_path(
                 program,
                 local.type_reference,
                 facts.borrow.loan_owner_path(loan),
@@ -136,7 +135,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                                 .is_none_or(|formation| candidate.statement_index == formation)
                     })
                 {
-                    if paths::carrier_path(
+                    if carrier_path(
                         program,
                         supplying_local.type_reference,
                         facts.borrow.loan_owner_path(candidate),

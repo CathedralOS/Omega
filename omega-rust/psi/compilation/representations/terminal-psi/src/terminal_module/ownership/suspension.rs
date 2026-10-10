@@ -99,6 +99,13 @@ pub enum TerminalSuspensionLoanCapture {
         source_access: StructuralAccess,
         source_path: HandleSpan<StructuralPathSegment>,
     },
+    /// A leaf of the already evaluated actual in this plan's ordered roster.
+    /// The path selects its captured descriptor, never a source expression to
+    /// evaluate again. An empty path retains the ordinary borrowed operand.
+    CallArgument {
+        live_value: u32,
+        path: HandleSpan<StructuralPathSegment>,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -183,7 +190,7 @@ pub enum TerminalSuspensionStorage {
 
 pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8; 32] {
     let mut hash =
-        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v5\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v6\0");
     hash.raw(&plan.operation.get().to_le_bytes());
     hash.raw(&plan.crossing.get().to_le_bytes());
     match plan.target {
@@ -312,6 +319,11 @@ fn hash_loans(
                 hash.raw(&source.get().to_le_bytes());
                 hash_access(hash, *source_access);
                 hash_span(hash, *source_path);
+            }
+            TerminalSuspensionLoanCapture::CallArgument { live_value, path } => {
+                hash.byte(2);
+                hash.raw(&live_value.to_le_bytes());
+                hash_span(hash, *path);
             }
         }
         match &loan.backing {

@@ -22,3 +22,15 @@ machine main() reaches CText {
     bytes[1] = 0;
     let mut result: u64 = c_strnlen(&bytes[0], overwrite(&mut bytes));
 }
+
+data BorrowedByte { byte: &u8; }
+machine inspect(argument: BorrowedByte, limit: u64) {}
+
+// A constructed carrier holds its child's loan through the same invocation.
+// Traversal must not discard that child before the later actual writes it.
+machine constructed_argument() {
+    let mut constructed_bytes: [u8;2];
+    constructed_bytes[0] = 65;
+    constructed_bytes[1] = 0;
+    inspect(BorrowedByte { byte: &constructed_bytes[0] }, overwrite(&mut constructed_bytes));
+}

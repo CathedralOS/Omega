@@ -89,6 +89,18 @@ pub struct FlowCallFact {
     pub authored_source_custody_valid: bool,
 }
 
+impl FlowCallFact {
+    /// Formal argument positions exclude the separately evaluated receiver.
+    /// Keep the full evaluation roster for sequencing and expose this span
+    /// for consumers joining explicit actuals to the callee telescope.
+    pub fn argument_operands(&self) -> HandleSpan<super::FlowOperandFact> {
+        if !self.authored_receiver.is_valid() || self.operands.is_empty() {
+            return self.operands;
+        }
+        HandleSpan::from_parts_or_empty(self.operands.handle_at(1), self.operands.count() - 1)
+    }
+}
+
 /// The authored syntax that spells one [`FlowCallFact`]. `Unbound` is the
 /// absence state before the source-custody binding pass joins the row.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

@@ -280,6 +280,76 @@ impl TypedTrees {
             .then_some(instance)
     }
 
+    /// Select a constructor child through the exact closed declaration's
+    /// member correspondence. Source template symbols remain valid selectors
+    /// only at the same declaration position under this retained origin.
+    /// Common fields and case payloads retain separate coordinates.
+    pub fn closed_data_constructor_field(
+        &self,
+        reference: TypeReferenceHandle,
+        authored: SymbolHandle,
+        retained: SymbolHandle,
+    ) -> Option<&crate::data::DataField> {
+        use crate::data::DataMember;
+        let instance = self.closed_data_constructor_definition(reference, authored)?;
+        if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Field {
+            return None;
+        }
+        let parent = self.symbols.get(retained).parent;
+        let source_owner = if self.symbols.get(parent).kind == symbols::SymbolKind::Variant {
+            self.symbols.get(parent).parent
+        } else {
+            parent
+        };
+        self.closed_data_constructor_definition(reference, source_owner)?;
+        let source = self.unique_data_definition_by_symbol(source_owner)?;
+        let corresponding_field =
+            |original: &crate::data::DataField, selected: &crate::data::DataField| {
+                original.name == selected.name
+                    && original.identity == selected.identity
+                    && original.relevance == selected.relevance
+                    && selected.symbol.is_valid()
+                    && self
+                        .type_reference_table
+                        .contains_type_reference(selected.type_reference)
+            };
+        for (ordinal, member) in self.data_members(source).iter().enumerate() {
+            match member {
+                DataMember::Field(original) if original.symbol == retained => {
+                    let DataMember::Field(selected) = self.data_members(instance).get(ordinal)?
+                    else {
+                        return None;
+                    };
+                    return corresponding_field(original, selected).then_some(selected);
+                }
+                DataMember::Variant(original_case) => {
+                    let Some((field_ordinal, original)) = self
+                        .data_payload_fields(original_case)
+                        .iter()
+                        .enumerate()
+                        .find(|(_, field)| field.symbol == retained)
+                    else {
+                        continue;
+                    };
+                    let DataMember::Variant(selected_case) =
+                        self.data_members(instance).get(ordinal)?
+                    else {
+                        return None;
+                    };
+                    if original_case.name != selected_case.name
+                        || original_case.identity != selected_case.identity
+                    {
+                        return None;
+                    }
+                    let selected = self.data_payload_fields(selected_case).get(field_ordinal)?;
+                    return corresponding_field(original, selected).then_some(selected);
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
     /// Rejoin a record member to the closed receiver's substituted field.
     /// Normalization may retain the template selection; only the matching
     /// declaration position, identity and relevance authorize its translation.

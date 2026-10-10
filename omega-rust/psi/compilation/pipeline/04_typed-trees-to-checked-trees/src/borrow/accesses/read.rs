@@ -37,6 +37,15 @@ pub(super) fn collect_read_accesses(
     collection: &mut BorrowAccessCollection<'_>,
     expression: ExpressionHandle,
 ) {
+    if super::super::children::recurse_shared_children(
+        collection.program,
+        expression,
+        &mut |child| {
+            collect_read_accesses(collection, child);
+        },
+    ) {
+        return;
+    }
     match collection.program.expression_table.expression(expression) {
         ExpressionNode::Call(call) => {
             let first_access = collection.access_count();

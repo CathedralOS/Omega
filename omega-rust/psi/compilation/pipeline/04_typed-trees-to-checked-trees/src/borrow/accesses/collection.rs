@@ -16,9 +16,6 @@ pub(super) struct BorrowAccessCollection<'a> {
     statement_index: usize,
     machine_symbol: SymbolHandle,
     dispatch_extraction: DispatchExtraction,
-    /// The authored occurrence of each recorded access, for a judgment that
-    /// rejoins a roster to its operands. Retained rows do not keep it.
-    recorded_expressions: Option<&'a mut Vec<ExpressionHandle>>,
 }
 
 impl<'a> BorrowAccessCollection<'a> {
@@ -40,17 +37,7 @@ impl<'a> BorrowAccessCollection<'a> {
             statement_index,
             machine_symbol,
             dispatch_extraction: DispatchExtraction::default(),
-            recorded_expressions: None,
         }
-    }
-
-    /// Record the authored occurrence of every access this collection appends.
-    pub(super) fn recording_expressions(
-        mut self,
-        expressions: &'a mut Vec<ExpressionHandle>,
-    ) -> Self {
-        self.recorded_expressions = Some(expressions);
-        self
     }
 
     /// Collect a transition arm's own target roster, whose payload bindings
@@ -194,9 +181,6 @@ impl<'a> BorrowAccessCollection<'a> {
         end_before_access: Option<usize>,
         expression: ExpressionHandle,
     ) {
-        if let Some(expressions) = self.recorded_expressions.as_deref_mut() {
-            expressions.push(expression);
-        }
         append_argument_access(
             self.access_segments,
             self.argument_accesses,
@@ -204,6 +188,7 @@ impl<'a> BorrowAccessCollection<'a> {
             access_place,
             kind,
             end_before_access,
+            expression,
         );
     }
 }

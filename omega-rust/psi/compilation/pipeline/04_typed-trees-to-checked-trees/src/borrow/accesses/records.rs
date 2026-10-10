@@ -8,10 +8,12 @@ pub(super) fn append_argument_access(
     access_place: BorrowAccessPlace,
     kind: BorrowAccessKind,
     end_before_access: Option<usize>,
+    expression: checked_trees::expression::ExpressionHandle,
 ) {
     argument_accesses.append_to_span(
         accesses,
         BorrowArgumentAccessFact {
+            expression,
             root_symbol: access_place.root_symbol,
             segments: access_segments.insert_many(access_place.segments),
             kind,

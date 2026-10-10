@@ -150,19 +150,14 @@ impl Builder<'_, '_> {
         // extents. Source fields may still select the template; the retained
         // member correspondence, not a name-only search, translates that use.
         for initializer in &mut authored {
-            if !declared.iter().any(|member| {
-                matches!(member, typed_trees::data::DataMember::Field(field)
-                    if field.symbol == initializer.field_symbol)
-            }) {
-                initializer.field_symbol = self
-                    .program
-                    .closed_data_member_field(
-                        reference,
-                        initializer.field_symbol,
-                        initializer.name.as_str(),
-                    )?
-                    .symbol;
-            }
+            initializer.field_symbol = self
+                .program
+                .closed_data_constructor_field(
+                    reference,
+                    literal.type_symbol,
+                    initializer.field_symbol,
+                )?
+                .symbol;
         }
         let relevant = self.program.live_data_fields(declared).collect::<Vec<_>>();
         let erased = declared

@@ -304,8 +304,9 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 396ms expected @ebf381240e20
 	statement 3 mutates `left` while local borrow `right` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	cannot prove index `left_index` is within length 2 in Main::main::main
 	cannot prove index `right_index` is within length 2 in Main::main::main
-fail/borrows/boundary_argument_later_write_under_element_loan rejected 706ms expected @cba4afbf6f2f+wt
+fail/borrows/boundary_argument_later_write_under_element_loan rejected 924ms expected @a6cabfd6a9f7+wt
 	state `c_strnlen` receives `bytes` as both mutable and read-only
+	state `inspect` receives `constructed_bytes` as both mutable and read-only
 fail/borrows/boundary_primitive_loan_mutable_from_shared rejected 4445ms expected @935b9317809f+wt
 	argument `value` for state `read` is declared `&mut` (`&mut f32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/byte_array_state_loan_shared_and_exclusive rejected 447ms expected @ad48a872752b+wt
@@ -888,24 +889,22 @@ fail/concurrency/suspend_later_operand_rejected rejected 138ms expected @c08960b
 	suspending call to `park` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning
 fail/concurrency/suspend_live_value_rejected rejected 919ms expected @1eb6badd8c99+wt
 	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
-fail/concurrency/suspend_reference_permission_without_backing rejected 1132ms expected @1eb6badd8c99+wt
+fail/concurrency/suspend_reference_permission_without_backing rejected 959ms expected @a6cabfd6a9f7+wt
 	call to `park` may suspend while `loan` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
 	call to `park` may suspend while `carrier` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
 	call to `park` may suspend while `view` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
-	call to `park_with` may suspend while `argument` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
+	call to `park_with` may suspend while `argument` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
 	call to `park` may suspend while `unknown` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
 fail/concurrency/suspend_retained_loan_conflicting_backing_write rejected 972ms expected @1eb6badd8c99+wt
 	statement 3 mutates `backing` while local borrow `retained` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
-fail/concurrency/suspend_with_indirect_resource_backing rejected 1092ms expected @1eb6badd8c99+wt
+fail/concurrency/suspend_with_indirect_resource_backing rejected 919ms expected @a6cabfd6a9f7+wt
 	call to `park` may suspend while `owned_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `direct_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `current_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `aggregate_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `nested_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `forwarded` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
-	call to `inspect` may suspend while `&call_only_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
 	call to `inspect` may suspend while `call_only_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
-	call to `inspect_carrier` may suspend while `Envelope` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
 	call to `inspect_carrier` may suspend while `constructed_backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/constants/affine_rational_named_constant rejected 612ms expected @2d8ed253669f
 	constant type must permit copying and contain no cleanup, shared ownership, or interior mutability

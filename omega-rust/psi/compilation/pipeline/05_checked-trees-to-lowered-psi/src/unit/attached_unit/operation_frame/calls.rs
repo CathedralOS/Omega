@@ -375,7 +375,7 @@ impl OperationFrame<'_, '_> {
                 .suspension_loans
                 .span_or_empty(crossing.borrows.loans)
                 .iter()
-                .any(|entry| entry.retained_for_crossing && entry.loan == capture.loan)
+                .any(|entry| entry.retained_for_crossing && entry.stored_loan() == capture.loan)
             {
                 bindings.loan_captures.push(capture.clone());
             }

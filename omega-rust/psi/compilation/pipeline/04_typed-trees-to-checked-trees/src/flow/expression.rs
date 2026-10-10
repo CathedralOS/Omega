@@ -942,19 +942,39 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 }
             }
             ExpressionNode::StructLiteral(value) => {
+                let carrier = if destination.is_valid() {
+                    Some(destination)
+                } else {
+                    self.context.expression_result_type_at(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        expression,
+                    )
+                }
+                .map(|reference| validation::peel_declared_constraints(self.program, reference));
                 for field in self.program.expression_table.struct_fields(value.fields) {
-                    if !field.field_symbol.is_valid() {
+                    let Some(selected) = carrier.and_then(|carrier| {
+                        self.program.closed_data_constructor_field(
+                            carrier,
+                            value.type_symbol,
+                            field.field_symbol,
+                        )
+                    }) else {
+                        // Without an exact closed field join there is no typed
+                        // child snapshot. Still evaluate the authored child;
+                        // downstream coverage remains incomplete, not view-free.
                         self.expression(field.value, contexts, constraints);
                         continue;
-                    }
+                    };
                     let mut path = Vec::with_capacity(2);
                     if let Some(variant) =
-                        facts::payload_variant_for_field(self.program, field.field_symbol)
+                        facts::payload_variant_for_field(self.program, selected.symbol)
                     {
                         path.push(facts::PlaceSegment::Case { variant });
                     }
                     path.push(facts::PlaceSegment::Field {
-                        symbol: field.field_symbol,
+                        symbol: selected.symbol,
                     });
                     let child_type = self.constructed_child_type(expression, destination, &path);
                     let evaluated =
