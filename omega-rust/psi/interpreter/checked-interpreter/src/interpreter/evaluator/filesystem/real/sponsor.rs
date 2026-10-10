@@ -1,4 +1,4 @@
-use super::host_io::win32_error_code;
+use super::host_io::{open_options_for, open_real, win32_error_code};
 use super::{EACCES, EBADF, io_errno};
 use crate::interpreter::evaluator::EvalResult;
 use std::io::Seek;
@@ -154,6 +154,37 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 Ok(-1)
             }
         }
+    }
+
+    /// Every flag-decoded path open ends the same way: sponsor preparation,
+    /// shared option decode, the real open, then finish. Call sites differ
+    /// only in the `OpenOptions` mode arguments.
+    pub(super) fn open_flags_and_finish(
+        &mut self,
+        path: PathBuf,
+        flags: i32,
+        mode: u32,
+        apply_creation_mode: bool,
+        wants_write: bool,
+    ) -> EvalResult<i64> {
+        let prepared = self.prepare_sponsored_open(
+            &path,
+            crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags),
+            crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags),
+            wants_write,
+        )?;
+        let mut options = open_options_for(flags, mode, apply_creation_mode);
+        if matches!(prepared, SponsorPreparation::Prepared(_)) {
+            options.create_new(true);
+        }
+        let opened = open_real(&options, &path, wants_write);
+        self.finish_real_open(
+            opened,
+            path,
+            crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags),
+            prepared,
+            false,
+        )
     }
 
     pub(super) fn commit_sponsored_open(

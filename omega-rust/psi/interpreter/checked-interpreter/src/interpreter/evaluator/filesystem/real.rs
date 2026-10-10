@@ -49,7 +49,7 @@ use crate::{
 };
 use authorized_paths::canonical_relative_path;
 use grants::{Grants, canonical_grants};
-use host_io::{open_options_for, open_real, real_os_bytes, real_path};
+use host_io::{real_os_bytes, real_path};
 use metadata::host_metadata_matches_canonical_kind;
 
 use std::collections::BTreeMap;
@@ -464,24 +464,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             crate::interpreter::evaluator::filesystem::host_open_flags::wants_write(flags);
         match self.authorized_path(&path, wants_write, 0) {
             Some(path) => {
-                let prepared = self.prepare_sponsored_open(
-                    &path,
-                    crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags),
-                    crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags),
-                    wants_write,
-                )?;
-                let mut options = open_options_for(flags, mode, create_variant);
-                if matches!(prepared, sponsor::SponsorPreparation::Prepared(_)) {
-                    options.create_new(true);
-                }
-                let opened = open_real(&options, &path, wants_write);
-                self.finish_real_open(
-                    opened,
-                    path,
-                    crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags),
-                    prepared,
-                    false,
-                )
+                self.open_flags_and_finish(path, flags, mode, create_variant, wants_write)
             }
             None => Ok(-1),
         }

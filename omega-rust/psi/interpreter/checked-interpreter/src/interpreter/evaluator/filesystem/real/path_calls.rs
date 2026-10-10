@@ -1,7 +1,7 @@
 //! Operations addressed by path: opens and creates, removals, renames,
 //! links, permissions, ownership, canonicalization and path metadata.
 
-use super::host_io::{open_options_for, open_real, real_os_bytes, real_path};
+use super::host_io::{open_real, real_os_bytes, real_path};
 use super::{EACCES, EBADF, EINVAL, ENOENT, io_errno};
 use crate::interpreter::evaluator::{
     EvalResult, FilesystemGrantRefusalReason, PreparedFilesystemCall,
@@ -48,24 +48,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 crate::interpreter::evaluator::filesystem::host_open_flags::wants_write(flags);
             match self.authorized_path(&path, wants_write, 0) {
                 Some(path) => {
-                    let prepared = self.prepare_sponsored_open(
-                        &path,
-                        crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags),
-                        crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags),
-                        wants_write,
-                    )?;
-                    let mut options = open_options_for(flags, mode as u32, true);
-                    if matches!(prepared, super::sponsor::SponsorPreparation::Prepared(_)) {
-                        options.create_new(true);
-                    }
-                    let opened = open_real(&options, &path, wants_write);
-                    self.finish_real_open(
-                        opened,
-                        path,
-                        crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags),
-                        prepared,
-                        false,
-                    )?
+                    self.open_flags_and_finish(path, flags, mode as u32, true, wants_write)?
                 }
                 None => -1,
             }
@@ -476,26 +459,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 }
             };
             match self.authorized_native_path(&joined, wants_write, true, 1) {
-                Some(path) => {
-                    let prepared = self.prepare_sponsored_open(
-                        &path,
-                        crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags),
-                        crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags),
-                        wants_write,
-                    )?;
-                    let mut options = open_options_for(flags, 0, false);
-                    if matches!(prepared, super::sponsor::SponsorPreparation::Prepared(_)) {
-                        options.create_new(true);
-                    }
-                    let opened = open_real(&options, &path, wants_write);
-                    self.finish_real_open(
-                        opened,
-                        path,
-                        crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags),
-                        prepared,
-                        false,
-                    )?
-                }
+                Some(path) => self.open_flags_and_finish(path, flags, 0, false, wants_write)?,
                 None => -1,
             }
         })
