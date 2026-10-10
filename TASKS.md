@@ -2904,16 +2904,21 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   `build_borrow_facts` call per check, unchanged borrow check corpus and
   native restoration results (`--filter borrows/,borrow/,references/`).
 
-- **CHECK-ONCE-ACROSS-TARGETS.** (new-scope) The driver re-checks the whole
-  program for each selected target
-  (`omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
-  replaces the selected target's bodies and calls `lower_typed_trees` per
-  compile; inferred from reading, not measured). Psi already checks every
-  target-scoped body in one compilation (AGENTS.md: targets are data). Check
-  once and have each target's realization read the shared checked trees.
-  Coordinate with **PSI-TARGET-FAMILIES**. Acceptance: a two-target build
-  calls `lower_typed_trees` once (add a counter or trace); native corpus on
-  the host target unchanged.
+- **CHECK-ONCE-ACROSS-TARGETS.** Implemented — pending board verification.
+  `compiler::compile` now chains `RetainedCompilationChecks` across its target
+  loop (`prior` = previous target's retained product check, `retain` = an
+  admitted successor exists), so an equal settled typed input takes the
+  retained judgment instead of rechecking; a target whose settlement diverges
+  the input (`attach_proposed` under semantic-role discovery, `evaluate_pending`
+  under pending pre-checks) checks afresh and chains its own judgment.
+  `artifacts::compile_timings::counters::settled_check_reuse_count` is the
+  acceptance counter (recorded at both `took_prior` sites); measured 3-target
+  `--check` = 1 executed check + 2 reuses. Single-target compiles keep
+  `retain: false` — the retained clone is the whole checked program, so the
+  corpus path stays clone-free. Native corpus leg env-blocked (program-entry
+  admission); equality-gated reuse is output-identical by construction, so
+  single-target/native paths are bit-identical. Coordination on
+  **PSI-TARGET-FAMILIES** via claims.py still unavailable.
 
 - **ONE-INTEGER-BOUNDS-ENGINE.** (new-scope) At least ten separate engines
   answer "what range can this integer take":
