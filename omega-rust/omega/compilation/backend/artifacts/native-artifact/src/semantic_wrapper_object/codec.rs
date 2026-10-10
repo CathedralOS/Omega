@@ -20,7 +20,7 @@ use super::{
     OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
     OptimizedProgramStorageSemanticWrapperObjectUnavailableData,
 };
-use crate::cursor::{Cursor, TakeError, Truncated};
+use crate::cursor::{Cursor, TakeError};
 use isa_x86_64::ValidatedX86_64SemanticUnitWrapperTemplate;
 use object_file::ObjectLocalSymbolId;
 use optimization_core::{
