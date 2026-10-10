@@ -1040,16 +1040,10 @@ pub fn structural_call_custody(
         destination.return_type,
     )
     .is_some()
-        || crate::machine_calls::reference_result_custody::shared_borrowed_parts(
+        || crate::machine_calls::reference_result_custody::has_borrowed_parts(
             program,
             destination.return_type,
         )
-        .is_some()
-        || crate::machine_calls::reference_result_custody::mutable_borrowed_parts(
-            program,
-            destination.return_type,
-        )
-        .is_some()
     {
         // The reference carrier transports a loan, not owned referent claims.
         // Exact ingress substitution and its weakening are reconstructed below.
@@ -1204,17 +1198,10 @@ pub fn structural_call_custody(
             .unwrap_or_default();
         let reference_loans = if !forwarded_reference_sources.is_empty() {
             arena::HandleSpan::empty()
-        } else if crate::machine_calls::reference_result_custody::mutable_borrowed_parts(
+        } else if crate::machine_calls::reference_result_custody::has_borrowed_parts(
             program,
             destination.return_type,
-        )
-        .is_some()
-            || crate::machine_calls::reference_result_custody::shared_borrowed_parts(
-                program,
-                destination.return_type,
-            )
-            .is_some()
-        {
+        ) {
             crate::machine_calls::reference_result_custody::result_loans(
                 program,
                 facts,
@@ -1247,17 +1234,10 @@ pub fn structural_call_custody(
     if crate::machine_calls::reference_result_custody::local_owes_record_loans(
         program,
         destination.return_type,
-    ) || crate::machine_calls::reference_result_custody::mutable_borrowed_parts(
+    ) || crate::machine_calls::reference_result_custody::has_borrowed_parts(
         program,
         destination.return_type,
-    )
-    .is_some()
-        || crate::machine_calls::reference_result_custody::shared_borrowed_parts(
-            program,
-            destination.return_type,
-        )
-        .is_some()
-    {
+    ) {
         return Err("claim-bearing structural result also carries a loan");
     }
     let claim_transfers = owned_argument_claim_transfers(

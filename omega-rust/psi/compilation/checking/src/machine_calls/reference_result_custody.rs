@@ -2359,6 +2359,17 @@ pub fn shared_borrowed_parts(
         .map(|shell| (shell.referee, CheckedStructuralAccess::SharedBorrow))
 }
 
+/// Whether `reference` is any caller-frame borrow carrier — `&mut T` or
+/// `&'a V` alike. Result-custody consumers that only need the classification
+/// ask this one question rather than restating the pair probe.
+pub fn has_borrowed_parts(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    mutable_borrowed_parts(program, reference).is_some()
+        || shared_borrowed_parts(program, reference).is_some()
+}
+
 /// The referee beneath any `& T` place-loan carrier, with constraint shells
 /// peeled but without `shared_borrowed_parts`' named-referent restriction. A
 /// `&[u8; 48]` loan names the array's storage in the caller's frame just as
