@@ -425,11 +425,13 @@ helper that passes does not close an item.
     at exit 0: exact immediate lineage and every sibling's closure must remain
     independent of projection compatibility. Unknown index pairs and use of
     the parent before its last child ends must still reject.
-    Whole-range endpoints captured into scalar bindings still need live
-    correspondence to transport element domains and length aliases, including
-    `&mut main.rooms[0..main.rooms.len]` in
-    `borrows/runtime_forwarded_view_field_domain_exit`; do not infer that
-    relation by replaying the endpoint's initializer.
+    Builtin whole and partial record views now transport field obligations
+    through captured backing places, including explicit collection metadata
+    endpoints. Finish the remaining formation-time correspondence for copied
+    scalar endpoints and nested-array view carriers; never recover it by
+    replaying an initializer. The imported declared range operator still needs
+    evaluate-once omitted-end normalization before `as_slice_views` can migrate
+    to `&main.entries[..]`; do not bypass its selected declaration.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on its other declared targets.
   Acceptance: static customers execute with their authored exit/output; the

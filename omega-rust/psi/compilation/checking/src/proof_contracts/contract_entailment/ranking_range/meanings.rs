@@ -1,7 +1,5 @@
 //! The existing declaration/custody owner, not token spelling, admits arithmetic.
-use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, PrimitiveType, State, lengths,
-};
+use super::{BinaryOperator, ExpressionHandle, ExpressionNode, Machine, PrimitiveType, State};
 use typed_trees::expression::UnaryOperator;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -58,21 +56,17 @@ pub(super) fn builtin(
             ) {
                 return Some(Some(reference));
             }
-            let receiver = crate::value_custody::places::collection_length_receiver(
+            crate::value_custody::places::collection_length_receiver(
                 program,
                 machine,
                 Some(state),
                 expression,
             )?;
-            // A `.len` receiver is a slice formal or an exact projected slice
-            // leaf; either names a produced length coordinate.
-            if lengths::parameter(program, state, receiver).is_none()
-                && lengths::SliceCoordinate::resolve_length(program, state, receiver).is_none()
-            {
-                return None;
-            }
-            // Builtin collection metadata is a natural numeric coordinate;
-            // it has no authored nominal operator implementation.
+            // Structural collection metadata has builtin numeric meaning
+            // regardless of where its descriptor lives. This admits no value:
+            // the coordinate owner must independently supply its exact extent
+            // or captured observation. Formal-only admission lost local array
+            // measures even when their declared extent was already known.
             Some(None)
         }
         ExpressionNode::StructLiteral(literal) => {

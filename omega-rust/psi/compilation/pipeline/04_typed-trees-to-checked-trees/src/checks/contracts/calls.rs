@@ -76,8 +76,6 @@ pub(super) fn check_call_requires(
         state_flow,
         call_flow,
         nominal_requirements,
-        &entry_contexts,
-        call_frames,
         diagnostics,
     );
     for requires_context in facts

@@ -20,7 +20,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.rooms[0].label = "hall";
     main.rooms[1].label = "vault";
     main.rooms[1].value = 66;
-    let rooms: &mut [Room] = &mut main.rooms[..];
+    let rooms: &mut [Room] = &mut main.rooms[0..main.rooms.len];
     let visited: u64 = visit(rooms, 1);
     transition visited == 70 && main.rooms[1].label == "vault" {
         true -> reached(main)

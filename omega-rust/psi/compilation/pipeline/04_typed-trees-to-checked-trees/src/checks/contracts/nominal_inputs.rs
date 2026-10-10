@@ -1,6 +1,11 @@
 //! The declared field facts assumed by a nominal parameter are obligations on
 //! each incoming actual. Reuse the exact semantic declaration rows; do not
 //! recover lost membership merely from an unchanged nominal type annotation.
+//! Completed operand projections are the only actual correspondence: copies
+//! keep completion evidence and views consult invocation facts on their frozen
+//! referents. A historical local-origin replay is not a second proof route.
+//! Conditional payload validity does not select an active case; only the
+//! authored source access carries that separate selection obligation.
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -90,8 +95,6 @@ pub(super) fn check(
     state: &FlowStateFact,
     call: &FlowCallFact,
     requirements: &DeclaredFieldRequirements,
-    contexts: &[FactContextHandle],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(site) = validation::find_call_site(
@@ -113,16 +116,6 @@ pub(super) fn check(
             let argument = arguments.get(argument_index).copied();
             argument_index += 1;
             argument
-        };
-        let actual = {
-            argument.and_then(|argument| {
-                validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.state_symbol,
-                    call.statement_index,
-                    argument,
-                )
-            })
         };
         // Every formal owes the same declared fields, including a subject
         // forwarded from the caller, independently of declaration qualification.
@@ -150,35 +143,10 @@ pub(super) fn check(
                 argument_index - 1,
                 segments.clone(),
             );
-            // A copied argument is proved from its own completion facts, which
-            // survive a later operand's write to its source. A borrowed
-            // argument lends the storage itself, so the callee observes it at
-            // the call and the call site's contexts are its evidence: the
-            // epoch rule `call_values::membership_contexts` states. A view's
-            // element field memberships live only in those call-site contexts.
-            let borrowed = matches!(
-                program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference),
-                typed_trees::types::TypeReferenceNode::Reference { .. }
-            );
-            let argument_contexts = captured_actual
-                .as_ref()
-                .filter(|_| !borrowed)
-                .map(|actual| {
-                    super::call_values::actual_contexts(program, facts, state, call, actual)
-                });
-            let contexts = argument_contexts.as_deref().unwrap_or(contexts);
-            let proves = |subject: &validation::CanonicalPlace| {
-                prove_declared_field_domain(
-                    program,
-                    facts,
-                    contexts,
-                    subject,
-                    *domain_symbol,
-                    *semantic_domain,
-                )
-            };
+            // Every obligation uses the completed operand tree. Detached
+            // children retain their completion epoch; live views use the
+            // invocation facts on every retained referent. Replaying a local
+            // initializer cannot recover a missing storage correspondence.
             let satisfied = captured_actual
                 .as_ref()
                 .and_then(|actual| {
@@ -195,72 +163,41 @@ pub(super) fn check(
                                 captured.type_reference,
                                 call.entry_constraints,
                             );
-                            let projection = &captured.projection;
-                            validation::canonical_place_from_expression_in_state(
-                                program,
-                                state.state_symbol,
-                                call.statement_index,
-                                projection.expression,
-                            )
-                            .is_some_and(|mut subject| {
-                                if !crate::flow::place_cases_are_selected(
-                                    program,
-                                    &facts.semantic,
-                                    &contexts,
-                                    state.machine_symbol,
-                                    state.state_symbol,
-                                    call.statement_index,
-                                    &subject,
-                                ) {
-                                    return false;
-                                }
-                                subject.extend_segments(&projection.remaining);
-                                prove_declared_field_domain(
-                                    program,
-                                    facts,
-                                    &contexts,
-                                    &subject,
-                                    *domain_symbol,
-                                    *semantic_domain,
-                                )
-                            })
+                            crate::flow::captured_value_places(program, &facts.flow, captured)
+                                .is_some_and(|subjects| {
+                                    !subjects.is_empty()
+                                        && subjects.iter().all(|place| {
+                                            // Only the authored source selects
+                                            // a case. A declared field row is
+                                            // conditional validity, not a read
+                                            // that requires its case active.
+                                            crate::flow::place_cases_are_selected(
+                                                program,
+                                                &facts.semantic,
+                                                &contexts,
+                                                state.machine_symbol,
+                                                state.state_symbol,
+                                                call.statement_index,
+                                                &place.storage,
+                                            ) && (crate::flow::place_case_path_is_inactive(
+                                                program,
+                                                &facts.semantic,
+                                                &contexts,
+                                                state.machine_symbol,
+                                                state.state_symbol,
+                                                call.statement_index,
+                                                &place.projected,
+                                            ) || prove_declared_field_domain(
+                                                program,
+                                                facts,
+                                                &contexts,
+                                                &place.projected,
+                                                *domain_symbol,
+                                                *semantic_domain,
+                                            ))
+                                        })
+                                })
                         })
-                })
-                || actual.as_ref().is_some_and(|actual| {
-                    if !crate::flow::place_cases_are_selected(
-                        program,
-                        &facts.semantic,
-                        contexts,
-                        state.machine_symbol,
-                        state.state_symbol,
-                        call.statement_index,
-                        actual,
-                    ) {
-                        return false;
-                    }
-                    let mut subject = actual.clone();
-                    subject.extend_segments(segments);
-                    crate::flow::place_case_path_is_inactive(
-                        program,
-                        &facts.semantic,
-                        contexts,
-                        state.machine_symbol,
-                        state.state_symbol,
-                        call.statement_index,
-                        &subject,
-                    ) || proves(&subject)
-                        || candidate_referents_prove_domain(
-                            program,
-                            facts,
-                            state,
-                            call,
-                            actual,
-                            segments,
-                            *domain_symbol,
-                            *semantic_domain,
-                            contexts,
-                            call_frames,
-                        )
                 });
             if !satisfied {
                 diagnostics.push(Diagnostic::error(format!(
@@ -274,66 +211,6 @@ pub(super) fn check(
             }
         }
     }
-}
-
-/// A `&mut` local bound from a checked reference result names one of
-/// finitely many referent candidates -- `level.rooms[0]` .. `level.rooms[15]`
-/// for `level.room_mut(cell)`. The callee receives whichever storage the loan
-/// actually names, so an actual spelled through the local discharges a
-/// declared-field row only when EVERY candidate proves it; anything less is
-/// the one-exact-origin refusal the single-origin resolver already gives.
-fn candidate_referents_prove_domain(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state: &FlowStateFact,
-    call: &FlowCallFact,
-    actual: &validation::CanonicalPlace,
-    segments: &[PlaceSegment],
-    domain_symbol: SymbolHandle,
-    semantic_domain: language_semantics::SemanticDomainId,
-    contexts: &[FactContextHandle],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> bool {
-    let Some(machine) = program.machine_by_symbol(state.machine_symbol) else {
-        return false;
-    };
-    let mut owned_frames = None;
-    let Some(frames) = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
-    else {
-        return false;
-    };
-    let Some(candidates) = crate::flow::local_reference_candidate_storages_at_call(
-        program,
-        frames,
-        &facts.borrow,
-        machine,
-        &facts.flow,
-        state,
-        call,
-        actual.clone(),
-    ) else {
-        return false;
-    };
-    candidates.iter().all(|candidate| {
-        let mut subject = candidate.clone();
-        subject.extend_segments(segments);
-        crate::flow::place_case_path_is_inactive(
-            program,
-            &facts.semantic,
-            contexts,
-            state.machine_symbol,
-            state.state_symbol,
-            call.statement_index,
-            &subject,
-        ) || prove_declared_field_domain(
-            program,
-            facts,
-            contexts,
-            &subject,
-            domain_symbol,
-            semantic_domain,
-        )
-    })
 }
 
 /// A field qualification carries its complete domain application. Predicate

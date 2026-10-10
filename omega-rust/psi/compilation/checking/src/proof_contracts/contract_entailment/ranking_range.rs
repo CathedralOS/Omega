@@ -1,5 +1,6 @@
-//! Exact, transient rank-range obligations use the ordinary arithmetic engine.
-//! The checked ranking owner selects the view and supplies one actual edge.
+//! Integer coordinates use the ordinary arithmetic engine. Ranking owners
+//! select one actual edge; operand owners supply one captured evidence epoch.
+//! Numeric meaning and descriptor geometry grant no bounds or borrow authority.
 use super::{
     BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, ProofFact, SignatureContractKind, StrictArithmeticBindingValue,
@@ -87,10 +88,38 @@ pub fn captured_collection_length(
     collection: ExpressionHandle,
     mut observe: impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
 ) -> Option<u64> {
+    let mut engine = captured_integer_engine(program, machine, state, collection, &mut observe)?;
+    lengths::actual(program, machine, state, collection, &[], &mut engine)?
+        .constant_value()?
+        .to_u64()
+}
+
+/// Evaluate an integer coordinate from its exact captured facts and builtin
+/// meaning. No saved initializer, caller hypothesis or declared operator body
+/// is replayed. Absence leaves the coordinate symbolic.
+pub fn captured_integer_value(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    mut observe: impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
+) -> Option<BigInt> {
+    meanings::builtin(program, machine, state, expression, 0)?;
+    let mut engine = captured_integer_engine(program, machine, state, expression, &mut observe)?;
+    engine.normalize(expression)?.constant_value()
+}
+
+fn captured_integer_engine<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+    state: &State,
+    root: ExpressionHandle,
+    observe: &mut impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
+) -> Option<Engine<'program>> {
     let mut engine = Engine::strict(program, machine, &[]);
     let mut expressions = Vec::new();
-    crate::expression_traversal::collect_expression_tree(program, collection, &mut expressions);
-    for expression in expressions {
+    crate::expression_traversal::collect_expression_tree(program, root, &mut expressions);
+    for &expression in &expressions {
         let Some(place) = crate::canonical_place_from_expression(program, expression) else {
             continue;
         };
@@ -101,9 +130,28 @@ pub fn captured_collection_length(
             return None;
         }
     }
-    lengths::actual(program, machine, state, collection, &[], &mut engine)?
-        .constant_value()?
-        .to_u64()
+    // Metadata is not an ordinary stored integer field. Bind only the exact
+    // collection measure, using its independently declared fixed extent;
+    // a record field with the same spelling receives no such substitution.
+    for expression in expressions.into_iter().rev() {
+        if let Some(receiver) = crate::value_custody::places::collection_length_receiver(
+            program,
+            machine,
+            Some(state),
+            expression,
+        ) && let Some(length) = crate::value_custody::places::declared_collection_extent(
+            program,
+            machine,
+            Some(state),
+            receiver,
+        ) && !engine.bind_strict_projection(
+            expression,
+            Polynomial::constant(BigInt::from_u64(u64::try_from(length).ok()?)),
+        ) {
+            return None;
+        }
+    }
+    Some(engine)
 }
 
 /// The same declared slice coordinate used by range entry and arrival

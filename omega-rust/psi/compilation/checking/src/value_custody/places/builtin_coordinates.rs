@@ -135,17 +135,26 @@ pub fn whole_collection_view_source(
     }
     let indexed = program.expression_table.indexed_node(operation)?;
     let range = program.expression_table.range_node(indexed.index)?;
-    if range.start.is_valid()
-        && program.expression_table.constant_integer_value(range.start) != Some(0)
-    {
+    let integer = |expression| {
+        // Closed arithmetic still belongs to the selected numeric owner;
+        // syntax-only folding could substitute a declared token machine.
+        if let Some(value) = program.closed_integer_expression_value_in(expression, machine.symbol)
+        {
+            value.to_u64()
+        } else if let Some(state) = state {
+            crate::captured_integer_value(program, machine, state, expression, |_| None)
+                .and_then(|value| value.to_u64())
+        } else {
+            None
+        }
+    };
+    if range.start.is_valid() && integer(range.start) != Some(0) {
         return None;
     }
     if !range.end.is_valid() {
         return (!range.end_inclusive).then_some(indexed.collection);
     }
-    if let Some(end) = program
-        .expression_table
-        .constant_integer_value(range.end)
+    if let Some(end) = integer(range.end)
         .and_then(|end| usize::try_from(end).ok())
         .and_then(|end| {
             if range.end_inclusive {

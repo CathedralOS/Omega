@@ -150,7 +150,8 @@ pub(crate) use ranking_range::{
     call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
 };
 pub use ranking_range::{
-    captured_collection_length, closed_collection_length, closed_collection_length_at_place,
+    captured_collection_length, captured_integer_value, closed_collection_length,
+    closed_collection_length_at_place,
 };
 pub use refuted_requires::instantiated_value_call_requires_proven;
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;

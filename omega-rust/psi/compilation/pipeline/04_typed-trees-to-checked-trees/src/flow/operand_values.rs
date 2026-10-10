@@ -34,6 +34,88 @@ pub(crate) struct CapturedValue<'capture> {
     pub projection: super::LiteralValueProjection,
 }
 
+/// Project evidence onto the storage this completed value actually denotes.
+/// A live view's retained referents select backing storage; detached values
+/// and unresolved views keep their own observation namespace. No initializer
+/// or callee body is consulted to replace a missing capture.
+pub(crate) struct CapturedValuePlace {
+    pub storage: validation::CanonicalPlace,
+    pub projected: validation::CanonicalPlace,
+}
+
+pub(crate) fn captured_value_places(
+    program: &dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
+    value: &CapturedValue<'_>,
+) -> Option<Vec<CapturedValuePlace>> {
+    let referents = flow
+        .control
+        .operand_referents
+        .span_or_empty(value.operand.referents);
+    if !super::operand_contexts::operand_binds_live_view(program, value.type_reference)
+        || referents.is_empty()
+    {
+        let mut place = validation::canonical_place_from_expression_in_state(
+            program,
+            value.operand.state_symbol,
+            value.operand.statement_index,
+            value.projection.expression,
+        )?;
+        let storage = place.clone();
+        place.extend_segments(&value.projection.remaining);
+        return Some(vec![CapturedValuePlace {
+            storage,
+            projected: place,
+        }]);
+    }
+    referents
+        .iter()
+        .map(|referent| {
+            let mut place = validation::CanonicalPlace {
+                root: referent.root,
+                segments: flow
+                    .control
+                    .operand_referent_segments
+                    .span_or_empty(referent.segments)
+                    .to_vec(),
+            };
+            let storage = place.clone();
+            for (position, &segment) in value.projection.remaining.iter().enumerate() {
+                // Declaration rows use this range to mean every element of a
+                // slice, not an address interval of usize::MAX elements. A
+                // captured window supplies its own frozen extent before address
+                // composition. Otherwise declaration-derived array geometry
+                // remains available to the ordinary field-domain prover.
+                let segment = match (position, place.segments.last(), segment) {
+                    (
+                        0,
+                        Some(PlaceSegment::FixedRange { start, end }),
+                        PlaceSegment::FixedRange {
+                            start: 0,
+                            end: usize::MAX,
+                        },
+                    ) => PlaceSegment::FixedRange {
+                        start: 0,
+                        end: end.checked_sub(*start)?,
+                    },
+                    _ => segment,
+                };
+                place.segments.push(segment);
+                // Only the boundary between the address and the projected
+                // value shares a collection dimension. Subsequent pointwise
+                // ranges describe distinct nested array dimensions.
+                if position == 0 {
+                    super::compose_captured_view_segments(&mut place.segments)?;
+                }
+            }
+            Some(CapturedValuePlace {
+                storage,
+                projected: place,
+            })
+        })
+        .collect()
+}
+
 /// A dynamic selector can produce several candidates. Consumers must prove
 /// each independently; combining their contexts would invent a capture epoch.
 pub(crate) fn captured_operand_values<'capture>(
