@@ -190,10 +190,7 @@ pub(super) fn build_index_compatibility_facts(
                     );
                 }
                 StatementNode::Transition(transition) => {
-                    for target in [transition.target, transition.continuation] {
-                        if !target.is_valid() {
-                            continue;
-                        }
+                    for target in transition.targets() {
                         let TransitionTargetNode::Value(value) =
                             program.statement_table.transition_target(target)
                         else {

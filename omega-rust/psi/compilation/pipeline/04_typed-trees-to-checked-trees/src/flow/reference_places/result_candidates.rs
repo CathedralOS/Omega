@@ -246,10 +246,7 @@ fn callee_returned_expressions(
         if transition.exit != TransitionExit::Ordinary {
             return None;
         }
-        for target in [transition.target, transition.continuation] {
-            if !target.is_valid() {
-                continue;
-            }
+        for target in transition.targets() {
             match program.statement_table.transition_target(target) {
                 TransitionTargetNode::Value(value) => returned.push((index, *value)),
                 _ => return None,

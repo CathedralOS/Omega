@@ -153,10 +153,7 @@ fn parameter_edges<'program>(
             if transition.exit != TransitionExit::Ordinary {
                 continue;
             }
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
+            for target in transition.targets() {
                 let Some((path, arguments)) =
                     program.statement_table.named_transition_target(target)
                 else {

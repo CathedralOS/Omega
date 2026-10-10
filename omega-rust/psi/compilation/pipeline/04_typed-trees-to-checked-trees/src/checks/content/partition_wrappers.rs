@@ -87,10 +87,7 @@ pub(crate) fn returned_partition_invocations(
                 }
             }
             StatementNode::Transition(transition) => {
-                for target in [transition.target, transition.continuation]
-                    .into_iter()
-                    .filter(|target| target.is_valid())
-                {
+                for target in transition.targets() {
                     match program.statement_table.transition_target(target) {
                         TransitionTargetNode::Named {
                             path, arguments, ..

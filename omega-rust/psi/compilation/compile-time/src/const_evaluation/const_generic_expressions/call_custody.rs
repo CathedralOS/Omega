@@ -847,10 +847,7 @@ impl<'program> Collector<'program> {
                         if let TransitionGuardNode::When(guard) = transition.guard {
                             expressions.push(guard);
                         }
-                        for target in [transition.target, transition.continuation]
-                            .into_iter()
-                            .filter(|handle| handle.is_valid())
-                        {
+                        for target in transition.targets() {
                             if !table.transition_target_is_valid(target) {
                                 return Err("constant call closure has stale transition".into());
                             }

@@ -206,10 +206,7 @@ pub(in crate::preparation::generic_data) fn collect_statement_expression_handles
             if let TransitionGuardNode::When(guard) = transition.guard {
                 collect_expression_handles(syntax, guard, handles);
             }
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
+            for target in transition.targets() {
                 match syntax.tables.statements.transition_target(target) {
                     TransitionTargetNode::Named { arguments, .. } => {
                         for argument in syntax.tables.statements.expression_handles(*arguments) {

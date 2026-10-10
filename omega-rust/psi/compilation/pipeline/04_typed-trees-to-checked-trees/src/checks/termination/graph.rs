@@ -156,22 +156,16 @@ fn outgoing_state_indices(
     };
     let mut outgoing = Vec::new();
 
-    for statement in program.statement_table.statements(state.statement_nodes) {
-        let Some(transition) = statement.as_transition() else {
-            continue;
-        };
-
-        for target in [transition.target, transition.continuation] {
-            if !target.is_valid() {
-                continue;
-            }
-            if let Some(index) = target_state_index(
-                program,
-                machine,
-                program.statement_table.transition_target(target),
-            ) {
-                outgoing.push(index);
-            }
+    for target in program
+        .statement_table
+        .transition_targets(state.statement_nodes)
+    {
+        if let Some(index) = target_state_index(
+            program,
+            machine,
+            program.statement_table.transition_target(target),
+        ) {
+            outgoing.push(index);
         }
     }
 

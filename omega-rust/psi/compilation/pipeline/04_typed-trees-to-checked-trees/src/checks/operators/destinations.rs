@@ -70,10 +70,9 @@ pub(super) fn check(
                     }
                     StatementNode::Expression(value) => check(*value, state.return_type),
                     StatementNode::Transition(transition) => {
-                        for target in [transition.target, transition.continuation] {
-                            if target.is_valid()
-                                && let TransitionTargetNode::Value(value) =
-                                    program.statement_table.transition_target(target)
+                        for target in transition.targets() {
+                            if let TransitionTargetNode::Value(value) =
+                                program.statement_table.transition_target(target)
                             {
                                 check(*value, state.return_type);
                             }

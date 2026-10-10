@@ -1134,10 +1134,7 @@ fn named_transition_arguments(
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
+            for target in transition.targets() {
                 let TransitionTargetNode::Named {
                     path, arguments, ..
                 } = program.statement_table.transition_target(target)

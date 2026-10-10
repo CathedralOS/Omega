@@ -194,10 +194,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
                     }
                 }
                 StatementNode::Transition(transition) => {
-                    for target in [transition.target, transition.continuation] {
-                        if !target.is_valid() {
-                            continue;
-                        }
+                    for target in transition.targets() {
                         if let syntax_trees::statement::TransitionTargetNode::Value(value) =
                             syntax.tables.statements.transition_target(target)
                         {

@@ -274,7 +274,8 @@ pub(crate) fn build_qualification_facts(
         let mut committed = Vec::new();
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 use typed_trees::statement::StatementNode;
                 let statement_index =
@@ -373,10 +374,7 @@ pub(crate) fn build_qualification_facts(
                                 &mut visited,
                             );
                         }
-                        for target in [transition.target, transition.continuation] {
-                            if !target.is_valid() {
-                                continue;
-                            }
+                        for target in transition.targets() {
                             match program.statement_table.transition_target(target) {
                                 typed_trees::statement::TransitionTargetNode::Value(value) => {
                                     collect_casts(

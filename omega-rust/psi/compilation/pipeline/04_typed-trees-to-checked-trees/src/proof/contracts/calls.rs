@@ -191,10 +191,7 @@ pub(crate) fn build_contract_exit_facts(
                 };
                 has_transition = true;
                 if transition.exit == typed_trees::statement::TransitionExit::Ordinary {
-                    for target in [transition.target, transition.continuation] {
-                        if !target.is_valid() {
-                            continue;
-                        }
+                    for target in transition.targets() {
                         let returns_from_machine =
                             match program.statement_table.transition_target(target) {
                                 typed_trees::statement::TransitionTargetNode::Terminal

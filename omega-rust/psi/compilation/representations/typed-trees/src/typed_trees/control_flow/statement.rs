@@ -654,6 +654,17 @@ impl StatementTable {
             .wrapping_add(self.outcome_proof_selectors.revision())
     }
 
+    /// Every transition target reachable from a statement span.
+    pub fn transition_targets(
+        &self,
+        span: HandleSpan<StatementNode>,
+    ) -> impl Iterator<Item = TransitionTargetHandle> + '_ {
+        self.statements(span)
+            .iter()
+            .filter_map(StatementNode::as_transition)
+            .flat_map(TableTransition::targets)
+    }
+
     pub fn transition_target_count(&self) -> usize {
         self.transition_targets.len()
     }
@@ -849,7 +860,7 @@ pub struct TableTransition {
 
 impl TableTransition {
     /// Both named target handles, skipping absent (zero) slots.
-    pub fn targets(&self) -> impl Iterator<Item = TransitionTargetHandle> + '_ {
+    pub fn targets(&self) -> impl Iterator<Item = TransitionTargetHandle> + use<> {
         [self.target, self.continuation]
             .into_iter()
             .filter(|handle| handle.is_valid())

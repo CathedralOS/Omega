@@ -470,7 +470,7 @@ fn build_cycle_frame_equation<'program>(
                 }
             }
             StatementNode::Transition(transition) => {
-                for target in [transition.target, transition.continuation] {
+                for target in transition.targets() {
                     // Calls leave this state graph. Their complete writes
                     // contribute to this equation; they are not SCC edges.
                     if super::terminal_calls::target(program, machine, target).is_valid() {

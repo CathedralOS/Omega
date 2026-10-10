@@ -42,10 +42,7 @@ pub(super) fn check_calls(
                         );
                     }
                     StatementNode::Transition(transition) => {
-                        for target in [transition.target, transition.continuation] {
-                            if !target.is_valid() {
-                                continue;
-                            }
+                        for target in transition.targets() {
                             if let TransitionTargetNode::Named {
                                 path, arguments, ..
                             } = program.statement_table.transition_target(target)

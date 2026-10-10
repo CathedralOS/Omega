@@ -264,7 +264,13 @@ pub(super) fn call_flow_at_point(
     point: ProgramPoint,
 ) -> Option<&checked_trees::FlowCallFact> {
     let (machine_symbol, state_symbol, statement_index, call_ordinal) = match point {
-        facts::call_point_triple_pattern!(machine_symbol,state_symbol,statement_index,call_ordinal, ..) => (machine_symbol, state_symbol, statement_index, call_ordinal),
+        facts::call_point_triple_pattern!(
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            call_ordinal,
+            ..
+        ) => (machine_symbol, state_symbol, statement_index, call_ordinal),
         _ => return None,
     };
     let state = flow.control.states.iter().find_map(|(_, state)| {

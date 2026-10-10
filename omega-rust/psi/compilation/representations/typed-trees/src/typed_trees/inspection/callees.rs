@@ -73,7 +73,7 @@ fn collect_statement_callees(
             if let crate::statement::TransitionGuardNode::When(guard) = &transition.guard {
                 collect_expression_callees(typed, *guard, visited, called);
             }
-            for target in [transition.target, transition.continuation] {
+            for target in transition.targets() {
                 collect_transition_target_callees(typed, target, visited, called);
             }
         }

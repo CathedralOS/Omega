@@ -323,10 +323,7 @@ pub(super) fn check_domain_field_writes(
                     diagnostics,
                 );
             }
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
+            for target in transition.targets() {
                 let mut branch_contexts = contexts.clone();
                 let point = facts::ProgramPoint::TransitionArm {
                     machine_symbol: state_flow.machine_symbol,

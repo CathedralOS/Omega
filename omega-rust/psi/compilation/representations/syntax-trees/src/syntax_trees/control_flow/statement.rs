@@ -244,6 +244,16 @@ pub struct TableTransition {
     pub source_span: SourceSpan,
 }
 
+impl TableTransition {
+    /// The transition's valid destination handles in authored order —
+    /// `target` then `continuation`.
+    pub fn targets(&self) -> impl Iterator<Item = TransitionTargetHandle> + use<> {
+        [self.target, self.continuation]
+            .into_iter()
+            .filter(|target| target.is_valid())
+    }
+}
+
 impl Default for TableTransition {
     fn default() -> Self {
         Self {
