@@ -1,0 +1,36 @@
+// A single boundary machine may declare more than one service
+// identity — the declared set is the ceiling for that surface:
+// `write_line` reaches both `Net` and `Allocator`, and the caller's
+// `reaches Net + Allocator` roster admits the multi-service call.
+//
+//   * `boundary trait Net { machine write_line(...) reaches Net
+//     Allocator; }` — requirement with a multi-service reach set.
+//   * `hits` records the reached arm.
+//
+// GAP filed: a `Binding<Net>` field needs a Fused provider even for
+// `--check` — `client.net.write_line` is provider-gated, so only the
+// declaration surface is exercised here.
+
+use omega::language::core::binding;
+
+pub domain [u8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+
+boundary trait Allocator {
+}
+
+pub boundary trait Net {
+    machine write_line(text: &[u8] in Utf8)
+    reaches
+        Net
+        Allocator;
+}
+
+data Main {
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 1;
+}
