@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 1.46, "load1_start": 1.0, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "1", "load1_end": 3.96, "load1_start": 2.29, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -123,6 +123,8 @@ pass/borrows/stored_reference_projection_exit rejected 2116ms regressed-from:bui
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(6) }))
 pass/borrows/transition_shared_borrow_result rejected 2194ms regressed-from:built+exit:181 @faca6c5c7f5
 	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/boundary/interleaved_structural_crash_formal_exit built 91830ms exit:0 @751b9f2d3396
+pass/boundary/nested_projected_structural_crash_formal_exit built 82086ms exit:0 @751b9f2d3396
 pass/boundary/static_foreign_scalar_result_locals_exit built 27224ms @95e4e5c52dc
 pass/build/conditional_root_binding built 356ms @2d8ed253669f+wt
 pass/build/described_runner_entry_left_exit built 826ms exit:11 @233d30cb1ceb
