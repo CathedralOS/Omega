@@ -1,0 +1,87 @@
+NF05 interface checkpoint — base 9d4451128d
+Status: dependency contract request, not an implemented/exported API.
+NF01 and NF03 files are absent from fetched main. Names below are exact requested
+signatures for coordination; owners may supply equivalent canonical names.
+No NF01 shape/layout or NF03 complex implementation is supplied by NF05.
+No package metadata is created: NF01 owns package identity and Build entrance.
+
+NF01 REQUEST
+RankTwo [copy]: rows: u64; columns: u64; offset: u64;
+                row_stride: u64; column_stride: u64;
+RankTwoAttempt: Ok(descriptor: RankTwo) | Error(kind: ArrayError)
+ArrayError must distinguish OutOfBounds, SizeOverflow, ElementCountMismatch,
+NonContiguous, NonInjective, InsufficientBacking (or supply a lossless mapping).
+try_rank_two(backing_length: u64, rows: u64, columns: u64, offset: u64,
+             row_stride: u64, column_stride: u64) -> RankTwoAttempt
+try_mutable_rank_two(backing_length: u64, descriptor: RankTwo) -> RankTwoAttempt
+try_index(backing_length: u64, descriptor: RankTwo,
+          row: u64, column: u64) -> IndexAttempt
+IndexAttempt: Ok(index: u64) | Error(kind: ArrayError)
+try_contiguous_reshape(backing_length: u64, descriptor: RankTwo,
+                       rows: u64, columns: u64) -> RankTwoAttempt
+These signatures may be NF01 machines or immutable descriptor-field accessors
+plus NF01 checked arithmetic/index/admission primitives; NF05 needs their actual
+module paths, exported names, result pattern syntax and proof domains.
+Readonly descriptors may alias (zero strides included) if every coordinate is
+in backing. Restricted mutable admission must support both orientations of
+packed/padded rectangles and their subviews. NF01 defines the restriction;
+NF05 must not invent a second admissibility policy.
+Backing remains separately passed; descriptors contain no borrowed slice.
+Empty admission permits offset == backing_length and performs no element access.
+
+NF03 REQUEST
+Complex64 [copy] with accessors for real: f64 and imaginary: f64
+complex64(real: f64, imaginary: f64) -> Complex64
+conjugate(value: Complex64) -> Complex64
+Need actual package/module names, representation/accessor syntax, scalar domains,
+and handling of +/-0, NaN and infinity (NF02 policy governs accuracy).
+Conjugation does not allocate and changes only the imaginary component's sign.
+
+NF05 PLANNED OWNED SURFACE (after owner signatures are provided)
+try_reshape(backing_length: u64, descriptor: RankTwo,
+            rows: u64, columns: u64) -> RankTwoAttempt
+try_transpose(backing_length: u64, descriptor: RankTwo) -> RankTwoAttempt
+try_submatrix(backing_length: u64, descriptor: RankTwo,
+              first_row: u64, first_column: u64,
+              rows: u64, columns: u64) -> RankTwoAttempt
+try_mutable_transpose(backing_length: u64, descriptor: RankTwo) -> RankTwoAttempt
+try_mutable_submatrix(backing_length: u64, descriptor: RankTwo,
+                      first_row: u64, first_column: u64,
+                      rows: u64, columns: u64) -> RankTwoAttempt
+Adjoint64 [copy]: descriptor: RankTwo; conjugated: bool;
+try_adjoint(backing_length: u64, descriptor: RankTwo) -> AdjointAttempt
+try_adjoint_again(backing_length: u64, view: Adjoint64) -> AdjointAttempt
+try_adjoint_read(backing: &[Complex64], view: Adjoint64,
+                 row: u64, column: u64) -> ComplexAttempt
+AdjointAttempt: Ok(view: Adjoint64) | Error(kind: ArrayError)
+ComplexAttempt: Ok(value: Complex64) | Error(kind: ArrayError)
+No implicit allocation/copy and no mutable raw element access through adjoint.
+A future explicit copy routine must take caller-provided writable destination.
+
+MATHEMATICAL CONTRACT
+address(r,c) = offset + r*row_stride + c*column_stride, checked in u64.
+transpose swaps extents and strides, retaining offset. Double transpose identity.
+submatrix checks origin <= extents, then requested extent <= parent-origin;
+nonempty offset is address(first_row,first_column), strides retained.
+For an empty subview retain the admitted parent offset: no fictitious corner
+address or overflow evaluation. Preserve requested zero extents, including 0xN
+and Nx0; transpose swaps them. (Requested canonical convention for NF01 review.)
+reshape requires equal checked element counts and contiguous column-major logical
+order, including singleton/empty degeneracies under NF01 rules. Padded 2x3
+(strides 1,3) cannot reshape without an explicit copy. Same-shape reshape of
+padded input is also rejected under a contiguous-only contract.
+Mutable transforms revalidate under NF01 restricted injectivity policy; readonly
+arbitrary admitted mappings may alias. No descriptor licenses a backing borrow.
+Adjoint swaps extents/strides and lazily conjugates reads. Re-adjoint toggles
+conjugated and transposes again, so double adjoint restores original values.
+Backing bounds are rechecked against the separately supplied slice each time.
+Any failed try call leaves caller backing unchanged; no trap-based error masking.
+
+ACCEPTANCE FRONTIER
+Independent projects, fixtures and invalid readonly-write control are complete.
+The .omg implementation is deliberately withheld until canonical NF01/NF03
+interfaces exist; a comment-only module or competing descriptor would not meet
+acceptance. Parent should return owner commits plus signatures/import paths.
+Then implement this surface, replace fixed-coordinate sample oracle evaluations
+with actual shared descriptor calls, and run check/native/Terminal independently.
+NF02 numerical policy is untouched; frozen fixture tolerance is exactly zero.
