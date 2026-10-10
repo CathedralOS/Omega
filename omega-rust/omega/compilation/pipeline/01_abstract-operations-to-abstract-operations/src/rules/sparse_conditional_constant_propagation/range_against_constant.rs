@@ -8,7 +8,7 @@ use optimization_core::{
     AnalysisKind, AnalysisSet, OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    BooleanConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceDisposition,
+    BooleanConstantRewrite, IntegerEvaluationWitness, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
     ValueRangeSupport,
 };
@@ -16,7 +16,7 @@ use semantic_vocabulary::{IntegerType, IntegerValue};
 
 use super::IntegerRangeComparisonKind;
 use crate::rules::sparse_conditional_constant_propagation::{
-    integer_value_type, range_comparison_contract,
+    integer_value_type, range_comparison_contract, node_location
 };
 use crate::{
     AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -142,11 +142,7 @@ fn propose_over(
                 ) else {
                     continue;
                 };
-                let location = NodeLocation {
-                    machine: function.machine,
-                    block: block.id,
-                    node: node_index,
-                };
+                let location = node_location(function.machine, block.id, node_index);
                 candidates.push(
                     PsiRewriteCandidate::new_boolean_evaluation(
                         unit.identity,

@@ -6,14 +6,14 @@
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
-    BooleanConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationNode,
+    BooleanConstantRewrite, IntegerEvaluationWitness, OptimizationNode,
     ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiRealizationSite, PsiRewriteCandidate,
 };
 use semantic_vocabulary::{OperationId, ValueId};
 
 use crate::rules::sparse_conditional_constant_propagation::{
-    constant_evaluation_contract as contract, integer_constant, integer_value_type,
+    constant_evaluation_contract as contract, integer_constant, integer_value_type, node_location
 };
 use crate::{
     AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -64,11 +64,7 @@ fn propose(
                 else {
                     continue;
                 };
-                let location = NodeLocation {
-                    machine: function.machine,
-                    block: block.id,
-                    node: u32::try_from(node_index).expect("optimization node indices are u32"),
-                };
+                let location = node_location(function.machine, block.id, u32::try_from(node_index).expect("optimization node indices are u32"));
                 candidates.push(
                     PsiRewriteCandidate::new_boolean_evaluation(
                         unit.identity,

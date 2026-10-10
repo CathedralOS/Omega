@@ -100,6 +100,8 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
     ScalarConstantFactIdentity,
 };
+use optimization_unit::NodeLocation;
+use semantic_vocabulary::BlockId;
 use semantic_vocabulary::{IntegerValue, MachineId, ValueId};
 
 use crate::rules::SCCP_PASS_NAME;
@@ -235,4 +237,10 @@ pub(crate) enum IntegerRangePairComparisonKind {
     Equal,
     LessThan,
     LessOrEqual,
+}
+
+/// One node-occurrence location shared by every candidate-producing match arm
+/// in this family.
+pub(super) fn node_location(machine: MachineId, block: BlockId, node: u32) -> NodeLocation {
+    NodeLocation { machine, block, node }
 }
