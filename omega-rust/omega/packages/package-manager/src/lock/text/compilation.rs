@@ -179,13 +179,7 @@ pub(super) fn read(
 }
 
 fn hexadecimal(digest: [u8; 32]) -> String {
-    let mut text = String::with_capacity(64);
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    for byte in digest {
-        text.push(HEX[usize::from(byte >> 4)] as char);
-        text.push(HEX[usize::from(byte & 15)] as char);
-    }
-    text
+    crate::resolution::graph::subject::encoding::framing::encode_hex(&digest)
 }
 
 fn digest(text: &str) -> Result<[u8; 32], Error> {

@@ -7,27 +7,30 @@
 
 pub(crate) mod reconcile;
 mod resolve;
-mod subject;
 mod root_request;
+pub(crate) mod subject;
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey};
 use package_source::{IdentityError, ImmutableSourceResolution};
-pub(crate) use root_request::PackageRootSourceRequest;
 pub(crate) use reconcile::{
-    DependencyRequestPath, ExactTargetPackageSourceClosure, PackageSourceClosureLimits, PackageSourceClosureResolutionError, ResolvedPackageSourceClosure};
+    DependencyRequestPath, ExactTargetPackageSourceClosure, PackageSourceClosureLimits,
+    PackageSourceClosureResolutionError, ResolvedPackageSourceClosure,
+};
+pub(crate) use resolve::resolve_locked_local_project_closure;
 pub(crate) use resolve::{
     GitDependencyPins, GitResolutionOptions, ResolveDependencySourceError,
-    ResolveExternalLocalPackageClosureError,
-    resolve_external_local_project_closure, resolve_staged_external_local_project_closure};
-pub(crate) use resolve::resolve_locked_local_project_closure;
+    ResolveExternalLocalPackageClosureError, resolve_external_local_project_closure,
+    resolve_staged_external_local_project_closure,
+};
+pub(crate) use root_request::PackageRootSourceRequest;
 use std::collections::{BTreeMap, BTreeSet};
 pub(crate) use subject::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
-    CanonicalRootSourceRequest, CanonicalSourceClosureSubject,
-    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint,
-    CanonicalSourceClosureSubjectLimits};
+    CanonicalRootSourceRequest, CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectError,
+    CanonicalSourceClosureSubjectFingerprint, CanonicalSourceClosureSubjectLimits,
+};
 
 /// A package's stable identity paired with one immutable source selection.
 ///

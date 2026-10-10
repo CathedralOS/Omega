@@ -4,7 +4,7 @@
 //! package/source identity, and [`framing`] owns primitive bounded bytes and
 //! the domain-separated fingerprint.
 
-mod framing;
+pub(crate) mod framing;
 mod selection;
 mod source;
 

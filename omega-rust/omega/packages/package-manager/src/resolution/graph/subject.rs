@@ -8,7 +8,7 @@
 //! recovery spends.
 
 mod construction;
-mod encoding;
+pub(crate) mod encoding;
 mod request_view;
 mod text;
 mod usage;

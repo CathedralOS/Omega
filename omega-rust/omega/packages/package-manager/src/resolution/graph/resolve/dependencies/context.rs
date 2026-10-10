@@ -37,5 +37,4 @@ pub(super) struct GitRepositoryWorkspaceEvidence {
     pub(super) declarations: GitWorkspaceSelectionDeclarations,
 }
 
-impl WorkspaceContext {
-}
+impl WorkspaceContext {}

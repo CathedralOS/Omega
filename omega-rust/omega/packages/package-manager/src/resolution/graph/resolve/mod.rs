@@ -11,10 +11,9 @@ mod external_local;
 mod git_pins;
 mod locked;
 
-pub(crate) use errors::{
-    ResolveDependencySourceError, ResolveExternalLocalPackageClosureError};
+pub(crate) use errors::{ResolveDependencySourceError, ResolveExternalLocalPackageClosureError};
 pub(crate) use external_local::{
-    resolve_external_local_project_closure,
-    resolve_staged_external_local_project_closure};
+    resolve_external_local_project_closure, resolve_staged_external_local_project_closure,
+};
 pub(crate) use git_pins::{GitDependencyPins, GitResolutionOptions};
 pub(crate) use locked::resolve_locked_local_project_closure;

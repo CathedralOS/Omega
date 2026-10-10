@@ -57,13 +57,7 @@ pub(crate) fn package_build_root(
 }
 
 fn encode_hex(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut encoded = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        encoded.push(DIGITS[usize::from(byte >> 4)] as char);
-        encoded.push(DIGITS[usize::from(byte & 0x0f)] as char);
-    }
-    encoded
+    crate::resolution::graph::subject::encoding::framing::encode_hex(bytes)
 }
 
 #[cfg(test)]

@@ -59,7 +59,6 @@ pub(super) struct GitAcquisitionCache<'a> {
 }
 
 impl<'a> GitAcquisitionCache<'a> {
-
     pub(super) fn with_options(
         resolver: &'a SourceResolver,
         options: GitResolutionOptions<'a>,
@@ -81,8 +80,6 @@ impl<'a> GitAcquisitionCache<'a> {
     ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
         self.resolve_selected_declared(request, git_cache, member_cache, limits, false)
     }
-
-
 
     fn resolve_selected_declared(
         &mut self,

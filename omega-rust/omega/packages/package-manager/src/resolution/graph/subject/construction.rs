@@ -105,7 +105,6 @@ impl CanonicalSourceClosureSubject {
         )
     }
 
-
     /// Require a recovered subject to equal a fresh projection from the exact
     /// current resolver custody. Decode or fingerprint equality alone is never
     /// enough for this comparison.

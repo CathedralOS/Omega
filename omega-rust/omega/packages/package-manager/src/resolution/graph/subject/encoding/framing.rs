@@ -5,14 +5,13 @@ use super::super::usage::Budget;
 use super::super::{CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint};
 
 pub(in super::super) fn fingerprint(bytes: &[u8]) -> CanonicalSourceClosureSubjectFingerprint {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN,
-    );
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN);
     digest.bytes(bytes);
     CanonicalSourceClosureSubjectFingerprint(digest.finish())
 }
 
-pub(in super::super) fn encode_hex(bytes: &[u8]) -> String {
+pub(crate) fn encode_hex(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut encoded = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
@@ -142,5 +141,3 @@ impl<'budget> Encoder<'budget> {
         self.bytes
     }
 }
-
-

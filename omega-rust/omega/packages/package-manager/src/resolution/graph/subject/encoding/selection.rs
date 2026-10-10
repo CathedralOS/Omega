@@ -2,18 +2,18 @@
 
 use super::super::SOURCE_CLOSURE_SUBJECT_MAGIC;
 use super::super::{
-CanonicalDependencySourceSelection,
-    CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,
-    CanonicalSourceClosureSubjectLimits, SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
+    CanonicalDependencySourceSelection, CanonicalRootSourceRequest, CanonicalRootSourceSelection,
+    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectLimits,
+    SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
 };
 use super::super::{request_view::Request, usage::Budget};
 use super::framing::Encoder;
 use super::source::{encode_package_key, encode_source_identity, encode_source_lineage};
+use crate::declarations::AliasName;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{
     DependencyProjections, DependencyPurpose, PackageSelection, ProjectedDependencies,
 };
-use crate::declarations::AliasName;
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
 use target::TargetProfile;
@@ -109,7 +109,6 @@ fn encode_target_profile(
     )
 }
 
-
 fn encode_dependency_projection(
     encoder: &mut Encoder,
     dependencies: &DependencyProjections,
@@ -130,8 +129,6 @@ fn encode_dependency_scope(
     }
     Ok(())
 }
-
-
 
 fn encode_root_selection(
     encoder: &mut Encoder,
@@ -179,7 +176,6 @@ fn encode_root_selection(
     encode_source_identity(encoder, &root.selected, limits.maximum_identity_bytes)
 }
 
-
 fn encode_build_declaration_kind(encoder: &mut Encoder, role: BuildDeclarationKind) {
     encoder.byte(match role {
         BuildDeclarationKind::Package => 0,
@@ -187,7 +183,6 @@ fn encode_build_declaration_kind(encoder: &mut Encoder, role: BuildDeclarationKi
         BuildDeclarationKind::Workspace => 2,
     });
 }
-
 
 fn encode_dependency_selection(
     encoder: &mut Encoder,
@@ -237,15 +232,12 @@ pub(super) fn encode_dependency_request(
     Ok(())
 }
 
-
 pub(super) fn encode_dependency_purpose(encoder: &mut Encoder, purpose: DependencyPurpose) {
     encoder.byte(match purpose {
         DependencyPurpose::Product => 0,
         DependencyPurpose::Build => 1,
     });
 }
-
-
 
 fn encode_package_selection(
     encoder: &mut Encoder,
@@ -262,7 +254,6 @@ fn encode_package_selection(
     Ok(())
 }
 
-
 fn encode_package_navigation(
     encoder: &mut Encoder,
     navigation: &PackageSourceNavigation,
@@ -278,7 +269,6 @@ fn encode_package_navigation(
     Ok(())
 }
 
-
 fn encode_optional_alias(
     encoder: &mut Encoder,
     alias: Option<&AliasName>,
@@ -293,4 +283,3 @@ fn encode_optional_alias(
     }
     Ok(())
 }
-
