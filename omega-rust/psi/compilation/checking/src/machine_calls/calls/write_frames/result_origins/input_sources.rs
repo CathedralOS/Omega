@@ -99,7 +99,7 @@ pub(super) fn instantiate_source(
     )?;
     let mut sources = Vec::new();
     for leaf in actual_leaves.references {
-        if !source_reaches_leaf(&relative.source.segments, &leaf.local_segments) {
+        if !application_source_reaches_leaf(program, &relative.source.segments, &leaf.local_segments) {
             continue;
         }
         let suffix = place_suffix(&boundary.local_path, &relative.path).unwrap_or("");
@@ -119,6 +119,41 @@ pub(super) fn instantiate_source(
     // A selected reference cannot become private just because its selected
     // payload or element supplied no corresponding actual reference leaf.
     (!sources.is_empty()).then_some(sources)
+}
+
+/// The declared boundary above proves this is a stored reference, and the
+/// actual roster is read under that parameter's checked carrier type. Their
+/// prepared fields need not share symbols. Join schema selectors only across
+/// this input application; unrelated storage places retain exact identities.
+fn application_source_reaches_leaf(
+    program: &dyn crate::CheckingInput,
+    source: &[facts::PlaceSegment],
+    leaf: &[facts::PlaceSegment],
+) -> bool {
+    use facts::PlaceSegment;
+    source.len() >= leaf.len()
+        && source
+            .iter()
+            .zip(leaf)
+            .all(|(source, leaf)| match (source, leaf) {
+                (PlaceSegment::Field { symbol: source }, PlaceSegment::Field { symbol: leaf }) => {
+                    program
+                        .any_field_owner(*source)
+                        .zip(program.any_field_owner(*leaf))
+                        .is_some_and(|(source, leaf)| {
+                            source.1.path_identity() == leaf.1.path_identity()
+                        })
+                }
+                (PlaceSegment::Case { variant: source }, PlaceSegment::Case { variant: leaf }) => {
+                    program
+                        .variant_owner(*source)
+                        .zip(program.variant_owner(*leaf))
+                        .is_some_and(|(source, leaf)| {
+                            source.1.path_identity() == leaf.1.path_identity()
+                        })
+                }
+                _ => source_reaches_leaf(std::slice::from_ref(source), std::slice::from_ref(leaf)),
+            })
 }
 
 fn compose_source(

@@ -3,10 +3,13 @@
 //! Opaque members retain an unknown region, not an empty reference inventory.
 //! A disjoint member write can then keep its footprint without granting any
 //! knowledge of the opaque member's contents or their caller-visible effects.
+//! Prepared applications supply their exact substituted field roster, including
+//! generic carriers. Walking the open head instead loses that roster and turns
+//! an owned home with shared descriptors into unknown write authority. This
+//! query reads closed storage; it never specializes a template or grants a loan.
 
-use super::super::isolation::concrete_nominal_type;
+use super::super::type_instantiation::DeclarationScopes;
 use super::{FramePlaceOrigin, StoredLocalOrigins, StoredWriteOrigin};
-use crate::declarations::data_queries::data_definition_by_symbol;
 use facts::PlaceSegment;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::DataMember;
@@ -76,11 +79,13 @@ struct WalkStep {
     /// How many segments the path through this step has, so `segments`
     /// allocates its result once.
     depth: u32,
+    scope: usize,
 }
 
 #[derive(Default)]
 struct TypeWalk {
     steps: Vec<WalkStep>,
+    scopes: DeclarationScopes,
 }
 
 impl TypeWalk {
@@ -98,6 +103,7 @@ impl TypeWalk {
             reference,
             segment,
             depth,
+            scope: parent.map_or(0, |parent| self.steps[parent as usize].scope),
         });
         Some(step)
     }
@@ -156,11 +162,13 @@ fn walk_declared_origins(
     let mut pending = vec![walk.push(None, reference, None)?];
     while let Some(step) = pending.pop() {
         let WalkStep {
-            parent, reference, ..
+            parent, reference, scope, ..
         } = walk.steps[step as usize];
         if !reference.is_valid() || walk.is_visiting(parent, reference) {
             return None;
         }
+        let (reference, scope) = walk.scopes.head(program, reference, scope);
+        walk.steps[step as usize].scope = scope;
         if program.primitive_type_reference(reference).is_some() {
             continue;
         }
@@ -221,13 +229,10 @@ fn walk_declared_origins(
                 };
                 pending.push(walk.push(Some(step), *element_type, Some(selector))?);
             }
-            node @ (TypeReferenceNode::Named { symbol, .. }
-            | TypeReferenceNode::Generic {
-                base_symbol: symbol,
-                ..
-            }) => {
-                let definition = data_definition_by_symbol(program, *symbol)?;
-                if program.symbols.get(*symbol).kind != SymbolKind::Data {
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                let (definition, scope) = walk.scopes.definition(program, reference, scope)?;
+                walk.steps[step as usize].scope = scope;
+                if program.symbols.get(definition.symbol).kind != SymbolKind::Data {
                     return None;
                 }
                 if definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
@@ -248,9 +253,6 @@ fn walk_declared_origins(
                         });
                     }
                     continue;
-                }
-                if concrete_nominal_type(node).is_none() || !definition.type_parameters.is_empty() {
-                    return None;
                 }
                 for member in program.data_members(definition) {
                     match member {
@@ -322,9 +324,10 @@ pub(in crate::machine_calls::calls::write_frames) fn demand_is_declared(
     reference: TypeReferenceHandle,
     suffix: &str,
 ) -> bool {
-    let mut pending = vec![(reference, suffix)];
+    let mut pending = vec![(reference, suffix, 0)];
+    let mut scopes = DeclarationScopes::default();
     let mut visited = Vec::new();
-    while let Some((reference, suffix)) = pending.pop() {
+    while let Some((reference, suffix, scope)) = pending.pop() {
         if !reference.is_valid() || visited.contains(&(reference, suffix)) {
             continue;
         }
@@ -332,29 +335,27 @@ pub(in crate::machine_calls::calls::write_frames) fn demand_is_declared(
         if suffix.is_empty() {
             return true;
         }
+        let (reference, scope) = scopes.head(program, reference, scope);
         match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => pending.push((*base_type, suffix)),
-            TypeReferenceNode::Reference { referee, .. } => pending.push((*referee, suffix)),
-            node if concrete_nominal_type(node).is_some() => {
-                let Some((symbol, _)) = concrete_nominal_type(node) else {
-                    continue;
-                };
+            TypeReferenceNode::Constrained { base_type, .. } => pending.push((*base_type, suffix, scope)),
+            TypeReferenceNode::Reference { referee, .. } => pending.push((*referee, suffix, scope)),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
                 let Some(suffix) = suffix.strip_prefix('.') else {
                     continue;
                 };
                 let (field_name, rest) = super::split_place_root(suffix);
-                let Some(definition) = data_definition_by_symbol(program, symbol) else {
+                let Some((definition, scope)) = scopes.definition(program, reference, scope) else {
                     continue;
                 };
                 for member in program.data_members(definition) {
                     match member {
                         DataMember::Field(field) if field.name.as_str() == field_name => {
-                            pending.push((field.type_reference, rest));
+                            pending.push((field.type_reference, rest, scope));
                         }
                         DataMember::Variant(variant) => {
                             for field in program.data_payload_fields(variant) {
                                 if field.name.as_str() == field_name {
-                                    pending.push((field.type_reference, rest));
+                                    pending.push((field.type_reference, rest, scope));
                                 }
                             }
                         }
@@ -367,10 +368,6 @@ pub(in crate::machine_calls::calls::write_frames) fn demand_is_declared(
     }
     false
 }
-
-/// A data definition by symbol, resolved through the build-scope memo when
-/// one is open — the type walk otherwise re-scans the declaration table per
-/// nominal node it descends into.
 
 fn push_field(
     program: &dyn crate::CheckingInput,

@@ -7,97 +7,15 @@
 //! parameter stays a named leaf for the existing conservative fallbacks.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_owner};
-use symbols::SymbolHandle;
-use typed_trees::data::{DataDefinition, TypeParameter, TypeParameterKind};
+use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{StateParameter, StateSignature};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// In-flight formal→actual type-parameter bindings. Entries are pushed while
-/// a generic application expands and truncated afterward, so a binding never
-/// outlives the member walk that derived it.
-pub(super) type TypeBindings = Vec<(SymbolHandle, TypeReferenceHandle)>;
-
-/// Resolve a `Named` head through the active bindings. An unbound parameter
-/// keeps its named leaf for the conservative nominal fallback. Bound handles
-/// are caller-side actuals; they cannot mention this instantiation's
-/// parameters, but a transitive binding chain still terminates within the
-/// environment's own length.
-pub(super) fn substituted_head(
-    program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
-    bindings: &[(SymbolHandle, TypeReferenceHandle)],
-) -> TypeReferenceHandle {
-    for _ in 0..=bindings.len() {
-        if !reference.is_valid() {
-            return reference;
-        }
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(reference)
-        else {
-            return reference;
-        };
-        let Some(bound) = crate::substitutions::actual_for(bindings, *symbol) else {
-            return reference;
-        };
-        reference = bound;
-    }
-    reference
-}
-
-/// The unique data definition behind a nominal symbol. Type parameters,
-/// builtins, and ambiguous spellings leave the carrier opaque.
-pub(super) fn unique_data_definition(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<&DataDefinition> {
-    if !symbol.is_valid() {
-        return None;
-    }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.symbol == symbol);
-    let definition = definitions.next()?;
-    definitions.next().is_none().then_some(definition)
-}
-
-/// Push one generic application's formal→actual bindings and return its data
-/// definition. Every parameter must be a runtime `Type` binder with a valid
-/// symbol and a supplied argument; anything else stays uninspectable, and no
-/// bindings are pushed. Callers record `bindings.len()` beforehand and
-/// truncate afterward so the entries cannot leak into a sibling walk.
-pub(super) fn push_generic_application_bindings<'program>(
-    program: &'program dyn crate::CheckingInput,
-    base_symbol: SymbolHandle,
-    arguments: &[TypeReferenceHandle],
-    bindings: &mut TypeBindings,
-) -> Option<&'program DataDefinition> {
-    let definition = unique_data_definition(program, base_symbol)?;
-    let parameters = program.data_type_parameters(definition);
-    if parameters.len() != arguments.len()
-        || parameters.iter().any(|parameter| {
-            !parameter.symbol.is_valid() || !matches!(parameter.kind, TypeParameterKind::Type)
-        })
-    {
-        return None;
-    }
-    // Resolve each actual through the bindings already in scope so a nested
-    // application records the outer instantiation, not a formal name that
-    // only the sibling walk could read.
-    let resolved: Vec<TypeReferenceHandle> = arguments
-        .iter()
-        .map(|argument| substituted_head(program, *argument, bindings))
-        .collect();
-    bindings.extend(
-        parameters
-            .iter()
-            .map(|parameter| parameter.symbol)
-            .zip(resolved),
-    );
-    Some(definition)
-}
+pub(super) use crate::type_applications::{
+    DeclarationScopes, TypeBindings, push_generic_application_bindings, substituted_head,
+};
 
 /// Bind the declaring trait only from its exact receiver application. Call
 /// arguments cannot supply a missing owner tuple or change an owner binding.

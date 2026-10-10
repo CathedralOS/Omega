@@ -394,6 +394,7 @@ mod machine_calls;
 mod program_validation;
 mod proof_contracts;
 pub mod substitutions;
+mod type_applications;
 mod value_custody;
 
 // The front-end pipeline the tests run, shared with the `suite` integration

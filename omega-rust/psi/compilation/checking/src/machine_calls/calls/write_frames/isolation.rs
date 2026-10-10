@@ -214,22 +214,15 @@ pub(super) fn struct_literal_matches_expected_type(
     else {
         return false;
     };
-    let Some((symbol, name)) =
-        concrete_nominal_type(program.type_reference_table.type_reference(expected_type))
-    else {
-        return false;
-    };
-    let mut definitions = definitions_for_name(program, literal.type_name.as_str()).into_iter();
-    let Some(definition) = definitions.next() else {
-        return false;
-    };
-    definitions.next().is_none()
-        && definition.type_parameters.is_empty()
-        && if symbol.is_valid() {
-            definition.symbol == symbol
-        } else {
-            definition.name == *name
-        }
+    // An authored generic constructor names the declaration, while its exact
+    // prepared storage can have another symbol. Only the retained application
+    // connects those owners; debug spellings cannot establish correspondence.
+    literal.type_symbol.is_valid()
+        && (program
+            .closed_data_constructor_definition(expected_type, literal.type_symbol)
+            .is_some()
+            || matches!(program.type_reference_table.type_reference(expected_type),
+                TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol))
 }
 
 fn type_is_caller_isolated(

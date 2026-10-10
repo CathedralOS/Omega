@@ -6,7 +6,7 @@ use super::{FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_pla
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::isolation::{
-    aggregate_storage_types_match, concrete_nominal_type, struct_literal_matches_expected_type,
+    aggregate_storage_types_match, struct_literal_matches_expected_type,
 };
 use crate::machine_calls::calls::write_frames::reference_origins::{
     exclusive_reference_origins, referent_has_only_owned_storage,
@@ -14,6 +14,7 @@ use crate::machine_calls::calls::write_frames::reference_origins::{
 use crate::machine_calls::calls::write_frames::stored_origins::{
     demand_is_declared, place_suffix, symbolic_reference_leaves,
 };
+use crate::machine_calls::calls::write_frames::type_instantiation::DeclarationScopes;
 use facts::PlaceSegment;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -124,14 +125,17 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
         String::new(),
         Vec::new(),
         false,
+        0,
     )];
+    let mut scopes = DeclarationScopes::default();
     let mut leaves = AggregateOrigins::default();
-    while let Some((expression, reference, suffix, local_suffix, local_segments, local_coarse)) =
+    while let Some((expression, reference, suffix, local_suffix, local_segments, local_coarse, scope)) =
         pending.pop()
     {
         if !reference.is_valid() {
             return None;
         }
+        let (reference, scope) = scopes.head(program, reference, scope);
         if let Some(dispatch) = program.expression_table.match_node(expression) {
             // Conditional result arms route through the same declared
             // boundary type: each arm resolves its own leaves, converging
@@ -150,6 +154,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                     local_suffix.clone(),
                     local_segments.clone(),
                     local_coarse,
+                    scope,
                 ));
             }
             continue;
@@ -180,12 +185,11 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
             program.expression_table.expression(expression),
             ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
         ) && program.primitive_type_reference(reference).is_none()
-            && (concrete_nominal_type(program.type_reference_table.type_reference(reference))
-                .is_some()
-                || matches!(
+            && matches!(
                     program.type_reference_table.type_reference(reference),
-                    TypeReferenceNode::FixedArray { .. }
-                ))
+                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+                        | TypeReferenceNode::FixedArray { .. }
+                )
         {
             // Declaration transfer supplies frozen evidence; raw calls retain
             // symbolic source leaves for their existing caller-prefix closure.
@@ -251,6 +255,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                     local_suffix,
                     local_segments,
                     local_coarse,
+                    scope,
                 ));
             }
             TypeReferenceNode::Reference {
@@ -307,22 +312,19 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                         local_suffix.clone(),
                         segments,
                         true,
+                        scope,
                     ));
                 }
             }
-            node if program.primitive_type_reference(reference).is_none()
-                && concrete_nominal_type(node).is_some() =>
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+                if program.primitive_type_reference(reference).is_none() =>
             {
-                let (symbol, _) = concrete_nominal_type(node)?;
                 let literal = program.expression_table.struct_literal_node(expression)?;
                 if !struct_literal_matches_expected_type(program, literal, reference)
-                    || !symbol.is_valid()
-                    || (literal.type_symbol.is_valid() && literal.type_symbol != symbol)
                 {
                     return None;
                 }
-                let definition =
-                    crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
+                let (definition, scope) = scopes.definition(program, reference, scope)?;
                 let mut fields = Vec::new();
                 let mut local_segments = local_segments;
                 if let Some(case) = literal.case_name.as_ref() {
@@ -339,9 +341,9 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                     let variant = variants.next()?;
                     if !variant.symbol.is_valid()
                         || variants.next().is_some()
-                        || literal
-                            .case_symbol
-                            .is_some_and(|symbol| symbol.is_valid() && symbol != variant.symbol)
+                        || literal.case_symbol.is_some_and(|symbol| symbol.is_valid()
+                            && !program.variant_owner(symbol).is_some_and(|(_, authored)|
+                                authored.path_identity() == variant.path_identity()))
                     {
                         return None;
                     }
@@ -365,7 +367,11 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                         .any(|previous| previous.name == field.name)
                         || !fields.iter().any(|(name, symbol, _)| {
                             *name == field.name.as_str()
-                                && (!field.field_symbol.is_valid() || field.field_symbol == *symbol)
+                                && (!field.field_symbol.is_valid()
+                                    || program.any_field_owner(field.field_symbol)
+                                        .zip(program.any_field_owner(*symbol))
+                                        .is_some_and(|(authored, selected)|
+                                            authored.1.path_identity() == selected.1.path_identity()))
                         })
                     {
                         return None;
@@ -410,6 +416,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                         field_suffix,
                         segments,
                         local_coarse,
+                        scope,
                     ));
                 }
             }

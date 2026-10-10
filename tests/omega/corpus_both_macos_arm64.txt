@@ -508,6 +508,7 @@ pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit built 1683ms exit:42
 pass/ownership/runtime_borrowed_carried_loan_transform_exit built 1774ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit built 1772ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65
 pass/ownership/runtime_borrowed_case_result_restore_exit built 1724ms exit:0 interpreter-exit:0 interpreter:agrees @332ced10410b+wt
+pass/ownership/runtime_generic_borrowed_case_restore_exit built 3831ms exit:0 interpreter-exit:0 interpreter:agrees @0f332fb7b67e
 pass/ownership/runtime_borrowed_projected_claim_transform_exit built 1632ms exit:42 interpreter-exit:42 interpreter:agrees @461e97c328e8
 pass/ownership/runtime_borrowed_projected_linear_return_exit built 1641ms exit:0 interpreter-exit:0 interpreter:agrees @cd27c16e2c35
 pass/ownership/runtime_borrowed_record_transform_exit built 1632ms exit:42 interpreter-exit:42 interpreter:agrees @461e97c328e8

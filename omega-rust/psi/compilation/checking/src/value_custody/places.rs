@@ -335,8 +335,22 @@ pub fn declared_place_type_raw(
     if let Some(member) = program.expression_table.member_node(handle) {
         let receiver =
             declared_place_type_raw(program, current_machine, current_state, member.receiver)?;
-        let data = data_definition_for_type(program, receiver)?;
-        return data_field_or_payload_type(program, data, member.member.as_str());
+        // Read the selected field under this receiver's reaching application.
+        // An unmaterialized generic declaration still stores an open `T`;
+        // looking up that field alone would erase the actual reference shell.
+        // Retained selector admission and type projection share the same
+        // application evidence used by canonical place resolution.
+        let symbol = member_resolution::effective_member_symbol_from_position(
+            program,
+            member.receiver,
+            Some(member_resolution::MemberPosition::Reference(receiver)),
+            member,
+        );
+        return project_type_reference_from_segments(
+            program,
+            receiver,
+            &[facts::PlaceSegment::Field { symbol }],
+        );
     }
     if let Some(members) = collect_member_path(program, handle) {
         return declared_member_path_type(program, current_machine, current_state, &members);

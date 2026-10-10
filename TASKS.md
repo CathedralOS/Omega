@@ -650,8 +650,13 @@ defines the complete product bar.
     sums restoring a detached linear token and its original reference backing
     on both arms through selected cleanup, and `runtime_linear_case_payload_forward_exit` (0)
     for unexamined sums and projected aggregate arguments. Keep
+    `runtime_generic_borrowed_case_restore_exit` (0) for generic affine
+    outcome carriers retaining the original backing across both repairs;
+    qualify its remaining bound hosts. Generic linear construction and
+    owner-scoped cleanup still need their ordinary custody/realization paths.
+    Keep
     `fail/ownership/linear_case_result_second_transfer` for exact-once returned
-    payload custody. These four result programs still need Windows x86-64 and
+    payload custody. The result programs still need Windows x86-64 and
     matching-host Linux x86-64 execution; inactive cases owe no fabricated
     claims. Suspension/resume/cancellation qualification depends on the
     selected runtime's **TR3-TR8** execution and retained-frontier joins.

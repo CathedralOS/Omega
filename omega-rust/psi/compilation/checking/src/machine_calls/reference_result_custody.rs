@@ -11,6 +11,7 @@
 //! release: a carrier may instead move or be replaced after evaluating a RHS.
 //! Retirement alone consumes weakening boundaries and must preserve their phase.
 
+use crate::type_applications::DeclarationScopes;
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralResultBindingPlan,
     ReferenceCustodyFacts, ReferenceCustodyRow, StateReferenceCustodyFacts,
@@ -60,10 +61,16 @@ fn reference_origin_expansion_is_bounded(
         depth: usize,
         visits: &mut usize,
         leaves: &mut usize,
+        scopes: &mut DeclarationScopes,
+        scope: usize,
     ) -> Option<()> {
         *visits = visits.checked_add(1)?;
         if *visits > MAX_REFERENCE_ORIGIN_VISITS || depth > MAX_REFERENCE_ORIGIN_DEPTH {
             return None;
+        }
+        let (reference, scope) = scopes.head(program, reference, scope);
+        if program.primitive_type_reference(reference).is_some() {
+            return Some(());
         }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { .. } => {
@@ -72,14 +79,14 @@ fn reference_origin_expansion_is_bounded(
             }
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {}
             TypeReferenceNode::Constrained { base_type, .. } => {
-                return visit(program, *base_type, depth + 1, visits, leaves);
+                return visit(program, *base_type, depth + 1, visits, leaves, scopes, scope);
             }
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,
             } => {
                 let before = *leaves;
-                visit(program, *element_type, depth + 1, visits, leaves)?;
+                visit(program, *element_type, depth + 1, visits, leaves, scopes, scope)?;
                 let element_leaves = leaves.checked_sub(before)?;
                 if element_leaves == 0 {
                     return Some(());
@@ -93,22 +100,38 @@ fn reference_origin_expansion_is_bounded(
                 return (*leaves <= MAX_REFERENCE_ORIGIN_LEAVES).then_some(());
             }
             TypeReferenceNode::Slice { element_type } => {
-                return visit(program, *element_type, depth + 1, visits, leaves);
+                return visit(program, *element_type, depth + 1, visits, leaves, scopes, scope);
             }
             _ => return Some(()),
         }
-        // The closed receiver owns substituted children. Walking the generic
-        // head here would miss loans carried by its type arguments.
-        if let Some(data) = program.closed_data_definition(reference) {
-            for field in program.data_member_fields(program.data_members(data)) {
-                if !field.relevance.is_erased() {
-                    visit(program, field.type_reference, depth + 1, visits, leaves)?;
-                }
+        // Count the same applied fields the custody roster will read. A finite
+        // unprepared application is not evidence of an empty reference shape.
+        let (data, scope) = scopes.definition(program, reference, scope)?;
+        for field in program.data_member_fields(program.data_members(data)) {
+            if !field.relevance.is_erased() {
+                visit(
+                    program,
+                    field.type_reference,
+                    depth + 1,
+                    visits,
+                    leaves,
+                    scopes,
+                    scope,
+                )?;
             }
         }
         Some(())
     }
-    visit(program, reference, 0, &mut 0, &mut 0).is_some()
+    visit(
+        program,
+        reference,
+        0,
+        &mut 0,
+        &mut 0,
+        &mut DeclarationScopes::default(),
+        0,
+    )
+    .is_some()
 }
 
 /// Closed aggregate construction can contain real reference carriers.
@@ -129,7 +152,10 @@ pub fn is_reference_record(
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
         seen: &mut Vec<TypeReferenceHandle>,
+        scopes: &mut DeclarationScopes,
+        scope: usize,
     ) -> Option<bool> {
+        let (reference, scope) = scopes.head(program, reference, scope);
         if stored_loan_parts(program, reference).is_some() {
             return Some(true);
         }
@@ -144,14 +170,18 @@ pub fn is_reference_record(
         if let TypeReferenceNode::FixedArray { element_type, .. } =
             program.type_reference_table.type_reference(reference)
         {
-            return visit(program, *element_type, seen);
+            return visit(program, *element_type, seen, scopes, scope);
         }
-        let data = program.closed_data_definition(reference)?;
+        if let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(reference)
+        {
+            return visit(program, *base_type, seen, scopes, scope);
+        }
+        let (data, scope) = scopes.definition(program, reference, scope)?;
         if seen.contains(&reference) {
             return None;
         }
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-            || !program.data_type_parameters(data).is_empty()
         {
             return None;
         }
@@ -161,7 +191,7 @@ pub fn is_reference_record(
             if field.relevance.is_erased() {
                 continue;
             }
-            contains_reference |= visit(program, field.type_reference, seen)?;
+            contains_reference |= visit(program, field.type_reference, seen, scopes, scope)?;
         }
         seen.pop();
         Some(contains_reference)
@@ -176,7 +206,7 @@ pub fn is_reference_record(
             access,
             CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
         )
-    }) && visit(program, reference, &mut Vec::new()) == Some(true)
+    }) && visit(program, reference, &mut Vec::new(), &mut DeclarationScopes::default(), 0) == Some(true)
 }
 
 /// Reconstruct a leaf's exact formal ingress. Structural parameter ordinals
@@ -1272,7 +1302,10 @@ pub fn record_carrier_sources(
         carrier: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
         path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         output: &mut Vec<checked_trees::CheckedReferenceResultSourcePlan>,
+        scopes: &mut DeclarationScopes,
+        scope: usize,
     ) -> Option<()> {
+        let (reference, scope) = scopes.head(program, reference, scope);
         if let Some(shell) = crate::reference_shell(program, reference)
             && shell.access == language_semantics::ReferenceAccess::Shared
             && matches!(
@@ -1287,7 +1320,7 @@ pub fn record_carrier_sources(
                 source: checked_trees::CheckedUnitStructuralArgumentPlan {
                     source: carrier.clone(),
                     path: path.clone(),
-                    type_identity: program.normalized_type_identity_text(reference),
+                    type_identity: scopes.type_identity_text(program, reference, scope),
                     access: CheckedStructuralAccess::SharedBorrow,
                 },
             });
@@ -1301,7 +1334,7 @@ pub fn record_carrier_sources(
                 source: checked_trees::CheckedUnitStructuralArgumentPlan {
                     source: carrier.clone(),
                     path: source_path,
-                    type_identity: program.normalized_type_identity_text(referent),
+                    type_identity: scopes.type_identity_text(program, referent, scope),
                     access,
                 },
             });
@@ -1324,12 +1357,20 @@ pub fn record_carrier_sources(
                 path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
                     u64::try_from(element_index).ok()?,
                 ));
-                visit(program, *element_type, carrier, path, output)?;
+                visit(program, *element_type, carrier, path, output, scopes, scope)?;
                 path.pop();
             }
             return Some(());
         }
-        let data = program.closed_data_definition(reference)?;
+        if let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(reference)
+        {
+            return visit(program, *base_type, carrier, path, output, scopes, scope);
+        }
+        let (data, scope) = scopes.definition(program, reference, scope)?;
+        if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
+            return None;
+        }
         for member in program.data_members(data) {
             let fields = match member {
                 typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
@@ -1347,7 +1388,7 @@ pub fn record_carrier_sources(
                 path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
                     field.path_identity(),
                 ));
-                visit(program, field.type_reference, carrier, path, output)?;
+                visit(program, field.type_reference, carrier, path, output, scopes, scope)?;
                 path.pop();
             }
             if matches!(member, typed_trees::data::DataMember::Variant(_)) {
@@ -1368,7 +1409,15 @@ pub fn record_carrier_sources(
         return None;
     }
     let mut output = Vec::new();
-    visit(program, reference, &carrier, &mut Vec::new(), &mut output)?;
+    visit(
+        program,
+        reference,
+        &carrier,
+        &mut Vec::new(),
+        &mut output,
+        &mut DeclarationScopes::default(),
+        0,
+    )?;
     Some(output)
 }
 
@@ -1515,9 +1564,9 @@ fn aggregate_construction_sources(
             children.push((path, expression, reference));
         }
     } else {
-        let data = program.closed_data_definition(reference)?;
         let literal = program.expression_table.struct_literal_node(expression)?;
-        if literal.type_symbol != data.symbol || literal.case_symbol.is_some() {
+        let data = program.closed_data_constructor_definition(reference, literal.type_symbol)?;
+        if literal.case_symbol.is_some() {
             return None;
         }
         let initializers = program.expression_table.struct_fields(literal.fields);
@@ -1529,7 +1578,10 @@ fn aggregate_construction_sources(
             let field = member.as_field()?;
             let mut matching = initializers
                 .iter()
-                .filter(|initializer| initializer.field_symbol == field.symbol);
+                .filter(|initializer| {
+                    program.closed_data_constructor_field(reference, literal.type_symbol, initializer.field_symbol)
+                        .is_some_and(|selected| selected.symbol == field.symbol)
+                });
             let initializer = matching.next()?;
             if matching.next().is_some() {
                 return None;
@@ -1744,13 +1796,22 @@ pub fn loan_place_segments(
     let mut selected = root;
     let mut payload = None;
     let mut segments = Vec::with_capacity(path.len());
+    let mut scopes = DeclarationScopes::default();
+    let mut scope = 0;
     for segment in path {
+        (selected, scope) = scopes.head(program, selected, scope);
+        while let TypeReferenceNode::Constrained { base_type, .. }
+            | TypeReferenceNode::Reference { referee: base_type, .. } = program.type_reference_table.type_reference(selected)
+        {
+            (selected, scope) = scopes.head(program, *base_type, scope);
+        }
         match segment {
             checked_trees::CheckedUnitStructuralPathSegment::Case(identity) => {
                 if payload.is_some() {
                     return None;
                 }
-                let data = nominal_member_owner_type(program, selected)?;
+                let (data, nested_scope) = scopes.definition(program, selected, scope)?;
+                scope = nested_scope;
                 let case = program
                     .data_members(data)
                     .iter()
@@ -1774,7 +1835,8 @@ pub fn loan_place_segments(
                         .iter()
                         .find(|field| field.path_identity() == *identity)?
                 } else {
-                    let data = nominal_member_owner_type(program, selected)?;
+                    let (data, nested_scope) = scopes.definition(program, selected, scope)?;
+                    scope = nested_scope;
                     program
                         .data_members(data)
                         .iter()

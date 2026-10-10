@@ -118,6 +118,15 @@ fn completed_field_sources(
     }
     let sources = returned_reference_sources(program, state, call_frames)?;
     let parameters = program.state_parameters(state);
+    let declared_paths = fields
+        .iter()
+        .map(|field| {
+            Some((
+                structural_owner_path(program, &field.owner_path)?,
+                structural_owner_path(program, &field.source_path)?,
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
     let mut output = Vec::with_capacity(sources.len());
     let mut covered = vec![false; fields.len()];
     for source in sources {
@@ -138,11 +147,7 @@ fn completed_field_sources(
             .nth(parameter_index as usize)?;
 
         let parameter_index = position;
-        let owner_path = owner_segments(loan_place_segments(
-            program,
-            state.return_type,
-            &source.path,
-        )?)?;
+        let owner_path = &source.path;
         let kind = source.source.access.borrow_access_kind()?;
         let (source_path, projection) = if is_reference_type(program, parameter.type_reference) {
             (
@@ -154,20 +159,15 @@ fn completed_field_sources(
             if *last != checked_trees::CheckedUnitStructuralPathSegment::Referent {
                 return None;
             }
-            (
-                owner_segments(loan_place_segments(
-                    program,
-                    parameter.type_reference,
-                    path,
-                )?)?,
-                Vec::new(),
-            )
+            (path.to_vec(), Vec::new())
         };
-        // Body precision cannot invent a lifetime source or amplify access
-        // beyond the declaration's already checked input/output relation.
-        let Some((index, field)) = fields.iter().enumerate().find(|(_, field)| {
-            field.owner_path == owner_path
-                && field.source_path == source_path
+        // Join paths under the same declared input and result by schema identity:
+        // generic preparation and declaration traversal can own distinct field
+        // symbols. Body precision still cannot invent a lifetime source or
+        // amplify the declaration's checked access relation.
+        let Some((index, field)) = fields.iter().enumerate().find(|(index, field)| {
+            declared_paths[*index].0 == *owner_path
+                && declared_paths[*index].1 == source_path
                 && field.parameter_index == parameter_index
                 && field.kind == kind
         }) else {
@@ -188,16 +188,23 @@ fn completed_field_sources(
     Some(Ok(output))
 }
 
-fn owner_segments(segments: Vec<facts::PlaceSegment>) -> Option<Vec<BorrowOwnerSegment>> {
-    segments
-        .into_iter()
+fn structural_owner_path(
+    program: &dyn ::validation::CheckingInput,
+    path: &[BorrowOwnerSegment],
+) -> Option<Vec<checked_trees::CheckedUnitStructuralPathSegment>> {
+    use checked_trees::CheckedUnitStructuralPathSegment as StructuralSegment;
+    path.iter()
         .map(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => Some(BorrowOwnerSegment::Field(symbol)),
-            facts::PlaceSegment::FixedIndex { index } => {
-                Some(BorrowOwnerSegment::FixedIndex(index))
+            BorrowOwnerSegment::Field(symbol) => Some(StructuralSegment::Field(
+                program.any_field_owner(*symbol)?.1.path_identity(),
+            )),
+            BorrowOwnerSegment::Case(symbol) => Some(StructuralSegment::Case(
+                program.variant_owner(*symbol)?.1.path_identity(),
+            )),
+            BorrowOwnerSegment::FixedIndex(index) => {
+                Some(StructuralSegment::FixedIndex(u64::try_from(*index).ok()?))
             }
-            facts::PlaceSegment::Case { variant } => Some(BorrowOwnerSegment::Case(variant)),
-            _ => None,
+            BorrowOwnerSegment::DynamicIndex => None,
         })
         .collect()
 }
@@ -236,21 +243,7 @@ pub(super) fn result_loans(
         // relation, including evidence-bound call telescopes. Do not ask an
         // expression-type query to resolve the callable again: its raw result
         // may still be a template, even though this loan relation is closed.
-        for segment in &loan.owner_path {
-            use checked_trees::CheckedUnitStructuralPathSegment as StructuralSegment;
-            path.push(match segment {
-                BorrowOwnerSegment::Field(symbol) => {
-                    StructuralSegment::Field(program.any_field_owner(*symbol)?.1.path_identity())
-                }
-                BorrowOwnerSegment::Case(symbol) => {
-                    StructuralSegment::Case(program.variant_owner(*symbol)?.1.path_identity())
-                }
-                BorrowOwnerSegment::FixedIndex(element_index) => {
-                    StructuralSegment::FixedIndex(u64::try_from(*element_index).ok()?)
-                }
-                BorrowOwnerSegment::DynamicIndex => return None,
-            });
-        }
+        path.extend(structural_owner_path(program, &loan.owner_path)?);
         loan.owner_path = validation::reference_result_custody::loan_owner_path(
             program,
             local_data.type_reference,
@@ -457,7 +450,42 @@ pub(super) fn argument_loans(
     let carried = carried_arguments[cached_index]
         .1
         .iter()
-        .filter(|loan| owner_path_matches(program, &loan.owner_path, &source_segments))
+        .filter(|loan| {
+            // The call contract already binds this actual to this parameter.
+            // Its captured local uses its own prepared member symbols; compare
+            // schema selectors only at this typed carrier join, never as a
+            // general equality of unrelated storage places.
+            loan.owner_path.len() <= source_segments.len()
+                && loan
+                    .owner_path
+                    .iter()
+                    .zip(&source_segments)
+                    .all(|(owner, source)| match (owner, source) {
+                        (
+                            BorrowOwnerSegment::Field(owner),
+                            facts::PlaceSegment::Field { symbol },
+                        ) => program
+                            .any_field_owner(*owner)
+                            .zip(program.any_field_owner(*symbol))
+                            .is_some_and(|(owner, source)| {
+                                owner.1.path_identity() == source.1.path_identity()
+                            }),
+                        (
+                            BorrowOwnerSegment::Case(owner),
+                            facts::PlaceSegment::Case { variant },
+                        ) => program
+                            .variant_owner(*owner)
+                            .zip(program.variant_owner(*variant))
+                            .is_some_and(|(owner, source)| {
+                                owner.1.path_identity() == source.1.path_identity()
+                            }),
+                        _ => owner_path_matches(
+                            program,
+                            std::slice::from_ref(owner),
+                            std::slice::from_ref(source),
+                        ),
+                    })
+        })
         .cloned()
         .collect::<Vec<_>>();
 

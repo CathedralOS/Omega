@@ -2,10 +2,10 @@
 //! FactPlan supplies selectors; exact declarations and selector-owned types
 //! establish whether those selectors can transport the retained leaves.
 
-use super::super::isolation::concrete_nominal_type;
 use super::super::path_instantiation::aggregate_arguments::{
     AggregateMove, AggregateOrigins, ReferenceLeaf,
 };
+use super::super::type_instantiation::DeclarationScopes;
 use super::StoredLocalOrigins;
 use facts::{FactPlan, PlaceSegment};
 use symbols::SymbolKind;
@@ -354,21 +354,25 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
     segments: &[PlaceSegment],
 ) -> Option<TypeReferenceHandle> {
     let mut selected_case = None;
+    // Projection and inventory share exact declaration scopes. Finite generic
+    // preparation does not promise a materialized row for every nested field.
+    let mut scopes = DeclarationScopes::default();
+    let mut scope = 0;
     for segment in segments {
+        (reference, scope) = scopes.head(program, reference, scope);
         reference = unconstrained_type(program, reference)?;
         match (
             program.type_reference_table.type_reference(reference),
             segment,
         ) {
-            (node, PlaceSegment::Case { variant }) if concrete_nominal_type(node).is_some() => {
-                let (symbol, _) = concrete_nominal_type(node)?;
+            (TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }, PlaceSegment::Case { variant }) => {
                 if selected_case.is_some()
                     || program.symbols.get(*variant).kind != SymbolKind::Variant
                 {
                     return None;
                 }
-                let definition =
-                    crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
+                let (definition, nested_scope) = scopes.definition(program, reference, scope)?;
+                scope = nested_scope;
                 selected_case =
                     program
                         .data_members(definition)
@@ -381,10 +385,8 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
                         });
                 selected_case?;
             }
-            (node, PlaceSegment::Field { symbol: field })
-                if concrete_nominal_type(node).is_some() =>
+            (TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }, PlaceSegment::Field { symbol: field }) =>
             {
-                let (symbol, _) = concrete_nominal_type(node)?;
                 if program.symbols.get(*field).kind != SymbolKind::Field {
                     return None;
                 }
@@ -393,9 +395,8 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
                         .data_payload_field_by_symbol(variant, *field)?
                         .type_reference
                 } else {
-                    let definition = crate::declarations::data_queries::data_definition_by_symbol(
-                        program, symbol,
-                    )?;
+                    let (definition, nested_scope) = scopes.definition(program, reference, scope)?;
+                    scope = nested_scope;
                     program
                         .data_members(definition)
                         .iter()
@@ -441,7 +442,7 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
     if selected_case.is_some() {
         return None;
     }
-    unconstrained_type(program, reference)
+    unconstrained_type(program, scopes.head(program, reference, scope).0)
 }
 
 fn unconstrained_type(
