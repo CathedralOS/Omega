@@ -1,3 +1,4 @@
+use psi::checking::aliases;
 use psi::checking::arrivals;
 use psi::checking::contracts;
 use psi::checking::demand;
@@ -162,6 +163,12 @@ pub data Checker {
     blocked: [bool; 2048];
     // The ownership walk of the body being checked (ownership.omg).
     ownership: Ownership;
+    // Boolean aliases (aliases.omg): each aliased place, the condition it
+    // stands for and how many places existed when it was bound.
+    alias_places: [u64; 16];
+    alias_conditions: [u64; 16];
+    alias_limits: [u64; 16];
+    alias_count: u64;
 }
 
 pub machine Checker::check(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
@@ -1092,6 +1099,7 @@ crashes Trap
 pub machine Checker::forget_written_fields(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping)
 crashes Trap
 {
+    Checker::forget_aliases(checker, place);
     transition { _ -> next(checker, typing, place, callee, 0) }
 
     state next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {

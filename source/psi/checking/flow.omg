@@ -1,3 +1,4 @@
+use psi::checking::aliases;
 use psi::checking::checker;
 use psi::checking::contracts;
 use psi::checking::domains;
@@ -838,6 +839,7 @@ crashes Trap
         Checker::evaluate_tree(checker, syntax, resolution, typing, statement.value, checking);
         let value: Value = Checker::value_at(checker, statement.value);
         Checker::bind_place(checker, typing, place, value);
+        Checker::record_alias(checker, syntax, typing, place, statement.value, value);
         let bound: Value = Checker::place_value(checker, place);
         Checker::assume_qualification(checker, syntax, resolution, typing, type_handle, bound);
         transition checking {
@@ -866,6 +868,7 @@ crashes Trap
         let destination: u64 in Trapping = Typing::expression_type(typing, statement.target);
         Checker::require_stored_qualification(checker, syntax, resolution, typing, destination, statement.value, value, statement.source_span, checking);
         Checker::bind_place(checker, typing, target.place, value);
+        Checker::record_alias(checker, syntax, typing, target.place, statement.value, value);
         transition owner > 0 {
             true -> window(checker, syntax, resolution, typing, statement, owner, checking)
             _ -> done()
@@ -1132,6 +1135,7 @@ crashes Trap
     ) {
         Checker::evaluate_tree(checker, syntax, resolution, typing, arm.pattern, checking);
         Checker::arm_facts(checker, syntax, resolution, typing, statement.value, unknown, arm, chosen);
+        Checker::assume_alias(checker, syntax, resolution, typing, arm.pattern, chosen);
     }
 
     state literal(
@@ -1202,6 +1206,7 @@ crashes Trap
     ) {
         Checker::replay_tree(checker, syntax, resolution, typing, statement.value);
         Checker::arm_facts(checker, syntax, resolution, typing, statement.value, pattern, arm, chosen);
+        Checker::assume_subject_alias(checker, syntax, resolution, typing, statement.value, arm, chosen);
     }
 
     state done() {}

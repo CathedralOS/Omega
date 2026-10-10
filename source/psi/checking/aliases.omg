@@ -1,0 +1,229 @@
+use psi::checking::checker;
+use psi::checking::evaluation;
+use psi::checking::facts;
+use psi::checking::flow;
+use psi::resolution::resolution;
+use psi::syntax::syntax;
+use psi::types::types;
+
+// Boolean aliases. A Boolean place bound from a condition (`let valid: bool
+// = count < 64u32;`, `guard.valid = guard.count < 64u32;`), or from another
+// aliased Boolean place, stands for that condition while no place that
+// existed when it was bound is written: assuming the place at a dispatch or
+// guard assumes the condition, evaluated again over the unchanged places.
+// A write to any older place, or a call releasing one, forgets the alias.
+// An alias lives in its body; a Boolean passed to a state carries none.
+
+// Record that Boolean `place` stands for the condition `root` bound to it,
+// whose value is `value`; a copy of an aliased place takes its condition.
+pub machine Checker::record_alias(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping, root: u64 in Trapping, value: Value)
+crashes Trap
+{
+    let type_handle: u64 in Trapping = Typing::expression_type(typing, root);
+    let expression: Expression = SyntaxTrees::expression(syntax, root);
+    transition place > 0 && type_handle == typing.boolean {
+        true -> condition(checker, place, root, expression, value)
+        _ -> done()
+    }
+
+    state condition(checker: &mut Checker, place: u64 in Trapping, root: u64 in Trapping, expression: Expression, value: Value) {
+        transition expression.kind {
+            ExpressionKind::Binary -> own(checker, place, root)
+            ExpressionKind::Unary -> own(checker, place, root)
+            ExpressionKind::Membership -> own(checker, place, root)
+            ExpressionKind::Name -> copied(checker, place, value)
+            ExpressionKind::Field -> copied(checker, place, value)
+            _ -> done()
+        }
+    }
+
+    state own(checker: &mut Checker, place: u64 in Trapping, root: u64 in Trapping) {
+        Checker::add_alias(checker, place, root);
+    }
+
+    state copied(checker: &mut Checker, place: u64 in Trapping, value: Value) {
+        let condition: u64 in Trapping = Checker::alias_condition(checker, value.place);
+        transition condition > 0 {
+            true -> chained(checker, place, condition - 1)
+            _ -> done()
+        }
+    }
+
+    state chained(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping) {
+        Checker::add_alias(checker, place, condition);
+    }
+
+    state done() {}
+}
+
+// At a statement-level dispatch or guard (never inside a tree, where the
+// replay would evaluate over it), a Boolean place, or its negation, assumed
+// to hold (or fail) assumes its alias's condition the same way.
+pub machine Checker::assume_alias(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, holds: bool)
+crashes Trap
+{
+    let expression: Expression = SyntaxTrees::expression(syntax, root);
+    let negated: bool = expression.kind == ExpressionKind::Unary && expression.operator == OperatorKind::Not;
+    let fails: bool = !holds;
+    transition negated {
+        true -> placed(checker, syntax, resolution, typing, expression.left, fails)
+        _ -> placed(checker, syntax, resolution, typing, root, holds)
+    }
+
+    state placed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, holds: bool) {
+        let value: Value = Checker::value_at(checker, node);
+        let condition: u64 in Trapping = Checker::alias_condition(checker, value.place);
+        transition condition > 0 {
+            true -> aliased(checker, syntax, resolution, typing, condition - 1, holds)
+            _ -> done()
+        }
+    }
+
+    state aliased(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, condition: u64 in Trapping, holds: bool) {
+        Checker::replay_tree(checker, syntax, resolution, typing, condition);
+        Checker::assume(checker, syntax, condition, holds);
+    }
+
+    state done() {}
+}
+
+// A Boolean subject's `true`/`false` arm assumes the subject's alias held or
+// failed as its literal says.
+pub machine Checker::assume_subject_alias(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    subject: u64 in Trapping,
+    arm: TransitionArm,
+    chosen: bool
+)
+crashes Trap
+{
+    let written: Expression = SyntaxTrees::expression(syntax, arm.pattern);
+    let holds: bool = written.flag == chosen;
+    transition arm.kind == ArmPatternKind::Literal && written.kind == ExpressionKind::Boolean {
+        true -> literal(checker, syntax, resolution, typing, subject, holds)
+        _ -> done()
+    }
+
+    state literal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, holds: bool) {
+        Checker::assume_alias(checker, syntax, resolution, typing, subject, holds);
+    }
+
+    state done() {}
+}
+
+// The condition `place` stands for, plus one; zero when it has none.
+pub machine Checker::alias_condition(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition place > 0 {
+        true -> next(checker, place, 0)
+        _ -> answer(0)
+    }
+
+    state next(checker: &Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+        transition index < checker.alias_count && index < 16 {
+            true -> entry(checker, place, index)
+            _ -> answer(0)
+        }
+    }
+
+    state entry(checker: &Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
+    requires index < 16
+    {
+        let aliased: u64 = checker.alias_places[index];
+        let condition: u64 = checker.alias_conditions[index];
+        let found: u64 in Trapping = (condition as u64 in Trapping) + 1;
+        transition aliased == place {
+            true -> answer(found)
+            _ -> next(checker, place, index + 1)
+        }
+    }
+
+    state answer(condition: u64 in Trapping) -> u64 in Trapping {
+        condition
+    }
+}
+
+// Bind `place` to `condition`, replacing its alias; a full table keeps
+// none, which only forgets facts.
+machine Checker::add_alias(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping)
+crashes Trap
+{
+    Checker::drop_aliases(checker, place, 0);
+    transition checker.alias_count < 16 {
+        true -> write(checker, place, condition, checker.alias_count)
+        _ -> done()
+    }
+
+    state write(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping, index: u64)
+    requires index < 16
+    {
+        checker.alias_places[index] = place as u64;
+        checker.alias_conditions[index] = condition as u64;
+        checker.alias_limits[index] = checker.place_count;
+        checker.alias_count = index + 1;
+    }
+
+    state done() {}
+}
+
+// A written place forgets every alias it is, and every alias formed while it
+// existed, whose condition may read it.
+pub machine Checker::forget_aliases(checker: &mut Checker, place: u64 in Trapping)
+crashes Trap
+{
+    Checker::drop_aliases(checker, place, place);
+}
+
+// Drop each alias of `place`, and with `older` nonzero each alias formed
+// while place `older` existed.
+machine Checker::drop_aliases(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping)
+crashes Trap
+{
+    transition { _ -> next(checker, place, older, 0) }
+
+    state next(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
+        transition index < checker.alias_count && index < 16 {
+            true -> entry(checker, place, older, index)
+            _ -> done()
+        }
+    }
+
+    state entry(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping)
+    requires index < 16
+    {
+        let aliased: u64 = checker.alias_places[index];
+        let limit: u64 = checker.alias_limits[index];
+        let stale: bool = aliased == place || (older > 0 && older <= limit);
+        transition stale {
+            true -> removed(checker, place, older, index)
+            _ -> next(checker, place, older, index + 1)
+        }
+    }
+
+    // The last alias takes the removed one's slot and is examined next.
+    state removed(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
+        transition checker.alias_count > 0 && checker.alias_count <= 16 && index < 16 {
+            true -> moved(checker, place, older, index, checker.alias_count - 1)
+            _ -> done()
+        }
+    }
+
+    state moved(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping, last: u64)
+    requires index < 16, last < 16
+    {
+        let last_place: u64 = checker.alias_places[last];
+        let last_condition: u64 = checker.alias_conditions[last];
+        let last_limit: u64 = checker.alias_limits[last];
+        checker.alias_places[index] = last_place;
+        checker.alias_conditions[index] = last_condition;
+        checker.alias_limits[index] = last_limit;
+        checker.alias_count = last;
+        transition { _ -> next(checker, place, older, index) }
+    }
+
+    state done() {}
+}

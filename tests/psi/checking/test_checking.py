@@ -2201,6 +2201,51 @@ def main() -> None:
         b"machine view(score: &Score) -> &i32 { &score.points }",
     )
 
+    # Boolean aliases (aliases.omg): a Boolean bound from a condition stands
+    # for it at a dispatch or guard until an older place is written.
+    accepted(
+        program,
+        "boolean-local-stands-for-its-condition",
+        b"machine shift(value: u64, count: u32) -> u64 {\n"
+        b"    let valid: bool = count < 64u32;\n"
+        b"    transition valid {\n"
+        b"        true -> calculate(value, count)\n"
+        b"        false -> empty()\n"
+        b"    }\n"
+        b"    state calculate(value: u64, count: u32) -> u64 { value >> count }\n"
+        b"    state empty() -> u64 { 0 }\n"
+        b"}",
+    )
+    accepted(
+        program,
+        "boolean-field-guard-stands-for-its-condition",
+        b"data Guard { count: u32; valid: bool; }\n"
+        b"machine shift(count: u32) -> u64 {\n"
+        b"    let mut guard: Guard = Guard { count: 0, valid: false };\n"
+        b"    guard.count = count;\n"
+        b"    guard.valid = guard.count < 64u32;\n"
+        b"    transition {\n"
+        b"        guard.valid -> (8u64 >> guard.count)\n"
+        b"        _ -> 0u64\n"
+        b"    }\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "a-write-ends-the-alias",
+        b"machine shift(value: u64, count: u32, other: u32) -> u64 {\n"
+        b"    let mut limit: u32 = count;\n"
+        b"    let valid: bool = limit < 64u32;\n"
+        b"    limit = other;\n"
+        b"    transition valid {\n"
+        b"        true -> (value >> limit)\n"
+        b"        false -> 0\n"
+        b"    }\n"
+        b"}",
+        "ShiftCountOutOfRange",
+        b"value >> limit",
+    )
+
     # The product's own psi package, each module under source/psi as
     # `<directory>::<file>` of package `psi`: how far checking reaches today.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

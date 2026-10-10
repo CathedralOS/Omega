@@ -409,7 +409,9 @@ subject plus an exact offset) when it is one, and an interval
 shared with typing ([`integers/integers.omg`](integers/integers.omg)). A guard
 holding or failing, the left operand of `&&` (or failing `||`) for its right
 operand, a value pattern's arm (the subject equals it), a `let` and an
-assignment add facts, and a constant whose initializer is an anonymous
+assignment add facts, a Boolean place bound from a condition stands for it
+at a later dispatch or guard until a place that existed when it was bound
+is written ([`checking/aliases.omg`](checking/aliases.omg)), and a constant whose initializer is an anonymous
 integer tree is that value
 ([`checking/facts.omg`](checking/facts.omg),
 [`checking/flow.omg`](checking/flow.omg)); a write forgets the place and
