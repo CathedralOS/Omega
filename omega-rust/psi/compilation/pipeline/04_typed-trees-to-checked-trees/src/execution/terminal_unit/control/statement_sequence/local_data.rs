@@ -325,11 +325,13 @@ pub(super) fn plan(
         structural_local_symbols.push(local.symbol);
         let qualifications =
             parameter_qualifications(program, shapes, local.type_reference, binders)?;
-        operations.push(CheckedUnitEffectOperationPlan::EstablishByteSequence {
-            result,
-            value: checked_trees::CheckedByteSequenceValuePlan::literal(bytes),
-            qualifications,
-        });
+        operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::ByteSequence {
+                result,
+                value: checked_trees::CheckedByteSequenceValuePlan::literal(bytes),
+                qualifications,
+            },
+        ));
         return Some(LocalPlan::Planned);
     }
     // A bounded owner snapshots its initializer's bytes and live length.
@@ -353,11 +355,13 @@ pub(super) fn plan(
         structural_local_symbols.push(local.symbol);
         let qualifications =
             parameter_qualifications(program, shapes, local.type_reference, binders)?;
-        operations.push(CheckedUnitEffectOperationPlan::EstablishByteSequence {
-            result,
-            value,
-            qualifications,
-        });
+        operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::ByteSequence {
+                result,
+                value,
+                qualifications,
+            },
+        ));
         return Some(LocalPlan::Planned);
     }
     // An atomic carrier's result placeholder plans nothing: it
@@ -719,11 +723,13 @@ pub(super) fn plan(
         array_bindings.push((local.symbol, result.clone()));
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
         structural_local_symbols.push(local.symbol);
-        operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
-            source: checked_trees::CheckedArrayConstructionSource::Statement,
-            result,
-            elements,
-        });
+        operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                source: checked_trees::CheckedArrayConstructionSource::Statement,
+                result,
+                elements,
+            },
+        ));
         return Some(LocalPlan::Planned);
     }
     local_phase("statement sequence: local data: exclusive place loan");
@@ -762,13 +768,15 @@ pub(super) fn plan(
                 primitive_type,
                 trace,
             )?;
-            operations.push(CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
-                statement_index,
-                symbol: local.symbol,
-                type_identity: shapes.add_type(local.type_reference, binders, &[])?,
-                primitive_type,
-                value,
-            });
+            operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Primitive {
+                    statement_index,
+                    symbol: local.symbol,
+                    type_identity: shapes.add_type(local.type_reference, binders, &[])?,
+                    primitive_type,
+                    value,
+                },
+            ));
             return Some(LocalPlan::Planned);
         }
         // The binding takes the next dense ordinal, which also counts the
@@ -808,7 +816,9 @@ pub(super) fn plan(
                 trace,
             )?;
             result.binding_ordinal = binding_ordinal;
-            operations.push(CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value });
+            operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Scalar { result, value },
+            ));
             return Some(LocalPlan::Planned);
         }
         local_phase("statement sequence: local data: scalar call binding");
@@ -1071,14 +1081,16 @@ fn establish_declared_home(
         } else {
             Vec::new()
         };
-    operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
-        statement_index,
-        declaration_ordinal: u32::try_from(declaration_ordinal).ok()?,
-        symbol: local.symbol,
-        result: result.clone(),
-        qualifications,
-        discard_result_on_return: result.multiplicity == Multiplicity::Affine,
-    });
+    operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+        checked_trees::CheckedUnitLocalBindingPlan::Structural {
+            statement_index,
+            declaration_ordinal: u32::try_from(declaration_ordinal).ok()?,
+            symbol: local.symbol,
+            result: result.clone(),
+            qualifications,
+            discard_result_on_return: result.multiplicity == Multiplicity::Affine,
+        },
+    ));
     structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
     structural_local_symbols.push(local.symbol);
     Some(())

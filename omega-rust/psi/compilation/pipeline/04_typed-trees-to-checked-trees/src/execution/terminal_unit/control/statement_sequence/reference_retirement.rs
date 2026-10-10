@@ -146,39 +146,39 @@ impl Retirement<'_> {
                         })
                 });
             }
-            let construction =
-                if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } =
-                    operation
+            let construction = if let CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, .. },
+            ) = operation
+            {
+                if !local_carrier_loans(
+                    self.facts,
+                    self.machine,
+                    self.state.symbol,
+                    result,
+                    self.results,
+                )
+                .is_some_and(|loans| self.facts.borrow.loans_contain(loans, child))
                 {
-                    if !local_carrier_loans(
-                        self.facts,
-                        self.machine,
-                        self.state.symbol,
-                        result,
-                        self.results,
-                    )
-                    .is_some_and(|loans| self.facts.borrow.loans_contain(loans, child))
-                    {
-                        return false;
-                    }
-                    let loan = self.facts.borrow.loans.get(child);
-                    let Some((_, local)) = self
-                        .program
-                        .state_local_declaration(self.state, loan.owner_symbol)
-                    else {
-                        return false;
-                    };
-                    let Some(path) = transport::carrier_path(
-                        self.program,
-                        local.type_reference,
-                        self.facts.borrow.loan_owner_path(loan),
-                    ) else {
-                        return false;
-                    };
-                    Some((operation, path))
-                } else {
-                    stores::construction(self, child, operation)
+                    return false;
+                }
+                let loan = self.facts.borrow.loans.get(child);
+                let Some((_, local)) = self
+                    .program
+                    .state_local_declaration(self.state, loan.owner_symbol)
+                else {
+                    return false;
                 };
+                let Some(path) = transport::carrier_path(
+                    self.program,
+                    local.type_reference,
+                    self.facts.borrow.loan_owner_path(loan),
+                ) else {
+                    return false;
+                };
+                Some((operation, path))
+            } else {
+                stores::construction(self, child, operation)
+            };
             if let Some((producer, path)) = construction {
                 let loan = self.facts.borrow.loans.get(child);
                 if let Some(call) = producer.call() {
@@ -188,9 +188,13 @@ impl Retirement<'_> {
                                 && self.source_captures_holder(source, parent)
                         });
                 }
-                let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    value, calls, ..
-                } = producer
+                let CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                        value,
+                        calls,
+                        ..
+                    },
+                ) = producer
                 else {
                     return false;
                 };

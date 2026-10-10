@@ -37,8 +37,8 @@ pub(super) fn admit_calls<'a>(
             )?;
             match operation {
                 _ if operation.call().is_some() => {}
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
+                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. })
                 // A store writes storage or a loan this state holds; it
                 // names no callee.
                 | CheckedUnitEffectOperationPlan::Store(_)
@@ -54,12 +54,12 @@ pub(super) fn admit_calls<'a>(
                 | checked_trees::byte_sequence_establishment_pattern!()
                 // Frame-local storage minted at an authored statement names no
                 // callee; borrowed references bind storage already owned here.
-                | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
-                | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. })
+                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. })
+                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. })
                 // A declared structural local's establishment mints
                 // frame-local storage at its statement the same way.
-                | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Structural { .. })
                 | checked_trees::reference_hold_pattern!() => {}
                 _ => return unsupported("composed Unit call state contains a non-call operation"),
             }

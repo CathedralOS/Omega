@@ -222,7 +222,9 @@ pub(super) fn emit_call_operations(
             .collect::<Result<Vec<_>, _>>()?;
         let establishes_local = matches!(
             operation,
-            CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. }
+            )
         );
         let call_operands = if establishes_local || OperationFrame::lowers(operation) {
             None

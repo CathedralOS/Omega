@@ -18,7 +18,7 @@ pub(crate) fn source(
         if operation.ends_local_occurrence(symbol) {
             return Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
         }
-        if matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralLocal { symbol: local, .. } if *local == symbol)
+        if matches!(operation, CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Structural { symbol: local, .. }) if *local == symbol)
         {
             return Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
         }

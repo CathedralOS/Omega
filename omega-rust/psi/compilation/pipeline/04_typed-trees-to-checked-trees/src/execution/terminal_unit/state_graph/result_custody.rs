@@ -215,9 +215,9 @@ pub(super) fn account(
         // the release. Resolve the source once so every control family applies
         // the same exact-root and descendant-path test.
         let view_source = match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. }
-                if facts.values.structural_values.nodes.is_valid(*value) =>
-            {
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+            ) if facts.values.structural_values.nodes.is_valid(*value) => {
                 match &facts.values.structural_values.nodes.get(*value).kind {
                     checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
                         source, ..
@@ -670,8 +670,9 @@ fn construction_local_uses<'a, 'operation>(
     let mut pending = Vec::new();
     let mut visited = Vec::new();
     for (index, operation) in operations.into_iter().enumerate() {
-        let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
-            operation
+        let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
+        ) = operation
         else {
             continue;
         };
@@ -749,12 +750,14 @@ pub(in crate::execution::terminal_unit) fn call_owns_result(
         .is_some_and(|result| result.multiplicity != Multiplicity::Unrestricted)
         || matches!(
             producer,
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                operand_source: Some(
-                    checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
-                ),
-                ..
-            }
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                    operand_source: Some(
+                        checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
+                    ),
+                    ..
+                }
+            )
         )
 }
 
@@ -782,9 +785,11 @@ pub(in crate::execution::terminal_unit) fn operand_owned_construction(
 ) -> bool {
     matches!(
         operation,
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            operand_source: Some(_),
-            ..
-        }
+        CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                operand_source: Some(_),
+                ..
+            }
+        )
     )
 }

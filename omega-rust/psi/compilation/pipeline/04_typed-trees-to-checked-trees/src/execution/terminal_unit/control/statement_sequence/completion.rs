@@ -299,11 +299,13 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 multiplicity: Multiplicity::Unrestricted,
                 local: Default::default(),
             };
-            operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                source: checked_trees::CheckedArrayConstructionSource::Statement,
-                result: result.clone(),
-                elements,
-            });
+            operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                    source: checked_trees::CheckedArrayConstructionSource::Statement,
+                    result: result.clone(),
+                    elements,
+                },
+            ));
             return_binding(result)
         }
     } else {
@@ -412,7 +414,9 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             };
             // Completion evaluates its actual expression after the preceding
             // operations. A final name reuses its value without replaying its call.
-            operations.push(CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value });
+            operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Scalar { result, value },
+            ));
             scalar_count = scalar_count.checked_add(1)?;
             returned_scalar_call = Some(result);
         }

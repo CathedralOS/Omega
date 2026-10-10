@@ -203,11 +203,19 @@ impl OperationFrame<'_, '_> {
         matches!(
             operation,
             CheckedUnitEffectOperationPlan::PortWrite { .. }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. }
+                )
+                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::Structural { .. }
+                )
                 | CheckedUnitEffectOperationPlan::Store(_)
-                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. }
+                )
+                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. }
+                )
                 | checked_trees::structural_field_write_pattern!()
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | checked_trees::byte_sequence_establishment_pattern!()
@@ -254,11 +262,8 @@ impl OperationFrame<'_, '_> {
                 ..
             } => self.port_write(service_reach, *port, *value),
             CheckedUnitEffectOperationPlan::Store(store) => self.store(identities, store),
-            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } => {
-                self.establish_scalar_local(identities, result, value)
-            }
-            CheckedUnitEffectOperationPlan::EstablishScalarArray { .. } => {
-                self.establish_scalar_array(identities, operation)
+            CheckedUnitEffectOperationPlan::EstablishLocal(binding) => {
+                self.establish_local(identities, operation, binding)
             }
             CheckedUnitEffectOperationPlan::MoveStructuralField {
                 result,
@@ -269,17 +274,8 @@ impl OperationFrame<'_, '_> {
                 boundary,
                 cleanup_actions,
             } => self.continuation_cleanup(identities, boundary, cleanup_actions),
-            CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } => {
-                self.establish_byte_sequence(identities, operation)
-            }
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
                 self.establish_view_subslice(identities, operation)
-            }
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
-                self.establish_structural_value(identities, operation)
-            }
-            CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. } => {
-                self.establish_structural_local(operation)
             }
             CheckedUnitEffectOperationPlan::EstablishReference {
                 formation_expression,

@@ -234,9 +234,9 @@ pub(super) fn available_target(
                         CheckedUnitEffectOperationPlan::Call(call) => {
                             call.scalar_result() == Some(completion)
                         }
-                        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
-                            result == completion
-                        }
+                        CheckedUnitEffectOperationPlan::EstablishLocal(
+                            checked_trees::CheckedUnitLocalBindingPlan::Scalar { result, .. },
+                        ) => result == completion,
                         _ => false,
                     })
                     .count()
@@ -299,13 +299,15 @@ pub(super) fn available_target(
         .iter()
         .copied()
         .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result,
-                value,
-                operand_source:
-                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
-                ..
-            } => facts
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                    result,
+                    value,
+                    operand_source:
+                        Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
+                    ..
+                },
+            ) => facts
                 .values
                 .structural_values
                 .nodes
@@ -316,15 +318,17 @@ pub(super) fn available_target(
                         Some(facts.values.structural_values.nodes.get(*value).expression),
                     )
                 }),
-            CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                result,
-                source:
-                    checked_trees::CheckedArrayConstructionSource::CallArgument {
-                        call_ordinal,
-                        parameter_position,
-                    },
-                ..
-            } => {
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                    result,
+                    source:
+                        checked_trees::CheckedArrayConstructionSource::CallArgument {
+                            call_ordinal,
+                            parameter_position,
+                        },
+                    ..
+                },
+            ) => {
                 let site = validation::find_call_site(
                     program,
                     caller.machine,
@@ -372,10 +376,12 @@ pub(super) fn available_target(
                 }
                 Some((result, Some(producer.authored_expression)))
             }
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
-                Some((result, None))
-            }
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, .. },
+            )
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { result, .. },
+            ) => Some((result, None)),
             _ => None,
         })
         .filter_map(|(result, expression)| {

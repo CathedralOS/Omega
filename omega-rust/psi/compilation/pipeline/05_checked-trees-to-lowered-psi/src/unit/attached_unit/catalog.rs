@@ -938,12 +938,16 @@ pub(super) fn lower_unit_structural_domains(
                     .flat_map(|custody| custody.result_qualifications.iter())
             }))
             .chain(body.operations().flat_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::EstablishByteSequence {
-                    qualifications, ..
-                }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
-                    qualifications, ..
-                } => qualifications.as_slice(),
+                CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::ByteSequence {
+                        qualifications, ..
+                    },
+                )
+                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::Structural {
+                        qualifications, ..
+                    },
+                ) => qualifications.as_slice(),
                 _ => &[],
             }))
         {
@@ -1326,14 +1330,26 @@ pub(super) fn lower_unit_services_including(
                 CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } => {
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
-                CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. },
+                )
+                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
+                )
                 | checked_trees::reference_hold_pattern!()
                 | checked_trees::byte_sequence_establishment_pattern!()
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. },
+                )
+                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. },
+                )
+                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::Structural { .. },
+                )
+                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. },
+                )
                 | CheckedUnitEffectOperationPlan::Store(_)
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 | checked_trees::structural_field_write_pattern!()

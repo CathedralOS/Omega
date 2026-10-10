@@ -14,11 +14,13 @@ pub(crate) fn bind_local(
     locals: &mut Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
 ) -> Result<(), LoweringError> {
     let result = match operation {
-        CheckedUnitEffectOperationPlan::EstablishScalarArray {
-            source: CheckedArrayConstructionSource::Statement,
-            result,
-            ..
-        } => result,
+        CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                source: CheckedArrayConstructionSource::Statement,
+                result,
+                ..
+            },
+        ) => result,
         // A successful call binds its exact initializer result regardless of
         // whether installation selected the callee through a boundary.
         CheckedUnitEffectOperationPlan::Call(call)

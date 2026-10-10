@@ -29,8 +29,12 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
             roots.push(result.type_identity);
             roots.push(source.type_identity);
         }
-        CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => {
+        CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { result, .. },
+        )
+        | CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::ByteSequence { result, .. },
+        ) => {
             roots.push(result.type_identity);
         }
         CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } => {
@@ -41,7 +45,9 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
                 roots.push(storage);
             }
         }
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } => {
+        CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
+        ) => {
             collect_value_roots(checked, *value, roots)?;
             if establishes_byte_element_view(checked, plans, result.type_identity, *value)? {
                 if let Some(identity) =
@@ -51,7 +57,9 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
                 }
             }
         }
-        CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { type_identity, .. } => {
+        CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::Primitive { type_identity, .. },
+        ) => {
             roots.push(*type_identity);
         }
         CheckedUnitEffectOperationPlan::MoveStructuralField { result, source, .. } => {

@@ -21,6 +21,39 @@ use crate::unit::{
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 
 impl OperationFrame<'_, '_> {
+    /// The one lowering of a local data binding: the bound value's
+    /// representation selects which registration path runs.
+    pub(super) fn establish_local(
+        mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: &CheckedUnitEffectOperationPlan,
+        binding: &checked_trees::CheckedUnitLocalBindingPlan,
+    ) -> Result<(), LoweringError> {
+        match binding {
+            checked_trees::CheckedUnitLocalBindingPlan::Scalar { result, value } => {
+                self.establish_scalar_local(identities, result, value)
+            }
+            checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. } => {
+                self.establish_scalar_array(identities, operation)
+            }
+            checked_trees::CheckedUnitLocalBindingPlan::ByteSequence { .. } => {
+                self.establish_byte_sequence(identities, operation)
+            }
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. } => {
+                self.establish_structural_value(identities, operation)
+            }
+            checked_trees::CheckedUnitLocalBindingPlan::Structural { .. } => {
+                self.establish_structural_local(operation)
+            }
+            // Primitive and affine storage belong to the ordinary machine's
+            // statement sequence, never an operation frame.
+            checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. }
+            | checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. } => {
+                unreachable!("not an operation-frame local binding")
+            }
+        }
+    }
+
     /// Bind one scalar local in the same source namespace ordinary bodies and
     /// composed states share. Anonymous operation results occupy dense value
     /// slots but never shift this local's authored ordinal.
@@ -158,11 +191,13 @@ impl OperationFrame<'_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
-        let CheckedUnitEffectOperationPlan::EstablishScalarArray {
-            source,
-            result,
-            elements,
-        } = operation
+        let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                source,
+                result,
+                elements,
+            },
+        ) = operation
         else {
             return unsupported("array producer missing");
         };
@@ -427,11 +462,13 @@ impl OperationFrame<'_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
-        let CheckedUnitEffectOperationPlan::EstablishByteSequence {
-            result,
-            value,
-            qualifications,
-        } = operation
+        let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::ByteSequence {
+                result,
+                value,
+                qualifications,
+            },
+        ) = operation
         else {
             return unsupported("literal local has no producer");
         };
@@ -696,12 +733,14 @@ impl OperationFrame<'_, '_> {
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
-        let CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
-            result,
-            qualifications,
-            discard_result_on_return,
-            ..
-        } = operation
+        let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::Structural {
+                result,
+                qualifications,
+                discard_result_on_return,
+                ..
+            },
+        ) = operation
         else {
             return unsupported("structural local establishment has no result");
         };

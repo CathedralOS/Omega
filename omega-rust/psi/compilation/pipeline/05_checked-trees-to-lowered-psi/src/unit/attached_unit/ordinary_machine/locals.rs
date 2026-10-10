@@ -18,11 +18,13 @@ impl MachineEmission<'_> {
     ) -> Result<Option<OperationKind>, LoweringError> {
         let checked = self.checked;
         let plan = self.plan;
-        let CheckedUnitEffectOperationPlan::EstablishScalarArray {
-            source,
-            result,
-            elements,
-        } = operation
+        let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                source,
+                result,
+                elements,
+            },
+        ) = operation
         else {
             unreachable!("dispatched establish_scalar_array")
         };
@@ -86,10 +88,12 @@ impl MachineEmission<'_> {
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<Option<OperationKind>, LoweringError> {
-        let CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
-            declaration_ordinal,
-            ..
-        } = operation
+        let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine {
+                declaration_ordinal,
+                ..
+            },
+        ) = operation
         else {
             unreachable!("dispatched establish_trivial_affine_local")
         };

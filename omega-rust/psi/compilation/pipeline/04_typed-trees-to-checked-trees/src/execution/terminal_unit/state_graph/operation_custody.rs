@@ -44,24 +44,24 @@ pub(super) fn admit(
             // The common source replay authenticates construction and each
             // issuance or transferred claim. A state graph changes only the
             // selected-edge disposition, not establishment authority.
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
                 discard_result_on_return: false,
                 ..
-            }
+            })
             // A view-subslice local owns nothing: its shared view ends
             // with the loan, on every selected edge alike.
             | checked_trees::byte_sequence_establishment_pattern!()
-            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. })
             // Fixed-array, mutable-primitive, and trivial-affine locals mint
             // storage at the authored statement the same way: the binding's
             // own loans and disposal carry its custody, not the op.
-            | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
-            | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-            | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. })
+            | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. })
+            | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. })
             // A declared structural local's establishment mints storage at
             // its authored statement the same way: each member operation's
             // loans and the binding's disposal carry the custody, not the op.
-            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Structural { .. })
             // A reference pair's custody is the loan's: the establishment is
             // the authored production and the release the authored weakening
             // boundary. Selected edges carry the loan itself; neither op
@@ -143,7 +143,7 @@ pub(super) fn admit(
                             &operations[..operation_index],
                         ),
                     },
-                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
+                    CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. }) => {
                         "state graph: operation custody: discarded structural result"
                     }
                     CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {

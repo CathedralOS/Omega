@@ -68,18 +68,19 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
             )
             .map(|loans| (result, loans))
         }
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. }
-            if facts.values.structural_values.nodes.is_valid(*value)
-                && validation::reference_result_custody::stored_loan_parts(
-                    program,
-                    facts
-                        .values
-                        .structural_values
-                        .nodes
-                        .get(*value)
-                        .type_reference,
-                )
-                .is_some() =>
+        CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
+        ) if facts.values.structural_values.nodes.is_valid(*value)
+            && validation::reference_result_custody::stored_loan_parts(
+                program,
+                facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get(*value)
+                    .type_reference,
+            )
+            .is_some() =>
         {
             // A transported bare descriptor has its own captured occurrence,
             // just like an explicitly formed one. Releasing it cannot consume
@@ -614,10 +615,9 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                         return None;
                     };
                     expression
-                } else if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    value,
-                    ..
-                } = operand
+                } else if let CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+                ) = operand
                 {
                     facts.values.structural_values.nodes.get(*value).expression
                 } else {
@@ -642,8 +642,9 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
             .chain(std::iter::once(call.operation()))
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
         {
-            if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } =
-                operation
+            if let CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+            ) = operation
             {
                 consume_value_places(facts, *value, results, operations)?;
             }

@@ -16,7 +16,9 @@ pub(crate) fn validate(
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::EstablishByteSequence { result, value, .. } = operation
+    let CheckedUnitEffectOperationPlan::EstablishLocal(
+        checked_trees::CheckedUnitLocalBindingPlan::ByteSequence { result, value, .. },
+    ) = operation
     else {
         return unsupported("literal local has no establishment");
     };

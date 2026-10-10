@@ -76,12 +76,14 @@ pub(crate) fn emit(
     result_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
     direct_establishments: Vec<semantic_vocabulary::ClaimId>,
 ) -> Result<Option<StructuralPlaceDeclaration>, LoweringError> {
-    let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-        result,
-        value,
-        calls: operand_calls,
-        ..
-    } = operation
+    let CheckedUnitEffectOperationPlan::EstablishLocal(
+        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+            result,
+            value,
+            calls: operand_calls,
+            ..
+        },
+    ) = operation
     else {
         return unsupported("structural value producer missing");
     };

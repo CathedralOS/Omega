@@ -396,8 +396,9 @@ pub(super) fn validate(
                     checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
                         if !matches!(
                             operation,
-                            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                                | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                            CheckedUnitEffectOperationPlan::EstablishLocal(
+                                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. }
+                            ) | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                                 | checked_trees::byte_sequence_establishment_pattern!()
                         ) {
                             return unsupported("Unit case return arm lost its producer");

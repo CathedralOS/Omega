@@ -483,10 +483,10 @@ pub(crate) fn build_checked_unit_effect_plans(
                     plan.operations
                         .iter()
                         .filter_map(|operation| match operation {
-                            CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                            CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Primitive {
                                 type_identity,
                                 ..
-                            } => Some(*type_identity),
+                            }) => Some(*type_identity),
                             _ => None,
                         }),
                 )
@@ -537,10 +537,10 @@ pub(crate) fn build_checked_unit_effect_plans(
                                     seeded.push(result.type_identity);
                                     seeded.push(source.type_identity);
                                 }
-                                CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                                CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Primitive {
                                     type_identity,
                                     ..
-                                } => {
+                                }) => {
                                     seeded.push(*type_identity);
                                 }
                                 // Any call with a structural result, ordinary
@@ -555,32 +555,32 @@ pub(crate) fn build_checked_unit_effect_plans(
                                 // type alone: a range over a fixed-array
                                 // field narrows no view an earlier binding
                                 // declared.
-                                CheckedUnitEffectOperationPlan::EstablishByteSequence {
+                                CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::ByteSequence {
                                     result,
                                     ..
-                                }
+                                })
                                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
                                     result,
                                     ..
                                 }
-                                | CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
+                                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Structural {
                                     result,
                                     ..
-                                }
+                                })
                                 // A state's closed scalar-array local owns its
                                 // array type alone, exactly as the ordinary
                                 // unit route retains it below.
-                                | CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                                | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
                                     result,
                                     ..
-                                } => {
+                                }) => {
                                     seeded.push(result.type_identity);
                                 }
-                                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
                                     result,
                                     value,
                                     ..
-                                } => {
+                                }) => {
                                     seeded.push(result.type_identity);
                                     seeded.extend(value_leaf_type_identities(facts, *value));
                                 }
@@ -655,9 +655,15 @@ pub(crate) fn build_checked_unit_effect_plans(
                 retained_type_identities.insert(result.type_identity);
                 retained_type_identities.insert(source.type_identity);
             }
-            CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::ByteSequence { result, .. },
+            )
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Structural { result, .. },
+            )
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { result, .. },
+            ) => {
                 retained_type_identities.insert(result.type_identity);
             }
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } => {
@@ -670,7 +676,11 @@ pub(crate) fn build_checked_unit_effect_plans(
                     retained_type_identities.insert(storage_type_identity);
                 }
             }
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } => {
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                    result, value, ..
+                },
+            ) => {
                 retained_type_identities.insert(result.type_identity);
                 retained_type_identities.extend(value_leaf_type_identities(facts, *value));
             }

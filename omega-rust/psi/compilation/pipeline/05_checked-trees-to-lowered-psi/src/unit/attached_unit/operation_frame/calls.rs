@@ -652,12 +652,14 @@ impl OperationFrame<'_, '_> {
 
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
-        let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            result,
-            value,
-            discard_result_on_return,
-            ..
-        } = operation
+        let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                result,
+                value,
+                discard_result_on_return,
+                ..
+            },
+        ) = operation
         else {
             return unsupported("structural value producer missing");
         };

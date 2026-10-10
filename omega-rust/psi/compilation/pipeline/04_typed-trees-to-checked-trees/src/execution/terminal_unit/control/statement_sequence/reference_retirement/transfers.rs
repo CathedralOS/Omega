@@ -177,8 +177,9 @@ impl Query<'_> {
             };
             output.append(self.leaf(value.path.clone(), destination))
         }
-        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
-            operation
+        if let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
+        ) = operation
         {
             output.append(self.value(*value, &[], result, &[], active)?);
         }
@@ -277,9 +278,12 @@ impl Query<'_> {
                     .iter()
                     .flat_map(|operation| operation.with_value_calls())
                     .filter_map(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                            calls, ..
-                        } => Some(calls.as_slice()),
+                        CheckedUnitEffectOperationPlan::EstablishLocal(
+                            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                                calls,
+                                ..
+                            },
+                        ) => Some(calls.as_slice()),
                         _ => None,
                     })
                     .flatten()

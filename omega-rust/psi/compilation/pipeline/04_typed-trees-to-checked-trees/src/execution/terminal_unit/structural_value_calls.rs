@@ -294,8 +294,9 @@ fn schedule(
                         && source.call_ordinal == call.coordinate.call_ordinal as usize
                 })
                 .map(|source| source.authored_expression)
-        } else if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } =
-            operation
+        } else if let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+        ) = operation
         {
             Some(facts.values.structural_values.nodes.get(*value).expression)
         } else {

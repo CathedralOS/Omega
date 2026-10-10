@@ -256,13 +256,15 @@ impl OperationFrame<'_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<PrimitiveLocal, LoweringError> {
-        let CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
-            statement_index,
-            symbol,
-            type_identity,
-            primitive_type,
-            value,
-        } = operation
+        let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::Primitive {
+                statement_index,
+                symbol,
+                type_identity,
+                primitive_type,
+                value,
+            },
+        ) = operation
         else {
             return unsupported("primitive local establishment received another operation");
         };

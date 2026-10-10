@@ -262,15 +262,11 @@ pub enum CheckedUnitEffectOperationPlan {
         /// leaf cohort, independently of their scalar/root exit disposition.
         selection_complements: Vec<CheckedUnitSelectedReferenceRetirementPlan>,
     },
-    /// Establish the byte value declared by one local initializer.
-    /// The binding retains its declared borrowed or owned carrier. Only the
-    /// authored byte-domain qualifications constrain later writes; incidental
-    /// predicates of the initial octets do not become declared invariants.
-    EstablishByteSequence {
-        result: CheckedUnitStructuralResultBindingPlan,
-        value: crate::CheckedByteSequenceValuePlan,
-        qualifications: Vec<SemanticDomainId>,
-    },
+    /// One local data binding: its declared home or result coordinate and
+    /// its initializer payload, keyed by the bound value's representation.
+    /// What used to be a family of per-shape variants is one operation; the
+    /// payload's representation selects the lowering.
+    EstablishLocal(CheckedUnitLocalBindingPlan),
     /// Bind the statement's immutable view local to an exclusive range of an
     /// established view. `source` is the same `ByteSequenceSubslice` or
     /// `ElementViewSubslice` argument plan a call argument carries, with its
@@ -281,72 +277,12 @@ pub enum CheckedUnitEffectOperationPlan {
         result: CheckedUnitStructuralResultBindingPlan,
         source: CheckedUnitStructuralArgumentPlan,
     },
-    /// Establish a fresh structural expression in the shared result namespace.
-    /// Selected arms transfer one new owner into the expression continuation.
-    EstablishStructuralValue {
-        result: CheckedUnitStructuralResultBindingPlan,
-        value: crate::CheckedStructuralValueHandle,
-        calls: Vec<CheckedStructuralValueCall>,
-        /// `Some` when the value is an inline operand of a call statement,
-        /// naming the consuming call coordinate and authored formal position;
-        /// absent for statement-level constructions such as local bindings.
-        operand_source: Option<crate::CheckedArrayConstructionSource>,
-        discard_result_on_return: bool,
-    },
-    /// Construct an unrestricted primitive fixed array in authored row-major
-    /// leaf order. Empty dimensions remain in the exact structural result type.
-    EstablishScalarArray {
-        source: crate::CheckedArrayConstructionSource,
-        result: CheckedUnitStructuralResultBindingPlan,
-        elements: Vec<CheckedCallScalarArgument>,
-    },
-    /// Establish initialized mutable storage at its authored declaration.
-    /// Later reads and borrows name the symbol, never the initializer value.
-    /// The initializer is the `StorageInitializer` value checking retained:
-    /// a pure expression, or the computation rooted there when it evaluates
-    /// calls or ordered selections (`let mut stored: i32 = echo(a);`).
-    EstablishPrimitiveLocal {
-        statement_index: u32,
-        symbol: SymbolHandle,
-        type_identity: TypeIdentityId,
-        primitive_type: PrimitiveType,
-        value: CheckedCallScalarArgument,
-    },
     /// Retire affine owners at their authenticated semantic boundary.
     /// Calls and statement entry share edge disposal, while retaining the
     /// distinct source evidence needed to authenticate their lifetimes.
     ContinuationCleanup {
         boundary: CheckedUnitCleanupBoundary,
         cleanup_actions: Vec<crate::CheckedNormalCleanupAction>,
-    },
-    EstablishTrivialAffineLocal {
-        statement_index: u32,
-        declaration_ordinal: u32,
-        type_identity: TypeIdentityId,
-    },
-    /// Establish one declared structural local's home at its authored
-    /// declaration, publishing the binding that member operations and
-    /// borrows rejoin by ordinal. The declaration supplies the home each
-    /// member operation establishes into; which members reads may rely on
-    /// is the custody ledger's question, not this root's. A shared byte-view
-    /// local's home declares its authored byte-domain qualifications: the
-    /// invariant every descriptor store into it proves.
-    EstablishStructuralLocal {
-        statement_index: u32,
-        declaration_ordinal: u32,
-        symbol: SymbolHandle,
-        result: CheckedUnitStructuralResultBindingPlan,
-        qualifications: Vec<SemanticDomainId>,
-        discard_result_on_return: bool,
-    },
-    /// Establish one immutable primitive local from a retained pure expression
-    /// or selective computation. The result coordinate names the
-    /// same dense scalar namespace used by result-bearing calls; later
-    /// consumers may therefore refer to either kind without reconstructing a
-    /// source expression.
-    EstablishScalarLocal {
-        result: CheckedUnitScalarResultBindingPlan,
-        value: CheckedCallScalarArgument,
     },
     /// One ordinary or boundary call with a Unit, scalar or structural
     /// result. Selected operators keep their own operand lanes.
@@ -396,6 +332,137 @@ pub enum CheckedUnitEffectOperationPlan {
         /// in reverse declaration order.
         trivial_affine_discards: Vec<u32>,
     },
+}
+
+/// The payload of [`CheckedUnitEffectOperationPlan::EstablishLocal`]: one
+/// local data binding keyed by the bound value's representation. The variant
+/// selects the lowering; every field keeps the name and meaning it carried
+/// on the former per-shape operation variants.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedUnitLocalBindingPlan {
+    /// Establish initialized mutable storage at its authored declaration.
+    /// Later reads and borrows name the symbol, never the initializer value.
+    /// The initializer is the `StorageInitializer` value checking retained:
+    /// a pure expression, or the computation rooted there when it evaluates
+    /// calls or ordered selections (`let mut stored: i32 = echo(a);`).
+    Primitive {
+        statement_index: u32,
+        symbol: SymbolHandle,
+        type_identity: TypeIdentityId,
+        primitive_type: PrimitiveType,
+        value: CheckedCallScalarArgument,
+    },
+    /// Establish one whole, claim-free affine local's declared storage home.
+    TrivialAffine {
+        statement_index: u32,
+        declaration_ordinal: u32,
+        type_identity: TypeIdentityId,
+    },
+    /// Establish one declared structural local's home at its authored
+    /// declaration, publishing the binding that member operations and
+    /// borrows rejoin by ordinal. The declaration supplies the home each
+    /// member operation establishes into; which members reads may rely on
+    /// is the custody ledger's question, not this root's. A shared byte-view
+    /// local's home declares its authored byte-domain qualifications: the
+    /// invariant every descriptor store into it proves.
+    Structural {
+        statement_index: u32,
+        declaration_ordinal: u32,
+        symbol: SymbolHandle,
+        result: CheckedUnitStructuralResultBindingPlan,
+        qualifications: Vec<SemanticDomainId>,
+        discard_result_on_return: bool,
+    },
+    /// Establish one immutable primitive local from a retained pure expression
+    /// or selective computation. The result coordinate names the
+    /// same dense scalar namespace used by result-bearing calls; later
+    /// consumers may therefore refer to either kind without reconstructing a
+    /// source expression.
+    Scalar {
+        result: CheckedUnitScalarResultBindingPlan,
+        value: CheckedCallScalarArgument,
+    },
+    /// Establish the byte value declared by one local initializer.
+    /// The binding retains its declared borrowed or owned carrier. Only the
+    /// authored byte-domain qualifications constrain later writes; incidental
+    /// predicates of the initial octets do not become declared invariants.
+    ByteSequence {
+        result: CheckedUnitStructuralResultBindingPlan,
+        value: crate::CheckedByteSequenceValuePlan,
+        qualifications: Vec<SemanticDomainId>,
+    },
+    /// Construct an unrestricted primitive fixed array in authored row-major
+    /// leaf order. Empty dimensions remain in the exact structural result type.
+    ScalarArray {
+        source: crate::CheckedArrayConstructionSource,
+        result: CheckedUnitStructuralResultBindingPlan,
+        elements: Vec<CheckedCallScalarArgument>,
+    },
+    /// Establish a fresh structural expression in the shared result namespace.
+    /// Selected arms transfer one new owner into the expression continuation.
+    StructuralValue {
+        result: CheckedUnitStructuralResultBindingPlan,
+        value: crate::CheckedStructuralValueHandle,
+        calls: Vec<CheckedStructuralValueCall>,
+        /// `Some` when the value is an inline operand of a call statement,
+        /// naming the consuming call coordinate and authored formal position;
+        /// absent for statement-level constructions such as local bindings.
+        operand_source: Option<crate::CheckedArrayConstructionSource>,
+        discard_result_on_return: bool,
+    },
+}
+
+impl CheckedUnitLocalBindingPlan {
+    /// The binding this operation adds to the shared structural namespace;
+    /// `None` for the scalar and storage-only representations.
+    pub fn structural_result_binding(&self) -> Option<&CheckedUnitStructuralResultBindingPlan> {
+        match self {
+            Self::Structural { result, .. }
+            | Self::ByteSequence { result, .. }
+            | Self::ScalarArray { result, .. }
+            | Self::StructuralValue { result, .. } => Some(result),
+            Self::Primitive { .. } | Self::TrivialAffine { .. } | Self::Scalar { .. } => None,
+        }
+    }
+
+    /// The authored statement this binding belongs to in statement order.
+    pub fn source_statement_index(&self) -> Option<u32> {
+        match self {
+            Self::Primitive {
+                statement_index, ..
+            }
+            | Self::TrivialAffine {
+                statement_index, ..
+            }
+            | Self::Structural {
+                statement_index, ..
+            } => Some(*statement_index),
+            Self::Scalar { result, .. } => Some(result.statement_index),
+            Self::ByteSequence { result, .. }
+            | Self::ScalarArray { result, .. }
+            | Self::StructuralValue { result, .. } => Some(result.statement_index),
+        }
+    }
+
+    /// The structural result whose producer owns an automatic return discard,
+    /// with that flag. The other representations answer `None`.
+    pub fn discardable_structural_result(
+        &self,
+    ) -> Option<(&CheckedUnitStructuralResultBindingPlan, bool)> {
+        match self {
+            Self::Structural {
+                result,
+                discard_result_on_return,
+                ..
+            }
+            | Self::StructuralValue {
+                result,
+                discard_result_on_return,
+                ..
+            } => Some((result, *discard_result_on_return)),
+            _ => None,
+        }
+    }
 }
 
 /// One exact selected leaf and its anonymous complement slots. The receipt
@@ -525,12 +592,12 @@ impl CheckedUnitEffectOperationPlan {
     ) -> Option<&'plans CheckedUnitStructuralArgumentPlan> {
         match self {
             Self::EstablishReference { source, .. } => Some(source),
-            Self::EstablishStructuralValue { value, .. } if values.nodes.is_valid(*value) => {
-                match &values.nodes.get(*value).kind {
-                    crate::CheckedStructuralValueKind::Reference { source } => Some(source),
-                    _ => None,
-                }
-            }
+            Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
+                value, ..
+            }) if values.nodes.is_valid(*value) => match &values.nodes.get(*value).kind {
+                crate::CheckedStructuralValueKind::Reference { source } => Some(source),
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -541,12 +608,9 @@ impl CheckedUnitEffectOperationPlan {
     pub fn structural_result_binding(&self) -> Option<&CheckedUnitStructuralResultBindingPlan> {
         match self {
             Self::EstablishReference { result, .. }
-            | Self::EstablishByteSequence { result, .. }
             | Self::EstablishViewSubslice { result, .. }
-            | Self::EstablishStructuralValue { result, .. }
-            | Self::EstablishScalarArray { result, .. }
-            | Self::EstablishStructuralLocal { result, .. }
             | Self::MoveStructuralField { result, .. } => Some(result),
+            Self::EstablishLocal(binding) => binding.structural_result_binding(),
             Self::Call(call) => call.structural_result(),
             _ => None,
         }
@@ -560,14 +624,16 @@ impl CheckedUnitEffectOperationPlan {
         &self,
     ) -> Option<&CheckedUnitStructuralResultBindingPlan> {
         match self {
-            Self::EstablishStructuralValue {
-                operand_source: Some(_),
-                ..
-            }
-            | Self::EstablishScalarArray {
-                source: crate::CheckedArrayConstructionSource::CallArgument { .. },
-                ..
-            } => None,
+            Self::EstablishLocal(
+                CheckedUnitLocalBindingPlan::StructuralValue {
+                    operand_source: Some(_),
+                    ..
+                }
+                | CheckedUnitLocalBindingPlan::ScalarArray {
+                    source: crate::CheckedArrayConstructionSource::CallArgument { .. },
+                    ..
+                },
+            ) => None,
             Self::Call(call) if call.coordinate.call_ordinal != 0 => None,
             _ => self.structural_result_binding(),
         }
@@ -626,29 +692,17 @@ impl CheckedUnitEffectOperationPlan {
     /// statements and answer `None`.
     pub fn source_statement_index(&self) -> Option<u32> {
         match self {
-            Self::EstablishStructuralValue { result, .. }
-            | Self::EstablishReference { result, .. }
-            | Self::EstablishByteSequence { result, .. }
+            Self::EstablishReference { result, .. }
             | Self::EstablishViewSubslice { result, .. }
-            | Self::EstablishScalarArray { result, .. }
             | Self::MoveStructuralField { result, .. } => Some(result.statement_index),
-            Self::EstablishScalarLocal { result, .. } => Some(result.statement_index),
+            Self::EstablishLocal(binding) => binding.source_statement_index(),
             Self::Call(call) => Some(
                 call.structural_result()
                     .map_or(call.coordinate.statement_index, |result| {
                         result.statement_index
                     }),
             ),
-            Self::EstablishPrimitiveLocal {
-                statement_index, ..
-            }
-            | Self::EstablishTrivialAffineLocal {
-                statement_index, ..
-            }
-            | Self::EstablishStructuralLocal {
-                statement_index, ..
-            }
-            | Self::CaptureAssignmentDestination {
+            Self::CaptureAssignmentDestination {
                 statement_index, ..
             } => Some(*statement_index),
             Self::PortWrite { coordinate, .. } => Some(coordinate.statement_index),
@@ -692,16 +746,7 @@ impl CheckedUnitEffectOperationPlan {
         &self,
     ) -> Option<(&CheckedUnitStructuralResultBindingPlan, bool)> {
         match self {
-            Self::EstablishStructuralValue {
-                result,
-                discard_result_on_return,
-                ..
-            }
-            | Self::EstablishStructuralLocal {
-                result,
-                discard_result_on_return,
-                ..
-            } => Some((result, *discard_result_on_return)),
+            Self::EstablishLocal(binding) => binding.discardable_structural_result(),
             Self::Call(call) => call
                 .structural_result()
                 .zip(call.discard_result_on_return()),
@@ -714,16 +759,18 @@ impl CheckedUnitEffectOperationPlan {
         &mut self,
     ) -> Option<(&mut CheckedUnitStructuralResultBindingPlan, &mut bool)> {
         match self {
-            Self::EstablishStructuralValue {
-                result,
-                discard_result_on_return,
-                ..
-            }
-            | Self::EstablishStructuralLocal {
-                result,
-                discard_result_on_return,
-                ..
-            } => Some((result, discard_result_on_return)),
+            Self::EstablishLocal(
+                CheckedUnitLocalBindingPlan::StructuralValue {
+                    result,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitLocalBindingPlan::Structural {
+                    result,
+                    discard_result_on_return,
+                    ..
+                },
+            ) => Some((result, discard_result_on_return)),
             Self::Call(call) => call.structural_result_mut(),
             _ => None,
         }
@@ -736,7 +783,11 @@ impl CheckedUnitEffectOperationPlan {
         let mut pending = vec![self];
         std::iter::from_fn(move || {
             let operation = pending.pop()?;
-            if let Self::EstablishStructuralValue { calls, .. } = operation {
+            if let Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
+                calls,
+                ..
+            }) = operation
+            {
                 for call in calls.iter().rev() {
                     pending.push(call.operation());
                     pending.extend(call.operands().iter().rev());
@@ -888,8 +939,9 @@ impl CheckedComposedUnitControlMachinePlan {
 #[macro_export]
 macro_rules! byte_sequence_establishment_pattern {
     () => {
-        $crate::CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-            | $crate::CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+        $crate::CheckedUnitEffectOperationPlan::EstablishLocal(
+            $crate::CheckedUnitLocalBindingPlan::ByteSequence { .. },
+        ) | $crate::CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
     };
 }
 

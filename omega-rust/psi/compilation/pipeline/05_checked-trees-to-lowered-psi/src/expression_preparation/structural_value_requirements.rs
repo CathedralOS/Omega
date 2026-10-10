@@ -18,11 +18,9 @@ pub(crate) fn collect_operation_requirements(
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
     domains: &mut Vec<SemanticDomainId>,
 ) -> Result<bool, LoweringError> {
-    let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-        result,
-        value,
-        ..
-    } = operation
+    let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
+        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
+    ) = operation
     else {
         return Ok(false);
     };

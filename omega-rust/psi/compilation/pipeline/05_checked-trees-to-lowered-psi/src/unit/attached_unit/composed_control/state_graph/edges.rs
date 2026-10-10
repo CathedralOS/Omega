@@ -88,21 +88,27 @@ pub(super) fn admit_transfers(
             } => {
                 for operand in operands.iter() {
                     match operand {
-                        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                            operand_source: Some(_),
-                            ..
-                        }
-                        | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                        CheckedUnitEffectOperationPlan::EstablishLocal(
+                            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                                operand_source: Some(_),
+                                ..
+                            },
+                        )
+                        | CheckedUnitEffectOperationPlan::EstablishLocal(
+                            checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
+                        )
                         | CheckedUnitEffectOperationPlan::Call(_) => {}
                         _ => return unsupported("Unit graph operand is not call preparation"),
                     }
                 }
                 match establishment.as_ref() {
-                    CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        operand_source: None,
-                        discard_result_on_return: false,
-                        ..
-                    } => {}
+                    CheckedUnitEffectOperationPlan::EstablishLocal(
+                        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                            operand_source: None,
+                            discard_result_on_return: false,
+                            ..
+                        },
+                    ) => {}
                     CheckedUnitEffectOperationPlan::Call(call)
                         if call.discard_result_on_return() == Some(false) => {}
                     CheckedUnitEffectOperationPlan::Call(_) => {

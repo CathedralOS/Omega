@@ -1578,31 +1578,40 @@ impl MachineEmission<'_> {
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::Store(_)
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. },
+            )
             | checked_trees::structural_field_write_pattern!()
             | checked_trees::byte_sequence_establishment_pattern!()
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. },
+            )
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Structural { .. },
+            )
             | checked_trees::reference_hold_pattern!() => {
                 return self.emit_through_frame(identities, operation, step.source_value_count);
             }
             CheckedUnitEffectOperationPlan::Call(_) => {
                 return self.emit_call_through_frame(identities, operation, step);
             }
-            CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. } => {
-                let local = self
-                    .frame(step.source_value_count)
-                    .establish_primitive_local(identities, operation)?;
-                self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-                self.primitive_local_places.push(local);
-                return Ok(());
-            }
-            CheckedUnitEffectOperationPlan::EstablishScalarArray { .. } => {
-                self.establish_scalar_array(identities, operation)?
-            }
-            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. } => {
-                self.establish_trivial_affine_local(operation)?
-            }
+            CheckedUnitEffectOperationPlan::EstablishLocal(binding) => match binding {
+                checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. } => {
+                    let local = self
+                        .frame(step.source_value_count)
+                        .establish_primitive_local(identities, operation)?;
+                    self.next_call_obligation = self.scalar_calls.next_obligation_identity;
+                    self.primitive_local_places.push(local);
+                    return Ok(());
+                }
+                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. } => {
+                    self.establish_scalar_array(identities, operation)?
+                }
+                checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. } => {
+                    self.establish_trivial_affine_local(operation)?
+                }
+                _ => unreachable!("not an ordinary-machine local binding"),
+            },
             CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {
                 return unsupported("Unit return is not the final checked operation");

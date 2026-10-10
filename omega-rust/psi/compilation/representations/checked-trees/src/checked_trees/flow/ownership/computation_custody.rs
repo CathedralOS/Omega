@@ -45,9 +45,10 @@ impl CheckedUnitEffectOperationPlan {
             return 0;
         };
         let expression = match producer {
-            Self::EstablishStructuralValue { value, .. } => {
-                values.structural_values.nodes.get(*value).expression
-            }
+            Self::EstablishLocal(crate::CheckedUnitLocalBindingPlan::StructuralValue {
+                value,
+                ..
+            }) => values.structural_values.nodes.get(*value).expression,
             Self::Call(call) => match call.source_site().flatten() {
                 Some(crate::NominalMachineUseSite::Expression(expression)) => expression,
                 _ => arena::Handle::invalid(),
@@ -376,19 +377,21 @@ impl CallTransfers<'_> {
                         .map(|argument| self.scalar(argument))
                         .sum::<usize>()
             }
-            CheckedUnitEffectOperationPlan::EstablishScalarLocal { value, .. }
-            | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { value, .. } => {
-                self.scalar(value)
-            }
-            CheckedUnitEffectOperationPlan::EstablishScalarArray { elements, .. } => {
-                elements.iter().map(|value| self.scalar(value)).sum()
-            }
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, calls, .. } => {
-                self.structural(*value, calls)
-            }
-            CheckedUnitEffectOperationPlan::EstablishByteSequence { value, .. } => {
-                self.bytes(value, value.root)
-            }
+            CheckedUnitEffectOperationPlan::EstablishLocal(binding) => match binding {
+                crate::CheckedUnitLocalBindingPlan::Scalar { value, .. }
+                | crate::CheckedUnitLocalBindingPlan::Primitive { value, .. } => self.scalar(value),
+                crate::CheckedUnitLocalBindingPlan::ScalarArray { elements, .. } => {
+                    elements.iter().map(|value| self.scalar(value)).sum()
+                }
+                crate::CheckedUnitLocalBindingPlan::StructuralValue { value, calls, .. } => {
+                    self.structural(*value, calls)
+                }
+                crate::CheckedUnitLocalBindingPlan::ByteSequence { value, .. } => {
+                    self.bytes(value, value.root)
+                }
+                crate::CheckedUnitLocalBindingPlan::TrivialAffine { .. }
+                | crate::CheckedUnitLocalBindingPlan::Structural { .. } => 0,
+            },
             // An installed binding that names a structural local is the
             // local's whole occurrence, counted as an ordinary argument.
             CheckedUnitEffectOperationPlan::Store(store) => match &store.value {
@@ -422,8 +425,6 @@ impl CallTransfers<'_> {
                 .sum(),
             CheckedUnitEffectOperationPlan::ReleaseReference { .. }
             | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
-            | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
             | CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => 0,
         }

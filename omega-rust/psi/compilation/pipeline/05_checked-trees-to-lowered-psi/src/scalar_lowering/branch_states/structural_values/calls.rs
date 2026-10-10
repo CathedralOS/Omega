@@ -70,11 +70,13 @@ impl Storage {
                         ))?;
                 let place = if index == call.operands().iter().count() {
                     self.producer_place(call.value)?
-                } else if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    value,
-                    calls,
-                    ..
-                } = operation
+                } else if let CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                        value,
+                        calls,
+                        ..
+                    },
+                ) = operation
                 {
                     self.reserve_value(checked, *value, next_place)?;
                     self.reserve_calls(checked, calls, next_place)?;
@@ -240,12 +242,14 @@ impl Preparation<'_> {
                     results.push((binding.binding_ordinal, result.into()));
                 }
                 argument_schedule::Step::Produce(operation) => {
-                    let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        result,
-                        value,
-                        calls,
-                        ..
-                    } = operations[operation]
+                    let CheckedUnitEffectOperationPlan::EstablishLocal(
+                        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                            result,
+                            value,
+                            calls,
+                            ..
+                        },
+                    ) = operations[operation]
                     else {
                         return unsupported(
                             "scalar expression constructor requires structural value custody",

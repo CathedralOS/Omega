@@ -607,9 +607,11 @@ impl CheckedConditionalReturnArm {
                 statement_ordinal, ..
             } => Some(*statement_ordinal),
             Self::Structural(
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                CheckedUnitEffectOperationPlan::EstablishLocal(
+                    crate::CheckedUnitLocalBindingPlan::StructuralValue { result, .. }
+                    | crate::CheckedUnitLocalBindingPlan::ByteSequence { result, .. },
+                )
                 | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
             ) => Some(result.statement_index),
             // A call producer names the arm's transition in its own

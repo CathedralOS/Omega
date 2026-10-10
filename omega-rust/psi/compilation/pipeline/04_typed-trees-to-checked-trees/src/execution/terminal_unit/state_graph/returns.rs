@@ -518,9 +518,11 @@ pub(in crate::execution::terminal_unit) fn literal_result_operation(
     };
     let qualifications = parameter_qualifications(program, shapes, state.return_type, binders)?;
     *count = count.checked_add(1)?;
-    Some(CheckedUnitEffectOperationPlan::EstablishByteSequence {
-        result,
-        value: checked_trees::CheckedByteSequenceValuePlan::literal(bytes),
-        qualifications,
-    })
+    Some(CheckedUnitEffectOperationPlan::EstablishLocal(
+        checked_trees::CheckedUnitLocalBindingPlan::ByteSequence {
+            result,
+            value: checked_trees::CheckedByteSequenceValuePlan::literal(bytes),
+            qualifications,
+        },
+    ))
 }

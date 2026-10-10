@@ -77,7 +77,9 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                     output.push((receiver, loan.supplying_loan));
                 }
             }
-            let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation
+            let CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+            ) = operation
             else {
                 continue;
             };

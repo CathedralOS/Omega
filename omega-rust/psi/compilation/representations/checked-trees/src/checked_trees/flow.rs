@@ -71,7 +71,7 @@ pub use self::terminal::{
     CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute, CheckedUnitCallTarget,
     CheckedUnitCallTransfers, CheckedUnitCallableEntry, CheckedUnitClaimTransferPlan,
     CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan, CheckedUnitLocalBindingPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitParameterStoragePlan,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan, CheckedUnitPlanGap,

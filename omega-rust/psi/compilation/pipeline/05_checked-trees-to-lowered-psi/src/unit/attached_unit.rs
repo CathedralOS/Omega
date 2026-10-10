@@ -257,8 +257,9 @@ pub(crate) fn lower_unit_closure(
             }
             // An owned bounded literal local copies its octets from a
             // generated literal view into its declared owner.
-            if let CheckedUnitEffectOperationPlan::EstablishByteSequence { result, value, .. } =
-                operation
+            if let CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::ByteSequence { result, value, .. },
+            ) = operation
                 && let Ok(declared) = lookup_type_id(&type_ids, &result.type_identity)
                 && structural_types.iter().any(|declaration| {
                     declaration.id == declared && declaration.shape.is_bounded_owned_byte_sequence()

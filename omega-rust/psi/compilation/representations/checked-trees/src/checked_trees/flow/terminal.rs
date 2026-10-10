@@ -106,8 +106,8 @@ pub use unit_call_plans::{
 pub use unit_effect_plans::{
     CheckedOperandSequence, CheckedStructuralValueCall, CheckedUnitCallableEntry,
     CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans, CheckedUnitParameterStoragePlan, CheckedUnitPlanGap,
-    CheckedUnitPlanGapReason, CheckedUnitScalarControlPlan,
+    CheckedUnitEffectPlans, CheckedUnitLocalBindingPlan, CheckedUnitParameterStoragePlan,
+    CheckedUnitPlanGap, CheckedUnitPlanGapReason, CheckedUnitScalarControlPlan,
     CheckedUnitSelectedReferenceRetirementPlan,
 };
 pub use unit_plans::CheckedUnitPlan;

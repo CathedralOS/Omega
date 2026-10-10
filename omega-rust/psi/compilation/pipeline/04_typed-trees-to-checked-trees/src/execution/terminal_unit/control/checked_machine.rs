@@ -235,18 +235,20 @@ pub(crate) fn build_checked_machine_residual_parts(
 
     let mut operations = trivial_affine_locals
         .iter()
-        .map(
-            |local| CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
-                statement_index: local
-                    .construction
-                    .as_ref()
-                    .and_then(|element| u32::try_from(element.index).ok())
-                    .and_then(|index| index.checked_add(1))
-                    .unwrap_or(local.declaration_ordinal),
-                declaration_ordinal: local.declaration_ordinal,
-                type_identity: local.type_identity.clone(),
-            },
-        )
+        .map(|local| {
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine {
+                    statement_index: local
+                        .construction
+                        .as_ref()
+                        .and_then(|element| u32::try_from(element.index).ok())
+                        .and_then(|index| index.checked_add(1))
+                        .unwrap_or(local.declaration_ordinal),
+                    declaration_ordinal: local.declaration_ordinal,
+                    type_identity: local.type_identity.clone(),
+                },
+            )
+        })
         .collect::<Vec<_>>();
     trace.phase("result ownership");
     let StatementSequence {
@@ -294,17 +296,29 @@ pub(crate) fn build_checked_machine_residual_parts(
                 .into_iter()
                 .collect(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
-            | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
+            )
             | checked_trees::reference_hold_pattern!()
             | checked_trees::byte_sequence_establishment_pattern!()
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. },
+            )
             | CheckedUnitEffectOperationPlan::Store(_)
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
             | checked_trees::structural_field_write_pattern!()
-            | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
-            | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. },
+            )
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Structural { .. },
+            )
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. },
+            )
+            | CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. },
+            )
             | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => Vec::new(),
         })
@@ -314,11 +328,13 @@ pub(crate) fn build_checked_machine_residual_parts(
     // cleanup edge, so the machine stays outside the slice rather than
     // discarding the owner silently.
     if operations.iter().any(|operation| {
-        let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            result,
-            discard_result_on_return,
-            ..
-        } = operation
+        let CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                result,
+                discard_result_on_return,
+                ..
+            },
+        ) = operation
         else {
             return false;
         };

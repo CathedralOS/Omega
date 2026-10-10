@@ -410,13 +410,15 @@ pub(in crate::execution::terminal_unit) fn establish_value(
         operations.extend(call.operands().iter().cloned());
         return Some(operation);
     }
-    Some(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-        result,
-        value,
-        calls,
-        operand_source,
-        discard_result_on_return,
-    })
+    Some(CheckedUnitEffectOperationPlan::EstablishLocal(
+        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+            result,
+            value,
+            calls,
+            operand_source,
+            discard_result_on_return,
+        },
+    ))
 }
 
 /// An asm intrinsic owns no authored parameter roster: its instruction

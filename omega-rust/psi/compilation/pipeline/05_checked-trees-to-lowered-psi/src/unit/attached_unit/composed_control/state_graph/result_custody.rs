@@ -91,7 +91,9 @@ fn construction_inputs<'input>(
     let mut inputs = Vec::new();
     for (operation_index, owner) in state.operations.iter().enumerate() {
         for operation in owner.with_value_calls() {
-            let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation
+            let CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+            ) = operation
             else {
                 continue;
             };
@@ -182,12 +184,14 @@ fn retired_in_body(
         .operations
         .iter()
         .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result,
-                operand_source:
-                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
-                ..
-            } => Some(result),
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                    result,
+                    operand_source:
+                        Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
+                    ..
+                },
+            ) => Some(result),
             CheckedUnitEffectOperationPlan::Call(call)
                 if call.is_module() && call.coordinate.call_ordinal != 0 =>
             {
@@ -338,16 +342,17 @@ pub(super) fn view_backing(
     state: &CheckedComposedUnitControlStatePlan,
     binding_ordinal: u32,
 ) -> Option<u32> {
-    let value =
-        state
-            .operations
-            .iter()
-            .find_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+    let value = state
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
                     result, value, ..
-                } if result.binding_ordinal == binding_ordinal => Some(*value),
-                _ => None,
-            })?;
+                },
+            ) if result.binding_ordinal == binding_ordinal => Some(*value),
+            _ => None,
+        })?;
     let nodes = &checked.facts.values.structural_values.nodes;
     let lent = match &nodes.get(nodes.is_valid(value).then_some(value)?).kind {
         checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. }

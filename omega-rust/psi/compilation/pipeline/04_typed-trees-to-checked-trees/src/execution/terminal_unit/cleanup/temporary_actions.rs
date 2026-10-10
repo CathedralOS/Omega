@@ -128,9 +128,9 @@ pub(in crate::execution::terminal_unit) fn operations(
                     .is_some_and(|result| result.binding_ordinal == binding_ordinal)
             })?;
             let expression = match producer {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } => {
-                    facts.values.structural_values.nodes.get(*value).expression
-                }
+                CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+                ) => facts.values.structural_values.nodes.get(*value).expression,
                 CheckedUnitEffectOperationPlan::Call(call) => {
                     let state_flow = facts.flow.control.states.iter().find_map(|(_, row)| {
                         (row.machine_symbol == machine && row.state_symbol == state).then_some(row)
