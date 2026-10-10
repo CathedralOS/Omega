@@ -5673,31 +5673,6 @@ wait for Cathedral's instruction coverage. The interpreter is
   paths. No recursive build API or hidden post-compilation callback.
   **BUILD-SNAPSHOT-OUTPUTS** owns committed outputs.
 
-- **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Remove the broad standalone std/alloc
-  `Toolchain` provenance from
-  `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
-  under the [toolchain/library contract](wiki/spec/packages/toolchain.md).
-  Package-aware compilation already limits the magic mount to core.
-  - Migrate the remaining fallback consumers to ordinary dependency edges and
-    the [semantic binding roles](omega-rust/omega/packages/compilation-inputs/semantic_bindings.md)
-    (Console, host services, target physical entries). Directory relabeling
-    grants nothing. Order: executable host/objc customers, then proof/fail
-    consumers and nested member imports (the interrupt/secondary-processor
-    fixtures' std calling contracts). Route exposed call/ownership/entry/proof
-    failures to their owners. **UEFI-PHYSICAL-SEMANTIC-ENTRY** owns the
-    wrong-policy canary's duplicate-schema rejection;
-    **PROOF-CONTRACT-MIGRATION** and **PROOF-KERNEL-CORE** own private core
-    proofs.
-  - The old build-file census test was deleted with the Rust tests. Its
-    replacement must inventory actual library imports, including build
-    sources, fail-tier fixtures and imports below member directories. A root
-    without `build.omg` is not migration debt; std needs no edge to itself.
-  Acceptance: after removing the fallback, every corpus consumer keeps its
-  outcome; removing a dependency edge rejects its imports and provider
-  selections; aliases, paths and same-spelled substitutes confer nothing; a
-  fail fixture pins missing-edge and alias rejection. Std stays replaceable,
-  splittable or absent.
-
 - **COMPONENT-SUBSTRATE.** Execute an ordinary two-package call with
   root-selected `Independent` composition under the
   [component publication contract](wiki/spec/build/component_publication.md),

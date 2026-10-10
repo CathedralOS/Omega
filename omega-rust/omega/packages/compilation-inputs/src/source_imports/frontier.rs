@@ -248,26 +248,6 @@ impl SourceStorage {
             {
                 return (core_root, None, SourceOrigin::Toolchain);
             }
-
-            // Standalone compilation retains the legacy compiler-bundle lane
-            // until every std/alloc consumer has an exact source-role
-            // compatibility check. Package-aware compilation supplies only
-            // the core root here, so ordinary std/alloc dependencies never
-            // inherit this compatibility provenance.
-            if !toolchain_is_core
-                && let Some(package_root) = ["std", "alloc"]
-                    .into_iter()
-                    .flat_map(|name| {
-                        [
-                            toolchain_root.join(name),
-                            toolchain_root.join("language").join(name),
-                        ]
-                    })
-                    .filter(|root| path.starts_with(root))
-                    .max_by_key(|root| root.components().count())
-            {
-                return (package_root, None, SourceOrigin::Toolchain);
-            }
         }
 
         let package = self
