@@ -277,7 +277,7 @@ fn resolve_disposition_event(
         _ => return Err(reborrow_disposition_drift()),
     };
     let boundary_source = child.weakening_source;
-    let boundary_phase = boundary.phase.retained();
+    let boundary_phase = boundary.phase;
     Ok((
         CheckedReborrowDispositionEventDraft {
             machine_symbol: child.machine_symbol,
@@ -419,7 +419,7 @@ fn resolve_shared_disposition_event(
             parent_loan: child.parent_loan,
             parent_resource: immediate_parent,
             boundary_source: child.weakening_source,
-            boundary_phase: boundary.phase.retained(),
+            boundary_phase: boundary.phase,
             shared_cohort,
             retired_parent_path: Vec::new(),
             final_target: DispositionTargetIndex::ParentResource(immediate_parent),

@@ -12,24 +12,7 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum LifecyclePhase {
-    LastUseExpired,
-    LocalReassigned,
-    Activation,
-    StateExit,
-}
-
-impl LifecyclePhase {
-    pub(crate) fn retained(self) -> CheckedBorrowResourceLifecyclePhase {
-        match self {
-            Self::LastUseExpired => CheckedBorrowResourceLifecyclePhase::LastUseExpired,
-            Self::LocalReassigned => CheckedBorrowResourceLifecyclePhase::LocalReassigned,
-            Self::Activation => CheckedBorrowResourceLifecyclePhase::Activation,
-            Self::StateExit => CheckedBorrowResourceLifecyclePhase::StateExit,
-        }
-    }
-}
+pub(crate) type LifecyclePhase = CheckedBorrowResourceLifecyclePhase;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct LifecycleBoundaryKey {

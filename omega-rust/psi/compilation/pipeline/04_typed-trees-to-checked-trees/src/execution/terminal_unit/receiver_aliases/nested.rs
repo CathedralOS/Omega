@@ -363,7 +363,7 @@ pub(super) fn closures(
         } else {
             CheckedReborrowResourceDisposition::CascadeThroughRetiredParent
         };
-        let boundary_phase = boundary.phase.retained();
+        let boundary_phase = boundary.phase;
         let expected = CheckedReborrowResourceDispositionEvent {
             machine_symbol: flow.machine_symbol,
             state_symbol: flow.state_symbol,
