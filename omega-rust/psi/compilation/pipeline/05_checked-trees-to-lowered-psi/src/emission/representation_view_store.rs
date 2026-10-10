@@ -251,7 +251,10 @@ impl ByteStoreDestination {
                 value: IntegerValue::Unsigned(u128::from(stride)),
                 scalar_type,
             }),
-            formation_decided: false,
+            // The bounded coordinate lies in `[0, extent - 1]`, so the
+            // product fits whenever `extent * stride` does — a fact the
+            // checked layout supplies.
+            formation_decided: extent.checked_mul(stride).is_some(),
         };
         let index_value = ValueDeclaration {
             id: index,
