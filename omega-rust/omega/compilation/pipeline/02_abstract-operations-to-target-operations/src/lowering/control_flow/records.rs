@@ -51,10 +51,14 @@ pub(super) fn establish(
     // A mixed case binds its runtime common fields in declaration order, then
     // the selected payload: the same roster Terminal verification checked.
     // Erased common members hold no storage and take no roster position.
-    let declarations: Vec<&StructuralFieldDeclaration> = match (shape, result_case) {
+    let declarations: Vec<(
+        Option<semantic_vocabulary::StructuralCaseId>,
+        &StructuralFieldDeclaration,
+    )> = match (shape, result_case) {
         (StructuralTypeShape::Record { fields, .. }, None) => fields
             .iter()
             .filter(|field| !field.relevance.is_erased())
+            .map(|field| (None, field))
             .collect(),
         // Erased payload members hold no storage and take no roster position.
         (StructuralTypeShape::Sum { cases }, Some(result_case)) => cases
@@ -64,6 +68,7 @@ pub(super) fn establish(
             .fields
             .iter()
             .filter(|field| !field.relevance.is_erased())
+            .map(|field| (Some(result_case), field))
             .collect(),
         (
             StructuralTypeShape::Mixed {
@@ -74,6 +79,7 @@ pub(super) fn establish(
         ) => common
             .iter()
             .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. }))
+            .map(|field| (None, field))
             .chain(
                 cases
                     .iter()
@@ -81,7 +87,8 @@ pub(super) fn establish(
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?
                     .fields
                     .iter()
-                    .filter(|field| !field.relevance.is_erased()),
+                    .filter(|field| !field.relevance.is_erased())
+                    .map(|field| (Some(result_case), field)),
             )
             .collect(),
         (StructuralTypeShape::FixedArray { length, .. }, None)
@@ -111,13 +118,20 @@ pub(super) fn establish(
     let operands = fields
         .iter()
         .zip(declarations.iter().copied())
-        .map(|(field, declaration)| {
+        .map(|(field, (case, declaration))| {
             if field.field != declaration.id || declaration.relevance.is_erased() {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
+            let mut destination = Vec::new();
+            if let Some(case) = case {
+                destination.push(terminal_psi::StructuralPathSegment::Case(case));
+            }
+            destination.push(terminal_psi::StructuralPathSegment::Field(
+                declaration.identity.clone(),
+            ));
             Ok((
                 &declaration.field_type,
-                terminal_psi::StructuralPathSegment::Field(declaration.identity.clone()),
+                destination,
                 Input::Field(&field.value),
             ))
         })
@@ -131,7 +145,9 @@ pub(super) fn establish(
                         element_type
                             .as_ref()
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
-                        terminal_psi::StructuralPathSegment::FixedIndex(index as u64),
+                        vec![terminal_psi::StructuralPathSegment::FixedIndex(
+                            index as u64,
+                        )],
                         Input::Element(argument),
                     ))
                 }),
@@ -223,11 +239,6 @@ pub(super) fn establish(
                     _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
                 };
                 let reference_bearing = super::references::contains_reference(types, nested);
-                // Reference relocation currently describes record field paths;
-                // a case-qualified carrier needs its own custody contract.
-                if result_case.is_some() && reference_bearing {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
                 // A sum, mixed, or fixed-array member rides as one completed
                 // value the way a record member does.
                 if !matches!(
@@ -332,7 +343,7 @@ pub(super) fn establish(
                         function,
                         types,
                         live,
-                        std::slice::from_ref(&destination),
+                        &destination,
                         nested,
                         argument,
                         &mut relocations,

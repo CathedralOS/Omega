@@ -19,9 +19,7 @@ use target_operations::{
     BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction, TargetUnitScalarHomeRequirement,
     TerminalPsiProvenance,
 };
-use terminal_psi::{
-    StructuralAccess, StructuralPathSegment, TerminalAffineCleanupAction,
-};
+use terminal_psi::{StructuralAccess, StructuralPathSegment, TerminalAffineCleanupAction};
 mod aggregate_borrows;
 pub(super) mod aggregate_results;
 mod atomic_access;
@@ -147,19 +145,28 @@ impl LiveDefinitions {
         &self,
         target: semantic_vocabulary::BlockId,
         function: &AbstractFunction,
+        storage: &BTreeSet<PlaceId>,
     ) -> Result<ReferenceEdgeCustody, LoweringError> {
+        let scoped = |mut exit: ReferenceEdgeCustody| {
+            exit.references
+                .retain(|(carrier, _), _| storage.contains(carrier));
+            exit
+        };
         if self.reference_edge_exits.is_empty() {
-            return Ok(self.reference_edge_exit(target));
+            return Ok(scoped(self.reference_edge_exit(target)));
         }
         let mut exits = self
             .reference_edge_exits
             .iter()
             .filter(|exit| exit.target == target);
-        let mut arrival = exits
-            .next()
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-            .clone();
+        let mut arrival = scoped(
+            exits
+                .next()
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+                .clone(),
+        );
         for other in exits {
+            let other = scoped(other.clone());
             references::merge_arrivals(
                 function,
                 target,
@@ -442,6 +449,40 @@ pub(super) fn lower(
     }
     let schedule = dominance::schedule(&incoming, &outgoing, entry_position)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    // Descriptor metadata follows SSA storage availability. Branch-local
+    // observations are not incoming storage at a later join, even when their
+    // unrestricted descriptors need no affine cleanup. Keep actual edge state
+    // for available carriers; never intersect away a missing surviving loan.
+    let mut reference_storage = vec![BTreeSet::new(); entries.len()];
+    for &(position, dominator) in &schedule {
+        let mut storage = match dominator {
+            Some(dominator) => {
+                let mut storage = reference_storage[dominator].clone();
+                storage.extend(
+                    function.operations[ranges[dominator].clone()]
+                        .iter()
+                        .filter_map(|operation| {
+                            operation
+                                .structural_result()
+                                .map(|(_, result)| result.place)
+                        }),
+                );
+                storage
+            }
+            None => function
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.place)
+                .collect(),
+        };
+        storage.extend(
+            entries[position]
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.place),
+        );
+        reference_storage[position] = storage;
+    }
     let mut live_exits: Vec<Option<LiveDefinitions>> = vec![None; entries.len()];
     let mut reference_entries = vec![None; entries.len()];
     let mut drained_entries = vec![None; entries.len()];
@@ -495,23 +536,29 @@ pub(super) fn lower(
                     deferred = true;
                     continue;
                 };
-                let mut arrival =
-                    match predecessor.reference_arrival(entries[position].block, function) {
+                let mut arrival = match predecessor.reference_arrival(
+                    entries[position].block,
+                    function,
+                    &reference_storage[position],
+                ) {
+                    Ok(arrival) => arrival,
+                    Err(_) => {
+                        deferred = true;
+                        continue;
+                    }
+                };
+                for predecessor in predecessors {
+                    let other = match predecessor.reference_arrival(
+                        entries[position].block,
+                        function,
+                        &reference_storage[position],
+                    ) {
                         Ok(arrival) => arrival,
                         Err(_) => {
                             deferred = true;
-                            continue;
+                            continue 'blocks;
                         }
                     };
-                for predecessor in predecessors {
-                    let other =
-                        match predecessor.reference_arrival(entries[position].block, function) {
-                            Ok(arrival) => arrival,
-                            Err(_) => {
-                                deferred = true;
-                                continue 'blocks;
-                            }
-                        };
                     if references::merge_arrivals(
                         function,
                         entries[position].block,
@@ -676,7 +723,11 @@ pub(super) fn lower(
             live_exits[*predecessor]
                 .as_ref()
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-                .reference_arrival(entries[position].block, function)
+                .reference_arrival(
+                    entries[position].block,
+                    function,
+                    &reference_storage[position],
+                )
         });
         let Some(first) = arrivals.next() else {
             continue;

@@ -1099,13 +1099,9 @@ pub(super) fn home(
     // establishes a predicate, a routed domain, or neither. Claims likewise
     // remain on the result; finding its home grants no permission to consume it.
     let signature = source.structural.as_ref()?;
-    if signature.structural_types.iter().any(|declaration| {
-        declaration.id == result.structural_type
-            && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-    }) && result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-    {
-        return None;
-    }
+    // Shared descriptor copies may be unrestricted; exclusive descriptors
+    // remain affine. Their checked multiplicity changes custody, not the
+    // addressable home holding the stored pointer.
     // Layout admission, not a second nominal-kind roster, decides whether
     // this completed value has a native home. In particular a mixed value's
     // common fields, discriminator and overlay belong to one ordinary home.

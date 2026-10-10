@@ -275,7 +275,8 @@ pub(super) fn reference_call_argument(
     if prefix.iter().chain(suffix).any(|segment| {
         !matches!(
             segment,
-            StructuralPathSegment::Field(_)
+            StructuralPathSegment::Case(_)
+                | StructuralPathSegment::Field(_)
                 | StructuralPathSegment::FixedIndex(_)
                 | StructuralPathSegment::Referent
         )
@@ -376,8 +377,9 @@ pub(super) fn contains_reference(types: &StructuralTypeLookup<'_>, root: Structu
     terminal_psi::structural_type_contains_reference_by(|id| types.get(&id).copied(), root)
 }
 
-/// Exact declaration-order reference leaves of the supported owned shape.
-/// `maximum_leaves` bounds reconstruction exactly like the verified rule.
+/// Possible descriptor slots in owned storage, stopping at reference edges.
+/// Case segments guard payload namespaces: these are not simultaneously live
+/// permissions, nor do different case IDs imply disjoint physical storage.
 pub(super) fn leaf_paths(
     types: &StructuralTypeLookup<'_>,
     root: StructuralTypeId,
@@ -399,8 +401,29 @@ pub(super) fn leaf_paths(
                 }
                 output.push(path);
             }
-            StructuralTypeShape::Record { fields, .. } => {
-                for field in fields.iter().rev() {
+            StructuralTypeShape::Record { .. }
+            | StructuralTypeShape::Sum { .. }
+            | StructuralTypeShape::Mixed { .. } => {
+                let fields = declaration
+                    .shape
+                    .direct_fields()
+                    .into_iter()
+                    .flatten()
+                    .map(|field| (None, field))
+                    .chain(
+                        declaration
+                            .shape
+                            .sum_cases()
+                            .into_iter()
+                            .flatten()
+                            .flat_map(|case| {
+                                case.fields.iter().map(move |field| (Some(case.id), field))
+                            }),
+                    );
+                for (case, field) in fields.rev() {
+                    if field.relevance.is_erased() {
+                        continue;
+                    }
                     if let Some(child) = field.field_type.as_structural() {
                         if !contains_reference(types, child) {
                             continue;
@@ -411,6 +434,9 @@ pub(super) fn leaf_paths(
                             return None;
                         }
                         let mut child_path = path.clone();
+                        if let Some(case) = case {
+                            child_path.push(StructuralPathSegment::Case(case));
+                        }
                         child_path.push(StructuralPathSegment::Field(field.identity.clone()));
                         pending.push((child, child_path));
                     }
@@ -442,7 +468,9 @@ pub(super) fn leaf_paths(
 }
 
 /// Shared references observe their declared referent without acquiring its
-/// contents. Exclusive primitive storage uses the same pointer carrier;
+/// contents. An opaque referent identity is sufficient for descriptor storage;
+/// an actual pointee projection still requires its own catalog declaration.
+/// Exclusive primitive storage uses the same pointer carrier;
 /// writable aggregates retain their separate restoration checks below.
 pub(super) fn referent(
     types: &StructuralTypeLookup<'_>,
@@ -453,13 +481,10 @@ pub(super) fn referent(
         StructuralTypeShape::Reference {
             referent,
             access: StructuralAccess::SharedBorrow,
-        } if types.contains_key(&referent) => Some(referent),
+        } => Some(referent),
         StructuralTypeShape::Reference {
             referent,
-            access:
-                StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow,
+            access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
         } if matches!(
             types.get(&referent).map(|declaration| &declaration.shape),
             Some(StructuralTypeShape::PrimitiveScalar(_))
@@ -1406,32 +1431,22 @@ pub(super) fn discard_subtree(
     if !contains_reference(types, selected) {
         return Ok(false);
     }
-    let paths = leaf_paths(types, selected, live.references.len())
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let mut released = BTreeSet::new();
-    let mut released_paths = BTreeSet::new();
-    for path in paths.iter().rev() {
-        let mut selected_path = prefix.to_vec();
-        selected_path.extend_from_slice(path);
-        let leaf = live
-            .references
-            .get(&(source, selected_path.clone()))
-            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        if live.references.values().any(|child| {
-            child.parents.contains(&leaf.identity) && !released.contains(&child.identity)
-        }) {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        released.insert(leaf.identity.clone());
-        released_paths.insert(selected_path);
-    }
-    if live.references.keys().any(|(carrier, path)| {
-        *carrier == source && path.starts_with(prefix) && !released_paths.contains(path)
+    // Cleanup disposes the metadata actually resident in this subtree. A
+    // constructor need not supply descriptors for its inactive alternatives.
+    let released: BTreeSet<_> = live
+        .references
+        .iter()
+        .filter(|((carrier, path), _)| *carrier == source && path.starts_with(prefix))
+        .map(|(_, leaf)| leaf.identity.clone())
+        .collect();
+    if live.references.values().any(|child| {
+        !released.contains(&child.identity)
+            && child.parents.iter().any(|parent| released.contains(parent))
     }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     live.references
-        .retain(|(carrier, path), _| *carrier != source || !released_paths.contains(path));
+        .retain(|(carrier, path), _| *carrier != source || !path.starts_with(prefix));
     Ok(true)
 }
 
@@ -1460,30 +1475,19 @@ pub(super) fn subtree_leaves(
     if leaf_type(types, contract, &argument.path) != Some(nested) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let paths = leaf_paths(types, nested, live.references.len())
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    for path in &paths {
-        let mut source_path = argument.path.clone();
-        source_path.extend_from_slice(path);
-        let leaf = live
-            .references
-            .get(&(argument.place, source_path.clone()))
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    for ((carrier, source_path), leaf) in &live.references {
+        if *carrier != argument.place {
+            continue;
+        }
+        let Some(path) = source_path.strip_prefix(argument.path.as_slice()) else {
+            continue;
+        };
         if !moved.insert(leaf.identity.clone()) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let mut destination = destination.to_vec();
         destination.extend(path.iter().cloned());
-        relocations.push(((argument.place, source_path), destination));
-    }
-    // Only the selected subtree moves; disjoint siblings keep their custody.
-    if live.references.keys().any(|(carrier, path)| {
-        *carrier == argument.place
-            && path
-                .strip_prefix(argument.path.as_slice())
-                .is_some_and(|relative| !paths.iter().any(|selected| selected == relative))
-    }) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
+        relocations.push(((argument.place, source_path.clone()), destination));
     }
     Ok(())
 }
@@ -1757,77 +1761,9 @@ pub(super) fn return_custody(
     Ok(())
 }
 
-/// Every owned-carrier ingress parameter is a constructible record: scalar
-/// leaves and bare primitive-reference leaves compose the complete type.
-fn constructible_record(types: &StructuralTypeLookup<'_>, root: StructuralTypeId) -> bool {
-    let mut pending = vec![(root, false)];
-    let mut active = BTreeSet::new();
-    let mut complete = BTreeSet::new();
-    while let Some((current, exiting)) = pending.pop() {
-        if exiting {
-            active.remove(&current);
-            complete.insert(current);
-            continue;
-        }
-        if complete.contains(&current) {
-            continue;
-        }
-        if !active.insert(current) {
-            return false;
-        }
-        if referent(types, current).is_some() || plain_record_referent(types, current).is_some() {
-            active.remove(&current);
-            complete.insert(current);
-            continue;
-        }
-        match types
-            .get(&current)
-            .copied()
-            .map(|declaration| &declaration.shape)
-        {
-            Some(StructuralTypeShape::FixedArray { element, .. }) => {
-                pending.push((current, true));
-                pending.push((*element, false));
-                continue;
-            }
-            Some(StructuralTypeShape::PrimitiveScalar(_)) => {
-                active.remove(&current);
-                complete.insert(current);
-                continue;
-            }
-            _ => {}
-        }
-        let Some(terminal_psi::StructuralTypeDeclaration {
-            shape: StructuralTypeShape::Record { fields, .. },
-            ..
-        }) = types.get(&current).copied()
-        else {
-            return false;
-        };
-        pending.push((current, true));
-        for field in fields {
-            if field.relevance.is_erased() {
-                return false;
-            }
-            match field.field_type {
-                StructuralFieldType::Scalar(_)
-                | StructuralFieldType::Atomic(_)
-                | StructuralFieldType::IeeeFloat(_)
-                | StructuralFieldType::RefinedScalar(_)
-                | StructuralFieldType::BoundedInteger(_) => {}
-                StructuralFieldType::Structural(child)
-                    if referent(types, child).is_some()
-                        || plain_record_referent(types, child).is_some() => {}
-                StructuralFieldType::Structural(child) => pending.push((child, false)),
-                _ => return false,
-            }
-        }
-    }
-    true
-}
-
-/// Seed one ingress leaf per reference leaf of each reference-bearing entry
-/// parameter. Owned ingress assumes one existing permission per leaf.
+/// Retain possible incoming descriptor storage, not a type-wide permission
+/// grant. Case guards stay attached across branches and their joins; only a
+/// checked case-qualified operation can select the corresponding descriptor.
 pub(super) fn entry(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
@@ -1846,7 +1782,6 @@ pub(super) fn entry(
             }
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
-            || !constructible_record(types, parameter.structural_type)
             || function
                 .entry_claims
                 .iter()

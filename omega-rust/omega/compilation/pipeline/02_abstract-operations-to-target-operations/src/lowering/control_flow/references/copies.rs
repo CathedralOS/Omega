@@ -18,12 +18,20 @@ pub(in super::super) fn copied_leaves(
     if !contains_reference(types, result.structural_type) {
         return Ok(copied);
     }
-    let abstract_operations::StructuralCopyPath::Ordinary(path) = path else {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    };
     let source_type = source_contract(function, live, source)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    if leaf_type(types, source_type, path) != Some(result.structural_type)
+    let path: std::borrow::Cow<'_, [StructuralPathSegment]> = match path {
+        abstract_operations::StructuralCopyPath::Ordinary(path) => std::borrow::Cow::Borrowed(path),
+        abstract_operations::StructuralCopyPath::Case(path) => std::borrow::Cow::Owned(
+            terminal_semantics::canonical_structural_storage_path(
+                types.values().copied(),
+                source_type,
+                path,
+            )
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
+        ),
+    };
+    if leaf_type(types, source_type, &path) != Some(result.structural_type)
         || live
             .references
             .keys()
@@ -49,7 +57,7 @@ pub(in super::super) fn copied_leaves(
         }) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        let mut selected = path.clone();
+        let mut selected = path.to_vec();
         selected.extend_from_slice(relative);
         let mut observation = selected.clone();
         observation.push(StructuralPathSegment::Referent);
@@ -91,7 +99,7 @@ pub(in super::super) fn copied_leaves(
     if live.references.keys().any(|(carrier, selected)| {
         *carrier == source
             && selected
-                .strip_prefix(path.as_slice())
+                .strip_prefix(path.as_ref())
                 .is_some_and(|relative| !paths.iter().any(|expected| expected == relative))
     }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));

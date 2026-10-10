@@ -1621,16 +1621,10 @@ pub(crate) fn reference_projection(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ReferenceProjection> {
     use terminal_psi::StructuralAccess;
-    if access == StructuralAccess::Owned
-        || path.iter().any(|segment| {
-            !matches!(
-                segment,
-                StructuralPathSegment::Field(_)
-                    | StructuralPathSegment::FixedIndex(_)
-                    | StructuralPathSegment::Referent
-            )
-        })
-    {
+    // Each region is resolved by the ordinary static storage projection below.
+    // A second path grammar would discard case namespaces before that owner
+    // can join the selected payload to its actual descriptor offset.
+    if access == StructuralAccess::Owned {
         return None;
     }
     let mut descriptor_offsets = Vec::new();

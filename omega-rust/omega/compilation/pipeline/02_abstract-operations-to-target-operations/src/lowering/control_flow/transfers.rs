@@ -61,20 +61,17 @@ pub(super) fn re_home_bound_references(
         {
             continue;
         }
-        // Required declaration leaves, not whichever rows happen to survive,
-        // define the selected roster. Stage the complete simultaneous move
-        // before removing anything, so swaps never read a replaced descriptor.
-        let paths = references::leaf_paths(types, parameter.structural_type, live.references.len())
-            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        for relative in &paths {
-            let mut selected = binding.argument.path.clone();
-            selected.extend_from_slice(relative);
-            let source = (binding.argument.place, selected);
-            let destination = (parameter.place, relative.clone());
-            let custody = live
-                .references
-                .get(&source)
-                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+        // Move resident descriptor storage simultaneously. An inactive case
+        // contributes no descriptor; declaration geometry checks each present
+        // slot without manufacturing the other alternatives.
+        for (source, custody) in &live.references {
+            if source.0 != binding.argument.place {
+                continue;
+            }
+            let Some(relative) = source.1.strip_prefix(binding.argument.path.as_slice()) else {
+                continue;
+            };
+            let destination = (parameter.place, relative.to_vec());
             if references::leaf_referent(types, parameter.structural_type, relative)
                 != Some(custody.referent)
                 || !selected_sources.insert(source.clone())
@@ -83,15 +80,12 @@ pub(super) fn re_home_bound_references(
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            moved.push((source, destination, custody.clone(), parameter.clone()));
-        }
-        if live.references.keys().any(|(carrier, path)| {
-            *carrier == binding.argument.place
-                && path
-                    .strip_prefix(binding.argument.path.as_slice())
-                    .is_some_and(|relative| !paths.iter().any(|expected| expected == relative))
-        }) {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
+            moved.push((
+                source.clone(),
+                destination,
+                custody.clone(),
+                parameter.clone(),
+            ));
         }
     }
     if destinations.iter().any(|destination| {

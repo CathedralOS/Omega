@@ -6,7 +6,7 @@
 use super::{
     Custody, Leaf, LegalizationError, OperationId, PlaceId, PsiOptimizationFunction, Root,
     StructuralAccess, StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeId, invalid, leaf_paths, leaf_referent,
+    StructuralTypeId, invalid, leaf_referent,
 };
 use semantic_vocabulary::{BlockId, StructuralPlaceKind};
 use std::collections::{BTreeMap, BTreeSet};
@@ -220,14 +220,14 @@ pub(super) fn re_home_bound_leaves(
         {
             continue;
         }
-        let paths = leaf_paths(types, parameter.structural_type, custody.leaves.len())
-            .ok_or_else(invalid)?;
-        for relative in &paths {
-            let mut selected = binding.argument.path.clone();
-            selected.extend_from_slice(relative);
-            let source = (binding.argument.place, selected);
-            let destination = (parameter.place, relative.clone());
-            let leaf = custody.leaves.get(&source).ok_or_else(invalid)?;
+        for (source, leaf) in &custody.leaves {
+            if source.0 != binding.argument.place {
+                continue;
+            }
+            let Some(relative) = source.1.strip_prefix(binding.argument.path.as_slice()) else {
+                continue;
+            };
+            let destination = (parameter.place, relative.to_vec());
             if leaf_referent(types, parameter.structural_type, relative) != Some(leaf.referent)
                 || !selected_sources.insert(source.clone())
                 || !selected_identities.insert(leaf.identity.clone())
@@ -235,15 +235,7 @@ pub(super) fn re_home_bound_leaves(
             {
                 return Err(invalid());
             }
-            moved.push((source, destination, leaf.clone(), parameter.clone()));
-        }
-        if custody.leaves.keys().any(|(carrier, path)| {
-            *carrier == binding.argument.place
-                && path
-                    .strip_prefix(binding.argument.path.as_slice())
-                    .is_some_and(|relative| !paths.iter().any(|expected| expected == relative))
-        }) {
-            return Err(invalid());
+            moved.push((source.clone(), destination, leaf.clone(), parameter.clone()));
         }
     }
     if destinations.iter().any(|destination| {

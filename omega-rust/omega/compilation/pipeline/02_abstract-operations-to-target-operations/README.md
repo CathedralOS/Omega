@@ -84,9 +84,18 @@ select the existing descriptor metadata beneath each owned operand's exact
 carrier prefix, retain it while lowering addresses, then commit its relocation.
 They do not rebuild a type-wide leaf roster or recheck pairwise argument aliasing
 and suspension. This preserves case namespaces without manufacturing metadata
-for an inactive payload; source legality belongs to Psi. Formation, release,
-edges and returns still have local native custody restrictions, including the
-unfinished reference-bearing sum ingress. Their removal requires replacing the
+for an inactive payload; source legality belongs to Psi. Ingress names possible
+descriptor slots with `Case`/`Field` guards. Construction supplies only its
+selected payload's descriptors, and cleanup disposes only resident metadata.
+Those guards survive branch joins; they describe conditional storage, not a
+grant of concurrent permissions for all alternatives. Transporting a descriptor
+needs its referent identity, not a transitive pointee storage catalog. Actual
+pointee projections still require declarations and concrete layout.
+At a join, descriptor metadata follows the carrier's SSA storage definition.
+Branch-local observations do not require another arm to recreate their homes;
+all surviving carriers still have to agree on custody across actual edges.
+Formation, release, edges and returns still have local native custody
+restrictions. Their removal requires replacing the
 storage relationship, not skipping the independent corpus audit.
 
 [Structural signatures](src/lowering/structural_signature.rs) derive placement
@@ -172,8 +181,11 @@ Case construction uses `EstablishCase` with the same scalar-or-structural field
 operands as records. Lowering checks the selected sum case's exact field roster
 and reuses record source and affine-consumption checks; nested completed children
 retain their declared types and whole owned source places. The existing recursive
-sum layout determines storage. Case fields carrying reference custody still
-reject until case-qualified reference relocation is supported.
+sum layout determines storage. Descriptor relocation keeps the selected case
+prefix on payload fields and no case prefix on a mixed shape's common fields;
+copying descriptor bytes never copies their referents. Static projection owns
+pointer-slot geometry, including case-qualified paths, rather than a second
+call-specific path grammar.
 
 Shared calls can borrow a constructed plain record's existing home, including
 one produced by an ordinary call or selected at a block join. Shared field loans

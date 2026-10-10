@@ -3081,13 +3081,16 @@ of a check the same flow already performed, not the check itself.
   identity edges through Terminal and native catalogs; regular and growing
   recursive applications no longer demand transitive pointee storage. Closed
   case operands consume prepared member types without checking-side substitution;
-  borrowed array payload observations retain their indexed scalar endpoints. The
-  remaining reference-bearing sum witness constructs `Chain::End { value: 17 }`
-  and passes its loan to a helper matching `End` and `More`, where `More` stores
-  `&Chain<[Element; 2]>`. Both that witness and its active `More` variation now
-  produce Terminal input but reach native `UnsupportedControlFlow` at stage 02
-  `lowering/control_flow/references.rs:2138`: generalize case-conditional loan
-  ingress and custody without assigning permissions to inactive payloads.
+  borrowed array payload observations retain their indexed scalar endpoints.
+  Case-qualified descriptor storage now composes through ingress, construction,
+  copies, arrays and joins without granting permissions to inactive payloads;
+  `runtime_case_qualified_reference_storage_exit` retains the growing `Chain`
+  and mixed-case execution controls. Exclusive sum construction still stops in
+  source-to-Terminal local structural call binding; integrate the completed-child
+  construction contract owned by **STATE-LOCAL-VALUE-FRONTIER** before claiming
+  that qualification. Native formation, release and returned-loan custody still
+  retain local replay restrictions; replace their necessary storage relationships
+  rather than restoring a whole-operation borrow preflight.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete

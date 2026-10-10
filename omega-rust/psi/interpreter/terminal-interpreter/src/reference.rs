@@ -257,7 +257,8 @@ pub(crate) fn discard_structural_value(
 impl TerminalExecution<'_> {
     /// Borrowed ingress retains the caller's descriptor storage without an
     /// affine owner entry in this frame. Its declared authority bounds every
-    /// reference crossing; owned carriers still require live affine custody.
+    /// reference crossing. Owned carrier availability follows its declared
+    /// multiplicity: only affine storage has a disposal frontier.
     fn reference_carrier_access(
         &self,
         place: PlaceId,
@@ -270,7 +271,7 @@ impl TerminalExecution<'_> {
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
         if let Some(parameter) = machine
-            .signature_structural_parameter(place)
+            .structural_parameter(place)
             .filter(|parameter| parameter.access != StructuralAccess::Owned)
         {
             if parameter.structural_type != owner.structural_type
@@ -283,6 +284,27 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             return Ok(parameter.access);
+        }
+        // Unrestricted owned storage has no affine-disposal frontier. Its
+        // live value and exact producing/receiving declaration authorize the
+        // carrier observation; each crossed descriptor still bounds access
+        // to its captured referent below. Do not invent an affine obligation
+        // just because this value contains a shared reference.
+        let unrestricted = machine
+            .structural_parameter(place)
+            .map(|parameter| (parameter.structural_type, parameter.multiplicity))
+            .or_else(|| {
+                let (operation, structural_type) = machine.producing_operation(place)?;
+                let result = operation.result.structural()?;
+                (result.place == place && result.structural_type == structural_type)
+                    .then_some((structural_type, result.multiplicity))
+            })
+            .is_some_and(|(structural_type, multiplicity)| {
+                structural_type == owner.structural_type
+                    && multiplicity == StructuralMultiplicity::Unrestricted
+            });
+        if unrestricted {
+            return Ok(StructuralAccess::Owned);
         }
         // A partial owner retains authority over each live residual subtree.
         // Only the prefix before the first pointer crossing is carrier storage;

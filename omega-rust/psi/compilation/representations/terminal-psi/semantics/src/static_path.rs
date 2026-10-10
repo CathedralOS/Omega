@@ -209,7 +209,7 @@ pub fn canonical_structural_path_tip<'a>(
     root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<&'a StructuralTypeDeclaration> {
-    let selected = canonical_projection_type(declarations.clone(), root, path)?;
+    let selected = canonical_projection_type(declarations.clone(), root, path, None)?;
     let mut matching = declarations.filter(|declaration| declaration.id == selected);
     let declaration = matching.next()?;
     matching.next().is_none().then_some(declaration)
@@ -227,7 +227,20 @@ pub fn canonical_case_leaf_type<'a>(
     path.iter()
         .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
         .then_some(())?;
-    canonical_projection_type(types, root, path)
+    canonical_projection_type(types, root, path, None)
+}
+
+/// Translate declaration-local identities to storage-path spelling without
+/// dropping case guards. This establishes geometry only, not an active case
+/// or permission; payloads from different cases may occupy the same bytes.
+pub fn canonical_structural_storage_path<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Option<Vec<StructuralPathSegment>> {
+    let mut storage = Vec::with_capacity(path.len());
+    canonical_projection_type(types, root, path, Some(&mut storage))?;
+    Some(storage)
 }
 
 // Canonical and name-spelled paths use the same declaration-local namespaces.
@@ -237,6 +250,7 @@ fn canonical_projection_type<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     mut root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
+    mut storage: Option<&mut Vec<StructuralPathSegment>>,
 ) -> Option<StructuralTypeId> {
     let declaration = |identity| {
         let mut matching = types.clone().filter(|candidate| candidate.id == identity);
@@ -261,6 +275,9 @@ fn canonical_projection_type<'a>(
                 if matching.next().is_some() {
                     return None;
                 }
+                if let Some(storage) = storage.as_mut() {
+                    storage.push(StructuralPathSegment::Case(*identity));
+                }
             }
             CanonicalStructuralPathSegment::Field(identity) => {
                 let fields = match case_fields.take() {
@@ -276,6 +293,9 @@ fn canonical_projection_type<'a>(
                     return None;
                 }
                 let child = field.field_type.as_structural()?;
+                if let Some(storage) = storage.as_mut() {
+                    storage.push(StructuralPathSegment::Field(field.identity.clone()));
+                }
                 root = child;
             }
             CanonicalStructuralPathSegment::FixedIndex(index) => {
@@ -291,6 +311,9 @@ fn canonical_projection_type<'a>(
                     StructuralTypeShape::ElementView { element } => *element,
                     _ => return None,
                 };
+                if let Some(storage) = storage.as_mut() {
+                    storage.push(StructuralPathSegment::FixedIndex(*index));
+                }
             }
         }
     }

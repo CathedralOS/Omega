@@ -1,0 +1,63 @@
+// A sum stores only its active payload. A growing reference edge retains its
+// finite identity without demanding another pointee's storage declaration.
+data Cell { value: i32; }
+data Chain<'next, Element> {
+    case End(value: Element);
+    case More(target: &'next Chain<'next, [Element; 2]>);
+}
+
+machine read_pair<'storage, 'borrow>(node: &'borrow Chain<'storage, [i32; 2]>) -> i32 {
+    transition node {
+        Chain::End { value } -> (value[0])
+        Chain::More { target } -> 0
+    }
+}
+
+machine read<'storage, 'borrow>(node: &'borrow Chain<'storage, i32>) -> i32 {
+    transition node {
+        Chain::End { value } -> value
+        Chain::More { target } -> (read_pair(target))
+    }
+}
+
+machine inspect_active<'storage>(inner: &'storage Chain<'storage, [i32; 2]>) -> i32 {
+    let node: Chain<'storage, i32> = Chain::More { target: inner };
+    read(&node)
+}
+
+machine exercise<'storage>(source: &'storage Cell) -> bool {
+    let ordinary: Chain<'storage, i32> = Chain::End { value: source.value };
+    let inner: Chain<'storage, [i32; 2]> = Chain::End { value: [29, 31] };
+    read(&ordinary) == 17 && inspect_active(&inner) == 29
+}
+
+// Identically named payload fields stay in distinct case namespaces, even
+// beneath a fixed array. Common mixed fields do not acquire a case prefix.
+data Selection<'storage> {
+    stamp: i32;
+    case Left(target: &'storage Cell);
+    case Right(target: &'storage Cell);
+}
+machine read_selection<'storage>(selection: &Selection<'storage>) -> i32 {
+    transition selection {
+        Selection::Left { target } -> target.value
+        Selection::Right { target } -> target.value
+    }
+}
+machine exercise_selections<'storage>(source: &'storage Cell, other: &'storage Cell) -> bool {
+    let left: Selection<'storage> = Selection::Left { stamp: 3, target: source };
+    let right: Selection<'storage> = Selection::Right { stamp: 5, target: other };
+    let selections: [Selection<'storage>; 2] = [left, right];
+    read_selection(&selections[0]) == 17 && read_selection(&selections[1]) == 19
+}
+
+machine main() crashes Trap {
+    let seed: Cell = Cell { value: 17 };
+    let other: Cell = Cell { value: 19 };
+    transition exercise(&seed) && exercise_selections(&seed, &other) {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

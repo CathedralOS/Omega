@@ -16,38 +16,18 @@ pub(super) fn call_reference_custody(
     types: &StructuralTypeLookup<'_>,
     argument: &StructuralArgument,
 ) -> Result<(), LoweringError> {
-    let mut current = source_contract(function, live, argument.place)
+    let root = source_contract(function, live, argument.place)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    for (position, segment) in argument.path.iter().enumerate() {
-        current = match segment {
-            StructuralPathSegment::Referent => {
-                let StructuralTypeShape::Reference { referent, .. } = types
-                    .get(&current)
-                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?
-                    .shape
-                else {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                };
-                referent
-            }
-            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_) => {
-                leaf_type(types, current, std::slice::from_ref(segment))
-                    .or_else(|| {
-                        (argument.access == StructuralAccess::SharedBorrow
-                            && position + 1 == argument.path.len())
-                        .then(|| {
-                            terminal_semantics::shared_primitive_projection_declaration(
-                                types.values().copied(),
-                                current,
-                                std::slice::from_ref(segment),
-                            )
-                        })
-                        .flatten()
-                    })
-                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?
-            }
-            _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
-        };
+    if leaf_type(types, root, &argument.path).is_none()
+        && !(argument.access == StructuralAccess::SharedBorrow
+            && terminal_semantics::shared_primitive_projection_declaration(
+                types.values().copied(),
+                root,
+                &argument.path,
+            )
+            .is_some())
+    {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     access_reference_custody(function, live, types, argument)
 }
@@ -239,7 +219,7 @@ pub(super) fn access_reference_custody(
 fn descriptor_candidates(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
-    mut current: StructuralTypeId,
+    root: StructuralTypeId,
     path: &[StructuralPathSegment],
     maximum: usize,
 ) -> Option<Vec<Vec<StructuralPathSegment>>> {
@@ -251,10 +231,11 @@ fn descriptor_candidates(
         function.operations.iter(),
         path,
     );
-    for segment in &path {
+    leaf_type(types, root, &path)?;
+    for (position, segment) in path.iter().enumerate() {
         if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
-            let StructuralTypeShape::FixedArray { element, length } = types.get(&current)?.shape
-            else {
+            let current = leaf_type(types, root, &path[..position])?;
+            let StructuralTypeShape::FixedArray { length, .. } = types.get(&current)?.shape else {
                 return None;
             };
             let length = usize::try_from(length).ok()?;
@@ -273,9 +254,7 @@ fn descriptor_candidates(
                 }
             }
             candidates = expanded;
-            current = element;
         } else {
-            current = leaf_type(types, current, std::slice::from_ref(segment))?;
             for candidate in &mut candidates {
                 candidate.push(segment.clone());
             }
