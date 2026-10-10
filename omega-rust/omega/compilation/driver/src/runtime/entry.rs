@@ -60,18 +60,17 @@ pub(super) fn establish(
                 "receiver lost its root provisions",
             ));
         };
+        let plan_identities = provisions.plan_identities();
         for field in receiver.fused_service_fields() {
             let mut rows = provisions.fused_service_slots().filter(|(row, _)| {
                 row.field_path().len() == field.field_path().len()
                     && row.field_path().iter().zip(field.field_path()).all(
                         |(row_segment, field_segment)| {
-                            identities.text(*field_segment) == Some(row_segment.as_str())
+                            identities.text(*field_segment) == plan_identities.text(*row_segment)
                         },
                     )
-                    && row.carrier_type_identity()
-                        == identities
-                            .text(field.carrier_type_identity())
-                            .unwrap_or_default()
+                    && plan_identities.text(row.carrier_type_identity())
+                        == identities.text(field.carrier_type_identity())
             });
             let Some((row, _)) = rows.next() else {
                 return Err(TerminalRuntimeError::InvalidProvision(

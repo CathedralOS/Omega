@@ -55,13 +55,14 @@ pub(crate) fn time_host_permission_row(
     schema: &ServiceSchema,
     service_schema: ServiceSchemaDigest,
     method: &ServiceMethod,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<ServiceTerminalAuthorityPermission, UnsettledTimeHostRequirement> {
     if !settled_time_host_cohort(&method.name) {
         return Err(UnsettledTimeHostRequirement::UnknownRequirement);
     }
     Ok(ServiceTerminalAuthorityPermission::new(
         service_schema,
-        schema.identity_text(method.requirement_identity).to_owned(),
+        identities.intern(schema.identity_text(method.requirement_identity)),
         TerminalAuthorityDisposition::from_classes([]),
     ))
 }
@@ -71,12 +72,13 @@ pub(crate) fn time_host_permission_row(
 /// fail the whole table rather than emitting a partial one.
 pub fn time_host_permission_rows(
     schema: &ServiceSchema,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<Vec<ServiceTerminalAuthorityPermission>, UnsettledTimeHostRequirement> {
     let digest = schema.identity_digest();
     schema
         .methods
         .iter()
-        .map(|method| time_host_permission_row(schema, digest, method))
+        .map(|method| time_host_permission_row(schema, digest, method, identities))
         .collect()
 }
 

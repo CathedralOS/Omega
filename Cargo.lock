@@ -1311,6 +1311,7 @@ dependencies = [
  "source",
  "symbols",
  "target",
+ "terminal-psi",
  "trust-model",
  "typed-trees",
  "typed-trees-to-checked-trees",
@@ -1735,6 +1736,7 @@ dependencies = [
  "symbols",
  "target",
  "task-plans",
+ "terminal-psi",
  "trust-model",
  "typed-trees",
  "validation",
@@ -2073,6 +2075,8 @@ dependencies = [
  "optimization-core",
  "semantic-vocabulary",
  "symbols",
+ "terminal-psi",
+ "typed-trees",
 ]
 
 [[package]]

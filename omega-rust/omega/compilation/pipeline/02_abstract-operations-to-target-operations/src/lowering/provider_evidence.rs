@@ -24,8 +24,10 @@ pub(super) fn bind_provider_executions(
                             input.target_family_realizations().iter().any(|row| {
                                 (row.head == settlement.boundary
                                     || row.member == settlement.boundary)
-                                    && row.selected_requirement_identity
-                                        == provider_execution.requirement_identity()
+                                    && input
+                                        .target_family_realization_identities()
+                                        .text(row.selected_requirement_identity)
+                                        == Some(provider_execution.requirement_identity())
                                     && row.provider_plan_report_identity
                                         == provider_execution.provider_plan_report_identity()
                             })

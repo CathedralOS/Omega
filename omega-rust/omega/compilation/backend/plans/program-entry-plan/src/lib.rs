@@ -87,3 +87,4 @@ pub use selected_entry::root_role::ProgramStorageEntryRootRole;
 pub use selected_entry::service_establishment::ProgramEntryFusedServiceEstablishment;
 
 pub use uefi::uefi_os_handoff::uefi_os_handoff_exhaustion_requires_error;
+mod source_guards;

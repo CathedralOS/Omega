@@ -13,6 +13,8 @@ use super::{
 
 pub(super) fn construct(
     validated: ValidatedSemanticEntryInputs,
+    schema: &effects::provider_plan::ServiceSchema,
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> OptimizedProgramStorageSemanticEntryContract {
     let ValidatedSemanticEntryInputs {
         target,
@@ -33,18 +35,26 @@ pub(super) fn construct(
             image_source,
             &method.entry_claims[0],
             &boundary.plan().call.parameters[0],
+            source.identities(),
+            &schema.identities,
+            identities,
         ),
         semantic_root(
             storage_source,
             &method.entry_claims[1],
             &boundary.plan().call.parameters[1],
+            source.identities(),
+            &schema.identities,
+            identities,
         ),
     ];
 
     OptimizedProgramStorageSemanticEntryContract {
         target,
         target_slot: slot,
-        requirement_identity,
+        requirement_identity: identities
+            .index_of(&requirement_identity)
+            .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
         source_signature_identity: source.identity(),
         source_signature: source,
         semantic_boundary_entry_plan: boundary.plan().clone(),
@@ -61,12 +71,20 @@ fn semantic_root(
     source: &ProgramEntryVisibleParameterSignature,
     claim: &ServiceEntryClaim,
     placement: &ValuePlacement,
+    plan_identities: &terminal_psi::TerminalIdentityTable,
+    claim_identities: &effects::provider_plan::ProviderIdentityTable,
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> OptimizedProgramStorageSemanticRoot {
     OptimizedProgramStorageSemanticRoot {
         role: source.role(),
         parameter_index: source.visible_parameter_index(),
-        carrier_identity: claim.carrier_identity.clone(),
-        parameter_type_identity: source.normalized_type_identity().to_owned(),
+        carrier_identity: identities
+            .index_of(claim_identities.text(claim.carrier_identity))
+            .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
+        parameter_type_identity: plan_identities
+            .text(source.normalized_type_identity())
+            .and_then(|text| identities.index_of(text))
+            .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
         domain: claim.domain.clone(),
         effective_carry: claim.effective_carry,
         shape: source.value_shape(),

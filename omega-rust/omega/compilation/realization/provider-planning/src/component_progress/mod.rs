@@ -81,6 +81,7 @@ fn build_component_progress_manifest(
     let mut queue = vec![entry_machine];
     let mut visited = Vec::new();
     let mut demands = Vec::new();
+    let mut demand_identities = terminal_psi::TerminalIdentityTableBuilder::default();
 
     while let Some(machine_symbol) = queue.pop() {
         if visited.contains(&machine_symbol) {
@@ -94,27 +95,34 @@ fn build_component_progress_manifest(
             .build_bound_for_machine(machine_symbol)
         {
             demands.push(effects::CheckedComponentProgressDemand {
-                provider_service_identity: program
-                    .typed
-                    .callable_identity_text(demand.provider_service_identity),
+                provider_service_identity: demand_identities.intern(
+                    &program
+                        .typed
+                        .callable_identity_text(demand.provider_service_identity),
+                ),
                 provider_service_package_identity: demand.provider_service_package_identity,
-                requirement_identity: program
-                    .typed
-                    .callable_identity_text(demand.requirement_identity),
+                requirement_identity: demand_identities.intern(
+                    &program.typed.callable_identity_text(demand.requirement_identity),
+                ),
                 requirement_owner_package_identity: demand.requirement_owner_package_identity,
-                profile_identity: program
-                    .semantic_domains
-                    .name(demand.profile_identity)
-                    .unwrap_or_default()
-                    .to_owned(),
+                profile_identity: demand_identities.intern(
+                    program
+                        .semantic_domains
+                        .name(demand.profile_identity)
+                        .unwrap_or_default(),
+                ),
                 subject_projections: demand.subject_projections.clone(),
-                origin_callable_identity: machine_callable_identity(program, demand.origin.machine)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "checked build-bound progress demand lost its origin machine identity",
-                        )]
-                    })?,
-                origin_state_identity: program.symbols.display_path(demand.origin.state, "::"),
+                origin_callable_identity: demand_identities.intern(
+                    &machine_callable_identity(program, demand.origin.machine).ok_or_else(
+                        || {
+                            vec![Diagnostic::error(
+                                "checked build-bound progress demand lost its origin machine identity",
+                            )]
+                        },
+                    )?,
+                ),
+                origin_state_identity: demand_identities
+                    .intern(&program.symbols.display_path(demand.origin.state, "::")),
                 statement_ordinal: demand.origin.statement_ordinal,
                 call_ordinal: demand.origin.call_ordinal,
             });
@@ -171,10 +179,11 @@ fn build_component_progress_manifest(
                     .rows
                     .iter()
                     .filter(|row| {
-                        row.requirement_identity == requirement_identity
+                        plan.identities.text(row.requirement_identity)
+                            == requirement_identity.as_str()
                             && plan.schema.methods.iter().any(|method| {
                                 plan.schema.identity_text(method.requirement_identity)
-                                    == row.requirement_identity
+                                    == plan.identities.text(row.requirement_identity)
                                     && method.requirement_owner_package_identity
                                         == requirement_owner_package_identity
                             })
@@ -207,8 +216,13 @@ fn build_component_progress_manifest(
         }
     }
 
-    effects::ComponentProgressManifest::bind(entry_callable_identity, selected, demands)
-        .map_err(|message| vec![Diagnostic::error(message)])
+    effects::ComponentProgressManifest::bind(
+        &entry_callable_identity,
+        &demand_identities.build(),
+        selected,
+        demands,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])
 }
 
 /// TPR6 fail-closed admission seam. Checked lowering and the component
@@ -231,8 +245,8 @@ pub fn reject_undischarged_build_bound_progress(
         .map(|demand| {
             Diagnostic::error(format!(
                 "final composition cannot discharge build-bound progress demand `{}` requiring profile `{}` at checked call {}:{}; the exact installed provider occurrence and admitted establishment receipt must be bound before native lowering",
-                demand.requirement_identity,
-                demand.profile_identity,
+                manifest.identities().text(demand.requirement_identity).unwrap_or_default(),
+                manifest.identities().text(demand.profile_identity).unwrap_or_default(),
                 demand.statement_ordinal,
                 demand.call_ordinal,
             ))

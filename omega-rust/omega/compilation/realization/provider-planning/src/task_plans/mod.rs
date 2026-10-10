@@ -84,7 +84,9 @@ pub fn elaborate_task_activation_plans(
             target_machine,
             entry,
             contract,
-            selected_runtime.requirement_identity.as_str(),
+            &program
+                .typed
+                .callable_identity_text(selected_runtime.requirement_identity),
         )?;
         let suspension = exact_task_machine_suspension(
             program,

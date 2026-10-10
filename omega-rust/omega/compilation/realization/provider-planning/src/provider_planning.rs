@@ -87,13 +87,18 @@ pub fn bind_selected_provider_plan_facts(
     operator_provider_evidence::validate_selected_requirement_provider_evidence(
         checked, candidates, &facts,
     )?;
-    let installation_reach_resolutions =
+    let (installation_reach_resolutions, installation_reach_identities) =
         derive_selected_installation_reach_resolutions(checked, &facts)?;
-    let specialized_requirement_rows =
+    let (specialized_requirement_rows, specialized_identities) =
         provenance_replay::derive_selected_requirement_specializations(checked, &facts)?;
     let selected = facts
-        .with_specialized_requirement_rows(specialized_requirement_rows)
-        .and_then(|facts| facts.with_installation_reach_resolutions(installation_reach_resolutions))
+        .with_specialized_requirement_rows(specialized_requirement_rows, &specialized_identities)
+        .and_then(|facts| {
+            facts.with_installation_reach_resolutions(
+                installation_reach_resolutions,
+                &installation_reach_identities,
+            )
+        })
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     Ok(SelectedProviderPlanBinding {
         selected,

@@ -45,6 +45,7 @@ pub fn project_checked_terminal_permission_policy<'a>(
                     resolved.symbol,
                     *requirement,
                     method,
+                    &resolved.schema.identities,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;

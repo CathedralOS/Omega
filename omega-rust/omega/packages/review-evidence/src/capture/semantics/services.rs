@@ -11,7 +11,7 @@ use crate::capture::semantics::declarations::{
 };
 use crate::record::PackagePolicyServiceMethod;
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ServiceMethod, ServiceSchema};
+use effects::provider_plan::{ProviderIdentityTable, ServiceMethod, ServiceSchema};
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
@@ -24,6 +24,7 @@ pub(crate) fn project(
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
     method: &ServiceMethod,
+    identities: &ProviderIdentityTable,
 ) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
     project_inner(
         compilation,
@@ -32,6 +33,7 @@ pub(crate) fn project(
         provider_type,
         requirement,
         method,
+        identities,
         false,
     )
 }
@@ -44,6 +46,7 @@ pub(crate) fn project_declaration(
     schema: SymbolHandle,
     requirement: SymbolHandle,
     method: &ServiceMethod,
+    identities: &ProviderIdentityTable,
 ) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
     project_inner(
         compilation,
@@ -52,6 +55,7 @@ pub(crate) fn project_declaration(
         None,
         requirement,
         method,
+        identities,
         true,
     )
 }
@@ -63,6 +67,7 @@ fn project_inner(
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
     method: &ServiceMethod,
+    identities: &ProviderIdentityTable,
     declaration_mode: bool,
 ) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
     let declaration = provider_requirement_schema(compilation, schema, requirement)?;
@@ -121,7 +126,11 @@ fn project_inner(
             .map(|parameter| parameter.type_identity.canonical().to_owned())
             .collect()
     } else {
-        method.parameter_type_identities.clone()
+        method
+            .parameter_type_identities
+            .iter()
+            .map(|identity| identities.text(*identity).to_owned())
+            .collect()
     };
     let result_type_identity = if normalized_signature_display {
         signature
@@ -129,7 +138,9 @@ fn project_inner(
             .as_ref()
             .map(|identity| identity.canonical().to_owned())
     } else {
-        method.result_type_identity.clone()
+        method
+            .has_result
+            .then(|| identities.text(method.result_type_identity).to_owned())
     };
     Ok(PackagePolicyServiceMethod {
         completion: method.completion,

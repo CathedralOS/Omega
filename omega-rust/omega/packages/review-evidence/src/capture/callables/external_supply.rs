@@ -36,7 +36,14 @@ fn project_evaluated_import(
             locator_identity_digest: locator.identity_digest().as_bytes(),
             producer: nominal_identity(compilation, row.producer_machine())?,
             producer_package: receipt.producer_package(),
-            producer_callable_identity: receipt.producer_callable_identity().to_owned(),
+            producer_callable_identity: compilation
+                .custody
+                .providers()
+                .evaluated_via_bindings
+                .identities()
+                .text(receipt.producer_callable_identity())
+                .unwrap_or_default()
+                .to_owned(),
             producer_closure_digest: receipt.producer_closure_digest().as_bytes(),
             evaluator_semantics_marker: receipt.evaluator_semantics_marker(),
             evaluation_usage: usage,
@@ -63,7 +70,14 @@ fn project_evaluated_syscall(
             binding_identity_digest: evaluated.identity_digest().as_bytes(),
             producer: nominal_identity(compilation, row.producer_machine())?,
             producer_package: receipt.producer_package(),
-            producer_callable_identity: receipt.producer_callable_identity().to_owned(),
+            producer_callable_identity: compilation
+                .custody
+                .providers()
+                .evaluated_via_bindings
+                .identities()
+                .text(receipt.producer_callable_identity())
+                .unwrap_or_default()
+                .to_owned(),
             producer_closure_digest: receipt.producer_closure_digest().as_bytes(),
             evaluator_semantics_marker: receipt.evaluator_semantics_marker(),
             evaluation_usage: usage,

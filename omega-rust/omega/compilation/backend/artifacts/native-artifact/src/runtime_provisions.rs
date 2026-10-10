@@ -39,6 +39,9 @@ pub struct TerminalRuntimeProvisions {
     target_slot: target::ProgramEntrySlotDeclaration,
     receiver: Option<CheckedProgramEntryReceiverEligibility>,
     fused_services: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
+    /// The ProgramEntry signature's plan-local identity table — establishment
+    /// rows index it, never the module's table.
+    plan_identities: terminal_psi::TerminalIdentityTable,
     /// Parallel to `fused_services`: exact retained requirement slots of the
     /// same admitted schema/plan, not a provider-name or trait-prefix lookup.
     fused_service_boundary_slots: Vec<Vec<BoundaryMachineId>>,
@@ -59,6 +62,7 @@ impl TerminalRuntimeProvisions {
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
         selected: &effects::SelectedProviderPlanFacts,
         identities: &terminal_psi::TerminalIdentityTable,
+        plan_identities: &terminal_psi::TerminalIdentityTable,
         target_slot: target::ProgramEntrySlotDeclaration,
     ) -> Result<Self, &'static str> {
         let mut host_requirements = Vec::new();
@@ -77,7 +81,7 @@ impl TerminalRuntimeProvisions {
             if matching.next().is_some()
                 || !selected.selected_row_matches_requirement(
                     identities.text(boundary.identity).unwrap_or_default(),
-                    binding.requirement_identity(),
+                    binding.requirement_identity(identities).unwrap_or_default(),
                     binding.provider_plan_report_identity(),
                 )
             {
@@ -89,7 +93,10 @@ impl TerminalRuntimeProvisions {
                     .text(boundary.identity)
                     .unwrap_or_default()
                     .to_owned(),
-                selected_requirement_identity: binding.requirement_identity().to_owned(),
+                selected_requirement_identity: binding
+                    .requirement_identity(identities)
+                    .unwrap_or_default()
+                    .to_owned(),
                 provider_plan_report_identity: binding.provider_plan_report_identity(),
             });
         }
@@ -132,6 +139,7 @@ impl TerminalRuntimeProvisions {
             target_slot,
             receiver: checked.receiver_eligibility().cloned(),
             fused_services: fused_services.to_vec(),
+            plan_identities: plan_identities.clone(),
             fused_service_boundary_slots,
             installation: installation.cloned(),
             host,
@@ -195,6 +203,12 @@ impl TerminalRuntimeProvisions {
 
     pub const fn receiver(&self) -> Option<&CheckedProgramEntryReceiverEligibility> {
         self.receiver.as_ref()
+    }
+
+    /// The signature table the establishment rows' identity indices resolve
+    /// against — rows were minted before the module's table existed.
+    pub const fn plan_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.plan_identities
     }
 
     pub fn fused_services(&self) -> &[program_entry_plan::ProgramEntryFusedServiceEstablishment] {

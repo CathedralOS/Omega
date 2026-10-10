@@ -3103,18 +3103,6 @@ of a check the same flow already performed, not the check itself.
   field remains in `terminal-psi` outside the identity table (source-scanning
   guard); the native corpus is unchanged.
 
-- **OMEGA-IDENTITY-INDICES.** (new-scope) Depends on
-  **TERMINAL-IDENTITY-TABLE**. Omega consumes those identities as owned text:
-  - `*identity: String` fields under `omega-rust/omega/compilation/backend/plans`
-    and `omega-rust/omega/compilation/backend/runtime`;
-  - the `BoundaryNominalIdentity(String)` and `BoundaryTypeIdentity(String)`
-    newtypes in
-    `omega-rust/omega/compilation/backend/artifacts/boundary-applications/src/boundary_applications.rs`.
-
-  Carry Terminal identity-table indices instead. Acceptance:
-  none of those crates declares a `String`-typed identity (source-scanning
-  guard in each), and the native corpus is unchanged.
-
 - **TYPED-FROZEN-BEFORE-CHECKING.** (new-scope) Complete qualification of the
   frozen typed-to-checked boundary. Typed elaboration now belongs to
   `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`;

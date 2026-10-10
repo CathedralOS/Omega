@@ -20,12 +20,19 @@ use crate::provider_planning::ProviderBinding;
 pub(crate) fn derive_selected_requirement_specializations(
     checked: &checked_trees::CheckedTrees,
     selected: &effects::SelectedProviderPlanFacts,
-) -> Result<Vec<effects::SelectedRequirementSpecialization>, Vec<diagnostics::Diagnostic>> {
+) -> Result<
+    (
+        Vec<effects::SelectedRequirementSpecialization>,
+        terminal_psi::TerminalIdentityTable,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
     let typed = checked;
     let provider_context =
         crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     let mut diagnostics = Vec::new();
     let mut rows = Vec::new();
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let mut top_level_symbols = None;
     for plan in selected.plans() {
         let templates = typed
@@ -64,10 +71,11 @@ pub(crate) fn derive_selected_requirement_specializations(
             else {
                 continue;
             };
-            if row.requirement_identity != template_identity {
+            if plan.identities.text(row.requirement_identity) != template_identity.as_str() {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "selected provider plan `{}` checked-adapter row `{}` does not retain the generic requirement template `{template_identity}` its schema binds",
-                    plan.name, row.requirement_identity,
+                    plan.name,
+                    plan.identities.text(row.requirement_identity),
                 )));
                 continue;
             }
@@ -147,12 +155,12 @@ pub(crate) fn derive_selected_requirement_specializations(
                 }
                 rows.push(effects::SelectedRequirementSpecialization {
                     provider_plan_report_identity: plan.report_fingerprint(),
-                    selected_requirement_identity: row.requirement_identity.clone(),
-                    selected_machine_identity: plan
-                        .identity_text(*selected_machine_identity)
-                        .to_owned(),
-                    requirement_identity,
-                    machine_identity,
+                    selected_requirement_identity: identities
+                        .intern(plan.identities.text(row.requirement_identity)),
+                    selected_machine_identity: identities
+                        .intern(plan.identity_text(*selected_machine_identity)),
+                    requirement_identity: identities.intern(&requirement_identity),
+                    machine_identity: identities.intern(&machine_identity),
                 });
             }
         }
@@ -179,7 +187,7 @@ pub(crate) fn derive_selected_requirement_specializations(
                 .iter()
                 .filter(|row| {
                     row.provider_plan_report_identity == plan.report_fingerprint()
-                        && row.requirement_identity == identity
+                        && identities.text(row.requirement_identity) == Some(identity.as_str())
                 })
                 .count();
             if matching != 1 {
@@ -191,7 +199,7 @@ pub(crate) fn derive_selected_requirement_specializations(
         }
     }
     if diagnostics.is_empty() {
-        Ok(rows)
+        Ok((rows, identities.build()))
     } else {
         Err(diagnostics)
     }

@@ -11,6 +11,14 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalIdentityIndex(pub u32);
 
+impl Default for TerminalIdentityIndex {
+    /// ZII: the absent sentinel is the default, matching the empty `String`
+    /// the migrated fields used as their absence state.
+    fn default() -> Self {
+        Self::ABSENT
+    }
+}
+
 impl TerminalIdentityIndex {
     /// ZII absent sentinel: index 0 is the table's empty entry, so a field
     /// holding it renders as the empty identity the String shape used as

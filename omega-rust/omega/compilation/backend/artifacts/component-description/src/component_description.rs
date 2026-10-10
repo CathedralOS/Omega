@@ -1023,7 +1023,7 @@ pub(crate) fn describe_decoded_component_facts(
             let mut requirement_identities: Vec<String> = plan
                 .rows
                 .iter()
-                .map(|row| row.requirement_identity.clone())
+                .map(|row| plan.identities.text(row.requirement_identity).to_owned())
                 .collect();
             requirement_identities.sort();
             requirement_identities.dedup();
@@ -1129,8 +1129,14 @@ pub(crate) fn describe_decoded_component_facts(
                 kind: ObligationKind::ProgressDemand,
                 identity: format!(
                     "progress-demand:{}:{}:{}",
-                    demand.requirement_identity,
-                    demand.profile_identity,
+                    manifest
+                        .identities()
+                        .text(demand.requirement_identity)
+                        .unwrap_or_default(),
+                    manifest
+                        .identities()
+                        .text(demand.profile_identity)
+                        .unwrap_or_default(),
                     hex(demand.provider_plan_digest.as_bytes()),
                 ),
                 detail: "satisfy the retained build-bound progress demand".to_string(),

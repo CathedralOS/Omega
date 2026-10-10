@@ -6,10 +6,9 @@ use super::super::semantic_bindings::SemanticBindingReviewCandidate;
 use super::{CachedCompiledReview, CachedOccurrenceFacts};
 use effects::provider_plan::{
     BoundaryCallingPlanCommitment, ProviderIdentityTable, ProviderPlanDigest,
-    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
-    ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
-    ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
-    ServiceSchemaDigest,
+    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
+    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
+    ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
 };
 use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
@@ -100,18 +99,28 @@ fn recover_disposition(cursor: &mut ObservationCursor<'_>) -> Option<TerminalAut
     TerminalAuthorityDisposition::try_from_canonical_classes(classes).ok()
 }
 
-fn encode_permission(permission: &ServiceTerminalAuthorityPermission, out: &mut Vec<u8>) {
+fn encode_permission(
+    permission: &ServiceTerminalAuthorityPermission,
+    identities: &terminal_psi::TerminalIdentityTable,
+    out: &mut Vec<u8>,
+) {
     out.extend_from_slice(permission.service_schema().as_bytes());
-    encode_string(permission.requirement_identity(), out);
+    encode_string(
+        identities
+            .text(permission.requirement_identity())
+            .unwrap_or_default(),
+        out,
+    );
     encode_disposition(permission.permitted(), out);
 }
 
 fn recover_permission(
     cursor: &mut ObservationCursor<'_>,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Option<ServiceTerminalAuthorityPermission> {
     Some(ServiceTerminalAuthorityPermission::new(
         ServiceSchemaDigest::from_digest(cursor_digest(cursor)?),
-        cursor_string(cursor)?,
+        identities.intern(cursor_string(cursor)?),
         recover_disposition(cursor)?,
     ))
 }
@@ -131,7 +140,11 @@ fn encode_binding(binding: &AcceptedSemanticBinding, out: &mut Vec<u8>) {
         (binding.terminal_authority_permissions().len() as u64).to_le_bytes(),
     );
     for permission in binding.terminal_authority_permissions() {
-        encode_permission(permission, out);
+        encode_permission(
+            permission,
+            binding.terminal_authority_permission_identities(),
+            out,
+        );
     }
 }
 
@@ -151,9 +164,12 @@ fn recover_binding(cursor: &mut ObservationCursor<'_>) -> Option<AcceptedSemanti
             AcceptedSemanticBinding::new_service(role, package, declaration_path, schema).ok()?
         }
     };
-    let permissions = cursor_vec(cursor, recover_permission)?;
+    let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    let permissions = cursor_vec(cursor, |cursor| {
+        recover_permission(cursor, &mut permission_identities)
+    })?;
     binding
-        .with_terminal_authority_permissions(permissions)
+        .with_terminal_authority_permissions(permissions, &permission_identities.build())
         .ok()
 }
 
@@ -239,12 +255,12 @@ fn encode_service_method(
         (method.parameter_type_identities.len() as u64).to_le_bytes(),
     );
     for identity in &method.parameter_type_identities {
-        encode_string(identity, out);
+        encode_string(identities.text(*identity), out);
     }
     crate::codec_bytes::push_encoded(out, (method.entry_claims.len() as u64).to_le_bytes());
     for claim in &method.entry_claims {
         crate::codec_bytes::push_encoded(out, (claim.parameter_index as u64).to_le_bytes());
-        encode_string(&claim.carrier_identity, out);
+        encode_string(identities.text(claim.carrier_identity), out);
         encode_string(&claim.domain, out);
         encode_predicate_body(&claim.predicate_body, out);
         encode_carry(&claim.effective_carry, out);
@@ -258,7 +274,10 @@ fn encode_service_method(
     });
     out.push(u8::from(method.has_result));
     encode_optional(
-        method.result_type_identity.as_ref(),
+        method
+            .has_result
+            .then(|| identities.text(method.result_type_identity).to_owned())
+            .as_ref(),
         out,
         |identity, out| encode_string(identity, out),
     );
@@ -334,11 +353,12 @@ fn recover_service_method(
     let requirement_owner_package_identity = recover_optional(cursor, recover_identity)?;
     let requirement_identity = identities.intern(cursor_string(cursor)?);
     let parameter_count = usize::try_from(cursor.u64()?).ok()?;
-    let parameter_type_identities =
-        cursor_vec(cursor, |cursor| cursor_string(cursor).map(str::to_owned))?;
+    let parameter_type_identities = cursor_vec(cursor, |cursor| {
+        cursor_string(cursor).map(|text| identities.intern(text))
+    })?;
     let entry_claims = cursor_vec(cursor, |cursor| {
         let parameter_index = usize::try_from(cursor.u64()?).ok()?;
-        let carrier_identity = cursor_string(cursor)?.to_owned();
+        let carrier_identity = identities.intern(cursor_string(cursor)?);
         let domain = cursor_string(cursor)?.to_owned();
         let predicate_body = recover_predicate_body(cursor)?;
         let effective_carry = recover_carry(cursor)?;
@@ -364,7 +384,9 @@ fn recover_service_method(
     };
     let has_result = cursor_bool(cursor)?;
     let result_type_identity =
-        recover_optional(cursor, |cursor| cursor_string(cursor).map(str::to_owned))?;
+        recover_optional(cursor, |cursor| cursor_string(cursor).map(str::to_owned))?
+            .map(|text| identities.intern(&text))
+            .unwrap_or_default();
     let result_claims = cursor_vec(cursor, |cursor| {
         Some(ServiceResultClaim {
             domain: cursor_string(cursor)?.to_owned(),
@@ -457,7 +479,9 @@ fn recover_service_schema(cursor: &mut ObservationCursor<'_>) -> Option<ServiceS
     Some(ServiceSchema {
         trait_name: identities.intern(cursor_string(cursor)?),
         trait_package_identity: recover_optional(cursor, recover_identity)?,
-        methods: cursor_vec(cursor, |cursor| recover_service_method(cursor, &mut identities))?,
+        methods: cursor_vec(cursor, |cursor| {
+            recover_service_method(cursor, &mut identities)
+        })?,
         identities,
     })
 }
@@ -817,6 +841,7 @@ mod tests {
         let requirement_identity = identities.intern("omega.test.Trait.method");
         let alpha = identities.intern("omega.test.Trait.alpha");
         let beta = identities.intern("omega.test.Trait.beta");
+        let u32_type_identity = identities.intern("omega.core.u32");
         let schema = ServiceSchema {
             trait_name,
             identities,
@@ -826,9 +851,9 @@ mod tests {
                 requirement_owner: "omega.test.Trait".to_owned(),
                 requirement_identity,
                 parameter_count: 1,
-                parameter_type_identities: vec!["omega.core.u32".to_owned()],
+                parameter_type_identities: vec![u32_type_identity],
                 has_result: true,
-                result_type_identity: Some("omega.core.u32".to_owned()),
+                result_type_identity: u32_type_identity,
                 terminates_guarantee: true,
                 termination_premises: vec![ServiceProgressPremise {
                     profile: "terminates".to_owned(),

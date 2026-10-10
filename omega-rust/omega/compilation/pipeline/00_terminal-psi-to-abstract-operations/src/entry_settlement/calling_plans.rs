@@ -38,8 +38,11 @@ pub(crate) fn validate_paired_calling_plans(
     }
     let semantic_method = selected_method(storage, slot.semantic_arrival_requirement)?;
     let physical_method = selected_method(storage, physical_requirement)?;
-    if storage.schema().identity_text(semantic_method.requirement_identity)
-        != storage.requirement_identity()
+    if Some(
+        storage
+            .schema()
+            .identity_text(semantic_method.requirement_identity),
+    ) != storage.identities().text(storage.requirement_identity())
         || semantic_method.requirement_identity == physical_method.requirement_identity
     {
         return Err("selected ProgramEntry lost its distinct exact arrival requirements".into());
@@ -78,12 +81,16 @@ pub(crate) fn validate_paired_calling_plans(
         .collect::<Vec<_>>();
     let semantic_source_pairing = match slot.schema {
         target::ProgramEntrySchema::ProgramStorageApplication => {
-            semantic_method.parameter_type_identities
-                == source
-                    .visible_parameters()
-                    .iter()
-                    .map(|parameter| parameter.normalized_type_identity().to_owned())
-                    .collect::<Vec<_>>()
+            semantic_method
+                .parameter_type_identities
+                .iter()
+                .map(|identity| storage.schema().identities.text(*identity))
+                .eq(source.visible_parameters().iter().map(|parameter| {
+                    source
+                        .identities()
+                        .text(parameter.normalized_type_identity())
+                        .unwrap_or_default()
+                }))
                 && semantic_shapes
                     == source
                         .visible_parameters()
@@ -105,7 +112,7 @@ pub(crate) fn validate_paired_calling_plans(
     };
     if !semantic_source_pairing
         || semantic_method.has_result
-        || semantic_method.result_type_identity.is_some()
+        || !semantic_method.result_type_identity.is_valid()
         || semantic_plan.plan().call.result.is_some()
     {
         return Err(
@@ -116,11 +123,28 @@ pub(crate) fn validate_paired_calling_plans(
         .physical_contract()
         .ok_or_else(|| "selected ProgramEntry lost its physical calling contract".to_owned())?;
     if contract.target_slot() != slot
-        || contract.requirement_identity()
-            != storage.schema().identity_text(physical_method.requirement_identity)
-        || contract.parameter_type_identities() != physical_method.parameter_type_identities
+        || contract.identities().text(contract.requirement_identity())
+            != Some(
+                storage
+                    .schema()
+                    .identity_text(physical_method.requirement_identity),
+            )
+        || !contract
+            .parameter_type_identities()
+            .iter()
+            .zip(physical_method.parameter_type_identities.iter())
+            .all(|(left, right)| {
+                contract.identities().text(*left) == Some(storage.schema().identities.text(*right))
+            })
+        || contract.parameter_type_identities().len()
+            != physical_method.parameter_type_identities.len()
         || !physical_method.has_result
-        || physical_method.result_type_identity.as_deref() != Some(contract.result_type_identity())
+        || Some(
+            storage
+                .schema()
+                .identities
+                .text(physical_method.result_type_identity),
+        ) != contract.identities().text(contract.result_type_identity())
         || contract.boundary_entry_plan() != physical_plan.plan()
         || contract.calling_plan_report_fingerprint() != physical_plan.contract_report_fingerprint()
     {

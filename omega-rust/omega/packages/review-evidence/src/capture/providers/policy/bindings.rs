@@ -149,7 +149,14 @@ fn producer(
     Ok(PackagePolicyEvaluatedBindingProducer {
         declaration: nominal_identity(compilation, row.producer_machine())?,
         package: receipt.producer_package(),
-        callable_identity: receipt.producer_callable_identity().to_owned(),
+        callable_identity: compilation
+            .custody
+            .providers()
+            .evaluated_via_bindings
+            .identities()
+            .text(receipt.producer_callable_identity())
+            .unwrap_or_default()
+            .to_owned(),
     })
 }
 

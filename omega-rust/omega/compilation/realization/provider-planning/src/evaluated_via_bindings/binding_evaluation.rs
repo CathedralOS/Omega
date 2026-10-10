@@ -32,6 +32,7 @@ pub(crate) fn evaluate_one(
     target: TargetProfile,
     machine: &typed_trees::machine::Machine,
     conformance: &typed_trees::machine::TraitConformance,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<EvaluatedViaBindingRow, Diagnostic> {
     let expression = conformance.via_expression;
     let source_span = typed.expression_table.source_span(expression);
@@ -153,7 +154,8 @@ pub(crate) fn evaluate_one(
     let retained_usage = retained_usage(usage).map_err(|message| at(source_span, message))?;
     let receipt = EvaluatedBindingReceipt::from_evaluation(
         typed.symbols.symbol_package_identity(producer.symbol),
-        producer_identity,
+        &producer_identity,
+        identities,
         closure_digest,
         CURRENT_EVALUATION_SEMANTICS.marker(),
         retained_usage,

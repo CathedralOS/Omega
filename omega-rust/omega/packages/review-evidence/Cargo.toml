@@ -15,6 +15,7 @@ layout = { path = "../../compilation/backend/layout" }
 representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
 selected-dispatch = { path = "../../compilation/realization/selected-dispatch" }
 effects = { path = "../../compilation/backend/plans/provider-evidence" }
+terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 target = { path = "../../compilation/backend/target" }
 trust-model = { path = "../../compilation/realization/trust-model" }
 arena = { path = "../../../psi/foundation/arena" }

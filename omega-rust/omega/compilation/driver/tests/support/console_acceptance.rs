@@ -48,6 +48,7 @@ pub fn candidate_console_exit_binding(
             "cannot construct repository fixture Console exit binding: {error}"
         ))]
     })?;
+    let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let mut permissions = plan
         .schema
         .methods
@@ -62,7 +63,8 @@ pub fn candidate_console_exit_binding(
         .map(|method| {
             effects::ServiceTerminalAuthorityPermission::new(
                 plan.schema.identity_digest(),
-                plan.schema.identity_text(method.requirement_identity).to_owned(),
+                permission_identities
+                    .intern(plan.schema.identity_text(method.requirement_identity)),
                 effects::TerminalAuthorityDisposition::from_classes(match method.name.as_str() {
                     "exit_process" => {
                         vec![effects::TerminalAuthorityClass::ProcessTermination]
@@ -80,10 +82,10 @@ pub fn candidate_console_exit_binding(
         .collect::<Vec<_>>();
     permissions.sort_by(|left, right| {
         left.requirement_identity()
-            .cmp(right.requirement_identity())
+            .cmp(&right.requirement_identity())
     });
     binding
-        .with_terminal_authority_permissions(permissions)
+        .with_terminal_authority_permissions(permissions, &permission_identities.build())
         .map_err(|error| {
             vec![Diagnostic::error(format!(
                 "cannot attach repository fixture Console terminal permissions: {error}"

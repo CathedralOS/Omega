@@ -67,8 +67,9 @@ fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() 
         target::TargetProfile::LinuxArm64,
     ] {
         let call = kernel_call(profile);
+        let identities = terminal_psi::TerminalIdentityTable::default();
         let validate = |call: &image_emission::ObjectForeignCall| {
-            validate_foreign_provider_binding("Input::read", call, &plans)
+            validate_foreign_provider_binding("Input::read", call, &plans, &identities)
         };
         // Zero is a valid syscall number; no user-space stack receipt is invented.
         assert_eq!(validate(&call), Ok(()));
@@ -154,6 +155,7 @@ fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
         let requirement_identity = schema_identities.intern(&format!("{name}::read"));
         let mut identities = ProviderIdentityTable::default();
         let machine_identity = identities.intern(&format!("{name}Provider::read"));
+        let row_requirement_identity = identities.intern(&format!("{name}::read"));
         ProviderPlan {
             name: name.into(),
             provider_type: format!("{name}Provider"),
@@ -173,7 +175,7 @@ fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
             identities,
             rows: vec![ProviderPlanRow {
                 method: "read".into(),
-                requirement_identity: format!("{name}::read"),
+                requirement_identity: row_requirement_identity,
                 requirement_lifetime_partition: Vec::new(),
                 binding: ProviderBinding::CheckedAdapter {
                     machine_identity,
@@ -184,18 +186,36 @@ fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
         }
     });
     let generic_report_identity = plans[0].report_fingerprint();
+    let row_identities = terminal_psi::TerminalIdentityTable::from(vec![
+        String::new(),
+        "Generic::read".to_owned(),
+        "GenericProvider::read".to_owned(),
+        "Generic::read<u64>".to_owned(),
+        "GenericProvider::read<u64>".to_owned(),
+        "Generic::read<i32>".to_owned(),
+        "GenericProvider::read<i32>".to_owned(),
+    ]);
     let selection = SelectedProviderPlanFacts::from_selected_plans(plans.into())
         .expect("fully covering plans")
         .with_specialized_requirement_rows(
             ["u64", "i32"]
                 .map(|element| SelectedRequirementSpecialization {
                     provider_plan_report_identity: generic_report_identity,
-                    selected_requirement_identity: "Generic::read".into(),
-                    selected_machine_identity: "GenericProvider::read".into(),
-                    requirement_identity: format!("Generic::read<{element}>"),
-                    machine_identity: format!("GenericProvider::read<{element}>"),
+                    selected_requirement_identity: row_identities
+                        .index_of("Generic::read")
+                        .unwrap(),
+                    selected_machine_identity: row_identities
+                        .index_of("GenericProvider::read")
+                        .unwrap(),
+                    requirement_identity: row_identities
+                        .index_of(format!("Generic::read<{element}>").as_str())
+                        .unwrap(),
+                    machine_identity: row_identities
+                        .index_of(format!("GenericProvider::read<{element}>").as_str())
+                        .unwrap(),
                 })
-                .into(),
+                .to_vec(),
+            &row_identities,
         )
         .expect("two exact closed instances of the selected adapter");
     let projected = NativeSelectedProviderPlan::project_selection(&selection);

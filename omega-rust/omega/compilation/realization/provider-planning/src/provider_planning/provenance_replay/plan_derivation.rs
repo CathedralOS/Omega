@@ -19,7 +19,7 @@ use crate::provider_planning::provenance_replay::{
     SelectedTargetMachineOrigin, satisfies_plan_name,
 };
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
-use effects::provider_plan::ProviderIdentityTable;
+use effects::provider_plan::{ProviderIdentityId, ProviderIdentityTable};
 
 pub(crate) fn derive_provider_plans(
     context: ProviderPlanningContext<'_>,
@@ -129,10 +129,7 @@ pub(crate) fn derive_provider_plans(
                         if !is_boundary_trait {
                             continue;
                         }
-                        (
-                            checked_adapter_draft(typed, machine),
-                            None,
-                        )
+                        (checked_adapter_draft(typed, machine), None)
                     }
                     _ => continue, // refused elsewhere (via rungs)
                 };
@@ -165,9 +162,13 @@ pub(crate) fn derive_provider_plans(
                     provider_type_symbol
                 );
                 let binding = row_binding.resolve(&mut plans[position].plan.identities);
+                let requirement_identity = mint_plan_row_identity(
+                    &mut plans[position].plan,
+                    &semantic_requirement_identity,
+                );
                 plans[position].plan.rows.push(ProviderPlanRow {
                     method: requirement.as_str().to_owned(),
-                    requirement_identity: semantic_requirement_identity.clone(),
+                    requirement_identity,
                     requirement_lifetime_partition:
                         language_semantics::type_identity::normalize_requirement_lifetime_partition(
                             &clause.trait_lifetime_arguments,
@@ -313,7 +314,8 @@ fn derive_named_provider_plans(
                                 == Some(&row.requirement)
                                 && candidate.provenance.row_realizations.get(index)
                                     == Some(&row.realization_machine)
-                                && binding.requirement_identity == identity
+                                && candidate.plan.identities.text(binding.requirement_identity)
+                                    == identity.as_str()
                             {
                                 matched.push((
                                     candidate,
@@ -324,10 +326,9 @@ fn derive_named_provider_plans(
                         }
                     }
                     let (candidate, binding, origin) = *matched.first()?;
-                    if matched
-                        .iter()
-                        .any(|(_, other, other_origin)| *other != binding || *other_origin != origin)
-                    {
+                    if matched.iter().any(|(_, other, other_origin)| {
+                        *other != binding || *other_origin != origin
+                    }) {
                         return None;
                     }
                     let origin = origin.clone();
@@ -349,9 +350,10 @@ fn derive_named_provider_plans(
                         origin,
                     )
                 };
+                let requirement_identity = mint_plan_row_identity(&mut plan, &identity);
                 plan.rows.push(ProviderPlanRow {
                     method: row.requirement_name.as_str().to_owned(),
-                    requirement_identity: identity,
+                    requirement_identity,
                     requirement_lifetime_partition: lifetime_partition,
                     binding,
                 });
@@ -433,8 +435,7 @@ fn derive_top_level_requirement_plans(
                 continue;
             };
             if requirement_identity.is_empty()
-                || schema.identity_text(schema_method.requirement_identity)
-                    != requirement_identity
+                || schema.identity_text(schema_method.requirement_identity) != requirement_identity
             {
                 continue;
             }
@@ -501,6 +502,8 @@ fn derive_top_level_requirement_plans(
                 origin_package_identity,
             );
             let binding = binding.resolve(&mut plans[position].plan.identities);
+            let requirement_identity =
+                mint_plan_row_identity(&mut plans[position].plan, &requirement_identity);
             plans[position].plan.rows.push(ProviderPlanRow {
                 method: schema_method.name.clone(),
                 requirement_identity,
@@ -652,11 +655,13 @@ fn derive_boundary_operator_plans(
                 provider_type_symbol
             );
             let binding = binding.resolve(&mut plans[position].plan.identities);
+            let requirement_identity = mint_plan_row_identity(
+                &mut plans[position].plan,
+                schema.identity_text(schema.methods[0].requirement_identity),
+            );
             plans[position].plan.rows.push(ProviderPlanRow {
                 method: "realize".to_owned(),
-                requirement_identity: schema
-                    .identity_text(schema.methods[0].requirement_identity)
-                    .to_owned(),
+                requirement_identity,
                 requirement_lifetime_partition: Vec::new(),
                 binding,
             });
@@ -745,6 +750,15 @@ fn evaluated_via_binding(
 /// package identities, schema declaration and provider symbol — inserting the
 /// empty plan when absent.
 #[allow(clippy::too_many_arguments)]
+/// Mint one row's exact requirement identity into the plan's identity table.
+/// The table is append-only, so rows pushed earlier keep resolving.
+fn mint_plan_row_identity(
+    plan: &mut ProviderPlan,
+    requirement_identity: &str,
+) -> ProviderIdentityId {
+    plan.identities.intern(requirement_identity)
+}
+
 fn derived_plan_position(
     plans: &mut Vec<DerivedProviderPlan>,
     plan_name: String,

@@ -29,7 +29,7 @@ impl PackagePolicyServiceMethod {
             || (!self.has_result && !self.result_claims.is_empty())
             || self.entry_claims.iter().any(|claim| {
                 claim.parameter_index >= self.parameter_count
-                    || claim.carrier_identity.is_empty()
+                    || !claim.carrier_identity.is_valid()
                     || claim.domain.is_empty()
             })
         {
@@ -55,9 +55,7 @@ impl PackagePolicyServiceMethod {
                 || premise
                     .establishment_routes
                     .iter()
-                    .any(|route| {
-                        self.identities.text(route.requirement_identity).is_empty()
-                    })
+                    .any(|route| self.identities.text(route.requirement_identity).is_empty())
             {
                 return Err("provider progress premise has an invalid subject or route");
             }

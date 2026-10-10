@@ -27,7 +27,7 @@ pub(in crate::encoding::recovery) fn method(
         entry_claims: reader.sequence(30, |reader| {
             Ok(ServiceEntryClaim {
                 parameter_index: reader.usize()?,
-                carrier_identity: reader.string()?,
+                carrier_identity: identities.intern(&reader.string()?),
                 domain: reader.string()?,
                 predicate_body: super::super::tag!(reader => {
                     0 => DomainPredicateBody::Bodyless,

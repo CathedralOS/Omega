@@ -16,9 +16,6 @@ mod fnv1a;
 mod provider_evidence;
 pub mod provider_grants;
 
-#[cfg(test)]
-mod source_guards;
-
 pub use provider_evidence::executable_scopes::behavior_exclusions::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BehaviorExclusionReport,
     BehaviorExclusionVerdict, BehaviorExclusions, authored_behavior_exclusion_set_in,
@@ -60,3 +57,6 @@ pub use provider_evidence::{
     InstallationReachResolution, SelectedProviderPlanFacts, SelectedRequirementSpecialization,
     SelectedTargetFamilyRealization,
 };
+
+#[cfg(test)]
+mod source_guards;

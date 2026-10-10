@@ -535,7 +535,7 @@ fn boundary_row_shape(
         .schema
         .methods
         .iter()
-        .filter(|method| plan.schema.row_binds_method(row, method))
+        .filter(|method| plan.schema.row_binds_method(row, method, &plan.identities))
         .collect::<Vec<_>>();
     let [method] = methods.as_slice() else {
         return Err(Diagnostic::error(format!(
@@ -551,7 +551,7 @@ fn boundary_row_shape(
     ) || method.name != requirement_name
         || method.requirement_owner != typed.trait_declaration_path(definition)
         || plan.schema.identity_text(method.requirement_identity) != requirement_identity
-        || row.requirement_identity != requirement_identity
+        || plan.identities.text(row.requirement_identity) != requirement_identity
         || !exact_console_signature(typed, requirement, requirement_name, trait_symbol, shape)
     {
         return Ok(false);

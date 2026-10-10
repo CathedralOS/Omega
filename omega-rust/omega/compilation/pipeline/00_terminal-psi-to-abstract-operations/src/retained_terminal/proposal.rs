@@ -26,6 +26,7 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
     pub behavior_exclusions: &'input [effects::AuthoredBehaviorExclusion],
     pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
+    pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     pub callback_placements: Vec<backend_plan::NativeCallbackPlacement>,
     pub callback_thunks: Vec<crate::TerminalCallbackThunkArtifact>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
@@ -83,24 +84,19 @@ fn close_family_realizations(
             target: source.target.clone(),
             head: head.id,
             member: member.id,
-            head_identity: module
+            head_identity: head.identity,
+            member_identity: member.identity,
+            selected_requirement_identity: module
                 .identities
-                .text(head.identity)
-                .unwrap_or_default()
-                .to_owned(),
-            member_identity: module
-                .identities
-                .text(member.identity)
-                .unwrap_or_default()
-                .to_owned(),
-            selected_requirement_identity: source.selected_requirement_identity.clone(),
+                .index_of(&source.selected_requirement_identity)
+                .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
             provider_plan_report_identity: source.provider_plan_report_identity,
             provider_plan_digest: source.provider_plan_digest,
         });
     }
     selected
         .clone()
-        .with_family_realization_rows(rows)
+        .with_family_realization_rows(rows, &module.identities)
         .map_err(error)
 }
 
@@ -224,6 +220,7 @@ pub fn project_terminal_native_realization_proposal(
             coverage: boundary_application_coverage,
         },
         request.package_terminal_authority_permissions,
+        request.package_terminal_authority_permission_identities,
         effects::authored_behavior_exclusion_set_in(request.behavior_exclusions, terminal_module),
     ))
 }

@@ -30,20 +30,17 @@ pub(crate) fn admit_provider_installation_with_projection(
             .iter()
             .filter(|candidate| candidate.boundary == boundary)
             .collect::<Vec<_>>();
-        let requirement_identity = plan
-            .identities
-            .text(candidates[0].requirement_identity)
-            .unwrap_or_default();
-        if requirement_identity.is_empty()
+        let requirement_identity = plan.identities.text(candidates[0].requirement_identity);
+        if requirement_identity.unwrap_or_default().is_empty()
             || candidates.iter().any(|candidate| {
-                plan.identities.text(candidate.requirement_identity) != Some(requirement_identity)
+                plan.identities.text(candidate.requirement_identity) != requirement_identity
             })
         {
             return Err(ProviderInstallationError::InvalidLoweredCatalog);
         }
         let selected_rows = selected
             .iter()
-            .filter(|row| row.requirement_identity == requirement_identity)
+            .filter(|row| row.requirement_identity == requirement_identity.unwrap_or_default())
             .map(|row| {
                 (
                     row.provider_identity.as_str(),

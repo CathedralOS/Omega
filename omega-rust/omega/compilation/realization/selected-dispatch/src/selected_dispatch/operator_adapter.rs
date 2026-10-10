@@ -53,7 +53,7 @@ pub(super) fn resolve_checked_adapter_for_operator(
         || method.requirement_owner != overload_identity
         || method.requirement_owner_package_identity != operator_package
         || plan.schema.identity_text(method.requirement_identity) != overload_identity
-        || !plan.schema.row_binds_method(row, method)
+        || !plan.schema.row_binds_method(row, method, &plan.identities)
     {
         return Err(Diagnostic::error(format!(
             "selected checked-operator ProviderPlan `{}` does not bind exact overload `{overload_identity}`",

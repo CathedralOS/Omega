@@ -33,8 +33,9 @@ impl BoundaryApplicationSettlement<'_> {
             artifact.semantic_module(),
             &demands,
         )?;
-        let opaque_applications = project_opaque_applications(&self.calling_applications)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
+        let opaque_applications =
+            project_opaque_applications(&self.calling_applications, artifact.semantic_module())
+                .map_err(|message| vec![Diagnostic::error(message)])?;
         boundary_applications::TerminalBoundaryApplicationCoverage::new(demands, realizations)
             .map_err(|message| vec![Diagnostic::error(message)])
             .map(|coverage| coverage.with_opaque_applications(opaque_applications))
@@ -75,7 +76,7 @@ fn project_terminal_boundary_application_realizations(
         let mut matching = selected_rows.iter().filter(|(plan, row, _)| {
             plan.schema.identity_text(plan.schema.trait_name) == requirement.overload()
                 && plan.schema.trait_package_identity == requirement.package()
-                && row.requirement_identity == requirement.overload()
+                && plan.identities.text(row.requirement_identity) == requirement.overload()
         });
         let (Some((plan, row, execution)), None) = (matching.next(), matching.next()) else {
             return Err(error(
@@ -156,19 +157,29 @@ fn project_terminal_boundary_application_realizations(
 /// arena identities are deliberately absent.
 fn project_opaque_applications(
     calling_applications: &[calling_conventions::BoundaryCallingApplication],
+    module: &terminal_psi::TerminalModule,
 ) -> Result<boundary_applications::BoundaryOpaqueRepresentationApplications, &'static str> {
     let rows = calling_applications
         .iter()
         .flat_map(|application| {
             application.opaque_applications.iter().map(|use_| {
-                boundary_applications::BoundaryOpaqueRepresentationApplication {
-                    requirement_identity: application.requirement_identity.clone(),
-                    shape_root: use_.shape_root,
-                    application_report_fingerprint: use_.application_report_fingerprint,
-                    selected_application_commitment: use_.selected_application_commitment,
-                }
+                module
+                    .identities
+                    .index_of(&application.requirement_identity)
+                    .ok_or(
+                        "boundary opaque application names a requirement absent from the module identity table",
+                    )
+                    .map(|requirement_identity| {
+                        boundary_applications::BoundaryOpaqueRepresentationApplication {
+                            requirement_identity,
+                            shape_root: use_.shape_root,
+                            application_report_fingerprint: use_.application_report_fingerprint,
+                            selected_application_commitment: use_
+                                .selected_application_commitment,
+                        }
+                    })
             })
         })
-        .collect();
+        .collect::<Result<_, _>>()?;
     boundary_applications::BoundaryOpaqueRepresentationApplications::new(rows)
 }

@@ -197,8 +197,8 @@ impl<'typed> IntrinsicRequirement<'typed> {
         let owner_matches = plan.schema.trait_package_identity == self.package_identity
             && method.requirement_owner_package_identity == self.package_identity
             && plan.schema.identity_text(method.requirement_identity) == self.requirement_identity
-            && row.requirement_identity == self.requirement_identity
-            && plan.schema.row_binds_method(row, method);
+            && plan.identities.text(row.requirement_identity) == self.requirement_identity
+            && plan.schema.row_binds_method(row, method, &plan.identities);
         match self.kind {
             IntrinsicRequirementKind::Operator => {
                 owner_matches

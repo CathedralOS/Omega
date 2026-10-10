@@ -19,6 +19,7 @@ pub(crate) use terminal_semantics::zero_valid_record_storage;
 /// consumes that result without running calling-plan admission again.
 pub(crate) fn bind_semantic_contract(
     settlement: &ValidatedNativeProgramEntrySettlement,
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<
     OptimizedProgramStorageSemanticEntryContract,
     OptimizedProgramStorageSemanticWrapperObjectError,
@@ -45,6 +46,7 @@ pub(crate) fn bind_semantic_contract(
         storage,
         settlement.source(),
         &application,
+        identities,
     )
     .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)
 }
@@ -119,6 +121,7 @@ pub fn receiver_layout(
     let mut erased = 0;
     if !validate_receiver_fields(
         &source.terminal().semantic_module().identities,
+        contract.source_signature().identities(),
         structural.structural_types.as_slice(),
         fields,
         settlement.fused_service_establishments(),
@@ -144,6 +147,7 @@ pub fn receiver_layout(
 /// rejection.
 fn validate_receiver_fields(
     identities: &terminal_psi::TerminalIdentityTable,
+    plan_identities: &terminal_psi::TerminalIdentityTable,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     fields: &[terminal_psi::StructuralFieldDeclaration],
     rows: &[program_entry_plan::ProgramEntryFusedServiceEstablishment],
@@ -167,12 +171,17 @@ fn validate_receiver_fields(
                     .unwrap_or_default()
                     .to_string(),
             );
+            // Establishment rows index the signature's plan-local table; the
+            // walked field path resolves against the module's table.
             let joined = rows
                 .iter()
                 .filter(|row| {
-                    row.field_path() == field_path.as_slice()
-                        && row.carrier_type_identity()
-                            == identities.text(type_identity).unwrap_or_default()
+                    row.field_path()
+                        .iter()
+                        .map(|segment| plan_identities.text(*segment).unwrap_or_default())
+                        .eq(field_path.iter().map(String::as_str))
+                        && plan_identities.text(row.carrier_type_identity())
+                            == Some(identities.text(type_identity).unwrap_or_default())
                 })
                 .count()
                 == 1;
@@ -214,6 +223,7 @@ fn validate_receiver_fields(
                             );
                             let valid = validate_receiver_fields(
                                 identities,
+                                plan_identities,
                                 declarations,
                                 nested_fields,
                                 rows,
@@ -272,6 +282,7 @@ mod service_tests {
         ));
         let mut used = 0;
         assert!(!validate_receiver_fields(
+            &Default::default(),
             &Default::default(),
             &[declaration],
             &[field],
@@ -372,8 +383,8 @@ pub(crate) fn validate_entry_shape(
         || storage.access != StructuralAccess::Owned
         || image_root.parameter_index() != 0
         || storage_root.parameter_index() != 1
-        || image_root.carrier_identity() != "named(name(Extent))"
-        || storage_root.carrier_identity() != "named(name(Extent))"
+        || module.identities.text(image_root.carrier_identity()) != Some("named(name(Extent))")
+        || module.identities.text(storage_root.carrier_identity()) != Some("named(name(Extent))")
         || image_root.domain() != "Extent::Granted"
         || storage_root.domain() != "Extent::Granted"
     {
@@ -403,12 +414,16 @@ pub(crate) fn validate_entry_shape(
         != Some(
             terminal_psi::StructuralDomainDeclaration::carrier_qualified_identity(
                 image_root.domain(),
-                image_root.carrier_identity(),
+                module
+                    .identities
+                    .text(image_root.carrier_identity())
+                    .unwrap_or_default(),
             )
             .as_str(),
         )
         || domain.carrier != carrier.id
-        || module.identities.text(carrier.identity) != Some(image_root.carrier_identity())
+        || module.identities.text(carrier.identity)
+            != module.identities.text(image_root.carrier_identity())
         || !matches!(fields, [base, length]
             if module.identities.text(base.identity) == Some("base")
                 && base.relevance == BindingRelevance::Relevant

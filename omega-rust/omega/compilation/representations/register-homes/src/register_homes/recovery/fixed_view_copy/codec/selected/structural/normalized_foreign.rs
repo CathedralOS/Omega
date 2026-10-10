@@ -305,7 +305,12 @@ fn decode_call_binding(
     let provider_plan_report_identity = cursor.u64()?;
     let provider_plan_commitment =
         SameStackProviderPlanCommitment::from_digest(cursor.array::<32>()?);
-    let requirement_identity = decode_string(cursor)?;
+    let requirement_identity = terminal_psi::TerminalIdentityIndex(
+        cursor
+            .u64()?
+            .try_into()
+            .map_err(|_| FixedViewCopyDecodeError::InvalidSameStackContribution)?,
+    );
     let receipt = SameStackContributionAdmissionReceiptId::from_normalized_identity(cursor.u64()?)
         .map_err(|_| FixedViewCopyDecodeError::InvalidSameStackContribution)?;
     let candidate = SameStackContributionAdmissionCandidate {
@@ -320,7 +325,7 @@ fn decode_call_binding(
         candidate.clone(),
         provider_plan_report_identity,
         provider_plan_commitment,
-        &candidate.requirement_identity,
+        candidate.requirement_identity,
     )
     .map_err(|_| FixedViewCopyDecodeError::InvalidSameStackContribution)?;
     // Re-admission recomputes both sealed coordinates from the admitted
@@ -642,7 +647,7 @@ mod tests {
     use crate::FixedViewCopyDecodeError;
     use crate::register_homes::recovery::fixed_view_copy::codec::primitives::Cursor;
 
-    const REQUIREMENT: &str = "Foreign::leaf";
+    const REQUIREMENT_INDEX: u32 = 1;
 
     fn binding() -> NormalizedForeignCallBinding {
         let locator = normalize_foreign_locator(
@@ -670,7 +675,7 @@ mod tests {
             SameStackContributionAdmissionCandidate {
                 provider_plan_report_identity,
                 provider_plan_commitment,
-                requirement_identity: REQUIREMENT.to_owned(),
+                requirement_identity: terminal_psi::TerminalIdentityIndex(REQUIREMENT_INDEX),
                 receipt: SameStackContributionAdmissionReceiptId::from_normalized_identity(0xA2)
                     .unwrap(),
                 bytes: 64,
@@ -678,7 +683,7 @@ mod tests {
             },
             provider_plan_report_identity,
             provider_plan_commitment,
-            REQUIREMENT,
+            terminal_psi::TerminalIdentityIndex(REQUIREMENT_INDEX),
         )
         .expect("same-stack admission");
         NormalizedForeignCallBinding {

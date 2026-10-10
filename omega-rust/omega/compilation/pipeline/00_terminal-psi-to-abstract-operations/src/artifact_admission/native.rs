@@ -101,12 +101,13 @@ impl VerifiedNativeArtifactInput {
                 || member.callable() != terminal_psi::TargetMachineCallable::Boundary(row.member)
                 || terminal_psi::find_boundary_machine(&module.boundary_machines, row.head)
                     .is_none_or(|head| {
-                        module.identities.text(head.identity) != Some(row.head_identity.as_str())
+                        module.identities.text(head.identity)
+                            != selected.identities().text(row.head_identity)
                     })
                 || terminal_psi::find_boundary_machine(&module.boundary_machines, row.member)
                     .is_none_or(|member| {
                         module.identities.text(member.identity)
-                            != Some(row.member_identity.as_str())
+                            != selected.identities().text(row.member_identity)
                     })
             {
                 return Err(
@@ -117,6 +118,8 @@ impl VerifiedNativeArtifactInput {
         }
         self.optimization_input.target_family_realizations =
             selected.family_realization_rows().to_vec();
+        self.optimization_input.target_family_realization_identities =
+            selected.identities().clone();
         Ok(self)
     }
 
@@ -270,6 +273,9 @@ pub(super) fn lower_decoded_native_module(
             target_machine_selections: None,
             target_layout_selections: None,
             target_family_realizations: Vec::new(),
+            target_family_realization_identities: terminal_psi::TerminalIdentityTable::from(
+                Vec::new(),
+            ),
         },
     })
 }

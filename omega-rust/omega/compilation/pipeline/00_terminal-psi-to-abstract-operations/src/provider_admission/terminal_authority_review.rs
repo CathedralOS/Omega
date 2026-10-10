@@ -55,6 +55,7 @@ pub(crate) fn review_terminal_authority_closure(
         physical_policy.identity(),
         permission_policy.map(|policy| policy.identity()),
         reviewer.into_leaves(),
+        &input.plan().identities,
     )
     .map_err(|error| format!("terminal-authority review receipt rejected: {error:?}"))
 }

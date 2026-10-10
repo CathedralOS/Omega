@@ -118,7 +118,8 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
         ) {
             (false, None, None, None) => Ok(None),
             (true, Some(semantic), Some(physical), Some(storage)) => {
-                validate_paired_calling_plans(self.source, semantic, physical, storage).map(Some)
+                validate_paired_calling_plans(self.source, semantic, physical, storage)
+                    .map(Some)
             }
             _ => Err(
                 "selected ProgramEntry lost its exact paired semantic/physical calling-plan custody"
@@ -131,8 +132,17 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
         let source_identity = self.source.identity();
         let slot = self.source.target_slot();
         let receiver_identity = self.source.receiver().normalized_type_identity();
+        // Rows index the signature's own table, so field-route order compares
+        // the rendered text the String fields carried before.
+        let field_route = |row: &program_entry_plan::ProgramEntryFusedServiceEstablishment| {
+            row.field_path()
+                .iter()
+                .map(|segment| self.source.identities().text(*segment).unwrap_or_default())
+                .collect::<Vec<_>>()
+        };
         let mut previous_field = None;
         for establishment in self.fused_service_establishments {
+            let field_route = field_route(&establishment);
             if establishment.source_signature_identity() != source_identity
                 || establishment.target_slot() != slot
                 || receiver_identity
@@ -142,13 +152,13 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
                 // depth the receiver's record-field tree places it, so two
                 // bindings differing only in their owning record share a leaf
                 // name without being out of order or repeated.
-                || previous_field.is_some_and(|field| field >= establishment.field_path())
+                || previous_field.is_some_and(|field| field >= field_route)
             {
                 return Err(
                     "Fused root establishments drifted from canonical ProgramEntry custody".into(),
                 );
             }
-            previous_field = Some(establishment.field_path());
+            previous_field = Some(field_route);
         }
         Ok(())
     }

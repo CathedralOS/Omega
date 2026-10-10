@@ -1134,11 +1134,18 @@ mod tests {
         .expect("normalized ELF import");
         let provider_plan_commitment =
             task_plans::SameStackProviderPlanCommitment::from_digest([7; 32]);
+        let identities = terminal_psi::TerminalIdentityTable::from(vec![
+            String::new(),
+            "libc::write".to_owned(),
+        ]);
+        let requirement_index = identities
+            .index_of("libc::write")
+            .expect("test requirement identity must intern");
         let same_stack_contribution = task_plans::admit_same_stack_contribution(
             task_plans::SameStackContributionAdmissionCandidate {
                 provider_plan_report_identity: 1,
                 provider_plan_commitment,
-                requirement_identity: "libc::write".to_string(),
+                requirement_identity: requirement_index,
                 receipt:
                     task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
                         0x4c49_4e55_0001,
@@ -1149,7 +1156,7 @@ mod tests {
             },
             1,
             provider_plan_commitment,
-            "libc::write",
+            requirement_index,
         )
         .expect("admitted same-stack contribution");
         // sub rsp,8 | call rel32 | add rsp,8 | ret

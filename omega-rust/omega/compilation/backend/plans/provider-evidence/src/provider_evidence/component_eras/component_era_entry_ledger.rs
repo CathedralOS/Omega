@@ -3,16 +3,16 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentEraEntryReceipt {
     invocation_identity: u64,
-    binding_contract_identity: String,
-    entry_contract_identity: String,
+    binding_contract: String,
+    entry_contract: String,
     resolved_era_identity: u64,
-    entry_plan_identity: String,
+    entry_plan: String,
     entry_linearized: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentEraQuiescenceReceipt {
     era_identity: u64,
-    binding_contract_identity: String,
+    binding_contract: String,
     residual_lifetime_cohort_holds: usize,
     all_dispositions_complete: bool,
 }
@@ -20,7 +20,7 @@ pub struct ComponentEraQuiescenceReceipt {
 pub struct ComponentEraRetirementReceipt {
     retirement_identity: u64,
     era_identity: u64,
-    binding_contract_identity: String,
+    binding_contract: String,
     lifetime_cohort_released: bool,
 }
 /// The checkable judgment of a rejected entry replay.

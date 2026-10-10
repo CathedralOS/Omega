@@ -106,6 +106,7 @@ fn plan_selected_boundary_adapter_dispatch(
                 plan,
                 row,
                 selected_plans.specialized_requirement_rows(),
+                selected_plans.identities(),
             ) {
                 Ok(rows) => {
                     for resolved in rows {

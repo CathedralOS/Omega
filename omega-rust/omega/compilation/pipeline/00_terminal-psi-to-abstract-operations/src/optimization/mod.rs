@@ -122,6 +122,10 @@ pub struct VerifiedPsiOptimizationInput {
         Option<terminal_installation::AdmittedTargetMachineSelections>,
     pub(crate) target_layout_selections: Option<terminal_installation::AdmittedTargetLayouts>,
     pub(crate) target_family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
+    /// The selected facts table the family-realization row identities
+    /// resolve against. Rows are stored without their owning facts, so the
+    /// table is retained beside them.
+    pub(crate) target_family_realization_identities: terminal_psi::TerminalIdentityTable,
 }
 
 impl VerifiedPsiOptimizationInput {
@@ -145,6 +149,11 @@ impl VerifiedPsiOptimizationInput {
     /// invocation selection. The original boundary remains the call contract.
     pub fn target_family_realizations(&self) -> &[effects::SelectedTargetFamilyRealization] {
         &self.target_family_realizations
+    }
+
+    /// Identity table the family-realization row indices resolve against.
+    pub fn target_family_realization_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.target_family_realization_identities
     }
 
     /// Exact geometry closure retained separately from immutable canonical Psi.

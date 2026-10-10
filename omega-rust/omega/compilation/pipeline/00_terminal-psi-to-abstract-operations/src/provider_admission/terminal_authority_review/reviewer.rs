@@ -77,7 +77,12 @@ impl<'a> Reviewer<'a> {
                 // instance for a closed requirement; the selected row's
                 // binding retains the authored generic provider template.
                 let realization_identity = specialization
-                    .map(|row| row.machine_identity.as_str())
+                    .and_then(|row| {
+                        self.context
+                            .selected
+                            .identities()
+                            .text(row.machine_identity)
+                    })
                     .unwrap_or(selected_plan.identity_text(*machine_identity));
                 let candidate = self
                     .context
@@ -116,7 +121,9 @@ impl<'a> Reviewer<'a> {
                 let schema = selected_plan.schema.identity_digest();
                 self.admit_leaf(
                     schema,
-                    &selected_row.requirement_identity,
+                    selected_plan
+                        .identities
+                        .text(selected_row.requirement_identity),
                     selected_plan.identity_digest(),
                     mechanism,
                 )?;
@@ -173,7 +180,12 @@ impl<'a> Reviewer<'a> {
             })?;
         let leaf = TerminalAuthorityClosureLeaf::new(
             schema,
-            requirement.to_owned(),
+            self.context
+                .input
+                .plan()
+                .identities
+                .index_of(requirement)
+                .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
             provider_plan,
             mechanism,
             exercised,

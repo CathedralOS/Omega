@@ -36,7 +36,7 @@ pub(crate) fn exact_row_for_schema_method<'plan>(
     let rows = plan
         .rows
         .iter()
-        .filter(|row| plan.schema.row_binds_method(row, method))
+        .filter(|row| plan.schema.row_binds_method(row, method, &plan.identities))
         .collect::<Vec<_>>();
     let [row] = rows.as_slice() else {
         return Err(diagnostics::Diagnostic::error(format!(
@@ -104,7 +104,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
             plan.name,
         )));
     };
-    if plan.schema != schema || !plan.schema.row_binds_method(row, method) {
+    if plan.schema != schema || !plan.schema.row_binds_method(row, method, &plan.identities) {
         return Err(diagnostics::Diagnostic::error(format!(
             "selected build-time operator ProviderPlan `{}` does not bind exact overload `{}`",
             plan.name,
@@ -138,13 +138,15 @@ pub fn exact_checked_adapter<'typed>(
     else {
         return Err(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` row `{}` is not a checked-adapter binding",
-            plan.name, row.requirement_identity,
+            plan.name,
+            plan.identities.text(row.requirement_identity),
         )));
     };
     if plan.identity_text(*machine_identity).is_empty() {
         return Err(diagnostics::Diagnostic::error(format!(
             "checked adapter for ProviderPlan `{}` row `{}` has no complete machine identity",
-            plan.name, row.requirement_identity,
+            plan.name,
+            plan.identities.text(row.requirement_identity),
         )));
     }
     if *machine_package_identity != plan.origin_package_identity {
@@ -193,7 +195,7 @@ pub fn exact_checked_adapter<'typed>(
                 "checked adapter `{}` for ProviderPlan `{}` row `{}` resolves to {} exact typed machines",
                 plan.identity_text(*machine_identity),
                 plan.name,
-                row.requirement_identity,
+                plan.identities.text(row.requirement_identity),
                 matches.len(),
             )));
         }
@@ -243,7 +245,7 @@ pub fn exact_checked_adapter<'typed>(
             "checked adapter `{}` does not rejoin provider `{}` row `{}`",
             plan.identity_text(*machine_identity),
             plan.provider_type,
-            row.requirement_identity,
+            plan.identities.text(row.requirement_identity),
         )));
     }
     validate_exact_requirement_lifetime_partition(context, plan, row, adapter)?;
@@ -267,14 +269,16 @@ fn validate_exact_requirement_lifetime_partition(
             continue;
         };
         if typed.trait_requirement_callable_identity_text(definition, requirement)
-            != row.requirement_identity
+            != plan.identities.text(row.requirement_identity)
         {
             continue;
         }
         if !context.contains(definition.symbol) || !context.contains(requirement.symbol) {
             return Err(diagnostics::Diagnostic::error(format!(
                 "ProviderPlan `{}` row `{}` requirement lifetime edge is outside the {:?} planning context",
-                plan.name, row.requirement_identity, context.scope,
+                plan.name,
+                plan.identities.text(row.requirement_identity),
+                context.scope,
             )));
         }
         matching.push(conformance);
@@ -290,16 +294,18 @@ fn validate_exact_requirement_lifetime_partition(
         }
         [] => Err(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` row `{}` retains a requirement lifetime partition without one exact trait realization edge",
-            plan.name, row.requirement_identity,
+            plan.name,
+            plan.identities.text(row.requirement_identity),
         ))),
         [_] => Err(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` row `{}` requirement lifetime partition differs from its exact realization edge",
-            plan.name, row.requirement_identity,
+            plan.name,
+            plan.identities.text(row.requirement_identity),
         ))),
         _ => Err(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` row `{}` resolves to {} exact trait realization lifetime applications",
             plan.name,
-            row.requirement_identity,
+            plan.identities.text(row.requirement_identity),
             matching.len(),
         ))),
     }
@@ -386,7 +392,8 @@ pub(crate) fn exact_checked_adapter_invocations(
     else {
         return Err(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` row `{}` is not a checked-adapter binding",
-            plan.name, row.requirement_identity,
+            plan.name,
+            plan.identities.text(row.requirement_identity),
         )));
     };
     let adapter = exact_checked_adapter(context, plan, row)?;

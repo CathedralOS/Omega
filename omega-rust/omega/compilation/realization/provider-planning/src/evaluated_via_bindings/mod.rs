@@ -132,12 +132,19 @@ impl EvaluatedViaBindingRow {
 pub struct EvaluatedViaBindingTable {
     scope: source::DependencyScope,
     target: Option<TargetProfile>,
+    /// Identity table every receipt-carried `TerminalIdentityIndex` on the
+    /// rows resolves against.
+    identities: terminal_psi::TerminalIdentityTable,
     rows: Vec<EvaluatedViaBindingRow>,
 }
 
 impl EvaluatedViaBindingTable {
     pub const fn scope(&self) -> source::DependencyScope {
         self.scope
+    }
+    /// The table the binding receipts' `TerminalIdentityIndex` values index.
+    pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.identities
     }
     pub const fn target(&self) -> Option<TargetProfile> {
         self.target
@@ -191,10 +198,12 @@ pub fn evaluate_via_bindings(
         return Ok(EvaluatedViaBindingTable {
             scope: context.scope,
             target: selected_target,
+            identities: terminal_psi::TerminalIdentityTable::from(vec![String::new()]),
             rows: Vec::new(),
         });
     }
     let vocabulary = exact_binding_vocabulary(context)?;
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let selection_authority = package_inputs.cloned().map(|inputs| {
         Arc::new(inputs) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
     });
@@ -225,7 +234,15 @@ pub fn evaluate_via_bindings(
                 continue;
             }
         };
-        match evaluate_one(typed, &admission, &vocabulary, target, machine, conformance) {
+        match evaluate_one(
+            typed,
+            &admission,
+            &vocabulary,
+            target,
+            machine,
+            conformance,
+            &mut identities,
+        ) {
             Ok(row) => rows.push(row),
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
@@ -253,6 +270,7 @@ pub fn evaluate_via_bindings(
         Ok(EvaluatedViaBindingTable {
             scope: context.scope,
             target: selected_target,
+            identities: identities.build(),
             rows,
         })
     } else {

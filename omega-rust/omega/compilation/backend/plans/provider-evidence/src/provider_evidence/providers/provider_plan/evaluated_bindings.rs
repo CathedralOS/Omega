@@ -129,7 +129,8 @@ impl EvaluatedBindingUsage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluatedBindingReceipt {
     producer_package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    producer_callable_identity: String,
+    /// Index into the evaluated via-binding table's `identities` table.
+    producer_callable_identity: terminal_psi::TerminalIdentityIndex,
     producer_closure_digest: EvaluatedBindingProducerClosureDigest,
     evaluator_semantics_marker: u32,
     evaluation_usage: EvaluatedBindingUsage,
@@ -137,6 +138,7 @@ pub struct EvaluatedBindingReceipt {
     materializer_schema_version: u32,
     materialization_digest: EvaluatedBindingMaterializationDigest,
     locator_identity_digest: ForeignLocatorIdentityDigest,
+    identity: [u8; 32],
 }
 
 impl EvaluatedBindingReceipt {
@@ -144,7 +146,8 @@ impl EvaluatedBindingReceipt {
     #[allow(clippy::too_many_arguments)]
     pub fn from_evaluation(
         producer_package: Option<semantic_vocabulary::PackageKeyIdentity>,
-        producer_callable_identity: String,
+        producer_callable_identity: &str,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         producer_closure_digest: EvaluatedBindingProducerClosureDigest,
         evaluator_semantics_marker: u32,
         evaluation_usage: EvaluatedBindingUsage,
@@ -162,7 +165,7 @@ impl EvaluatedBindingReceipt {
                     .to_owned(),
             );
         }
-        Ok(Self {
+        let identity = receipt_identity_digest(
             producer_package,
             producer_callable_identity,
             producer_closure_digest,
@@ -172,6 +175,18 @@ impl EvaluatedBindingReceipt {
             materializer_schema_version,
             materialization_digest,
             locator_identity_digest,
+        );
+        Ok(Self {
+            producer_package,
+            producer_callable_identity: identities.intern(producer_callable_identity),
+            producer_closure_digest,
+            evaluator_semantics_marker,
+            evaluation_usage,
+            evaluation_digest,
+            materializer_schema_version,
+            materialization_digest,
+            locator_identity_digest,
+            identity,
         })
     }
 
@@ -179,8 +194,8 @@ impl EvaluatedBindingReceipt {
         self.producer_package
     }
 
-    pub fn producer_callable_identity(&self) -> &str {
-        &self.producer_callable_identity
+    pub const fn producer_callable_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        self.producer_callable_identity
     }
 
     pub const fn producer_closure_digest(&self) -> EvaluatedBindingProducerClosureDigest {
@@ -212,37 +227,54 @@ impl EvaluatedBindingReceipt {
     }
 
     /// Collision-resistant commitment to every retained receipt field.
-    pub fn identity_digest(&self) -> [u8; 32] {
-        let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
-            b"omega.evaluated-binding-receipt.sha256.v1\0",
-        );
-        match self.producer_package {
-            Some(package) => {
-                digest.byte(1);
-                receipt_hash_bytes(&mut digest, &package.digest());
-            }
-            None => digest.byte(0),
-        }
-        receipt_hash_bytes(&mut digest, self.producer_callable_identity.as_bytes());
-        receipt_hash_bytes(&mut digest, &self.producer_closure_digest.as_bytes());
-        digest.raw(&self.evaluator_semantics_marker.to_le_bytes());
-        let usage = self.evaluation_usage;
-        digest.raw(&usage.usage_schema_version.to_le_bytes());
-        digest.raw(&usage.step_schedule_marker.to_le_bytes());
-        digest.raw(&usage.fuel_units.to_le_bytes());
-        digest.raw(&usage.fuel_ceiling.to_le_bytes());
-        digest.raw(&usage.build_log_bytes.to_le_bytes());
-        digest.raw(&usage.filesystem_operation_attempts.to_le_bytes());
-        digest.raw(&usage.peak_live_cells.to_le_bytes());
-        digest.raw(&usage.peak_live_text_bytes.to_le_bytes());
-        digest.raw(&usage.result_cells.to_le_bytes());
-        digest.raw(&usage.result_text_bytes.to_le_bytes());
-        receipt_hash_bytes(&mut digest, &self.evaluation_digest.as_bytes());
-        digest.raw(&self.materializer_schema_version.to_le_bytes());
-        receipt_hash_bytes(&mut digest, &self.materialization_digest.as_bytes());
-        receipt_hash_bytes(&mut digest, &self.locator_identity_digest.as_bytes());
-        digest.finish().into()
+    pub const fn identity_digest(&self) -> [u8; 32] {
+        self.identity
     }
+}
+
+/// The canonical receipt commitment, computed once at construction where the
+/// producer callable's text is still in scope.
+#[allow(clippy::too_many_arguments)]
+fn receipt_identity_digest(
+    producer_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    producer_callable_identity: &str,
+    producer_closure_digest: EvaluatedBindingProducerClosureDigest,
+    evaluator_semantics_marker: u32,
+    evaluation_usage: EvaluatedBindingUsage,
+    evaluation_digest: EvaluatedBindingEvaluationDigest,
+    materializer_schema_version: u32,
+    materialization_digest: EvaluatedBindingMaterializationDigest,
+    locator_identity_digest: ForeignLocatorIdentityDigest,
+) -> [u8; 32] {
+    let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
+        b"omega.evaluated-binding-receipt.sha256.v1\0",
+    );
+    match producer_package {
+        Some(package) => {
+            digest.byte(1);
+            receipt_hash_bytes(&mut digest, &package.digest());
+        }
+        None => digest.byte(0),
+    }
+    receipt_hash_bytes(&mut digest, producer_callable_identity.as_bytes());
+    receipt_hash_bytes(&mut digest, &producer_closure_digest.as_bytes());
+    digest.raw(&evaluator_semantics_marker.to_le_bytes());
+    let usage = evaluation_usage;
+    digest.raw(&usage.usage_schema_version.to_le_bytes());
+    digest.raw(&usage.step_schedule_marker.to_le_bytes());
+    digest.raw(&usage.fuel_units.to_le_bytes());
+    digest.raw(&usage.fuel_ceiling.to_le_bytes());
+    digest.raw(&usage.build_log_bytes.to_le_bytes());
+    digest.raw(&usage.filesystem_operation_attempts.to_le_bytes());
+    digest.raw(&usage.peak_live_cells.to_le_bytes());
+    digest.raw(&usage.peak_live_text_bytes.to_le_bytes());
+    digest.raw(&usage.result_cells.to_le_bytes());
+    digest.raw(&usage.result_text_bytes.to_le_bytes());
+    receipt_hash_bytes(&mut digest, &evaluation_digest.as_bytes());
+    digest.raw(&materializer_schema_version.to_le_bytes());
+    receipt_hash_bytes(&mut digest, &materialization_digest.as_bytes());
+    receipt_hash_bytes(&mut digest, &locator_identity_digest.as_bytes());
+    digest.finish().into()
 }
 
 fn receipt_hash_bytes(

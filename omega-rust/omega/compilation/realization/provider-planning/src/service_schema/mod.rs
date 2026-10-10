@@ -11,8 +11,8 @@ use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::planning_context::ProviderPlanningContext;
 use effects::provider_plan::{
     ProviderIdentityTable, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
-    ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind, ServiceProgressPremise,
-    ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
+    ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
+    ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
 };
 
 /// Whether retained declaration provenance belongs to the product frontier.
@@ -88,13 +88,10 @@ pub fn from_typed_operator(
     }
     let mut identities = ProviderIdentityTable::default();
     let requirement_identity = identities
-        .intern(&typed_trees::operator::boundary_operator_requirement_identity(
-            program, operator,
-        ));
+        .intern(&typed_trees::operator::boundary_operator_requirement_identity(program, operator));
     Some(ServiceSchema {
         trait_name: requirement_identity,
         trait_package_identity: program.symbols.symbol_package_identity(operator.symbol),
-        identities,
         methods: vec![ServiceMethod {
             completion: validation::boundary_requirement_completion(program, operator.symbol),
             name: "realize".to_owned(),
@@ -109,14 +106,20 @@ pub fn from_typed_operator(
             parameter_type_identities: program
                 .operator_parameters(operator)
                 .iter()
-                .map(|parameter| program.normalized_type_identity_text(parameter.type_reference))
+                .map(|parameter| {
+                    identities
+                        .intern(&program.normalized_type_identity_text(parameter.type_reference))
+                })
                 .collect(),
             entry_claims: Vec::new(),
             has_result: operator.return_type.is_valid(),
             result_type_identity: operator
                 .return_type
                 .is_valid()
-                .then(|| program.normalized_type_identity_text(operator.return_type)),
+                .then(|| {
+                    identities.intern(&program.normalized_type_identity_text(operator.return_type))
+                })
+                .unwrap_or_default(),
             result_claims: Vec::new(),
             service_reach: Vec::new(),
             synchronous_invocations: Vec::new(),
@@ -127,6 +130,7 @@ pub fn from_typed_operator(
             calling_plan_report_fingerprint: None,
             calling_plan_commitment: None,
         }],
+        identities,
     })
 }
 
@@ -182,14 +186,12 @@ pub fn schema_binds_exact_boundary_requirement(
         && requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
         && program.symbols.symbol_package_identity(requirement.symbol)
             == schema.trait_package_identity
-        && from_typed_boundary_requirement(context, requirement)
-            .is_some_and(|candidate| {
-                // Ids only carry meaning inside the table that minted them;
-                // the candidate interns in its own table, so compare the
-                // resolved text, never the raw ids.
-                candidate.identity_text(candidate.trait_name)
-                    == schema.identity_text(schema.trait_name)
-            })
+        && from_typed_boundary_requirement(context, requirement).is_some_and(|candidate| {
+            // Ids only carry meaning inside the table that minted them;
+            // the candidate interns in its own table, so compare the
+            // resolved text, never the raw ids.
+            candidate.identity_text(candidate.trait_name) == schema.identity_text(schema.trait_name)
+        })
 }
 
 /// Reify one exact explicit top-level boundary requirement as a
@@ -226,7 +228,6 @@ pub fn from_typed_boundary_requirement(
     let parameters = program.state_parameters(entry);
     let published_termination = requirement.termination_plan.interface.published()?;
     let package_identity = program.symbols.symbol_package_identity(requirement.symbol);
-
     let mut identities = ProviderIdentityTable::default();
     let requirement_identity_id = identities.intern(&requirement_identity);
     let termination_premises = service_progress_premises_for_parameters(
@@ -246,7 +247,6 @@ pub fn from_typed_boundary_requirement(
             identities.intern(&requirement_path)
         },
         trait_package_identity: package_identity,
-        identities,
         methods: vec![ServiceMethod {
             completion: validation::boundary_requirement_completion(program, requirement.symbol),
             name: method_name.to_owned(),
@@ -256,14 +256,20 @@ pub fn from_typed_boundary_requirement(
             parameter_count: parameters.iter().count(),
             parameter_type_identities: parameters
                 .iter()
-                .map(|parameter| program.normalized_type_identity_text(parameter.type_reference))
+                .map(|parameter| {
+                    identities
+                        .intern(&program.normalized_type_identity_text(parameter.type_reference))
+                })
                 .collect(),
             entry_claims: Vec::new(),
             has_result: entry.return_type.is_valid(),
             result_type_identity: entry
                 .return_type
                 .is_valid()
-                .then(|| program.normalized_type_identity_text(entry.return_type)),
+                .then(|| {
+                    identities.intern(&program.normalized_type_identity_text(entry.return_type))
+                })
+                .unwrap_or_default(),
             result_claims: Vec::new(),
             service_reach: service_reach_row_names(program, requirement.service_reach_row),
             synchronous_invocations: machine_synchronous_invocation_names(program, requirement),
@@ -274,6 +280,7 @@ pub fn from_typed_boundary_requirement(
             calling_plan_report_fingerprint: None,
             calling_plan_commitment: None,
         }],
+        identities,
     })
 }
 
@@ -309,9 +316,8 @@ fn collect_service_methods(
     }
 
     for signature in program.trait_machine_signatures(trait_definition) {
-        let requirement_identity = identities.intern(
-            &program.trait_requirement_callable_identity_text(trait_definition, signature),
-        );
+        let requirement_identity = identities
+            .intern(&program.trait_requirement_callable_identity_text(trait_definition, signature));
         if methods
             .iter()
             .any(|method| method.requirement_identity == requirement_identity)
@@ -335,15 +341,21 @@ fn collect_service_methods(
             parameter_type_identities: program
                 .state_signature_parameters(signature)
                 .iter()
-                .map(|parameter| program.normalized_type_identity_text(parameter.type_reference))
+                .map(|parameter| {
+                    identities
+                        .intern(&program.normalized_type_identity_text(parameter.type_reference))
+                })
                 .collect(),
-            entry_claims: service_entry_claims(program, trait_definition, signature),
+            entry_claims: service_entry_claims(program, trait_definition, signature, identities),
             has_result: signature.return_type.is_valid(),
             result_type_identity: signature
                 .return_type
                 .is_valid()
-                .then(|| program.normalized_type_identity_text(signature.return_type)),
-            result_claims: service_result_claims(program, trait_definition, signature),
+                .then(|| {
+                    identities.intern(&program.normalized_type_identity_text(signature.return_type))
+                })
+                .unwrap_or_default(),
+            result_claims: service_result_claims(program, trait_definition, signature, identities),
             service_reach: service_reach_names(program, trait_definition, signature),
             synchronous_invocations: synchronous_invocation_names(program, signature),
             may_suspend: signature.suspends,
@@ -456,9 +468,8 @@ fn service_progress_establishment_routes(
             };
             ServiceProgressEstablishmentRoute {
                 kind,
-                requirement_identity: identities.intern(
-                    &program.trait_requirement_callable_identity_text(owner, requirement),
-                ),
+                requirement_identity: identities
+                    .intern(&program.trait_requirement_callable_identity_text(owner, requirement)),
             }
         })
         .collect::<Vec<_>>();
@@ -479,6 +490,7 @@ fn service_entry_claims(
     program: &typed_trees::TypedTrees,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     signature: &typed_trees::signature::StateSignature,
+    identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceEntryClaim> {
     let mut claims = Vec::new();
     for (parameter_index, parameter) in program
@@ -497,18 +509,23 @@ fn service_entry_claims(
             parameter_index,
             trait_definition.symbol,
             signature.symbol,
+            identities,
             &mut claims,
         );
     }
     claims.sort_by(|left, right| {
         left.parameter_index
             .cmp(&right.parameter_index)
-            .then_with(|| left.carrier_identity.cmp(&right.carrier_identity))
+            .then_with(|| {
+                identities
+                    .text(left.carrier_identity)
+                    .cmp(identities.text(right.carrier_identity))
+            })
             .then_with(|| left.domain.cmp(&right.domain))
     });
     claims.dedup_by(|left, right| {
         left.parameter_index == right.parameter_index
-            && left.carrier_identity == right.carrier_identity
+            && identities.text(left.carrier_identity) == identities.text(right.carrier_identity)
             && left.domain == right.domain
     });
     claims
@@ -518,6 +535,7 @@ fn service_result_claims(
     program: &typed_trees::TypedTrees,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     signature: &typed_trees::signature::StateSignature,
+    identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceResultClaim> {
     if !signature.return_type.is_valid()
         || program.type_multiplicity(signature.return_type)
@@ -531,6 +549,7 @@ fn service_result_claims(
         signature.return_type,
         trait_definition.symbol,
         signature.symbol,
+        identities,
         &mut claims,
     );
     claims.sort_by(|left, right| left.domain.cmp(&right.domain));
@@ -543,19 +562,34 @@ fn append_bodyless_result_claims(
     type_reference: typed_trees::types::TypeReferenceHandle,
     boundary_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
+    identities: &mut ProviderIdentityTable,
     claims: &mut Vec<ServiceResultClaim>,
 ) {
     use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            append_bodyless_result_claims(program, *referee, boundary_trait, requirement, claims);
+            append_bodyless_result_claims(
+                program,
+                *referee,
+                boundary_trait,
+                requirement,
+                identities,
+                claims,
+            );
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            append_bodyless_result_claims(program, *base_type, boundary_trait, requirement, claims);
+            append_bodyless_result_claims(
+                program,
+                *base_type,
+                boundary_trait,
+                requirement,
+                identities,
+                claims,
+            );
             for constraint in program.type_reference_table.constraints(*constraints) {
                 let TypeConstraintNode::Domain(domain) = constraint else {
                     continue;
@@ -595,6 +629,7 @@ fn append_routed_entry_claims(
     parameter_index: usize,
     boundary_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
+    identities: &mut ProviderIdentityTable,
     claims: &mut Vec<ServiceEntryClaim>,
 ) {
     use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
@@ -607,6 +642,7 @@ fn append_routed_entry_claims(
                 parameter_index,
                 boundary_trait,
                 requirement,
+                identities,
                 claims,
             );
         }
@@ -620,6 +656,7 @@ fn append_routed_entry_claims(
                 parameter_index,
                 boundary_trait,
                 requirement,
+                identities,
                 claims,
             );
             for constraint in program.type_reference_table.constraints(*constraints) {
@@ -639,7 +676,8 @@ fn append_routed_entry_claims(
                 {
                     claims.push(ServiceEntryClaim {
                         parameter_index,
-                        carrier_identity: program.normalized_type_identity_text(*base_type),
+                        carrier_identity: identities
+                            .intern(&program.normalized_type_identity_text(*base_type)),
                         domain: domain
                             .semantic_id
                             .is_valid()

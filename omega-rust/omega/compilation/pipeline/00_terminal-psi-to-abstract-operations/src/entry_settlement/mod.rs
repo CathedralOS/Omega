@@ -106,19 +106,25 @@ fn validate_receiver_eligibility(
         let establishments = program_entry.fused_service_establishments();
         if establishments.len() != eligibility.fused_service_fields().len()
             || eligibility.fused_service_fields().iter().any(|field| {
+                // Rows index the signature's plan-local table while the
+                // eligibility receipt indexes the module's — join by text.
                 establishments
                     .iter()
                     .filter(|row| {
-                        module.identities.text(field.field_identity()) == Some(row.field_identity())
+                        module.identities.text(field.field_identity())
+                            == program_entry.source.identities().text(row.field_identity())
                             && row.field_path().len() == field.field_path().len()
                             && row.field_path().iter().zip(field.field_path()).all(
                                 |(row_segment, field_segment)| {
                                     module.identities.text(*field_segment)
-                                        == Some(row_segment.as_str())
+                                        == program_entry.source.identities().text(*row_segment)
                                 },
                             )
                             && module.identities.text(field.carrier_type_identity())
-                                == Some(row.carrier_type_identity())
+                                == program_entry
+                                    .source
+                                    .identities()
+                                    .text(row.carrier_type_identity())
                     })
                     .count()
                     != 1
@@ -141,7 +147,11 @@ fn validate_receiver_eligibility(
             || entry
                 .attachment
                 .is_some_and(|attachment| attachment != eligibility.terminal_receiver_type())
-            || program_entry.source.receiver().normalized_type_identity()
+            || program_entry
+                .source
+                .receiver()
+                .normalized_type_identity()
+                .and_then(|identity| program_entry.source.identities().text(identity))
                 != module
                     .identities
                     .text(eligibility.source_receiver_type_identity())

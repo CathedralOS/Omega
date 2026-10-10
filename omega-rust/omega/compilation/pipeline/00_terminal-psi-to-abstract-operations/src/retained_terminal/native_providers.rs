@@ -82,6 +82,7 @@ impl TerminalNativeRealizationProposal {
         }
         crate::provider_admission::terminal_authority_permissions::validate_retained_package_terminal_authority_permissions(
             self.package_terminal_authority_permissions(),
+            self.package_terminal_authority_permission_identities(),
             inputs.accepted_package_permissions,
         )?;
         let callbacks = self
@@ -114,6 +115,7 @@ impl TerminalNativeRealizationProposal {
             self.providers().selection.plans(),
             &demanded,
             inputs.imports,
+            &module.identities,
         )?;
 
         let compiler_builtins = crate::provider_admission::prepare_retained_compiler_builtins(

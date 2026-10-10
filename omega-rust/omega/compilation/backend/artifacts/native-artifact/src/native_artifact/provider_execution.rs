@@ -118,6 +118,7 @@ pub(super) fn replay_provider_executions(
                 .unwrap_or_default(),
             foreign,
             selected_provider_plans,
+            &module.identities,
         )
         .map_err(ProviderExecutionReplayError::Shared)?;
         required_executions.insert((
@@ -147,8 +148,9 @@ pub(super) fn validate_foreign_provider_binding(
     requirement: &str,
     foreign: &ObjectForeignCall,
     selected_provider_plans: &[NativeSelectedProviderPlan],
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<(), &'static str> {
-    if foreign.binding.requirement_identity() != requirement
+    if foreign.binding.requirement_identity(identities) != Some(requirement)
         || !foreign.binding.has_valid_entry_mechanism()
     {
         return Err("native external call binding differs from its requirement");
@@ -157,7 +159,9 @@ pub(super) fn validate_foreign_provider_binding(
         validate_foreign_stack_contribution(
             requirement,
             foreign.provider_execution,
-            contribution.requirement_identity(),
+            identities
+                .text(contribution.requirement_identity())
+                .unwrap_or_default(),
             contribution.provider_plan_report_identity(),
             contribution.provider_plan_commitment().as_bytes(),
             selected_provider_plans,

@@ -159,7 +159,10 @@ impl BehaviorExclusions {
             let Some(exercised) = leaf.exercised() else {
                 violations.push(format!(
                     "requirement `{}` has no physical authority classification for mechanism {:?}; requested exclusions cannot be established",
-                    leaf.requirement_identity(),
+                    closure_review
+                        .identities()
+                        .text(leaf.requirement_identity())
+                        .unwrap_or_default(),
                     leaf.mechanism(),
                 ));
                 continue;
@@ -168,7 +171,10 @@ impl BehaviorExclusions {
                 if self.excludes_physical_authority_class(class) {
                     violations.push(format!(
                         "requirement `{}` exercises excluded physical authority class {class:?} through mechanism {:?}",
-                        leaf.requirement_identity(),
+                        closure_review
+                            .identities()
+                            .text(leaf.requirement_identity())
+                            .unwrap_or_default(),
                         leaf.mechanism(),
                     ));
                 }
@@ -357,9 +363,15 @@ fn boundary_realization_coverage(
             for row in &plan.rows {
                 let row_matches = match specialization {
                     Some(specialization) => {
-                        row.requirement_identity == specialization.selected_requirement_identity
+                        Some(plan.identities.text(row.requirement_identity))
+                            == selected_provider_plans
+                                .identities()
+                                .text(specialization.selected_requirement_identity)
                     }
-                    None => row.requirement_identity == requirement_identity,
+                    None => {
+                        Some(plan.identities.text(row.requirement_identity))
+                            == Some(requirement_identity)
+                    }
                 };
                 if !row_matches {
                     continue;
@@ -371,7 +383,11 @@ fn boundary_realization_coverage(
                         ..
                     } => {
                         let realization_identity = specialization
-                            .map(|row| row.machine_identity.as_str())
+                            .and_then(|row| {
+                                selected_provider_plans
+                                    .identities()
+                                    .text(row.machine_identity)
+                            })
                             .unwrap_or_else(|| plan.identity_text(*machine_identity));
                         let mut matched = false;
                         for candidate in candidates.iter().filter(|candidate| {

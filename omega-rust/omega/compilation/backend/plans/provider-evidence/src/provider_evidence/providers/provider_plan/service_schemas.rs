@@ -92,7 +92,8 @@ pub struct ServiceMethod {
     /// excluding any receiver. Domain qualifications and carry permissions
     /// are part of these identities, so a provider plan cannot be replayed
     /// after an authority-bearing parameter is weakened or replaced.
-    pub parameter_type_identities: Vec<String>,
+    /// Indices into the schema's `identities` table.
+    pub parameter_type_identities: Vec<ProviderIdentityId>,
     /// Linear routed qualifications accepted at this boundary entry. These
     /// are structured separately from the complete type identity so provider
     /// admission, carry planning, predicate discharge, and authority-flow
@@ -101,9 +102,10 @@ pub struct ServiceMethod {
     pub entry_claims: Vec<ServiceEntryClaim>,
     /// Whether the method declares a return type.
     pub has_result: bool,
-    /// Semantic identity of the declared result type. `None` denotes no
-    /// result, not a unit-shaped result.
-    pub result_type_identity: Option<String>,
+    /// Semantic identity of the declared result type, as an index into the
+    /// schema's `identities` table. `ABSENT` denotes no result, not a
+    /// unit-shaped result.
+    pub result_type_identity: ProviderIdentityId,
     /// Linear routed qualifications established on this exact result. These
     /// are retained separately from the complete result type so runtime
     /// transition receipts can bind a concrete subject without parsing a
@@ -171,9 +173,7 @@ impl ServiceMethod {
                 .termination_premises
                 .iter()
                 .zip(&other.termination_premises)
-                .all(|(left, right)| {
-                    left.eq_in(left_table, right, right_table)
-                })
+                .all(|(left, right)| left.eq_in(left_table, right, right_table))
             && self.calling_plan_report_fingerprint == other.calling_plan_report_fingerprint
             && self.calling_plan_commitment == other.calling_plan_commitment
     }
@@ -214,9 +214,7 @@ impl PartialEq for ServiceSchema {
                 .methods
                 .iter()
                 .zip(&other.methods)
-                .all(|(left, right)| {
-                    left.eq_in(&self.identities, right, &other.identities)
-                })
+                .all(|(left, right)| left.eq_in(&self.identities, right, &other.identities))
     }
 }
 
@@ -313,9 +311,10 @@ pub struct ServiceEntryClaim {
     /// Positional parameter ordinal after excluding any receiver.
     pub parameter_index: usize,
     /// Canonical normalized identity of the carrier qualified by this routed
-    /// domain. Consumers must not recover it by parsing the complete parameter
+    /// domain, as an index into the enclosing schema's `identities` table.
+    /// Consumers must not recover it by parsing the complete parameter
     /// type or substitute an authored display spelling.
-    pub carrier_identity: String,
+    pub carrier_identity: ProviderIdentityId,
     /// Carrier-aware normalized semantic-domain identity retained by the typed
     /// constraint. This is not the authored short spelling.
     pub domain: String,
@@ -339,17 +338,29 @@ pub struct ServiceResultClaim {
 impl ServiceSchema {
     /// Match a provider row to one exact requirement. The readable method name
     /// must agree as a drift check, but only the canonical overload identity
-    /// selects the requirement.
-    pub fn row_binds_method(&self, row: &ProviderPlanRow, method: &ServiceMethod) -> bool {
-        !row.requirement_identity.is_empty()
+    /// selects the requirement. The row's identity resolves against the owning
+    /// plan's `identities` table.
+    pub fn row_binds_method(
+        &self,
+        row: &ProviderPlanRow,
+        method: &ServiceMethod,
+        row_identities: &ProviderIdentityTable,
+    ) -> bool {
+        row.requirement_identity.is_valid()
             && row.method == method.name
-            && self.identities.id_at(&row.requirement_identity)
+            && self
+                .identities
+                .id_at(row_identities.text(row.requirement_identity))
                 == Some(method.requirement_identity)
     }
 
-    pub fn method_for_row(&self, row: &ProviderPlanRow) -> Option<&ServiceMethod> {
+    pub fn method_for_row(
+        &self,
+        row: &ProviderPlanRow,
+        row_identities: &ProviderIdentityTable,
+    ) -> Option<&ServiceMethod> {
         self.methods
             .iter()
-            .find(|method| self.row_binds_method(row, method))
+            .find(|method| self.row_binds_method(row, method, row_identities))
     }
 }

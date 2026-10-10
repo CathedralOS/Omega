@@ -79,10 +79,11 @@ pub(crate) fn prepare_source_evaluated_bindings<'input>(
     plans: &'input [ProviderPlan],
     demanded: &BTreeSet<String>,
     supplied: &[SourceEvaluatedImportSettlement<'input>],
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<PreparedSourceEvaluatedBindings<'input>, Vec<Diagnostic>> {
     let exact_plans = exact_demanded_import_plans(plans, demanded)?;
     let evidence = if supplied.is_empty() {
-        SourceImportEvidence::Derived(mint_source_evaluated_imports(plans, demanded)?)
+        SourceImportEvidence::Derived(mint_source_evaluated_imports(plans, demanded, identities)?)
     } else {
         SourceImportEvidence::Supplied(rejoin_external_import_settlements(&exact_plans, supplied)?)
     };
@@ -195,6 +196,7 @@ struct MintedSourceEvaluatedImport<'plan> {
 fn mint_source_evaluated_imports<'plan>(
     plans: &'plan [ProviderPlan],
     demanded: &BTreeSet<String>,
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<MintedSourceEvaluatedImport<'plan>>, Vec<Diagnostic>> {
     let mut minted = Vec::new();
     let mut diagnostics = Vec::new();
@@ -203,10 +205,10 @@ fn mint_source_evaluated_imports<'plan>(
             let ProviderBinding::Import { evaluated } = &row.binding else {
                 continue;
             };
-            if !demanded.contains(&row.requirement_identity) {
+            let requirement = plan.identities.text(row.requirement_identity);
+            if !demanded.contains(requirement) {
                 continue;
             }
-            let requirement = row.requirement_identity.as_str();
             let plan_report_identity = plan.report_fingerprint();
             let plan_commitment =
                 SameStackProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes());
@@ -245,18 +247,24 @@ fn mint_source_evaluated_imports<'plan>(
                     continue;
                 }
             };
+            let Some(requirement_index) = identities.index_of(requirement) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "source-evaluated import `{requirement}` is absent from the module identity table"
+                )));
+                continue;
+            };
             match admit_same_stack_contribution(
                 SameStackContributionAdmissionCandidate {
                     provider_plan_report_identity: plan_report_identity,
                     provider_plan_commitment: plan_commitment,
-                    requirement_identity: requirement.to_owned(),
+                    requirement_identity: requirement_index,
                     receipt,
                     bytes: SAME_STACK_BYTES,
                     alignment: SAME_STACK_ALIGNMENT,
                 },
                 plan_report_identity,
                 plan_commitment,
-                requirement,
+                requirement_index,
             ) {
                 Ok(same_stack) => minted.push(MintedSourceEvaluatedImport {
                     plan,
@@ -301,7 +309,7 @@ fn exact_demanded_import_plans<'proposal>(
                 plan.rows
                     .iter()
                     .filter(move |row| {
-                        row.requirement_identity == *requirement
+                        plan.identities.text(row.requirement_identity) == requirement.as_str()
                             && matches!(row.binding, ProviderBinding::Import { .. })
                     })
                     .map(move |_| plan)

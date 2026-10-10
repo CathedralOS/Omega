@@ -122,15 +122,13 @@ pub(super) fn validate(
         let matches = granted_plans
             .iter()
             .filter(|grant| {
-                grant
-                    .selected_plan
-                    .schema
-                    .methods
-                    .iter()
-                    .any(|method| {
-                        grant.selected_plan.schema.identity_text(method.requirement_identity)
-                            == requirement_identity
-                    })
+                grant.selected_plan.schema.methods.iter().any(|method| {
+                    grant
+                        .selected_plan
+                        .schema
+                        .identity_text(method.requirement_identity)
+                        == requirement_identity
+                })
             })
             .collect::<Vec<_>>();
         // A shared requirement identity — an inherited requirement carried

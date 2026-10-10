@@ -429,12 +429,16 @@ fn validate_selected_program_entry_shape(
     // rows, not arrival parameters, so they never occupy the signature's
     // visible-parameter roles.
     let visible = visible_entry_parameters(typed, parameters, &context);
+    // The signature's identity table mints its indices beside the checked
+    // program, before a Terminal module exists; native consumers rejoin them
+    // through the text.
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let receiver = context.as_ref().map_or(
         program_entry_plan::ProgramEntryReceiverSignature::Free,
         |context| program_entry_plan::ProgramEntryReceiverSignature::ProvisionedMutable {
             source_position: context.source_position,
-            normalized_type_identity: typed
-                .normalized_type_identity_text(context.parameter.type_reference),
+            normalized_type_identity: identities
+                .intern(&typed.normalized_type_identity_text(context.parameter.type_reference)),
         },
     );
     let visible_parameters = visible
@@ -461,8 +465,8 @@ fn validate_selected_program_entry_shape(
             Ok(program_entry_plan::SelectedProgramEntrySignature::visible_parameter(
                 role,
                 index,
-                typed
-                    .normalized_type_identity_text(parameter.type_reference),
+                identities
+                    .intern(&typed.normalized_type_identity_text(parameter.type_reference)),
                 value_shape,
                 extent_value_layout,
                 parameter.is_const,
@@ -506,11 +510,14 @@ fn validate_selected_program_entry_shape(
         declaration,
         machine.name.as_str().to_owned(),
         entry.name.as_str().to_owned(),
-        typed
-            .machine_callable_identity_text(machine)
-            .expect("selected entry has one checked executable state"),
+        identities.intern(
+            &typed
+                .machine_callable_identity_text(machine)
+                .expect("selected entry has one checked executable state"),
+        ),
         receiver,
         visible_parameters,
+        identities.build(),
     )
     .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])?;
     Ok(SelectedEntryDeclaration {
@@ -573,6 +580,12 @@ impl SelectedCompilerProgramEntry {
 
     pub const fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
         &self.declaration.signature
+    }
+
+    /// Replaces the source signature's identity table after late minting —
+    /// bound fused service establishments intern their rows into it.
+    pub fn set_source_identities(&mut self, identities: terminal_psi::TerminalIdentityTable) {
+        self.declaration.signature.set_identities(identities);
     }
 
     pub const fn machine_symbol(&self) -> symbols::SymbolHandle {

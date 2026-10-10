@@ -451,34 +451,33 @@ pub fn selected_requirement_plan<'a>(
         return None;
     }
     let typed = context.typed;
-    let mut matching: Vec<(usize, &'a ProviderPlan)> = match typed
-        .operator_definition_by_symbol(requirement)
-    {
-        Some(operator) => {
-            let slot =
-                typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
-            let package = typed.symbols.symbol_package_identity(operator.symbol);
-            plans
-                .iter()
-                .enumerate()
-                .filter(|(_, plan)| {
-                    plan.schema.identity_text(plan.schema.trait_name) == slot
-                        && plan.schema.trait_package_identity == package
-                })
-                .collect()
-        }
-        None => {
-            let requirement = crate::IntrinsicRequirement::by_symbol(typed, requirement)?;
-            if requirement.kind != crate::IntrinsicRequirementKind::TopLevelRequirement {
-                return None;
+    let mut matching: Vec<(usize, &'a ProviderPlan)> =
+        match typed.operator_definition_by_symbol(requirement) {
+            Some(operator) => {
+                let slot =
+                    typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
+                let package = typed.symbols.symbol_package_identity(operator.symbol);
+                plans
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, plan)| {
+                        plan.schema.identity_text(plan.schema.trait_name) == slot
+                            && plan.schema.trait_package_identity == package
+                    })
+                    .collect()
             }
-            plans
-                .iter()
-                .enumerate()
-                .filter(|(_, plan)| requirement.schema_binds(context, &plan.schema))
-                .collect()
-        }
-    };
+            None => {
+                let requirement = crate::IntrinsicRequirement::by_symbol(typed, requirement)?;
+                if requirement.kind != crate::IntrinsicRequirementKind::TopLevelRequirement {
+                    return None;
+                }
+                plans
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, plan)| requirement.schema_binds(context, &plan.schema))
+                    .collect()
+            }
+        };
     match matching.len() {
         1 => matching.pop(),
         _ => None,

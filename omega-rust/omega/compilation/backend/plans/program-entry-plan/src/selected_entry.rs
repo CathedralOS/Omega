@@ -17,9 +17,12 @@ use crate::{ProgramEntryPhysicalContractPlan, ProgramStorageEntryDiagnostic};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramStorageEntryPlan {
     target_slot: target::ProgramEntrySlotDeclaration,
-    requirement_identity: String,
+    requirement_identity: terminal_psi::TerminalIdentityIndex,
     schema: effects::provider_plan::ServiceSchema,
     physical_contract: Option<ProgramEntryPhysicalContractPlan>,
+    /// Identity text the plan's indices resolve against — minted beside the
+    /// checked program before a Terminal module exists.
+    identities: terminal_psi::TerminalIdentityTable,
 }
 
 impl SelectedProgramStorageEntryPlan {
@@ -79,14 +82,14 @@ impl SelectedProgramStorageEntryPlan {
             .methods
             .iter()
             .filter(|method| {
-                schema.identities.id_at(&requirement_identity)
-                    == Some(method.requirement_identity)
+                schema.identities.id_at(&requirement_identity) == Some(method.requirement_identity)
             })
             .collect::<Vec<_>>();
         let [method] = matching_methods.as_slice() else {
             return Err(ProgramStorageEntryDiagnostic(format!(
-                "target program-storage entry schema retains {} copies of exact arrival requirement `{requirement_identity}`",
+                "target program-storage entry schema retains {} copies of exact arrival requirement `{}`",
                 matching_methods.len(),
+                requirement_identity,
             )));
         };
         if method.requirement_owner != PROGRAM_STORAGE_ENTRY_OWNER
@@ -97,12 +100,20 @@ impl SelectedProgramStorageEntryPlan {
             )));
         }
 
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let requirement_identity = identities.intern(&requirement_identity);
         Ok(Self {
             target_slot: slot,
             requirement_identity,
             schema,
             physical_contract: None,
+            identities: identities.build(),
         })
+    }
+
+    /// The plan-local table this plan's requirement index resolves against.
+    pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.identities
     }
 
     pub fn with_physical_contract(
@@ -131,8 +142,8 @@ impl SelectedProgramStorageEntryPlan {
         &self.schema
     }
 
-    pub fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
+    pub const fn requirement_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        self.requirement_identity
     }
 
     pub const fn physical_contract(&self) -> Option<&ProgramEntryPhysicalContractPlan> {

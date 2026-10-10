@@ -17,8 +17,20 @@ fn near_return_is_exact_and_separates_abi_result_custody_from_encoded_effects() 
     assert_eq!(encoded.bytes(), [0xc3]);
     assert!(encoded.footprint().register_reads.is_empty());
     assert!(encoded.footprint().register_writes.is_empty());
-    assert_eq!(encoded.footprint().encoded.external_operand_reads, []);
-    assert_eq!(encoded.footprint().encoded.external_operand_writes, []);
+    assert!(
+        encoded
+            .footprint()
+            .encoded
+            .external_operand_reads
+            .is_empty()
+    );
+    assert!(
+        encoded
+            .footprint()
+            .encoded
+            .external_operand_writes
+            .is_empty()
+    );
     assert_eq!(encoded.footprint().encoded.implicit_unit_uses, rsp.units);
     let mut expected_defs = rsp.units.clone();
     expected_defs.extend(&rip.units);

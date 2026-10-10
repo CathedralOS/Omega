@@ -12,12 +12,19 @@ pub(crate) const TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION: u32 = 1;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityPermissionPolicy {
     identity: TerminalAuthorityPermissionPolicyIdentity,
+    /// Identity table every row's `requirement_identity` index resolves against.
+    identities: terminal_psi::TerminalIdentityTable,
     rows: Vec<TerminalAuthorityPermissionPolicyRow>,
 }
 
 impl TerminalAuthorityPermissionPolicy {
     pub const fn identity(&self) -> TerminalAuthorityPermissionPolicyIdentity {
         self.identity
+    }
+
+    /// The table the policy rows' `TerminalIdentityIndex` values index.
+    pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.identities
     }
 
     pub fn rows(&self) -> &[TerminalAuthorityPermissionPolicyRow] {
@@ -33,7 +40,8 @@ impl TerminalAuthorityPermissionPolicy {
             .iter()
             .find(|row| {
                 row.service_schema() == service_schema
-                    && row.requirement_identity() == requirement_identity
+                    && self.identities.text(row.requirement_identity())
+                        == Some(requirement_identity)
             })
             .map(|row| row.permitted().clone())
             .ok_or_else(|| MissingTerminalAuthorityPermission {
@@ -63,23 +71,31 @@ pub enum TerminalAuthorityPermissionPolicyBuildError {
 
 pub fn terminal_authority_permission_policy_with_rows(
     mut rows: Vec<TerminalAuthorityPermissionPolicyRow>,
+    identities: terminal_psi::TerminalIdentityTable,
 ) -> Result<TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError> {
-    if rows.iter().any(|row| row.requirement_identity().is_empty()) {
-        return Err(TerminalAuthorityPermissionPolicyBuildError::EmptyRequirement);
-    }
     if rows
         .iter()
-        .any(|row| row.requirement_identity().chars().any(char::is_control))
+        .any(|row| row.requirement_identity().is_absent())
     {
+        return Err(TerminalAuthorityPermissionPolicyBuildError::EmptyRequirement);
+    }
+    if rows.iter().any(|row| {
+        identities
+            .text(row.requirement_identity())
+            .unwrap_or_default()
+            .chars()
+            .any(char::is_control)
+    }) {
         return Err(TerminalAuthorityPermissionPolicyBuildError::InvalidRequirement);
     }
     rows.sort_by(|left, right| {
         left.service_schema()
             .as_bytes()
-            .cmp(right.service_schema().as_bytes())
+            .cmp(&right.service_schema().as_bytes())
             .then_with(|| {
-                left.requirement_identity()
-                    .cmp(right.requirement_identity())
+                identities
+                    .text(left.requirement_identity())
+                    .cmp(&identities.text(right.requirement_identity()))
             })
     });
     if let Some(rows) = rows.windows(2).find(|rows| {
@@ -89,18 +105,26 @@ pub fn terminal_authority_permission_policy_with_rows(
         return Err(
             TerminalAuthorityPermissionPolicyBuildError::DuplicatePermission {
                 service_schema: rows[0].service_schema(),
-                requirement_identity: rows[0].requirement_identity().to_owned(),
+                requirement_identity: identities
+                    .text(rows[0].requirement_identity())
+                    .unwrap_or_default()
+                    .to_owned(),
             },
         );
     }
-    let identity = permission_policy_identity(&rows);
-    Ok(TerminalAuthorityPermissionPolicy { identity, rows })
+    let identity = permission_policy_identity(&rows, &identities);
+    Ok(TerminalAuthorityPermissionPolicy {
+        identity,
+        identities,
+        rows,
+    })
 }
 
 /// Empty, exact deny-by-absence policy. Authority-bearing and authority-free
 /// terminal leaves both require explicit schema/requirement permission rows.
 fn permission_policy_identity(
     rows: &[TerminalAuthorityPermissionPolicyRow],
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> TerminalAuthorityPermissionPolicyIdentity {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
         b"omega.terminal-authority.permission-policy.v1\0",
@@ -109,8 +133,11 @@ fn permission_policy_identity(
     digest.raw(&(rows.len() as u64).to_be_bytes());
     for row in rows {
         digest.raw(row.service_schema().as_bytes());
-        digest.raw(&(row.requirement_identity().len() as u64).to_be_bytes());
-        digest.raw(row.requirement_identity().as_bytes());
+        let requirement = identities
+            .text(row.requirement_identity())
+            .unwrap_or_default();
+        digest.raw(&(requirement.len() as u64).to_be_bytes());
+        digest.raw(requirement.as_bytes());
         digest.raw(&(row.permitted().classes().len() as u64).to_be_bytes());
         for class in row.permitted().classes() {
             digest.byte(class.canonical_tag());

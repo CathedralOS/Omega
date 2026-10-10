@@ -54,7 +54,7 @@ pub(crate) fn boundary_application_coverage_identity(
     let applications = coverage.opaque_applications();
     digest.raw(&canonical_usize(applications.rows().len()));
     for application in applications.rows() {
-        hash_bytes(&mut digest, application.requirement_identity.as_bytes());
+        digest.raw(&application.requirement_identity.0.to_le_bytes());
         digest.raw(&application.shape_root.to_le_bytes());
         digest.raw(&application.application_report_fingerprint.to_le_bytes());
         digest.raw(&application.selected_application_commitment);

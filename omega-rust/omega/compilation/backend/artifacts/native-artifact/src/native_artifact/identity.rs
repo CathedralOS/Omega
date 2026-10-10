@@ -152,9 +152,27 @@ pub(super) fn derive_native_artifact_identity(
             hash_bytes(&mut digest, row.target.as_bytes());
             digest.raw(&row.head.get().to_le_bytes());
             digest.raw(&row.member.get().to_le_bytes());
-            hash_bytes(&mut digest, row.head_identity.as_bytes());
-            hash_bytes(&mut digest, row.member_identity.as_bytes());
-            hash_bytes(&mut digest, row.selected_requirement_identity.as_bytes());
+            hash_bytes(
+                &mut digest,
+                plan.family_realization_identities
+                    .text(row.head_identity)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+            hash_bytes(
+                &mut digest,
+                plan.family_realization_identities
+                    .text(row.member_identity)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+            hash_bytes(
+                &mut digest,
+                plan.family_realization_identities
+                    .text(row.selected_requirement_identity)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
             digest.raw(&row.provider_plan_report_identity.to_le_bytes());
             digest.raw(row.provider_plan_digest.as_bytes());
         }
@@ -308,7 +326,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
         digest.raw(&contribution.commitment().as_bytes());
         digest.raw(&contribution.provider_plan_report_identity().to_le_bytes());
         digest.raw(&contribution.provider_plan_commitment().as_bytes());
-        hash_bytes(&mut digest, contribution.requirement_identity().as_bytes());
+        digest.raw(&contribution.requirement_identity().0.to_le_bytes());
         digest.raw(&contribution.receipt().normalized_identity().to_le_bytes());
         digest.raw(&contribution.bytes().to_le_bytes());
         digest.raw(&contribution.alignment().to_le_bytes());

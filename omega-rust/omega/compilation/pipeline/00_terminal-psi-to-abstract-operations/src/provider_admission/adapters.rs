@@ -81,14 +81,14 @@ pub(crate) fn project_selected_provider_adapters_for_requirements(
             let specialized = selected
                 .specialized_requirement_rows_for_row(
                     plan.report_fingerprint(),
-                    &row.requirement_identity,
+                    plan.identities.text(row.requirement_identity),
                 )
                 .collect::<Vec<_>>();
             if specialized.is_empty() {
                 project(
                     plan,
                     relevant_requirements,
-                    &row.requirement_identity,
+                    plan.identities.text(row.requirement_identity),
                     plan.identity_text(*machine_identity),
                     *machine_package_identity,
                     &mut adapters,
@@ -98,8 +98,14 @@ pub(crate) fn project_selected_provider_adapters_for_requirements(
                     project(
                         plan,
                         relevant_requirements,
-                        &specialization.requirement_identity,
-                        &specialization.machine_identity,
+                        selected
+                            .identities()
+                            .text(specialization.requirement_identity)
+                            .unwrap_or_default(),
+                        selected
+                            .identities()
+                            .text(specialization.machine_identity)
+                            .unwrap_or_default(),
                         *machine_package_identity,
                         &mut adapters,
                     )?;

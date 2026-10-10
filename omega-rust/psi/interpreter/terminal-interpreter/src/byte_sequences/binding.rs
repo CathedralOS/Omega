@@ -196,7 +196,8 @@ impl TerminalExecution<'_> {
                 .is_some_and(|row| {
                     // This selects frame custody, not descriptor words. A
                     // bounded loan keeps its statically known extent.
-                    row.shape.is_borrowed_byte_carrier() || row.shape.is_bounded_owned_byte_sequence()
+                    row.shape.is_borrowed_byte_carrier()
+                        || row.shape.is_bounded_owned_byte_sequence()
                 })
         {
             return Err(malformed());

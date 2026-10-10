@@ -134,7 +134,7 @@ impl<'a> ReviewContext<'a> {
                     .filter(move |row| {
                         self.selected.selected_row_matches_requirement(
                             requirement,
-                            &row.requirement_identity,
+                            plan.identities.text(row.requirement_identity),
                             plan.report_fingerprint(),
                         )
                     })

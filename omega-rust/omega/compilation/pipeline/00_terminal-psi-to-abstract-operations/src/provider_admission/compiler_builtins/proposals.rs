@@ -137,7 +137,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
                 effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
             ) {
                 selected_rows.push(SelectedIntrinsicRow {
-                    requirement_identity: &row.requirement_identity,
+                    requirement_identity: plan.identities.text(row.requirement_identity),
                     plan_index,
                     plan_name: &plan.name,
                     execution: *execution,

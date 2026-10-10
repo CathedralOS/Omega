@@ -605,6 +605,7 @@ pub struct NativeSelectedProviderPlan {
     plan_digest: NativeSelectedProviderPlanDigest,
     requirement_identities: Vec<String>,
     family_realization_rows: Vec<effects::SelectedTargetFamilyRealization>,
+    family_realization_identities: terminal_psi::TerminalIdentityTable,
 }
 
 impl NativeSelectedProviderPlan {
@@ -624,7 +625,7 @@ impl NativeSelectedProviderPlan {
                     .flat_map(|row| {
                         selection.selected_row_requirement_identities(
                             report_identity,
-                            &row.requirement_identity,
+                            plan.identities.text(row.requirement_identity),
                         )
                     })
                     .map(str::to_owned)
@@ -642,6 +643,7 @@ impl NativeSelectedProviderPlan {
                     .filter(|row| row.provider_plan_report_identity == report_identity)
                     .cloned()
                     .collect();
+                projected.family_realization_identities = selection.identities().clone();
                 projected
             })
             .collect::<Vec<_>>();
@@ -661,6 +663,9 @@ impl NativeSelectedProviderPlan {
             plan_digest,
             requirement_identities,
             family_realization_rows: Vec::new(),
+            family_realization_identities: terminal_psi::TerminalIdentityTable::from(vec![
+                String::new(),
+            ]),
         }
     }
 
@@ -680,15 +685,27 @@ impl NativeSelectedProviderPlan {
         &self.family_realization_rows
     }
 
+    /// Identity table the stored family-realization row indices resolve
+    /// against, cloned from the selected facts that projected them.
+    pub fn family_realization_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.family_realization_identities
+    }
+
     /// Recover the authority requirement without rewriting the original
     /// callable occurrence. These rows were projected from the exact selected
     /// closure and remain committed by both closure and artifact identities.
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
         self.family_realization_rows
             .iter()
-            .find(|row| row.head_identity == requirement || row.member_identity == requirement)
+            .find(|row| {
+                self.family_realization_identities.text(row.head_identity) == Some(requirement)
+                    || self.family_realization_identities.text(row.member_identity)
+                        == Some(requirement)
+            })
             .map_or(requirement, |row| {
-                row.selected_requirement_identity.as_str()
+                self.family_realization_identities
+                    .text(row.selected_requirement_identity)
+                    .unwrap_or(requirement)
             })
     }
 }

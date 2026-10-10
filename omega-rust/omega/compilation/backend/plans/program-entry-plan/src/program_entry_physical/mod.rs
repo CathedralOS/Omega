@@ -78,12 +78,15 @@ impl ProgramEntryPhysicalContractPackageSourceDigest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramEntryPhysicalContractPlan {
     target_slot: target::ProgramEntrySlotDeclaration,
-    requirement_identity: String,
+    requirement_identity: terminal_psi::TerminalIdentityIndex,
+    /// Identity text the contract's indices resolve against — minted beside
+    /// the checked program before a Terminal module exists.
+    identities: terminal_psi::TerminalIdentityTable,
     target_package: target::ProgramEntryPhysicalContractPackage,
     target_package_source_digest: ProgramEntryPhysicalContractPackageSourceDigest,
     non_authoritative_target_package_source_report_fingerprint: u64,
-    parameter_type_identities: Vec<String>,
-    result_type_identity: String,
+    parameter_type_identities: Vec<terminal_psi::TerminalIdentityIndex>,
+    result_type_identity: terminal_psi::TerminalIdentityIndex,
     calling_plan_report_fingerprint: u64,
     boundary_entry_plan: BoundaryEntryPlan,
     /// Numeric entry-stack closure only where the target contract supplies
@@ -194,7 +197,9 @@ impl ProgramEntryPhysicalContractPlan {
         };
         if requirement_identity.is_empty()
             || parameter_type_identities.len() != parameter_count
-            || parameter_type_identities.iter().any(String::is_empty)
+            || parameter_type_identities
+                .iter()
+                .any(|identity| identity.is_empty())
             || result_type_identity.is_empty()
             || calling_plan_report_fingerprint == 0
         {
@@ -210,26 +215,36 @@ impl ProgramEntryPhysicalContractPlan {
                 "physical {physical_requirement} entry contract does not realize {parameter_count} {expected_policy:?} inputs and one result"
             ));
         }
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         Ok(Self {
             target_slot,
-            requirement_identity,
+            requirement_identity: identities.intern(&requirement_identity),
             target_package,
             target_package_source_digest,
             non_authoritative_target_package_source_report_fingerprint,
-            parameter_type_identities,
-            result_type_identity,
+            parameter_type_identities: parameter_type_identities
+                .iter()
+                .map(|identity| identities.intern(identity))
+                .collect(),
+            result_type_identity: identities.intern(&result_type_identity),
             calling_plan_report_fingerprint,
             boundary_entry_plan,
             guaranteed_entry_stack,
+            identities: identities.build(),
         })
+    }
+
+    /// The plan-local table this contract's identity indices resolve against.
+    pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.identities
     }
 
     pub const fn target_slot(&self) -> target::ProgramEntrySlotDeclaration {
         self.target_slot
     }
 
-    pub fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
+    pub const fn requirement_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        self.requirement_identity
     }
 
     pub const fn target_package(&self) -> target::ProgramEntryPhysicalContractPackage {
@@ -250,12 +265,12 @@ impl ProgramEntryPhysicalContractPlan {
         self.non_authoritative_target_package_source_report_fingerprint
     }
 
-    pub fn parameter_type_identities(&self) -> &[String] {
+    pub fn parameter_type_identities(&self) -> &[terminal_psi::TerminalIdentityIndex] {
         &self.parameter_type_identities
     }
 
-    pub fn result_type_identity(&self) -> &str {
-        &self.result_type_identity
+    pub const fn result_type_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        self.result_type_identity
     }
 
     pub const fn calling_plan_report_fingerprint(&self) -> u64 {

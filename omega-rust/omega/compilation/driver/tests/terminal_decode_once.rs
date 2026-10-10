@@ -60,41 +60,43 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         .unwrap_or_else(|| panic!("{FIXTURE} native proposal"));
     let package_policy = provider_admission::terminal_authority_permission_policy_with_rows(
         proposal.package_terminal_authority_permissions().to_vec(),
+        proposal
+            .package_terminal_authority_permission_identities()
+            .clone(),
     )
     .expect("package permission policy");
+    let mut permission_identities = proposal
+        .package_terminal_authority_permission_identities()
+        .clone()
+        .into_builder();
+    let package_permissions = proposal.package_terminal_authority_permissions().to_vec();
+    let mut minted_rows = package_permissions;
+    for plan in proposal.providers().selection.plans() {
+        for row in &plan.rows {
+            minted_rows.push(
+                provider_admission::TerminalAuthorityPermissionPolicyRow::new(
+                    plan.schema.identity_digest(),
+                    permission_identities.intern(plan.identities.text(row.requirement_identity)),
+                    effects::TerminalAuthorityDisposition::from_classes([]),
+                ),
+            );
+        }
+    }
+    let permission_rows = minted_rows.into_iter().fold(
+        Vec::new(),
+        |mut rows: Vec<provider_admission::TerminalAuthorityPermissionPolicyRow>, row| {
+            if !rows.iter().any(|seen| {
+                seen.service_schema() == row.service_schema()
+                    && seen.requirement_identity() == row.requirement_identity()
+            }) {
+                rows.push(row);
+            }
+            rows
+        },
+    );
     let permission_policy = provider_admission::terminal_authority_permission_policy_with_rows(
-        proposal
-            .package_terminal_authority_permissions()
-            .iter()
-            .cloned()
-            .chain(
-                proposal
-                    .providers()
-                    .selection
-                    .plans()
-                    .iter()
-                    .flat_map(|plan| {
-                        plan.rows.iter().map(|row| {
-                            provider_admission::TerminalAuthorityPermissionPolicyRow::new(
-                                plan.schema.identity_digest(),
-                                row.requirement_identity.clone(),
-                                effects::TerminalAuthorityDisposition::from_classes([]),
-                            )
-                        })
-                    }),
-            )
-            .fold(
-                Vec::new(),
-                |mut rows: Vec<provider_admission::TerminalAuthorityPermissionPolicyRow>, row| {
-                    if !rows.iter().any(|seen| {
-                        seen.service_schema() == row.service_schema()
-                            && seen.requirement_identity() == row.requirement_identity()
-                    }) {
-                        rows.push(row);
-                    }
-                    rows
-                },
-            ),
+        permission_rows,
+        permission_identities.build(),
     )
     .expect("permission policy");
     let image_request =
