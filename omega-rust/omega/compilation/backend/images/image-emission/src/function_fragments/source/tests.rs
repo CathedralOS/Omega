@@ -69,6 +69,7 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
                 },
             ),
             value: scalar,
+            range_obligation: None,
         },
     ];
     assert!(!requires_graph_storage_replay(&[]));
