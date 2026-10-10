@@ -19,8 +19,7 @@ use crate::unit::{
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, ClaimId, CompletionReceipt,
     LoweringError, Multiplicity, Operation, OperationKind, OperationResult,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration,
-    allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported,
-    value_id,
+    allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported, value_id,
 };
 
 /// The operands every boundary call shape lowers identically.
