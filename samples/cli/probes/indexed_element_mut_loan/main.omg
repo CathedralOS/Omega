@@ -1,0 +1,36 @@
+// An indexed element lends `&mut` into a call parameter:
+// `bump(&mut rooms[from_index])` loans the selected
+// element exclusively, writes through it land in the
+// caller's array, and the index stays an ordinary
+// runtime value.
+//
+//   * `&mut rooms[from_index]` — runtime-indexed
+//     mutable loan as a call argument.
+//   * The callee's writes (`room.exit_count + 1`)
+//     observe through the loaned element only.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+data Room {
+    exit_count: u32 in Wrapping;
+}
+
+machine bump(room: &mut Room) {
+    room.exit_count = room.exit_count + 1;
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
+    let from_index: u64 = 1;
+    bump(&mut rooms[from_index]);
+    transition rooms[0].exit_count == 0 && rooms[1].exit_count == 11 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
