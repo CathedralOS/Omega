@@ -5,7 +5,7 @@
 //! owner; absence of a stored receiver is not evidence that its loans exist.
 
 use super::{RecordLeafLoans, StoredCarrierSource, local_record_loans, record_carrier_sources};
-use checked_trees::{CheckFacts, CheckedUnitStructuralArgumentSourcePlan};
+use checked_trees::{CheckFacts, CheckedUnitStructuralArgumentSourcePlan, FlowCallResult};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
@@ -54,6 +54,27 @@ pub fn record_call_reception(
     let anonymous = || RecordCallReception {
         residual_paths: returned.iter().map(|leaf| leaf.path.clone()).collect(),
     };
+    // The checked call row carries this occurrence's actual capture: which
+    // authored construct receives the result. Replaying the typed
+    // `local.initial_value` re-derives a node preparation may already have
+    // rewritten (substituted specialization arguments, folded constructors),
+    // so a mutable holder's genuine receiver can never join its own call.
+    let Some(occurrence) = facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .map(|(_, occurrence)| occurrence)
+        .find(|occurrence| {
+            occurrence.authored_expression == expression
+                && occurrence.statement_index == statement_index as usize
+                && occurrence.target_symbol == call.target_symbol
+        })
+    else {
+        // The semantic call roster owns every executed invocation; a
+        // missing row is an incomplete relation, not an anonymous receiver.
+        return None;
+    };
     let Some(local) = program
         .statement_table
         .statement_at(state, statement_index as usize)
@@ -61,10 +82,28 @@ pub fn record_call_reception(
     else {
         return Some(anonymous());
     };
+    // Only a binding the checked relation names as receiving the whole
+    // result installs leaves here: the immutable local that names the call,
+    // or the mutable local an `Operand` capture feeds as its whole
+    // initializer. Everything else — enclosing expressions, assignments,
+    // discarded calls — owns no slot.
+    let receives = match occurrence.authored_result {
+        FlowCallResult::ImmutableLocal => !local.is_mutable,
+        FlowCallResult::Operand => {
+            local.is_mutable && local.initial_value == expression
+        }
+        FlowCallResult::Discarded => false,
+    };
+    if !receives {
+        return Some(anonymous());
+    }
+    // Structural roots key on the authored value occurrence, which the
+    // captured call row already binds to `expression`; the prepared
+    // initializer handle is not needed and may not coincide.
     let Some(root) = facts.values.structural_values.root_for_expression(
         state.symbol,
         statement_index,
-        local.initial_value,
+        expression,
     ) else {
         return Some(anonymous());
     };
