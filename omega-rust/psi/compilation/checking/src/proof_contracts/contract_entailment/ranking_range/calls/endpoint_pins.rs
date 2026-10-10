@@ -231,43 +231,19 @@ pub(crate) fn mixed_call_endpoints_are_pinned(
                             .iter()
                             .find(|formal| formal.symbol == symbol)?;
                         let carrier = exact_integer_parameter(program, formal.type_reference)?;
-                        parameters
-                            .iter()
-                            .enumerate()
-                            .map(|(position, formals)| {
-                                formals
-                                    .iter()
-                                    .map(|formal| {
-                                        formal.symbol.is_valid()
-                                            && !formal.is_const
-                                            && exact_integer_parameter(
-                                                program,
-                                                formal.type_reference,
-                                            ) == Some(carrier)
-                                            && (position != origin || formal.symbol == symbol)
-                                    })
-                                    .collect::<Vec<_>>()
-                            })
-                            .collect::<Vec<_>>()
+                        pin_candidates(&parameters, origin, symbol, |formal| {
+                            exact_integer_parameter(program, formal.type_reference)
+                                == Some(carrier)
+                        })
                     }
                     EndpointInput::Projection(index) => {
                         let dependency = &projections[index];
-                        parameters
-                            .iter()
-                            .enumerate()
-                            .map(|(position, formals)| {
-                                formals
-                                    .iter()
-                                    .map(|formal| {
-                                        formal.symbol.is_valid()
-                                            && !formal.is_const
-                                            && dependency.for_carrier(program, formal).is_some()
-                                            && (position != origin
-                                                || formal.symbol == dependency.parameter.symbol)
-                                    })
-                                    .collect::<Vec<_>>()
-                            })
-                            .collect::<Vec<_>>()
+                        pin_candidates(
+                            &parameters,
+                            origin,
+                            dependency.parameter.symbol,
+                            |formal| dependency.for_carrier(program, formal).is_some(),
+                        )
                     }
                     EndpointInput::Length(index) => {
                         // A slice formal carries its own produced length; a
@@ -275,22 +251,12 @@ pub(crate) fn mixed_call_endpoints_are_pinned(
                         // slice leaf its declaration admits. Both stay exact:
                         // a slot with no such coordinate cannot pin the leaf.
                         let dependency = &length_dependencies[index];
-                        parameters
-                            .iter()
-                            .enumerate()
-                            .map(|(position, formals)| {
-                                formals
-                                    .iter()
-                                    .map(|formal| {
-                                        formal.symbol.is_valid()
-                                            && !formal.is_const
-                                            && dependency.carries(program, formal)
-                                            && (position != origin
-                                                || formal.symbol == dependency.root_symbol())
-                                    })
-                                    .collect::<Vec<_>>()
-                            })
-                            .collect::<Vec<_>>()
+                        pin_candidates(
+                            &parameters,
+                            origin,
+                            dependency.root_symbol(),
+                            |formal| dependency.carries(program, formal),
+                        )
                     }
                 };
                 // The origin starts with its authored input only. Since the
@@ -342,6 +308,33 @@ pub(crate) fn mixed_call_endpoints_are_pinned(
         Some(())
     };
     prove().is_some()
+}
+
+/// The per-member formals that can pin an endpoint's carrier: every valid,
+/// non-const slot `admits` accepts, restricted at the origin member to the
+/// authored formal the dependency names. A `false` slot can never supply the
+/// endpoint's value along any edge.
+fn pin_candidates<'program>(
+    parameters: &[Vec<&'program typed_trees::signature::StateParameter>],
+    origin: usize,
+    root: SymbolHandle,
+    admits: impl Fn(&'program typed_trees::signature::StateParameter) -> bool,
+) -> Vec<Vec<bool>> {
+    parameters
+        .iter()
+        .enumerate()
+        .map(|(position, formals)| {
+            formals
+                .iter()
+                .map(|formal| {
+                    formal.symbol.is_valid()
+                        && !formal.is_const
+                        && admits(*formal)
+                        && (position != origin || formal.symbol == root)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>()
 }
 
 /// Each destination slot retains every caller input proved equal to its actual.
