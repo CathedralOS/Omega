@@ -1,0 +1,9 @@
+{
+  "sample_seconds": 1,
+  "system_cpu_busy_percent": 0.0,
+  "available_processors": 5,
+  "cpu_quota": "400000 100000",
+  "memory_current_bytes": 733061120,
+  "memory_limit": "17179869184",
+  "filesystem_free_bytes": 31552471040
+}

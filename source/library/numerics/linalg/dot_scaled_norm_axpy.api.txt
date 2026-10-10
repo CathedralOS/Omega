@@ -1,0 +1,73 @@
+NF09 interface checkpoint — slice kernels authored; descriptor adapters pending
+Base: 9d4451128dd05885e7b9c591796b2760189851db
+Integration owner: parent scientific-computing wave.
+
+Authored owned surface (signatures exactly as in dot_scaled_norm_axpy.omg):
+  pub machine try_dot_f64(left: &[f64], right: &[f64], output: &mut f64) -> bool
+  pub machine try_scaled_norm_f64(values: &[f64], output: &mut f64) -> bool
+  pub machine try_axpy_f64(alpha: f64, input: &[f64], output: &mut [f64]) -> bool
+  pub machine try_axpy_self_f64(alpha: f64, values: &mut [f64]) -> bool
+
+All arithmetic carriers and accumulator formats are binary64. Dot executes
+product = left[i]*right[i], followed by sum = sum+product, in increasing index
+order. Axpy executes product = alpha*x[i], then y[i] = product+y[i]. Self axpy
+uses alpha*old+old, never (alpha+1)*old. No fused multiply-add, compensated sum,
+implicit widening, hidden allocation or hidden copying. These are explicit
+fixed-format kernels; they do not establish or replace NF02's policy surface.
+
+Try false means unequal lengths or nonfinite input/intermediate/result.
+Outputs are unchanged on false. Dot and norm publish only a final finite result.
+Axpy validates every element before its write pass, under unchanged loans.
+Empty dot/norm publish +0.0. Zero norm publishes +0.0. Empty axpy succeeds for
+finite alpha. Nonfinite alpha rejects even an empty axpy.
+
+Scaled norm maintains scale and sum of scaled squares, initialized to 0 and 1.
+Each nonzero magnitude raises scale or adds a ratio square at most one.
+The final scale*sqrt(squares) can overflow: finite inputs do not guarantee a
+representable norm, and that result rejects. Small relative contributions may
+underflow in ratios; this is not an exact norm or arbitrary precision API.
+Dot is not overflow-safe merely because norm is; overflowing products reject.
+
+Aliasing:
+  dot may share its two immutable inputs, but scalar output must be disjoint.
+  norm's scalar output must be disjoint from input.
+  ordinary axpy permits mutation of existing y, with disjoint x and y loans.
+  exact x=y is permitted through try_axpy_self_f64 and one exclusive loan.
+  overlapping shared/exclusive loans, including partial overlap, reject.
+  No runtime address comparison, implicit scratch copy, or allocation is used.
+
+Exact dependency requests to parent (metavariables are owner types, not new data):
+NF01:
+  Package's declared name and import path, build.omg/main.omg entrances.
+  Descriptor type and integer fields for rows, columns, column-major stride,
+  backing offset; validation/error type; empty vector convention (N x 1).
+  machine validate(descriptor: &Descriptor, backing_length: u64)
+      -> SharedResult<ValidatedDescriptor>
+  Descriptor validation must check overflow and backing extent before access.
+NF05:
+  machine vector_length(descriptor: &ValidatedDescriptor) -> u64
+  machine try_vector_offset(descriptor: &ValidatedDescriptor,
+      logical_index: u64, backing_length: u64) -> SharedResult<u64>
+  Need the successful offset's bounds contract: offset < backing_length.
+  Need shared/exclusive backing slice accessor signatures and storage/loan alias
+  rules; whether noncontiguous vectors require stride iteration (no copying).
+NF02:
+  Accumulator format and accuracy policy type with the value denoting binary64,
+  nearest-even, ordered separate multiply/add; finite input/result validator;
+  shared checked/try error type and propagation spelling.
+  machine validate_f64(value: f64, policy: &AccuracyPolicy) -> SharedResult<f64>
+  Confirm whether nonfinite arithmetic yields a try error or a checked trap,
+  and whether a policy allows compensated, fused or reordered dot variants.
+
+No dependency interface exists on this base. Generic signatures above specify
+what NF09 consumes, not declarations or implementations to be landed under
+other owners. Descriptor adapters must use the owners' actual names and contracts.
+They will take rank-two descriptors plus explicit backing slices, validate
+vectors and matching lengths, then iterate checked offsets without allocation.
+The slice kernels are contiguous-only and are not descriptor-qualified yet.
+
+Qualification status: source authored, not compiler validated. All check/native/
+Terminal/rejection routes currently stop before parsing due to executor cache
+custody rejecting root ancestry. Main-revision Rust build additionally cannot
+fetch crossbeam-deque 0.8.8 (HTTP 403). See sample README and evidence for exact
+commands. Independent review and owner integration are required before landing.

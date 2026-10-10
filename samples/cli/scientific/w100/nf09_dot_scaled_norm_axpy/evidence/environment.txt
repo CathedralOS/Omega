@@ -1,0 +1,13 @@
+Start checkout /workspace/Omega branch work at 6e4f0c37ecd6dbb26d228b3045d40bc6b243d0bb.
+Fetched origin/main 9d4451128dd05885e7b9c591796b2760189851db.
+Isolated worktree /workspace/Omega/.codex/worktrees/nf09 branch nf09-dot-norm-axpy.
+Measured nproc: 5. free -h: 17Gi total, 710Mi used, 16Gi available, no swap.
+df -h /workspace: overlay 32G total, 30G available.
+ps top non-probe process: codex-linux-san 4.7% CPU at measurement.
+claims.py status: coordination deadline exceeded during Git; unavailable; no mutation reported.
+claims.py claim --board TASKS.md --item NF09: item NF09 not found (no board marker). No claim registered.
+Local authorized scope: NF09 dot/scaled norm/axpy owned module, API checkpoint and sample directory.
+Dependencies NF01 metadata/descriptors, NF02 policy, NF05 backing vector access absent on base.
+Rust build: source activate.sh; CARGO_TARGET_DIR=/workspace/Omega/target mbx build -p omega --release. Exit 101.
+Only one Rust build and one Omega process ran at a time. No system ownership/permission/custody changes.
+Review corrected whole-referent scalar stores to the existing Omega spelling output = value, using runtime_whole_referent_scalar_store_exit; no parser reached in any route.

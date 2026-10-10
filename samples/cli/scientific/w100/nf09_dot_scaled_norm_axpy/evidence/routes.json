@@ -1,0 +1,108 @@
+{
+  "base": "9d4451128dd05885e7b9c591796b2760189851db",
+  "host": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "compiler_sha256": "03416e30f94b5ce5b44a983f61911ed88ebd2ddda41287ab4430fcb35a119af0",
+  "compiler_version": "omega 0.1.0-dev (unrecorded; x86_64-unknown-linux-gnu)",
+  "routes": [
+    {
+      "sample": "ordinary",
+      "route": "check",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/ordinary/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf09",
+      "exit": 1,
+      "log": "ordinary-check.log",
+      "qualified": false,
+      "boundary": "private source resolver storage; before parsing"
+    },
+    {
+      "sample": "ordinary",
+      "route": "native",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "run",
+        "samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/ordinary/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf09",
+      "exit": 200,
+      "log": "ordinary-native.log",
+      "qualified": false,
+      "boundary": "private source resolver storage; before parsing"
+    },
+    {
+      "sample": "ordinary",
+      "route": "terminal",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "run",
+        "--both",
+        "samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/ordinary/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf09",
+      "exit": 200,
+      "log": "ordinary-terminal.log",
+      "qualified": false,
+      "boundary": "private source resolver storage; before parsing"
+    },
+    {
+      "sample": "scaled",
+      "route": "check",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/scaled/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf09",
+      "exit": 1,
+      "log": "scaled-check.log",
+      "qualified": false,
+      "boundary": "private source resolver storage; before parsing"
+    },
+    {
+      "sample": "scaled",
+      "route": "native",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "run",
+        "samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/scaled/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf09",
+      "exit": 200,
+      "log": "scaled-native.log",
+      "qualified": false,
+      "boundary": "private source resolver storage; before parsing"
+    },
+    {
+      "sample": "scaled",
+      "route": "terminal",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "run",
+        "--both",
+        "samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/scaled/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf09",
+      "exit": 200,
+      "log": "scaled-terminal.log",
+      "qualified": false,
+      "boundary": "private source resolver storage; before parsing"
+    },
+    {
+      "sample": "invalid_alias",
+      "route": "check",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/invalid_alias/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf09",
+      "exit": 1,
+      "log": "invalid_alias-check.log",
+      "qualified": false,
+      "boundary": "private source resolver storage; before parsing"
+    }
+  ]
+}

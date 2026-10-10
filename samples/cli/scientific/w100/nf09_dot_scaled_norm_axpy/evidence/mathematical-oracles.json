@@ -1,0 +1,7 @@
+{
+  "method": "independent Decimal square-and-root, precision 100; mathematical fixtures only, no Omega acceptance",
+  "dot": "11",
+  "large_norm": "5E+200",
+  "small_norm": "5E-200",
+  "oracle_sha256": "83be6a5e9f494f42ba1fd51b191b38ac3e7a2cdece292c27a927ab46e3f6d91d"
+}
