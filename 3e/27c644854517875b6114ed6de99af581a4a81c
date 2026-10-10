@@ -1,0 +1,4 @@
+owner: z13
+provenance: z13 TERMINAL-IDENTITY-TABLE leg 1: TerminalIdentityTable/index/builder + TerminalModule.identities field; codec decodes empty; no wire change
+ticket: 3ad7056f8c9049adb93f8f87b7fdcfb1
+published_utc: 2026-10-10T13:28:45.336253+00:00
