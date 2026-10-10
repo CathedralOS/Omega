@@ -107,7 +107,7 @@ fn citation_call_bindings<'program>(
             Some((machine, state, parameters[position].type_reference)),
             None,
             *argument,
-            None
+            None,
         )?;
         argument_terms.push(term);
     }
@@ -252,12 +252,12 @@ pub(crate) fn collect_citation_equations(
                     0,
                 ),
                 None => structural_term(
-            program,
-            Some((machine, entry, Default::default())),
-            None,
-            *argument,
-            None
-        ),
+                    program,
+                    Some((machine, entry, Default::default())),
+                    None,
+                    *argument,
+                    None,
+                ),
             };
             let Some(term) = term else {
                 arguments_termify = false;
@@ -860,18 +860,12 @@ pub(crate) fn instantiate_citation(
             &mut established.equations,
         );
     }
-    // A completed local result is identified by its binding, not by a
-    // name-backed application term. No static selection is guessed here.
+    // Mathematical results keep the same selected application identity for
+    // equations and tags. A saved local's environment contains that value,
+    // not its storage binder. Runtime occurrences took the separate lane above.
     if !target.has_static_selection
         && let Some(judge) = judge
     {
-        if target.result_binding.is_valid() {
-            map.pop();
-            map.push((
-                RESULT_BINDER.to_owned(),
-                StructuralTerm::BoundValue(target.result_binding),
-            ));
-        }
         for fact in ensures_facts {
             judge.instantiated_case_guarantees(callee, fact, &map, &mut established.cases);
         }

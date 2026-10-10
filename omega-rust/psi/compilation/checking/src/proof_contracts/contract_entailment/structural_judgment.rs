@@ -1926,14 +1926,15 @@ impl<'program> StructuralJudge<'program> {
                 None => StructuralJudgment::Unknown,
             };
         }
-        // Opaque text and legacy application unfolding are not exact subject
-        // identity. Keep those outside this predicate route until repaired.
-        // A captured value is one numbered occurrence, so its tags are exact.
+        // A captured value is one occurrence. Mathematical applications have
+        // already rejoined their exact declaration and denotational closure in
+        // resolve_case_subject; their tags never require body unfolding.
         if !matches!(
             subject,
             StructuralTerm::Variable(_)
                 | StructuralTerm::BoundValue(_)
                 | StructuralTerm::CapturedValue { .. }
+                | StructuralTerm::Application { .. }
         ) {
             return StructuralJudgment::Unknown;
         }
@@ -2041,8 +2042,10 @@ impl<'program> StructuralJudge<'program> {
             | StructuralTerm::Float(_)
             | StructuralTerm::BoundValue(_) => Some(term),
             StructuralTerm::CapturedValue { .. } => Some(term),
-            StructuralTerm::Application { .. }
-            | StructuralTerm::CallProjection { .. }
+            application @ StructuralTerm::Application { .. } => {
+                self.selected_application_case_subject(&application, depth)
+            }
+            StructuralTerm::CallProjection { .. }
             | StructuralTerm::BoundProjection { .. }
             | StructuralTerm::Opaque(_)
             | StructuralTerm::ScalarBinary { .. }

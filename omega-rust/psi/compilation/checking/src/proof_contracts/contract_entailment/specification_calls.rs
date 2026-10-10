@@ -423,7 +423,10 @@ pub(super) fn owner_symbol(owner: &SelectedCallContract<'_>) -> SymbolHandle {
     }
 }
 
-fn owner_name(program: &dyn crate::CheckingInput, owner: &SelectedCallContract<'_>) -> String {
+pub(super) fn owner_name(
+    program: &dyn crate::CheckingInput,
+    owner: &SelectedCallContract<'_>,
+) -> String {
     match owner {
         SelectedCallContract::Concrete(machine, _) => machine.name.as_str().to_owned(),
         SelectedCallContract::Signature(signature)

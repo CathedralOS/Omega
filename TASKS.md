@@ -2786,10 +2786,6 @@ crash and native exit behavior.
     of `source/library/alloc/bump.omg` reports
     `retained_buffer::Held.storage` already transferred and three
     `Extent::Granted` call-result qualifications unproved.
-  - `pass/proofs/case_call_premises` still cannot prove `preserve_empty`'s
-    `value in Tree::Empty` from `make_empty`'s guarantee at b7418d4022. Its
-    callees are `terminates` proof machines, judged as applications rather
-    than captured runtime occurrences; the cause is not bisected.
   - `interrupt_table_canary` and `secondary_processor_canary` select providers
     but lack an executable intrinsic: **CHECKED-ASM-LABEL-CONTRACTS** owns that
     dependency.

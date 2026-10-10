@@ -5,7 +5,7 @@
 //! establishes the selected entry premises before importing any equation.
 
 use super::super::specification_calls::{
-    SelectedCallContract, owner_contracts, owner_parameters, owner_symbol,
+    SelectedCallContract, owner_contracts, owner_name, owner_parameters, owner_symbol,
     selected_call_contract_for_parameters, selected_contract_by_symbol,
 };
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
@@ -13,6 +13,13 @@ use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
+
+/// Exact selected carrier and denotational owner, without importing conclusions.
+struct SelectedApplicationCarrier<'program> {
+    owner: SelectedCallContract<'program>,
+    parameters: &'program [typed_trees::signature::StateParameter],
+    result_type: typed_trees::types::TypeReferenceHandle,
+}
 
 impl StructuralJudge<'_> {
     /// Normalize an exact selected result or a view of a nested selected
@@ -47,11 +54,11 @@ impl StructuralJudge<'_> {
         None
     }
 
-    fn specification_application_equations(
+    fn selected_application_carrier(
         &self,
         application: &StructuralTerm,
         depth: usize,
-    ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+    ) -> Option<SelectedApplicationCarrier<'_>> {
         let StructuralTerm::Application {
             target,
             selections,
@@ -120,6 +127,49 @@ impl StructuralJudge<'_> {
         {
             return None;
         }
+        Some(SelectedApplicationCarrier {
+            owner,
+            parameters,
+            result_type: declared_result,
+        })
+    }
+
+    /// A case fact may name an admitted mathematical application, but cannot
+    /// unfold its body or turn its tag into a whole-value equation. Normalize
+    /// metadata from the selected declaration, never a display-name lookup.
+    pub(super) fn selected_application_case_subject(
+        &self,
+        application: &StructuralTerm,
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        let admitted = self.selected_application_carrier(application, depth)?;
+        let StructuralTerm::Application { arguments, .. } = application else {
+            return None;
+        };
+        Some(StructuralTerm::Application {
+            result_type: admitted.result_type,
+            target: owner_symbol(&admitted.owner),
+            selections: Vec::new(),
+            machine: owner_name(self.program, &admitted.owner),
+            arguments: arguments
+                .iter()
+                .map(|argument| self.resolve_case_subject(argument.clone(), depth + 1))
+                .collect::<Option<Vec<_>>>()?,
+        })
+    }
+
+    fn specification_application_equations(
+        &self,
+        application: &StructuralTerm,
+        depth: usize,
+    ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+        let SelectedApplicationCarrier {
+            owner, parameters, ..
+        } = self.selected_application_carrier(application, depth)?;
+        let StructuralTerm::Application { arguments, .. } = application else {
+            return None;
+        };
+        let program = self.program;
         let bindings = parameters
             .iter()
             .zip(arguments)

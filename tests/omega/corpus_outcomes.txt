@@ -2108,6 +2108,8 @@ fail/proofs/case_call_wrong_subject rejected 263ms expected @2d8ed253669f
 fail/proofs/citation_requires_bearing_rejected rejected 324ms expected @2d8ed253669f
 	machine `conditional_cite` cites `sym`, but the callee's requires fact `a == b` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `conditional_cite` ensures contract proof fact `y == x` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+fail/proofs/completed_case_guarantee_keeps_common_fields_unknown rejected 1009ms expected @8235381ce925+wt
+	cannot prove requires contract for call needs_unmarked_empty from completed_call: value.marked == false (needs fact `value.marked == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/conditional_ih_requires_discharge rejected 358ms expected @2d8ed253669f
 	machine `conditional_ih_requires_all` cites `add_le_add`, but the callee's requires fact `saturating_sub(c, d) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `conditional_ih_requires_all` ensures contract proof fact `saturating_sub(mul(a, factor), mul(b, factor)) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
@@ -4215,7 +4217,7 @@ pass/parser/invariant_is_an_identifier checked 286ms @2d8ed253669f
 pass/progress/provider_receiver_progress_installation checked 1084ms check-target:linux_x86_64 @82ec69a91ce
 pass/proofs/accepted_axiom_cited_exit checked 1213ms check-target:macos_arm64 @2d8ed253669f
 pass/proofs/accumulator_guarantee_exit checked 1812ms check-target:macos_arm64 @2d8ed253669f
-pass/proofs/case_call_premises checked 304ms @2d8ed253669f
+pass/proofs/case_call_premises checked 1178ms @8235381ce925+wt
 pass/proofs/cauchy_predicates_compile rejected 116ms @c47f8652484
 	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
