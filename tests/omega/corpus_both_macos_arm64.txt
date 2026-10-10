@@ -609,6 +609,7 @@ pass/termination/runtime_projected_element_rank_arrivals_exit built 3401ms exit:
 pass/termination/runtime_ranked_sequence_arrival_coordinates_exit built 3361ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
 pass/termination/runtime_record_measure_constructed_arrivals_exit built 3479ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
 pass/termination/runtime_saved_rank_cycle_exit built 1885ms exit:0 interpreter-exit:0 interpreter:agrees @68fba6a896c8+wt
+pass/termination/runtime_selected_requirement_rank_prefix_exit built 3571ms exit:0 interpreter-exit:0 interpreter:agrees @05ef1dca14f6
 pass/text/declared_record_view_field_fill_exit built 2399ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
 pass/text/nested_mutable_receiver_byte_result_exit built 1409ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c
 pass/text/qualified_byte_state_snapshot_exit built 1726ms exit:70 interpreter-exit:70 interpreter:agrees @a0c004371ad8+wt

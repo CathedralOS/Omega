@@ -1627,6 +1627,7 @@ pass/termination/runtime_projected_element_rank_arrivals_exit built 3396ms exit:
 pass/termination/runtime_rank_range_state_call_exit built 1004ms exit:70 @82d2bd2d7669+wt
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 1474ms exit:70 @c9c108ecb4ac+wt
 pass/termination/runtime_saved_rank_cycle_exit built 1732ms exit:0 @68fba6a896c8+wt
+pass/termination/runtime_selected_requirement_rank_prefix_exit built 3531ms exit:0 @05ef1dca14f6
 pass/termination/runtime_shrinking_slice_recursion_exit built 873ms exit:70 @2f8006be6cc9+wt
 pass/termination/runtime_stored_exclusive_endpoint_exit built 1525ms exit:0 @82ec69a91ceb+wt
 pass/termination/stored_reference_endpoint_arrivals checked 195ms
