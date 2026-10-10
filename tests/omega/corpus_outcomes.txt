@@ -240,7 +240,8 @@ fail/atomics/shared_receiver_plain_field_write rejected 108ms expected @c08960be
 	machine `Counter::bump` state `bump` assignment cannot write `counter` because it is not mutable in this state (if `counter` is undeclared -- a typo -- no such field or local exists)
 fail/blockexec/blocking_executor_ticket_scope_loss rejected 705ms expected @2d8ed253669f
 	linear value `ticket` reaches scope exit without being consumed or transferred
-fail/borrow/affine_array_move_under_live_view rejected 433ms expected @41c7c3df5137+wt
+fail/borrow/affine_array_move_under_live_view rejected 461ms expected @d732c6499355
+	cannot use `main.entries[0]` while `main.entries` is absent from borrowed storage: the value moved out at statement 2 must be restored first
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 3)
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 2): `main.entries` must hold a value again before this state's exits consume the borrow
 fail/borrow/borrow_carrying_field_reassignment_invalidated rejected 957ms expected @c5d32a00863
@@ -5024,3 +5025,7 @@ fail/dependent/dynamic_record_replacement_preserves_unknown_debt rejected 297ms 
 	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `transport.cells[0]` must close first -- restore the `where` facts before this consumption point (ch11)
 	reading `raw[0].value` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `u64[in Positive]`
 	reading `raw[0].value` crosses an open default-domain invariant window before data `Gated` is established: the zeroed representation is not yet a `Gated` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+pass/drops/runtime_narrowed_cleanup_receiver_exit checked 4163ms check-target:macos_arm64 @d732c6499355
+pass/slices/runtime_exact_scalar_stores_establish_qualified_view_exit checked 4055ms check-target:macos_arm64 @d732c6499355
+fail/slices/scalar_store_does_not_establish_sibling rejected 331ms expected @d732c6499355
+	reading `values[1]` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `u64[in Positive]`
