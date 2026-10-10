@@ -73,11 +73,11 @@ machine Main::main(main: &mut Main) reaches Console {
     main.entries[6].value = 10;
 
     // Probe A.
-    let si: &[i32 in Wrapping] = main.ints.as_slice();
+    let si: &[i32 in Wrapping] = &main.ints[..];
     let a: i32 = Walker::sum_ints(&mut main.walker, si, 0);
 
     // Probe B.
-    let se: &[Entry] = main.entries.as_slice();
+    let se: &[Entry] = &main.entries[..];
     let b: i32 = Walker::sum_entries(&mut main.walker, se, 0);
 
     transition a == 70 {

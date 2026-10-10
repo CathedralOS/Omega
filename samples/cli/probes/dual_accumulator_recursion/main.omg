@@ -75,11 +75,11 @@ machine Main::main(main: &mut Main) reaches Console {
     main.data[4] = 5;
 
     // First recursive value-returning call: compute sum.
-    let s: &[i32 in Wrapping] = main.data.as_slice();
+    let s: &[i32 in Wrapping] = &main.data[..];
     let sum_result: i32 in Wrapping = sum(s, 0);
 
     // Second recursive value-returning call: compute sum of squares.
-    let s2: &[i32 in Wrapping] = main.data.as_slice();
+    let s2: &[i32 in Wrapping] = &main.data[..];
     let sum_sq_result: i32 in Wrapping = sum_sq(s2, 0);
 
     // Verify sum = 15.

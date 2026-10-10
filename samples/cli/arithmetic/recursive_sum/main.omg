@@ -67,7 +67,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.arr[3] = 20;
 
     // Compute sum via recursive value-returning call.
-    let s: &[i32 in Wrapping] = main.arr.as_slice();
+    let s: &[i32 in Wrapping] = &main.arr[..];
     let sum_result: i32 = sum(s, 0);
 
     // Check sum == 50 directly on the local.
@@ -85,7 +85,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state check_count(main: &mut Main) {
         // Compute count via recursive value-returning call.
-        let s2: &[i32 in Wrapping] = main.arr.as_slice();
+        let s2: &[i32 in Wrapping] = &main.arr[..];
         let cnt: i32 = count(s2, 0);
 
         // Check element count == 4.

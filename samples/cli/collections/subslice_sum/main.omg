@@ -52,7 +52,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.arr[5] = 25;
 
     // Sum all 6 elements via shrinking-window recursion: 3+7+12+18+5+25 = 70.
-    let s: &[i32 in Wrapping] = main.arr.as_slice();
+    let s: &[i32 in Wrapping] = &main.arr[..];
     let t: i32 = walk(s, 0);
 
     transition t == 70 {

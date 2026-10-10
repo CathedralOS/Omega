@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.frame.bytes[3] = 30;
     main.frame.bytes[4] = 0;
 
-    let full: &[i32 in Wrapping] = main.frame.bytes.as_slice();
+    let full: &[i32 in Wrapping] = &main.frame.bytes[..];
     let checksum: i32 = sum(full[1..4], 0) as i32;
     main.console.write_line("result: the payload checksum, 60 for this frame (the exit code)");
     main.console.write_line("[press Enter to close]");

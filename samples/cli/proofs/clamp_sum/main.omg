@@ -28,7 +28,7 @@ machine Main::main(context: &mut Main) reaches Console {
     context.console.write_line("clamp_sum: clamp readings [80, -5, 50, 200, 30] to [0, 60] and sum them");
     let values: [i32 in Wrapping; 5] = [80, -5, 50, 200, 30];
 
-    let slice: &[i32 in Wrapping] = values.as_slice();
+    let slice: &[i32 in Wrapping] = &values[..];
     let total: i32 = clamp_sum(slice, 0) as i32;
     context.console.write_line("result: the clamped sum, 200 for these readings (the exit code)");
     context.console.write_line("[press Enter to close]");

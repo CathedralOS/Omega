@@ -19,7 +19,7 @@ machine main() reaches Console {
     Console::write_line("slice_maximum: tail-recursive max over the slice [3, 7, 2, 9, 4]");
     let values: [i32; 5] = [3, 7, 2, 9, 4];
 
-    let s: &[i32] = values.as_slice();
+    let s: &[i32] = &values[..];
     let m: i32 = find_max(s, 0);
     Console::write_line("result: the slice maximum, 9 for this data (the exit code)");
     Console::write_line("[press Enter to close]");
