@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "1", "load1_end": 0.68, "load1_start": 0.04, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 1.8, "load1_start": 1.58, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_explicit_call_result_policy_exit built 7513ms exit:0 interpreter-exit:0 interpreter:agrees @30eb6513ae80+wt
 pass/atomics/runtime_atomic_bitwise_widths_exit built 5472ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/atomics/shared_receiver_atomic_store built 5511ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
@@ -38,6 +38,8 @@ pass/generics/runtime_grouped_decimal_const_argument_exit built 6818ms exit:0 in
 pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit built 6694ms exit:0 interpreter-exit:0 interpreter:agrees @1e24b2973189
 pass/generics/runtime_machine_equation_selected_boolean_exit built 5171ms exit:0 interpreter-exit:0 interpreter:agrees @c6a6397a34af+wt
 pass/generics/runtime_machine_equation_selected_const_exit built 4968ms exit:0 interpreter-exit:0 interpreter:agrees @c6a6397a34af+wt
+pass/layouts/runtime_indexed_restricted_field_read built 46320ms exit:0 interpreter-exit:0 interpreter:agrees @93b3a4938255
+pass/layouts/runtime_nested_restricted_field_read built 46576ms exit:0 interpreter-exit:0 interpreter:agrees @93b3a4938255
 pass/layouts/runtime_selected_scalar_reference_codec_exit built 8616ms exit:0 interpreter-exit:0 interpreter:agrees @af604b31614e
 pass/layouts/runtime_transition_scalar_reference_codec_exit built 6818ms exit:0 interpreter-exit:0 interpreter:agrees @af604b31614e
 pass/modules/runtime_foreign_generic_scoped_constant_exit built 1465ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @743851d348c6+wt
