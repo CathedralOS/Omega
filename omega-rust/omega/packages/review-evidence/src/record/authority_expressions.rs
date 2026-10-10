@@ -2,23 +2,8 @@
 
 use super::contracts::PackageReviewArithmeticDomain;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewPrimitiveType {
-    Bool,
-    F32,
-    F64,
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
-    Addr,
-    /// An implementation selector's opaque runtime word.
-    Selector,
-}
+pub type PackageReviewPrimitiveType = typed_trees::types::PrimitiveType;
+
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageReviewStructuralPredicatePathSegment {
@@ -57,50 +42,11 @@ pub enum PackageReviewIntegerComparisonKind {
     LessOrEqual,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewIeeeFloatComparisonKind {
-    Equal,
-    NotEqual,
-    LessThan,
-    LessOrEqual,
-    NotLessThan,
-    NotLessOrEqual,
-}
+pub type PackageReviewIeeeFloatComparisonKind = semantic_vocabulary::IeeeFloatComparisonKind;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewIntegerBinaryKind {
-    ExactAdd,
-    ExactSubtract,
-    ExactMultiply,
-    ExactDivide,
-    ExactRemainder,
-    WrappingDivide,
-    WrappingRemainder,
-    SaturatingDivide,
-    SaturatingRemainder,
-    WrappingAdd,
-    SaturatingAdd,
-    WrappingSubtract,
-    SaturatingSubtract,
-    WrappingMultiply,
-    SaturatingMultiply,
-    BitwiseAnd,
-    BitwiseOr,
-    BitwiseXor,
-    WrappingShiftLeft,
-    WrappingShiftRight,
-    ExactShiftLeft,
-    ExactShiftRight,
-    TrappingShiftLeft,
-    TrappingShiftRight,
-    TrappingAdd,
-    TrappingSubtract,
-    TrappingMultiply,
-    TrappingDivide,
-    TrappingRemainder,
-    SaturatingShiftLeft,
-    SaturatingShiftRight,
-}
+
+pub type PackageReviewIntegerBinaryKind = facts::CheckedIntegerBinaryKind;
+
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageReviewIntegerLiteralLanding {

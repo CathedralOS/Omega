@@ -1,13 +1,7 @@
 //! Complete checked shape graph for one representation demand.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewBoundaryShapeClass {
-    Integer,
-    Float,
-    Reference,
-    FixedArray { element: u16, length: u16 },
-    Record { first_field: u16, field_count: u16 },
-}
+pub type PackageReviewBoundaryShapeClass = calling_conventions::BoundaryValueClass;
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewBoundaryShape {

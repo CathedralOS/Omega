@@ -143,13 +143,8 @@ pub enum PackageReviewByteSequencePredicate {
     NonEmpty,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewCollectionViewOperation {
-    SharedSlice,
-    MutableSlice,
-    TextView,
-    Bytes,
-}
+pub type PackageReviewCollectionViewOperation = language_semantics::declaration_selection::CollectionViewOperation;
+
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractCallTarget {

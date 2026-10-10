@@ -108,20 +108,11 @@ impl PackagePolicyMachineStateSet {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyEntryStack {
-    Interrupted,
-    Dedicated { class: u16 },
-    ProviderSelected,
-}
+pub type PackagePolicyEntryStack = calling_conventions::EntryStack;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyPreemption {
-    NotApplicable,
-    Masked,
-    Nestable { maximum_depth: u16 },
-    ProviderDefined,
-}
+
+pub type PackagePolicyPreemption = calling_conventions::Preemption;
+
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyStatePlan {

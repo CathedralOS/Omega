@@ -21,37 +21,11 @@ pub enum PackageReviewSystemVEightbyteClass {
     Sse,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewBoundaryCallingPolicy {
-    MicrosoftX64,
-    SystemVAMD64,
-    Aapcs64,
-    LinuxSyscallX86_64,
-    LinuxSyscallAarch64,
-}
+pub type PackageReviewBoundaryCallingPolicy = calling_conventions::CallingPolicy;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewMachineRegister {
-    X86Rax,
-    X86Rcx,
-    X86Rdx,
-    X86Rbx,
-    X86Rsp,
-    X86Rbp,
-    X86Rsi,
-    X86Rdi,
-    X86R8,
-    X86R9,
-    X86R10,
-    X86R11,
-    X86R12,
-    X86R13,
-    X86R14,
-    X86R15,
-    X86Xmm(u8),
-    Aarch64X(u8),
-    Aarch64V(u8),
-}
+
+pub type PackageReviewMachineRegister = calling_conventions::MachineRegister;
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewIndirectPointerLocation {
@@ -120,14 +94,8 @@ impl PackageReviewBoundaryValuePlacement {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewOpaqueRepresentationMovementRole {
-    Parameter {
-        formal_ordinal: u32,
-        native_ordinal: u32,
-    },
-    Result,
-}
+pub(crate) type PackageReviewOpaqueRepresentationMovementRole = provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationMovementRole;
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewOpaqueRepresentationPathElement {

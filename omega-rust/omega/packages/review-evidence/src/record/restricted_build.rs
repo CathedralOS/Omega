@@ -31,15 +31,8 @@ pub(crate) enum PackagePolicyRestrictedBuildOperation {
 }
 
 /// The logical grant root a retained request names, by compiler vocabulary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackagePolicyRestrictedBuildGrantRoot {
-    /// The package's source inventory.
-    SourceInventory,
-    /// The activation's staged build-output tree.
-    StagedOutput,
-    /// A compiler-issued grant root identity this projection does not name.
-    Other(u32),
-}
+pub(crate) type PackagePolicyRestrictedBuildGrantRoot = package_compilation::RestrictedBuildGrantRoot;
+
 
 /// One logical root grant inside a retained request.
 #[derive(Debug, Clone, PartialEq, Eq)]
