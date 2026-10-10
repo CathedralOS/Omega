@@ -225,9 +225,7 @@ impl GitWorkspaceSelectionPlan {
         self.workspace.members()
     }
 
-    pub(crate) fn for_declared_member(&self, member_path: &WorkspaceMemberPath) -> Option<Self> {
-        self.workspace.select_declared_member(member_path)
-    }
+
 
     /// Replay the complete selection and require byte-for-byte declaration
     /// evidence and semantics to remain unchanged.
