@@ -53,16 +53,7 @@ pub(crate) fn lower(
     // loan: the declaration predicate roster's restored rows follow the
     // authored guarantees as the same kind of obligation, rederived from the
     // entry parameters' declared storage rather than read from a package.
-    let mut guarantees = ensures
-        .iter()
-        .filter(|row| {
-            !matches!(
-                row,
-                None | Some(
-                    checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee { .. }
-                )
-            )
-        })
+    let mut guarantees = contracts::projected_guarantees(ensures)
         .cloned()
         .collect::<Vec<_>>();
     guarantees.extend(

@@ -43,6 +43,9 @@ mod calls;
 #[derive(Clone)]
 pub(crate) struct Storage {
     places: Vec<(checked_trees::CheckedStructuralValueHandle, PlaceId)>,
+    /// A checked snapshot may carry more facts than a call's ABI result.
+    /// Keep that raw producer separate from the completed operand's home.
+    producers: Vec<(checked_trees::CheckedStructuralValueHandle, PlaceId)>,
     results: Vec<(u32, PlaceId)>,
 }
 
@@ -54,6 +57,7 @@ impl Storage {
     ) -> Result<Self, LoweringError> {
         let mut storage = Self {
             places: Vec::new(),
+            producers: Vec::new(),
             results: Vec::new(),
         };
         storage.reserve_value(checked, root, next_place)?;
@@ -298,7 +302,41 @@ impl Preparation<'_> {
             }
             let place = self.prepare_calls(producer)?;
             self.consumed_calls.push(value);
-            return Ok(place);
+            let decisions = self
+                .checked
+                .facts
+                .qualifications
+                .value_formations
+                .span(node.qualification_decisions)
+                .ok_or(LoweringError::Unsupported(
+                    "completed call membership decisions are stale",
+                ))?;
+            if decisions.is_empty() {
+                return Ok(place);
+            }
+            // Retain this exact completion's checked facts on an ordinary
+            // unrestricted snapshot, never by relabeling the callee's ABI
+            // contract. Affine custody cannot authorize this copy.
+            if self.checked.type_multiplicity(reference) != Multiplicity::Unrestricted {
+                return unsupported("affine operand must retain its checked membership roster");
+            }
+            let mut source = self
+                .bindings
+                .structural_copy_source(place, &[], self.types)?;
+            source.formation_qualifications = decisions
+                .iter()
+                .map(|decision| decision.semantic_domain)
+                .collect();
+            let completed = self.reserved.place(value)?;
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::CopyStructuralValue {
+                    source,
+                    place: completed,
+                    structural_type: declaration.id,
+                },
+                prefix: self.prefix.clone(),
+            });
+            return Ok(completed);
         }
         if let CheckedStructuralValueKind::Place(argument) = &node.kind {
             let source = self.bindings.owned_argument(argument)?;

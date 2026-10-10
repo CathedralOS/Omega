@@ -170,13 +170,23 @@ pub(super) fn prepare(
             "scalar Unit target has no checked contract",
         ))?;
     // General structural contract substitution belongs to the existing Unit
-    // assembler. This graph lane admits only the already plain primitive call
-    // contract, and does not silently erase authored requirements or exits.
+    // assembler. This graph lane admits only calls without runtime contract
+    // substitution, and does not erase authored requirements or crash exits.
+    // Source-checked guarantees with no scalar consequence use the same
+    // projection as the published callee: a constructor child may call an
+    // issuer without demanding a second proof or inventing runtime authority.
     // An arithmetic policy (`u64 in Wrapping`) governs the callee's own
     // operations and asks nothing of the caller's argument.
-    if !checked.state_contracts(callee_state).is_empty()
+    if checked
+        .state_contracts(callee_state)
+        .iter()
+        .any(|clause| clause.kind != checked_trees::signature::SignatureContractKind::Ensures)
         || !contract.closed_scalar_values.requires().is_empty()
-        || !contract.closed_scalar_values.ensures().is_empty()
+        || crate::scalar_lowering::contracts::projected_guarantees(
+            contract.closed_scalar_values.ensures(),
+        )
+        .next()
+        .is_some()
         || !contract.crash.published().is_empty()
         || contract
             .crash

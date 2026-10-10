@@ -325,5 +325,7 @@ fn parameter_corresponds(
         && parameter.structural_type == declaration.structural_type
         && parameter.access == declaration.access
         && parameter.multiplicity == declaration.multiplicity
-        && parameter.projected_qualifications.is_empty()
+        // Preparation preserves the source roster verbatim. Compare it rather
+        // than refusing qualified children; dispatch does not grant new facts.
+        && parameter.projected_qualifications == declaration.projected_qualifications
 }

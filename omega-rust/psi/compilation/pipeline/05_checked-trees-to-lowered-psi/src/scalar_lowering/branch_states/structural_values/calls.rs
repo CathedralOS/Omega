@@ -23,6 +23,19 @@ impl Storage {
                 self.places
                     .push((value, place_id(allocate_dense(next_place)?)));
             }
+            let node = checked.facts.values.structural_values.nodes.get(value);
+            if matches!(
+                node.kind,
+                checked_trees::CheckedStructuralValueKind::Call { .. }
+            ) && !node.qualification_decisions.is_empty()
+                && !self
+                    .producers
+                    .iter()
+                    .any(|(candidate, _)| *candidate == value)
+            {
+                self.producers
+                    .push((value, place_id(allocate_dense(next_place)?)));
+            }
         }
         self.reserve_calls(
             checked,
@@ -56,7 +69,7 @@ impl Storage {
                             "structural operand preparation has no result binding",
                         ))?;
                 let place = if index == call.operands().iter().count() {
-                    self.place(call.value)?
+                    self.producer_place(call.value)?
                 } else if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     value,
                     calls,
@@ -101,6 +114,17 @@ impl Storage {
             .ok_or(LoweringError::Unsupported(
                 "structural operand result has no reserved home",
             ))
+    }
+
+    fn producer_place(
+        &self,
+        value: checked_trees::CheckedStructuralValueHandle,
+    ) -> Result<PlaceId, LoweringError> {
+        self.producers
+            .iter()
+            .find(|(candidate, _)| *candidate == value)
+            .map(|(_, place)| *place)
+            .map_or_else(|| self.place(value), Ok)
     }
 }
 
@@ -272,7 +296,7 @@ impl Preparation<'_> {
                 }
             }
         }
-        self.reserved.place(producer.value)
+        self.reserved.producer_place(producer.value)
     }
 
     fn result(

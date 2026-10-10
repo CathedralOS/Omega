@@ -468,13 +468,14 @@ defines the complete product bar.
     `pass/domains/runtime_nested_record_membership_transport_exit` stay at 0
     in both engines; `fail/domains/record_child_membership_requires_issuance`
     must reject literal forgery, stale source epochs and sibling substitution.
-    Routed case common-field memberships still need occurrence-bound source
-    publication from completed children. Stage 04's
-    `semantic/facts/field_domains.rs::append_local_case_payload_domain_facts`
-    omits common fields and predicate-free routed domains: an `Event` constructed
-    from licensed `Receipt::issue()` children fails a consuming call with
-    "cannot prove default-domain field requirement" for its common and payload
-    paths. Preserve issuer evidence rather than granting from the receiver's type.
+    Keep `pass/domains/runtime_case_constructor_child_memberships_exit` at 0
+    in both engines: bound and inline case arguments retain completed common
+    and payload issuer memberships across copies and later sibling writes;
+    omitted zero-valid siblings and inactive payloads preserve common facts.
+    Reject `fail/domains/case_child_membership_requires_issuance` for forged,
+    stale and wrong-issuer children, and
+    `fail/dependent/mixed_common_nested_zero_requires_establishment` for an
+    omitted gated common child. Never grant membership from the receiver's type.
     Keep `pass/calls/runtime_constructor_child_pure_calls_exit` at 0 in both
     engines without adding an ensures clause or a Terminal certificate.
     Keep stored snapshot controls

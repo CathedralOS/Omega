@@ -2,6 +2,10 @@
 //! A catalog describes each value's calls; only the value evaluator executes
 //! them, at their exact DAG positions. Preceding statement results supply the
 //! same source namespace as an ordinary construction or call argument.
+//! Result bindings retain their named home; anonymous producers retain their
+//! authored occurrence. Internal displacement slots still reserve ordinals and
+//! stay in the preamble without pretending to bind an authored source. An
+//! unrelated preceding producer must not erase a later value's call schedule.
 
 use super::control::{LocalConstructionTrace, structural_operands};
 use super::types::ShapeCollector;
@@ -295,26 +299,29 @@ fn schedule(
         {
             Some(facts.values.structural_values.nodes.get(*value).expression)
         } else {
-            None
-        };
-        let local = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(result.statement_index as usize)
-            .and_then(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local)
-                    if operation.statement_structural_result_binding().is_some()
-                        && expression
-                            .is_none_or(|expression| expression == local.initial_value) =>
+            match operation {
+                CheckedUnitEffectOperationPlan::EstablishReference {
+                    formation_expression,
+                    ..
+                } => Some(*formation_expression),
+                CheckedUnitEffectOperationPlan::MoveStructuralField { expression, .. }
+                    if expression.is_valid() =>
                 {
-                    Some(local.symbol)
+                    Some(*expression)
                 }
                 _ => None,
-            });
-        let source = local
-            .map(facts::PlaceRoot::Symbol)
-            .or_else(|| expression.map(facts::PlaceRoot::Expression))?;
-        results.push((result.clone(), source));
+            }
+        };
+        // The binding owner was paired at production, not inferred from an
+        // enclosing statement shared by several anonymous child producers.
+        let source = result
+            .local
+            .is_named()
+            .then_some(facts::PlaceRoot::Symbol(result.local.symbol))
+            .or_else(|| expression.map(facts::PlaceRoot::Expression));
+        if let Some(source) = source {
+            results.push((result.clone(), source));
+        }
         preceding.push(operation.clone());
     }
     let trivial_locals = ordinary

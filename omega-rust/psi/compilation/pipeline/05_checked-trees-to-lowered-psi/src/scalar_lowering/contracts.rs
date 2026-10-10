@@ -90,6 +90,20 @@ pub(crate) fn clauses(
     Ok(combined)
 }
 
+/// Only representable consequences become Terminal guarantees. Source checking
+/// owns the other authored guarantees; absence of a scalar projection is not
+/// a missing source proof or an assertion of runtime truth.
+pub(crate) fn projected_guarantees(
+    guarantees: &[Option<ClosedScalarContractValue>],
+) -> impl Iterator<Item = &Option<ClosedScalarContractValue>> {
+    guarantees.iter().filter(|guarantee| {
+        !matches!(
+            guarantee,
+            None | Some(ClosedScalarContractValue::SourceCheckedGuarantee { .. })
+        )
+    })
+}
+
 /// Sort and deduplicate a published `requires` roster by the codec-owned
 /// canonical proposition order. The derived `Ord` on `Proposition` follows
 /// Rust declaration order, which is not the canonical byte order (a

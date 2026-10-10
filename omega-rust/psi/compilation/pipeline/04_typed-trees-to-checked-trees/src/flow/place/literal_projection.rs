@@ -1,6 +1,9 @@
 //! Project a callee access route through constructors, without replacing a
 //! caller binding by its captured storage origin. Constructors have no caller
 //! address; their actual field/element expressions supply the access routes.
+//! Common fields use Field; selected payload fields use Case/Field. Both
+//! belong to one authored constructor roster, and resolved symbols join each
+//! operand to its declaration without letting a common field select a case.
 
 use validation::CanonicalPlace;
 use validation::canonical_place_from_expression_in_state;
@@ -174,60 +177,57 @@ fn literal_projections(
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::StructLiteral(literal) => {
-                let symbol = &program
+                let owner = program
                     .type_reference_table
                     .type_reference(reference)
                     .as_named_symbol()?;
-                if program.symbols.get(*symbol).kind != symbols::SymbolKind::Data
-                    || literal.type_symbol != *symbol
+                if program.symbols.get(owner).kind != symbols::SymbolKind::Data
+                    || literal.type_symbol != owner
                 {
                     return None;
                 }
-                let definition = program.data_definition_by_symbol(*symbol)?;
+                let definition = program.data_definition_by_symbol(owner)?;
                 if !definition.type_parameters.is_empty() {
                     return None;
                 }
-                let mut segments = segments;
-                let fields: Vec<_> =
-                    if let Some(case_name) = &literal.case_name {
-                        let mut variants = program.data_members(definition).iter().filter_map(
-                            |member| match member {
-                                DataMember::Variant(variant) if variant.name == *case_name => {
-                                    Some(variant)
-                                }
-                                _ => None,
-                            },
-                        );
-                        let variant = variants.next()?;
-                        if program.symbols.get(variant.symbol).kind != symbols::SymbolKind::Variant
-                            || variants.next().is_some()
-                            || literal
-                                .case_symbol
-                                .is_some_and(|symbol| symbol.is_valid() && symbol != variant.symbol)
+                let members = program.data_members(definition);
+                let variant = match literal.case_symbol {
+                    Some(symbol) => Some(members.iter().find_map(|member| match member {
+                        DataMember::Variant(variant)
+                            if variant.symbol == symbol
+                                && symbol.is_valid()
+                                && program.symbols.get(symbol).kind
+                                    == symbols::SymbolKind::Variant
+                                && program.symbols.get(symbol).parent == owner =>
                         {
+                            Some(variant)
+                        }
+                        _ => None,
+                    })?),
+                    None if members
+                        .iter()
+                        .any(|member| matches!(member, DataMember::Variant(_))) =>
+                    {
+                        return None;
+                    }
+                    None => None,
+                };
+                let mut fields = members
+                    .iter()
+                    .filter_map(DataMember::as_field)
+                    .collect::<Vec<_>>();
+                if let Some(variant) = variant {
+                    fields.extend(program.data_payload_fields(variant));
+                }
+                let (selected_variant, segments) = match segments.split_first() {
+                    Some((facts::PlaceSegment::Case { variant: selected }, remaining)) => {
+                        if variant.is_none_or(|variant| variant.symbol != *selected) {
                             return None;
                         }
-                        if let Some((facts::PlaceSegment::Case { variant: selected }, remaining)) =
-                            segments.split_first()
-                        {
-                            if *selected != variant.symbol {
-                                return None;
-                            }
-                            segments = remaining;
-                        } else if !segments.is_empty() {
-                            return None;
-                        }
-                        program.data_payload_fields(variant).iter().collect()
-                    } else {
-                        program
-                            .data_members(definition)
-                            .iter()
-                            .map(|member| match member {
-                                DataMember::Field(field) => Some(field),
-                                _ => None,
-                            })
-                            .collect::<Option<Vec<_>>>()?
-                    };
+                        (Some(*selected), remaining)
+                    }
+                    _ => (None, segments),
+                };
                 let actuals = program.expression_table.struct_fields(literal.fields);
                 let selected = match segments.split_first() {
                     Some((facts::PlaceSegment::Field { symbol }, remaining)) => {
@@ -236,31 +236,48 @@ fn literal_projections(
                     None => None,
                     _ => return None,
                 };
-                if selected
-                    .is_some_and(|(symbol, _)| !fields.iter().any(|field| field.symbol == symbol))
-                {
+                if selected.is_some_and(|(symbol, _)| {
+                    !fields.iter().any(|field| field.symbol == symbol)
+                        || facts::payload_variant_for_field(program, symbol) != selected_variant
+                }) {
                     return None;
                 }
                 for (index, actual) in actuals.iter().enumerate() {
                     if actuals[..index]
                         .iter()
-                        .any(|prior| prior.name == actual.name)
+                        .any(|prior| prior.field_symbol == actual.field_symbol)
                     {
                         return None;
                     }
-                    let field = fields.iter().find(|field| field.name == actual.name)?;
+                    let field = fields
+                        .iter()
+                        .find(|field| field.symbol == actual.field_symbol)?;
                     if program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
-                        || (actual.field_symbol.is_valid() && actual.field_symbol != field.symbol)
+                        || !actual.field_symbol.is_valid()
                     {
                         return None;
                     }
                 }
                 for field in fields {
+                    if selected_variant.is_some_and(|variant| {
+                        facts::payload_variant_for_field(program, field.symbol) != Some(variant)
+                    }) {
+                        continue;
+                    }
                     if selected.is_some_and(|(symbol, _)| symbol != field.symbol) {
                         continue;
                     }
-                    let Some(actual) = actuals.iter().find(|actual| actual.name == field.name)
+                    let Some(actual) = actuals
+                        .iter()
+                        .find(|actual| actual.field_symbol == field.symbol)
                     else {
+                        // Enumeration transports completed authored children;
+                        // implicit zeros have no source expression to project.
+                        // Their admissibility remains a construction obligation,
+                        // and selecting an omitted subtree still needs evidence.
+                        if mode == ProjectionMode::ConstructedValues && selected.is_none() {
+                            continue;
+                        }
                         if program
                             .primitive_type_reference(field.type_reference)
                             .is_some()
