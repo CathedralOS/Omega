@@ -4901,8 +4901,8 @@ fail/termination/rankless_family_member_reentry rejected 362ms expected @cbdea66
 pass/termination/rankless_boundary_operator_suffix checked 411ms @cbdea668881e+wt
 pass/termination/rankless_boundary_slice_suffix checked 411ms @cbdea668881e+wt
 pass/termination/runtime_rankless_boundary_suffix_exit checked 2297ms check-target:macos_arm64 @cbdea668881e+wt
-fail/termination/rank_arrival_public_result_wrong_subject rejected 488ms expected @09715a326eee
-	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival
+fail/termination/rank_arrival_public_result_wrong_subject rejected 499ms expected @59ca1ea4ecaf
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/termination/rank_arrival_missing_public_result_field_equation rejected 489ms expected @09715a326eee
 	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
 pass/termination/rank_arrival_unobserved_array_extent_compile checked 580ms @09715a326eee
