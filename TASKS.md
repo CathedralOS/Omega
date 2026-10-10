@@ -3147,12 +3147,11 @@ of a check the same flow already performed, not the check itself.
   refusals. Include the std-dependent setter and const-container gates under
   **PIPELINE-ARCHITECTURE-ENFORCEMENT** in that qualification.
   Keep the const-container gate's independently named receiver and whole-window
-  variation in lexical-owner qualification. The remaining predicate frontier is
-  a generic setter over `Counter<Bound>` whose `count <= Limit` declaration
-  must follow the actual binder: `requires value <= Bound` does not currently
-  close the invariant window after `counter.count = value`. The non-generic
-  `count <= 4` / `value <= 4` equivalent checks; qualify the applied predicate
-  context in default-domain flow without relaxing restoration at state exit.
+  variation in lexical-owner qualification. Include
+  `runtime_applied_default_domain_setter_exit` and its unrelated-bound,
+  stale-mutable-requirement and wrapping-arithmetic controls in predicate-scope
+  qualification. Schematic bodies owe their source predicates before runtime
+  closure; current value facts must independently justify restoration.
   Tuple bounds use the actual binding declaration, not an authored trait
   requirement. Only live private-graph roots own admission work. Universal
   template commitments use the retained authored graph, never a concrete

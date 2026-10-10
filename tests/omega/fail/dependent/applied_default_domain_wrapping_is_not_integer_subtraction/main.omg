@@ -1,0 +1,12 @@
+data Counter<const Limit: u8> where count <= Limit { count: u8 in Wrapping; }
+
+machine Counter::set<const Bound: u8>(counter: &mut Counter<Bound>, value: u8 in Wrapping)
+requires value <= 5;
+{
+    counter.count = value - 10;
+}
+
+data Main { counter: Counter<20>; }
+machine Main::main(main: &mut Main) {
+    Counter::set(&mut main.counter, 3);
+}

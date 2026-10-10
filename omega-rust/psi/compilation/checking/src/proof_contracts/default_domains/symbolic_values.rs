@@ -267,6 +267,39 @@ pub(crate) fn applied_const_integer(
     definition: &typed_trees::data::DataDefinition,
     binder: symbols::SymbolHandle,
 ) -> Option<(typed_trees::types::PrimitiveType, i128)> {
+    let (primitive, actual) = applied_const_argument(program, definition, binder)?;
+    let typed_trees::types::TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(actual)
+    else {
+        return None;
+    };
+    if symbol.is_valid() {
+        return None;
+    }
+    if let Some(value) =
+        language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+    {
+        return match value.decode_encoding()? {
+            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                value, ..
+            } => Some((primitive, value)),
+            _ => None,
+        };
+    }
+    name.as_str().parse().ok().map(|value| (primitive, value))
+}
+
+/// The retained declaration-to-argument join is meaningful before runtime
+/// closure too. A symbolic actual retains its exact lexical binder; callers
+/// either bind its admitted value or leave it unknown, never zero it.
+pub(super) fn applied_const_argument(
+    program: &dyn crate::CheckingInput,
+    definition: &typed_trees::data::DataDefinition,
+    binder: symbols::SymbolHandle,
+) -> Option<(
+    typed_trees::types::PrimitiveType,
+    typed_trees::types::TypeReferenceHandle,
+)> {
     let typed_trees::types::TypeReferenceNode::Generic {
         base_symbol,
         arguments,
@@ -295,25 +328,7 @@ pub(crate) fn applied_const_integer(
         .type_reference_table
         .type_reference_handles(*arguments)
         .get(position)?;
-    let typed_trees::types::TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_table.type_reference(actual)
-    else {
-        return None;
-    };
-    if symbol.is_valid() {
-        return None;
-    }
-    if let Some(value) =
-        language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
-    {
-        return match value.decode_encoding()? {
-            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                value, ..
-            } => Some((primitive, value)),
-            _ => None,
-        };
-    }
-    name.as_str().parse().ok().map(|value| (primitive, value))
+    Some((primitive, actual))
 }
 
 pub(super) fn expression_symbolic_value(

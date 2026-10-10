@@ -429,6 +429,17 @@ pub(crate) fn handle_assignment<'program>(
                     // Ch11 (slice 8): a checkable violation OPENS a window instead
                     // of refusing -- the consumption points demand closure.
                     Some(_) => all_hold = false,
+                    None if written_field.is_some_and(|written| {
+                        super::post_store_predicates::post_store_predicate_holds(
+                            program,
+                            machine,
+                            state,
+                            place,
+                            written,
+                            value,
+                            *expression,
+                        )
+                    }) => {}
                     None => {
                         all_hold = false;
                         // A named runtime value may be written into multiple

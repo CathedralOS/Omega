@@ -28,6 +28,7 @@ mod data_reads;
 mod element_stores;
 mod float_predicates;
 mod place_queries;
+mod post_store_predicates;
 mod standing_requirements;
 mod state_flow;
 mod symbolic_values;

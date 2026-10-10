@@ -301,7 +301,12 @@ pub(super) fn data_definition_for_type(
 ) -> Option<&DataDefinition> {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
-            program.closed_data_definition(handle)
+            // Source obligations belong to the exact applied declaration,
+            // including a schematic body's open static arguments. Closure
+            // admits runtime storage, not an exemption from checking a body.
+            program
+                .data_application_definition(handle)
+                .or_else(|| program.closed_data_definition(handle))
         }
         TypeReferenceNode::Reference { referee, .. } => data_definition_for_type(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => {
