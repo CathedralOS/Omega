@@ -8,7 +8,7 @@ use psi::typing::typer;
 // elements evaluate in increasing index order) is an array of its elements'
 // joined type (joins.omg) whose extent is its element count. Elements of no
 // fixed type make an anonymous array, which lands element by element at its
-// destination (landing.omg).
+// destination (landing.omg); `[]` is an anonymous array of no elements.
 pub machine Typer::type_array(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
@@ -19,7 +19,20 @@ crashes Trap
     let extent: u64 in Trapping = TypeTable::intern(&mut typer.output.types, extent_row);
     transition fixed > 0 {
         true -> typed(typer, syntax, index, values, fixed, extent)
-        _ -> unlanded(typer, syntax, index, values, extent)
+        _ -> unfixed(typer, syntax, index, values, extent)
+    }
+
+    state unfixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, extent: u64 in Trapping) {
+        transition values.count > 0 {
+            true -> unlanded(typer, syntax, index, values, extent)
+            _ -> empty(typer, index, extent)
+        }
+    }
+
+    state empty(typer: &mut Typer, index: u64 in Trapping, extent: u64 in Trapping) {
+        let choice_row: TypeRow = TypeRow::of(TypeKind::AnonymousChoice);
+        let choice: u64 in Trapping = TypeTable::intern(&mut typer.output.types, choice_row);
+        transition { _ -> array(typer, index, TypeKind::AnonymousArray, choice, extent) }
     }
 
     state typed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, element: u64 in Trapping, extent: u64 in Trapping) {

@@ -964,6 +964,12 @@ def main() -> None:
         b"domain u8::Small(value)\nrequires value < 4;\nmachine f() -> u8 { let a: [u8; 2] = [1, 9]; a[0] }",
         ((b"[1, 9]", "[u8; 2]"),),
     )
+    accepted(
+        program,
+        "empty-array-literal-lands",
+        b"machine f() -> u64 { let none: [u8; 0] = []; let nested: [[u8; 0]; 0] = []; 0 }",
+        ((b"[]", "[u8; 0]"), (b"[]!2", "[[u8; 0]; 0]")),
+    )
     rejected(
         program,
         "array-literal-extent-mismatch",

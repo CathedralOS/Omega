@@ -1695,6 +1695,9 @@ def expression_form_cases(program: str) -> None:
         (ARRAY, 0, 0, 0, 0, 2), (ARRAY, 0, 0, 0, 2, 2), (ARRAY, 0, 0, 0, 4, 2),
     ], actual.expressions
     assert actual.arguments == (0, 1, 3, 4, 2, 5), actual.arguments
+    source = b"machine f() { let none: [u8; 0] = []; }"
+    actual = declaration_accepted(program, "empty-array-literal", source)
+    assert actual.expressions[0][:6] == (ARRAY, 0, 0, 0, 0, 0), actual.expressions
 
     # Commas between arms are optional.
     source = b"machine f(c: i32) -> u8 { match c { 2 -> 1 13 -> 2, _ -> 3 } }"
@@ -1781,7 +1784,6 @@ def expression_form_cases(program: str) -> None:
         ("indexed-membership-domain", b"machine f(x: u8) requires x in AtMost<8> {}", 170, b"<", 1,
          {"type_reference_count": 1, "parameter_count": 1, "member_count": 1, "expression_count": 1,
           "name_path_count": 1}),
-        ("empty-array-literal", b"machine f() -> u8 { [] }", 194, b"]", 1, {"type_reference_count": 1}),
         ("array-element", b"machine f() -> u8 { [1, ,] }", 192, b",", 2,
          {"type_reference_count": 1, "expression_count": 1}),
         ("array-element-end", b"machine f() -> u8 { [1 2] }", 193, b"2", 1,

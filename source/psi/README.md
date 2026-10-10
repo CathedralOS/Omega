@@ -64,7 +64,8 @@ operators in the reference grammar's two precedence tiers, memberships
 connective per membership; an indexed domain `AtMost<8>` rejects), and
 value-position `match subject { pattern -> value, ... }` whose arms are `_` or
 value patterns, commas between them optional, and keep their own table,
-and fixed-array literals `[element, ...]`, a trailing comma allowed, all on explicit stacks rather than
+and fixed-array literals `[element, ...]`, a trailing comma allowed, or `[]`,
+all on explicit stacks rather than
 recursion. Every type position (fields, payload fields,
 generic binders, parameters, return types, `let` types and casts) shares one
 grammar in [`parse/types.omg`](parse/types.omg): references `&[mut] T`, arrays
@@ -330,7 +331,8 @@ arms are anonymous numbers is an anonymous choice, which lands arm by arm
 at its destination and is no subject or operand. A fixed-array literal
 ([`typing/arrays.omg`](typing/arrays.omg)) joins its elements as a match
 joins its arm values ([`typing/joins.omg`](typing/joins.omg)), its extent
-its element count; unlanded elements make an anonymous array, and any
+its element count; unlanded elements make an anonymous array, `[]` one of
+no elements, and any
 unlanded match or array lands at a destination of its shape, every
 anonymous number at the innermost element type
 ([`typing/landing.omg`](typing/landing.omg)). A membership is a Boolean:

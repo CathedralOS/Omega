@@ -851,8 +851,6 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedRangeEnd;
     case ExpectedArrayElement;
     case ExpectedArrayElementEnd;
-    // `[]` names no element type or extent.
-    case EmptyArrayLiteral;
 }
 
 pub data ParseDiagnostic [copy] {

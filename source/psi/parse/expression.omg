@@ -969,8 +969,8 @@ crashes Trap
         }
     }
 
-    // `[element, ...]`: a fixed-array literal of one or more elements, a
-    // trailing comma allowed.
+    // `[element, ...]`: a fixed-array literal, a trailing comma allowed; `[]`
+    // has no elements.
     state open_array(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         Parser::push_frame(parser, input, ExpressionFrameKind::Elements, 0);
@@ -986,7 +986,7 @@ crashes Trap
         Parser::replace_top_frame(parser, Parser::started_frame(frame, start));
         let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBracket);
         transition closing {
-            true -> reject(parser, input, ParseDiagnosticCode::EmptyArrayLiteral)
+            true -> close_array(parser, input)
             _ -> operand(parser, input, ParseDiagnosticCode::ExpectedArrayElement)
         }
     }
@@ -1379,7 +1379,7 @@ crashes Trap
     }
 
     // The first child is `left`, except an array literal's first element
-    // and a range's end when it has no start; `..` has no child.
+    // and a range's end when it has no start; `[]` and `..` have no child.
     state composite(parser: &mut Parser, input: &TokenStream, node: Expression, handle: u64 in Trapping) {
         transition node.kind {
             ExpressionKind::Array -> elements(parser, input, node, handle)
@@ -1389,6 +1389,13 @@ crashes Trap
     }
 
     state elements(parser: &mut Parser, input: &TokenStream, node: Expression, handle: u64 in Trapping) {
+        transition node.count > 0 {
+            true -> first_element(parser, input, node, handle)
+            _ -> stored(parser, input, node, handle, handle)
+        }
+    }
+
+    state first_element(parser: &mut Parser, input: &TokenStream, node: Expression, handle: u64 in Trapping) {
         let first_element: u64 in Trapping = SyntaxTrees::argument(&parser.output, node.first);
         transition { _ -> child(parser, input, node, handle, first_element) }
     }

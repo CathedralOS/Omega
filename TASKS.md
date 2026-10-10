@@ -6213,7 +6213,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   checking walks every state, an unreached one from its own `requires`
   facts. A membership is a Boolean, and a whole membership fact decides as
   its domain's predicates of the value; a case membership that must hold
-  rejects as unsupported. A machine binder's
+  rejects as unsupported. A machine's return type may follow its clauses,
+  a bare `terminates` may end at its body, and `[]` lands at its
+  destination's array type. A machine binder's
   call is typed through its contract, and a generic call's static machine
   arguments bind its machine binders, each argument's signature refining its
   contract under the call's bindings and binding the callee's other generic

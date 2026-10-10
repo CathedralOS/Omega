@@ -323,7 +323,6 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedRangeEnd -> parse_diagnostic(parser_harness, output, 191)
             ParseDiagnosticCode::ExpectedArrayElement -> parse_diagnostic(parser_harness, output, 192)
             ParseDiagnosticCode::ExpectedArrayElementEnd -> parse_diagnostic(parser_harness, output, 193)
-            ParseDiagnosticCode::EmptyArrayLiteral -> parse_diagnostic(parser_harness, output, 194)
         }
     }
 
