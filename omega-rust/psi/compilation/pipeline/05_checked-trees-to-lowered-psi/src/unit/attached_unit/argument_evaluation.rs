@@ -747,6 +747,7 @@ impl Evaluation {
             })
             .collect::<Vec<_>>();
         let predicate = crate::scalar_lowering::contracts::clauses(
+            identities,
             &clauses,
             values,
             &self.erased_scalar_formals,

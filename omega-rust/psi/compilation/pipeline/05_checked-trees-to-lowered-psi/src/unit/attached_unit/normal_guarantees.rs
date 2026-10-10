@@ -81,7 +81,7 @@ pub(crate) fn lower(
         },
         ..*views
     };
-    contracts::clauses(&guarantees, &namespace, erased, &views)?
+    contracts::clauses(identities, &guarantees, &namespace, erased, &views)?
         .into_iter()
         .map(|proposition| {
             Ok(ContractClause {

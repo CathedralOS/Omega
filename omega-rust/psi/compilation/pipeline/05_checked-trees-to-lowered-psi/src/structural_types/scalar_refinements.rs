@@ -10,11 +10,13 @@ use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::contract_predicates::{self, PredicateTerms};
 
 pub(super) fn lower(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     primitive: PrimitiveType,
     predicate: &CheckedBooleanExpression,
 ) -> Result<ScalarRefinement, LoweringError> {
     let carrier = terminal_scalar_type(primitive)?;
-    let predicate = contract_predicates::proposition(predicate, &FieldSubject { carrier })?;
+    let predicate =
+        contract_predicates::proposition(identities, predicate, &FieldSubject { carrier })?;
     ScalarRefinement::new(carrier, predicate).map_err(|_| {
         LoweringError::Unsupported("scalar field predicate is not closed over its carrier")
     })
@@ -25,7 +27,11 @@ struct FieldSubject {
 }
 
 impl PredicateTerms for FieldSubject {
-    fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+    fn scalar(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
         match expression {
             CheckedScalarExpression::Parameter {
                 position: 0,
@@ -40,12 +46,16 @@ impl PredicateTerms for FieldSubject {
                 ScalarTerm::integer(integer, integer_value(literal, self.carrier)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
             }
-            CheckedScalarExpression::Boolean(predicate) => self.boolean(predicate),
+            CheckedScalarExpression::Boolean(predicate) => self.boolean(identities, predicate),
             _ => unsupported("scalar field predicate names a value outside its formal subject"),
         }
     }
 
-    fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
+    fn boolean(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedBooleanExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
         match expression {
             CheckedBooleanExpression::Constant(value) => Ok(ScalarTerm::boolean(*value)),
             CheckedBooleanExpression::Parameter { position: 0 }
@@ -54,12 +64,15 @@ impl PredicateTerms for FieldSubject {
                 Ok(ScalarTerm::value(ScalarRefinement::SUBJECT, self.carrier))
             }
             CheckedBooleanExpression::Not(operand) => {
-                ScalarTerm::boolean_not(self.boolean(operand)?)
+                ScalarTerm::boolean_not(self.boolean(identities, operand)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
             }
             CheckedBooleanExpression::Equal { left, right } => {
-                ScalarTerm::boolean_equal(self.boolean(left)?, self.boolean(right)?)
-                    .map_err(LoweringError::InvalidCrashPredicate)
+                ScalarTerm::boolean_equal(
+                    self.boolean(identities, left)?,
+                    self.boolean(identities, right)?,
+                )
+                .map_err(LoweringError::InvalidCrashPredicate)
             }
             _ => unsupported("scalar field Boolean predicate names an unsupported subject"),
         }

@@ -212,6 +212,7 @@ fn lower_scalar_ensures(
     let formals = scalar_contract_formals(&namespace)?;
     let predicate = |value| {
         crate::scalar_lowering::contracts::proposition(
+            identities,
             value,
             &formals,
             &[],
@@ -250,6 +251,7 @@ fn lower_scalar_contract(
         .iter()
         .map(|row| {
             crate::scalar_lowering::contracts::clauses(
+                identities,
                 std::slice::from_ref(&Some(row.clone())),
                 &formals,
                 &[],

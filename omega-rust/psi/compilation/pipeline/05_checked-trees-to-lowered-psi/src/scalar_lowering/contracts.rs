@@ -53,6 +53,7 @@ impl ContractViewNamespace<'static> {
 }
 
 pub(crate) fn clauses(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     clauses: &[Option<ClosedScalarContractValue>],
     namespace: &[ValueDeclaration],
     erased: &[ValueDeclaration],
@@ -62,7 +63,7 @@ pub(crate) fn clauses(
     for clause in clauses {
         let proposition = match clause {
             Some(ClosedScalarContractValue::Predicate(predicate)) => {
-                proposition(predicate, namespace, erased, views)?
+                proposition(identities, predicate, namespace, erased, views)?
             }
             // The checked selection gate established builtin reflexivity.
             Some(ClosedScalarContractValue::Boolean(_) | ClosedScalarContractValue::Integer(_)) => {
@@ -298,6 +299,7 @@ pub(crate) fn lowered_proof_term(
 /// comparisons equated with true. Call composition can then cite the exact
 /// relation in ordinary fixed-integer proof rules.
 pub(crate) fn proposition(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     predicate: &CheckedBooleanExpression,
     namespace: &[ValueDeclaration],
     erased: &[ValueDeclaration],
@@ -305,6 +307,7 @@ pub(crate) fn proposition(
 ) -> Result<Proposition, LoweringError> {
     self::namespace::validate(predicate)?;
     crate::proofs::contract_predicates::proposition(
+        identities,
         predicate,
         &ScalarContractTerms {
             namespace,
@@ -322,7 +325,9 @@ struct ScalarContractTerms<'namespace> {
 
 impl PredicateTerms for ScalarContractTerms<'_> {
     fn case_membership(
-        &self,        expression: &CheckedBooleanExpression,
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedBooleanExpression,
     ) -> Result<Proposition, LoweringError> {
         let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression
         else {
@@ -339,12 +344,16 @@ impl PredicateTerms for ScalarContractTerms<'_> {
         )
     }
 
-    fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+    fn scalar(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
         // Integer operations compose through the shared predicate lowering
         // entry requirements use, so a member leaf below arithmetic
         // (`self.length - 1`) resolves in the same namespace as a bare one.
         // Closed contracts carry no partial operation's safety evidence.
-        crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.leaf(identities, leaf))
+        crate::proofs::integer_predicates::lower(expression, &[], &mut |leaf| self.leaf(identities, leaf))
     }
 
     fn boolean(&self,
@@ -377,7 +386,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                         terminal_psi::StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
                         _ => None,
                     });
-                    (identities, parameter.place, Vec::new(), carrier)
+                    (parameter.place, Vec::new(), carrier)
                 } else {
                     let (root, path, field) =
                         crate::proofs::crash_routes::lower_structural_member_path(
@@ -411,12 +420,15 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                 })
             }
             CheckedBooleanExpression::Not(operand) => {
-                ScalarTerm::boolean_not(self.boolean(operand)?)
+                ScalarTerm::boolean_not(self.boolean(identities, operand)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
             }
             CheckedBooleanExpression::Equal { left, right } => {
-                ScalarTerm::boolean_equal(self.boolean(left)?, self.boolean(right)?)
-                    .map_err(LoweringError::InvalidCrashPredicate)
+                ScalarTerm::boolean_equal(
+                    self.boolean(identities, left)?,
+                    self.boolean(identities, right)?,
+                )
+                .map_err(LoweringError::InvalidCrashPredicate)
             }
             _ => crate::proofs::crash_routes::checked_boolean_scalar_term(
                 identities,

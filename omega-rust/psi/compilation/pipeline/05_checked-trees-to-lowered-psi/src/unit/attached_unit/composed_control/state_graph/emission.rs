@@ -620,6 +620,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             &catalogs.structural_types,
         );
         let Some(predicate) = crate::scalar_lowering::contracts::clauses(
+            identities,
             &state.requires,
             &state_values[position],
             &state_erased[position],

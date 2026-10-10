@@ -67,7 +67,7 @@ pub(crate) fn lower_field_type(
         CheckedUnitStructuralFieldType::RefinedScalar {
             primitive,
             predicate,
-        } => StructuralFieldType::RefinedScalar(scalar_refinements::lower(*primitive, predicate)?),
+        } => StructuralFieldType::RefinedScalar(scalar_refinements::lower(identities, *primitive, predicate)?),
         CheckedUnitStructuralFieldType::Atomic(primitive) => {
             StructuralFieldType::Atomic(terminal_scalar_type(*primitive)?)
         }
