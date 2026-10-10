@@ -7,11 +7,10 @@ mod dependency_paths;
 mod resolution;
 mod resolved_closure;
 
-pub(crate) use dependency_paths::DependencyRequestPaths;
 pub(crate) use super::root_request::PackageRootSourceRequest;
+pub(crate) use dependency_paths::DependencyRequestPaths;
 
-pub(crate) use resolved_closure::{
-    ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
+pub(crate) use resolved_closure::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
 
 use super::PackageClosureValidationError;
 use crate::declarations::BuildDeclarationKind;
@@ -35,18 +34,6 @@ pub(crate) struct DependencyRequestPathStep {
 }
 
 impl DependencyRequestPathStep {
-
-    /// Which authorized context this edge belongs to.
-    pub const fn purpose(&self) -> DependencyPurpose {
-        self.purpose
-    }
-
-    /// Zero-based position in the requester's projected dependency rows for
-    /// this edge's purpose scope.
-    pub(crate) fn dependency_index(&self) -> usize {
-        self.dependency_index
-    }
-
     pub fn alias(&self) -> &AliasName {
         &self.alias
     }
@@ -84,12 +71,7 @@ pub(crate) struct PackageSourceClosureConflictCandidate {
     requesting_paths: Vec<DependencyRequestPath>,
 }
 
-impl PackageSourceClosureConflictCandidate {
-
-    pub(crate) fn requesting_paths(&self) -> &[DependencyRequestPath] {
-        &self.requesting_paths
-    }
-}
+impl PackageSourceClosureConflictCandidate {}
 
 /// All distinct source custodies observed for one conflicting package key.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,12 +80,7 @@ pub(crate) struct PackageSourceClosureConflict {
     candidates: Vec<PackageSourceClosureConflictCandidate>,
 }
 
-impl PackageSourceClosureConflict {
-
-    pub fn candidates(&self) -> &[PackageSourceClosureConflictCandidate] {
-        &self.candidates
-    }
-}
+impl PackageSourceClosureConflict {}
 
 /// Resolver-work ceilings applied across one complete source closure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,8 +147,7 @@ pub(crate) enum PackageSourceClosureResolutionError<E> {
     },
 }
 
-impl<E> PackageSourceClosureResolutionError<E> {
-}
+impl<E> PackageSourceClosureResolutionError<E> {}
 
 impl<E: fmt::Display> fmt::Display for PackageSourceClosureResolutionError<E> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
