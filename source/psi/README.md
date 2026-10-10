@@ -422,7 +422,11 @@ what its callee's write frame may change: everything when the callee may
 replace the whole referent or its writes are unknown, else the field places
 whose fields it, its callees or its states store
 ([`checking/frames.omg`](checking/frames.omg), derived before any body is
-checked). A value-position match's arms each run on the facts after its
+checked). An operand evaluated before such a call keeps what it read: before
+the call forgets a place, each earlier operand reading it moves to a
+snapshot, an integer to a fresh subject equal to the one it read and a
+record to a place holding the fields known of it
+([`checking/snapshots.omg`](checking/snapshots.omg)). A value-position match's arms each run on the facts after its
 subject, their own pattern selected and earlier ones passed over as a
 transition's arms are; the facts after it are its arms' join and its value
 their hull, and an arm value landed at a qualified match type proves the

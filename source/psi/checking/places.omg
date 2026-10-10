@@ -13,8 +13,9 @@ use psi::syntax::syntax;
 use psi::types::types;
 
 // The places a body names and the integer subjects among them. A place is a
-// parameter, a local, a case-pattern binder, or a field or slice length of
-// another place; equal paths are one place. An integer place is a subject of
+// parameter, a local, a case-pattern binder, a call's result, an operand's
+// snapshot, or a field or slice length of another place; equal paths are
+// one place. An integer place is a subject of
 // the body's zone, entered with its carrier's range: a fixed integer's value
 // always lies in its carrier, whatever its policy
 // (wiki/spec/language/numeric_values.md#integer-equality-and-order). Facts
@@ -28,6 +29,9 @@ pub data PlaceKind [copy] {
     // A call's result, by the call's expression handle: the value its
     // callee's `ensures` facts describe.
     case Call;
+    // What an operand read before a later operand wrote it, by the lending
+    // operand's handle under the place read (snapshots.omg).
+    case Snapshot;
 }
 
 pub data Place [copy] {

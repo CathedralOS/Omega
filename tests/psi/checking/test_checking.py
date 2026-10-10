@@ -2285,6 +2285,46 @@ def main() -> None:
         b"}",
     )
 
+    # An operand evaluated before a later call writes what it read keeps
+    # the value it captured (snapshots.omg).
+    rewrite = b"machine set(x: &mut u64) -> bool { x = 5; true }\n"
+    rejected(
+        program,
+        "later-write-leaves-the-earlier-read",
+        rewrite + b"machine compare(before: u64, done: bool, after: u64)\nrequires before == after\n{}\n"
+        b"machine run() {\n    let mut x: u64 = 1;\n    compare(x, set(&mut x), x);\n}",
+        "RequirementUnproven",
+        b"compare(x, set(&mut x), x)",
+    )
+    accepted(
+        program,
+        "earlier-read-keeps-its-value",
+        rewrite + b"machine compare(before: u64, done: bool)\nrequires before == 1\n{}\n"
+        b"machine run() {\n    let mut x: u64 = 1;\n    compare(x, set(&mut x));\n}",
+    )
+    bump = b"machine bump(x: &mut u64) -> u64\nensures result == 0\n{ x = 7; 0 }\n"
+    accepted(
+        program,
+        "left-operand-keeps-its-value",
+        bump + b"machine run() -> u64\nensures result == 1\n{\n    let mut x: u64 = 1;\n    x + bump(&mut x)\n}",
+    )
+    rejected(
+        program,
+        "right-operand-reads-the-write",
+        bump + b"machine run() -> u64\nensures result == 1\n{\n    let mut x: u64 = 1;\n    bump(&mut x) + x\n}",
+        "GuaranteeUnproven",
+        b"bump(&mut x) + x",
+    )
+    accepted(
+        program,
+        "record-operand-keeps-its-fields",
+        b"data Pair [copy] { first: u64; second: u64; }\n"
+        b"machine reset(pair: &mut Pair) -> bool { pair.first = 9; true }\n"
+        b"machine same(left: Pair, done: bool)\nrequires left.first == 1\n{}\n"
+        b"machine run() {\n    let mut pair: Pair = Pair { first: 0, second: 0 };\n    pair.first = 1;\n"
+        b"    same(pair, reset(&mut pair));\n}",
+    )
+
     # The product's own psi package, each module under source/psi as
     # `<directory>::<file>` of package `psi`: how far checking reaches today.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

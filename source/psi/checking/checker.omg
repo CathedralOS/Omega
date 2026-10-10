@@ -11,6 +11,7 @@ use psi::checking::obligations;
 use psi::checking::ownership;
 use psi::checking::places;
 use psi::checking::qualification;
+use psi::checking::snapshots;
 use psi::checking::supply;
 use psi::checking::termination;
 use psi::checking::zone;
@@ -1061,11 +1062,12 @@ crashes Trap
         let exclusive: bool = Checker::exclusive_value(typing, handle);
         let whole: bool = Checker::writes_whole(checker, first_parameter + offset);
         transition exclusive && value.place > 0 {
-            true -> lent(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, value.place, unknown || whole || offset >= parameter_count)
+            true -> lent(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, value.place, unknown || whole || offset >= parameter_count)
             _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1)
         }
     }
 
+    // The operands evaluated before the call keep what they read there.
     state lent(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
@@ -1076,9 +1078,11 @@ crashes Trap
         parameter_count: u64 in Trapping,
         unknown: bool,
         offset: u64 in Trapping,
+        lender: u64 in Trapping,
         place: u64 in Trapping,
         whole: bool
     ) {
+        Checker::snapshot_operands(checker, syntax, typing, expression, lender, place);
         transition whole {
             true -> released(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place)
             _ -> narrowed(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place)
