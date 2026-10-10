@@ -31,6 +31,7 @@ use typed_trees::statement::StatementNode;
 
 pub(crate) fn derive_checked_claim_outcome_maps(
     program: &dyn ::validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
     ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
 ) -> Vec<CheckedClaimOutcomeMap> {
@@ -48,6 +49,7 @@ pub(crate) fn derive_checked_claim_outcome_maps(
                 program.machine_states(machine).iter().filter_map(|state| {
                     derive_checked_claim_outcome_map(
                         program,
+                        borrow,
                         machine.symbol,
                         state,
                         ownership,
@@ -68,6 +70,7 @@ pub(crate) fn derive_checked_claim_outcome_maps(
 #[allow(clippy::too_many_arguments)]
 fn derive_checked_claim_outcome_map(
     program: &dyn ::validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
     machine_symbol: SymbolHandle,
     state: &typed_trees::state::State,
     ownership: &checked_trees::FlowOwnershipFacts,
@@ -181,11 +184,17 @@ fn derive_checked_claim_outcome_map(
         if sources.len() != 1 {
             if sources.is_empty()
                 && claim_path_is_statically_inactive(
-                    program,
+                    &ClaimAbsence {
+                        program,
+                        borrow,
+                        state,
+                        ownership,
+                        events: permission_events,
+                        maps: known_maps,
+                    },
                     path,
                     &result_expressions,
                     &named_transitions,
-                    known_maps,
                 )
             {
                 continue;
@@ -247,7 +256,7 @@ pub(crate) fn claim_paths_are_case_alternatives(
 }
 
 fn claim_path_is_statically_inactive(
-    program: &dyn ::validation::CheckingInput,
+    absence: &ClaimAbsence<'_>,
     path: &[facts::PlaceSegment],
     result_expressions: &[(usize, typed_trees::expression::ExpressionHandle)],
     named_transitions: &[(
@@ -255,91 +264,164 @@ fn claim_path_is_statically_inactive(
         SymbolHandle,
         HandleSpan<typed_trees::expression::ExpressionHandle>,
     )],
-    known_maps: &[CheckedClaimOutcomeMap],
 ) -> bool {
-    if result_expressions.is_empty() && named_transitions.is_empty() {
+    if (result_expressions.is_empty() && named_transitions.is_empty())
+        || !path
+            .iter()
+            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+    {
         return false;
     }
-    result_expressions.iter().all(|(_, expression)| {
-        expression_statically_excludes_claim_path(program, *expression, path, known_maps)
-    }) && named_transitions.iter().all(|(_, target_symbol, _)| {
-        validation::call_target_state(program, *target_symbol)
-            .and_then(|target| {
-                known_maps
-                    .iter()
-                    .find(|map| map.state_symbol == target.symbol)
+    result_expressions
+        .iter()
+        .all(|(statement, expression)| absence.expression(*statement, *expression, path))
+        && named_transitions
+            .iter()
+            .all(|(statement, target, arguments)| {
+                absence.arguments(
+                    *statement,
+                    *target,
+                    absence
+                        .program
+                        .statement_table
+                        .expression_handles(*arguments),
+                    path,
+                )
             })
-            .is_some_and(|map| !map.entries.iter().any(|entry| entry.output_path == path))
-    })
 }
 
-fn expression_statically_excludes_claim_path(
-    program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-    path: &[facts::PlaceSegment],
-    known_maps: &[CheckedClaimOutcomeMap],
-) -> bool {
-    match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
-            let mut remaining = path;
-            if literal.case_name.is_some() {
-                let Some(facts::PlaceSegment::Case { variant }) = remaining.first() else {
+/// Source-owned exclusion of a conditional claim. Complete outcome maps and
+/// preserved inactive storage are evidence; a failed identity lookup is not.
+struct ClaimAbsence<'a> {
+    program: &'a dyn ::validation::CheckingInput,
+    borrow: &'a checked_trees::BorrowFacts,
+    state: &'a typed_trees::state::State,
+    ownership: &'a checked_trees::FlowOwnershipFacts,
+    events: &'a [FlowPermissionEventFact],
+    maps: &'a [CheckedClaimOutcomeMap],
+}
+
+impl ClaimAbsence<'_> {
+    fn expression(
+        &self,
+        statement: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+        path: &[facts::PlaceSegment],
+    ) -> bool {
+        if let Some(mut place) = validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state.symbol,
+            statement,
+            expression,
+        ) {
+            place.segments.extend_from_slice(path);
+            if joins::preserved_inactive_place(
+                self.program,
+                self.borrow,
+                self.state,
+                statement,
+                &place,
+                self.ownership,
+                self.events,
+            )
+            .is_some()
+            {
+                return true;
+            }
+        }
+        match self.program.expression_table.expression(expression) {
+            typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
+                let mut remaining = path;
+                if literal.case_name.is_some() {
+                    let Some(facts::PlaceSegment::Case { variant }) = remaining.first() else {
+                        return false;
+                    };
+                    if literal_variant(self.program, literal).map(|candidate| candidate.symbol)
+                        != Some(*variant)
+                    {
+                        return true;
+                    }
+                    remaining = &remaining[1..];
+                }
+                let Some(facts::PlaceSegment::Field { symbol }) = remaining.first() else {
                     return false;
                 };
-                if literal_variant(program, literal).map(|candidate| candidate.symbol)
-                    != Some(*variant)
-                {
-                    return true;
-                }
-                remaining = &remaining[1..];
+                let Some(field_name) = data_field_name(self.program, *symbol) else {
+                    return false;
+                };
+                self.program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .find(|field| field.name.as_str() == field_name)
+                    .is_some_and(|field| self.expression(statement, field.value, &remaining[1..]))
             }
-            let Some(facts::PlaceSegment::Field { symbol }) = remaining.first() else {
-                return false;
-            };
-            let Some(field_name) = data_field_name(program, *symbol) else {
-                return false;
-            };
-            program
-                .expression_table
-                .struct_fields(literal.fields)
+            typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+                let Some(facts::PlaceSegment::FixedIndex { index }) = path.first() else {
+                    return false;
+                };
+                self.program
+                    .expression_table
+                    .expression_handles(*values)
+                    .get(*index)
+                    .is_some_and(|value| self.expression(statement, *value, &path[1..]))
+            }
+            typed_trees::expression::ExpressionNode::Call(call) => self.arguments(
+                statement,
+                call.target_symbol,
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments),
+                path,
+            ),
+            _ => false,
+        }
+    }
+
+    fn arguments(
+        &self,
+        statement: usize,
+        target_symbol: SymbolHandle,
+        arguments: &[typed_trees::expression::ExpressionHandle],
+        path: &[facts::PlaceSegment],
+    ) -> bool {
+        let Some(target) = validation::call_target_state(self.program, target_symbol) else {
+            return false;
+        };
+        let mut maps = self
+            .maps
+            .iter()
+            .filter(|map| map.state_symbol == target.symbol);
+        let Some(map) = maps.next() else {
+            return false;
+        };
+        if maps.next().is_some() {
+            return false;
+        }
+        let mut entries = map.entries.iter().filter(|entry| entry.output_path == path);
+        let Some(entry) = entries.next() else {
+            return path
                 .iter()
-                .find(|field| field.name.as_str() == field_name)
-                .is_some_and(|field| {
-                    expression_statically_excludes_claim_path(
-                        program,
-                        field.value,
-                        &remaining[1..],
-                        known_maps,
-                    )
-                })
+                .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }));
+        };
+        if entries.next().is_some() {
+            return false;
         }
-        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
-            let Some(facts::PlaceSegment::FixedIndex { index }) = path.first() else {
-                return false;
-            };
-            program
-                .expression_table
-                .expression_handles(*values)
-                .get(*index)
-                .is_some_and(|value| {
-                    expression_statically_excludes_claim_path(
-                        program,
-                        *value,
-                        &path[1..],
-                        known_maps,
-                    )
-                })
-        }
-        typed_trees::expression::ExpressionNode::Call(call) => {
-            validation::call_target_state(program, call.target_symbol)
-                .and_then(|target| {
-                    known_maps
-                        .iter()
-                        .find(|map| map.state_symbol == target.symbol)
-                })
-                .is_some_and(|map| !map.entries.iter().any(|entry| entry.output_path == path))
-        }
-        _ => false,
+        let CheckedClaimOutcomeSource::Input {
+            parameter_symbol,
+            path: input_path,
+        } = &entry.source
+        else {
+            return false;
+        };
+        let Some(argument) =
+            argument_for_parameter(self.program, arguments, target, *parameter_symbol)
+        else {
+            return false;
+        };
+        // Substitute the exact input path into its actual once. The same walk
+        // handles constructor exclusion, nested calls and preserved storage.
+        self.expression(statement, argument, input_path)
     }
 }
 

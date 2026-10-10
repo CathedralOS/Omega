@@ -14,6 +14,7 @@ pub(crate) struct EmbeddedScalarCalls {
         language_semantics::PermissionClaimIdentity,
         semantic_vocabulary::ClaimId,
     )>,
+    unreceived_results: Vec<crate::emission::claim_bindings::UnreceivedResultClaim>,
     cleanup_receivers: Vec<(symbols::SymbolHandle, semantic_vocabulary::PlaceId)>,
     pub(crate) machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
     pub(crate) requirement_counts: Vec<(symbols::SymbolHandle, usize)>,
@@ -35,6 +36,7 @@ impl EmbeddedScalarCalls {
             structural_types: Vec::new(),
             domain_ids: Vec::new(),
             claim_bindings: Vec::new(),
+            unreceived_results: Vec::new(),
             cleanup_receivers: Vec::new(),
             machine_ids,
             requirement_counts,
@@ -66,7 +68,7 @@ impl EmbeddedScalarCalls {
             claims: crate::emission::claim_bindings::ClaimBindings::Fixed(
                 crate::emission::claim_bindings::PublishedClaims {
                     bindings: &self.claim_bindings,
-                    unreceived_results: &[],
+                    unreceived_results: &self.unreceived_results,
                 },
             ),
             cleanup_receivers: &self.cleanup_receivers,
@@ -84,12 +86,12 @@ impl EmbeddedScalarCalls {
     /// evaluation. Every temporary and ordinary call borrows that same roster.
     pub(crate) fn bind_claim_namespace(
         &mut self,
-        bindings: &[(
-            language_semantics::PermissionClaimIdentity,
-            semantic_vocabulary::ClaimId,
-        )],
+        published: crate::emission::claim_bindings::PublishedClaims<'_>,
     ) {
         self.claim_bindings.clear();
-        self.claim_bindings.extend_from_slice(bindings);
+        self.claim_bindings.extend_from_slice(published.bindings);
+        self.unreceived_results.clear();
+        self.unreceived_results
+            .extend_from_slice(published.unreceived_results);
     }
 }

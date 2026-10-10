@@ -388,8 +388,12 @@ pub(crate) fn prepare_permission_events(
         &mut permission_events,
         &mut claim_identities,
     );
-    let claim_outcome_maps =
-        reconcile_state_call_result_origins(program, &facts.flow.ownership, &mut permission_events);
+    let claim_outcome_maps = reconcile_state_call_result_origins(
+        program,
+        &facts.borrow,
+        &facts.flow.ownership,
+        &mut permission_events,
+    );
 
     // Reconciliation can prove that a returned sum never establishes a
     // particular payload. The provisional carrier moves recorded above then
@@ -423,8 +427,12 @@ pub(crate) fn prepare_permission_events(
         .iter()
         .map(|(_, event)| event.clone())
         .collect::<Vec<_>>();
-    let joined_maps =
-        derive_checked_claim_outcome_maps(program, &facts.flow.ownership, &joined_events);
+    let joined_maps = derive_checked_claim_outcome_maps(
+        program,
+        &facts.borrow,
+        &facts.flow.ownership,
+        &joined_events,
+    );
     publish_claim_outcome_maps(facts, joined_maps);
     if selection_diagnostics.is_empty() {
         cleanup_dispositions.entry_requirements =
@@ -855,22 +863,28 @@ pub(crate) fn exclude_case_alternative(
 /// correspondence without copying a template identity across invocations.
 fn reconcile_state_call_result_origins(
     program: &dyn ::validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
     ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &mut [FlowPermissionEventFact],
 ) -> Vec<CheckedClaimOutcomeMap> {
     let segments = &ownership.segments;
     let iteration_limit = permission_events.len().saturating_add(1);
     for _ in 0..iteration_limit {
-        let maps = derive_checked_claim_outcome_maps(program, ownership, permission_events);
+        let maps = derive_checked_claim_outcome_maps(program, borrow, ownership, permission_events);
         let rewrites = call_result_origin_rewrites(program, segments, permission_events, &maps);
         let origins_changed = apply_claim_origin_rewrites(permission_events, &rewrites);
         let liveness_changed =
             apply_statically_inactive_call_results(program, segments, permission_events, &maps);
         if !origins_changed && !liveness_changed {
-            return derive_checked_claim_outcome_maps(program, ownership, permission_events);
+            return derive_checked_claim_outcome_maps(
+                program,
+                borrow,
+                ownership,
+                permission_events,
+            );
         }
     }
-    derive_checked_claim_outcome_maps(program, ownership, permission_events)
+    derive_checked_claim_outcome_maps(program, borrow, ownership, permission_events)
 }
 
 fn apply_statically_inactive_call_results(

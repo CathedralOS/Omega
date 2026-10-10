@@ -121,23 +121,16 @@ pub(super) fn prepare(
         ) => {}
         _ => return unsupported("effect call disagrees with its target result"),
     }
+    // Source custody records the active transfers; the callee's entry
+    // catalogue also contains guarded, potentially absent case payloads.
+    // Preserve exact identities and translate their paths below, as scalar
+    // calls do, rather than requiring equal catalogue and transfer counts.
     if target.state != *target_state
         || target.contract_report_fingerprint != *target_contract_report_fingerprint
         || !crate::unit::attached_unit::catalog::checked_unit_target_reach_matches(
             *service_reach,
             target.contract_service_reach,
         )
-        || (0..structural_arguments.len()).any(|position| {
-            claim_transfers
-                .iter()
-                .filter(|claim| claim.argument_index as usize == position)
-                .count()
-                != target
-                    .entry_claims
-                    .iter()
-                    .filter(|claim| claim.parameter_index as usize == position)
-                    .count()
-        })
         || claim_transfers
             .iter()
             .any(|claim| claim.argument_index as usize >= structural_arguments.len())

@@ -207,7 +207,7 @@ pub(super) fn discover(
             }
             for operation in
                 crate::expression_preparation::computation_graph::value_call_operations(
-                    checked, *source,
+                    checked, *source, None,
                 )?
             {
                 if let Some(call) = operation

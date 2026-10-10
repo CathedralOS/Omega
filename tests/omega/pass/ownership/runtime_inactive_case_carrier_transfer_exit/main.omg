@@ -51,10 +51,22 @@ machine forward_mixed(value: Mixed) -> Mixed { value }
 machine empty_mixed(required: Token) -> Mixed {
     Mixed { required: required, slot: Slot::Empty }
 }
-machine consume_mixed(value: Mixed) -> u32 {
+machine consume_slot(value: Slot) -> u32 {
+    transition value {
+        Slot::Empty -> 0
+        Slot::Held { token } -> finish(token)
+    }
+    state finish(token: Token) -> u32 {
+        let payload: u32 = token.value;
+        drop(token);
+        payload
+    }
+}
+machine consume_mixed(value: Mixed, expected: u32) -> bool {
     let required: u32 = value.required.value;
     drop(value.required);
-    required + consume(Holder { slot: value.slot })
+    let payload: u32 = consume_slot(value.slot);
+    required == 11 && payload == expected
 }
 
 machine main() crashes Trap {
@@ -62,13 +74,13 @@ machine main() crashes Trap {
     let second: u32 = consume(named());
     let third: u32 = consume(returned());
     let live: u32 = consume(held(Token { value: 70 }));
-    let mixed_empty: u32 = consume_mixed(forward_mixed(empty_mixed(Token { value: 11 })));
-    let mixed_live: u32 = consume_mixed(forward_mixed(Mixed {
+    let mixed_empty: bool = consume_mixed(forward_mixed(empty_mixed(Token { value: 11 })), 0);
+    let mixed_live: bool = consume_mixed(forward_mixed(Mixed {
         required: Token { value: 11 },
         slot: Slot::Held { token: Token { value: 70 } }
-    }));
+    }), 70);
     transition first == 0 && second == 0 && third == 0 && live == 70
-        && mixed_empty == 11 && mixed_live == 81 {
+        && mixed_empty && mixed_live {
         true -> done()
         _ -> bad()
     }

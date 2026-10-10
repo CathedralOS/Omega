@@ -395,10 +395,11 @@ pub(super) fn projected_operand(
         parameter.structural_type
     } else {
         let (_, result) = super::aggregate_result_input::home(source, argument.place)?;
+        // Live claims travel through the checked ownership transfer. They add
+        // no bytes and do not restrict this exact source geometry projection.
         if result.multiplicity != StructuralMultiplicity::Affine
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
         {
             return None;
         }

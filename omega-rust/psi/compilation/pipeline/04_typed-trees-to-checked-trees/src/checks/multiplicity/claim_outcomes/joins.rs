@@ -5,10 +5,9 @@
 //! retain every alternative rather than manufacturing an unconditional lineage.
 
 use super::{
-    argument_for_parameter, bind_claim_outcome_source_at_arguments,
+    ClaimAbsence, argument_for_parameter, bind_claim_outcome_source_at_arguments,
     bind_claim_outcome_source_at_call, claim_outcomes_for_expression,
-    claim_paths_are_case_alternatives, derive_checked_claim_outcome_maps,
-    expression_statically_excludes_claim_path, parameter_for_symbol,
+    claim_paths_are_case_alternatives, derive_checked_claim_outcome_maps, parameter_for_symbol,
 };
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
@@ -93,6 +92,7 @@ fn known_source(source: &CheckedClaimOutcomeSource) -> bool {
 /// and recursive expansion all make the complete correspondence unavailable.
 fn state_frontiers(
     program: &dyn ::validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
     state: &typed_trees::state::State,
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
@@ -132,6 +132,7 @@ fn state_frontiers(
                 {
                     frontiers.extend(expression_frontiers(
                         program,
+                        borrow,
                         state,
                         statement_index,
                         *expression,
@@ -160,6 +161,7 @@ fn state_frontiers(
                             TransitionTargetNode::Value(expression) => {
                                 frontiers.extend(expression_frontiers(
                                     program,
+                                    borrow,
                                     state,
                                     statement_index,
                                     *expression,
@@ -177,6 +179,7 @@ fn state_frontiers(
                                     validation::call_target_state(program, path.symbol)?;
                                 let mut children = state_frontiers(
                                     program,
+                                    borrow,
                                     target_state,
                                     ownership,
                                     events,
@@ -231,6 +234,7 @@ fn state_frontiers(
 #[allow(clippy::too_many_arguments)]
 fn expression_frontiers(
     program: &dyn ::validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
     state: &typed_trees::state::State,
     statement: usize,
     expression: ExpressionHandle,
@@ -258,13 +262,23 @@ fn expression_frontiers(
     let inactive_paths = linear_claim_frontier(program, state.return_type)
         .into_iter()
         .filter(|claim| {
-            expression_statically_excludes_claim_path(program, expression, &claim.path, maps)
+            claim.conditional
+                && ClaimAbsence {
+                    program,
+                    borrow,
+                    state,
+                    ownership,
+                    events,
+                    maps,
+                }
+                .expression(statement, expression, &claim.path)
         })
         .map(|claim| claim.path)
         .collect::<Vec<_>>();
     if complete_frontier(program, state.return_type, &entries, &inactive_paths) {
         return expand_joined_frontier(
             program,
+            borrow,
             state,
             ownership,
             events,
@@ -280,7 +294,7 @@ fn expression_frontiers(
     }
     let call = program.expression_table.call_node(expression)?;
     let target = validation::call_target_state(program, call.target_symbol)?;
-    let mut frontiers = state_frontiers(program, target, ownership, events, maps, active)?;
+    let mut frontiers = state_frontiers(program, borrow, target, ownership, events, maps, active)?;
     for frontier in &mut frontiers {
         for entry in &mut frontier.entries {
             entry.source = bind_claim_outcome_source_at_call(
@@ -313,6 +327,7 @@ fn expression_frontiers(
 #[allow(clippy::too_many_arguments)]
 fn expand_joined_frontier(
     program: &dyn ::validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
     state: &typed_trees::state::State,
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
@@ -372,7 +387,7 @@ fn expand_joined_frontier(
         return None;
     }
     let target = validation::call_target_state(program, target_symbol)?;
-    let children = state_frontiers(program, target, ownership, events, maps, active)?;
+    let children = state_frontiers(program, borrow, target, ownership, events, maps, active)?;
     let mut expanded = Vec::new();
     for child in children {
         let mut next = frontier.clone();
@@ -488,7 +503,7 @@ fn expand_joined_frontier(
             return None;
         }
         expanded.extend(expand_joined_frontier(
-            program, state, ownership, events, maps, active, &visited, next,
+            program, borrow, state, ownership, events, maps, active, &visited, next,
         )?);
     }
     Some(expanded)
@@ -578,6 +593,43 @@ fn excluded_input_at_call(
         projection.expression,
     )?;
     place.segments.extend_from_slice(&projection.remaining);
+    let established_at = preserved_inactive_place(
+        program,
+        borrow,
+        state,
+        statement_index,
+        &place,
+        ownership,
+        events,
+    )?;
+    Some(ExcludedInput {
+        source: source.clone(),
+        root: place.root,
+        path: place.segments,
+        established_at,
+    })
+}
+
+/// An absent conditional payload remains absent only while the exact storage
+/// path is preserved through the entire consuming statement. Unknown identity
+/// alone, and an inactive unguarded allocation, establish no such fact.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn preserved_inactive_place(
+    program: &dyn ::validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    place: &validation::CanonicalPlace,
+    ownership: &FlowOwnershipFacts,
+    events: &[FlowPermissionEventFact],
+) -> Option<usize> {
+    if !place
+        .segments
+        .iter()
+        .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
+    {
+        return None;
+    }
     let establishment = events.iter().filter(|event| {
         event.state_symbol == state.symbol && event.kind == PermissionEventKind::Establish
             && event.access == PermissionAccess::Owned && !event.obligation_live
@@ -647,13 +699,13 @@ fn excluded_input_at_call(
             .filter(|call| call.statement_index == index)
         {
             writes.extend(crate::flow::signature_ceiling_places(
-            program,
-            machine.symbol,
-            state.symbol,
-            None,
-            call,
-            Some(&frames)
-        )?);
+                program,
+                machine.symbol,
+                state.symbol,
+                None,
+                call,
+                Some(&frames),
+            )?);
         }
         if writes.iter().any(|write| {
             (write.root) == (place.root)
@@ -666,12 +718,7 @@ fn excluded_input_at_call(
             return None;
         }
     }
-    Some(ExcludedInput {
-        source: source.clone(),
-        root: place.root,
-        path: place.segments,
-        established_at,
-    })
+    Some(established_at)
 }
 
 fn derive_receipts(
@@ -680,7 +727,7 @@ fn derive_receipts(
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
 ) -> Vec<Receipt> {
-    let maps = derive_checked_claim_outcome_maps(program, ownership, events);
+    let maps = derive_checked_claim_outcome_maps(program, borrow, ownership, events);
     let mut receipts = Vec::new();
     for event in events {
         if event.kind != PermissionEventKind::Establish
@@ -723,9 +770,15 @@ fn derive_receipts(
         if !exact_call {
             continue;
         }
-        let Some(frontiers) =
-            state_frontiers(program, target, ownership, events, &maps, &mut Vec::new())
-        else {
+        let Some(frontiers) = state_frontiers(
+            program,
+            borrow,
+            target,
+            ownership,
+            events,
+            &maps,
+            &mut Vec::new(),
+        ) else {
             continue;
         };
         let path = ownership.segments.span_or_empty(event.segments);

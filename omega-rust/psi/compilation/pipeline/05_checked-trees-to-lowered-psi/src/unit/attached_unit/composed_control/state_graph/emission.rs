@@ -208,10 +208,20 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             .iter()
             .any(|(successor, _)| *successor == identity)
     };
-    for state in &plan.states {
+    for (state, (_, owner)) in plan.states.iter().zip(&state_owners) {
+        // Scalar operands retain structural producers in the computation graph,
+        // outside the statement operation list. Reserve both dependency lanes
+        // in this exact state's namespace before either lane emits.
+        let computed_operations =
+            crate::expression_preparation::computation_graph::value_call_operations(
+                checked,
+                *owner,
+                Some(state.state),
+            )?;
         for operation in state
             .operation_dependencies()
             .flat_map(checked_trees::CheckedUnitEffectOperationPlan::with_value_calls)
+            .chain(computed_operations)
         {
             let Some((call, custody)) = operation
                 .call()
@@ -256,7 +266,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     }
     catalogs
         .scalar_calls
-        .bind_claim_namespace(&claims.source_claims);
+        .bind_claim_namespace(claims.published());
     let content_entry_claims =
         crate::proofs::content_conservation::lower_whole_content_entry_claims(
             checked,

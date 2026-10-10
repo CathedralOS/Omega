@@ -63,7 +63,7 @@ pub(crate) fn boundary_targets(
             targets.push(machine);
         }
     }
-    for operation in value_call_operations(checked, machine)? {
+    for operation in value_call_operations(checked, machine, None)? {
         if let Some(call) = operation.call().filter(|call| call.is_boundary())
             && !targets.contains(&call.target.machine)
         {
@@ -112,7 +112,7 @@ fn collect_call_targets(
             }
         }
     }
-    for operation in value_call_operations(checked, machine)? {
+    for operation in value_call_operations(checked, machine, None)? {
         if let Some(call) = operation
             .call()
             .filter(|call| call.is_module() && call.scalar_result().is_some())
@@ -136,9 +136,10 @@ fn collect_call_targets(
 pub(crate) fn value_call_operations(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
+    state: Option<symbols::SymbolHandle>,
 ) -> Result<Vec<&checked_trees::CheckedUnitEffectOperationPlan>, LoweringError> {
     let mut operations = Vec::new();
-    for call in value_calls(checked, machine, None)? {
+    for call in value_calls(checked, machine, state)? {
         for operation in call
             .operands()
             .iter()
