@@ -64,6 +64,11 @@ pub(super) fn propagate_statement_transfers(
     let mut refs = HandleSpan::empty();
     let context_handles = crate::flow::active_context_handles(build, *active_contexts);
     let target_place = write.target_place;
+    let point = ProgramPoint::Statement {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+    };
     let stable_value_target = write.stable_value_target;
 
     if stable_value_target {
@@ -136,11 +141,7 @@ pub(super) fn propagate_statement_transfers(
                 source_place,
                 target_place,
                 destination_type,
-                ProgramPoint::Statement {
-                    machine_symbol,
-                    state_symbol,
-                    statement_index,
-                },
+                point,
                 &mut refs,
             );
         }
@@ -151,11 +152,7 @@ pub(super) fn propagate_statement_transfers(
             *active_contexts,
             source_place,
             target_place,
-            ProgramPoint::Statement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-            },
+            point,
             &mut refs,
         );
     }
@@ -180,11 +177,7 @@ pub(super) fn propagate_statement_transfers(
             *active_contexts,
             viewed_place,
             target_place,
-            ProgramPoint::Statement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-            },
+            point,
             &mut refs,
         );
     }
@@ -221,11 +214,7 @@ pub(super) fn propagate_statement_transfers(
             *active_contexts,
             referent_place,
             target_place,
-            ProgramPoint::Statement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-            },
+            point,
             &mut refs,
         );
     }
@@ -239,11 +228,7 @@ pub(super) fn propagate_statement_transfers(
             assignment_source_contexts,
             stored_value,
             target_place,
-            ProgramPoint::Statement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-            },
+            point,
             &mut refs,
         );
         byte_sequences::append_derived_predicates(
@@ -253,11 +238,7 @@ pub(super) fn propagate_statement_transfers(
             assignment_source_contexts,
             source_expression,
             target_place,
-            ProgramPoint::Statement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-            },
+            point,
             &mut refs,
         );
     }
@@ -301,11 +282,7 @@ pub(super) fn propagate_statement_transfers(
             source_expression,
             scalar_value.as_ref(),
             integer_bounds.as_ref(),
-            ProgramPoint::Statement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-            },
+            point,
             &mut refs,
         );
     }
