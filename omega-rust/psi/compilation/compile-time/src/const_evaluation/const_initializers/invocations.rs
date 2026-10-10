@@ -737,7 +737,7 @@ impl Invocation<'_> {
                     }
                 }
                 typed_trees::statement::StatementNode::Transition(transition) => {
-                    for target in [transition.target, transition.continuation] {
+                    for target in transition.targets() {
                         match typed.statement_table.transition_target(target) {
                             typed_trees::statement::TransitionTargetNode::Value(expression) => {
                                 roots.push(*expression);

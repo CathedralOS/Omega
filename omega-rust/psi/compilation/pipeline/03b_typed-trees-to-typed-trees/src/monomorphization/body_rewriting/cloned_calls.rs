@@ -334,11 +334,10 @@ pub(crate) fn rewrite_static_machine_transition_targets(
     let Some(transition) = program.statement_table.statement(statement).as_transition() else {
         return;
     };
-    let targets = [transition.target, transition.continuation];
-    for target in targets {
-        if !target.is_valid() {
-            continue;
-        }
+    for target in [transition.target, transition.continuation]
+        .into_iter()
+        .filter(|handle| handle.is_valid())
+    {
         let typed_trees::statement::TransitionTargetNode::Named {
             path,
             static_machine_parameter,
@@ -387,11 +386,10 @@ pub(crate) fn rewrite_clone_transition_subjects(
     let Some(transition) = program.statement_table.statement(statement).as_transition() else {
         return;
     };
-    let targets = [transition.target, transition.continuation];
-    for target in targets {
-        if !target.is_valid() {
-            continue;
-        }
+    for target in [transition.target, transition.continuation]
+        .into_iter()
+        .filter(|handle| handle.is_valid())
+    {
         let is_clone_state = matches!(
             program.statement_table.transition_target(target),
             typed_trees::statement::TransitionTargetNode::Named { path, .. }

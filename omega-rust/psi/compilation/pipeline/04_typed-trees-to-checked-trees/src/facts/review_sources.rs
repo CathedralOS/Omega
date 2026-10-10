@@ -401,10 +401,7 @@ fn selected_evaluation(
                     table.transition_target(transition.target),
                     TransitionTargetNode::Named { path, .. } if !internal(path.symbol)
                 ));
-            for target in [transition.target, transition.continuation] {
-                if !table.transition_target_is_valid(target) {
-                    continue;
-                }
+            for target in transition.targets() {
                 match table.transition_target(target) {
                     TransitionTargetNode::Value(expression) => {
                         pending.push((*expression, transition_targets));

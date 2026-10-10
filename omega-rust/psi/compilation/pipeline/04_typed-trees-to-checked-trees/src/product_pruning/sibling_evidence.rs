@@ -138,7 +138,7 @@ fn collect_statement(
             collect_expression(program, expressions, local.initial_value);
         }
         StatementNode::Transition(transition) => {
-            for target_handle in [transition.target, transition.continuation] {
+            for target_handle in transition.targets() {
                 match program.statement_table.transition_target(target_handle) {
                     TransitionTargetNode::Named { arguments, .. } => {
                         for argument in program.expression_table.expression_handles(*arguments) {

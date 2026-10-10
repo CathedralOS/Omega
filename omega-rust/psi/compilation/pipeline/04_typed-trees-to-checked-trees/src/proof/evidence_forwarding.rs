@@ -455,10 +455,7 @@ fn validate_evidence_forwarding_definite_assignment(
                     continue;
                 };
                 if transition.exit == TransitionExit::Ordinary {
-                    for target_handle in [transition.target, transition.continuation] {
-                        if !target_handle.is_valid() {
-                            continue;
-                        }
+                    for target_handle in transition.targets() {
                         match program.statement_table.transition_target(target_handle) {
                             TransitionTargetNode::Named { path, .. } => {
                                 let target = if path.symbol == machine.symbol {

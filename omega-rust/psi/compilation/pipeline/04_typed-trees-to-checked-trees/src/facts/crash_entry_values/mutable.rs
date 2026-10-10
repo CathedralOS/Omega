@@ -403,9 +403,8 @@ fn transition_may_overwrite(
     {
         return true;
     }
-    [transition.target, transition.continuation]
-        .into_iter()
-        .filter(|target| target.is_valid())
+    transition
+        .targets()
         .any(
             |target| match program.statement_table.transition_target(target) {
                 TransitionTargetNode::Named {

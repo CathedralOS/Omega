@@ -254,12 +254,8 @@ fn state_transition_edges(
         .statement_table
         .statements(state.statement_nodes)
         .iter()
-        .filter_map(|statement| {
-            let transition = statement.as_transition()?;
-            Some([transition.target, transition.continuation])
-        })
-        .flatten()
-        .filter(|target| target.is_valid())
+        .filter_map(|statement| statement.as_transition())
+        .flat_map(|transition| transition.targets())
         .filter_map(|target| {
             let typed_trees::statement::TransitionTargetNode::Named {
                 path, arguments, ..

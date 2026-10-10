@@ -173,10 +173,7 @@ pub(super) fn append_statement_ownership_events(
                     source,
                 );
             }
-            for handle in [transition.target, transition.continuation] {
-                if !handle.is_valid() {
-                    continue;
-                }
+            for handle in transition.targets() {
                 sink.evaluation = checked_trees::FlowPermissionEvaluation::TransitionTarget(handle);
                 if let typed_trees::statement::TransitionTargetNode::Value(value) =
                     program.statement_table.transition_target(handle)

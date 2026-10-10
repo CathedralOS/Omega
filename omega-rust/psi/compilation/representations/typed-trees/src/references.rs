@@ -1216,10 +1216,7 @@ fn visit_statement(
             visit_type_reference(program, retained, local.type_reference);
         }
         StatementNode::Transition(transition) => {
-            for target in [transition.target, transition.continuation] {
-                if !program.statement_table.transition_target_is_valid(target) {
-                    continue;
-                }
+            for target in transition.targets() {
                 if let TransitionTargetNode::Named {
                     path,
                     authored_call_selection,

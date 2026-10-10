@@ -128,8 +128,7 @@ fn named_transition_targets<'a>(
             StatementNode::Transition(transition) => Some(transition),
             _ => None,
         })
-        .flat_map(|transition| [transition.target, transition.continuation])
-        .filter(|target| program.statement_table.transition_target_is_valid(*target))
+        .flat_map(|transition| transition.targets())
         .filter_map(
             |target| match program.statement_table.transition_target(target) {
                 TransitionTargetNode::Named { path, .. } => Some(path.symbol),
