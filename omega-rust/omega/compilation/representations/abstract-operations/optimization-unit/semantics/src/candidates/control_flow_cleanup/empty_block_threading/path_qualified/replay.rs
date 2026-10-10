@@ -11,6 +11,7 @@ use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
+use crate::candidates::set_node_effect_link;
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,
@@ -172,15 +173,7 @@ pub(super) fn validate(
     let mut effect = 0u64;
     for block in &mut output_function.blocks {
         for node in &mut block.nodes {
-            node.effect = optimization_unit::EffectLink {
-                input: effect,
-                output: effect
-                    .checked_add(1)
-                    .expect("validated function effect count fits u64"),
-            };
-            effect = effect
-                .checked_add(1)
-                .expect("validated function effect count fits u64");
+            effect = set_node_effect_link(node, effect)?;
         }
     }
     let output_function =

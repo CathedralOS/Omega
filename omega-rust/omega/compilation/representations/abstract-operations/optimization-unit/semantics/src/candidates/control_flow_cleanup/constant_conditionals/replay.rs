@@ -1,7 +1,7 @@
 //! Independent constant-conditional replay mechanics.
 use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::sparse_conditional_constant_propagation::literal_boolean_fact;
-use crate::candidates::{candidate_block, candidate_function};
+use crate::candidates::{candidate_block, candidate_function, set_node_effect_link};
 use crate::unit_validation::derived_metadata::reconstruct_declared_places;
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::unit_validation::services::refresh_root_service_reach;
@@ -161,15 +161,7 @@ pub(super) fn validate(
     let mut effect = 0u64;
     for block in &mut output_function.blocks {
         for node in &mut block.nodes {
-            node.effect = optimization_unit::EffectLink {
-                input: effect,
-                output: effect
-                    .checked_add(1)
-                    .expect("validated function effect count fits u64"),
-            };
-            effect = effect
-                .checked_add(1)
-                .expect("validated function effect count fits u64");
+            effect = set_node_effect_link(node, effect)?;
         }
     }
     output_function.facts = reconstruct_fact_index(output_function);

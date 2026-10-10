@@ -7,7 +7,7 @@ use crate::candidates::rewrite_accounting::adjacent_merge::{
     reconstruct_adjacent_merge_accounting, reconstruct_adjacent_merge_ownership_witness,
 };
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
-use crate::candidates::{candidate_function, rebuild_node_metadata};
+use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
@@ -177,15 +177,7 @@ pub(super) fn validate(
     let mut effect = 0u64;
     for block in &mut output_function.blocks {
         for node in &mut block.nodes {
-            node.effect = optimization_unit::EffectLink {
-                input: effect,
-                output: effect
-                    .checked_add(1)
-                    .expect("validated function effect count fits u64"),
-            };
-            effect = effect
-                .checked_add(1)
-                .expect("validated function effect count fits u64");
+            effect = set_node_effect_link(node, effect)?;
         }
     }
     let output_function =
