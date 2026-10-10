@@ -76,7 +76,10 @@ impl Builder<'_, '_> {
                     index: Box::new(selection.index.clone()),
                     element_path: vec![checked_trees::CheckedScalarReadProjection::Static(
                         checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                            checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                            checked_trees::CheckedMemberIdentity::of_member(
+                                field.identity,
+                                field.name.clone(),
+                            ),
                         ),
                     )],
                     primitive_type,
@@ -131,16 +134,17 @@ impl Builder<'_, '_> {
         // independent source replay still checks the exact authored root.
         let source =
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
-        // The borrowed lane admits a runtime `Index` segment: the selector
-        // resolves to a checked `RuntimeIndex` coordinate and terminal
-        // verification re-proves `0 <= index < extent` against the enclosing
-        // array's literal extent.
-        let (projected, path) = crate::execution::terminal_unit::calls::projected_borrowed_path(
+        // A copied value observes its selector at this evaluation point. Use
+        // the computation's scalar namespace, including captured immutable
+        // locals, rather than replaying the selector's original storage read.
+        // The retained coordinate grants no bounds or copy permission.
+        let (projected, path) = crate::execution::terminal_unit::calls::projected_selected_path(
             self.program,
             self.machine,
             self.state,
             self.statement_index,
             &place,
+            &|selector| self.local_selector(selector),
         )?;
         if !validation::declared_carriers_match(self.program, projected, expected) {
             return None;
@@ -193,7 +197,7 @@ impl Builder<'_, '_> {
             self.statement_index,
             &place,
             None,
-            None
+            None,
         )?;
         if self.program.normalized_type_identity(projected)
             != self.program.normalized_type_identity(expected)
@@ -265,13 +269,13 @@ impl Builder<'_, '_> {
         let source = self.structural_source(symbol);
         let (mut projected, mut path) =
             crate::execution::terminal_unit::calls::projected_argument_path(
-            self.program,
-            self.state,
-            self.statement_index,
-            &place,
-            None,
-            None
-        )?;
+                self.program,
+                self.state,
+                self.statement_index,
+                &place,
+                None,
+                None,
+            )?;
         // A restricted field has no borrowed shape; its loan stays the place
         // observation that transports the field invariant to each read.
         if let Some(facts::PlaceSegment::Field { symbol }) = place.segments.last()
@@ -398,21 +402,21 @@ impl Builder<'_, '_> {
         if validation::stored_structural_type_identity(self.program, reference, &[], &[])
             != validation::stored_structural_type_identity(self.program, expected, &[], &[])
             || !(validation::has_contents(
-        self.program,
-        reference,
-        &[],
-        validation::ContentsRequirement::StructuralConstruction
-    ) || validation::has_contents(
-        self.program,
-        reference,
-        &[],
-        validation::ContentsRequirement::LinearOwned
-    ) || validation::has_contents(
-        self.program,
-        reference,
-        &[],
-        validation::ContentsRequirement::OwnedOrSharedView
-    ) || validation::reference_result_custody::is_reference_record(
+                self.program,
+                reference,
+                &[],
+                validation::ContentsRequirement::StructuralConstruction,
+            ) || validation::has_contents(
+                self.program,
+                reference,
+                &[],
+                validation::ContentsRequirement::LinearOwned,
+            ) || validation::has_contents(
+                self.program,
+                reference,
+                &[],
+                validation::ContentsRequirement::OwnedOrSharedView,
+            ) || validation::reference_result_custody::is_reference_record(
                 self.program,
                 reference,
             ) || validation::reference_result_custody::stored_loan_parts(

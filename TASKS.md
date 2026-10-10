@@ -2769,19 +2769,14 @@ crash and native exit behavior.
     binding requires a captured selector". Executable view-element
     observations need complete lowering, or executable reads keep the view
     route. **BORROWED-STORAGE-RESTORATION** owns that code.
-  - ebf381240e2's read and store selector capture loses 3 `pass/providers/`
-    structural-result rows (CheckedOperator occurrence unresolved) and makes
-    diagnostics name `__hoist_N`, so
+  - ebf381240e2's read and store selector capture makes diagnostics name
+    `__hoist_N`, so
     `fail/collections/non_integer_index_rejected`,
     `indexed_domain_requires_invalidated_by_unknown_index_mutation` and
-    `qualified_byte_owner_state_loan_breaks_domain` lose fragments, and leaves
-    `runtime_dutch_flag_partition_exit`,
-    `projected_field_exhaustive_case_dispatch_exit` and
-    `large_zero_initialized_local_exit` incomplete. Snapshotting a place
-    selector only before a later write restores those 6 but breaks
-    `runtime_mutable_selector_window_exit`, whose borrowed window needs the
-    snapshot across statements: the criterion needs move and binding
-    knowledge that only checking has.
+    `qualified_byte_owner_state_loan_breaks_domain` lose fragments. Retain
+    captured selectors across statements: `runtime_mutable_selector_window_exit`
+    needs that snapshot for its borrowed window. Diagnostic presentation must
+    preserve the authored expression without changing the captured value.
   - decd18d06d4 loses `pass/build/uefi_entry_schema_same_leaf` (composed Unit
     control graph custody) and two `pass/capabilities/` rows,
     `sysv_small_aggregate_import_compile` and
@@ -2789,8 +2784,7 @@ crash and native exit behavior.
   - `pass/memory/bump_allocator_canary` (checked/built until 68cadd5a83a,
     **BORROWED-STORAGE-RESTORATION**'s claim transport): linear validation
     of `source/library/alloc/bump.omg` reports
-    `retained_buffer::Held.storage` already transferred and three
-    `Extent::Granted` call-result qualifications unproved.
+    `retained_buffer::Held.storage` already transferred at three moves.
   - `interrupt_table_canary` and `secondary_processor_canary` select providers
     but lack an executable intrinsic: **CHECKED-ASM-LABEL-CONTRACTS** owns that
     dependency.
