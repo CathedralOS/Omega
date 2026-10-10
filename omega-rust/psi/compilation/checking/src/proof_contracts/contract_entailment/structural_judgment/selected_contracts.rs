@@ -194,11 +194,9 @@ pub(super) fn selected_requirement_judgment(
     if let Some(binary) = program.expression_table.binary_node(expression)
         && binary.operator == BinaryOperator::And
     {
-        if !crate::has_builtin_parameter_bound_expression_meaning(
-            program, callable, parameters, expression,
-        ) {
-            return StructuralJudgment::Unknown;
-        }
+        // The retained conjunction is not overloadable. Its operands keep
+        // their own selected predicate meanings; a nominal leaf must not
+        // prevent a neighboring scalar leaf from reaching its judge.
         return match (
             selected_requirement_judgment(
                 judge,
@@ -352,11 +350,9 @@ pub(super) fn capture_equations(
         return;
     };
     if binary.operator == BinaryOperator::And {
-        if !crate::has_builtin_parameter_bound_expression_meaning(
-            program, scope, parameters, expression,
-        ) {
-            return;
-        }
+        // Decompose the compiler-owned connective, then authenticate each
+        // equality separately. A neighboring tag guarantee grants no scalar
+        // equation and cannot suppress an independently selected equality.
         capture_equations(
             program,
             binary.left,

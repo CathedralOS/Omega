@@ -523,19 +523,22 @@ fn runtime_fact_for_parameters(
     parameters: &[typed_trees::signature::StateParameter],
     expression: ExpressionHandle,
 ) -> bool {
+    if let Some(binary) = program.expression_table.binary_node(expression) {
+        if binary.operator == BinaryOperator::And {
+            return runtime_fact_for_parameters(program, owner, parameters, binary.left)
+                && runtime_fact_for_parameters(program, owner, parameters, binary.right);
+        }
+        if super::structural_terms::is_case_observation(program, expression) {
+            return crate::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
+                program, parameters, expression, binary,
+            );
+        }
+    }
     if crate::parameter_expression_result_type_reference(program, owner, parameters, expression)
         .and_then(|reference| program.primitive_type_reference(reference))
         != Some(typed_trees::types::PrimitiveType::Bool)
     {
         return false;
-    }
-    if let Some(binary) = program.expression_table.binary_node(expression)
-        && binary.operator == BinaryOperator::And
-    {
-        return crate::has_builtin_parameter_bound_expression_meaning(
-            program, owner, parameters, expression,
-        ) && runtime_fact_for_parameters(program, owner, parameters, binary.left)
-            && runtime_fact_for_parameters(program, owner, parameters, binary.right);
     }
     matches!(
         super::structural_terms::structural_term(

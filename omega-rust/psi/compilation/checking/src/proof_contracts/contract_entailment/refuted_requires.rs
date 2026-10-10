@@ -300,14 +300,8 @@ pub(super) fn instantiated_fact_judgment(
     }
     match binary.operator {
         BinaryOperator::And => {
-            if !crate::has_builtin_parameter_bound_expression_meaning(
-                program,
-                callee_owner,
-                callee_parameters,
-                fact,
-            ) {
-                return StructuralJudgment::Unknown;
-            }
+            // Conjunction has no authored operator selection. Each leaf
+            // still establishes its own scalar or nominal predicate meaning.
             match (
                 instantiated_fact_judgment(
                     program,

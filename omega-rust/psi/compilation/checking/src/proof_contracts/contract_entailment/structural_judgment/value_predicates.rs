@@ -14,19 +14,14 @@ use typed_trees::types::PrimitiveType;
 
 impl StructuralJudge<'_> {
     /// Logical conjunction/disjunction have no overloadable operator spelling.
-    /// Require their retained Boolean operands before decomposing the node.
+    /// The retained connective decomposes predicates; every leaf still owes
+    /// its own exact selected meaning and truth judgment. A scalar result-type
+    /// query must not exclude a nominal predicate from that decomposition.
     pub(super) fn has_boolean_connective_meaning(&self, expression: ExpressionHandle) -> bool {
         let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return false;
         };
-        if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
-            return false;
-        }
-        [binary.left, binary.right].into_iter().all(|operand| {
-            self.declaration_expression_type(operand)
-                .and_then(|reference| self.program.primitive_type_reference(reference))
-                == Some(PrimitiveType::Bool)
-        })
+        matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
     }
 
     pub(super) fn judge_disjunction(
