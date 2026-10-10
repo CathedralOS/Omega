@@ -1320,9 +1320,14 @@ defines the complete product bar.
   `pass/termination/runtime_ranked_sequence_arrival_coordinates_exit` for byte
   and element descriptors after an unrelated scalar, and
   `pass/termination/runtime_distance_crossed_header_exit` for total distance
-  ranks when the cursor has already crossed its bound. These controls execute
-  natively and in Terminal on macOS ARM64; independent overflow and stale
-  subject controls remain obligatory.
+  ranks when the cursor has already crossed its bound. Keep
+  `pass/termination/runtime_projected_element_rank_arrivals_exit` for a shrinking
+  selected descriptor reconstructed at each arrival, and
+  `pass/collections/runtime_nested_selected_element_extents_exit` /
+  `runtime_record_exclusive_element_extent_exit` for distinct selected counts
+  and exclusive descriptor storage. These controls execute natively and in
+  Terminal on macOS ARM64; independent overflow, stale subject, overlapping
+  loan and shared-to-exclusive receiving controls remain obligatory.
 
   Remaining:
   - Replace unique-carrier discovery with explicit arrival correspondence,

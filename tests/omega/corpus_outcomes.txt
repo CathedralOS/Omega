@@ -400,6 +400,10 @@ fail/borrows/materialized_linear_owner_reference_live_write rejected 512ms expec
 	statement 2 mutates `receipt.code` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/materialized_reference_does_not_discharge_linear_owner rejected 498ms expected @566fa91d7f0d+wt
 	linear value `receipt` reaches scope exit without being consumed or transferred
+fail/borrows/mixed_record_shared_view_mutable_local_empty_range rejected 214ms expected @7c9a1dd8dd3b
+	machine `violate` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/mixed_record_shared_view_mutable_local_nonempty_range rejected 210ms expected @7c9a1dd8dd3b
+	machine `violate` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/multi_origin_returned_reference_live_source_write rejected 361ms expected @034357f920c6+wt
 	statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/mutable_primitive_reference_live_owner_read rejected 740ms expected @944fb1232f17
@@ -408,12 +412,16 @@ fail/borrows/mutable_record_state_alias rejected 546ms expected @cba4afbf6f2f+wt
 	state `finish` receives `cell` as mutable more than once
 fail/borrows/mutable_reference_borrow_through_shared_container rejected 292ms expected @69d297ae3ee5
 	construction of `MutableChoice` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/mutable_reference_match_shared_arm_requires_exclusive_access rejected 211ms expected @7c9a1dd8dd3b
+	machine `exercise` state `entry` local `selected` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/mutable_view_binding_does_not_own_backing rejected 287ms expected @cba4afbf6f2f+wt
 	argument `values` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/named_jump_receiver_under_argument_loan rejected 176ms expected @17d6ccc60253+wt
 	state `observe` receives `main.count` as both mutable and read-only
 	state `read_after` receives `main.count` as mutable while its mutable receiver reads `main.count`
 	state `write_through_subject` receives `main.count` as mutable while its mutable receiver writes `main.count`
+fail/borrows/named_slice_call_result_shared_to_mutable rejected 210ms expected @7c9a1dd8dd3b
+	machine `main` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/nested_array_shared_view_write rejected 189ms expected @65c3b89f46f4+wt
 	machine `store` state `entry` assignment cannot write `slots` because it is not mutable in this state (if `slots` is undeclared -- a typo -- no such field or local exists)
 fail/borrows/nested_reference_live_source_write rejected 145ms expected @21b65913386f+wt
@@ -433,6 +441,10 @@ fail/borrows/read_positions_during_live_exclusive_loan rejected 624ms expected @
 	statement 2 reads `value` while local borrow `lent` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 reads `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 3 reads `view[3]` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/borrows/record_exclusive_view_backing_write rejected 419ms expected @7c9a1dd8dd3b
+	statement 2 mutates `values[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/borrows/record_exclusive_view_fields_overlap rejected 417ms expected @7c9a1dd8dd3b
+	`held` holds `values[0..2]` as mutable more than once
 fail/borrows/record_reference_from_immutable_bytes rejected 203ms expected @69d297ae3ee5
 	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
@@ -863,6 +875,8 @@ fail/collections/fixed_vec_push_without_room rejected 216ms expected @c08960bee2
 	cannot prove requires contract for call push from Main::main: main.vec.length < main.vec.items.len (needs fact `fixed_vec_i32x4.length < fixed_vec_i32x4.items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/collections/guarded_computed_index_overrun rejected 375ms expected @98f54226c10c
 	cannot prove index `position + 1` is within length 6 in rises::entry
+fail/collections/literal_element_read_empty_view rejected 417ms expected @7c9a1dd8dd3b
+	cannot prove index `0` is within unknown slice length of `values` in read::entry
 fail/collections/nested_read_index_uses_selected_extent rejected 376ms expected @c267eef85dbe+wt
 	cannot prove index `index` is within length 2
 fail/collections/non_integer_index_rejected rejected 292ms expected @ada91cf0bd16+wt
@@ -2795,6 +2809,7 @@ pass/borrows/local_subslice_parent_lent_after_last_use_exit checked 1848ms check
 pass/borrows/loop_descriptor_reformation_exit checked 1879ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2616ms check-target:macos_arm64 @944fb1232f17
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms check-target:macos_arm64 @a9f373809a48+wt
+pass/borrows/mutable_reference_match_local checked 3114ms check-target:macos_arm64 @7c9a1dd8dd3b
 pass/borrows/nested_reference_byte_observations_exit checked 4034ms check-target:macos_arm64 @81c668e34445+wt
 pass/borrows/nested_reference_crossings_exit checked 1601ms check-target:macos_arm64 @104c2da31081
 pass/borrows/nested_reference_leaf_projection_exit checked 1599ms check-target:macos_arm64 @104c2da31081
@@ -3155,7 +3170,7 @@ pass/calls/transition_arg_local_from_embedded_call_exit checked 1627ms check-tar
 pass/calls/transition_tail_call_to_machine checked 1299ms check-target:macos_arm64 @c9c108ecb4ac+wt
 pass/calls/unread_multistate_receiver_exit checked 1179ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/value_call_as_host_arg_exit checked 1198ms check-target:macos_arm64 @2d8ed253669f
-pass/calls/value_call_element_view_arg_compile checked 285ms check-target:macos_arm64 @2d8ed253669f
+pass/calls/value_call_element_view_arg_compile checked 3113ms check-target:macos_arm64 @7c9a1dd8dd3b
 pass/calls/value_call_embedded_in_binary_exit checked 1631ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/value_call_param_effect_arm checked 1361ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/value_call_subexpression checked 1244ms check-target:macos_arm64 @2d8ed253669f
@@ -3259,9 +3274,11 @@ pass/collections/runtime_nested_array_view_call_write_exit checked 1749ms check-
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 1481ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_nested_fixed_array_projected_write_exit checked 1900ms check-target:macos_arm64 @3ff24ec6504a+wt
 pass/collections/runtime_nested_record_element_window_store_exit checked 1751ms check-target:macos_arm64 @65c3b89f46f4+wt
+pass/collections/runtime_nested_selected_element_extents_exit checked 3153ms check-target:macos_arm64 @7c9a1dd8dd3b
 pass/collections/runtime_parameter_nested_literal_index_read_exit checked 731ms check-target:macos_arm64 @5f978f80e84b+wt
 pass/collections/runtime_primitive_array_literal_call_elements_exit checked 1897ms check-target:macos_arm64 @d1a49981c6d2+wt
 pass/collections/runtime_record_element_window_write_read_exit checked 1613ms check-target:macos_arm64 @4bc316e7b1ca+wt
+pass/collections/runtime_record_exclusive_element_extent_exit checked 3110ms check-target:macos_arm64 @7c9a1dd8dd3b
 pass/collections/runtime_refined_element_view_call_write_exit checked 1622ms check-target:macos_arm64 @4bc316e7b1ca+wt
 pass/collections/runtime_shared_array_dot_product_exit checked 9895ms check-target:macos_arm64 @cfe60a3a242
 pass/collections/runtime_shared_array_polynomial_exit checked 12070ms check-target:macos_arm64 @cfe60a3a242
@@ -4451,6 +4468,7 @@ pass/termination/runtime_call_result_short_circuit_rank_exit checked 1703ms chec
 pass/termination/runtime_computed_projected_measure_arrivals_exit checked 3326ms check-target:macos_arm64 @83a90e1b3f89+wt
 pass/termination/runtime_distance_crossed_header_exit checked 3234ms check-target:macos_arm64 @83a90e1b3f89+wt
 pass/termination/runtime_named_state_remainder_endpoint_exit checked 1581ms check-target:macos_arm64 @2d8ed253669f
+pass/termination/runtime_projected_element_rank_arrivals_exit checked 3234ms check-target:macos_arm64 @7c9a1dd8dd3b
 pass/termination/runtime_rank_range_state_call_exit checked 867ms check-target:macos_arm64 @82d2bd2d7669
 pass/termination/runtime_ranked_sequence_arrival_coordinates_exit checked 3212ms check-target:macos_arm64 @83a90e1b3f89+wt
 pass/termination/runtime_receiver_byte_slice_recursion_exit checked 738ms check-target:macos_arm64 @c9c108ecb4ac+wt
