@@ -50,7 +50,7 @@ pub(crate) fn checked_boolean_scalar_term(
             );
         }
         CheckedBooleanExpression::Not(operand) => ScalarTerm::boolean_not(
-            checked_boolean_scalar_term(identities, operand, erased, values)?,
+            checked_boolean_scalar_term(identities, operand, values, erased)?,
         )
         .map_err(LoweringError::InvalidCrashPredicate)?,
         CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
@@ -135,7 +135,7 @@ pub(crate) fn checked_scalar_term_with_views(
     let expression = lower_checked_scalar_expression_with_parameters(
         identities,
         expression,
-        &[],
+        structural_parameters,
         &Default::default(),
         &[],
         &[],

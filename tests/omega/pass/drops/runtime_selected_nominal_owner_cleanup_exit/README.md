@@ -9,7 +9,8 @@ The program covers `&&`, `||`, nested selection, branch-only construction, and a
 mutable condition overwritten after its value selected the call. The final two
 cases put selection inside an argument schedule: the subsequent mutation must
 run once, and linear call results, nested construction and forwarded claims
-must retain distinct custody through the continuation. Envelope children are
+must retain distinct custody through the continuation. A selected linear owner
+also retains its exact cleanup claim on the skipped path. Envelope children are
 explicitly extracted; each resulting linear local has an eligible pure drop.
 Both native execution and the Terminal interpreter must match the authored
 stdout and exit zero.

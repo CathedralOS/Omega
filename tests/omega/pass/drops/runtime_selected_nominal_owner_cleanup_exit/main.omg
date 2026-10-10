@@ -124,6 +124,12 @@ machine Receipt::drop(receipt: &mut Receipt) {
     receipt.value = 0;
 }
 machine mint_receipt() -> Receipt { Receipt { value: 11 } }
+machine consume_receipt(receipt: Receipt) -> u64 { receipt.value }
+machine linear_selection(enabled: bool) -> bool {
+    let receipt: Receipt = mint_receipt();
+    let observed: bool = enabled && consume_receipt(receipt) == 11;
+    observed == enabled
+}
 machine forward_receipt(envelope: ReceiptEnvelope) -> ReceiptEnvelope { envelope }
 machine extract_receipt(envelope: ReceiptEnvelope) -> Receipt { envelope.receipt }
 machine tick(count: &mut u64) -> u64 {
@@ -156,6 +162,7 @@ machine mid_argument(enabled: bool) -> bool reaches Console {
     let youngest: Token = Token { value: 13, byte: 67 };
     observed && count == 1 && survivor.value == 10
         && extracted.value == 11 && extracted_nested.value == 12 && youngest.value == 13
+        && linear_selection(enabled)
 }
 
 machine verify(accepted: bool) reaches Console crashes Trap {

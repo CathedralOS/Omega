@@ -239,6 +239,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             return None;
         }
         cleanups.push(CheckedUnitNominalAffineCleanupPlan {
+            consumed_claims: Vec::new(),
             path: Vec::new(),
             source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(parameter_index).ok()?,

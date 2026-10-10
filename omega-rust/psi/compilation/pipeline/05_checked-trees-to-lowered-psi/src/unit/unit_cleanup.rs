@@ -369,6 +369,35 @@ pub(crate) fn lower_nominal_cleanup_action(
     )
 }
 
+/// Resolve only the claim names retained by checked disposition selection.
+/// Calls and constructions may have forwarded them before this edge; the
+/// current invocation namespace remains their sole executable identity owner.
+pub(crate) fn bind_consumed_claims(
+    action: &mut NominalAffineCleanup,
+    cleanup: &CheckedUnitNominalAffineCleanupPlan,
+    bindings: &[(
+        language_semantics::PermissionClaimIdentity,
+        semantic_vocabulary::ClaimId,
+    )],
+) -> Result<(), LoweringError> {
+    action.consumed_claims = cleanup
+        .consumed_claims
+        .iter()
+        .map(|identity| crate::terminal_identities::lookup_claim_id(bindings, *identity))
+        .collect::<Result<Vec<_>, _>>()?;
+    action.consumed_claims.sort_unstable();
+    if action
+        .consumed_claims
+        .windows(2)
+        .any(|claims| claims[0] == claims[1])
+    {
+        return Err(LoweringError::Unsupported(
+            "nominal cleanup repeats its consumed claim",
+        ));
+    }
+    Ok(())
+}
+
 /// Bind a selected action to the closure's executable identities. Target and
 /// subject selection belong to the checked producer; this only allocates each
 /// action's independent obligation roster in the emitting body's namespace.

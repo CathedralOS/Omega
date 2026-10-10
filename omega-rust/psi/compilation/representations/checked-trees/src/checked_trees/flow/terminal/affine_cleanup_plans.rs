@@ -134,6 +134,8 @@ pub struct CheckedUnitNominalAffineCallerRequirementPlan {
 /// are dense structural indexes. Type identity joins it to the attachment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitNominalAffineCleanupPlan {
+    /// Exact source claims consumed by this selected nominal disposition.
+    pub consumed_claims: Vec<language_semantics::PermissionClaimIdentity>,
     pub source: CheckedUnitStructuralArgumentSourcePlan,
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: TypeIdentityId,

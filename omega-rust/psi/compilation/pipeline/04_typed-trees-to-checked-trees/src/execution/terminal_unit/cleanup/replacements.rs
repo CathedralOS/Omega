@@ -92,25 +92,26 @@ pub(super) fn actions(
         Some(validation::CanonicalPlace { root, segments })
     });
     let mut actions = Vec::new();
-    for (_, disposition) in facts
-        .contextual_cleanup
-        .dispositions
-        .iter()
-        .filter(|(_, row)| {
-            row.machine == machine
-                && row.state == state
-                && (row.root == root
-                    || replaced_place
-                        .as_ref()
-                        .is_some_and(|replaced| replaced.root == row.root)
-                    || stored_place
-                        .as_ref()
-                        .is_some_and(|stored| stored.root == row.root))
-                && row.source
-                    == PermissionEventSource::Statement {
-                        statement_index: *statement_index as usize,
-                    }
-        })
+    for (disposition_handle, disposition) in
+        facts
+            .contextual_cleanup
+            .dispositions
+            .iter()
+            .filter(|(_, row)| {
+                row.machine == machine
+                    && row.state == state
+                    && (row.root == root
+                        || replaced_place
+                            .as_ref()
+                            .is_some_and(|replaced| replaced.root == row.root)
+                        || stored_place
+                            .as_ref()
+                            .is_some_and(|stored| stored.root == row.root))
+                    && row.source
+                        == PermissionEventSource::Statement {
+                            statement_index: *statement_index as usize,
+                        }
+            })
     {
         let place = validation::CanonicalPlace {
             root: disposition.root,
@@ -158,7 +159,7 @@ pub(super) fn actions(
             facts,
             targets,
             shapes,
-            disposition,
+            disposition_handle,
             source.clone(),
             replaced.then_some(destination.path.as_slice()),
         )? {

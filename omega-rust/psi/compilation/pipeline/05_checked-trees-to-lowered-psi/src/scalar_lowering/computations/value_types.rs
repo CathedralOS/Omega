@@ -23,7 +23,7 @@ pub(crate) fn computation_value_type(
         qualifications,
         root,
         bindings,
-        &mut Vec::new(),
+        source_types,
         &mut Vec::new(),
     )
 }

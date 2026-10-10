@@ -74,10 +74,10 @@ impl IdentityMap {
         mapped(&self.places, original)
     }
     pub(crate) fn block_id(&mut self, original: BlockId) -> BlockId {
-        mapped(&mut self.blocks, original)
+        mapped(&self.blocks, original)
     }
     pub(crate) fn edge(&mut self, original: EdgeId) -> EdgeId {
-        mapped(&mut self.edges, original)
+        mapped(&self.edges, original)
     }
     pub(crate) fn operation(&mut self, original: OperationId) -> OperationId {
         if let Some(observed) = &mut self.observed {

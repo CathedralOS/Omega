@@ -719,6 +719,7 @@ impl StateGraphEmission<'_, '_> {
             super::super::cleanup::coordinate(state, edge.statement_ordinal as usize, false)?;
         let mut cleanup_regions = super::super::cleanup::for_exit_regions(
             identities,
+            self.claims.published(),
             self.checked,
             state,
             exit,

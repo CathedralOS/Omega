@@ -25,7 +25,7 @@ fn selected_actions(
 ) -> Option<Vec<CheckedNormalCleanupAction>> {
     let mut actions = Vec::new();
     let mut retirement = None;
-    for (_, disposition) in facts.contextual_cleanup.dispositions.iter().filter(|(_, row)| {
+    for (disposition_handle, disposition) in facts.contextual_cleanup.dispositions.iter().filter(|(_, row)| {
         row.machine == machine && row.state == state && row.root == root
             && matches!(row.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
                 if statement_index == coordinate.statement_index as usize
@@ -34,7 +34,7 @@ fn selected_actions(
         if retirement.is_none() {
             retirement = Some(super::actions::home_retirement(program, shapes, disposition, source.clone())?);
         }
-        actions.extend(disposition_actions(program, facts, targets, shapes, disposition, source.clone(), None)?);
+        actions.extend(disposition_actions(program, facts, targets, shapes, disposition_handle, source.clone(), None)?);
     }
     if let Some(retirement) = retirement {
         super::actions::finish_home(&mut actions, retirement);

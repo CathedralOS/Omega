@@ -977,7 +977,7 @@ impl OperationFrame<'_, '_> {
                 Ok((place, path))
             },
             |cleanup, place, structural_type, path| {
-                crate::unit::unit_cleanup::lower_nominal_cleanup_action(
+                let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(
                     cleanup,
                     place,
                     structural_type,
@@ -986,7 +986,13 @@ impl OperationFrame<'_, '_> {
                     self.calls.cleanup_receivers,
                     self.calls.requirement_counts,
                     &mut self.calls.next_obligation_identity,
-                )
+                )?;
+                crate::unit::unit_cleanup::bind_consumed_claims(
+                    &mut action,
+                    cleanup,
+                    self.calls.claims.bindings(),
+                )?;
+                Ok(action)
             },
         )?;
         self.evaluation.continue_cleanup_regions(

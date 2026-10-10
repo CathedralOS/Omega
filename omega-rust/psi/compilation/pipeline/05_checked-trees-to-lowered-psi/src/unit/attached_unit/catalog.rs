@@ -1263,7 +1263,15 @@ pub(super) fn lower_unit_services(
     boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     provider_candidates: &[CheckedUnitProviderCandidate],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
-    lower_unit_services_including(identities, checked, plans, closure, boundaries, &[], &[])
+    lower_unit_services_including(
+        identities,
+        checked,
+        plans,
+        closure,
+        boundaries,
+        provider_candidates,
+        &[],
+    )
 }
 
 pub(super) fn lower_unit_services_including(

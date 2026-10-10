@@ -262,8 +262,8 @@ pub(super) fn emit_return(
         operations,
     )?;
     complete_structural_return(
-        identities, checked, state, exit, operation, catalogs, parameters, evaluation, values,
-        next_value, next_block, next_edge, operations,
+        identities, claims, checked, state, exit, operation, catalogs, parameters, evaluation,
+        values, next_value, next_block, next_edge, operations,
     )
 }
 
@@ -272,6 +272,7 @@ pub(super) fn emit_return(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn complete_structural_return(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    claims: crate::emission::claim_bindings::PublishedClaims<'_>,
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     exit: checked_trees::FlowClaimJoinExit,
@@ -304,7 +305,7 @@ pub(super) fn complete_structural_return(
     // by path.
     returned_claims.sort_by_key(|binding| binding.claim);
     let mut regions = super::cleanup::for_exit_regions(
-        identities, checked, state, exit, catalogs, parameters, evaluation, operations,
+        identities, claims, checked, state, exit, catalogs, parameters, evaluation, operations,
     )?;
     super::cleanup::selection(state, evaluation, operations, &mut regions)?;
     let completion = Terminator::ReturnStructural {

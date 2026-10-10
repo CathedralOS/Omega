@@ -84,10 +84,19 @@ pub(super) fn disposition_actions(
     facts: &CheckFacts,
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
-    disposition: &checked_trees::ContextualCleanupDisposition,
+    disposition_handle: arena::Handle<checked_trees::ContextualCleanupDisposition>,
     source: CheckedUnitStructuralArgumentSourcePlan,
     place_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
 ) -> Option<Vec<CheckedNormalCleanupAction>> {
+    let disposition = facts
+        .contextual_cleanup
+        .dispositions
+        .get(disposition_handle);
+    let selected_disposition = facts
+        .contextual_cleanup
+        .selected_dispositions
+        .iter()
+        .any(|(_, handle)| *handle == disposition_handle);
     let machine = program.machine_by_symbol(disposition.machine)?;
     let binders = machine_binders(program, machine);
     let statement_index = match disposition.source {
@@ -273,14 +282,17 @@ pub(super) fn disposition_actions(
             let selected_type = shapes.add_type(selected_reference, &binders, &[])?;
             let mut selected_path = path.clone();
             selected_path.extend(relative_path);
-            hooks.push(selected_nominal(
+            let mut cleanup = selected_nominal(
                 program,
                 targets,
                 hook,
                 source.clone(),
                 selected_path,
                 selected_type,
-            )?);
+            )?;
+            cleanup.consumed_claims =
+                consumed_claims(program, facts, disposition, selected_disposition, &segments)?;
+            hooks.push(cleanup);
         }
     }
     // Geometry chooses the live complement, not whether it is cleanup-free.
@@ -508,6 +520,7 @@ fn selected_nominal(
         return None;
     }
     Some(CheckedUnitNominalAffineCleanupPlan {
+        consumed_claims: Vec::new(),
         source,
         path,
         type_identity,
@@ -516,4 +529,71 @@ fn selected_nominal(
         cleanup_contract_report_fingerprint: target.contract_report_fingerprint,
         case_conditions: Default::default(),
     })
+}
+
+/// Keep the source-authorized claim names attached to the exact hook region.
+/// The emitter resolves these names in the current invocation; neither type
+/// multiplicity nor a later storage lookup may manufacture a consumption.
+fn consumed_claims(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    disposition: &checked_trees::ContextualCleanupDisposition,
+    selected_disposition: bool,
+    path: &[facts::PlaceSegment],
+) -> Option<Vec<language_semantics::PermissionClaimIdentity>> {
+    use language_semantics::{
+        Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+        PermissionEventSource, PermissionProvenance,
+    };
+    let evaluation = if disposition.source == PermissionEventSource::StateExit {
+        let state = program.state_by_symbol(disposition.state)?;
+        Some(match disposition.exit.kind {
+            checked_trees::FlowClaimJoinExitKind::TransitionTarget
+            | checked_trees::FlowClaimJoinExitKind::TransitionContinuation => {
+                let transition = program
+                    .statement_table
+                    .statement_at(state, disposition.exit.statement_index)?
+                    .as_transition()?;
+                checked_trees::FlowPermissionEvaluation::TransitionTarget(
+                    if disposition.exit.kind
+                        == checked_trees::FlowClaimJoinExitKind::TransitionTarget
+                    {
+                        transition.target
+                    } else {
+                        transition.continuation
+                    },
+                )
+            }
+            _ => checked_trees::FlowPermissionEvaluation::Statement,
+        })
+    } else {
+        None
+    };
+    let mut claims = Vec::new();
+    let permissions = if selected_disposition {
+        &facts.flow.ownership.selected_cleanup_permissions
+    } else {
+        &facts.flow.ownership.permissions
+    };
+    for (_, event) in permissions.iter().filter(|(_, event)| {
+        event.machine_symbol == disposition.machine
+            && event.state_symbol == disposition.state
+            && event.source == disposition.source
+            && evaluation.is_none_or(|evaluation| event.evaluation == evaluation)
+            && event.root == disposition.root
+            && event.kind == PermissionEventKind::Consume
+            && event.multiplicity == Multiplicity::Linear
+            && event.access == PermissionAccess::Owned
+            && facts.flow.ownership.segments.span(event.segments) == Some(path)
+    }) {
+        if event.claim_identity == PermissionClaimIdentity::Unknown
+            || event.provenance == PermissionProvenance::Unknown
+            || event.obligation_live
+            || claims.contains(&event.claim_identity)
+        {
+            return None;
+        }
+        claims.push(event.claim_identity);
+    }
+    Some(claims)
 }

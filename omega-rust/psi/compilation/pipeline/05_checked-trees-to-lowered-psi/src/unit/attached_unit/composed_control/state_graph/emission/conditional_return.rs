@@ -150,6 +150,7 @@ impl StateGraphEmission<'_, '_> {
                         checked_trees::CheckedUnitCallResult::Structural { .. } => {
                             super::super::guarded::complete_structural_return(
                                 identities,
+                                self.claims.published(),
                                 self.checked,
                                 state,
                                 super::super::cleanup::coordinate(
@@ -260,6 +261,7 @@ impl StateGraphEmission<'_, '_> {
             let exit = super::super::cleanup::coordinate(state, statement_ordinal as usize, false)?;
             let mut regions = super::super::cleanup::for_exit_regions(
                 identities,
+                self.claims.published(),
                 checked,
                 state,
                 exit,

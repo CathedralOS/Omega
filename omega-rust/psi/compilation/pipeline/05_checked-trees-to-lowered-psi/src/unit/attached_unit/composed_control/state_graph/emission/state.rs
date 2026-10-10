@@ -527,6 +527,7 @@ impl StateGraphEmission<'_, '_> {
                 // graph, where the selected arm and result effects are known.
                 let cleanups = super::super::cleanup::scalar_returns(
                     identities,
+                    self.claims.published(),
                     self.checked,
                     state,
                     self.catalogs,
@@ -897,6 +898,7 @@ impl StateGraphEmission<'_, '_> {
                 };
                 let mut regions = super::super::cleanup::for_exit_regions(
                     identities,
+                    self.claims.published(),
                     self.checked,
                     state,
                     cleanup.exit,

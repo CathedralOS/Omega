@@ -651,18 +651,6 @@ pub(super) fn emit(
                 Ok((place, path))
             },
             |cleanup, place, structural_type, path| {
-                // A parent hook does not consume its children's obligations.
-                // Bind only this occurrence's entry claims; subsequent actions
-                // own the separately selected descendants.
-                let mut consumed_claims = entry_claims
-                    .iter()
-                    .filter(|claim| {
-                        evaluation.current_structural_place(claim.input) == place
-                            && claim.path == path
-                    })
-                    .map(|claim| claim.claim)
-                    .collect::<Vec<_>>();
-                consumed_claims.sort_unstable();
                 let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(
                     cleanup,
                     place,
@@ -673,7 +661,11 @@ pub(super) fn emit(
                     scalar_calls.requirement_counts,
                     &mut scalar_calls.next_obligation_identity,
                 )?;
-                action.consumed_claims = consumed_claims;
+                crate::unit::unit_cleanup::bind_consumed_claims(
+                    &mut action,
+                    cleanup,
+                    scalar_calls.claims.bindings(),
+                )?;
                 Ok(action)
             },
         )?;

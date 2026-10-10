@@ -38,6 +38,7 @@ pub(super) fn destination(
 /// graph proof production observes the selected path and outgoing call effects.
 pub(super) fn scalar_returns(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    claims: crate::emission::claim_bindings::PublishedClaims<'_>,
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     catalogs: &mut catalogs::ComposedCatalogs<'_>,
@@ -62,6 +63,7 @@ pub(super) fn scalar_returns(
             };
             let mut actions = for_exit_regions(
                 identities,
+                claims,
                 checked,
                 state,
                 cleanup.exit,
@@ -230,6 +232,7 @@ fn deferred_carrier_releases(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn for_exit_regions(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    claims: crate::emission::claim_bindings::PublishedClaims<'_>,
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     exit: FlowClaimJoinExit,
@@ -289,7 +292,7 @@ pub(super) fn for_exit_regions(
             Ok((place, path))
         },
         |cleanup, place, structural_type, path| {
-            crate::unit::unit_cleanup::lower_nominal_cleanup_action(
+            let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(
                 cleanup,
                 place,
                 structural_type,
@@ -298,7 +301,9 @@ pub(super) fn for_exit_regions(
                 &receivers,
                 &catalogs.scalar_calls.requirement_counts,
                 &mut catalogs.scalar_calls.next_call_obligation,
-            )
+            )?;
+            crate::unit::unit_cleanup::bind_consumed_claims(&mut action, cleanup, claims.bindings)?;
+            Ok(action)
         },
     )?;
     let mut actions = deferred_carrier_releases(state, evaluation, operations)?

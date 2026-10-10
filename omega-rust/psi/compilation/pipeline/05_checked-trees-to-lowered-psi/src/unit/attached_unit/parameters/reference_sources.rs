@@ -73,7 +73,7 @@ pub(crate) fn lower_reference_source(
         structural_types,
         parameters,
         trivial_affine_locals,
-        &[],
+        structural_results,
         &[],
         &[],
         primitive_locals,
@@ -170,7 +170,7 @@ pub(crate) fn lower_reference_result_sources(
     let mut references = references
         .iter()
         .map(|reference| {
-            let source = lower_reference_source(identities, checked, &reference.source, structural_types, &[], &[], &[], &[], &[], None)?;
+            let source = lower_reference_source(identities, checked, &reference.source, structural_types, parameters, &[], &[], &[], &[], None)?;
             Ok(
             terminal_psi::StructuralReferenceResultSource {
                 path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &reference.path, result_type, structural_types)?,

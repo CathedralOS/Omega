@@ -322,7 +322,7 @@ pub(crate) fn emit(
                     )?,
                     path: lower_static_argument_path(
                         identities,
-                        &projected.path,
+                        &path,
                         lookup_type_id(emission.type_ids, &projected.root_type_identity)?,
                         emission.structural_types,
                     )?,

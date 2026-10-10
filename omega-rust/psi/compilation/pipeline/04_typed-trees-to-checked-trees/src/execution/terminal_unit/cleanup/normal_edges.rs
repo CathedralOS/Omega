@@ -164,7 +164,7 @@ fn cleanup_rows(
             facts,
             targets,
             shapes,
-            disposition,
+            disposition_handle,
             source.clone(),
             None,
         )?;
