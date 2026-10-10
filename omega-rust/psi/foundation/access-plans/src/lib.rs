@@ -31,7 +31,7 @@ macro_rules! diagnostic_accessor {
     };
 }
 
-mod digest_encoder;
+pub(crate) use optimization::digest_encoder;
 mod access_plan;
 mod normalized_identity;
 mod placements;

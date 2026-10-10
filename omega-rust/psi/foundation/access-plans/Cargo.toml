@@ -12,8 +12,8 @@ path = "src/lib.rs"
 extents = { path = "../extents" }
 language-core = { path = "../language-core" }
 layout-plans = { path = "../layout-plans" }
+optimization = { path = "../optimization-selections" }
 semantic-vocabulary = { path = "../semantic-vocabulary" }
-sha2 = "0.10"
 
 [dev-dependencies]
 layout-plans = { path = "../layout-plans", features = ["test-support"] }

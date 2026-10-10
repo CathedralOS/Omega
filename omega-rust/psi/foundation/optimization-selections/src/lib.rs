@@ -8,7 +8,7 @@
 
 mod codec_bytes;
 
-mod digest_encoder;
+pub mod digest_encoder;
 pub mod optimization_selections;
 
 pub use optimization_selections::{

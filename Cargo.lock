@@ -65,6 +65,7 @@ dependencies = [
  "extents",
  "language-core",
  "layout-plans",
+ "optimization",
  "semantic-vocabulary",
  "sha2",
 ]
@@ -1156,6 +1157,7 @@ dependencies = [
 name = "numerics"
 version = "0.1.0"
 dependencies = [
+ "optimization",
  "sha2",
 ]
 
@@ -1636,6 +1638,7 @@ dependencies = [
 name = "representation-selections"
 version = "0.1.0"
 dependencies = [
+ "optimization",
  "sha2",
  "source",
  "symbols",
@@ -2134,6 +2137,7 @@ dependencies = [
  "arena",
  "language-core",
  "language-semantics",
+ "optimization",
  "semantic-vocabulary",
  "sha2",
  "source",
@@ -2173,6 +2177,7 @@ name = "terminal-semantics"
 version = "0.1.0"
 dependencies = [
  "numerics",
+ "optimization",
  "proof-admission",
  "semantic-vocabulary",
  "sha2",

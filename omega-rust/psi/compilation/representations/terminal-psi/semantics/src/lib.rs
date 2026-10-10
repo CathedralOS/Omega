@@ -26,7 +26,7 @@ pub mod closed_reach;
 mod collection_backing;
 pub mod control_graph;
 pub mod descriptor_results;
-mod digest_encoder;
+pub(crate) use optimization::digest_encoder;
 mod partial_affine;
 mod placed_view_referent;
 mod primitive_place;

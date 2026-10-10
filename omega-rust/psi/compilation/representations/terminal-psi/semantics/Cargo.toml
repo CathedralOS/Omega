@@ -9,8 +9,8 @@ name = "terminal_semantics"
 path = "src/lib.rs"
 
 [dependencies]
+optimization = { path = "../../../../foundation/optimization-selections" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
 numerics = { path = "../../../../foundation/numerics" }
 terminal-psi = { path = ".." }
-sha2 = "0.10"
 proof-admission = { path = "../../../proof/admission" }

@@ -10,8 +10,8 @@ path = "src/lib.rs"
 
 [dependencies]
 arena = { path = "../../../foundation/arena" }
+optimization = { path = "../../../foundation/optimization-selections" }
 source = { path = "../../../foundation/source" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 language-core = { path = "../../../foundation/language-core" }
 language-semantics = { path = "../../../foundation/language-semantics" }
-sha2 = "0.10"

@@ -17,4 +17,3 @@ optimization = { path = "../../../../foundation/optimization-selections" }
 proof-admission = { path = "../../../proof/admission" }
 terminal-psi = { path = ".." }
 terminal-semantics = { path = "../semantics" }
-sha2 = "0.10"
