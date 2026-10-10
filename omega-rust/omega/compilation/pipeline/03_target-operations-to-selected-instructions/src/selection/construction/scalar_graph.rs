@@ -772,6 +772,26 @@ impl Builder<'_> {
         )
     }
 
+    /// Every `Store64` emission shares the kind and its constraint-key
+    /// lookup; only the slot, offset, stored register, and provenance differ.
+    fn emit_store64(
+        &mut self,
+        slot: FrameStorageSlotId,
+        byte_offset: u32,
+        value: VirtualRegisterId,
+        provenance: SelectedInstructionProvenance,
+    ) -> Result<(), SelectedInstructionError> {
+        self.emit(
+            SelectedInstructionKind::Store64 { slot, byte_offset },
+            self.constraints
+                .keys
+                .store64
+                .ok_or_else(|| SelectedInstructionError::custody())?,
+            &[value],
+            provenance,
+        )
+    }
+
     /// Every `Store` emission shares the kind and its constraint-key lookup;
     /// call sites differ only in offset, width, the operand pair, and the
     /// provenance they attach.

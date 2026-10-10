@@ -4,8 +4,7 @@
 //! Borrowed-view descriptors use the same fragments without copying their backing
 //! or changing the loan's access authority.
 use super::{
-    Builder, LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionKind,
-    ValueLocation, VirtualRegisterId,
+    Builder, LegalizedScalarFunction, SelectedInstructionId, ValueLocation, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessRole};
@@ -382,17 +381,10 @@ pub(super) fn transport(
                     8,
                     SelectedMemoryAccessRole::WriteOutgoing { slot },
                 )?;
-                builder.emit(
-                    SelectedInstructionKind::Store64 {
-                        slot: FrameStorageSlotId::Outgoing(slot),
-                        byte_offset: 0,
-                    },
-                    builder
-                        .constraints
-                        .keys
-                        .store64
-                        .ok_or_else(|| SelectedInstructionError::custody())?,
-                    &[address],
+                builder.emit_store64(
+                    FrameStorageSlotId::Outgoing(slot),
+                    0,
+                    address,
                     Default::default(),
                 )?;
             }

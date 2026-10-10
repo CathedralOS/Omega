@@ -7,8 +7,8 @@
 //! A boundary borrowed-view operand instead places its descriptor fragments
 //! under the retained aggregate ABI, preserving the original backing and loan.
 use super::{
-    Builder, LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, VirtualRegisterId,
+    Builder, LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionProvenance,
+    VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::row;
@@ -461,17 +461,10 @@ fn place_pointer_argument(
             byte_count: 8,
             role: selected_instructions::SelectedMemoryAccessRole::WriteOutgoing { slot },
         });
-    builder.emit(
-        SelectedInstructionKind::Store64 {
-            slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
-            byte_offset: 0,
-        },
-        builder
-            .constraints
-            .keys
-            .store64
-            .ok_or(SelectedInstructionError::custody())?,
-        &[pointer],
+    builder.emit_store64(
+        selected_instructions::FrameStorageSlotId::Outgoing(slot),
+        0,
+        pointer,
         SelectedInstructionProvenance {
             operations: vec![operation.operation],
             ..Default::default()

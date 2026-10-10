@@ -1,7 +1,7 @@
 //! Addressable activation-local storage shared by literal and derived descriptors.
 use super::{
-    Builder, LegalizedScalarInstruction, PlaceId, SelectedInstructionKind,
-    SelectedMemoryAccessRole, VirtualRegisterId, memory,
+    Builder, LegalizedScalarInstruction, PlaceId, SelectedMemoryAccessRole, VirtualRegisterId,
+    memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -171,13 +171,10 @@ pub(super) fn store(
         8,
         SelectedMemoryAccessRole::WriteLocal { slot },
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store64 {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset: offset,
-        },
-        builder.constraints.keys.store64.ok_or_else(|| invalid())?,
-        &[value],
+    builder.emit_store64(
+        FrameStorageSlotId::Local(slot),
+        offset,
+        value,
         provenance(row),
     )
 }
