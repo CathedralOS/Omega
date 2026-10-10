@@ -39,6 +39,7 @@ impl<'a> Caller<'a> {
 }
 
 pub(super) fn prepare(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: &Caller<'_>,
     operation: &CheckedUnitEffectOperationPlan,
@@ -97,6 +98,7 @@ pub(super) fn prepare(
         .iter()
         .map(|term| {
             crate::scalar_lowering::contracts::checked_proof_term(
+            identities,
                 checked,
                 term,
                 state.erased_proof_parameters,
@@ -275,6 +277,7 @@ pub(super) fn prepare(
         _ => Vec::new(),
     };
     let claim_transfers = crate::emission::claim_bindings::prepare_checked_claim_transfers(
+            identities,
         checked,
         claim_transfers,
         target.structural_parameters,

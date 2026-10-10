@@ -19,8 +19,7 @@ use crate::sections::semantic_module::structural_place_wire::{
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ObligationId, ServiceId, ValueId};
 use semantic_vocabulary::{ProofTerm, ScalarTerm};
-use terminal_psi::{
-    ClaimTransfer, CompletionReceipt, OperationKind, OutcomeSpecificCallEvidence,
+use terminal_psi::{TerminalIdentityIndex, ClaimTransfer, CompletionReceipt, OperationKind, OutcomeSpecificCallEvidence,
     OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
     OutcomeSpecificGuard,
 };

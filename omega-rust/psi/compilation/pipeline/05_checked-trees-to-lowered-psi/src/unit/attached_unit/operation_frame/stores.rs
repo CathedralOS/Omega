@@ -81,7 +81,9 @@ impl OperationFrame<'_, '_> {
 
     /// Lower one store. Its leaf representation decides the Terminal
     /// operation; see the module documentation.
-    pub(super) fn store(&mut self, store: &CheckedStorePlan) -> Result<(), LoweringError> {
+    pub(super) fn store(&mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        store: &CheckedStorePlan) -> Result<(), LoweringError> {
         match &store.destination.leaf {
             CheckedStoreLeaf::Primitive { receiving_range } => {
                 if let Some(range) = receiving_range
@@ -112,9 +114,11 @@ impl OperationFrame<'_, '_> {
                 self.representation_view_store(store, *view)
             }
             CheckedStoreLeaf::ByteContents | CheckedStoreLeaf::ByteDescriptor => {
-                self.byte_sequence_store(store)
+                self.byte_sequence_store(
+            identities,store)
             }
-            CheckedStoreLeaf::SumField => self.sum_field_store(store),
+            CheckedStoreLeaf::SumField => self.sum_field_store(
+            identities,store),
             CheckedStoreLeaf::WindowRepair {
                 type_identity,
                 opening_binding,
@@ -312,7 +316,9 @@ impl OperationFrame<'_, '_> {
     /// Replace byte contents or one descriptor slot. A whole descriptor slot
     /// is the declared home itself; the home, not the referenced bytes'
     /// shared access, supplies the authority.
-    fn byte_sequence_store(&mut self, store: &CheckedStorePlan) -> Result<(), LoweringError> {
+    fn byte_sequence_store(
+        &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder, store: &CheckedStorePlan) -> Result<(), LoweringError> {
         use crate::emission::structural_byte_sequence_store::StoreRoot;
         let Some(value) = store.value.bytes() else {
             return unsupported("byte sequence store holds no byte value");
@@ -362,14 +368,17 @@ impl OperationFrame<'_, '_> {
         // Only a roster this body owns may gain the generated literal-view
         // carrier; the store below rejects a published roster without it.
         if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
-            crate::emission::structural_byte_sequence_store::prepare_types(value, types)?;
+            crate::emission::structural_byte_sequence_store::prepare_types(
+            identities,value, types)?;
         }
         if descriptor {
             let mut destination =
                 crate::emission::structural_byte_sequence_store::prepare_descriptor_store(
+            identities,
                     &root,
                     &store.destination.path,
-                    self.structural_types.declarations(),
+                    self.structural_types.declarations(
+            identities,),
                 )?;
             let indexes = crate::emission::runtime_elements::evaluate_selectors(
                 &destination.steps,
@@ -397,7 +406,8 @@ impl OperationFrame<'_, '_> {
                 self.calls,
                 self.operations,
             )?;
-            let source = self.byte_descriptor_operand(store.statement_index, value)?;
+            let source = self.byte_descriptor_operand(
+            identities,store.statement_index, value)?;
             let kind = crate::emission::structural_byte_sequence_store::emit_descriptor_store(
                 destination,
                 path,
@@ -405,7 +415,8 @@ impl OperationFrame<'_, '_> {
                 &mut self.calls.next_obligation_identity,
                 self.operations,
             )?;
-            self.push_unit(kind);
+            self.push_unit(
+            identities,kind);
             return Ok(());
         }
         let kind = crate::emission::structural_byte_sequence_store::emit_content_store(
@@ -447,7 +458,9 @@ impl OperationFrame<'_, '_> {
     /// `structural_parameters`, the authored-to-lowered pairing the field,
     /// case-field and element-view stores use, not in `parameters`, whose
     /// positions are dense on the ordinary route.
-    fn indexed_write(&mut self, target: IndexedWriteTarget<'_>) -> Result<(), LoweringError> {
+    fn indexed_write(
+        &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder, target: IndexedWriteTarget<'_>) -> Result<(), LoweringError> {
         let leaf = target.leaf()?;
         let destination = target.destination(
             &self.evaluation.structural_parameters,
@@ -551,6 +564,8 @@ impl OperationFrame<'_, '_> {
     /// family uses.
     fn representation_view_store(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         store: &CheckedStorePlan,
         view: checked_trees::types::PrimitiveType,
     ) -> Result<(), LoweringError> {
@@ -647,7 +662,9 @@ impl OperationFrame<'_, '_> {
     /// Field and element stores both retain a recast loan's original backing.
     /// This prepares selectors only; callers evaluate their ordinary RHS next.
     fn prepare_loaned_byte_store(
-        &mut self,
+&mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         statement_index: u32,
         loan: &crate::scalar_lowering::computations::fields::LoanedStore,
     ) -> Result<crate::emission::representation_view_store::ByteStoreDestination, LoweringError>
@@ -700,7 +717,8 @@ impl OperationFrame<'_, '_> {
             self.next_edge,
             self.operations,
             self.calls,
-            self.structural_types.declarations(),
+            self.structural_types.declarations(
+            identities,),
         )?;
         if let Some(projection) = &loan.byte_overlay {
             let steps = projection
@@ -744,6 +762,7 @@ impl OperationFrame<'_, '_> {
     /// bytes, any other loan the rejoined field below the loan's root.
     fn scalar_field_store(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         store: &CheckedStorePlan,
         primitive_type: checked_trees::types::PrimitiveType,
         range_decision: arena::Handle<checked_trees::CheckedIntegerAssignmentDecision>,
@@ -819,21 +838,25 @@ impl OperationFrame<'_, '_> {
                         carrier_path,
                         field_identity,
                         destination,
-                        self.structural_types.declarations(),
+                        self.structural_types.declarations(
+            identities,),
                     )?;
                 (destination.place, destination.structural_type, lowered)
             }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
-                let (place, root_type) = self.local_home(symbol)?;
+                let (
+            identities, place, root_type) = self.local_home(symbol)?;
                 let lowered =
                     crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
                         primitive_type,
                         carrier_path,
                         field_identity,
                         root_type,
-                        self.structural_types.declarations(),
+                        self.structural_types.declarations(
+            identities,),
                     )?;
-                (place, root_type, lowered)
+                (
+            identities,place, root_type, lowered)
             }
         };
         lowered.bind_range_decision(self.checked, primitive_type, range_decision)?;
@@ -962,7 +985,11 @@ impl OperationFrame<'_, '_> {
     /// and restores the hole, exactly as any whole-place repair does. The
     /// moved-out leaf is unrestricted by the plan's own contract, so no
     /// custody action retires it.
-    fn sum_field_store(&mut self, store: &CheckedStorePlan) -> Result<(), LoweringError> {
+    fn sum_field_store(
+        &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        store: &CheckedStorePlan,
+    ) -> Result<(), LoweringError> {
         let Some((carrier_path, field_identity)) = store.destination.field() else {
             return unsupported("sum field store names no field");
         };
@@ -970,7 +997,8 @@ impl OperationFrame<'_, '_> {
         // owned structural local roots it at the local's live home place.
         // The window pair below writes through either root identically.
         let (root_type, source) = self.window_destination(store.destination.root)?;
-        let (_, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
+        let (
+            identities,_, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
             root_type,
             carrier_path,
             field_identity,
@@ -979,10 +1007,14 @@ impl OperationFrame<'_, '_> {
         let Some(hole_type) = field.field_type.as_structural() else {
             return unsupported("sum field store names a non-structural field");
         };
-        let (replacement, type_identity) = match &store.value {
-            CheckedStoreValue::Place(value) => (
-                self.copied_sum_value(value, hole_type)?,
-                value.type_identity.clone(),
+        let (
+            identities,replacement, type_identity) = match &store.value {
+            CheckedStoreValue::Place(
+            identities,value) => (
+                self.copied_sum_value(
+            identities,value, hole_type)?,
+                value.type_identity.clone(
+            identities,),
             ),
             CheckedStoreValue::CaseLiteral(literal) => (
                 self.established_case_literal(store.statement_index, literal, hole_type)?,
@@ -1030,6 +1062,8 @@ impl OperationFrame<'_, '_> {
     /// nothing.
     fn copied_sum_value(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         value: &checked_trees::CheckedUnitStructuralArgumentPlan,
         hole_type: StructuralTypeId,
     ) -> Result<PlaceId, LoweringError> {
@@ -1062,7 +1096,8 @@ impl OperationFrame<'_, '_> {
             Vec::new(),
             OperationKind::StructuralLeafCopy {
                 source: source_place,
-                path: lower_structural_path(&value.path)?,
+                path: lower_structural_path(
+            identities,&value.path)?,
             },
         )?;
         self.private_places
@@ -1075,6 +1110,7 @@ impl OperationFrame<'_, '_> {
     /// namespace and an unnamed common field takes its declared zero.
     fn established_case_literal(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         statement_index: u32,
         literal: &checked_trees::CheckedCaseLiteralValuePlan,
         hole_type: StructuralTypeId,
@@ -1125,7 +1161,7 @@ impl OperationFrame<'_, '_> {
             let (position, target) = shape_fields
                 .iter()
                 .enumerate()
-                .find(|(_, candidate)| candidate.identity == field_plan.field_identity.spelling())
+                .find(|(_, candidate)| candidate.identity == identities.intern(&field_plan.field_identity.spelling()))
                 .ok_or(LoweringError::Unsupported(
                     "case literal field store field identity missing",
                 ))?;

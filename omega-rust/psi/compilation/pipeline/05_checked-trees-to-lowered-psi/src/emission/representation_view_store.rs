@@ -46,6 +46,7 @@ use terminal_psi::ByteSequenceCarrier;
 /// requires.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     store: &CheckedStorePlan,
     view: PrimitiveType,
     checked: &CheckedTrees,
@@ -96,7 +97,8 @@ pub(crate) fn emit(
         // carrier.
         CheckedUnitStructuralPathSegment::Field(identity) => {
             let (steps, walked) =
-                walk_carrier_prefix(parameter.structural_type, prefix, structural_types)?;
+                walk_carrier_prefix(
+            identities,parameter.structural_type, prefix, structural_types)?;
             let Walked::Type(owner) = walked else {
                 return unsupported("representation view store leaf owner is not structural");
             };
@@ -111,7 +113,7 @@ pub(crate) fn emit(
             };
             let mut matching = fields
                 .iter()
-                .filter(|field| field.identity == identity.spelling() && !field.relevance.is_erased());
+                .filter(|field| field.identity == identities.intern(&identity.spelling() && !field.relevance.is_erased()));
             let field = matching.next().ok_or(LoweringError::Unsupported(
                 "representation view store leaf is absent",
             ))?;
@@ -120,6 +122,7 @@ pub(crate) fn emit(
             }
             let leaf_scalar = leaf_scalar_type(&field.field_type)?;
             let indexes = runtime_elements::evaluate_selectors(
+            identities,
                 &steps,
                 checked,
                 machine,
@@ -429,6 +432,7 @@ impl ByteStoreDestination {
 /// only after this returns, preserving ordinary assignment sequencing.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare_byte_destination(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     destination: semantic_vocabulary::PlaceId,
     root_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
@@ -450,7 +454,9 @@ pub(crate) fn prepare_byte_destination(
     let Some((leaf, prefix)) = path.split_last() else {
         return unsupported("byte representation store has no backing coordinate");
     };
-    let (mut steps, walked) = walk_carrier_prefix(root_type, prefix, structural_types)?;
+    let (
+            identities,mut steps, walked) = walk_carrier_prefix(
+            identities,root_type, prefix, structural_types)?;
     let capacity = byte_capacity(walked, structural_types)?;
     let fixed_index = match leaf {
         CheckedUnitStructuralPathSegment::FixedIndex(index) => *index,
@@ -460,7 +466,8 @@ pub(crate) fn prepare_byte_destination(
             }
             0
         }
-        _ => return unsupported("byte representation store has no element coordinate"),
+        _ => return unsupported(
+            identities,"byte representation store has no element coordinate"),
     };
     let mut indexes = runtime_elements::evaluate_selectors(
         &steps,
@@ -560,6 +567,7 @@ enum Walked<'a> {
 /// ends at the leaf's owner — a record for the same-width arm, a byte
 /// carrier for the byte arm.
 fn walk_carrier_prefix<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     root_type: StructuralTypeId,
     prefix: &[CheckedUnitStructuralPathSegment],
     types: &'a [StructuralTypeDeclaration],
@@ -584,7 +592,7 @@ fn walk_carrier_prefix<'a>(
                 };
                 let mut matching = fields
                     .iter()
-                    .filter(|field| field.identity == identity.spelling() && !field.relevance.is_erased());
+                    .filter(|field| field.identity == identities.intern(&identity.spelling() && !field.relevance.is_erased()));
                 let field = matching.next().ok_or(LoweringError::Unsupported(
                     "representation view store carrier field is absent",
                 ))?;
@@ -592,7 +600,7 @@ fn walk_carrier_prefix<'a>(
                     return unsupported("representation view store carrier field is ambiguous");
                 }
                 steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
-                    identity.spelling(),
+                    identities.intern(&identity.spelling()),
                 )));
                 walked = match &field.field_type {
                     StructuralFieldType::Structural(nested) => Walked::Type(*nested),

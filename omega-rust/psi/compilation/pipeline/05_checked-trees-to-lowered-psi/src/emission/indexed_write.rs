@@ -229,7 +229,9 @@ impl<'a> IndexedWriteTarget<'a> {
     /// root would make a lookup by declaration position select the next
     /// borrowed parameter, or none.
     pub(crate) fn destination(
-        self,
+self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         parameters: &[(u32, StructuralParameterDeclaration)],
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<Destination, LoweringError> {
@@ -353,7 +355,8 @@ impl<'a> IndexedWriteTarget<'a> {
                     .ok_or(LoweringError::Unsupported(
                         "element-view write destination is not an element view",
                     ))?;
-                let path = crate::expression_preparation::bindings::structural_paths::lower_structural_path(element_path)?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_structural_path(
+            identities,element_path)?;
                 let leaf = terminal_semantics::element_view_leaf(structural_types, element, &path)
                     .ok_or(LoweringError::Unsupported(
                         "element-view write path is not an admitted scalar leaf",

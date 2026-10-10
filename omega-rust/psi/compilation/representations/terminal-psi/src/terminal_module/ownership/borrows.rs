@@ -38,16 +38,16 @@ pub enum TerminalBorrowBoundarySource {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalBorrowOwnerSegment {
-    Field(String),
-    Case(String),
+    Field(TerminalIdentityIndex),
+    Case(TerminalIdentityIndex),
     FixedIndex(u64),
     DynamicIndex,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalBorrowPlaceSegment {
-    Field(String),
-    Case(String),
+    Field(TerminalIdentityIndex),
+    Case(TerminalIdentityIndex),
     FixedIndex(u64),
     FixedRange { start: u64, end: u64 },
 }

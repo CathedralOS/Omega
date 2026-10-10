@@ -387,6 +387,7 @@ fn lower_sum_path(
 /// resolver. Only guarantees supply a declared result; the result is not an
 /// entry parameter and cannot lend a coincidentally equal parameter ordinal.
 pub(crate) fn lower_structural_case_membership(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     subject: &checked_trees::CheckedStructuralCaseSubject,
     case_identity: &checked_trees::CheckedMemberIdentity,
     parameters: &[StructuralParameterDeclaration],
@@ -422,7 +423,7 @@ pub(crate) fn lower_structural_case_membership(
     };
     let mut matching = cases
         .iter()
-        .filter(|case| case.identity == case_identity.spelling());
+        .filter(|case| case.identity == identities.intern(&case_identity.spelling()));
     let case = matching
         .next()
         .ok_or(LoweringError::Unsupported("case membership was redirected"))?;

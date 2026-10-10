@@ -175,6 +175,7 @@ struct RuntimeRequirementTerms<'parameters> {
 impl RuntimeRequirementTerms<'_> {
     fn scalar_leaf(
         &self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
         match expression {
@@ -186,7 +187,8 @@ impl RuntimeRequirementTerms<'_> {
                 ) {
                     integer_scalar_type(*primitive_type)?;
                 }
-                checked_scalar_term(expression, self.scalar_parameters, self.erased)
+                checked_scalar_term(
+            identities,expression, self.scalar_parameters, self.erased)
             }
             CheckedScalarExpression::IeeeFloatLiteral { value } => {
                 Ok(ScalarTerm::IeeeFloatLiteral(*value))
@@ -224,6 +226,8 @@ impl RuntimeRequirementTerms<'_> {
 impl PredicateTerms for RuntimeRequirementTerms<'_> {
     fn case_membership(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         expression: &CheckedBooleanExpression,
     ) -> Result<Proposition, LoweringError> {
         let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression
@@ -231,6 +235,7 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
             return unsupported("runtime case requirement has no case subject");
         };
         crate::proofs::crash_routes::lower_structural_case_membership(
+            identities,
             subject,
             case,
             self.parameters,

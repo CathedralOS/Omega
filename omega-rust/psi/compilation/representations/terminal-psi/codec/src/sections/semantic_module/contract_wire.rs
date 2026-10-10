@@ -4,8 +4,7 @@
 //! buckets/guards, and crash-predicate envelopes. Recursive proposition bytes
 //! remain in the parent codec.
 
-use terminal_psi::{
-    ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
+use terminal_psi::{TerminalIdentityIndex, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
     MachineContract, OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
     SuccessorEdge,
 };

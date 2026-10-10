@@ -11,6 +11,7 @@ use crate::emission::operation_emission::buffer::{OperationBuffer, structural_re
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn structural_case(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
         let node = self
@@ -112,7 +113,7 @@ impl emission::Emission<'_, '_, '_> {
             let identity = checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone());
             let position = shape_fields[roster.clone()]
                 .iter()
-                .position(|candidate| candidate.identity == identity.spelling())
+                .position(|candidate| candidate.identity == identities.intern(&identity.spelling()))
                 .map(|offset| roster.start + offset)
                 .ok_or(LoweringError::Unsupported("case field identity missing"))?;
             let target = &shape_fields[position];

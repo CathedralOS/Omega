@@ -10,8 +10,7 @@ use semantic_vocabulary::{
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
     ContentTerm, StructuralPlaceKind,
 };
-use terminal_psi::{
-    ClaimContentProjection, ContentConservationGuarantee, ContentEntryClaim,
+use terminal_psi::{TerminalIdentityIndex, ClaimContentProjection, ContentConservationGuarantee, ContentEntryClaim,
     ContentIdentityReshuffle, ContentPartitionComposition, ContentPlaceSubstitution,
     StructuralPlaceDeclaration,
 };
@@ -353,7 +352,7 @@ fn decode_content_structural_place(
     let mut segments = Vec::new();
     for _ in 0..count {
         segments.push(match reader.u8()? {
-            1 => ContentPlaceSegment::Field(reader.string("content field")?),
+            1 => ContentPlaceSegment::Field(reader.string("content case")?),
             2 => ContentPlaceSegment::FixedIndex(reader.u64()?),
             3 => ContentPlaceSegment::Case(reader.string("content case")?),
             tag => return Err(CodecError::InvalidTag("ContentPlaceSegment", tag)),

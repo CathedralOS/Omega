@@ -122,7 +122,9 @@ impl RangeStorage {
     /// Bind the range source to the current activation's storage. Array
     /// borrowing reuses the ordinary place join, including its access checks.
     pub(crate) fn bind(
-        &self,
+&self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         bindings: &ScalarBindings,
@@ -152,7 +154,8 @@ impl RangeStorage {
             .path
             .into_iter()
             .map(LoweredElementPathSegment::Static)
-            .chain(collection_path(
+            .chain(
+            identities,collection_path(
                 &self.collection,
                 bindings,
                 root,
@@ -202,6 +205,7 @@ impl RangeStorage {
 /// projection against the root's declared storage, so record members and
 /// selected case payloads lower alike.
 fn collection_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
     bindings: &ScalarBindings,
     root: semantic_vocabulary::StructuralTypeId,
@@ -211,7 +215,8 @@ fn collection_path(
         PreparedStructuralPathSegment, prepare_argument_path,
     };
     let mut runtime_indices = 0;
-    prepare_argument_path(path, root, declarations)?
+    prepare_argument_path(
+            identities,path, root, declarations)?
         .into_iter()
         .map(|segment| match segment {
             PreparedStructuralPathSegment::Static(segment) => {

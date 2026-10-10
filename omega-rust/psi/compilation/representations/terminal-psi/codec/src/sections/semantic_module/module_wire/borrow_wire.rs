@@ -4,8 +4,7 @@
 use super::super::structural_signature_wire::{decode_structural_access, encode_structural_access};
 use crate::sections::semantic_module::CodecError;
 use crate::sections::semantic_module::wire::{Reader, Writer, decode_counted};
-use terminal_psi::{
-    TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment, TerminalBorrowPlace,
+use terminal_psi::{TerminalIdentityIndex, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment, TerminalBorrowPlace,
     TerminalBorrowPlaceSegment, TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
     TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
     TerminalReborrowSharedCohortMember,
@@ -28,7 +27,7 @@ fn encode_borrow_boundary(
             writer.u8(2);
             writer.u64(*statement_index);
             writer.u64(*call_ordinal);
-            writer.string("reborrow call target identity", target_identity)?;
+            writer.u32(target_identity.0);
         }
     }
     Ok(())
@@ -44,7 +43,7 @@ fn decode_borrow_boundary(
         2 => Ok(TerminalBorrowBoundarySource::Call {
             statement_index: reader.u64()?,
             call_ordinal: reader.u64()?,
-            target_identity: reader.string("reborrow call target identity")?,
+            target_identity: TerminalIdentityIndex(reader.u32()?),
         }),
         tag => Err(CodecError::InvalidTag("TerminalBorrowBoundarySource", tag)),
     }
@@ -59,11 +58,11 @@ fn encode_owner_path(
         match segment {
             TerminalBorrowOwnerSegment::Field(identity) => {
                 writer.u8(1);
-                writer.string("reborrow owner field", identity)?;
+                writer.u32(identity.0);
             }
             TerminalBorrowOwnerSegment::Case(identity) => {
                 writer.u8(2);
-                writer.string("reborrow owner case", identity)?;
+                writer.u32(identity.0);
             }
             TerminalBorrowOwnerSegment::FixedIndex(index) => {
                 writer.u8(3);
@@ -79,12 +78,12 @@ fn decode_owner_path(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<TerminalBorrowOwnerSegment>, CodecError> {
     decode_counted(reader, |reader| match reader.u8()? {
-        1 => Ok(TerminalBorrowOwnerSegment::Field(
-            reader.string("reborrow owner field")?,
-        )),
-        2 => Ok(TerminalBorrowOwnerSegment::Case(
-            reader.string("reborrow owner case")?,
-        )),
+        1 => Ok(TerminalBorrowOwnerSegment::Field(TerminalIdentityIndex(
+            reader.u32()?,
+        ))),
+        2 => Ok(TerminalBorrowOwnerSegment::Case(TerminalIdentityIndex(
+            reader.u32()?,
+        ))),
         3 => Ok(TerminalBorrowOwnerSegment::FixedIndex(reader.u64()?)),
         4 => Ok(TerminalBorrowOwnerSegment::DynamicIndex),
         tag => Err(CodecError::InvalidTag("TerminalBorrowOwnerSegment", tag)),
@@ -100,11 +99,11 @@ fn encode_place_segments(
         match segment {
             TerminalBorrowPlaceSegment::Field(identity) => {
                 writer.u8(1);
-                writer.string("reborrow place field", identity)?;
+                writer.u32(identity.0);
             }
             TerminalBorrowPlaceSegment::Case(identity) => {
                 writer.u8(2);
-                writer.string("reborrow place case", identity)?;
+                writer.u32(identity.0);
             }
             TerminalBorrowPlaceSegment::FixedIndex(index) => {
                 writer.u8(3);
@@ -124,12 +123,12 @@ fn decode_place_segments(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<TerminalBorrowPlaceSegment>, CodecError> {
     decode_counted(reader, |reader| match reader.u8()? {
-        1 => Ok(TerminalBorrowPlaceSegment::Field(
-            reader.string("reborrow place field")?,
-        )),
-        2 => Ok(TerminalBorrowPlaceSegment::Case(
-            reader.string("reborrow place case")?,
-        )),
+        1 => Ok(TerminalBorrowPlaceSegment::Field(TerminalIdentityIndex(
+            reader.u32()?,
+        ))),
+        2 => Ok(TerminalBorrowPlaceSegment::Case(TerminalIdentityIndex(
+            reader.u32()?,
+        ))),
         3 => Ok(TerminalBorrowPlaceSegment::FixedIndex(reader.u64()?)),
         4 => Ok(TerminalBorrowPlaceSegment::FixedRange {
             start: reader.u64()?,
@@ -140,13 +139,13 @@ fn decode_place_segments(
 }
 
 fn encode_place(writer: &mut Writer, place: &TerminalBorrowPlace) -> Result<(), CodecError> {
-    writer.string("reborrow place root", &place.root_identity)?;
+    writer.u32(place.root_identity.0);
     encode_place_segments(writer, &place.segments)
 }
 
 fn decode_place(reader: &mut Reader<'_>) -> Result<TerminalBorrowPlace, CodecError> {
     Ok(TerminalBorrowPlace {
-        root_identity: reader.string("reborrow place root")?,
+        root_identity: TerminalIdentityIndex(reader.u32()?),
         segments: decode_place_segments(reader)?,
     })
 }
@@ -156,24 +155,18 @@ pub(crate) fn encode_reborrow_root_handoff(
     handoff: &TerminalReborrowRootHandoff,
 ) -> Result<(), CodecError> {
     writer.id(handoff.machine);
-    writer.string(
-        "reborrow machine identity",
-        &handoff.source_machine_identity,
-    )?;
-    writer.string("reborrow state identity", &handoff.source_state_identity)?;
-    writer.string("reborrow direct owner", &handoff.direct_root_owner_identity)?;
+    writer.u32(handoff.source_machine_identity.0);
+    writer.u32(handoff.source_state_identity.0);
+    writer.u32(handoff.direct_root_owner_identity.0);
     encode_owner_path(writer, &handoff.direct_root_owner_path)?;
     encode_place(writer, &handoff.direct_root_place)?;
     encode_structural_access(writer, handoff.direct_root_access);
     encode_borrow_boundary(writer, &handoff.direct_root_activation)?;
     encode_borrow_boundary(writer, &handoff.direct_root_weakening)?;
-    writer.string(
-        "reborrow direct-root lifetime",
-        &handoff.direct_root_lifetime_identity,
-    )?;
+    writer.u32(handoff.direct_root_lifetime_identity.0);
     writer.len("reborrow root-handoff lineage", handoff.lineage.len())?;
     for step in &handoff.lineage {
-        writer.string("reborrow child owner", &step.child_owner_identity)?;
+        writer.u32(step.child_owner_identity.0);
         encode_owner_path(writer, &step.child_owner_path)?;
         encode_place(writer, &step.child_place)?;
         encode_place_segments(writer, &step.projection_remainder)?;
@@ -190,18 +183,18 @@ pub(crate) fn decode_reborrow_root_handoff(
 ) -> Result<TerminalReborrowRootHandoff, CodecError> {
     Ok(TerminalReborrowRootHandoff {
         machine: reader.id("MachineId")?,
-        source_machine_identity: reader.string("reborrow machine identity")?,
-        source_state_identity: reader.string("reborrow state identity")?,
-        direct_root_owner_identity: reader.string("reborrow direct owner")?,
+        source_machine_identity: TerminalIdentityIndex(reader.u32()?),
+        source_state_identity: TerminalIdentityIndex(reader.u32()?),
+        direct_root_owner_identity: TerminalIdentityIndex(reader.u32()?),
         direct_root_owner_path: decode_owner_path(reader)?,
         direct_root_place: decode_place(reader)?,
         direct_root_access: decode_structural_access(reader)?,
         direct_root_activation: decode_borrow_boundary(reader)?,
         direct_root_weakening: decode_borrow_boundary(reader)?,
-        direct_root_lifetime_identity: reader.string("reborrow direct-root lifetime")?,
+        direct_root_lifetime_identity: TerminalIdentityIndex(reader.u32()?),
         lineage: decode_counted(reader, |reader| {
             Ok(TerminalReborrowRootHandoffStep {
-                child_owner_identity: reader.string("reborrow child owner")?,
+                child_owner_identity: TerminalIdentityIndex(reader.u32()?),
                 child_owner_path: decode_owner_path(reader)?,
                 child_place: decode_place(reader)?,
                 projection_remainder: decode_place_segments(reader)?,
@@ -226,27 +219,15 @@ pub(crate) fn encode_reborrow_restored_call_use(
     });
     encode_borrow_boundary(writer, &use_row.call_boundary)?;
     writer.id(use_row.call_target_machine);
-    writer.string(
-        "restored-use machine identity",
-        &use_row.source_machine_identity,
-    )?;
-    writer.string(
-        "restored-use state identity",
-        &use_row.source_state_identity,
-    )?;
-    writer.string(
-        "restored-use direct owner",
-        &use_row.direct_root_owner_identity,
-    )?;
+    writer.u32(use_row.source_machine_identity.0);
+    writer.u32(use_row.source_state_identity.0);
+    writer.u32(use_row.direct_root_owner_identity.0);
     encode_owner_path(writer, &use_row.direct_root_owner_path)?;
     encode_place(writer, &use_row.direct_root_place)?;
     encode_borrow_boundary(writer, &use_row.direct_root_activation)?;
     encode_borrow_boundary(writer, &use_row.direct_root_weakening)?;
-    writer.string(
-        "restored-use direct-root lifetime",
-        &use_row.direct_root_lifetime_identity,
-    )?;
-    writer.string("restored-use child owner", &use_row.child_owner_identity)?;
+    writer.u32(use_row.direct_root_lifetime_identity.0);
+    writer.u32(use_row.child_owner_identity.0);
     encode_owner_path(writer, &use_row.child_owner_path)?;
     encode_place(writer, &use_row.child_place)?;
     encode_place_segments(writer, &use_row.projection_remainder)?;
@@ -256,10 +237,7 @@ pub(crate) fn encode_reborrow_restored_call_use(
     encode_borrow_boundary(writer, &use_row.child_weakening)?;
     writer.len("restored-use shared cohort", use_row.shared_cohort.len())?;
     for member in &use_row.shared_cohort {
-        writer.string(
-            "restored-use cohort child owner",
-            &member.child_owner_identity,
-        )?;
+        writer.u32(member.child_owner_identity.0);
         encode_owner_path(writer, &member.child_owner_path)?;
         encode_place(writer, &member.child_place)?;
         encode_structural_access(writer, member.child_access);
@@ -287,15 +265,15 @@ pub(crate) fn decode_reborrow_restored_call_use(
         },
         call_boundary: decode_borrow_boundary(reader)?,
         call_target_machine: reader.id("MachineId")?,
-        source_machine_identity: reader.string("restored-use machine identity")?,
-        source_state_identity: reader.string("restored-use state identity")?,
-        direct_root_owner_identity: reader.string("restored-use direct owner")?,
+        source_machine_identity: TerminalIdentityIndex(reader.u32()?),
+        source_state_identity: TerminalIdentityIndex(reader.u32()?),
+        direct_root_owner_identity: TerminalIdentityIndex(reader.u32()?),
         direct_root_owner_path: decode_owner_path(reader)?,
         direct_root_place: decode_place(reader)?,
         direct_root_activation: decode_borrow_boundary(reader)?,
         direct_root_weakening: decode_borrow_boundary(reader)?,
-        direct_root_lifetime_identity: reader.string("restored-use direct-root lifetime")?,
-        child_owner_identity: reader.string("restored-use child owner")?,
+        direct_root_lifetime_identity: TerminalIdentityIndex(reader.u32()?),
+        child_owner_identity: TerminalIdentityIndex(reader.u32()?),
         child_owner_path: decode_owner_path(reader)?,
         child_place: decode_place(reader)?,
         projection_remainder: decode_place_segments(reader)?,
@@ -305,7 +283,7 @@ pub(crate) fn decode_reborrow_restored_call_use(
         child_weakening: decode_borrow_boundary(reader)?,
         shared_cohort: decode_counted(reader, |reader| {
             Ok(TerminalReborrowSharedCohortMember {
-                child_owner_identity: reader.string("restored-use cohort child owner")?,
+                child_owner_identity: TerminalIdentityIndex(reader.u32()?),
                 child_owner_path: decode_owner_path(reader)?,
                 child_place: decode_place(reader)?,
                 child_access: decode_structural_access(reader)?,

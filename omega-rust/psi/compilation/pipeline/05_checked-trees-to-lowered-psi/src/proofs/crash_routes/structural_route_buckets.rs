@@ -170,19 +170,22 @@ impl RouteTerms<'_> {
 
     fn lower_integer_term(
         &self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
         // Scalar subtrees retain the existing scalar operation and safety
         // policy. Structural observations need the declaration's place/type
         // namespace; they must not redirect unrelated scalar casts or shifts.
         if !uses_structural_storage(expression) {
-            return checked_scalar_term(expression, self.scalar_parameters, &[]);
+            return checked_scalar_term(
+            identities,expression, self.scalar_parameters, &[]);
         }
         crate::proofs::integer_predicates::lower(
             expression,
             self.runtime_requirements,
             &|expression| match expression {
-                expression if !uses_structural_storage(expression) => {
+                expression if !uses_structural_storage(
+            identities,expression) => {
                     checked_scalar_term(expression, self.scalar_parameters, &[])
                 }
                 CheckedScalarExpression::StructuralParameterField {
@@ -291,7 +294,8 @@ impl RouteTerms<'_> {
     }
 
     fn lower_proposition(
-        &self,
+&self,
+
         expression: &CheckedBooleanExpression,
         remaining: &mut usize,
         depth: usize,

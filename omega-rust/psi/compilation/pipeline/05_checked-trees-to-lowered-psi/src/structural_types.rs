@@ -55,6 +55,7 @@ pub(crate) fn terminal_byte_sequence_carrier(
 /// Preserve one field contract across records, case payloads and retained types.
 /// Atomic access authority belongs to the declaration, never to a caller shape.
 pub(crate) fn lower_field_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     field_type: &CheckedUnitStructuralFieldType,
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
@@ -91,7 +92,7 @@ pub(crate) fn lower_field_type(
             return unsupported("provider-backed fields require attached provider erasure");
         }
         CheckedUnitStructuralFieldType::Erased { type_identity } => StructuralFieldType::Erased {
-            type_identity: checked.type_identity_text(*type_identity).unwrap_or_default(),
+            type_identity: identities.intern(&checked.type_identity_text(*type_identity).unwrap_or_default()),
         },
     })
 }
@@ -109,11 +110,12 @@ pub(crate) fn lower_mixed_fields(
             if !field.identity.is_valid() || !identities.insert(field.identity.clone()) {
                 return unsupported("mixed structural type has duplicate field identities");
             }
-            let field_type = lower_field_type(checked, &field.field_type, type_ids)?;
+            let field_type = lower_field_type(
+            identities, checked, &field.field_type, type_ids)?;
             Ok(StructuralFieldDeclaration {
                 storage: field.storage.clone(),
                 id: structural_field_id(allocate_dense(next_field)?),
-                identity: field.identity.spelling(),
+                identity: identities.intern(&field.identity.spelling()),
                 relevance: field.relevance,
                 field_type,
             })
@@ -138,7 +140,7 @@ pub(crate) fn lower_mixed_cases(
             Ok(StructuralCaseDeclaration {
                 id: StructuralCaseId::new(allocate_dense(next_case)?)
                     .expect("allocated structural case identity is nonzero"),
-                identity: case.identity.spelling(),
+                identity: identities.intern(&case.identity.spelling()),
                 fields: lower_mixed_fields(checked, &case.fields, type_ids, next_field)?,
             })
         })

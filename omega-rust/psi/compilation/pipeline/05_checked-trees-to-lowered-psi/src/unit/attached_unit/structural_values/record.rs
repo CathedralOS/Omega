@@ -16,6 +16,7 @@ use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn record(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
         let node = self
@@ -92,7 +93,7 @@ impl emission::Emission<'_, '_, '_> {
             let identity = checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone());
             let position = shape_fields
                 .iter()
-                .position(|candidate| candidate.identity == identity.spelling())
+                .position(|candidate| candidate.identity == identities.intern(&identity.spelling()))
                 .ok_or(LoweringError::Unsupported("record field identity missing"))?;
             let target = &shape_fields[position];
             // Source custody replays every semantic initializer. Erased fields

@@ -54,6 +54,7 @@ pub(super) type StructuralOperandEmitter<'a> = dyn FnMut(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -316,6 +317,7 @@ pub(crate) fn emit(
                         event.claim_identity,
                     )?,
                     path: lower_static_argument_path(
+            identities,
                         &path,
                         lookup_type_id(emission.type_ids, &projected.root_type_identity)?,
                         emission.structural_types,
@@ -338,7 +340,7 @@ pub(crate) fn emit(
             {
                 let mut stored_path = path.clone();
                 stored_path.push(terminal_psi::StructuralPathSegment::Field(
-                    crate::structural_types::field_identity(emission.structural_types, *field)?,
+                    identities.intern(&crate::structural_types::field_identity(emission.structural_types, *field))?,
                 ));
                 let stored_claims =
                     completed_place_claims(emission.operations, value.place).collect::<Vec<_>>();
@@ -851,10 +853,12 @@ impl ProjectedMove {
     /// The complete walk from `root`'s storage to the projected leaf.
     fn lowered_path(
         &self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
         types: &[StructuralTypeDeclaration],
     ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
-        let mut path = self.root_path.clone();
+        let mut path = self.root_path.clone(
+            identities,);
         path.extend(lower_static_argument_path(
             &self.path,
             lookup_type_id(type_ids, &self.root_type_identity)?,
@@ -1220,6 +1224,8 @@ impl Emission<'_, '_, '_> {
 
     pub(super) fn value(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         value: CheckedStructuralValueHandle,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
@@ -1257,7 +1263,8 @@ impl Emission<'_, '_, '_> {
                 continuation,
             ),
             CheckedStructuralValueKind::Record { .. } => {
-                let place = self.record(value)?;
+                let place = self.record(
+            identities,value)?;
 
                 self.complete_construction(place, node.qualification_decisions, continuation)
             }
@@ -1291,15 +1298,18 @@ impl Emission<'_, '_, '_> {
                 // the owned transfer requires a structural continuation.
                 if let CheckedStructuralValueKind::CopiedStructuralPlace {
                     source: copied, ..
-                } = &structural_values(self.checked).nodes.get(source).kind
+                } = &structural_values(
+            identities,self.checked).nodes.get(source).kind
                 {
                     // A projection of a copy observes the selected subtree of
                     // its original backing. It neither transfers the root nor
                     // creates affine residuals. Source replay has rejoined the
                     // copied root independently; retain its complete path when
                     // appending the projection and publish one fresh leaf.
-                    let mut argument = self.copied_place_argument(copied)?;
-                    argument.path.extend(lower_structural_path(&path)?);
+                    let mut argument = self.copied_place_argument(
+            identities,copied)?;
+                    argument.path.extend(lower_structural_path(
+            identities,&path)?);
                     return self.copied_leaf_place(
                         &argument,
                         node.qualification_decisions,
@@ -1586,6 +1596,7 @@ impl Emission<'_, '_, '_> {
                     self.calls,
                 )?;
                 let declaration = crate::scalar_lowering::computations::cases::declarations(
+            identities,
                     &self.operations.operations,
                 )
                 .find(|declaration| declaration.id == place)
@@ -1593,7 +1604,8 @@ impl Emission<'_, '_, '_> {
                     "structural case result declaration missing",
                 ))?;
                 self.temporary_places.push(declaration);
-                self.values.truncate(field_start);
+                self.values.truncate(
+            identities,field_start);
                 self.completed(place, continuation)
             }
             CheckedStructuralValueKind::StructuralCase { .. } => {

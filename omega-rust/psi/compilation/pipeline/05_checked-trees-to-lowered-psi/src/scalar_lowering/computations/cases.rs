@@ -291,6 +291,8 @@ fn constructions<'a>(
 impl Expansion<'_> {
     pub(super) fn case_membership(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         subject: &CheckedScalarComputationStructuralArgument,
         observed_case: symbols::SymbolHandle,
         input_types: &[QualifiedScalarType],
@@ -334,8 +336,10 @@ impl Expansion<'_> {
                     LoweringError::Unsupported("case observation lost its established carrier"),
                 )?;
                 let identity = structural_case_identity(self.checked, observed_case)?;
-                let (path, case) =
+                let (
+            identities,path, case) =
                     crate::expression_preparation::bindings::structural_cases::resolve_at(
+            identities,
                         self.structural_types,
                         structural_type,
                         &argument.path,

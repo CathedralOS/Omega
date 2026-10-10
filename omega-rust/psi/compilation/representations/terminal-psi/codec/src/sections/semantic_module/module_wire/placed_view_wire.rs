@@ -3,7 +3,7 @@
 
 use super::super::CodecError;
 use super::super::wire::{Reader, Writer};
-use terminal_psi::{StructuralAccess, TerminalPlacedViewInput};
+use terminal_psi::{TerminalIdentityIndex, StructuralAccess, TerminalPlacedViewInput};
 
 pub(super) fn encode_placed_view_input(
     writer: &mut Writer,
@@ -11,18 +11,9 @@ pub(super) fn encode_placed_view_input(
 ) -> Result<(), CodecError> {
     writer.id(input.machine);
     writer.u32(input.position);
-    writer.string(
-        "placed-view source machine identity",
-        &input.source_machine_identity,
-    )?;
-    writer.string(
-        "placed-view source state identity",
-        &input.source_state_identity,
-    )?;
-    writer.string(
-        "placed-view source parameter identity",
-        &input.source_parameter_identity,
-    )?;
+    writer.u32(input.source_machine_identity.0);
+    writer.u32(input.source_state_identity.0);
+    writer.u32(input.source_parameter_identity.0);
     writer.u8(match input.access {
         StructuralAccess::Owned => 1,
         StructuralAccess::SharedBorrow => 2,
@@ -31,13 +22,10 @@ pub(super) fn encode_placed_view_input(
     });
     writer.boolean(input.binding_is_const);
     writer.boolean(input.binding_is_mutable);
-    writer.string("placed-view identity", &input.view_identity)?;
-    writer.string("placed-view policy identity", &input.policy_identity)?;
-    writer.string(
-        "placed-view policy-plan machine identity",
-        &input.policy_plan_machine_identity,
-    )?;
-    writer.string("placed-view schema identity", &input.schema_identity)?;
+    writer.u32(input.view_identity.0);
+    writer.u32(input.policy_identity.0);
+    writer.u32(input.policy_plan_machine_identity.0);
+    writer.u32(input.schema_identity.0);
     writer.u64(input.placement_report_fingerprint);
     writer.bytes(&input.placement_commitment);
     Ok(())
@@ -49,9 +37,9 @@ pub(super) fn decode_placed_view_input(
     Ok(TerminalPlacedViewInput {
         machine: reader.id("MachineId")?,
         position: reader.u32()?,
-        source_machine_identity: reader.string("placed-view source machine identity")?,
-        source_state_identity: reader.string("placed-view source state identity")?,
-        source_parameter_identity: reader.string("placed-view source parameter identity")?,
+        source_machine_identity: TerminalIdentityIndex(reader.u32()?),
+        source_state_identity: TerminalIdentityIndex(reader.u32()?),
+        source_parameter_identity: TerminalIdentityIndex(reader.u32()?),
         access: match reader.u8()? {
             1 => StructuralAccess::Owned,
             2 => StructuralAccess::SharedBorrow,
@@ -61,10 +49,10 @@ pub(super) fn decode_placed_view_input(
         },
         binding_is_const: reader.boolean()?,
         binding_is_mutable: reader.boolean()?,
-        view_identity: reader.string("placed-view identity")?,
-        policy_identity: reader.string("placed-view policy identity")?,
-        policy_plan_machine_identity: reader.string("placed-view policy-plan machine identity")?,
-        schema_identity: reader.string("placed-view schema identity")?,
+        view_identity: TerminalIdentityIndex(reader.u32()?),
+        policy_identity: TerminalIdentityIndex(reader.u32()?),
+        policy_plan_machine_identity: TerminalIdentityIndex(reader.u32()?),
+        schema_identity: TerminalIdentityIndex(reader.u32()?),
         placement_report_fingerprint: reader.u64()?,
         placement_commitment: reader.array()?,
     })

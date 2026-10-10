@@ -20,6 +20,7 @@ use crate::proofs::{
 };
 
 pub(crate) fn lower_outcome_specific_call_evidence(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     lowered: &mut LoweredPsi,
@@ -87,6 +88,7 @@ pub(crate) fn lower_outcome_specific_call_evidence(
             (result.place, *callee)
         };
         let ensure_rows = outcome_specific_ensure_rows(
+            identities,
             checked,
             callee_symbol,
             callee_id,
@@ -144,6 +146,7 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                     "selected arm row carries no instantiated proposition",
                 ))?;
             let instantiated_proposition = terminal_proposition_application_id(
+            identities,
                 checked,
                 term_ids,
                 declarations,
@@ -180,10 +183,13 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                     .evidence_interface_scope
                     .as_ref()
                     .map(|scope| &scope.interface))
-                .ok_or(LoweringError::Unsupported(
+                .ok_or(
+            LoweringError::Unsupported(
                     "outcome-specific witness has no interface identity",
                 ))
-                .and_then(|interface| lower_evidence_interface(checked, interface))?;
+                .and_then(
+            identities,  |interface| lower_evidence_interface(
+            identities, checked, interface))?;
             evidence_rows.push(OutcomeSpecificCallEvidence {
                 guard: ensure.guard,
                 position: ensure.position,

@@ -153,6 +153,7 @@ pub(crate) fn erased_formal_declarations(
 /// authored order. Proof formals carry their semantic type identity rather
 /// than a scalar type or value id — they never name a runtime operand.
 pub(crate) fn erased_proof_formal_declarations(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     erased: &[CheckedErasedProofParameterPlan],
 ) -> Vec<ErasedProofFormal> {
@@ -160,7 +161,7 @@ pub(crate) fn erased_proof_formal_declarations(
         .iter()
         .map(|parameter| ErasedProofFormal {
             source_position: parameter.source_position,
-            type_identity: checked
+            type_identity: identities.intern(&checked)
                 .type_identity_text(parameter.type_identity)
                 .unwrap_or_default(),
         })
@@ -200,6 +201,7 @@ pub(crate) struct LoweredProofTermField {
 /// Scalar leaves stay checked expressions: their `ValueId`s belong to the
 /// caller namespace the emitter supplies.
 pub(crate) fn checked_proof_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     term: &CheckedProofTerm,
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
@@ -219,6 +221,7 @@ pub(crate) fn checked_proof_term(
                     Ok(LoweredProofTermField {
                         field_identity: checked.symbols.display_path(field.field_symbol, "::"),
                         term: checked_proof_term(
+            identities,
                             checked,
                             &field.term,
                             caller_erased_proof_parameters,
@@ -242,7 +245,8 @@ pub(crate) fn checked_proof_term(
                 })?,
             })
         }
-        CheckedProofTerm::Scalar(expression) => Ok(LoweredProofTerm::Scalar(
+        CheckedProofTerm::Scalar(
+            identities,expression) => Ok(LoweredProofTerm::Scalar(
             crate::expression_preparation::prepare_expression::lower_checked_scalar_expression(
                 expression,
                 &[],
@@ -318,13 +322,16 @@ struct ScalarContractTerms<'namespace> {
 impl PredicateTerms for ScalarContractTerms<'_> {
     fn case_membership(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         expression: &CheckedBooleanExpression,
     ) -> Result<Proposition, LoweringError> {
         let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression
         else {
             return unsupported("closed case predicate has no structural subject");
         };
-        let parameters = self.authored_structural_parameters();
+        let parameters = self.authored_structural_parameters(
+            identities,);
         crate::proofs::crash_routes::lower_structural_case_membership(
             subject,
             case,
@@ -456,7 +463,8 @@ impl ScalarContractTerms<'_> {
             .collect()
     }
 
-    fn leaf(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+    fn leaf(&self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
         if let CheckedScalarExpression::Boolean(predicate) = expression {
             return self.boolean(predicate);
         }
@@ -488,7 +496,8 @@ impl ScalarContractTerms<'_> {
             return self.structural_member_term(
                 *parameter_position,
                 path,
-                crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
+                crate::emission::scalar_types::terminal_scalar_type(
+            identities,*primitive_type)?,
             );
         }
         crate::proofs::crash_routes::checked_scalar_term_with_views(

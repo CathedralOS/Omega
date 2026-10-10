@@ -7,6 +7,7 @@ use terminal_psi::{
 };
 
 pub(super) fn identity(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     machine: SymbolHandle,
@@ -17,7 +18,7 @@ pub(super) fn identity(
             .ok_or("checked machine has no exact declaration owner")
             .and_then(|identity| {
                 NominalDeclarationIdentity::new(
-                    checked.type_identity_text(identity).unwrap_or_default(),
+                    identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
                 )
             })
     };
@@ -61,6 +62,7 @@ pub(super) fn identity(
 }
 
 pub(super) fn retain(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     owners: &[(SymbolHandle, semantic_vocabulary::MachineId)],
@@ -70,7 +72,8 @@ pub(super) fn retain(
     // the output once instead of rebuilding an index or restarting each search.
     let mut machines = module.machines.iter_mut();
     for (source, machine) in owners {
-        let declaration = identity(checked, sources, *source)?;
+        let declaration = identity(
+            identities, checked, sources, *source)?;
         let emitted = machines
             .find(|row| row.id == *machine)
             .ok_or("checked declaration lost its emitted machine")?;

@@ -391,7 +391,9 @@ impl CleanupEmission<'_> {
     }
 
     fn cleanup_cases(
-        &mut self,
+&mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         regions: &[CleanupRegion],
         depth: usize,
         join: BlockId,
@@ -462,6 +464,7 @@ impl CleanupEmission<'_> {
                 erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
                 erased_proof_formals:
                     crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+            identities,
                         self.checked,
                         self.erased_proof_formals,
                     ),
@@ -504,7 +507,9 @@ impl CleanupEmission<'_> {
     }
 
     fn cleanup_jump(
-        &mut self,
+&mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         target: BlockId,
         parameters: &[ValueDeclaration],
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
@@ -521,6 +526,7 @@ impl CleanupEmission<'_> {
             erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+            identities,
                     self.checked,
                     self.erased_proof_formals,
                 ),

@@ -9,6 +9,7 @@ use checked_trees::{CheckedByteSequenceValue, CheckedUnitStructuralArgumentSourc
 impl OperationFrame<'_, '_> {
     pub(super) fn byte_descriptor_operand(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         statement_index: u32,
         value: &checked_trees::CheckedByteSequenceValuePlan,
     ) -> Result<PlaceId, LoweringError> {
@@ -47,7 +48,7 @@ impl OperationFrame<'_, '_> {
                     .any(|declaration| {
                         declaration.id == produced.structural_type
                             && declaration.identity
-                                == self.checked.type_identity_text(source.type_identity).unwrap_or_default()
+                                == identities.intern(&self.checked.type_identity_text(source.type_identity).unwrap_or_default())
                             && matches!(
                                 declaration.shape,
                                 terminal_psi::StructuralTypeShape::ByteSequence(
@@ -142,6 +143,7 @@ impl OperationFrame<'_, '_> {
             self.structural_types.declarations(),
         );
         let mut selectors = parameters::mint_runtime_index_selectors(
+            identities,
             std::slice::from_ref(source),
             &fields,
             self.values.as_slice(),

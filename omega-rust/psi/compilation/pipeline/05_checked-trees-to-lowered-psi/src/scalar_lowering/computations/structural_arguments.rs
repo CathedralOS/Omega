@@ -7,6 +7,7 @@ use super::{
 use crate::emission::operation_emission::calls::PreparedStructuralArgument;
 
 pub(super) fn lower(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_call: arena::Handle<checked_trees::FlowCallFact>,
     target_machine: symbols::SymbolHandle,
@@ -63,6 +64,7 @@ pub(super) fn lower(
                         place: slot.place,
                         root_type: Some(slot.structural_type),
                         path: crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+            identities,
                             &argument.path, slot.structural_type, structural_types,
                         )?,
                         access: match argument.access {
@@ -74,10 +76,15 @@ pub(super) fn lower(
             }
             if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
                 let source = bindings.owned_argument_home(argument)?;
-                let selected_root = bindings.structural_argument_type(&source).ok_or(
-                    LoweringError::Unsupported("computed owned argument lost its published carrier"),
+                let selected_root = bindings.structural_argument_type(
+            identities,&source).ok_or(
+                    LoweringError::Unsupported(
+            identities, "computed owned argument lost its published carrier"),
                 )?;
-                let mut prepared = PreparedStructuralArgument::from_static(source.clone(), bindings.structural_place_type(source.place))?;
+                let mut prepared = PreparedStructuralArgument::from_static(
+            identities,  source.clone(
+            identities, ), bindings.structural_place_type(
+            identities,source.place))?;
                 prepared.path.extend(crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
                     &argument.path, selected_root, structural_types,
                 )?);
@@ -120,17 +127,20 @@ pub(super) fn lower(
                             "computed literal has no reserved place",
                         ))?;
                     if !argument.path.is_empty() {
-                        return unsupported("computed literal cannot project its view");
+                        return unsupported(
+            identities,"computed literal cannot project its view");
                     }
                     return Ok(PreparedStructuralArgument {
                         selector_positions: Vec::new(),
                         place: slot.place,
                         root_type: Some(slot.structural_type),
-                        path: Vec::new(),
+                        path: Vec::new(
+            identities,),
                         access: StructuralAccess::SharedBorrow,
                     });
                 }
-                let source = bindings.borrowed_structural_home(argument, caller_machine, caller_parameters)?;
+                let source = bindings.borrowed_structural_home(
+            identities,argument, caller_machine, caller_parameters)?;
                 let root_type = bindings.structural_argument_type(&source).ok_or(
                     LoweringError::Unsupported("structural argument lost its exact published carrier"),
                 )?;

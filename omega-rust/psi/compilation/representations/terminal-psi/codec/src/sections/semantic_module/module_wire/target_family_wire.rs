@@ -2,8 +2,7 @@
 
 use super::super::CodecError;
 use super::super::wire::{Reader, Writer, decode_counted};
-use terminal_psi::{
-    TargetMachineCallable, TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply,
+use terminal_psi::{TerminalIdentityIndex, TargetMachineCallable, TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply,
 };
 
 fn encode_callable(writer: &mut Writer, callable: TargetMachineCallable) {

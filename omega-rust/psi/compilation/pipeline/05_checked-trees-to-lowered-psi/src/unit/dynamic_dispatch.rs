@@ -140,6 +140,7 @@ impl DynamicDispatchIndex {
 /// Publish the dispatch catalog of one lowered closure. `source_machines`
 /// names the source owner of each `module.machines` entry, in order.
 pub(crate) fn lower_dynamic_dispatch_catalog(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machines: &[SymbolHandle],
     module: &mut TerminalModule,
@@ -180,7 +181,9 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
             }) else {
                 return unsupported("dynamic interface slot has no checked call shape");
             };
-            slots.push(lower_slot(
+            slots.push(
+            identities,  lower_slot(
+            identities,
                 checked,
                 plan,
                 u32::try_from(slot)
@@ -191,7 +194,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         }
         catalog.interfaces.push(TerminalDynamicInterface {
             id: interface_id,
-            identity: checked.type_identity_text(*interface_identity).unwrap_or_default(),
+            identity: identities.intern(&checked.type_identity_text(*interface_identity).unwrap_or_default()),
             slots,
         });
     }
@@ -247,7 +250,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         catalog.tables.push(TerminalDynamicTable {
             id: table_id,
             interface,
-            implementation_identity: checked.symbols.display_path(*implementation, "::"),
+            implementation_identity: identities.intern(&checked.symbols.display_path(*implementation, "::")),
             rows,
         });
     }
@@ -261,6 +264,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
 /// machine lowering does: source positions minus the selector are not
 /// structural-lane positions when scalar arguments precede a borrow.
 fn lower_slot(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: &CheckedDynamicSlotPlan,
     slot: u32,
@@ -327,8 +331,8 @@ fn lower_slot(
     };
     Ok(TerminalDynamicSlot {
         slot,
-        declaring_trait_identity: checked.symbols.display_path(plan.declaring_trait, "::"),
-        requirement_identity: checked
+        declaring_trait_identity: identities.intern(&checked.symbols.display_path(plan.declaring_trait, "::")),
+        requirement_identity: identities.intern(&checked)
             .typed
             .callable_identity_text(plan.requirement_identity),
         family_tuple: Vec::new(),

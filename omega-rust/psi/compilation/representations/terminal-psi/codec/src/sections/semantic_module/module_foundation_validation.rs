@@ -20,6 +20,7 @@ mod structural_type_foundations;
 mod value_foundations;
 
 use crate::codec_error::{CodecError, malformed};
+use terminal_psi::TerminalIdentityIndex;
 
 use semantic_vocabulary::{ClaimId, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::BTreeSet;
@@ -64,12 +65,12 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         module
             .structural_types
             .iter()
-            .map(|declaration| declaration.identity.as_str())
+            .map(|declaration| declaration.identity)
             .chain(
                 module
                     .structural_referents
                     .iter()
-                    .map(|referent| referent.identity.as_str()),
+                    .map(|referent| referent.identity),
             ),
         "structural type identity",
     )?;
@@ -103,21 +104,21 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         module
             .structural_domains
             .iter()
-            .map(|declaration| declaration.identity.as_str()),
+            .map(|declaration| declaration.identity),
         "structural domain identity",
     )?;
     require_unique_nonempty_identities(
         module
             .services
             .iter()
-            .map(|declaration| declaration.identity.as_str()),
+            .map(|declaration| declaration.identity),
         "service identity",
     )?;
     require_unique_nonempty_identities(
         module
             .boundary_machines
             .iter()
-            .map(|declaration| declaration.identity.as_str()),
+            .map(|declaration| declaration.identity),
         "boundary machine identity",
     )?;
 
@@ -423,7 +424,7 @@ pub(crate) fn validate_structural_path(
                 if identity.is_absent() {
                     return malformed("structural path field identity cannot be empty");
                 }
-                let Some(field) = terminal_psi::field_by_identity(fields, identity) else {
+                let Some(field) = terminal_psi::field_by_identity(fields, *identity) else {
                     return malformed("structural path has an unknown structural field");
                 };
                 if field.relevance.is_erased() {
@@ -1460,8 +1461,8 @@ fn require_known_services(
     Ok(())
 }
 
-fn require_unique_nonempty_identities<'a>(
-    identities: impl Iterator<Item = &'a str>,
+fn require_unique_nonempty_identities(
+    identities: impl Iterator<Item = TerminalIdentityIndex>,
     label: &'static str,
 ) -> Result<(), CodecError> {
     let mut seen = BTreeSet::new();

@@ -97,24 +97,29 @@ pub(crate) mod unit_cleanup;
 /// bodies publish an exact machine catalog. No kind publishes the checked
 /// debug map, which describes a scalar entry result.
 pub(crate) fn lower_unit_plan_machine(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: CheckedUnitPlan<'_>,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
     Ok(match plan {
         CheckedUnitPlan::NominalAffineCleanup(plan) => LoweredSelectedMachine::source_mapped(
-            lower_nominal_affine_unit_cleanup_machine(checked, plan)?,
+            lower_nominal_affine_unit_cleanup_machine(
+            identities, checked, plan)?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
             },
         ),
-        CheckedUnitPlan::PartialAffineCleanup(plan) => LoweredSelectedMachine::source_mapped(
-            lower_partial_affine_unit_cleanup_machine(checked, plan)?,
+        CheckedUnitPlan::PartialAffineCleanup(
+            identities,plan) => LoweredSelectedMachine::source_mapped(
+            lower_partial_affine_unit_cleanup_machine(
+            identities, checked, plan)?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
             },
         ),
         CheckedUnitPlan::ComposedControl(plan) => LoweredSelectedMachine::source_mapped(
-            lower_unit_effect_closure(checked, plan.machine)?,
+            lower_unit_effect_closure(
+            identities, checked, plan.machine)?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
             },

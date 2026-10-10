@@ -142,20 +142,24 @@ impl<'a> UnitClosureRequest<'a> {
 /// program with its machine source map. `machine_lowering` selects this for
 /// attached and free Unit-effect machines.
 pub(crate) fn lower_unit_effect_closure(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    lower_unit_closure(checked, &UnitClosureRequest::unit(checked, entry, &[entry]))
+    lower_unit_closure(
+            identities, checked, &UnitClosureRequest::unit(checked, entry, &[entry]))
 }
 
 /// The dispatch-facing product of a scalar entry in the common callee catalog.
 /// The entrance finalizes proofs after the complete module's
 /// contracts and installation entries have been retained.
 pub(crate) fn lower_scalar_effect_closure(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_unit_closure(
+            identities,
         checked,
         &UnitClosureRequest {
             scalar_entry: true,
@@ -168,6 +172,7 @@ pub(crate) fn lower_scalar_effect_closure(
 /// admit and validate every body, allocate the shared type/domain/service
 /// namespaces, then emit each machine into one module.
 pub(crate) fn lower_unit_closure(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     request: &UnitClosureRequest<'_>,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
@@ -239,14 +244,17 @@ pub(crate) fn lower_unit_closure(
                 })
             {
                 crate::emission::structural_byte_sequence_store::prepare_types(
+            identities,
                     value,
                     &mut structural_types,
                 )?;
             }
         }
     }
-    let (structural_domains, domain_ids) =
-        catalog::lower_unit_structural_domains(checked, plans, &closure, &boundaries, &type_ids)?;
+    let (
+            identities,structural_domains, domain_ids) =
+        catalog::lower_unit_structural_domains(
+            identities, checked, plans, &closure, &boundaries, &type_ids)?;
     let (services, service_ids) = catalog::lower_unit_services(
         checked,
         plans,
@@ -254,12 +262,14 @@ pub(crate) fn lower_unit_closure(
         &boundaries,
         &provider_candidate_plans,
     )?;
-    let root_service_reach = lower_root_service_reach(checked, entry, &service_ids)?;
+    let root_service_reach = lower_root_service_reach(
+            identities, checked, entry, &service_ids)?;
 
     // Signatures: boundary declarations, then each admitted body's formals,
     // claims and requirements, then every machine's Terminal identity.
     let mut next_place = 1_u64;
-    let (boundary_machines, lowered_boundary_parameters) = boundaries::lower_declarations(
+    let (
+            identities,boundary_machines, lowered_boundary_parameters) = boundaries::lower_declarations(
         checked,
         &boundaries,
         &type_ids,
@@ -291,15 +301,21 @@ pub(crate) fn lower_unit_closure(
         .iter()
         .enumerate()
         .map(|(index, symbol)| Ok((*symbol, machine_id(dense_identity(index)?))))
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+        .collect::<Result<Vec<_>, LoweringError>>(
+            identities,)?;
     let mut placed_view_inputs = checked
         .facts
         .placed_view_inputs
-        .iter()
-        .filter(|input| {
+        .iter(
+            identities, )
+        .filter(
+            identities, |input| {
             machine_ids
-                .iter()
-                .any(|(symbol, _)| *symbol == input.machine)
+                .iter(
+            identities, )
+                .any(
+            identities, |(
+            identities, symbol, _)| *symbol == input.machine)
         })
         .map(|input| {
             lower_placed_view_input(
@@ -355,7 +371,8 @@ pub(crate) fn lower_unit_closure(
             error => error,
         };
         let parameters = &signature.parameters;
-        let scalar_parameters = signature.scalar_parameters.clone();
+        let scalar_parameters = signature.scalar_parameters.clone(
+            identities,);
         if let admission::AdmittedBody::Composed {
             source: source_plan,
             body: admitted,
@@ -392,19 +409,23 @@ pub(crate) fn lower_unit_closure(
                 .map_err(attributed)?;
             machines.push(machine);
             occurrences.retain(
+            identities,
                 composed.source_calls,
                 composed.selected_ieee_float_comparisons,
                 composed.selected_integer_comparisons,
             );
             occurrences
                 .source_checked_obligations
-                .extend(composed.source_checked_obligations);
+                .extend(
+            identities,composed.source_checked_obligations);
             occurrences.state_blocks.extend(composed.state_blocks);
             scalar_block_invariants.append(&mut invariants);
-            scalar_qualification_coercions.append(&mut coercions);
+            scalar_qualification_coercions.append(
+            identities, &mut coercions);
             continue;
         }
-        let plan = body.ordinary()?;
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::new();
+    let plan = body.ordinary()?;
         let emitted = ordinary_machine::emit(
             checked,
             signature,
@@ -422,7 +443,8 @@ pub(crate) fn lower_unit_closure(
             },
         )
         .map_err(attributed)?;
-        scalar_block_invariants.extend(emitted.scalar_block_invariants);
+        scalar_block_invariants.extend(
+            identities,emitted.scalar_block_invariants);
         scalar_qualification_coercions.extend(emitted.qualification_coercions);
         machines.push(emitted.machine);
         occurrences.retain(
@@ -432,19 +454,24 @@ pub(crate) fn lower_unit_closure(
         );
         occurrences
             .source_checked_obligations
-            .extend(emitted.source_checked_obligations);
+            .extend(
+            identities,emitted.source_checked_obligations);
     }
     super::unit_cleanup::finalize_nominal_cleanup_actions(
+            identities, 
         checked,
         &mut machines,
         &type_ids,
         &machine_ids,
         &machine_signatures
-            .iter()
-            .filter_map(|signature| {
+            .iter(
+            identities,)
+            .filter_map(
+            identities,|signature| {
                 signature
                     .cleanup_receiver
-                    .map(|receiver| (signature.source, receiver))
+                    .map(|receiver| (
+            identities,signature.source, receiver))
             })
             .collect::<Vec<_>>(),
         &scalar_requirement_counts,
@@ -487,7 +514,7 @@ pub(crate) fn lower_unit_closure(
             scalar_block_invariants,
             operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
-            identities: Default::default(),
+            identities: identities.build(),
             // Operation bodies are emitted first; a scalar entry may follow
             // its helpers. Preserve the selected source owner, not roster order.
             entry: lookup_machine_id(&machine_ids, entry)?,

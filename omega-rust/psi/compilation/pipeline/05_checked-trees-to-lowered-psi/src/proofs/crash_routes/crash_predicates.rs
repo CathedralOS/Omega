@@ -321,6 +321,7 @@ fn negated_float_comparison_kind(
 }
 
 fn scalar_ieee_float_comparison_proposition(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     kind: CheckedIeeeFloatComparisonKind,
     left: &CheckedScalarExpression,
     right: &CheckedScalarExpression,
@@ -328,7 +329,9 @@ fn scalar_ieee_float_comparison_proposition(
 ) -> Result<Proposition, LoweringError> {
     crate::proofs::contract_predicates::ieee_float_proposition(
         kind,
-        checked_scalar_term(left, values, &[])?,
-        checked_scalar_term(right, values, &[])?,
+        checked_scalar_term(
+            identities,left, values, &[])?,
+        checked_scalar_term(
+            identities,right, values, &[])?,
     )
 }

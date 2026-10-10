@@ -146,6 +146,7 @@ impl StateGraphEmission<'_, '_> {
                     match result {
                         checked_trees::CheckedUnitCallResult::Structural { .. } => {
                             super::super::guarded::complete_structural_return(
+            identities,
                                 self.checked,
                                 state,
                                 super::super::cleanup::coordinate(
@@ -252,7 +253,8 @@ impl StateGraphEmission<'_, '_> {
                     .ok_or(LoweringError::Unsupported(
                         "return arm lost its source coordinate",
                     ))?;
-            let exit = super::super::cleanup::coordinate(state, statement_ordinal as usize, false)?;
+            let exit = super::super::cleanup::coordinate(
+            identities,state, statement_ordinal as usize, false)?;
             let mut regions = super::super::cleanup::for_exit_regions(
             checked,
                 state,

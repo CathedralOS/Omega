@@ -119,10 +119,12 @@ impl<'a> Expansion<'a> {
     /// lowering its computations.
     pub(crate) fn enter_proof_scope(
         mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         roster: &[checked_trees::CheckedErasedProofParameterPlan],
     ) -> Self {
         self.erased_proof_formals =
             crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+            identities,
                 self.checked,
                 roster,
             );

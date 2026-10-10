@@ -31,6 +31,8 @@ impl StateGraphEmission<'_, '_> {
     /// them after selection), and record the target's arrival and rank.
     pub(super) fn successor_edge(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         frame: &SuccessorFrame<'_>,
         emitted: &mut EmittedState<'_>,
         edge: &CheckedStructuralControlSuccessorPlan,
@@ -332,8 +334,9 @@ impl StateGraphEmission<'_, '_> {
                                     "Unit graph case-payload subject is write-only",
                                 );
                             }
-                            let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
+                            let destination = place_id( allocate_dense(&mut self.catalogs.next_place)?);
                             self.structural_places.push(case_leaf_copy::emit(
+            identities,
                                 &self.catalogs.structural_types, source, root_type, &subject.path,
                                 &case_identity.spelling(), &field_identity.spelling(), path,
                                 target_parameter, destination, operations,
@@ -409,17 +412,21 @@ impl StateGraphEmission<'_, '_> {
                                             "Unit graph projected subject descriptor disappeared",
                                         ),
                                     )?;
-                                    (parameter.place, parameter.structural_type)
+                                    (
+            identities,parameter.place, parameter.structural_type)
                                 },
                                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                                     binding_ordinal,
                                 } => {
-                                    let result = case_emission::result(state, binding_ordinal, operations)?;
+                                    let result = case_emission::result(
+            identities,state, binding_ordinal, operations)?;
                                     (result.place(), result.structural_type())
                                 },
-                                _ => return unsupported("Unit graph projected value has no established root"),
+                                _ => return unsupported(
+            identities,"Unit graph projected value has no established root"),
                             };
-                            let source = edge_evaluation.current_structural_place(source);
+                            let source = edge_evaluation.current_structural_place(
+            identities, source);
                             let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
                                 &subject.path, root_type, &self.catalogs.structural_types,
                                 None, &mut std::iter::empty(), None,
@@ -705,7 +712,8 @@ impl StateGraphEmission<'_, '_> {
                 &edge_values
                     .iter()
                     .map(|value| value.scalar_type)
-                    .collect::<Vec<_>>(),
+                    .collect::<Vec<_>>(
+            identities,),
             )?;
             arguments.push(emit_direct_expression(
                 &expression,
@@ -776,6 +784,7 @@ impl StateGraphEmission<'_, '_> {
                     },
                 )?;
                 crate::proofs::crash_routes::lowered_direct_scalar_term(
+            identities,
                     &expression,
                     &edge_values,
                     &self.state_erased[position],
@@ -787,7 +796,8 @@ impl StateGraphEmission<'_, '_> {
         // target state's roster order.
         let erased_proof_arguments = edge
             .erased_proof_arguments
-            .iter()
+            .iter(
+            identities,)
             .map(|term| {
                 crate::scalar_lowering::contracts::checked_proof_term(
                     checked,

@@ -186,6 +186,7 @@ pub(crate) struct PreparedResultClaim {
 }
 
 pub(crate) fn prepare_call_result_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     received: &[checked_trees::CheckedStructuralResultClaimPlan],
     structural_type: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
@@ -194,6 +195,7 @@ pub(crate) fn prepare_call_result_claims(
         Ok(PreparedResultClaim {
             received: received.clone(),
             path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+            identities,
                 &received.path, structural_type, types,
             )?,
         })
@@ -222,6 +224,7 @@ pub(crate) fn emit_call_result_claims(
 }
 
 pub(crate) fn prepare_checked_claim_transfers(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
@@ -238,7 +241,7 @@ pub(crate) fn prepare_checked_claim_transfers(
             .unwrap_or_default();
         let mut declarations = types
             .iter()
-            .filter(|declaration| declaration.identity == identity);
+            .filter(|declaration| declaration.identity == identities.intern(&identity));
         let declaration = declarations.next().ok_or(LoweringError::Unsupported(
             "claim transfer has no lowered parameter type",
         ))?;
@@ -250,6 +253,7 @@ pub(crate) fn prepare_checked_claim_transfers(
 }
 
 pub(crate) fn prepare_claim_transfers(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
     types: &[terminal_psi::StructuralTypeDeclaration],
     argument_type: impl Fn(u32) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError>,
@@ -260,6 +264,7 @@ pub(crate) fn prepare_claim_transfers(
             identity: transfer.claim_identity,
             argument_index: transfer.argument_index,
             path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+            identities,
                 &transfer.path, root, types,
             )?,
         })
@@ -315,7 +320,8 @@ pub(crate) fn prepare_claim_dispositions(
         .map(|event| {
             let path = validation::structural_claim_path(&checked.typed, type_reference,
                 checked.facts.flow.ownership.segments.span_or_empty(event.segments))
-                .map_err(LoweringError::Unsupported)?;
+                .map_err(
+            LoweringError::Unsupported)?;
             Ok(PreparedClaimDisposition { identity: event.claim_identity,
                 path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(&path, structural_type, structural_types)?,
             })
@@ -357,7 +363,8 @@ pub(crate) fn prepare_establishment_claims(
             });
             let path = validation::structural_claim_path(&checked.typed, type_reference,
                 checked.facts.flow.ownership.segments.span_or_empty(event.segments))
-                .map_err(LoweringError::Unsupported)?;
+                .map_err(
+            LoweringError::Unsupported)?;
             Ok(PreparedClaim {
                 identity: event.claim_identity,
                 path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(&path, structural_type, structural_types)?,

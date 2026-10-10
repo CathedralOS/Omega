@@ -50,6 +50,7 @@ pub(in crate::unit::attached_unit) struct EmissionCounters<'a> {
 }
 
 pub(in crate::unit::attached_unit) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: CallableBody<'_>,
@@ -113,8 +114,10 @@ pub(in crate::unit::attached_unit) fn emit(
     let entry_erased_formals = signatures::find(shared.signatures, plan.machine)?
         .erased_scalar_parameters
         .clone();
-    let (mut machine, occurrences, scalar_block_invariants, qualification_coercions) =
+    let (
+            identities,mut machine, occurrences, scalar_block_invariants, qualification_coercions) =
         state_graph::emit(
+            identities,
             checked,
             plan,
             admitted,

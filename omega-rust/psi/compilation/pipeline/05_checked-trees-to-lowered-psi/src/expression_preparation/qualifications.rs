@@ -113,11 +113,12 @@ impl PreparedScalarQualifications {
                         "scalar qualification has an invalid semantic identity",
                     ),
                 )?;
-                let establishment_routes = scalar_domain_establishment_routes(checked, symbol)?;
+                let establishment_routes = scalar_domain_establishment_routes(
+            identities, checked, symbol)?;
                 if let Some(existing) = catalog
                     .domains
                     .iter()
-                    .find(|domain| domain.identity == identity)
+                    .find(|domain| domain.identity == identities.intern(&identity))
                 {
                     if existing.carrier != scalar_type
                         || existing.semantic_domain != semantic_domain
@@ -133,7 +134,7 @@ impl PreparedScalarQualifications {
                             "invalid initial scalar domain identity",
                         ))?,
                         semantic_domain,
-                        identity: identity.clone(),
+identity: identities.intern(&identity.clone()),
                         carrier: scalar_type,
                         establishment_routes,
                     });
@@ -306,6 +307,7 @@ impl PreparedScalarQualifications {
 /// artifact, resolved to the requirement and machine identities the
 /// checked-side evidence vocabulary produces and the module's own rows name.
 fn scalar_domain_establishment_routes(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     symbol: SymbolHandle,
 ) -> Result<Vec<ScalarDomainEstablishmentRoute>, LoweringError> {
@@ -322,29 +324,29 @@ fn scalar_domain_establishment_routes(
                 requirement,
             } => ScalarDomainEstablishmentRoute::CheckedRequirement {
                 requirement_identity:
-                    crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
+                    identities.intern(&crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
                         checked,
                         trait_definition,
                         requirement,
-                    )?,
+                    ))?,
             },
             DomainEstablishmentRoute::BoundaryRequirement {
                 boundary_trait,
                 requirement,
             } => ScalarDomainEstablishmentRoute::BoundaryRequirement {
                 requirement_identity:
-                    crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
+                    identities.intern(&crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
                         checked,
                         boundary_trait,
                         requirement,
-                    )?,
+                    ))?,
             },
             DomainEstablishmentRoute::ExactMachine { machine } => {
                 ScalarDomainEstablishmentRoute::ExactMachine {
                     machine_identity:
-                        crate::proofs::evidence_lowering::checked_evidence_machine_identity(
+                        identities.intern(&crate::proofs::evidence_lowering::checked_evidence_machine_identity(
                             checked, machine,
-                        )?,
+                        ))?,
                 }
             }
         });

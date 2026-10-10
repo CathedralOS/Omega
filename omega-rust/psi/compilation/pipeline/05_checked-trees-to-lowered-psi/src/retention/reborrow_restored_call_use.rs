@@ -19,6 +19,7 @@ use crate::retention::reborrow_root_handoff::{
 };
 
 pub(crate) fn retain_selected_reborrow_restored_call_uses(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
@@ -111,12 +112,18 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                     .weakenings
                     .get(member.parent_end_status.child_weakening);
                 shared_cohort.push(TerminalReborrowSharedCohortMember {
-                    child_owner_identity: identity(checked, member.owner_symbol)?,
-                    child_owner_path: owner_path(checked, &member.owner_path)?,
-                    child_place: place(checked, &member.captured_place)?,
-                    child_access: access(member.access.clone()),
-                    child_activation: boundary(checked, member_activation.source)?,
-                    child_weakening: boundary(checked, member_weakening.source)?,
+                    child_owner_identity: identities.intern(&identity(checked, member.owner_symbol))?,
+                    child_owner_path: owner_path(
+            identities, checked, &member.owner_path)?,
+                    child_place: place(
+            identities, checked, &member.captured_place)?,
+                    child_access: access(
+            identities,member.access.clone(
+            identities,)),
+                    child_activation: boundary(
+            identities,  checked, member_activation.source)?,
+                    child_weakening: boundary(
+            identities, checked, member_weakening.source)?,
                 });
             }
         }
@@ -180,23 +187,33 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
         };
         let callee_id = *callee;
         let callee = terminal_machines
-            .iter()
-            .find(|machine| machine.id == callee_id)
-            .ok_or(LoweringError::Unsupported(
+            .iter(
+            identities, )
+            .find(
+            identities, |machine| machine.id == callee_id)
+            .ok_or(
+            identities, LoweringError::Unsupported(
+            identities,
                 "restored reborrow call use names an absent Terminal callee",
             ))?;
-        let [_] = callee.structural_parameters.as_slice() else {
+        let [_] = callee.structural_parameters.as_slice(
+            identities,) else {
             return unsupported(
                 "restored reborrow call use callee does not have one structural parameter",
             );
         };
-        let child_owner_identity = identity(checked, child.owner_symbol)?;
-        let child_owner_path = owner_path(checked, &child.owner_path)?;
+        let child_owner_identity = identity(
+            identities, checked, child.owner_symbol)?;
+        let child_owner_path = owner_path(
+            identities,  checked, &child.owner_path)?;
         let child_place = place(checked, &child.captured_place)?;
         let child_access = access(child.access.clone());
-        let child_activation = boundary(checked, child_activation.source)?;
-        let child_weakening = boundary(checked, child_weakening.source)?;
-        rows.push(TerminalReborrowRestoredCallUse {
+        let child_activation = boundary(
+            identities, checked, child_activation.source)?;
+        let child_weakening = boundary(
+            identities, checked, child_weakening.source)?;
+        rows.push(
+            identities,TerminalReborrowRestoredCallUse {
             machine: terminal_machine,
             operation: terminal_operation,
             restoration_class: if shared_freeze_cohort {
@@ -205,28 +222,40 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 TerminalReborrowRestorationClass::ExclusiveReactivation
             },
             call_boundary: terminal_psi::TerminalBorrowBoundarySource::Call {
-                statement_index: u64::try_from(call.statement_index).map_err(|_| {
+                statement_index: u64::try_from(
+            identities, call.statement_index).map_err(
+            identities, |_| {
                     LoweringError::Unsupported(
+            identities,
                         "restored reborrow call statement index exceeds Terminal range",
                     )
                 })?,
-                call_ordinal: u64::try_from(call.call_ordinal).map_err(|_| {
+                call_ordinal: u64::try_from(
+            identities, call.call_ordinal).map_err(
+            identities,|_| {
                     LoweringError::Unsupported(
+            identities,
                         "restored reborrow call ordinal exceeds Terminal range",
                     )
                 })?,
-                target_identity: identity(checked, call.target_symbol)?,
+                target_identity: identities.intern(
+            identities, &identity(
+            identities, checked, call.target_symbol))?,
             },
             call_target_machine: callee_id,
-            source_machine_identity: identity(checked, event.machine_symbol)?,
-            source_state_identity: identity(checked, event.state_symbol)?,
-            direct_root_owner_identity: identity(checked, parent.owner_symbol)?,
+            source_machine_identity: identities.intern(
+            identities, &identity(
+            identities, checked, event.machine_symbol))?,
+            source_state_identity: identities.intern(&identity(checked, event.state_symbol))?,
+            direct_root_owner_identity: identities.intern(
+            identities,&identity(checked, parent.owner_symbol))?,
             direct_root_owner_path: owner_path(checked, &parent.owner_path)?,
-            direct_root_place: place(checked, &parent.captured_place)?,
+            direct_root_place: place(
+            identities, checked, &parent.captured_place)?,
             direct_root_activation: boundary(checked, parent.activation_source)?,
             direct_root_weakening: boundary(checked, parent_weakening.source)?,
-            direct_root_lifetime_identity: identity(checked, parent.parent_lifetime.root_symbol)?,
-            child_owner_identity,
+            direct_root_lifetime_identity: identities.intern(&identity(checked, parent.parent_lifetime.root_symbol))?,
+            child_owner_identity: identities.intern(&child_owner_identity),
             child_owner_path,
             child_place,
             projection_remainder: place_segments(checked, projection_remainder)?,

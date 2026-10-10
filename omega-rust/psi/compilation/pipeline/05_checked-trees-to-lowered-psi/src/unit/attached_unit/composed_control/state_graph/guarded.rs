@@ -224,6 +224,7 @@ pub(super) fn emit(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_return(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
@@ -257,6 +258,7 @@ pub(super) fn emit_return(
         operations,
     )?;
     complete_structural_return(
+            identities,
         checked, state, exit, operation, catalogs, parameters, evaluation, values, next_value, next_block,
         next_edge, operations,
     )
@@ -266,6 +268,7 @@ pub(super) fn emit_return(
 /// cleanup order and the current places established by operand preparation.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn complete_structural_return(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     exit: checked_trees::FlowClaimJoinExit,
@@ -296,8 +299,10 @@ pub(super) fn complete_structural_return(
     let mut returned_claims = binding.claims().to_vec();
     // The returned value carries every claim it holds; the caller binds them
     // by path.
-    returned_claims.sort_by_key(|binding| binding.claim);
+    returned_claims.sort_by_key(
+            identities,|binding| binding.claim);
     let mut regions = super::cleanup::for_exit_regions(
+            identities,
         checked,
         state, exit, catalogs, parameters, evaluation, operations,
     )?;
@@ -312,7 +317,8 @@ pub(super) fn complete_structural_return(
     // Returning an alias's containing root instead would change both the value
     // contract and its residual ownership. Use the ordinary return transport,
     // independent of whether a conditional or ordered guard selected the exit.
-    let (completion, arrival) = super::returns::projected::materialize(
+    let (
+            identities,completion, arrival) = super::returns::projected::materialize(
         checked,
         &binding, source, completion, regions, catalogs, evaluation, values, next_value,
         next_block, next_edge, operations,

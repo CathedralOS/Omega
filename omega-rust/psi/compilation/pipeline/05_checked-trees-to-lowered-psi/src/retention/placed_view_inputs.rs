@@ -11,6 +11,7 @@ use terminal_psi::{StructuralAccess, TerminalModule, TerminalPlacedViewInput};
 use crate::lowering_error::{LoweringError, unsupported};
 
 pub(crate) fn retain_selected_placed_view_inputs(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
@@ -22,7 +23,8 @@ pub(crate) fn retain_selected_placed_view_inputs(
         .iter()
         .filter(|input| input.machine == source_machine)
     {
-        let lowered = lower_placed_view_input(checked, input, terminal_machine)?;
+        let lowered = lower_placed_view_input(
+            identities, checked, input, terminal_machine)?;
         if let Some(existing) = module.placed_view_inputs.iter().find(|existing| {
             (
                 existing.machine,
@@ -46,6 +48,7 @@ pub(crate) fn retain_selected_placed_view_inputs(
 }
 
 pub(crate) fn lower_placed_view_input(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     input: &CheckedPlacedViewInput,
     machine: MachineId,
@@ -74,28 +77,24 @@ pub(crate) fn lower_placed_view_input(
     Ok(TerminalPlacedViewInput {
         machine,
         position: input.position,
-        source_machine_identity: identity(
+        source_machine_identity: identities.intern(&identity(
             input.machine,
-            "placed-view consumer has no hermetic declaration identity",
-        )?,
-        source_state_identity: identity(
+            "placed-view consumer has no hermetic declaration identity",        ))?,
+        source_state_identity: identities.intern(&identity(
             input.state,
-            "placed-view state has no hermetic declaration identity",
-        )?,
-        source_parameter_identity: identity(
+            "placed-view state has no hermetic declaration identity",        ))?,
+        source_parameter_identity: identities.intern(&identity(
             input.parameter,
-            "placed-view parameter has no hermetic declaration identity",
-        )?,
+            "placed-view parameter has no hermetic declaration identity",        ))?,
         access,
         binding_is_const: input.binding_is_const,
         binding_is_mutable: input.binding_is_mutable,
-        view_identity,
-        policy_identity,
-        policy_plan_machine_identity: identity(
+        view_identity: identities.intern(&view_identity),
+        policy_identity: identities.intern(&policy_identity),
+        policy_plan_machine_identity: identities.intern(&identity(
             input.policy_plan_machine,
-            "placed-view plan machine has no hermetic declaration identity",
-        )?,
-        schema_identity,
+            "placed-view plan machine has no hermetic declaration identity",        ))?,
+        schema_identity: identities.intern(&schema_identity),
         placement_report_fingerprint: input.placement.identity().compatibility_fingerprint(),
         placement_commitment: input.placement.content_interpretation().commitment(),
     })

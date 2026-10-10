@@ -25,6 +25,7 @@ pub(crate) struct PreparedLoanCompletion {
 }
 
 pub(crate) fn prepare(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: SymbolHandle,
     coordinate: SourceCallCoordinate,
@@ -69,6 +70,7 @@ pub(crate) fn prepare(
         let mut completed_path = owner.path.clone();
         completed_path.extend(
             crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+            identities,
                 &path,
                 structural_type,
                 types,
@@ -92,8 +94,10 @@ pub(crate) fn prepare(
                 continue;
             }
             let path = validation::structural_claim_path(&checked.typed, reference, event_path)
-                .map_err(LoweringError::Unsupported)?;
-            let mut terminal_path = owner.path.clone();
+                .map_err(
+            identities,LoweringError::Unsupported)?;
+            let mut terminal_path = owner.path.clone(
+            identities,);
             terminal_path.extend(crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
                 &path, structural_type, types,
             )?);

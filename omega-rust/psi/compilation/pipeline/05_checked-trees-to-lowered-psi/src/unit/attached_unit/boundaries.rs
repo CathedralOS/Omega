@@ -27,6 +27,7 @@ use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 /// its callers bind against. Structural parameters take places from
 /// `next_place`.
 pub(crate) fn lower_declarations(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
@@ -43,6 +44,7 @@ pub(crate) fn lower_declarations(
         // that roster; deriving and comparing it again would replay checking
         // against the same source in the same compilation.
         let parameters = lower_unit_parameters(
+            identities,
             &plan.structural_parameters,
             type_ids,
             structural_types,
@@ -92,7 +94,7 @@ pub(crate) fn lower_declarations(
                 &plan.structural_parameters,
             )?,
             id,
-            identity: checked.typed.callable_identity_text(*identity),
+            identity: identities.intern(&checked.typed.callable_identity_text(*identity)),
             attachment: plan
                 .attachment_type_identity
                 .as_ref()

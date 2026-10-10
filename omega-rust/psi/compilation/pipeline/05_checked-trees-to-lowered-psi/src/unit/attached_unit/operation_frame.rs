@@ -299,7 +299,9 @@ impl OperationFrame<'_, '_> {
     /// later arguments, the matching release and the state-graph result view
     /// all rejoin it by ordinal.
     fn establish_reference(
-        &mut self,
+&mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         formation_expression: checked_trees::expression::ExpressionHandle,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
@@ -330,13 +332,15 @@ impl OperationFrame<'_, '_> {
                     self.private_places,
                 )?;
                 let mut selectors = parameters::mint_runtime_index_selectors(
+            identities,
                     std::slice::from_ref(source),
                     &self.evaluation.structural_fields,
                     self.values,
                     self.next_value,
                     self.operations,
                 )?
-                .into_iter();
+                .into_iter(
+            identities,);
                 parameters::lower_reference_source(
                     self.checked,
                     source,
@@ -423,7 +427,8 @@ impl OperationFrame<'_, '_> {
     /// loan of that parameter rejoins this place, including differently typed
     /// views; no loan copies a previously established referent.
     fn primitive_parameter_source(
-        &mut self,
+&mut self,
+
         parameter_index: u32,
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
@@ -474,6 +479,8 @@ impl OperationFrame<'_, '_> {
     /// Replaced locals resolve their receiving home, not their birth result.
     fn release_reference(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::ReleaseReference {
@@ -491,7 +498,8 @@ impl OperationFrame<'_, '_> {
                     let value = self.results.repair_value(binding, self.operations)?;
                     Ok((value.place, value.structural_type))
                 })?;
-        let path = lower_structural_path(path)?;
+        let path = lower_structural_path(
+            identities,path)?;
         let types = self.structural_types.declarations();
         let leaf = terminal_semantics::runtime_structural_path_tip(types.iter(), root_type, &path)
             .ok_or(LoweringError::Unsupported(
@@ -551,13 +559,15 @@ impl OperationFrame<'_, '_> {
     /// declared places.
     pub(super) fn lower_runtime_structural_arguments(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         arguments: &[CheckedUnitStructuralArgumentPlan],
         earlier: &[(Option<StructuralPlaceDeclaration>, bool)],
         byte_places: &[PlaceId],
         evaluated_selectors: Option<&[ValueDeclaration]>,
     ) -> Result<Vec<StructuralArgument>, LoweringError> {
         let mut selector_values =
-            parameters::call_index_selectors(arguments, evaluated_selectors)?.into_iter();
+            parameters::call_index_selectors(
+            identities,arguments, evaluated_selectors)?.into_iter();
         parameters::lower_structural_arguments(
             self.checked,
             arguments,

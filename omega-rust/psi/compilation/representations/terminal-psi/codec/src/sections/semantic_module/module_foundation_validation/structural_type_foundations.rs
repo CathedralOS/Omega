@@ -79,7 +79,7 @@ pub(super) fn validate_type_shape(
                 }
             }
             require_unique_nonempty_identities(
-                fields.iter().map(|field| field.identity.as_str()),
+                fields.iter().map(|field| field.identity),
                 "structural field identity",
             )?;
             let mut destinations = Vec::new();
@@ -202,7 +202,7 @@ pub(super) fn validate_type_shape(
         }
         StructuralTypeShape::Sum { cases } => {
             require_unique_nonempty_identities(
-                cases.iter().map(|case| case.identity.as_str()),
+                cases.iter().map(|case| case.identity),
                 "structural case identity",
             )?;
             if cases.is_empty() {
@@ -210,7 +210,7 @@ pub(super) fn validate_type_shape(
             }
             for case in cases {
                 require_unique_nonempty_identities(
-                    case.fields.iter().map(|field| field.identity.as_str()),
+                    case.fields.iter().map(|field| field.identity),
                     "structural case payload field identity",
                 )?;
                 for field in &case.fields {
@@ -246,11 +246,11 @@ pub(super) fn validate_type_shape(
         }
         StructuralTypeShape::Mixed { fields, cases } => {
             require_unique_nonempty_identities(
-                fields.iter().map(|field| field.identity.as_str()),
+                fields.iter().map(|field| field.identity),
                 "mixed structural field identity",
             )?;
             require_unique_nonempty_identities(
-                cases.iter().map(|case| case.identity.as_str()),
+                cases.iter().map(|case| case.identity),
                 "mixed structural case identity",
             )?;
             if cases.is_empty() {
@@ -258,7 +258,7 @@ pub(super) fn validate_type_shape(
             }
             for case in cases {
                 require_unique_nonempty_identities(
-                    case.fields.iter().map(|field| field.identity.as_str()),
+                    case.fields.iter().map(|field| field.identity),
                     "mixed structural case payload field identity",
                 )?;
             }

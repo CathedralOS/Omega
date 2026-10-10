@@ -7,6 +7,7 @@ use symbols::SymbolHandle;
 use terminal_psi::TerminalCallbackApplication;
 
 pub(super) fn retain(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     lowered: &mut LoweredPsi,
@@ -62,7 +63,8 @@ pub(super) fn retain(
                 .published_requirement_envelope
                 .contract_commitment
                 .as_bytes(),
-            body: super::declarations::identity(checked, sources, usage.selected_machine)?,
+            body: super::declarations::identity(
+            identities, checked, sources, usage.selected_machine)?,
         });
     }
     applications.sort_unstable_by_key(|application| application.application_index);

@@ -1,4 +1,5 @@
 use super::super::CodecError;
+use terminal_psi::TerminalIdentityIndex;
 use super::super::wire::{Reader, Writer};
 use terminal_psi::TerminalCallbackApplication;
 

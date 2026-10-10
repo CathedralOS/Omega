@@ -52,6 +52,7 @@ pub fn select_terminal_machine<'checked>(
 use crate::lowering_error::unsupported;
 
 pub(crate) fn lower_selected_machine(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
@@ -59,7 +60,8 @@ pub(crate) fn lower_selected_machine(
     // result-bearing ordinary body lowers through a closure below, its
     // result with the cleanup after it.
     if let Some(plan) = select_unit_plan(checked, selection)? {
-        return lower_unit_plan_machine(checked, plan);
+        return lower_unit_plan_machine(
+            identities, checked, plan);
     }
     if selection.signature == CheckedTerminalSignatureEligibility::Unsupported {
         return unsupported("machine signature is outside the current terminal-Psi source slice");
@@ -85,7 +87,8 @@ pub(crate) fn lower_selected_machine(
         && (unit_plan || selection.signature == CheckedTerminalSignatureEligibility::FreeUnitEffect)
     {
         return Ok(LoweredSelectedMachine::source_mapped(
-            lower_unit_effect_closure(checked, selection.machine)?,
+            lower_unit_effect_closure(
+            identities, checked, selection.machine)?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
                 ..Default::default()
@@ -103,8 +106,11 @@ pub(crate) fn lower_selected_machine(
                 .gap_diagnostic(selection.machine, &checked.symbols),
         });
     }
-    Ok(LoweredSelectedMachine::source_mapped(
-        crate::unit::attached_unit::lower_scalar_effect_closure(checked, selection.machine)?,
+    Ok(
+            identities,LoweredSelectedMachine::source_mapped(
+            identities, 
+        crate::unit::attached_unit::lower_scalar_effect_closure(
+            identities, checked, selection.machine)?,
         LoweringCompletion {
             ..Default::default()
         },

@@ -131,6 +131,7 @@ impl Storage {
 impl Preparation<'_> {
     pub(super) fn prepare_calls(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         producer: &checked_trees::CheckedStructuralValueCall,
     ) -> Result<PlaceId, LoweringError> {
         let (machine, _) = crate::declarations::state_declaration(self.checked, self.state)?;
@@ -206,6 +207,7 @@ impl Preparation<'_> {
                     }
                     let result = self.result(binding)?;
                     let mut prepared = super::super::unit_operations::prepare(
+            identities,
                         self.checked,
                         &caller,
                         operations[operation],
@@ -262,6 +264,7 @@ impl Preparation<'_> {
                         return unsupported("structural operand construction lost its type");
                     }
                     let prepared = prepare_value(
+            identities,
                         self.checked,
                         self.qualifications,
                         self.state,

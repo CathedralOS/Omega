@@ -79,6 +79,7 @@ pub(crate) fn find(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     bodies: &[AdmittedBody<'_>],
     qualifications: &PreparedScalarQualifications,
@@ -106,6 +107,7 @@ pub(super) fn lower(
             );
         }
         let parameters = lower_unit_parameters(
+            identities,
             plan.structural_parameters,
             type_ids,
             structural_types,

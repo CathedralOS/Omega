@@ -12,18 +12,15 @@ use semantic_vocabulary::OperationId;
 
 /// Exact-owner canonical identity of one structural type.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BoundaryTypeIdentity(String);
+pub struct BoundaryTypeIdentity(TerminalIdentityIndex);
 
 impl BoundaryTypeIdentity {
-    pub fn new(canonical: String) -> Result<Self, &'static str> {
-        if canonical.is_empty() {
-            return Err("boundary type identity is empty");
-        }
-        Ok(Self(canonical))
+    pub fn new(identity: TerminalIdentityIndex) -> Self {
+        Self(identity)
     }
 
-    pub fn canonical(&self) -> &str {
-        &self.0
+    pub fn identity(&self) -> TerminalIdentityIndex {
+        self.0
     }
 }
 

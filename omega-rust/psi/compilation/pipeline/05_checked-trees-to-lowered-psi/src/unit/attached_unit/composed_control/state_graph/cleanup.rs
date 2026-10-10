@@ -38,6 +38,7 @@ pub(super) fn destination(
 /// Preparing action identities does not discharge their prerequisites; complete
 /// graph proof production observes the selected path and outgoing call effects.
 pub(super) fn scalar_returns(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     catalogs: &mut catalogs::ComposedCatalogs<'_>,
@@ -61,6 +62,7 @@ pub(super) fn scalar_returns(
                 is_continuation: cleanup.exit.kind == FlowClaimJoinExitKind::TransitionContinuation,
             };
             let mut actions = for_exit_regions(
+            identities,
             checked,
                 state,
                 cleanup.exit,
@@ -228,6 +230,7 @@ fn deferred_carrier_releases(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn for_exit_regions(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     exit: FlowClaimJoinExit,
@@ -280,6 +283,7 @@ pub(super) fn for_exit_regions(
                     Ok((result.place(), result.structural_type()))
                 })?;
             let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+            identities,
                 path, root_type, &catalogs.structural_types, None, &mut std::iter::empty(), None,
             )?;
             Ok((place, path))

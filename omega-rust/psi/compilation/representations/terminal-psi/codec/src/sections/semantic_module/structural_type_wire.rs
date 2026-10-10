@@ -5,6 +5,7 @@
 //! structural-field codec.
 
 use terminal_psi::{StructuralCaseDeclaration, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::TerminalIdentityIndex;
 
 use super::CodecError;
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
@@ -17,7 +18,7 @@ pub(crate) fn encode_structural_type(
     declaration: &StructuralTypeDeclaration,
 ) -> Result<(), CodecError> {
     writer.id(declaration.id);
-    writer.string("structural type identity", &declaration.identity)?;
+    writer.u32(declaration.identity.0);
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => writer.u8(11),
         StructuralTypeShape::Reference { referent, access } => {
@@ -70,7 +71,7 @@ pub(crate) fn encode_structural_type(
             writer.len("structural cases", cases.len())?;
             for case in cases {
                 writer.id(case.id);
-                writer.string("structural case identity", &case.identity)?;
+                writer.u32(case.identity.0);
                 writer.len("structural case payload fields", case.fields.len())?;
                 for field in &case.fields {
                     encode_structural_field(writer, field)?;
@@ -86,7 +87,7 @@ pub(crate) fn encode_structural_type(
             writer.len("mixed structural cases", cases.len())?;
             for case in cases {
                 writer.id(case.id);
-                writer.string("mixed structural case identity", &case.identity)?;
+                writer.u32(case.identity.0);
                 writer.len("mixed structural case payload fields", case.fields.len())?;
                 for field in &case.fields {
                     encode_structural_field(writer, field)?;
@@ -101,7 +102,7 @@ pub(crate) fn decode_structural_type(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralTypeDeclaration, CodecError> {
     let id = reader.id("StructuralTypeId")?;
-    let identity = reader.string("structural type identity")?;
+    let identity = TerminalIdentityIndex(reader.u32()?);
     let mut scalar_restriction = None;
     let shape = match reader.u8()? {
         11 => StructuralTypeShape::BindingCarrier,
@@ -146,7 +147,7 @@ pub(crate) fn decode_structural_type(
             cases: decode_counted(reader, |reader| {
                 Ok(StructuralCaseDeclaration {
                     id: reader.id("StructuralCaseId")?,
-                    identity: reader.string("structural case identity")?,
+                    identity: TerminalIdentityIndex(reader.u32()?),
                     fields: decode_counted(reader, decode_structural_field)?,
                 })
             })?,
@@ -159,7 +160,7 @@ pub(crate) fn decode_structural_type(
             cases: decode_counted(reader, |reader| {
                 Ok(StructuralCaseDeclaration {
                     id: reader.id("StructuralCaseId")?,
-                    identity: reader.string("mixed structural case identity")?,
+                    identity: TerminalIdentityIndex(reader.u32()?),
                     fields: decode_counted(reader, decode_structural_field)?,
                 })
             })?,

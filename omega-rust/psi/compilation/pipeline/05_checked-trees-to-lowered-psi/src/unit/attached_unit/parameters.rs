@@ -192,6 +192,7 @@ pub(crate) fn lower_unit_scalar_parameter_types(
         .collect()
 }
 pub(crate) fn lower_unit_parameters(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
@@ -247,6 +248,7 @@ pub(crate) fn lower_unit_parameters(
                 access: terminal_access(parameter.access),
                 qualifications,
                 projected_qualifications: lower_projected_qualifications(
+            identities,
                     &parameter.projected_qualifications,
                     domain_ids,
                     lookup_type_id(type_ids, &parameter.type_identity)?,
@@ -436,6 +438,7 @@ pub(crate) fn call_index_selectors(
 /// they mint here rather than inside `lower_structural_arguments` (its
 /// earlier-results slice holds the buffer by shared borrow).
 pub(crate) fn mint_runtime_index_selectors(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     fields: &[StructuralScalarFieldBinding],
     caller_scalar_values: &[ValueDeclaration],
@@ -453,6 +456,7 @@ pub(crate) fn mint_runtime_index_selectors(
             };
             let observation =
                 crate::expression_preparation::bindings::structural_fields::resolve_typed(
+            identities,
                     fields,
                     field.parameter_position,
                     &field.path,
@@ -474,6 +478,7 @@ pub(crate) fn mint_runtime_index_selectors(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_structural_arguments(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     structural_types: &[StructuralTypeDeclaration],
@@ -499,6 +504,7 @@ pub(crate) fn lower_structural_arguments(
                           prefix: &[terminal_psi::StructuralPathSegment]| {
         let suffix =
             crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(
+            identities,
                 checked,
                 argument,
                 root,
@@ -743,6 +749,7 @@ fn structural_result_source<'results>(
 }
 
 pub(crate) fn lower_projected_qualifications(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     rows: &[checked_trees::CheckedStructuralPathQualification],
     domain_ids: &[StructuralDomainBinding],
     root: StructuralTypeId,
@@ -753,7 +760,8 @@ pub(crate) fn lower_projected_qualifications(
             if row.path.is_empty() {
                 return unsupported("projected qualification has an empty path");
             }
-            let path = lower_structural_path(&row.path)?;
+            let path = lower_structural_path(
+            identities,&row.path)?;
             let carrier = terminal_semantics::runtime_structural_path_tip(
                 structural_types.iter(),
                 root,

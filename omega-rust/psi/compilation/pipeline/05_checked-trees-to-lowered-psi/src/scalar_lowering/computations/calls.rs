@@ -161,6 +161,7 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn call(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source_call: Handle<checked_trees::FlowCallFact>,
         callee: &checked_trees::CheckedScalarCallee,
         call_ordinal: u32,
@@ -222,6 +223,7 @@ impl Expansion<'_> {
                     "computed structural arguments have a stale span",
                 ))?;
         let mut structural_arguments = structural_arguments::lower(
+            identities,
             self.checked,
             source_call,
             target_machine,
@@ -428,7 +430,8 @@ impl Expansion<'_> {
             statement_index: source.statement_index,
             call_ordinal: source.call_ordinal,
         };
-        let (_, caller_state) = crate::declarations::state_declaration(self.checked, site.state)?;
+        let (
+            identities,_, caller_state) = crate::declarations::state_declaration(self.checked, site.state)?;
         let loan_completions = crate::emission::loan_completions::prepare(
             self.checked,
             self.machine,
@@ -473,6 +476,7 @@ impl Expansion<'_> {
                     structural_arguments,
                     claim_transfers:
                         crate::emission::claim_bindings::prepare_checked_claim_transfers(
+            identities,
                             self.checked,
                             &claim_transfers,
                             parameters,
@@ -494,11 +498,13 @@ impl Expansion<'_> {
                 arguments: scalar_actuals,
                 structural_arguments,
                 completion_receipts: crate::emission::claim_bindings::prepare_checked_claim_transfers(
+            identities,
                     self.checked, &claim_transfers, parameters, self.structural_types,
                 )?,
             })
         } else {
-            LoweredScalarBinding::DirectCall(lower_scalar_call(
+            LoweredScalarBinding::DirectCall(
+            identities, lower_scalar_call(
                 self.checked,
                 self.qualifications,
                 self.machine,
@@ -591,7 +597,8 @@ impl Expansion<'_> {
                     structural_effects: vec![effect.clone()],
                     terminator: LoweredScalarBranchTerminator::jump(
                         continuation,
-                        super::parameters(prefix),
+                        super::parameters(
+            identities,prefix),
                     ),
                 }),
                 Operand::Produced(slot) => {
@@ -630,6 +637,7 @@ impl Expansion<'_> {
     /// exact source to storage and lowers the already selected subtree paths.
     fn temporary_cleanup_actions(
         &self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         state: symbols::SymbolHandle,
         source_call: Handle<checked_trees::FlowCallFact>,
         arguments: &[CheckedScalarComputationStructuralArgument],
@@ -693,19 +701,25 @@ impl Expansion<'_> {
                     call_ordinal: call.call_ordinal,
                     target_symbol: call.target_symbol,
                 },
-                facts::PlaceRoot::Expression(owner),
+                facts::PlaceRoot::Expression(
+            identities,owner),
                 slot.type_reference,
                 slot.structural_type,
                 self.structural_types,
             )?;
-            let action_start = actions.len();
+            let action_start = actions.len(
+            identities,);
             for action in discards {
                 use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
-                if action.source() != &argument.source {
-                    return unsupported("temporary cleanup names a different owner");
+                if action.source(
+            identities,) != &argument.source {
+                    return unsupported(
+            identities,"temporary cleanup names a different owner");
                 }
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    action.path(), slot.structural_type, self.structural_types,
+            identities,
+                    action.path(
+            identities,), slot.structural_type, self.structural_types,
                     None, &mut std::iter::empty(), None,
                 )?;
                 let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
@@ -716,7 +730,8 @@ impl Expansion<'_> {
                         .flow
                         .terminal_unit_effects
                         .cleanup_control,
-                    action.case_conditions(),
+                    action.case_conditions(
+            identities,),
                     self.structural_types,
                     |condition_path| {
                         let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(

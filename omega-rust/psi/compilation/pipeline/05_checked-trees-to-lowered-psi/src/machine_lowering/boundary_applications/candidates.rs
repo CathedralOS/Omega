@@ -9,6 +9,7 @@ use terminal_psi::{
 };
 
 pub(super) fn retain(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     demand: &CheckedBoundaryOperatorApplicationDemand,
@@ -22,7 +23,7 @@ pub(super) fn retain(
             .ok_or("boundary candidate has no exact declaration owner")
             .and_then(|identity| {
                 NominalDeclarationIdentity::new(
-                    checked.type_identity_text(identity).unwrap_or_default(),
+                    identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
                 )
             })
     };
@@ -45,9 +46,7 @@ pub(super) fn retain(
         output.push(BoundaryApplicationCandidate {
             requirement: requirement.clone(),
             application: application.clone(),
-            selection_identity: checked
-                .typed
-                .callable_identity_text(candidate.selection_identity),
+                selection_identity: identities.intern(&checked.callable_identity_text(candidate.selection_identity)),
             selection_package: checked.symbols.symbol_package_identity(candidate.selection),
             target: candidate.target.clone(),
             body: CheckedMachineDeclaration {

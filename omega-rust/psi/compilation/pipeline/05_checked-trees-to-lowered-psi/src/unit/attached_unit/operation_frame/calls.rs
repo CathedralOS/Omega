@@ -565,6 +565,7 @@ impl OperationFrame<'_, '_> {
     /// call that establishes the callee's owned result.
     fn unit_call(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
         call: &CheckedUnitCallPlan,
         inputs: &CallInputs<'_>,
@@ -610,6 +611,7 @@ impl OperationFrame<'_, '_> {
             let register = matches!(self.results, StructuralResults::Dense(_));
             let frontier = self.suspension_source_frontier(*coordinate)?;
             let declaration = ordinary_calls::emit_structural(
+            identities,
                 checked,
                 self.state,
                 operation,
@@ -645,7 +647,8 @@ impl OperationFrame<'_, '_> {
     /// call: `ordinary_calls::prepare` against the callee's signature, then
     /// `emit_structural`, registering the member's own result binding.
     pub(super) fn establish_structural_value(
-        self,
+self,
+
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
@@ -806,6 +809,7 @@ impl OperationFrame<'_, '_> {
                 Ok(Some(declaration))
             };
         let declaration = structural_values::emit(
+            identities,
             checked,
             machine,
             state,

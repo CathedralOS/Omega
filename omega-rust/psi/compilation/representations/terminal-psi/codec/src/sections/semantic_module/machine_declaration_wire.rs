@@ -1,7 +1,7 @@
 //! The same portable callable identity is used by bodies and demands.
 
 use super::{CodecError, Reader, Writer};
-use terminal_psi::{
+use terminal_psi::{TerminalIdentityIndex, 
     CheckedMachineDeclaration, CheckedMachineSpecialization, NominalDeclarationIdentity,
 };
 
@@ -10,27 +10,24 @@ pub(super) fn encode(
     body: &CheckedMachineDeclaration,
 ) -> Result<(), CodecError> {
     validate(body)?;
-    writer.string("checked machine", body.machine.canonical())?;
-    writer.string("checked state", body.state.canonical())?;
+    writer.u32(body.machine.identity().0);;
+    writer.u32(body.state.identity().0);;
     writer.bytes(&body.contract);
     writer.boolean(body.specialization.is_some());
     if let Some(specialization) = &body.specialization {
-        writer.string("checked template", specialization.template.canonical())?;
+        writer.u32(specialization.template.identity().0);;
         writer.bytes(&specialization.commitment);
     }
     Ok(())
 }
 
 pub(super) fn decode(reader: &mut Reader<'_>) -> Result<CheckedMachineDeclaration, CodecError> {
-    let machine = NominalDeclarationIdentity::new(reader.string("checked machine")?)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
-    let state = NominalDeclarationIdentity::new(reader.string("checked state")?)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
+    let machine = NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
+    let state = NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
     let contract = reader.array()?;
     let specialization = if reader.boolean()? {
         Some(CheckedMachineSpecialization {
-            template: NominalDeclarationIdentity::new(reader.string("checked template")?)
-                .map_err(CodecError::MalformedStructuralFoundation)?,
+            template: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
             commitment: reader.array()?,
         })
     } else {

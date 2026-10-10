@@ -132,6 +132,7 @@ impl OperationFrame<'_, '_> {
 
     pub(super) fn boundary_structural_call(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
         call: &checked_trees::CheckedUnitCallPlan,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
@@ -187,6 +188,7 @@ impl OperationFrame<'_, '_> {
         // through this call's CallEnsures evidence.
         let qualification_establishments =
             super::super::catalog::call_result_qualification_establishments(
+            identities,
                 checked,
                 self.state,
                 *coordinate,

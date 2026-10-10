@@ -31,6 +31,8 @@ impl ScalarBindings {
     /// ownership of the original place to the copy's consumer.
     pub(crate) fn copied_place_source(
         &self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
@@ -51,6 +53,7 @@ impl ScalarBindings {
             .map(structural_paths::PreparedStructuralPathSegment::Static)
             .collect::<Vec<_>>();
         path.extend(structural_paths::prepare_argument_path(
+            identities,
             &argument.path,
             root_type,
             types,

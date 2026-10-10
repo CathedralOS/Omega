@@ -52,7 +52,9 @@ impl StateGraphEmission<'_, '_> {
     }
 
     /// Emit the state at `position` in authored order.
-    pub(super) fn emit_state(&mut self, position: usize) -> Result<(), LoweringError> {
+    pub(super) fn emit_state(
+        &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder, position: usize) -> Result<(), LoweringError> {
         let checked = self.checked;
         let plan = self.plan;
         let state = &plan.states[position];
@@ -101,12 +103,14 @@ impl StateGraphEmission<'_, '_> {
             element_views: std::collections::BTreeMap::new(),
             place_observations:
                 crate::scalar_lowering::computations::fields::prepare_place_observations(
+            identities,
                     checked,
                     plan.machine,
                     state.state,
                     &self.catalogs.structural_types,
                 ),
             record_fields: crate::scalar_lowering::computations::fields::prepare(
+            identities,
                 checked,
                 plan.machine,
                 &owners,
@@ -468,7 +472,8 @@ impl StateGraphEmission<'_, '_> {
         } else {
             None
         };
-        let body_end = operations.len();
+        let body_end = operations.len(
+            identities,);
         let prepared_cases = case_emission::prepare(
             state,
             self.catalogs,
@@ -860,7 +865,8 @@ impl StateGraphEmission<'_, '_> {
             } => Some(Vec::new()),
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
-                let [cleanup] = state.normal_exit_cleanups.as_slice() else {
+                let [cleanup] = state.normal_exit_cleanups.as_slice(
+            identities,) else {
                     return unsupported("ordinary return has no unique source cleanup coordinate");
                 };
                 let mut regions = super::super::cleanup::for_exit_regions(
@@ -1198,7 +1204,8 @@ impl StateGraphEmission<'_, '_> {
                             when_true,
                             when_false,
                         },
-                        ChainGuard::Decision((planned, namespace)) => emit_short_circuit_decision(
+                        ChainGuard::Decision(
+            identities,(planned, namespace)) => emit_short_circuit_decision(
                             self.checked,
                             &planned,
                             &namespace,
@@ -1222,10 +1229,12 @@ impl StateGraphEmission<'_, '_> {
                     if let Some(rank) = current_rank {
                         self.block_ranks.insert(id, rank);
                     }
-                    edge_blocks.push(Block {
+                    edge_blocks.push(
+            identities, Block {
                         id,
                         parameters,
-                        erased_scalar_formals: self.state_erased[position].clone(),
+                        erased_scalar_formals: self.state_erased[position].clone(
+            identities,),
                         erased_proof_formals:
                             crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                                 self.checked,
@@ -1237,6 +1246,7 @@ impl StateGraphEmission<'_, '_> {
                     });
                 }
                 let first_false = decision_edge(
+            identities,
                     guarded_decisions[0],
                     self.state_erased_proof[position].len(),
                     current_rank,
@@ -1466,6 +1476,7 @@ struct ShortCircuitFrame<'a> {
 /// ordered guard chain share this one lowering.
 #[allow(clippy::too_many_arguments)]
 fn emit_short_circuit_decision(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     planned: &crate::emission::case_payload_dispatch::PlannedGuard,
     guard_values: &[ValueDeclaration],
@@ -1493,17 +1504,23 @@ fn emit_short_circuit_decision(
     // cannot be reused while evaluating the guard.
     operations
         .length_observations
-        .clone_from(frame.inherited_lengths);
-    let true_block = block_id(allocate_dense(next_block)?);
+        .clone_from(
+            identities,frame.inherited_lengths);
+    let true_block = block_id(
+            identities,allocate_dense(next_block)?);
     let false_block = block_id(allocate_dense(next_block)?);
-    for (id, successor) in [(true_block, when_true), (false_block, when_false)] {
+    for (
+            identities,id, successor) in [(
+            identities,true_block, when_true), (false_block, when_false)] {
         if let Some(rank) = frame.current_rank {
             block_ranks.insert(id, rank);
         }
         edge_blocks.push(Block {
             id,
-            parameters: Vec::new(),
-            erased_scalar_formals: frame.erased_scalar_formals.to_vec(),
+            parameters: Vec::new(
+            identities, ),
+            erased_scalar_formals: frame.erased_scalar_formals.to_vec(
+            identities,),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                     checked,

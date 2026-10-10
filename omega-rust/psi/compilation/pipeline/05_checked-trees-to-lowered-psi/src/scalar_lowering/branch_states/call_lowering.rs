@@ -16,6 +16,7 @@ use checked_trees::CheckedErasedProofParameterPlan;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_scalar_call(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
     caller_machine: symbols::SymbolHandle,
@@ -121,6 +122,7 @@ pub(crate) fn lower_scalar_call(
                     "scalar call erased proof actual is absent",
                 ))?;
             crate::scalar_lowering::contracts::checked_proof_term(
+            identities,
                 checked,
                 term,
                 caller_erased_proof_parameters,
@@ -164,7 +166,8 @@ pub(crate) fn lower_scalar_call(
     // the ceiling the emitted machine contract publishes and the verifier
     // substitutes back at this call.
     let target_routes = crate::unit::effective_crash_routes(checked, target_machine)?;
-    let crash_continuations = target_routes.clone();
+    let crash_continuations = target_routes.clone(
+            identities,);
     let claim_transfers = crate::emission::claim_bindings::prepare_checked_claim_transfers(
         checked,
         &claim_transfers,

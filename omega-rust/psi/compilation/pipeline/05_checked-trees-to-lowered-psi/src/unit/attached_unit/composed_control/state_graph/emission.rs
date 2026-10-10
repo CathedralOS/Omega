@@ -76,6 +76,7 @@ pub(super) struct StateGraphEmission<'a, 'c> {
 }
 
 pub(in crate::unit::attached_unit::composed_control) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     admitted: AdmittedGraph<'_>,
@@ -104,6 +105,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         })
         .collect::<Vec<_>>();
     let machine_result = returns::result(
+            identities,
         checked,
         plan.states[0].state,
         &plan.result,
@@ -308,6 +310,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         }
         if position != 0 || entry_reentered {
             let mut block_parameters = lower_unit_parameters(
+            identities,
                 &state.structural_parameters,
                 &catalogs.type_ids,
                 &catalogs.structural_types,
@@ -444,7 +447,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         blocks.push(Block {
             id: entry,
             parameters: Vec::new(),
-            erased_scalar_formals: Vec::new(),
+            erased_scalar_formals: Vec::new(
+            identities,),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                     checked,
@@ -549,7 +553,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         if !emission.admitted.live[position] {
             continue;
         }
-        emission.emit_state(position)?;
+        emission.emit_state(
+            identities,position)?;
     }
     let live_states = std::mem::take(&mut emission.admitted.live);
     let StateGraphEmission {
@@ -751,7 +756,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         contract: MachineContract {
             id: contract_id(terminal_machine.get()),
             requires: Vec::new(),
-            ensures: Vec::new(),
+            ensures: Vec::new(
+            identities,),
             crash_routes: Vec::new(),
             erased_scalar_formals: entry_erased_formals,
             erased_proof_formals:

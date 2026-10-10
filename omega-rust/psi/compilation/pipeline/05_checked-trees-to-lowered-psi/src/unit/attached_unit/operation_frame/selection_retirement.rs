@@ -12,6 +12,8 @@ use terminal_psi::{StructuralAffineDiscard, StructuralTypeShape, TerminalAffineC
 impl OperationFrame<'_, '_> {
     pub(super) fn retire_selection_complements(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         complements: &[CheckedUnitSelectedReferenceRetirementPlan],
     ) -> Result<(), LoweringError> {
         let mut regions = Vec::new();
@@ -35,8 +37,10 @@ impl OperationFrame<'_, '_> {
                     .ok_or(LoweringError::Unsupported(
                         "selected residual lost its receiving declaration",
                     ))?;
-                let types = self.structural_types.declarations();
+                let types = self.structural_types.declarations(
+            identities,);
                 let path = structural_paths::lower_static_argument_path(
+            identities,
                     &complement.path,
                     root_type,
                     types,
@@ -62,7 +66,8 @@ impl OperationFrame<'_, '_> {
                     let CheckedUnitStructuralPathSegment::Case(identity) = segment else {
                         continue;
                     };
-                    let (prefix, case) = structural_cases::resolve_at(
+                    let (
+            identities,prefix, case) = structural_cases::resolve_at(
                         types,
                         root_type,
                         &complement.path[..position],

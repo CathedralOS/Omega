@@ -1,6 +1,7 @@
 //! Proof recursive components on the wire.
 
 use crate::sections::semantic_module::CodecError;
+use terminal_psi::TerminalIdentityIndex;
 use crate::sections::semantic_module::wire::{Reader, Writer, decode_counted};
 use terminal_psi::{
     TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,
@@ -15,27 +16,21 @@ pub(crate) fn encode_proof_recursive_component(
     writer.u8(match component.ranking_relation {
         TerminalProofRankingRelation::StructuralSubterm => 1,
     });
-    writer.string(
-        "proof recursive rank type identity",
-        &component.rank_type_identity,
-    )?;
+    writer.u32(component.rank_type_identity.0);
     writer.len("proof recursive types", component.types.len())?;
     for proof_type in &component.types {
-        writer.string("proof recursive type identity", &proof_type.identity)?;
+        writer.u32(proof_type.identity.0);
         writer.len("proof recursive type fields", proof_type.fields.len())?;
         for field in &proof_type.fields {
-            writer.string("proof recursive field identity", &field.identity)?;
-            writer.string("proof recursive field type identity", &field.type_identity)?;
+            writer.u32(field.identity.0);
+            writer.u32(field.type_identity.0);
         }
     }
     writer.len("proof recursive members", component.members.len())?;
     for member in &component.members {
         writer.id(member.contract);
-        writer.string("proof recursive machine identity", &member.machine_identity)?;
-        writer.string(
-            "proof recursive rank parameter identity",
-            &member.rank_parameter_identity,
-        )?;
+        writer.u32(member.machine_identity.0);
+        writer.u32(member.rank_parameter_identity.0);
     }
     writer.len("proof recursive edges", component.edges.len())?;
     for edge in &component.edges {
@@ -47,7 +42,7 @@ pub(crate) fn encode_proof_recursive_component(
                 statement_index,
             } => {
                 writer.u8(1);
-                writer.string("proof recursive state identity", state_identity)?;
+                writer.u32(state_identity.0);
                 writer.u64(*statement_index);
             }
             TerminalProofRecursiveCallSite::Expression {
@@ -56,7 +51,7 @@ pub(crate) fn encode_proof_recursive_component(
                 expression_ordinal,
             } => {
                 writer.u8(2);
-                writer.string("proof recursive state identity", state_identity)?;
+                writer.u32(state_identity.0);
                 writer.u64(*statement_index);
                 writer.u64(*expression_ordinal);
             }
@@ -66,7 +61,7 @@ pub(crate) fn encode_proof_recursive_component(
                 lane,
             } => {
                 writer.u8(3);
-                writer.string("proof recursive state identity", state_identity)?;
+                writer.u32(state_identity.0);
                 writer.u64(*statement_index);
                 writer.u8(match lane {
                     TerminalProofRecursiveTransitionLane::Target => 1,
@@ -89,14 +84,14 @@ pub(crate) fn decode_proof_recursive_component(
         1 => TerminalProofRankingRelation::StructuralSubterm,
         tag => return Err(CodecError::InvalidTag("TerminalProofRankingRelation", tag)),
     };
-    let rank_type_identity = reader.string("proof recursive rank type identity")?;
+    let rank_type_identity = TerminalIdentityIndex(reader.u32()?);
     let types = decode_counted(reader, |reader| {
         Ok(TerminalProofRecursiveType {
-            identity: reader.string("proof recursive type identity")?,
+            identity: TerminalIdentityIndex(reader.u32()?),
             fields: decode_counted(reader, |reader| {
                 Ok(TerminalProofRecursiveField {
-                    identity: reader.string("proof recursive field identity")?,
-                    type_identity: reader.string("proof recursive field type identity")?,
+                    identity: TerminalIdentityIndex(reader.u32()?),
+                    type_identity: TerminalIdentityIndex(reader.u32()?),
                 })
             })?,
         })
@@ -104,8 +99,8 @@ pub(crate) fn decode_proof_recursive_component(
     let members = decode_counted(reader, |reader| {
         Ok(TerminalProofRecursiveMember {
             contract: reader.id("ContractId")?,
-            machine_identity: reader.string("proof recursive machine identity")?,
-            rank_parameter_identity: reader.string("proof recursive rank parameter identity")?,
+            machine_identity: TerminalIdentityIndex(reader.u32()?),
+            rank_parameter_identity: TerminalIdentityIndex(reader.u32()?),
         })
     })?;
     let edges = decode_counted(reader, |reader| {
@@ -113,16 +108,16 @@ pub(crate) fn decode_proof_recursive_component(
         let callee = reader.id("ContractId")?;
         let site = match reader.u8()? {
             1 => TerminalProofRecursiveCallSite::Statement {
-                state_identity: reader.string("proof recursive state identity")?,
+                state_identity: TerminalIdentityIndex(reader.u32()?),
                 statement_index: reader.u64()?,
             },
             2 => TerminalProofRecursiveCallSite::Expression {
-                state_identity: reader.string("proof recursive state identity")?,
+                state_identity: TerminalIdentityIndex(reader.u32()?),
                 statement_index: reader.u64()?,
                 expression_ordinal: reader.u64()?,
             },
             3 => TerminalProofRecursiveCallSite::Transition {
-                state_identity: reader.string("proof recursive state identity")?,
+                state_identity: TerminalIdentityIndex(reader.u32()?),
                 statement_index: reader.u64()?,
                 lane: match reader.u8()? {
                     1 => TerminalProofRecursiveTransitionLane::Target,

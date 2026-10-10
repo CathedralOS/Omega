@@ -251,12 +251,14 @@ impl StructuralScalarFieldBinding {
 }
 
 pub(crate) fn resolve(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     fields: &[StructuralScalarFieldBinding],
     position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     scalar_type: ScalarType,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    let observation = resolve_typed(fields, position, path)?;
+    let observation = resolve_typed(
+            identities,fields, position, path)?;
     if observation.scalar_type() != scalar_type {
         return unsupported("runtime field observation changes its declared scalar type");
     }
@@ -268,6 +270,7 @@ pub(crate) fn resolve(
 /// pointer crossings in a primitive read's memory path. Runtime selectors use
 /// this same observation rather than reconstructing a field-only operation.
 pub(crate) fn resolve_typed(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     fields: &[StructuralScalarFieldBinding],
     position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -287,7 +290,8 @@ pub(crate) fn resolve_typed(
     // geometry. A second field-only walk rejected ordinary record leaves below
     // descriptors and disagreed with primitive-element reads about live bounds.
     let projection =
-        observation_paths::explicit_path(binding.structural_type, path, &binding.declarations)?;
+        observation_paths::explicit_path(
+            identities,binding.structural_type, path, &binding.declarations)?;
     let scalar_type = projection.scalar_type().ok_or(LoweringError::Unsupported(
         "runtime observation requires a declared scalar endpoint",
     ))?;
@@ -299,7 +303,8 @@ pub(crate) fn resolve_typed(
             )
         })
     {
-        let (source, path) = resolve_case_primitive(binding, projection, scalar_type)?;
+        let (
+            identities,source, path) = resolve_case_primitive(binding, projection, scalar_type)?;
         return Ok(LoweredDirectExpression::PrimitiveRead {
             source,
             path,
@@ -307,6 +312,7 @@ pub(crate) fn resolve_typed(
         });
     }
     let prepared = super::structural_paths::prepare_argument_path(
+            identities,
         &projection.segments,
         binding.structural_type,
         &binding.declarations,
@@ -507,6 +513,7 @@ pub(crate) fn boolean_observation(
 /// payload in place, and structural payload members retain a checked copy
 /// source. Checking proved the active case before this resolution runs.
 pub(crate) fn resolve_case_payload(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     fields: &[StructuralScalarFieldBinding],
     position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -541,7 +548,7 @@ pub(crate) fn resolve_case_payload(
     else {
         return unsupported("case payload observation requires a sum root");
     };
-    let mut selected = cases.iter().filter(|case| case.identity == case_identity.spelling());
+    let mut selected = cases.iter().filter(|case| case.identity == identities.intern(&case_identity.spelling()));
     let case = selected.next().ok_or(LoweringError::Unsupported(
         "case payload observation lost its declared case",
     ))?;
@@ -553,7 +560,7 @@ pub(crate) fn resolve_case_payload(
             let mut payload = case
                 .fields
                 .iter()
-                .filter(|field| field.identity == field_identity.spelling());
+                .filter(|field| field.identity == identities.intern(&field_identity.spelling()));
             let field = payload.next().ok_or(LoweringError::Unsupported(
                 "case payload observation lost its declared payload field",
             ))?;
@@ -574,8 +581,10 @@ pub(crate) fn resolve_case_payload(
         [
             checked_trees::CheckedStructuralPredicatePathSegment::Field(_),
             projection @ ..,
-        ] if !projection.is_empty() => {
-            let mut payload = plan_case_payload_leaf(fields, position, path).ok_or(
+        ] if !projection.is_empty(
+            identities,  ) => {
+            let mut payload = plan_case_payload_leaf(
+            identities,fields, position, path).ok_or(
                 LoweringError::Unsupported(
                     "case payload observation has no exact scalar projection",
                 ),
@@ -660,6 +669,7 @@ pub(crate) struct PlannedCasePayloadLeaf {
 /// the full canonical carrier path makes arbitrary record nesting compositional
 /// and distinguishes sibling occurrences of the same declared leaf field.
 pub(crate) fn plan_case_payload_leaf(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     fields: &[StructuralScalarFieldBinding],
     position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -691,7 +701,7 @@ pub(crate) fn plan_case_payload_leaf(
         return None;
     }
     let cases = declaration.shape.sum_cases()?;
-    let mut selected = cases.iter().filter(|case| case.identity == case_identity.spelling());
+    let mut selected = cases.iter().filter(|case| case.identity == identities.intern(&case_identity.spelling()));
     let case = selected.next()?;
     if selected.next().is_some() {
         return None;
@@ -699,7 +709,7 @@ pub(crate) fn plan_case_payload_leaf(
     let mut members = case
         .fields
         .iter()
-        .filter(|field| field.identity == member_identity.spelling());
+        .filter(|field| field.identity == identities.intern(&member_identity.spelling()));
     let member = members.next()?;
     if members.next().is_some() || member.relevance.is_erased() {
         return None;
@@ -709,10 +719,13 @@ pub(crate) fn plan_case_payload_leaf(
         source_position: position,
         source: binding.source,
         structural_type: member_type,
-        declarations: std::sync::Arc::clone(&binding.declarations),
-        case_payloads: Vec::new(),
+        declarations: std::sync::Arc::clone(
+            identities, &binding.declarations),
+        case_payloads: Vec::new(
+            identities,),
     };
-    let observation = resolve_typed(std::slice::from_ref(&projected), position, projection).ok()?;
+    let observation = resolve_typed(
+            identities,std::slice::from_ref(&projected), position, projection).ok()?;
     Some(PlannedCasePayloadLeaf {
         source: binding.source,
         case: case.id,
@@ -722,6 +735,7 @@ pub(crate) fn plan_case_payload_leaf(
 }
 
 pub(crate) fn resolve_sequence_projection(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     source: PlaceId,
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
@@ -736,23 +750,33 @@ pub(crate) fn resolve_sequence_projection(
     LoweringError,
 > {
     let Some((checked_trees::CheckedStructuralPredicatePathSegment::Field(identity), carrier)) =
-        path.split_last()
+        path.split_last(
+            identities,)
     else {
         return unsupported("sequence field length requires an exact field endpoint");
     };
     let carrier = carrier
-        .iter()
+        .iter(
+            identities,)
         .map(|segment| match segment {
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(
+            identities,identity) => {
+                Ok(CheckedUnitStructuralPathSegment::Field(
+            identities,identity.clone()))
             }
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(
+            identities,index) => {
+                Ok(CheckedUnitStructuralPathSegment::FixedIndex(
+            identities,*index))
             }
-            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) => Ok(
-                CheckedUnitStructuralPathSegment::RuntimeIndex(index.clone()),
+            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(
+            identities,index) => Ok(
+                CheckedUnitStructuralPathSegment::RuntimeIndex(
+            identities, index.clone(
+            identities,)),
             ),
-            _ => unsupported("sequence field length has an unsupported case path"),
+            _ => unsupported(
+            identities,"sequence field length has an unsupported case path"),
         })
         .collect::<Result<Vec<_>, _>>()?;
     let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_steps(
@@ -803,6 +827,7 @@ pub(crate) fn resolve_sequence_projection(
 /// crossings come from declarations, while each runtime marker retains the
 /// ordinal of the evaluated selector supplied by the read plan.
 pub(crate) fn resolve_indexed_element(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     fields: &StructuralFieldBindings,
     source: PlaceId,
     structural_type: StructuralTypeId,
@@ -818,16 +843,20 @@ pub(crate) fn resolve_indexed_element(
     LoweringError,
 > {
     let projection =
-        observation_paths::explicit_path(structural_type, path, fields.declarations())?;
+        observation_paths::explicit_path(
+            identities,structural_type, path, fields.declarations(
+            identities,))?;
     let element = match &projection
         .declaration
-        .ok_or(LoweringError::Unsupported(
+        .ok_or(
+            identities, LoweringError::Unsupported(
             "indexed observation lost its collection carrier",
         ))?
         .shape
     {
         StructuralTypeShape::FixedArray { element, .. } => *element,
-        StructuralTypeShape::ElementView { element, .. } if projection.segments.is_empty() => {
+        StructuralTypeShape::ElementView { element, .. } if projection.segments.is_empty(
+            identities, ) => {
             *element
         }
         StructuralTypeShape::ElementView { .. } => {
@@ -835,10 +864,12 @@ pub(crate) fn resolve_indexed_element(
                 "projected element view read requires an established descriptor home",
             );
         }
-        _ => return unsupported("indexed observation requires an element collection"),
+        _ => return unsupported(
+            identities, "indexed observation requires an element collection"),
     };
     let element_projection =
-        observation_paths::explicit_path(element, element_path, fields.declarations())?;
+        observation_paths::explicit_path(
+            identities, element, element_path, fields.declarations())?;
     let element_path = element_projection.segments;
     let scalar_type = crate::emission::primitive_store::indexed_element_scalar_type(
         element,
@@ -865,6 +896,7 @@ pub(crate) fn resolve_indexed_element(
 /// case membership. The emitted case-leaf copy still owes a dominating fact for
 /// every case crossed, checked again by Terminal verification.
 fn resolve_case_primitive(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     binding: &StructuralScalarFieldBinding,
     projection: observation_paths::ObservationPath<'_>,
     scalar_type: ScalarType,
@@ -881,7 +913,8 @@ fn resolve_case_primitive(
     // A case-leaf copy needs that inline carrier, not a second source-name walk.
     // Canonical geometry still grants neither active-case facts nor copy custody.
     let Some(mut canonical) = projection.canonical else {
-        return unsupported("case primitive observation requires an inline canonical carrier");
+        return unsupported(
+            identities,"case primitive observation requires an inline canonical carrier");
     };
     let Some(Canonical::FixedIndex(index)) = canonical.pop() else {
         return unsupported("case primitive observation requires an indexed primitive carrier");

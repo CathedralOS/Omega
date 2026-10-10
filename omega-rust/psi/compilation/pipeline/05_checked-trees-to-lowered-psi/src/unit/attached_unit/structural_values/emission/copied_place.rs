@@ -13,7 +13,9 @@ impl Emission<'_, '_, '_> {
     /// Bind both a direct copy and a projected copy through the same exact
     /// authored root and ordered runtime-selector evaluation.
     pub(super) fn copied_place_argument(
-        &mut self,
+&mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
         let authored = crate::declarations::state_declaration(self.checked, self.state)?;
@@ -39,6 +41,7 @@ impl Emission<'_, '_, '_> {
             ))?;
         let mut prepared =
             crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
+            identities,
                 self.checked,
                 source,
                 root,
@@ -60,6 +63,7 @@ impl Emission<'_, '_, '_> {
             self.structural_types,
         );
         let mut selector_values = super::super::super::parameters::mint_runtime_index_selectors(
+            identities,
             std::slice::from_ref(source),
             &fields,
             self.values.as_slice(),

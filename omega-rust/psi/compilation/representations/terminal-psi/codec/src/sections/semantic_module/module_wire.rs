@@ -29,7 +29,7 @@ mod proof_output_wire;
 mod scalar_block_invariant_wire;
 mod target_family_wire;
 
-use terminal_psi::{TerminalModule, TerminalRootServiceReach, VocabularyMarker};
+use terminal_psi::{TerminalIdentityTable, TerminalIdentityIndex, TerminalModule, TerminalRootServiceReach, VocabularyMarker};
 
 use super::proof_declaration_wire::{
     decode_proposition_application, decode_proposition_declaration, encode_proposition_application,
@@ -59,6 +59,10 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     writer.u16(FORMAT_MARKER);
     writer.u16(module.vocabulary_marker.get());
     writer.id(module.entry);
+    writer.len("identities", module.identities.entries().len())?;
+    for identity in module.identities.entries() {
+        writer.string("identity", identity)?;
+    }
     super::scalar_qualification_wire::encode(&mut writer, &module.scalar_qualifications)?;
     writer.len("structural types", module.structural_types.len())?;
     for declaration in &module.structural_types {
@@ -67,7 +71,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     writer.len("structural referents", module.structural_referents.len())?;
     for referent in &module.structural_referents {
         writer.id(referent.id);
-        writer.string("structural referent identity", &referent.identity)?;
+        writer.u32(referent.identity.0);
     }
     writer.len("structural domains", module.structural_domains.len())?;
     for declaration in &module.structural_domains {
@@ -239,12 +243,27 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     }
     let vocabulary_marker = VocabularyMarker::CURRENT;
     let entry = reader.id("MachineId")?;
+    let identity_entries = decode_counted(reader, |reader| reader.string("identity"))?;
+    if identity_entries.first().map(String::as_str) != Some("") {
+        return Err(CodecError::MalformedStructuralFoundation(
+            "identity table must begin with the empty identity",
+        ));
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for identity in &identity_entries[1..] {
+        if identity.is_empty() || !seen.insert(identity.as_str()) {
+            return Err(CodecError::MalformedStructuralFoundation(
+                "identity table entries must be non-empty and unique",
+            ));
+        }
+    }
+    let identities = TerminalIdentityTable::from(identity_entries);
     let scalar_qualifications = super::scalar_qualification_wire::decode(reader)?;
     let structural_types = decode_counted(reader, decode_structural_type)?;
     let structural_referents = decode_counted(reader, |reader| {
         Ok(terminal_psi::StructuralReferentIdentity {
             id: reader.id("StructuralTypeId")?,
-            identity: reader.string("structural referent identity")?,
+            identity: TerminalIdentityIndex(reader.u32()?),
         })
     })?;
     let structural_domains = decode_counted(reader, declaration_wire::decode_structural_domain)?;
@@ -312,7 +331,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         scalar_block_invariants,
         operation_crash_contracts,
         vocabulary_marker,
-        identities: Default::default(),
+        identities,
         entry,
         structural_types,
         structural_referents,

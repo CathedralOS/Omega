@@ -29,7 +29,9 @@ impl StateGraphEmission<'_, '_> {
     /// Close the state at `position` with `terminator` and publish its
     /// blocks, edge blocks, counters and occurrence rows.
     pub(super) fn seal_state(
-        &mut self,
+&mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         position: usize,
         mut terminator: Terminator,
         edge_blocks: Vec<Block>,
@@ -61,6 +63,7 @@ impl StateGraphEmission<'_, '_> {
             )?;
             let exit = super::super::cleanup::coordinate(state, statement_index, false)?;
             let mut regions = super::super::cleanup::for_exit_regions(
+            identities,
             self.checked,
                 state,
                 exit,
@@ -79,7 +82,8 @@ impl StateGraphEmission<'_, '_> {
                     super::super::case_emission::result(state, binding_ordinal, &operations)?
                         .into_owned();
                 let source = evaluation.current_structural_place(binding.place());
-                let (completion, arrival) = super::super::returns::projected::materialize(
+                let (
+            identities,completion, arrival) = super::super::returns::projected::materialize(
                     self.checked,
                     &binding,
                     source,
@@ -201,7 +205,8 @@ impl StateGraphEmission<'_, '_> {
                 .collect();
             // The authored state's own erased roster rides on its root block;
             // a plain entry's formals already live on the machine contract.
-            root.erased_scalar_formals = self.state_erased[position].clone();
+            root.erased_scalar_formals = self.state_erased[position].clone(
+            identities,);
             root.erased_proof_formals =
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                     self.checked,

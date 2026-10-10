@@ -74,6 +74,7 @@ pub(crate) fn completed_call_result(
 
 /// Generated owned carriers are shared by capacity, independently of live extent.
 pub(crate) fn prepare_types(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     value: &CheckedByteSequenceValuePlan,
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<(), LoweringError> {
@@ -119,7 +120,7 @@ pub(crate) fn prepare_types(
                 types.push(StructuralTypeDeclaration {
                     scalar_restriction: None,
                     id: structural_type_id(ordinal),
-                    identity,
+                    identity: identities.intern(&identity),
                     shape,
                 });
             }
@@ -231,6 +232,7 @@ fn descriptor_value_declaration(
 /// `path`) or the byte field `path` ends at.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_content_store(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
     value: &CheckedByteSequenceValuePlan,
     root: StoreRoot<'_>,
@@ -294,6 +296,7 @@ pub(crate) fn emit_content_store(
                         );
                     }
                     crate::emission::structural_scalar_store::lower_structural_field_path(
+            identities,
                         *structural_type,
                         carrier_path,
                         field_identity,
@@ -345,6 +348,7 @@ pub(crate) fn emit_content_store(
                         );
                     }
                     crate::emission::structural_scalar_store::lower_structural_field_path(
+            identities,
                         *structural_type,
                         carrier_path,
                         field_identity,
@@ -377,7 +381,8 @@ pub(crate) fn emit_content_store(
             operations,
         },
     };
-    let (operand, capacity) = emitter.emit(value.root, 0)?;
+    let (
+            identities,operand, capacity) = emitter.emit(value.root, 0)?;
     let (source, length) = match operand {
         ByteSequenceOperand::Whole { source, length }
             if !matches!(
@@ -397,7 +402,8 @@ pub(crate) fn emit_content_store(
             // contract; generated literals and concatenations are already
             // independent sources.
             let (empty, _) = emitter.emission.literal(&[])?;
-            emitter.owned(source, empty, capacity)?
+            emitter.owned(
+            identities,source, empty, capacity)?
         }
     };
     let obligation = obligation_id(allocate_dense(next_obligation)?);
@@ -438,6 +444,7 @@ pub(crate) struct DescriptorStore {
 }
 
 pub(crate) fn prepare_descriptor_store(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     root: &StoreRoot<'_>,
     path: &[CheckedUnitStructuralPathSegment],
     structural_types: &[StructuralTypeDeclaration],
@@ -483,7 +490,8 @@ pub(crate) fn prepare_descriptor_store(
         return unsupported("view-field store destination does not end at a field");
     };
     let (destination, structural_type, (steps, field)) = match root {
-        StoreRoot::Parameter(parameter) => (
+        StoreRoot::Parameter(
+            identities,parameter) => (
             parameter.place,
             parameter.structural_type,
             crate::emission::structural_scalar_store::lower_structural_field_place_steps(
@@ -501,6 +509,7 @@ pub(crate) fn prepare_descriptor_store(
             place,
             structural_type,
         } => (
+            identities,
             *place,
             *structural_type,
             crate::emission::structural_scalar_store::lower_structural_field_steps(
@@ -962,6 +971,7 @@ impl ValueEmitter<'_> {
 
     fn owned(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         left: ByteSequenceOperand,
         right: ByteSequenceOperand,
         capacity: u64,
@@ -972,7 +982,7 @@ impl ValueEmitter<'_> {
             .structural_types
             .iter()
             .find(|candidate| {
-                candidate.identity == identity
+                candidate.identity == identities.intern(&identity)
                     && candidate.shape
                         == StructuralTypeShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
@@ -996,7 +1006,9 @@ impl ValueEmitter<'_> {
     }
 
     fn emit(
-        &mut self,
+&mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         node: arena::Handle<ByteValue>,
         depth: usize,
     ) -> Result<(ByteSequenceOperand, u64), LoweringError> {
@@ -1100,7 +1112,8 @@ impl ValueEmitter<'_> {
                 field_identity,
                 capacity,
             } => {
-                let (source_place, source_type) = self.field_source(*root)?;
+                let (
+            identities,source_place, source_type) = self.field_source(*root)?;
                 let (path, field) =
                     crate::emission::structural_scalar_store::lower_structural_field_path(
                         source_type,
@@ -1151,7 +1164,9 @@ impl ValueEmitter<'_> {
                         "byte concatenation capacity differs from operand carriers",
                     );
                 }
-                let (source, length) = self.owned(left, right, *capacity)?;
+                let (
+            identities,source, length) = self.owned(
+            identities,left, right, *capacity)?;
                 Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
             }
         }

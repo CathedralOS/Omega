@@ -6,6 +6,7 @@ use crate::lowering_error::LoweringError;
 impl OperationFrame<'_, '_> {
     pub(super) fn publish_loan_completions(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         call: &checked_trees::CheckedUnitCallPlan,
     ) -> Result<(), LoweringError> {
         let coordinate = SourceCallCoordinate {
@@ -15,6 +16,7 @@ impl OperationFrame<'_, '_> {
         };
         let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let prepared = crate::emission::loan_completions::prepare(
+            identities,
             self.checked,
             self.machine,
             coordinate,

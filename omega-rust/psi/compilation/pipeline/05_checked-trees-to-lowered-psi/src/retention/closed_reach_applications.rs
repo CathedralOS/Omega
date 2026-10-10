@@ -26,6 +26,7 @@ use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
 pub(crate) fn retain_closed_reach_applications(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machines: &[(SymbolHandle, MachineId)],
     occurrences: &[LoweredSourceCallOccurrence],
@@ -191,7 +192,7 @@ pub(crate) fn retain_closed_reach_applications(
                                         "closed reach schema lost its checked template commitment",
                                     ))?;
                                     Ok(ClosedReachSchema {
-                                        template_identity: application
+                                        template_identity: identities.intern(&application)
                                             .normalized_template_identity
                                             .clone(),
                                         template_commitment: identity
@@ -237,6 +238,7 @@ pub(crate) fn retain_closed_reach_applications(
                             "closed reach selected machine has no normalized identity",
                         ))?;
                     let upper_bound = retain_services(
+            identities,
                         checked,
                         checked
                             .service_reach_rows
@@ -244,6 +246,7 @@ pub(crate) fn retain_closed_reach_applications(
                         module,
                     )?;
                     let selected_reach = retain_services(
+            identities,
                         checked,
                         checked.facts.service_reaches.rows.services(reach.effective),
                         module,
@@ -251,12 +254,12 @@ pub(crate) fn retain_closed_reach_applications(
                     ClosedReachParameter::Machine(ClosedReachMachineBinding {
                         nominal_requirement,
                         upper_bound,
-                        selected_identity: format!(
+                        selected_identity: identities.intern(&format!(
                             "{}|{}|selected={}",
                             declaration_identity(checked, selected_machine.symbol),
                             overload,
                             declaration_identity(checked, selected_state.symbol)
-                        ),
+                        )),
                         selected_contract_commitment: *commitment,
                         selected_reach,
                         callee,
@@ -325,7 +328,9 @@ pub(crate) fn retain_closed_reach_applications(
                     operation,
                     binder: binder as u32,
                     application: match &telescope[binder] {
-                        ClosedReachParameter::Machine(binding) if binding.schema.is_some() => {
+                        ClosedReachParameter::Machine(
+            identities,binding) if binding.schema.is_some(
+            identities,) => {
                             let Some(application) = closed_call_application(
                                 checked,
                                 source_machines,
@@ -352,11 +357,13 @@ pub(crate) fn retain_closed_reach_applications(
         // cannot be recovered from authored calls alone or by subtracting a
         // callback ceiling from the owner's flattened row.
         let mut fixed = retain_services(
+            identities,
             checked,
-            inferred.rows.services(template.dependency.concrete),
+            inferred.rows.services(
+            identities,  template.dependency.concrete),
             module,
         )?;
-        fixed.extend(retain_services(
+        fixed.extend(  retain_services(
             checked,
             inferred.rows.services(instance.cleanup_contribution),
             module,
@@ -401,7 +408,7 @@ pub(crate) fn retain_closed_reach_applications(
             operation.static_reach_binding = Some(call.binder);
         }
         terminal_owner.closed_reach_application = Some(ClosedReachApplication {
-            template_identity: specialization.normalized_template_identity.clone(),
+            template_identity: identities.intern(&specialization.normalized_template_identity.clone()),
             template_commitment: checked_identity.template_contract_commitment.as_bytes(),
             specialization_commitment: checked_identity.commitment.as_bytes(),
             telescope,
@@ -488,6 +495,7 @@ fn resolved_source_entry(checked: &CheckedTrees, target: SymbolHandle) -> Option
 }
 
 fn closed_call_application(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     sources: &[(SymbolHandle, MachineId)],
     target_state: SymbolHandle,
@@ -531,7 +539,7 @@ fn closed_call_application(
     {
         arguments.push(match parameter.kind {
             TypeParameterKind::Type => ClosedReachArgument::Type(
-                types
+                identities.intern(&types)
                     .next()
                     .ok_or(LoweringError::Unsupported(
                         "schema call lost a type argument",
@@ -540,7 +548,7 @@ fn closed_call_application(
             ),
             TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                 ClosedReachArgument::Const(
-                    constants
+                    identities.intern(&constants)
                         .next()
                         .ok_or(LoweringError::Unsupported(
                             "schema call lost a const argument",
@@ -569,12 +577,12 @@ fn closed_call_application(
                     LoweringError::Unsupported("schema call argument has no normalized identity"),
                 )?;
                 ClosedReachArgument::Machine {
-                    identity: format!(
+                    identity: identities.intern(&format!(
                         "{}|{}|selected={}",
                         declaration_identity(checked, owner.symbol),
                         overload,
                         declaration_identity(checked, *selected)
-                    ),
+                    )),
                     contract_commitment: *commitment,
                 }
             }
@@ -627,6 +635,7 @@ fn declaration_identity(checked: &CheckedTrees, symbol: SymbolHandle) -> String 
 }
 
 fn retain_services(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     services: &[ServiceReachId],
     module: &mut TerminalModule,
@@ -644,7 +653,7 @@ fn retain_services(
         let existing = module
             .services
             .iter()
-            .find(|service| service.identity == definition.name)
+            .find(|service| service.identity == identities.intern(&definition.name))
             .map(|service| service.id);
         let id = if let Some(id) = existing {
             id
@@ -652,7 +661,8 @@ fn retain_services(
             // A bound or unused argument can name a service absent from the
             // executable closure. Append its parent closure without renumbering
             // existing operations, requirements, or service rows.
-            let parents = retain_services(checked, &definition.parents, module)?;
+            let parents = retain_services(
+            identities, checked, &definition.parents, module)?;
             let next = module
                 .services
                 .iter()
@@ -666,7 +676,7 @@ fn retain_services(
             let id = crate::terminal_identities::service_id(next);
             module.services.push(ServiceDeclaration {
                 id,
-                identity: definition.name.clone(),
+                identity: identities.intern(&definition.name.clone()),
                 parents,
             });
             id

@@ -19,6 +19,7 @@ struct LoweredBoundaryApplicationOccurrence {
 }
 
 pub(super) fn retain(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     lowered: &mut LoweredPsi,
@@ -121,8 +122,8 @@ pub(super) fn retain(
             .ok_or("boundary requirement has no exact package or toolchain owner")?;
         let requirement = BoundaryOperatorRequirement::new(
             NominalDeclarationIdentity::new(
-                checked.type_identity_text(declaration).unwrap_or_default(),
-            )?,
+                identities.intern(&checked.type_identity_text(declaration).unwrap_or_default()),
+            ),
             checked
                 .typed
                 .callable_identity_text(application.requirement_identity),
@@ -130,9 +131,11 @@ pub(super) fn retain(
                 .symbols
                 .symbol_package_identity(application.requirement_symbol),
         )?;
-        let arguments = project_application(checked, exact_toolchain_sources, application)?;
+        let arguments = project_application(
+            identities, checked, exact_toolchain_sources, application)?;
         if retained_applications.insert((requirement.clone(), arguments.clone())) {
             candidates::retain(
+            identities,
                 checked,
                 exact_toolchain_sources,
                 application,
@@ -179,6 +182,7 @@ fn application_occurrence(
 }
 
 fn project_application(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
@@ -195,7 +199,7 @@ fn project_application(
                 exact_toolchain_sources,
             })
             .ok_or("boundary application type has no exact package or toolchain owner")?;
-        BoundaryTypeIdentity::new(checked.type_identity_text(identity).unwrap_or_default())
+        BoundaryTypeIdentity::new(identities.intern(&checked.type_identity_text(identity).unwrap_or_default()))
     };
     let mut arguments = Vec::with_capacity(application.arguments.len());
     for (ordinal, argument) in application.arguments.iter().enumerate() {

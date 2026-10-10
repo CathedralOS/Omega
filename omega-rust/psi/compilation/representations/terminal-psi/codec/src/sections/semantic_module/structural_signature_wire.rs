@@ -19,6 +19,7 @@ use terminal_psi::{
 };
 
 use super::CodecError;
+use terminal_psi::TerminalIdentityIndex;
 use super::content_wire::{
     decode_content_conservation_guarantee, encode_content_conservation_guarantee,
 };
@@ -38,7 +39,7 @@ pub(crate) fn encode_boundary_machine(
     declaration: &BoundaryMachineDeclaration,
 ) -> Result<(), CodecError> {
     writer.id(declaration.id);
-    writer.string("boundary machine identity", &declaration.identity)?;
+    writer.u32(declaration.identity.0);
     writer.u8(match declaration.kind {
         terminal_psi::BoundaryRequirementKind::Machine => 0,
         terminal_psi::BoundaryRequirementKind::Trait => 1,
@@ -260,7 +261,7 @@ pub(crate) fn decode_boundary_machine(
 ) -> Result<BoundaryMachineDeclaration, CodecError> {
     Ok(BoundaryMachineDeclaration {
         id: reader.id("BoundaryMachineId")?,
-        identity: reader.string("boundary machine identity")?,
+        identity: TerminalIdentityIndex(reader.u32()?),
         kind: match reader.u8()? {
             0 => terminal_psi::BoundaryRequirementKind::Machine,
             1 => terminal_psi::BoundaryRequirementKind::Trait,
@@ -319,7 +320,7 @@ pub(crate) fn decode_boundary_machine(
                 2 => ContentAlgebraKind::CountedQuantity,
                 tag => return Err(CodecError::InvalidTag("ContentAlgebraKind", tag)),
             };
-            let algebra_parameter = reader.string("program-local content algebra parameter")?;
+            let algebra_parameter = reader.string("content algebra parameter")?;
             let capacity = decode_content_projection_expression(reader, 0)?;
             let compatibility_report_identity = reader.u64()?;
             Ok(ProgramLocalRootIntroductionSchema {
@@ -366,7 +367,7 @@ fn encode_retained_borrow_place(
         RetainedBorrowPlaceRoot::Parameter { position, identity } => {
             writer.u8(1);
             writer.u32(*position);
-            writer.string("retained-borrow parameter identity", identity)?;
+            writer.u32(identity.0);
         }
         RetainedBorrowPlaceRoot::Result => writer.u8(2),
     }
@@ -401,14 +402,14 @@ fn decode_retained_borrow_place(
     let root = match reader.u8()? {
         1 => RetainedBorrowPlaceRoot::Parameter {
             position: reader.u32()?,
-            identity: reader.string("retained-borrow parameter identity")?,
+            identity: TerminalIdentityIndex(reader.u32()?),
         },
         2 => RetainedBorrowPlaceRoot::Result,
         tag => return Err(CodecError::InvalidTag("RetainedBorrowPlaceRoot", tag)),
     };
     let segments = decode_counted(reader, |reader| match reader.u8()? {
         1 => Ok(ContentPlaceSegment::Case(
-            reader.string("retained-borrow case identity")?,
+            reader.string("retained-borrow field identity")?,
         )),
         2 => Ok(ContentPlaceSegment::Field(
             reader.string("retained-borrow field identity")?,
@@ -428,10 +429,7 @@ fn encode_retained_borrow_projection(
     projection: &RetainedBorrowContentProjection,
 ) -> Result<(), CodecError> {
     writer.id(projection.semantic_domain);
-    writer.string(
-        "retained-borrow projection carrier identity",
-        &projection.carrier_identity,
-    )?;
+    writer.u32(projection.carrier_identity.0);
     writer.id(projection.projection.identity.domain);
     writer.u64(projection.projection.identity.projection_report_fingerprint);
     writer.u8(match projection.projection.algebra.kind {
@@ -449,7 +447,7 @@ fn decode_retained_borrow_projection(
     reader: &mut Reader<'_>,
 ) -> Result<RetainedBorrowContentProjection, CodecError> {
     let semantic_domain = reader.id::<DomainSemanticId>("DomainSemanticId")?;
-    let carrier_identity = reader.string("retained-borrow projection carrier identity")?;
+    let carrier_identity = TerminalIdentityIndex(reader.u32()?);
     let domain = reader.id("ContentDomainId")?;
     let projection_report_fingerprint = reader.u64()?;
     let kind = match reader.u8()? {
@@ -457,7 +455,7 @@ fn decode_retained_borrow_projection(
         2 => ContentAlgebraKind::CountedQuantity,
         tag => return Err(CodecError::InvalidTag("ContentAlgebraKind", tag)),
     };
-    let parameter = reader.string("retained-borrow content algebra parameter")?;
+    let parameter = reader.string("content algebra parameter")?;
     let expression = decode_content_projection_expression(reader, 0)?;
     Ok(RetainedBorrowContentProjection {
         semantic_domain,
@@ -477,10 +475,7 @@ fn encode_retained_borrow_custody(
     writer: &mut Writer,
     custody: &RetainedBorrowCustody,
 ) -> Result<(), CodecError> {
-    writer.string(
-        "retained-borrow callable identity",
-        &custody.callable_identity,
-    )?;
+    writer.u32(custody.callable_identity.0);
     encode_retained_borrow_place(writer, &custody.source)?;
     encode_retained_borrow_place(writer, &custody.result)?;
     writer.u8(match custody.access {
@@ -491,10 +486,7 @@ fn encode_retained_borrow_custody(
     });
     writer.u32(custody.callable_lifetime_parameter_count);
     writer.u32(custody.callable_lifetime_parameter_ordinal);
-    writer.string(
-        "retained-borrow result nominal identity",
-        &custody.result_nominal_identity,
-    )?;
+    writer.u32(custody.result_nominal_identity.0);
     writer.u8(match custody.result_multiplicity {
         StructuralMultiplicity::Unrestricted => 1,
         StructuralMultiplicity::Affine => 2,
@@ -512,7 +504,7 @@ fn decode_retained_borrow_custody(
     reader: &mut Reader<'_>,
 ) -> Result<RetainedBorrowCustody, CodecError> {
     Ok(RetainedBorrowCustody {
-        callable_identity: reader.string("retained-borrow callable identity")?,
+        callable_identity: TerminalIdentityIndex(reader.u32()?),
         source: decode_retained_borrow_place(reader)?,
         result: decode_retained_borrow_place(reader)?,
         access: match reader.u8()? {
@@ -524,7 +516,7 @@ fn decode_retained_borrow_custody(
         },
         callable_lifetime_parameter_count: reader.u32()?,
         callable_lifetime_parameter_ordinal: reader.u32()?,
-        result_nominal_identity: reader.string("retained-borrow result nominal identity")?,
+        result_nominal_identity: TerminalIdentityIndex(reader.u32()?),
         result_multiplicity: match reader.u8()? {
             1 => StructuralMultiplicity::Unrestricted,
             2 => StructuralMultiplicity::Affine,

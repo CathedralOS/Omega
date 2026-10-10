@@ -20,6 +20,7 @@ use crate::retention::reborrow_root_handoff;
 /// exact owner catalog, or the single entry pair when the route cannot name
 /// callees exactly.
 pub(crate) fn retain_admitted_reborrow_root_handoffs(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machines: &[SymbolHandle],
     handoff_sources: &[(SymbolHandle, MachineId)],
@@ -52,6 +53,7 @@ pub(crate) fn retain_admitted_reborrow_root_handoffs(
             return unsupported("reborrow source owner has no unique Terminal machine");
         }
         reborrow_root_handoff::retain_selected_reborrow_root_handoffs(
+            identities,
             checked,
             *source,
             *terminal,

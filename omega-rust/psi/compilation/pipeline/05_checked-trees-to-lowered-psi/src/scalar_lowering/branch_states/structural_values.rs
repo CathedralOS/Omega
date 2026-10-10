@@ -177,6 +177,7 @@ enum Field {
 /// completed value. This schedule does not grant a name or extend its lifetime.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare_value(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
     state: symbols::SymbolHandle,
@@ -191,7 +192,8 @@ pub(crate) fn prepare_value(
     reserved: &Storage,
 ) -> Result<PreparedValue, LoweringError> {
     let (machine, _) = crate::declarations::state_declaration(checked, state)?;
-    let structural_type = carrier_declaration(checked, types, reference)?.id;
+    let structural_type = carrier_declaration(
+            identities, checked, types, reference)?.id;
     let claims = prepare_establishment_claims(
         checked,
         machine.symbol,
@@ -250,6 +252,7 @@ pub(crate) fn prepare_value(
 /// qualifications, access and ownership throughout the value schedule. A
 /// reference carrier remains a reference, rather than becoming an owned value.
 fn carrier_declaration<'types>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     types: &'types [StructuralTypeDeclaration],
     reference: checked_trees::types::TypeReferenceHandle,
@@ -264,7 +267,7 @@ fn carrier_declaration<'types>(
         .unwrap_or_default();
     let mut declarations = types
         .iter()
-        .filter(|declaration| declaration.identity == identity);
+        .filter(|declaration| declaration.identity == identities.intern(&identity));
     let declaration = declarations.next().ok_or(LoweringError::Unsupported(
         "structural value lost its declared carrier",
     ))?;
@@ -292,13 +295,15 @@ struct Preparation<'a> {
 impl Preparation<'_> {
     fn value(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
         claim_path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<PlaceId, LoweringError> {
         let plans = &self.checked.facts.values.structural_values;
         let node = plans.nodes.get(value);
-        let declaration = carrier_declaration(self.checked, self.types, reference)?;
+        let declaration = carrier_declaration(
+            identities,self.checked, self.types, reference)?;
         if let CheckedStructuralValueKind::Call { .. } = &node.kind {
             let mut producers = self.calls.iter().filter(|call| call.value == value);
             let producer = producers.next().ok_or(LoweringError::Unsupported(
@@ -537,10 +542,13 @@ impl Preparation<'_> {
             let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
                 self.checked.type_reference_table.type_reference(reference)
             else {
-                return unsupported("structural array source has a nonarray carrier");
+                return unsupported(
+            identities,"structural array source has a nonarray carrier");
             };
             let element_reference = *element_type;
-            if u64::try_from(elements.len()).ok() != Some(length)
+            if u64::try_from(
+            identities,  elements.len(
+            identities, )).ok() != Some(length)
                 || carrier_declaration(self.checked, self.types, element_reference)?.id != element
             {
                 return unsupported("structural array elements differ from their declared carrier");

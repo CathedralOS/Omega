@@ -27,6 +27,7 @@ use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_state(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     state: &LoweredScalarBranchState,
     mut block: BlockId,
@@ -376,7 +377,8 @@ pub(super) fn emit_state(
                 let mut root = root;
                 root.erased_scalar_formals = erased_formals;
                 root.erased_proof_formals =
-                    erased_proof_formal_declarations(checked, source_erased_proof_formals);
+                    erased_proof_formal_declarations(
+            identities, checked, source_erased_proof_formals);
                 root.operations.splice(
                     0..0,
                     operations[operation_start..terminator_operation_start]
@@ -719,7 +721,8 @@ pub(super) fn emit_state(
         id: block,
         parameters: block_parameters,
         erased_scalar_formals: block_erased_formals,
-        erased_proof_formals: erased_proof_formal_declarations(checked, source_erased_proof_formals),
+        erased_proof_formals: erased_proof_formal_declarations(
+            identities, checked, source_erased_proof_formals),
         operations: operations[operation_start..].to_vec(),
         terminator,
     });

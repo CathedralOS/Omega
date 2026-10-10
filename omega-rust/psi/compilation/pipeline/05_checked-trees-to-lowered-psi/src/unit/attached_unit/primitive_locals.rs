@@ -352,6 +352,7 @@ impl super::argument_evaluation::Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::unit::attached_unit) fn prepare_borrowed_argument(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -396,7 +397,7 @@ impl super::argument_evaluation::Evaluation {
             let identity = checked
                 .typed
                 .normalized_type_identity_text(parameter.type_reference);
-            let mut carriers = types.iter().filter(|actual| actual.identity == identity);
+            let mut carriers = types.iter().filter(|actual| actual.identity == identities.intern(&identity));
             let carrier = carriers.next().ok_or(LoweringError::Unsupported(
                 "primitive ingress has no original storage carrier",
             ))?;

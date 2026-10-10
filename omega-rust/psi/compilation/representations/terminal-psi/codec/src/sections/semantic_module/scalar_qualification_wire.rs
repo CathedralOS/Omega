@@ -8,8 +8,7 @@ use super::{
     wire::{Reader, Writer, decode_ids},
 };
 use semantic_vocabulary::ScalarQualificationSetId;
-use terminal_psi::{
-    ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarFloatRange, ScalarIntegerRange,
+use terminal_psi::{TerminalIdentityIndex, ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarFloatRange, ScalarIntegerRange,
     ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
 };
 
@@ -25,7 +24,7 @@ pub(crate) fn encode(
     for domain in &catalog.domains {
         writer.id(domain.id);
         writer.id(domain.semantic_domain);
-        writer.string("scalar domain identity", &domain.identity)?;
+        writer.u32(domain.identity.0);
         encode_scalar_type(writer, domain.carrier);
         writer.len(
             "scalar domain establishment routes",
@@ -37,17 +36,17 @@ pub(crate) fn encode(
                     requirement_identity,
                 } => {
                     writer.u8(ROUTE_CHECKED_REQUIREMENT);
-                    writer.string("establishment requirement", requirement_identity)?;
+                    writer.u32(requirement_identity.0);
                 }
                 ScalarDomainEstablishmentRoute::BoundaryRequirement {
                     requirement_identity,
                 } => {
                     writer.u8(ROUTE_BOUNDARY_REQUIREMENT);
-                    writer.string("establishment requirement", requirement_identity)?;
+                    writer.u32(requirement_identity.0);
                 }
                 ScalarDomainEstablishmentRoute::ExactMachine { machine_identity } => {
                     writer.u8(ROUTE_EXACT_MACHINE);
-                    writer.string("establishment machine", machine_identity)?;
+                    writer.u32(machine_identity.0);
                 }
             }
         }
@@ -99,21 +98,21 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
             Ok(ScalarDomainDeclaration {
                 id: reader.id("ScalarDomainId")?,
                 semantic_domain: reader.id("DomainSemanticId")?,
-                identity: reader.string("scalar domain identity")?,
+                identity: TerminalIdentityIndex(reader.u32()?),
                 carrier: decode_scalar_type(reader)?,
                 establishment_routes: decode_counted(reader, |reader| match reader.u8()? {
                     ROUTE_CHECKED_REQUIREMENT => {
                         Ok(ScalarDomainEstablishmentRoute::CheckedRequirement {
-                            requirement_identity: reader.string("establishment requirement")?,
+                            requirement_identity: TerminalIdentityIndex(reader.u32()?),
                         })
                     }
                     ROUTE_BOUNDARY_REQUIREMENT => {
                         Ok(ScalarDomainEstablishmentRoute::BoundaryRequirement {
-                            requirement_identity: reader.string("establishment requirement")?,
+                            requirement_identity: TerminalIdentityIndex(reader.u32()?),
                         })
                     }
                     ROUTE_EXACT_MACHINE => Ok(ScalarDomainEstablishmentRoute::ExactMachine {
-                        machine_identity: reader.string("establishment machine")?,
+                        machine_identity: TerminalIdentityIndex(reader.u32()?),
                     }),
                     tag => Err(CodecError::InvalidTag(
                         "ScalarDomainEstablishmentRoute",
@@ -179,7 +178,7 @@ pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), Codec
         if domain
             .establishment_routes
             .iter()
-            .any(|route| route.identity().is_empty())
+            .any(|route| route.identity().is_absent())
         {
             return Err(CodecError::NonCanonicalEncoding);
         }

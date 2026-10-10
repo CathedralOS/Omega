@@ -11,7 +11,8 @@ use terminal_psi::{StructuralPlaceDeclaration, StructuralTypeShape};
 impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare_storage_before(
-        &mut self,
+&mut self,
+
         checked: &checked_trees::CheckedTrees,
         state: symbols::SymbolHandle,
         statement: u32,

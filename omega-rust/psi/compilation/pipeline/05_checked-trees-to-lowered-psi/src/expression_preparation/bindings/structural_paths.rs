@@ -64,6 +64,7 @@ pub(crate) fn structural_access_can_supply(
 /// index lowers it. Claims, discards, qualifications and residuals are static
 /// by construction; a runtime segment reaching this function is refused.
 pub(crate) fn lower_structural_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
 ) -> Result<Vec<StructuralPathSegment>, LoweringError> {
     path.iter()
@@ -73,7 +74,7 @@ pub(crate) fn lower_structural_path(
             )),
             CheckedUnitStructuralPathSegment::Referent => Ok(StructuralPathSegment::Referent),
             CheckedUnitStructuralPathSegment::Field(identity) => {
-                Ok(StructuralPathSegment::Field(identity.spelling()))
+                Ok(StructuralPathSegment::Field(identities.intern(&identity.spelling())))
             }
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 Ok(StructuralPathSegment::FixedIndex(*index))
@@ -123,24 +124,28 @@ enum PreparedArgumentTip<'a> {
 /// use the strict walker unchanged; it must never implicitly dereference a
 /// descriptor value or a nested reference field.
 pub(crate) fn prepare_structural_argument_path(
-    checked: &checked_trees::CheckedTrees,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    published_root: semantic_vocabulary::StructuralTypeId,
-    types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
-    prepare_structural_argument_projection(checked, argument, &argument.path, published_root, types)
-}
-
-/// A final call addresses the completed value. Its range producer has already
-/// consumed the original collection path; ordinary storage joins above still
-/// require that path when they bind the original source.
-pub(crate) fn prepare_call_argument_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     published_root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
     prepare_structural_argument_projection(
+            identities, checked, argument, &argument.path, published_root, types)
+}
+
+/// A final call addresses the completed value. Its range producer has already
+/// consumed the original collection path; ordinary storage joins above still
+/// require that path when they bind the original source.
+pub(crate) fn prepare_call_argument_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &checked_trees::CheckedTrees,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    published_root: semantic_vocabulary::StructuralTypeId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
+    prepare_structural_argument_projection(
+            identities,
         checked,
         argument,
         argument.call_projection(),
@@ -150,6 +155,7 @@ pub(crate) fn prepare_call_argument_path(
 }
 
 fn prepare_structural_argument_projection(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     projection: &[CheckedUnitStructuralPathSegment],
@@ -157,11 +163,12 @@ fn prepare_structural_argument_projection(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
     let Some(identity) = argument.borrowed_root_type_identity() else {
-        return prepare_argument_path(projection, published_root, types);
+        return prepare_argument_path(
+            identities,projection, published_root, types);
     };
     let mut roots = types
         .iter()
-        .filter(|row| row.identity == checked.type_identity_text(identity).unwrap_or_default());
+        .filter(|row| row.identity == identities.intern(&checked.type_identity_text(identity).unwrap_or_default()));
     let logical_root = roots.next().ok_or(LoweringError::Unsupported(
         "borrowed argument lost its checked logical root",
     ))?;
@@ -196,13 +203,16 @@ fn prepare_structural_argument_projection(
             StructuralPathSegment::Referent,
         ));
     }
-    prepared.extend(prepare_argument_path(projection, logical_root.id, types)?);
+    prepared.extend(
+            identities,prepare_argument_path(
+            identities,projection, logical_root.id, types)?);
     Ok(prepared)
 }
 
 /// Resolve the path against its original source declaration. Only runtime
 /// selector values and their bound obligations remain for the emitting call.
 pub(crate) fn prepare_argument_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
     root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
@@ -266,7 +276,7 @@ pub(crate) fn prepare_argument_path(
                         ));
                     }
                 };
-                let mut matches = cases.iter().filter(|case| case.identity == identity.spelling());
+                let mut matches = cases.iter().filter(|case| case.identity == identities.intern(&identity.spelling()));
                 let case = matches.next().ok_or(LoweringError::Unsupported(
                     "argument case belongs to another source type",
                 ))?;
@@ -290,7 +300,7 @@ pub(crate) fn prepare_argument_path(
                         }
                     },
                 };
-                let mut matches = fields.iter().filter(|field| field.identity == identity.spelling());
+                let mut matches = fields.iter().filter(|field| field.identity == identities.intern(&identity.spelling()));
                 let field = matches.next().ok_or(LoweringError::Unsupported(
                     "argument field belongs to another declaration",
                 ))?;
@@ -304,7 +314,7 @@ pub(crate) fn prepare_argument_path(
                     _ => Tip::Inline(&field.field_type),
                 };
                 PreparedStructuralPathSegment::Static(StructuralPathSegment::Field(
-                    identity.spelling(),
+                    identities.intern(&identity.spelling()),
                 ))
             }
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
@@ -420,6 +430,7 @@ pub(crate) fn prepare_argument_path(
 }
 
 pub(crate) fn prepare_unscoped_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
     path.iter()
@@ -427,10 +438,13 @@ pub(crate) fn prepare_unscoped_path(
             CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
                 Ok(PreparedStructuralPathSegment::RuntimeIndex(index.clone()))
             }
-            CheckedUnitStructuralPathSegment::ComputedIndex(root) => {
-                Ok(PreparedStructuralPathSegment::ComputedIndex(*root))
+            CheckedUnitStructuralPathSegment::ComputedIndex(
+            identities,root) => {
+                Ok( PreparedStructuralPathSegment::ComputedIndex(
+            identities,*root))
             }
-            segment => Ok(PreparedStructuralPathSegment::Static(
+            segment => Ok(
+            identities,PreparedStructuralPathSegment::Static(
                 lower_structural_path(std::slice::from_ref(segment))?.remove(0),
             )),
         })
@@ -441,14 +455,17 @@ pub(crate) fn prepare_unscoped_path(
 /// case identity. Use the ordinary typed preparation without a runtime frame;
 /// a selector requiring evaluation or a bound obligation remains rejected.
 pub(crate) fn lower_static_argument_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
     root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<StructuralPathSegment>, LoweringError> {
-    lower_typed_argument_path(path, root, types, None, &mut std::iter::empty(), None)
+    lower_typed_argument_path(
+            identities,path, root, types, None, &mut std::iter::empty(), None)
 }
 
 pub(crate) fn lower_typed_argument_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
     root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
@@ -457,6 +474,7 @@ pub(crate) fn lower_typed_argument_path(
     calls: Option<&mut CallEmissionContext<'_>>,
 ) -> Result<Vec<StructuralPathSegment>, LoweringError> {
     emit_argument_path(
+            identities,  
         &prepare_argument_path(path, root, types)?,
         caller_scalar_values,
         selector_values,

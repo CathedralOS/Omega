@@ -152,6 +152,7 @@ pub(super) struct EmittedMachine {
 /// Emit one ordinary machine. Counters advance only when emission succeeds;
 /// a failed emission fails the whole closure.
 pub(super) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     signature: &MachineSignature,
     plan: &CheckedUnitEffectMachinePlan,
@@ -291,12 +292,14 @@ pub(super) fn emit(
     evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();
     evaluation.place_observations =
         crate::scalar_lowering::computations::fields::prepare_place_observations(
+            identities,
             checked,
             plan.machine,
             plan.state,
             structural_types,
         );
     evaluation.record_fields = crate::scalar_lowering::computations::fields::prepare(
+            identities,
         checked,
         plan.machine,
         &[plan.machine],
@@ -481,7 +484,8 @@ pub(super) fn emit(
         operations.take_external_completion(&mut next_edge)?
     {
         external_result = Some(if let Some(result) = &plan.structural_result {
-            TerminalMachineResult::Structural(lower_structural_result_declaration(
+            TerminalMachineResult::Structural(
+            identities,lower_structural_result_declaration(
                 checked,
                 plan,
                 result,
@@ -623,7 +627,8 @@ pub(super) fn emit(
             type_ids,
             |source, path| {
                 let (place, root_type) =
-                    evaluation.cleanup_storage(source, parameters, |binding| {
+                    evaluation.cleanup_storage(
+            identities,source, parameters, |binding| {
                         let value = results.repair_value(binding, &operations)?;
                         Ok((value.place, value.structural_type))
                     })?;
@@ -808,7 +813,8 @@ pub(super) fn emit(
                     result,
                     &operations,
                     scalar_calls.claims.bindings(),
-                    lookup_type_id(type_ids, &result.type_identity)?,
+                    lookup_type_id(
+            identities,type_ids, &result.type_identity)?,
                     structural_types,
                 )?;
                 Ok::<_, LoweringError>((
@@ -1065,14 +1071,18 @@ pub(super) fn emit(
             )?
         },
         content_entry_claims,
-        content_identity_reshuffles: Vec::new(),
-        content_partition_compositions: Vec::new(),
+        content_identity_reshuffles: Vec::new(
+            identities,),
+        content_partition_compositions: Vec::new(
+            identities,),
         entry: evaluation.entry,
         blocks: evaluation.blocks,
         contract: MachineContract {
-            id: contract_id(terminal_machine.get()),
+            id: contract_id(
+            identities, terminal_machine.get( )),
             crash_routes,
-            erased_scalar_formals: signature.erased_scalar_parameters.clone(),
+            erased_scalar_formals: signature.erased_scalar_parameters.clone(
+            identities, ),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                     checked,
@@ -1104,6 +1114,7 @@ pub(super) fn emit(
 /// A declaration remains necessary when every emitted path abandons the domain.
 #[allow(clippy::too_many_arguments)]
 fn lower_structural_result_declaration(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: &CheckedUnitEffectMachinePlan,
     result: &checked_trees::CheckedUnitStructuralReturnPlan,
@@ -1130,7 +1141,8 @@ fn lower_structural_result_declaration(
     // leaves it returns; a body whose exits do not all establish them has no
     // completion this route can emit.
     if (crate::reference_custody::stored_loan_parts(checked, state.return_type).is_some()
-        || crate::reference_custody::is_reference_record(checked, state.return_type))
+        || crate::reference_custody::is_reference_record(
+            identities,checked, state.return_type))
         && !crate::reference_custody::returns_complete_reference_origins(checked, state)
     {
         return unsupported("reference completion has no exact returned leaf origins");
@@ -1140,19 +1152,27 @@ fn lower_structural_result_declaration(
     // carrier identity the result spells, so the machine publishes them
     // as its own qualifications.
     let qualifications =
-        validation::view_result_carrier_qualifications(&checked.typed, return_type)
-            .map_err(LoweringError::Unsupported)?
-            .iter()
-            .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, structural_type))
+        validation::view_result_carrier_qualifications(
+            identities,&checked.typed, return_type)
+            .map_err(
+            identities,
+            LoweringError::Unsupported)?
+            .iter(
+            identities,)
+            .map(|domain| lookup_domain_id_for_carrier(
+            identities,domain_ids, *domain, structural_type))
             .collect::<Result<Vec<_>, _>>()?;
     Ok(terminal_psi::StructuralResultDeclaration {
         place,
         structural_type,
-        multiplicity: crate::terminal_identities::structural_multiplicity(result.multiplicity),
+        multiplicity: crate::terminal_identities::structural_multiplicity(
+            identities, result.multiplicity),
         qualifications,
         projected_qualifications: parameters::lower_projected_qualifications(
-            &validation::structural_result_projected_qualifications(&checked.typed, return_type)
-                .map_err(LoweringError::Unsupported)?,
+            &validation::structural_result_projected_qualifications(
+            identities,&checked.typed, return_type)
+                .map_err(
+            LoweringError::Unsupported)?,
             domain_ids,
             structural_type,
             structural_types,

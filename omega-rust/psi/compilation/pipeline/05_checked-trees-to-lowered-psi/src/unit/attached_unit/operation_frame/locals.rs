@@ -501,6 +501,8 @@ impl OperationFrame<'_, '_> {
     /// loans, lengths and reads name it exactly as they name any owned result.
     pub(super) fn establish_owned_byte_sequence(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         value: &checked_trees::CheckedByteSequenceValuePlan,
         structural_type: semantic_vocabulary::StructuralTypeId,
@@ -509,7 +511,8 @@ impl OperationFrame<'_, '_> {
         // Only a roster this body owns may gain the generated literal-view
         // carrier; a published roster must already hold it.
         if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
-            crate::emission::structural_byte_sequence_store::prepare_types(value, types)?;
+            crate::emission::structural_byte_sequence_store::prepare_types(
+            identities,value, types)?;
         }
         let (declaration, produced) =
             crate::emission::structural_byte_sequence_store::emit_owned_value(
@@ -880,7 +883,9 @@ impl OperationFrame<'_, '_> {
 
     /// Commit ordered cleanup at its exact continuation while retaining scalar values.
     pub(super) fn continuation_cleanup(
-        &mut self,
+&mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         boundary: &checked_trees::CheckedUnitCleanupBoundary,
         cleanup_actions: &[checked_trees::CheckedNormalCleanupAction],
     ) -> Result<(), LoweringError> {
@@ -930,6 +935,7 @@ impl OperationFrame<'_, '_> {
                     },
                 )?;
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+            identities,
                     selected_path, root_type, self.structural_types.declarations(),
                     None, &mut std::iter::empty(), None,
                 )?;

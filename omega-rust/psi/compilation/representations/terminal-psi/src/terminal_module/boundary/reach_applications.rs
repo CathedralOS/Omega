@@ -78,9 +78,9 @@ pub struct ClosedReachCallApplication {
 /// Only argument selection, without duplicating requirement rows or call graphs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClosedReachArgument {
-    Type(String),
-    Const(String),
-    Proposition(String),
+    Type(TerminalIdentityIndex),
+    Const(TerminalIdentityIndex),
+    Proposition(TerminalIdentityIndex),
     Machine {
         identity: TerminalIdentityIndex,
         contract_commitment: [u8; 32],

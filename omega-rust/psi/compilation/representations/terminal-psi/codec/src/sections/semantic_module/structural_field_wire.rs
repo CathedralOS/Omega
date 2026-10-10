@@ -13,6 +13,7 @@ use terminal_psi::{
 };
 
 use super::CodecError;
+use terminal_psi::TerminalIdentityIndex;
 use super::proposition_wire::{decode_proposition, encode_proposition};
 use super::scalar_wire::{
     decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
@@ -224,7 +225,7 @@ pub(crate) fn encode_structural_field(
     field: &StructuralFieldDeclaration,
 ) -> Result<(), CodecError> {
     writer.id(field.id);
-    writer.string("structural field identity", &field.identity)?;
+    writer.u32(field.identity.0);
     writer.u8(match field.relevance {
         BindingRelevance::Relevant => 1,
         BindingRelevance::Erased => 2,
@@ -278,7 +279,7 @@ pub(crate) fn encode_structural_field_type(
         }
         StructuralFieldType::Erased { type_identity } => {
             writer.u8(3);
-            writer.string("erased structural field type identity", type_identity)?;
+            writer.u32(type_identity.0);
         }
     }
     Ok(())
@@ -288,7 +289,7 @@ pub(crate) fn decode_structural_field(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralFieldDeclaration, CodecError> {
     let id = reader.id("StructuralFieldId")?;
-    let identity = reader.string("structural field identity")?;
+    let identity = TerminalIdentityIndex(reader.u32()?);
     let relevance = match reader.u8()? {
         1 => BindingRelevance::Relevant,
         2 => BindingRelevance::Erased,
@@ -323,7 +324,7 @@ pub(crate) fn decode_structural_field_type(
         ),
         2 => StructuralFieldType::Structural(reader.id("StructuralTypeId")?),
         3 => StructuralFieldType::Erased {
-            type_identity: reader.string("erased structural field type identity")?,
+            type_identity: TerminalIdentityIndex(reader.u32()?),
         },
         4 => StructuralFieldType::IeeeFloat(decode_ieee_float_format(reader)?),
         5 => StructuralFieldType::ByteSequence(decode_byte_sequence_carrier(reader)?),

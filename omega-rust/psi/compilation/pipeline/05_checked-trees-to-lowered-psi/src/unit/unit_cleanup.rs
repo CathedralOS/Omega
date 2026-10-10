@@ -52,6 +52,7 @@ impl CleanupRegion {
 }
 
 pub(crate) fn lower_cleanup_conditions(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     control: &checked_trees::CheckedCleanupControlPlans,
     selected: arena::HandleSpan<checked_trees::CheckedCleanupCaseCondition>,
@@ -96,7 +97,9 @@ pub(crate) fn lower_cleanup_conditions(
             .ok_or(LoweringError::Unsupported(
                 "cleanup condition has no structural type",
             ))?;
-            let (_, case) = crate::expression_preparation::bindings::structural_cases::resolve_at(
+            let (
+            identities,_, case) = crate::expression_preparation::bindings::structural_cases::resolve_at(
+            identities,
                 types,
                 structural_type,
                 &[],
@@ -116,10 +119,12 @@ pub(crate) fn lower_cleanup_conditions(
 /// of structural parameters: each root owns exactly one cleanup action, and
 /// the actions run in reverse declaration order (`ordered`).
 pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    lower_ordered_nominal_affine_unit_cleanup_machine(checked, nominal)
+    lower_ordered_nominal_affine_unit_cleanup_machine(
+            identities, checked, nominal)
 }
 
 /// Selected cleanup operations have the same hook contract for Unit and scalar exits.
@@ -146,6 +151,7 @@ pub(crate) fn continuation_cleanups<'a>(
 /// ordinary control emission. The storage resolver owns captured coordinates;
 /// neither action paths nor tag observations may evaluate a selector again.
 pub(crate) fn lower_checked_cleanup_regions<'action>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
     control: &checked_trees::CheckedCleanupControlPlans,
@@ -171,6 +177,7 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
             let (place, path) = storage(action.source(), action.path())?;
             let conditions =
                 lower_cleanup_conditions(
+            identities,
                     checked,
                     control,
                     action.case_conditions(),
@@ -635,8 +642,10 @@ fn nominal_cleanup_return_actions(
 }
 
 pub(crate) fn lower_partial_affine_unit_cleanup_machine(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    partial::lower_partial_affine_unit_cleanup_machine(checked, partial)
+    partial::lower_partial_affine_unit_cleanup_machine(
+            identities, checked, partial)
 }

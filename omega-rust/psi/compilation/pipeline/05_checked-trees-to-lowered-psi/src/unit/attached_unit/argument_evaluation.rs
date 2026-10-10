@@ -1272,6 +1272,8 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     fn complete_expansion(
         &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         checked: &CheckedTrees,
         states: &[LoweredScalarBranchState],
         entry_index: usize,
@@ -1314,7 +1316,8 @@ impl Evaluation {
             id: self.current,
             parameters: std::mem::take(&mut self.parameters),
             erased_scalar_formals: Vec::new(),
-            erased_proof_formals: erased_proof_formal_declarations(checked, &self.erased_proof_formals),
+            erased_proof_formals: erased_proof_formal_declarations(
+            identities, checked, &self.erased_proof_formals),
             operations: operations[self.operation_start..].to_vec(),
             terminator: Terminator::Jump {
                 structural_arguments: Vec::new(),
@@ -1342,6 +1345,7 @@ impl Evaluation {
         for index in scalar_state_emission_order(states, entry_index)? {
             let state = &states[index];
             emit_state(
+            identities,
                 checked,
                 state,
                 targets[index + 1],

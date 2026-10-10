@@ -18,13 +18,12 @@ use super::{
     content_conservation, dense_identity, lookup_domain_id, lookup_service_id, lookup_type_id,
     terminal_scalar_type, unique_unit_boundary, unsupported,
 };
-use crate::terminal_identities::byte_view_element_identity;
 use crate::terminal_identities::{
+    BYTE_VIEW_ELEMENT_TYPE_IDENTITY,
     StructuralDomainBinding, lookup_domain_id_for_carrier, structural_domain_identity,
 };
 use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
 use terminal_psi::StructuralReferentIdentity;
-use typed_trees::type_identity::TypeIdentityId;
 
 mod operation_types;
 pub(super) use operation_types::collect_operation_type_roots;
@@ -37,26 +36,26 @@ pub(super) use operation_types::collect_operation_type_roots;
 fn collect_value_roots(
     checked: &CheckedTrees,
     value: checked_trees::CheckedStructuralValueHandle,
-    roots: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
+    roots: &mut Vec<String>,
 ) -> Result<(), LoweringError> {
     let node = checked.facts.values.structural_values.nodes.get(value);
     match &node.kind {
         checked_trees::CheckedStructuralValueKind::Place(source)
         | checked_trees::CheckedStructuralValueKind::Reference { source }
         | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. } => {
-            roots.push(source.type_identity);
+            roots.push(source.type_identity.clone());
         }
         checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
             // The producer retains the qualified leaf separately and publishes
             // the exact stored carrier, including reference descriptors/views.
-            roots.push(source.type_identity);
+            roots.push(source.type_identity.clone());
         }
         checked_trees::CheckedStructuralValueKind::Projection {
             source,
             type_identity,
             ..
         } => {
-            roots.push(*type_identity);
+            roots.push(type_identity.clone());
             // A copied projection emits a leaf copy through the existing
             // referent. Its source node is provenance, not a materialized
             // reference carrier; the signature or local already owns the
@@ -114,7 +113,7 @@ fn collect_value_roots(
                         {
                             view = *referee;
                         }
-                        roots.push(checked.type_identity(
+                        roots.push(checked.type_identity_request_text(
                             typed_trees::type_identity::TypeIdentityRequest::ordinary(view),
                         ));
                     }
@@ -152,7 +151,7 @@ fn collect_value_roots(
 fn establishes_byte_element_view(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
-    result_identity: typed_trees::type_identity::TypeIdentityId,
+    result_identity: &str,
     value: checked_trees::CheckedStructuralValueHandle,
 ) -> Result<bool, LoweringError> {
     fn establishes_element_view(
@@ -185,7 +184,7 @@ fn establishes_byte_element_view(
 pub(super) fn lower_program_local_root_introductions(
     checked: &CheckedTrees,
     plan: &CheckedBoundaryMachinePlan,
-    requirement_identity: typed_trees::type_identity::CallableIdentityId,
+    requirement_identity: &str,
     parameters: &[StructuralParameterDeclaration],
     domain_ids: &[StructuralDomainBinding],
 ) -> Result<Vec<ProgramLocalRootIntroductionSchema>, LoweringError> {
@@ -245,7 +244,7 @@ pub(super) fn lower_program_local_root_introductions(
                     && candidate.carrier_type_identity == parameter.type_identity
             })
             .map(|candidate| {
-                structural_domain_identity(&candidate.name, &checked.type_identity_text(candidate.carrier_type_identity).unwrap_or_default())
+                structural_domain_identity(&candidate.identity, &candidate.carrier_type_identity)
             })
             .ok_or(LoweringError::Unsupported(
                 "program-local root qualification has no normalized identity",
@@ -253,9 +252,7 @@ pub(super) fn lower_program_local_root_introductions(
         let owner_projection = content_conservation::lower_structural_content_projection(
             checked,
             requirement.domain,
-            &checked
-                .type_identity_text(parameter.type_identity)
-                .unwrap_or_default(),
+            &parameter.type_identity,
         )?
         .ok_or(LoweringError::Unsupported(
             "program-local root route has no owner content projection",
@@ -272,13 +269,9 @@ pub(super) fn lower_program_local_root_introductions(
         };
         schema.compatibility_report_identity =
             program_local_root_introduction_compatibility_report_identity(
-                &checked
-                    .typed
-                    .callable_identity_text(requirement_identity),
+                requirement_identity,
                 &qualification_identity,
-                &checked
-                    .type_identity_text(parameter.type_identity)
-                    .unwrap_or_default(),
+                &parameter.type_identity,
                 &schema,
             );
         output.push(schema);
@@ -294,14 +287,15 @@ pub(super) fn lower_program_local_root_introductions(
 }
 
 pub(super) fn lower_unit_structural_types(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
 ) -> Result<
     (
         Vec<StructuralTypeDeclaration>,
-        Vec<(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)>,
+        Vec<(String, StructuralTypeId)>,
         Vec<StructuralReferentIdentity>,
     ),
     LoweringError,
@@ -310,15 +304,16 @@ pub(super) fn lower_unit_structural_types(
 }
 
 pub(super) fn lower_unit_structural_types_including(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
-    additional_roots: &[typed_trees::type_identity::TypeIdentityId],
+    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
+    additional_roots: &[String],
 ) -> Result<
     (
         Vec<StructuralTypeDeclaration>,
-        Vec<(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)>,
+        Vec<(String, StructuralTypeId)>,
         Vec<StructuralReferentIdentity>,
     ),
     LoweringError,
@@ -334,10 +329,10 @@ pub(super) fn lower_unit_structural_types_including(
         {
             roots.push(result.type_identity);
         }
-        roots.extend(body.attachment());
+        roots.extend(body.attachment().map(str::to_owned));
         roots.extend(
             body.structural_parameters()
-                .map(|parameter| parameter.type_identity),
+                .map(|parameter| parameter.type_identity.clone()),
         );
         roots.extend(
             body.parameter_storage()
@@ -347,9 +342,9 @@ pub(super) fn lower_unit_structural_types_including(
             UnitBody::Ordinary(machine) => machine.trivial_affine_locals.as_slice(),
             UnitBody::Composed(_) => &[],
         } {
-            roots.push(local.type_identity);
+            roots.push(local.type_identity.clone());
             if let Some(construction) = &local.construction {
-                roots.push(construction.root_type_identity);
+                roots.push(construction.root_type_identity.clone());
             }
         }
         for operation in body.operations() {
@@ -374,34 +369,34 @@ pub(super) fn lower_unit_structural_types_including(
                     };
                     target.entry()?;
                     roots.push(signature.type_identity);
-                    roots.extend(target.attachment());
+                    roots.extend(target.attachment().map(str::to_owned));
                     roots.extend(
                         target
                             .structural_parameters()
-                            .map(|parameter| parameter.type_identity),
+                            .map(|parameter| parameter.type_identity.clone()),
                     );
                 }
                 CheckedUnitEffectOperationPlan::Call(call)
                     if let Some(result) = call.structural_result()
                         && call.is_boundary() =>
                 {
-                    roots.push(result.type_identity);
+                    roots.push(result.type_identity.clone());
                 }
                 _ => {}
             }
         }
     }
     for (boundary, _) in boundaries {
-        roots.extend(boundary.attachment_type_identity.iter().copied());
+        roots.extend(boundary.attachment_type_identity.iter().cloned());
         roots.extend(
             boundary
                 .structural_parameters
                 .iter()
-                .map(|parameter| parameter.type_identity),
+                .map(|parameter| parameter.type_identity.clone()),
         );
-        roots.extend(boundary.result.structural_identity());
+        roots.extend(boundary.result.structural_identity().map(str::to_owned));
     }
-    let (mut declarations, mut identities, referents) =
+    let (mut declarations, mut identity_ids, referents) =
         lower_unit_structural_type_roots(checked, plans, &roots)?;
     // A captured coordinate is compiler-owned primitive storage, even when
     // its source is an inline field and no authored signature roots u64.
@@ -434,24 +429,18 @@ pub(super) fn lower_unit_structural_types_including(
             }
         }
         if needs_coordinate {
-            let identity = crate::terminal_identities::primitive_scalar_identity(
-                plans.structural_types(),
-                checked_trees::types::PrimitiveType::U64,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "record coordinate carrier is not a published scalar",
-            ))?;
-            if identities.iter().any(|(existing, _)| *existing == identity) {
+            let identity = "named(name(u64))".to_owned();
+            if identity_ids.iter().any(|(existing, _)| *existing == identity) {
                 return unsupported(
                     "record coordinate carrier conflicts with its catalog identity",
                 );
             }
-            let id = structural_type_id(dense_identity(identities.len())?);
-            identities.push((identity, id));
+            let id = structural_type_id(dense_identity(identity_ids.len())?);
+            identity_ids.push((identity.clone(), id));
             declarations.push(StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id,
-                identity: checked.type_identity_text(identity).unwrap_or_default(),
+                identity: identities.intern(&identity),
                 shape: StructuralTypeShape::PrimitiveScalar(scalar),
             });
         }
@@ -461,7 +450,7 @@ pub(super) fn lower_unit_structural_types_including(
 
 fn select_from<'a>(
     roster: impl Iterator<Item = &'a CheckedUnitStructuralTypePlan>,
-    identity: TypeIdentityId,
+    identity: &str,
     selected: &mut Option<&'a CheckedUnitStructuralTypePlan>,
 ) -> Result<(), LoweringError> {
     let mut matches = roster.filter(|plan| plan.identity == identity);
@@ -481,35 +470,38 @@ fn select_from<'a>(
 /// The one checked declaration of `identity` in the Unit roster.
 fn selected_declaration<'a>(
     plans: UnitPlans<'a>,
-    identity: TypeIdentityId,
+    identity: &str,
 ) -> Result<&'a CheckedUnitStructuralTypePlan, LoweringError> {
+    if identity.is_empty() {
+        return unsupported("Unit closure contains a duplicate or empty structural type identity");
+    }
     let mut selected = None;
     select_from(plans.structural_types(), identity, &mut selected)?;
-    selected.ok_or_else(|| LoweringError::MissingUnitStructuralType(
-        "<structural type identity>".to_owned(),
-    ))
+    selected.ok_or_else(|| LoweringError::MissingUnitStructuralType(identity.to_owned()))
 }
 
 pub(crate) fn lower_unit_structural_type_roots(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
-    roots: &[TypeIdentityId],
+    roots: &[String],
 ) -> Result<
     (
         Vec<StructuralTypeDeclaration>,
-        Vec<(TypeIdentityId, StructuralTypeId)>,
+        Vec<(String, StructuralTypeId)>,
         Vec<StructuralReferentIdentity>,
     ),
     LoweringError,
 > {
     fn collect<'a>(
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &'a CheckedTrees,
         plans: UnitPlans<'a>,
-        identity: TypeIdentityId,
-        active: &mut Vec<TypeIdentityId>,
+        identity: &str,
+        active: &mut Vec<String>,
         selected: &mut Vec<&'a CheckedUnitStructuralTypePlan>,
     ) -> Result<(), LoweringError> {
-        if active.iter().any(|candidate| *candidate == identity) {
+        if active.iter().any(|candidate| candidate == identity) {
             return unsupported("recursive structural type is outside the Unit terminal slice");
         }
         if selected
@@ -519,7 +511,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             return Ok(());
         }
         let plan = selected_declaration(plans, identity)?;
-        active.push(identity);
+        active.push(identity.to_owned());
         match &plan.shape {
             // Pointer transport names a closed referent, not its storage.
             // Actual backing and dereference operations root concrete shapes
@@ -537,11 +529,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             ) => collect(
                 checked,
                 plans,
-                byte_view_element_identity(plans.structural_types()).ok_or(
-                    LoweringError::Unsupported(
-                        "Unit byte view has no retained u8 element declaration",
-                    ),
-                )?,
+                BYTE_VIEW_ELEMENT_TYPE_IDENTITY,
                 active,
                 selected,
             )?,
@@ -555,26 +543,26 @@ pub(crate) fn lower_unit_structural_type_roots(
             CheckedUnitStructuralTypeShape::BorrowedSliceView {
                 element_type_identity,
             } => {
-                collect(checked, plans, *element_type_identity, active, selected)?;
+                collect(checked, plans, element_type_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::Record { fields, .. } => {
                 for type_identity in fields.iter().flat_map(
                     checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
                 ) {
-                    collect(checked, plans, type_identity, active, selected)?;
+                    collect(identities, checked, plans, type_identity, active, selected)?;
                 }
             }
             CheckedUnitStructuralTypeShape::FixedArray {
                 element_type_identity,
                 ..
             } => {
-                collect(checked, plans, *element_type_identity, active, selected)?;
+                collect(checked, plans, element_type_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 for type_identity in cases.iter().flat_map(|case| &case.fields).flat_map(
                     checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
                 ) {
-                    collect(checked, plans, type_identity, active, selected)?;
+                    collect(identities, checked, plans, type_identity, active, selected)?;
                 }
             }
             CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
@@ -585,7 +573,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                         checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
                     )
                 {
-                    collect(checked, plans, type_identity, active, selected)?;
+                    collect(identities, checked, plans, type_identity, active, selected)?;
                 }
             }
         }
@@ -597,7 +585,7 @@ pub(crate) fn lower_unit_structural_type_roots(
     let mut selected = Vec::new();
     let mut active = Vec::new();
     for identity in roots {
-        collect(checked, plans, *identity, &mut active, &mut selected)?;
+        collect(checked, plans, identity, &mut active, &mut selected)?;
     }
     selected.sort_by(|left, right| left.identity.cmp(&right.identity));
     let referent_names = selected
@@ -609,7 +597,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                 .iter()
                 .any(|definition| definition.identity == *referent_identity) =>
             {
-                Some(*referent_identity)
+                Some(referent_identity.clone())
             }
             _ => None,
         })
@@ -621,14 +609,14 @@ pub(crate) fn lower_unit_structural_type_roots(
         .iter()
         .chain(selected.iter().map(|plan| &plan.identity))
         .enumerate()
-        .map(|(index, identity)| Ok((*identity, structural_type_id(dense_identity(index)?))))
+        .map(|(index, identity)| Ok((identity.clone(), structural_type_id(dense_identity(index)?))))
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let referents = referent_names
         .into_iter()
         .map(|identity| {
             Ok(StructuralReferentIdentity {
                 id: lookup_type_id(&type_ids, &identity)?,
-                identity: checked.type_identity_text(identity).unwrap_or_default(),
+                identity: identities.intern(&identity),
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -636,7 +624,7 @@ pub(crate) fn lower_unit_structural_type_roots(
     let mut next_case = 1_u64;
     let mut declarations = Vec::with_capacity(selected.len());
     for plan in selected {
-        let identity = plan.identity;
+        let identity = plan.identity.clone();
         let shape = match &plan.shape {
             CheckedUnitStructuralTypeShape::BindingCarrier => StructuralTypeShape::BindingCarrier,
             CheckedUnitStructuralTypeShape::Reference {
@@ -678,7 +666,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             CheckedUnitStructuralTypeShape::Record { fields, storage } => {
                 let mut field_identities = BTreeSet::new();
                 let fields = fields.iter().map(|field| {
-                if !field.identity.is_valid() || !field_identities.insert(field.identity.clone()) {
+                if field.identity.is_empty() || !field_identities.insert(field.identity.as_str()) {
                     return Err(LoweringError::Unsupported(
                         "Unit structural type contains an empty or duplicate field identity",
                     ));
@@ -687,7 +675,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                     CheckedUnitStructuralFieldType::ProviderBacked {
                         provider_type_identity,
                     } => (field.relevance, StructuralFieldType::Erased {
-                        type_identity: checked.type_identity_text(*provider_type_identity).unwrap_or_default(),
+                        type_identity: provider_type_identity.clone(),
                     }),
                     CheckedUnitStructuralFieldType::BindingBacked {
                         provider_type_identity,
@@ -706,12 +694,12 @@ pub(crate) fn lower_unit_structural_type_roots(
                             lookup_type_id(&type_ids, provider_type_identity)?,
                         ))
                     }
-                    field_type => (field.relevance, crate::structural_types::lower_field_type(checked, field_type, &type_ids)?),
+                    field_type => (field.relevance, crate::structural_types::lower_field_type(field_type, &type_ids)?),
                 };
                 let declaration = StructuralFieldDeclaration {
                     storage: field.storage.clone(),
                     id: structural_field_id(allocate_dense(&mut next_field)?),
-                    identity: field.identity.spelling(),
+                    identity: identities.intern(&field.identity),
                     relevance,
                     field_type,
                 };
@@ -734,8 +722,8 @@ pub(crate) fn lower_unit_structural_type_roots(
                 let cases = cases
                     .iter()
                     .map(|case| {
-                        if !case.identity.is_valid()
-                            || !case_identities.insert(case.identity.clone())
+                        if case.identity.is_empty()
+                            || !case_identities.insert(case.identity.as_str())
                         {
                             return Err(LoweringError::Unsupported(
                                 "Unit structural type contains an empty or duplicate case identity",
@@ -744,26 +732,26 @@ pub(crate) fn lower_unit_structural_type_roots(
                         Ok(StructuralCaseDeclaration {
                             id: StructuralCaseId::new(allocate_dense(&mut next_case)?)
                                 .expect("allocated structural case identity is nonzero"),
-                            identity: case.identity.spelling(),
+                            identity: identities.intern(&case.identity),
                             fields: {
                                 let mut field_identities = BTreeSet::new();
                                 case.fields
                                     .iter()
                                     .map(|field| {
-                                        if !field.identity.is_valid()
-                                            || !field_identities.insert(field.identity.clone())
+                                        if field.identity.is_empty()
+                                            || !field_identities.insert(field.identity.as_str())
                                         {
                                             return Err(LoweringError::Unsupported(
                                                 "Unit structural sum case contains an empty or duplicate payload field identity",
                                             ));
                                         }
-                                        let field_type = crate::structural_types::lower_field_type(checked, &field.field_type, &type_ids)?;
+                                        let field_type = crate::structural_types::lower_field_type(&field.field_type, &type_ids)?;
                                         Ok(StructuralFieldDeclaration {
                                             storage: field.storage.clone(),
                                             id: structural_field_id(allocate_dense(
                                                 &mut next_field,
                                             )?),
-                                            identity: field.identity.spelling(),
+                                            identity: identities.intern(&field.identity),
                                             relevance: field.relevance,
                                             field_type,
                                         })
@@ -776,8 +764,8 @@ pub(crate) fn lower_unit_structural_type_roots(
                 StructuralTypeShape::Sum { cases }
             }
             CheckedUnitStructuralTypeShape::Mixed { fields, cases } => StructuralTypeShape::Mixed {
-                fields: lower_mixed_fields(checked, fields, &type_ids, &mut next_field)?,
-                cases: lower_mixed_cases(checked, cases, &type_ids, &mut next_field, &mut next_case)?,
+                fields: lower_mixed_fields(fields, &type_ids, &mut next_field)?,
+                cases: lower_mixed_cases(cases, &type_ids, &mut next_field, &mut next_case)?,
             },
         };
         declarations.push(StructuralTypeDeclaration {
@@ -785,11 +773,11 @@ pub(crate) fn lower_unit_structural_type_roots(
                 .scalar_restriction
                 .as_ref()
                 .map(|restriction| {
-                    crate::structural_types::lower_field_type(checked, restriction, &type_ids)
+                    crate::structural_types::lower_field_type(restriction, &type_ids)
                 })
                 .transpose()?,
             id: lookup_type_id(&type_ids, &identity)?,
-            identity: checked.type_identity_text(identity).unwrap_or_default(),
+            identity,
             shape,
         });
     }
@@ -797,11 +785,12 @@ pub(crate) fn lower_unit_structural_type_roots(
 }
 
 pub(super) fn lower_unit_structural_domains(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
-    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
+    type_ids: &[(String, StructuralTypeId)],
 ) -> Result<
     (
         Vec<StructuralDomainDeclaration>,
@@ -912,13 +901,13 @@ pub(super) fn lower_unit_structural_domains(
                     .any(|(identity, _)| *identity == plan.carrier_type_identity)
         }) {
             found = true;
-            if carriers.contains(&plan.carrier_type_identity) {
+            if carriers.contains(&plan.carrier_type_identity.as_str()) {
                 return unsupported("Unit closure has duplicate structural domain ownership");
             }
-            carriers.push(plan.carrier_type_identity);
+            carriers.push(plan.carrier_type_identity.as_str());
             if !domain.is_valid()
-                || plan.name.is_empty()
-                || !plan.carrier_type_identity.is_valid()
+                || plan.identity.is_empty()
+                || plan.carrier_type_identity.is_empty()
             {
                 return Err(LoweringError::Unsupported(
                     "Unit structural domain is duplicate, null, or incomplete",
@@ -934,11 +923,11 @@ pub(super) fn lower_unit_structural_domains(
     // Keep every reachable instantiation; never select one capacity by source
     // declaration order or let it authorize another capacity's membership.
     selected_plans.sort_by(|left, right| {
-        (&left.name, &left.carrier_type_identity)
-            .cmp(&(&right.name, &right.carrier_type_identity))
+        (&left.identity, &left.carrier_type_identity)
+            .cmp(&(&right.identity, &right.carrier_type_identity))
     });
     if selected_plans.windows(2).any(|pair| {
-        pair[0].name == pair[1].name
+        pair[0].identity == pair[1].identity
             && pair[0].carrier_type_identity == pair[1].carrier_type_identity
     }) {
         return unsupported("Unit structural domains have duplicate canonical identities");
@@ -960,9 +949,7 @@ pub(super) fn lower_unit_structural_domains(
             let content_projection = content_conservation::lower_structural_content_projection(
                 checked,
                 plan.domain,
-                &checked
-                    .type_identity_text(plan.carrier_type_identity)
-                    .unwrap_or_default(),
+                &plan.carrier_type_identity,
             )?;
             let establishment_routes =
                 lower_establishment_routes(checked, &plan.establishment_routes)?;
@@ -976,12 +963,7 @@ pub(super) fn lower_unit_structural_domains(
                 )?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,
-                identity: structural_domain_identity(
-                &plan.name,
-                &checked
-                    .type_identity_text(plan.carrier_type_identity)
-                    .unwrap_or_default(),
-            ),
+                identity: structural_domain_identity(&plan.identity, &plan.carrier_type_identity),
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
                 content_projection,
             })
@@ -1167,10 +1149,11 @@ pub(super) fn call_result_qualification_establishments(
 }
 
 pub(super) fn lower_unit_services(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     provider_candidates: &[CheckedUnitProviderCandidate],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
     lower_unit_services_including(
@@ -1184,10 +1167,11 @@ pub(super) fn lower_unit_services(
 }
 
 pub(super) fn lower_unit_services_including(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     provider_candidates: &[CheckedUnitProviderCandidate],
     additional_roots: &[ServiceReachId],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {

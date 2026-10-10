@@ -40,6 +40,16 @@ impl TerminalIdentityTable {
     /// The rendered identity text `index` names; `None` for an out-of-range
     /// index (impossible for codec-decoded modules, whose indices are checked
     /// against the table length once).
+    /// Reverse lookup used when a checked-side identity must rejoin its
+    /// already-interned terminal index (artifact rosters built after the
+    /// module table is sealed). Construction-scale tables keep this a scan.
+    pub fn index_of(&self, text: &str) -> Option<TerminalIdentityIndex> {
+        self.entries
+            .iter()
+            .position(|entry| entry == text)
+            .map(|position| TerminalIdentityIndex(position as u32))
+    }
+
     pub fn text(&self, index: TerminalIdentityIndex) -> Option<&str> {
         self.entries.get(index.0 as usize).map(String::as_str)
     }

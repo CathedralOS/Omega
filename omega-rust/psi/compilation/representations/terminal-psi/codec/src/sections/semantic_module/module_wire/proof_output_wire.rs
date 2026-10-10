@@ -6,8 +6,7 @@ use super::super::CodecError;
 use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::super::wire::{Reader, Writer};
 use crate::sections::semantic_module::wire::decode_counted;
-use terminal_psi::{
-    ClosedConformanceApplicationCommitment, ProofOutput, ProofOutputCall,
+use terminal_psi::{TerminalIdentityIndex, ClosedConformanceApplicationCommitment, ProofOutput, ProofOutputCall,
     ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
     StaticRequirementDispatch,
 };
@@ -18,34 +17,16 @@ pub(super) fn encode_proof_output_call(
 ) -> Result<(), CodecError> {
     writer.id(invocation.caller);
     writer.u32(invocation.ordinal);
-    writer.string(
-        "proof-output target machine identity",
-        &invocation.target_machine_identity,
-    )?;
+    writer.u32(invocation.target_machine_identity.0);
     writer.boolean(invocation.static_requirement_dispatch.is_some());
     if let Some(dispatch) = &invocation.static_requirement_dispatch {
         writer.u64(dispatch.conformance_application_report_fingerprint);
         writer.bytes(&dispatch.conformance_application_commitment.as_bytes());
-        writer.string(
-            "static public requirement identity",
-            &dispatch.public_requirement_identity,
-        )?;
-        writer.string(
-            "static requirement declaring trait identity",
-            &dispatch.declaring_trait_identity,
-        )?;
-        writer.string(
-            "static requirement identity",
-            &dispatch.requirement_identity,
-        )?;
-        writer.string(
-            "static requirement realization identity",
-            &dispatch.realization_identity,
-        )?;
-        writer.string(
-            "static requirement realization callable identity",
-            &dispatch.realization_callable_identity,
-        )?;
+        writer.u32(dispatch.public_requirement_identity.0);
+        writer.u32(dispatch.declaring_trait_identity.0);
+        writer.u32(dispatch.requirement_identity.0);
+        writer.u32(dispatch.realization_identity.0);
+        writer.u32(dispatch.realization_callable_identity.0);
         writer.id(dispatch.realization);
     }
     writer.boolean(invocation.runtime_result.is_some());
@@ -101,7 +82,7 @@ pub(super) fn decode_proof_output_call(
     Ok(ProofOutputCall {
         caller: reader.id("MachineId")?,
         ordinal: reader.u32()?,
-        target_machine_identity: reader.string("proof-output target machine identity")?,
+        target_machine_identity: TerminalIdentityIndex(reader.u32()?),
         static_requirement_dispatch: reader
             .boolean()?
             .then(|| {
@@ -109,15 +90,11 @@ pub(super) fn decode_proof_output_call(
                     conformance_application_report_fingerprint: reader.u64()?,
                     conformance_application_commitment:
                         ClosedConformanceApplicationCommitment::from_digest(reader.array()?),
-                    public_requirement_identity: reader
-                        .string("static public requirement identity")?,
-                    declaring_trait_identity: reader
-                        .string("static requirement declaring trait identity")?,
-                    requirement_identity: reader.string("static requirement identity")?,
-                    realization_identity: reader
-                        .string("static requirement realization identity")?,
-                    realization_callable_identity: reader
-                        .string("static requirement realization callable identity")?,
+                    public_requirement_identity: TerminalIdentityIndex(reader.u32()?) /* static public requirement identity */,
+                    declaring_trait_identity: TerminalIdentityIndex(reader.u32()?) /* static requirement declaring trait identity */,
+                    requirement_identity: TerminalIdentityIndex(reader.u32()?),
+                    realization_identity: TerminalIdentityIndex(reader.u32()?) /* static requirement realization identity */,
+                    realization_callable_identity: TerminalIdentityIndex(reader.u32()?) /* static requirement realization callable identity */,
                     realization: reader.id("MachineId")?,
                 })
             })
@@ -152,7 +129,7 @@ pub(super) fn decode_proof_output_call(
         outputs: decode_counted(reader, |reader| {
             Ok(ProofOutput {
                 output_position: reader.u32()?,
-                output_field: reader.string("proof-output field")?,
+                output_field: reader.string("proof output field")?,
                 callee_proposition: reader.id("PropositionId")?,
                 callee_output: reader
                     .boolean()?

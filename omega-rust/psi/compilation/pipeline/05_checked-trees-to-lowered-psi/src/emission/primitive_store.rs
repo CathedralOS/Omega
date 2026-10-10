@@ -47,6 +47,7 @@ pub(crate) fn parameter_destination(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_assignment(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -66,6 +67,7 @@ pub(crate) fn emit_assignment(
 ) -> Result<OperationKind, LoweringError> {
     // The runtime elements' selectors are evaluated before the stored value.
     let indexes = super::runtime_elements::evaluate_selectors(
+            identities,
         &destination.path,
         checked,
         machine,
@@ -182,6 +184,7 @@ pub(crate) fn destination_restriction(
 /// A static projection to a primitive leaf, for observations that name no
 /// runtime element.
 pub(crate) fn lower_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
@@ -192,7 +195,7 @@ pub(crate) fn lower_path(
         // carrier walk (including its bounds), then query read-only leaf typing.
         let (steps, _) = walk_path(structural_type, carrier, types)?;
         let mut path = super::runtime_elements::static_segments(steps)?;
-        path.push(terminal_psi::StructuralPathSegment::Field(identity.spelling()));
+        path.push(terminal_psi::StructuralPathSegment::Field(identities.intern(&identity.spelling())));
         let scalar_type = terminal_semantics::primitive_read_projection_type(
             types.iter(),
             structural_type,
@@ -214,6 +217,7 @@ pub(crate) fn lower_path(
 /// retains its declared scalar carrier and invariant; array elements retain
 /// their declared primitive type. Runtime selectors change neither.
 pub(crate) fn indexed_element_scalar_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     element: StructuralTypeId,
     element_path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
@@ -237,7 +241,7 @@ pub(crate) fn indexed_element_scalar_type(
             .ok_or(LoweringError::Unsupported(
                 "indexed field carrier has no directly addressed fields",
             ))?;
-        let mut matching = fields.iter().filter(|field| field.identity == identity.spelling());
+        let mut matching = fields.iter().filter(|field| field.identity == identities.intern(&identity.spelling()));
         let (Some(field), None) = (matching.next(), matching.next()) else {
             return unsupported("indexed field is absent or ambiguous");
         };

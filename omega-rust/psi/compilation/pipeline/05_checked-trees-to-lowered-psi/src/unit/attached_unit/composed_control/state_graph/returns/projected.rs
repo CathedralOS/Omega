@@ -20,6 +20,7 @@ use terminal_psi::{
 /// existing edge transport transfers custody and independently checks cleanup;
 /// no reference establishment, origin selection or copy permission is invented.
 pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     binding: &StructuralBinding,
     source: semantic_vocabulary::PlaceId,
@@ -112,6 +113,7 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
         parameters: arrival_parameters,
         erased_scalar_formals: Vec::new(),
         erased_proof_formals: crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+            identities,
             checked,
             &evaluation.erased_proof_formals,
         ),

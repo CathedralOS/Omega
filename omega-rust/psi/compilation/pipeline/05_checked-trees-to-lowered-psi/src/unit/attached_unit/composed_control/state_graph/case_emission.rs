@@ -26,6 +26,7 @@ pub(super) struct PreparedCases<'a> {
 }
 
 pub(super) fn prepare<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     state: &'a CheckedComposedUnitControlStatePlan,
     catalogs: &catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
@@ -68,6 +69,7 @@ pub(super) fn prepare<'a>(
     };
     let prepared_path =
         crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+            identities,
             &subject.path,
             structural_type,
             &catalogs.structural_types,

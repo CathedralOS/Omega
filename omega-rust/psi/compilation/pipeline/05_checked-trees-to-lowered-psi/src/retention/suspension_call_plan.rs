@@ -16,6 +16,7 @@ use crate::terminal_identities::lookup_claim_id;
 use arena::{Handle, HandleSpan};
 use terminal_psi::{TerminalSuspensionPlace, TerminalSuspensionValueType};
 pub(crate) fn retain_suspension_call_plans(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machines: &[symbols::SymbolHandle],
     source_calls: &[LoweredSourceCallOccurrence],
@@ -223,7 +224,8 @@ pub(crate) fn retain_suspension_call_plans(
             operation: plan.operation,
             crossing: plan.crossing,
             target: plan.target,
-            frontier_commitment: terminal_psi::suspension_frontier_commitment(plan),
+            frontier_commitment: terminal_psi::suspension_frontier_commitment(
+            identities,plan),
         })
         .collect();
     module.suspension_call_plans = plans;
@@ -372,7 +374,8 @@ fn retain_loan_graph(
                 else {
                     return unsupported("suspension captured loan has no structural operand");
                 };
-                let path = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(path, root, types)?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+            identities,path, root, types)?;
                 let path = graph.paths.insert_many(path);
                 let capture = TerminalSuspensionLoanCapture::CallArgument {
                     live_value: u32::try_from(live_value).map_err(|_| {

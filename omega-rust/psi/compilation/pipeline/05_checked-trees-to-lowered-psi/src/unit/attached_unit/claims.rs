@@ -174,6 +174,7 @@ pub(super) fn lower_owned_transfer_claims(
 /// of importing the unconditional permission stream into an arm.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_owned_operand_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -299,7 +300,8 @@ pub(super) fn lower_owned_operand_claims(
         };
         claims.push(terminal_psi::StructuralResultClaimBinding {
             claim: lookup_claim_id(bindings, event.claim_identity)?,
-            path: lower_static_argument_path(relative, structural_type, structural_types)?,
+            path: lower_static_argument_path(
+            identities,relative, structural_type, structural_types)?,
         });
     }
     if let Some((_, receipt)) = selection {
@@ -370,7 +372,8 @@ pub(super) fn lower_owned_operand_claims(
                             "selected claim is outside its operand",
                         ))?;
                 claims.push(terminal_psi::StructuralResultClaimBinding {
-                    claim: lookup_claim_id(bindings, claim.claim_identity)?,
+                    claim: lookup_claim_id(
+            identities,bindings, claim.claim_identity)?,
                     path: lower_static_argument_path(relative, structural_type, structural_types)?,
                 });
             }
@@ -433,6 +436,7 @@ pub(super) fn validate_entry_claims(
 }
 
 pub(super) fn lower_unit_entry_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     claims: &[CheckedUnitEntryClaimPlan],
@@ -471,7 +475,8 @@ pub(super) fn lower_unit_entry_claims(
         {
             return unsupported("Unit entry claim identity is duplicated");
         }
-        let id = claim_id(allocate_dense(&mut next_claim)?);
+        let id = claim_id(
+            identities,allocate_dense(&mut next_claim)?);
         entry_claims.push(EntryClaim {
             claim: id,
             input: parameter.place,
