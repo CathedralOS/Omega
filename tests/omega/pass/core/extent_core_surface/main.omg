@@ -7,5 +7,11 @@ data Holder {
     slot: ExtentSlot;
 }
 
+// Granted's geometry is a transparent mathematical value, not a runtime call.
+machine no_wrap_is_geometry(base: addr, length: u64)
+requires no_wrap(base, length)
+ensures embed(base) + embed(length) <= addr::Bound
+{}
+
 machine main() {
 }
