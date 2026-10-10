@@ -9,6 +9,21 @@ pub fn stored_integer_source_may_require_fit(
     state: &State,
     source: &crate::LocalWriteSource,
 ) -> Result<bool, ()> {
+    let targets =
+        crate::layout_checking_targets(program, source_layout_roots(program, state, source)?)?;
+    let mut requires_fit = false;
+    for target in targets {
+        let alternative = crate::LayoutCheckingContext::new(program, target);
+        requires_fit |= source_may_require_fit_alternative(&alternative, state, source)?;
+    }
+    Ok(requires_fit)
+}
+
+fn source_may_require_fit_alternative(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    source: &crate::LocalWriteSource,
+) -> Result<bool, ()> {
     let (carrier, path) = source_coordinates(program, state, source)?;
     if coordinate_requires_fit(program, carrier, &path)? {
         return Ok(true);
@@ -57,7 +72,10 @@ fn field_requires_fit(program: &dyn crate::CheckingInput, field: SymbolHandle) -
             .iter()
             .position(|candidate| *candidate == field)
         {
-            if let Some(integer) = plan
+            let geometry = plan
+                .geometry_for_target(program.typed_program(), program.layout_target())
+                .ok_or(())?;
+            if let Some(integer) = geometry
                 .integer_fields
                 .iter()
                 .find(|integer| integer.field_index == index)

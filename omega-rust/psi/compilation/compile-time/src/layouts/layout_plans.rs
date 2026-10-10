@@ -46,16 +46,51 @@ pub fn compute_native_layout_plan(
     schema_data: &str,
     selection: Option<crate::AuthorizedSelection>,
 ) -> Result<NativeLayoutPlanReport, String> {
+    let machine = typed
+        .realized_machine_named(policy_machine)
+        .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
+    compute_native_layout_plan_for_machine(typed, machine.symbol, schema_data, selection)
+}
+
+/// Evaluate one exact checked policy body. A family interface is never replaced
+/// with a selected member here; the application owner evaluates its full roster.
+pub fn compute_native_layout_plan_for_machine(
+    typed: &TypedTrees,
+    machine_symbol: symbols::SymbolHandle,
+    schema_data: &str,
+    selection: Option<crate::AuthorizedSelection>,
+) -> Result<NativeLayoutPlanReport, String> {
+    let (fields, fingerprint) = schema_fields(typed, schema_data)?;
+    compute_native_layout_plan_with_schema(
+        typed,
+        machine_symbol,
+        schema_data,
+        &fields,
+        fingerprint,
+        selection,
+    )
+}
+
+/// The family installer captures this exact field slice as the fold input and
+/// uses it for every member, rather than reconstructing arguments per member.
+pub(super) fn compute_native_layout_plan_with_schema(
+    typed: &TypedTrees,
+    machine_symbol: symbols::SymbolHandle,
+    schema_data: &str,
+    schema_fields: &[super::schema_reflection::SchemaFieldInfo],
+    schema_report_fingerprint: u64,
+    selection: Option<crate::AuthorizedSelection>,
+) -> Result<NativeLayoutPlanReport, String> {
+    let machine = typed
+        .machine_by_symbol(machine_symbol)
+        .ok_or_else(|| "layout policy lost its exact machine declaration".to_owned())?;
+    let policy_machine = machine.name.as_str();
     let (selection_authority, custody) = match selection {
         Some(selection) => (Some(selection.authority), Some(selection.custody)),
         None => (None, None),
     };
-    let (schema_fields, schema_report_fingerprint) = schema_fields(typed, schema_data)?;
-    let schema_value = build_schema_value(typed, schema_data, &schema_fields)?;
+    let schema_value = build_schema_value(typed, schema_data, schema_fields)?;
 
-    let machine = typed
-        .realized_machine_named(policy_machine)
-        .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
     let admission = BuildTimeAdmissionPlan::infer(typed, selection_authority);
     match custody {
         Some(custody) => admission.require_common_floor_for_invocation(typed, machine, custody)?,
@@ -70,7 +105,7 @@ pub fn compute_native_layout_plan(
 
     let layout = validate_plan(
         evaluation.value(),
-        &schema_fields,
+        schema_fields,
         schema_report_fingerprint,
         policy_machine,
     )?;

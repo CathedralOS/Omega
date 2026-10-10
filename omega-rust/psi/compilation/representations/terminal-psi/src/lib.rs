@@ -118,3 +118,10 @@ pub use terminal_module::{
     structural_type_contains_reference, structural_type_contains_reference_by,
     suspension_frontier_commitment, types, unique_structural_declaration, values,
 };
+
+mod target_layouts;
+pub use target_layouts::{
+    LayoutApplicationId, StructuralRecordStorage, TargetLayoutApplication,
+    TargetLayoutFieldStorage, TargetLayoutRealization, TargetLayoutSchemaArgument,
+    TargetLayoutSchemaField, TargetLayoutSchemaFieldKind,
+};

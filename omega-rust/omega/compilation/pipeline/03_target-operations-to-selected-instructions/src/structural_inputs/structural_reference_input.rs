@@ -1282,7 +1282,13 @@ fn shape_inner(
             8,
         )),
         StructuralTypeShape::Record { fields, storage } => {
-            if let Some(storage) = storage {
+            if matches!(
+                storage,
+                terminal_psi::StructuralRecordStorage::TargetLayout(_)
+            ) {
+                return None;
+            }
+            if let terminal_psi::StructuralRecordStorage::Authored(storage) = storage {
                 active.pop();
                 return Some(ValueShape::integer(
                     u32::try_from(storage.byte_size).ok()?,

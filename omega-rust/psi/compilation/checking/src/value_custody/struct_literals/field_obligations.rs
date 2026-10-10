@@ -111,10 +111,12 @@ pub(super) fn enforce_construction_field_obligations(
                 diagnostics.push(Diagnostic::error(format!("{slot_context} {reason}")));
                 continue;
             }
-            if !crate::value_custody::expression_types::argument_matches_carrier(program,
+            if !crate::value_custody::expression_types::argument_matches_carrier(
+                program,
                 field.value,
                 field_type,
-        &[]) {
+                &[],
+            ) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{slot_context} expects reference `{}`, but the source does not supply its carrier and access",
                     program.display_type_reference_with_constraints(field_type),
@@ -222,8 +224,8 @@ pub(super) fn enforce_construction_field_obligations(
             &slot_context,
             diagnostics,
         );
-        if let Some(scalar) = scalar.as_ref()
-            && let Some(write) = stored_integers::validate_construction(
+        if let Some(scalar) = scalar.as_ref() {
+            stored_integer_writes.extend(stored_integers::validate_construction(
                 program,
                 machine,
                 state,
@@ -234,9 +236,7 @@ pub(super) fn enforce_construction_field_obligations(
                 &slot_context,
                 diagnostics,
                 statement_index,
-            )
-        {
-            stored_integer_writes.push(write);
+            ));
         }
         let Some(range) = crate::proof_contracts::arithmetic_domains::range_constraint_interval(
             program, field_type,

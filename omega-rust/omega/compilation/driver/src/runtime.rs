@@ -141,6 +141,15 @@ pub fn execute(
     let target_machines = request
         .target
         .map(|target| terminal_interpreter::admit_target_machine_selections(artifact, target));
+    let target_layouts = target_machines
+        .as_ref()
+        .map(|selected| terminal_interpreter::admit_target_layouts(artifact, selected))
+        .transpose()
+        .map_err(|error| {
+            TerminalRuntimeError::Requirements(
+                terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
+            )
+        })?;
     // These are this native request's admitted external settlements, not every
     // boundary with a retained checked alternative. Completion authority is
     // established separately below, never selected as a normal import.
@@ -160,6 +169,7 @@ pub fn execute(
             installation: checked_installation,
             host_imports: &host_imports,
             target_machines: target_machines.as_ref(),
+            target_layouts: target_layouts.as_ref(),
         })
         .map_err(TerminalRuntimeError::Requirements)?;
     let requirements = program

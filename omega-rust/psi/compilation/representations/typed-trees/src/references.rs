@@ -548,8 +548,13 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_symbol(retained, plan.schema_symbol);
             visit_symbol(retained, plan.policy_symbol);
             visit_symbol(retained, plan.policy_plan_machine_symbol);
-            for demand in &plan.private_callback_demands {
-                visit_closed_conformance(program, retained, &demand.slot_application);
+            for alternative in plan.target_layouts(program) {
+                visit_symbol(retained, alternative.machine);
+            }
+            for geometry in plan.geometries(program) {
+                for demand in &geometry.private_callback_demands {
+                    visit_closed_conformance(program, retained, &demand.slot_application);
+                }
             }
         }
         for plan in program

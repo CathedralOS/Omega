@@ -49,7 +49,7 @@ fn token() -> StructuralTypeDeclaration {
     declaration(
         1,
         StructuralTypeShape::Record {
-            storage: None,
+            storage: terminal_psi::StructuralRecordStorage::Packed,
             fields: vec![StructuralFieldDeclaration {
                 storage: None,
                 id: StructuralFieldId::new(1).unwrap(),
@@ -134,7 +134,7 @@ fn mixed_paths_preserve_maximal_untouched_rows() {
         declaration(
             3,
             StructuralTypeShape::Record {
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![
                     structural_field(1, "items", 2),
                     structural_field(2, "tail", 1),
@@ -151,7 +151,7 @@ fn mixed_paths_preserve_maximal_untouched_rows() {
         declaration(
             5,
             StructuralTypeShape::Record {
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![structural_field(1, "rows", 4)],
             },
         ),
@@ -189,7 +189,7 @@ fn empty_complement_requires_every_structural_descendant() {
         declaration(
             2,
             StructuralTypeShape::Record {
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![
                     structural_field(1, "first", 1),
                     structural_field(2, "last", 1),
@@ -323,7 +323,7 @@ fn full_path_layout_keeps_root_array_metadata_and_record_root_absence() {
         declaration(
             3,
             StructuralTypeShape::Record {
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![
                     structural_field(1, "items", 2),
                     structural_field(2, "tail", 1),
@@ -382,7 +382,7 @@ fn full_path_layout_keeps_root_array_metadata_and_record_root_absence() {
     declarations.push(declaration(
         5,
         StructuralTypeShape::Record {
-            storage: None,
+            storage: terminal_psi::StructuralRecordStorage::Packed,
             fields: vec![structural_field(1, "rows", 4)],
         },
     ));

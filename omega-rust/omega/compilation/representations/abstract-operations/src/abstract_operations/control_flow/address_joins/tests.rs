@@ -55,7 +55,7 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
                         }),
                     ),
                 ],
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
             },
         ),
         declaration(2, StructuralTypeShape::ByteSequence(OWNER)),

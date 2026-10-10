@@ -58,8 +58,9 @@ pub use commitments::{
 };
 pub use placed_plans::{
     PlacedAccessorTarget, PlacedAtomicObservingResultContract, PlacedAtomicResidentContract,
-    PlacedFieldPlan, PlacedViewPlan, PlanLaidBitField, PlanLaidBitFragment, PlanLaidIntegerField,
-    PlanLaidLayout, PlanLaidRepeatedField,
+    PlacedFieldPlan, PlacedViewPlan, PlanLaidBitField, PlanLaidBitFragment, PlanLaidGeometry,
+    PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations, PlanLaidRepeatedField,
+    PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
 };
 
 use crate::{
@@ -146,6 +147,10 @@ pub struct TypedTrees {
     /// instead of running its own packing. Empty for programs with no
     /// plan-laid fields.
     pub plan_laid_layouts: Vec<PlanLaidLayout>,
+    /// Guarded exact policy-member geometries owned by application spans.
+    pub plan_laid_target_layouts: Arena<PlanLaidTargetLayout>,
+    /// Exact active Schema argument rows retained by family applications.
+    pub plan_laid_schema_fields: Arena<PlanLaidSchemaField>,
     /// Canonical source `Placed<P, T>` derivations. Each record binds the
     /// synthetic view/accessor types to the validated placement plan that
     /// selected them, so checking and lowering never reconstruct permissions
@@ -452,6 +457,8 @@ impl TypedTrees {
             semantic_domains: language_semantics::SemanticDomainTable::default(),
             external_bindings: language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
+            plan_laid_target_layouts: Arena::new(),
+            plan_laid_schema_fields: Arena::new(),
             placed_view_plans: Vec::new(),
             wire_placements: Arena::new(),
             wire_encode_obligations: Arena::new(),

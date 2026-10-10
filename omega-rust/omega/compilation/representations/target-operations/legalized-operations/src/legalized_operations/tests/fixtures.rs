@@ -111,7 +111,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     id: extent_type,
                     identity: "omega::core::Extent".into(),
                     shape: StructuralTypeShape::Record {
-                        storage: None,
+                        storage: terminal_psi::StructuralRecordStorage::Packed,
                         fields: vec![
                             StructuralFieldDeclaration {
                                 storage: None,

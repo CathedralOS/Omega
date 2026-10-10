@@ -174,9 +174,23 @@ impl<'program> Evaluator<'program> {
             field_symbols.push(field.symbol);
         }
 
-        let plan = self.program.plan_laid_layout(data.symbol);
+        let application = self.program.plan_laid_layout(data.symbol);
+        // Private checked interpretation owns no deployment selection. A family
+        // cannot be decoded as either ordinary packing or one representative.
+        let plan = match application {
+            Some(application) => match application.invariant_geometry() {
+                Some(geometry) => Some(geometry),
+                None => {
+                    visiting.remove(type_name);
+                    return Ok(None);
+                }
+            },
+            None => None,
+        };
         let offsets = if let Some(plan) = plan {
-            if plan.offsets.len() != field_specs.len() || plan.field_symbols != field_symbols {
+            if plan.offsets.len() != field_specs.len()
+                || application.is_none_or(|application| application.field_symbols != field_symbols)
+            {
                 visiting.remove(type_name);
                 return Ok(None);
             }
@@ -458,8 +472,10 @@ impl<'program> Evaluator<'program> {
             field_layouts.push(layout);
             field_symbols.push(field.symbol);
         }
-        let result = if let Some(plan) = self.program.plan_laid_layout(data.symbol) {
-            (plan.offsets.len() == field_layouts.len() && plan.field_symbols == field_symbols)
+        let result = if let Some(application) = self.program.plan_laid_layout(data.symbol) {
+            let plan = application.invariant_geometry()?;
+            (plan.offsets.len() == field_layouts.len()
+                && application.field_symbols == field_symbols)
                 .then_some((plan.size, plan.align))
         } else {
             let mut offset = 0usize;
@@ -501,26 +517,28 @@ impl<'program> Evaluator<'program> {
             layouts.push(layout);
             field_symbols.push(field.symbol);
         }
-        let (offsets, integer_fields, repeated_fields) =
-            if let Some(plan) = self.program.plan_laid_layout(data.symbol) {
-                if plan.offsets.len() != fields.len() || plan.field_symbols != field_symbols {
-                    return None;
-                }
-                (
-                    plan.offsets.clone(),
-                    plan.integer_fields.clone(),
-                    plan.repeated_fields.clone(),
-                )
-            } else {
-                let mut offsets = Vec::with_capacity(fields.len());
-                let mut offset = 0usize;
-                for (size, align) in layouts {
-                    offset = offset.div_ceil(align) * align;
-                    offsets.push(offset);
-                    offset = offset.checked_add(size)?;
-                }
-                (offsets, Vec::new(), Vec::new())
-            };
+        let (offsets, integer_fields, repeated_fields) = if let Some(application) =
+            self.program.plan_laid_layout(data.symbol)
+        {
+            let plan = application.invariant_geometry()?;
+            if plan.offsets.len() != fields.len() || application.field_symbols != field_symbols {
+                return None;
+            }
+            (
+                plan.offsets.clone(),
+                plan.integer_fields.clone(),
+                plan.repeated_fields.clone(),
+            )
+        } else {
+            let mut offsets = Vec::with_capacity(fields.len());
+            let mut offset = 0usize;
+            for (size, align) in layouts {
+                offset = offset.div_ceil(align) * align;
+                offsets.push(offset);
+                offset = offset.checked_add(size)?;
+            }
+            (offsets, Vec::new(), Vec::new())
+        };
         Some(
             fields
                 .into_iter()

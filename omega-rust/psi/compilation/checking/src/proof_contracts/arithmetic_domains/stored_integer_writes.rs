@@ -38,23 +38,38 @@ pub(crate) fn validate_stored_integer_write(
             .map(|reference| places::assignment_value_type(program, reference))
             .and_then(|reference| program.primitive_type_reference(reference));
     if !destination_primitive.is_some_and(|primitive| primitive.accepts_integer_literal())
-        || !program
-            .plan_laid_layouts
-            .iter()
-            .any(|plan| !plan.integer_fields.is_empty())
+        || !program.plan_laid_layouts.iter().any(|plan| {
+            plan.geometries(program.typed_program())
+                .any(|geometry| !geometry.integer_fields.is_empty())
+        })
     {
         return Vec::new();
     }
     let Some(state) = state else {
         return Vec::new();
     };
-    let projections = destination_projections(program, machine, state, destination, origins);
-    let Ok(projections) = projections else {
+    let roots = destination_layout_roots(program, state, destination, origins);
+    let targets = roots.and_then(|roots| crate::layout_checking_targets(program, roots));
+    let Ok(targets) = targets else {
         diagnostics.push(Diagnostic::error(format!(
-            "IntegerAt store in {owner} has no exact stored field geometry or reference origin"
+            "IntegerAt store in {owner} has no complete exact layout alternative roster"
         )));
         return Vec::new();
     };
+    let mut projections = Vec::new();
+    for target in targets {
+        let alternative = crate::LayoutCheckingContext::new(program, target);
+        let Ok(selected) =
+            destination_projections(&alternative, machine, state, destination, origins)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "IntegerAt store in {owner} has no exact stored field geometry or reference origin"
+            )));
+            return Vec::new();
+        };
+        projections.extend(selected);
+    }
+
     let mut writes = Vec::new();
     for (field, stored) in projections {
         let fits =
@@ -83,6 +98,79 @@ pub(crate) fn validate_stored_integer_write(
         }
     }
     writes
+}
+
+fn destination_layout_roots(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    destination: ExpressionHandle,
+    origins: Option<&[crate::LocalWriteOrigin]>,
+) -> Result<Vec<TypeReferenceHandle>, ()> {
+    let mut facts = FactPlan::default();
+    let place = facts.append_place_from_expression(program, destination);
+    let place = facts.places.get(place);
+    let root = place.root.as_symbol().ok_or(())?;
+    let segments = facts.place_segments.span_or_empty(place.segments);
+    let mut roots = vec![root_type(program, state, root).ok_or(())?];
+    let candidates: Vec<_> = origins
+        .unwrap_or(&[])
+        .iter()
+        .filter(|origin| {
+            origin.local_symbol == root && segments.starts_with(&origin.local_segments)
+        })
+        .collect();
+    if let Some(longest) = candidates
+        .iter()
+        .map(|origin| origin.local_segments.len())
+        .max()
+    {
+        for origin in candidates
+            .into_iter()
+            .filter(|origin| origin.local_segments.len() == longest)
+        {
+            if let Some(source) = &origin.source {
+                roots.extend(source_layout_roots(program, state, source)?);
+            }
+        }
+    }
+    Ok(roots)
+}
+
+pub(super) fn source_layout_roots(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    source: &crate::LocalWriteSource,
+) -> Result<Vec<TypeReferenceHandle>, ()> {
+    let mut roots = vec![source_coordinates(program, state, source)?.0];
+    for recast in &source.recasts {
+        roots.push(recast.target_type);
+        roots.push(recast_history::predecessor_coordinates(program, state, recast)?.0);
+    }
+    Ok(roots)
+}
+
+/// Every physical-width demand across exact target guards and retained origins.
+/// No decision is published when even one alternative cannot be reconstructed.
+pub fn stored_integer_source_projections(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    source: &crate::LocalWriteSource,
+    suffix: &[PlaceSegment],
+) -> Result<Vec<(SymbolHandle, IntegerType)>, ()> {
+    let targets =
+        crate::layout_checking_targets(program, source_layout_roots(program, state, source)?)?;
+    let mut projections = Vec::new();
+    for target in targets {
+        let alternative = crate::LayoutCheckingContext::new(program, target);
+        if let Some(projection) =
+            stored_integer_source_projection(&alternative, state, source, suffix)?
+        {
+            if !projections.contains(&projection) {
+                projections.push(projection);
+            }
+        }
+    }
+    Ok(projections)
 }
 
 /// The alias inventory belongs to the existing statement-prefix reference
@@ -358,7 +446,10 @@ pub(crate) fn stored_integer_field_type(
         .iter()
         .position(|candidate| *candidate == field)
         .ok_or(())?;
-    if !plan
+    let geometry = plan
+        .geometry_for_target(program.typed_program(), program.layout_target())
+        .ok_or(())?;
+    if !geometry
         .integer_fields
         .iter()
         .any(|integer| integer.field_index == index)

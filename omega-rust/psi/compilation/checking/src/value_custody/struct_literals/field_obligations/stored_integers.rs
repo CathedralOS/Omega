@@ -24,13 +24,78 @@ pub(super) fn validate_construction(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
     statement_index: usize,
+) -> Vec<CheckedStoredIntegerWrite> {
+    if program.plan_laid_layout(literal.type_symbol).is_none() {
+        return Vec::new();
+    }
+    let Some(carrier) = program
+        .type_reference_table
+        .find_named_type_reference(literal.type_symbol)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "IntegerAt construction in {owner} lost its exact type"
+        )));
+        return Vec::new();
+    };
+    let Ok(targets) = crate::layout_checking_targets(program, [carrier]) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "IntegerAt construction in {owner} has no complete layout alternative roster"
+        )));
+        return Vec::new();
+    };
+    let initial_diagnostics = diagnostics.len();
+    let mut writes = Vec::new();
+    for target in targets {
+        let alternative = crate::LayoutCheckingContext::new(program, target);
+        if let Some(write) = validate_alternative(
+            &alternative,
+            machine,
+            state,
+            expression,
+            literal,
+            field,
+            scalar,
+            owner,
+            diagnostics,
+            statement_index,
+        ) {
+            if !writes.contains(&write) {
+                writes.push(write);
+            }
+        }
+    }
+    if diagnostics.len() != initial_diagnostics {
+        return Vec::new();
+    }
+    writes
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_alternative(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    literal: &TableStructLiteral,
+    field: &TableStructLiteralField,
+    scalar: &ConstructionScalarValue,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    statement_index: usize,
 ) -> Option<CheckedStoredIntegerWrite> {
     let plan = program.plan_laid_layout(literal.type_symbol)?;
     let field_index = plan
         .field_symbols
         .iter()
         .position(|symbol| *symbol == field.field_symbol)?;
-    if !plan
+    let Some(geometry) = plan.geometry_for_target(program.typed_program(), program.layout_target())
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "IntegerAt construction in {owner} has no exact alternative geometry"
+        )));
+        return None;
+    };
+    if !geometry
         .integer_fields
         .iter()
         .any(|field| field.field_index == field_index)

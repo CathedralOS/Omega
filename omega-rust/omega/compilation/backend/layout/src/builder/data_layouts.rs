@@ -95,7 +95,13 @@ impl<'program> LayoutBuilder<'program> {
             .iter()
             .find(|plan| definition.symbol == plan.data_symbol)
         {
-            if plan.offsets.len() != fields.len()
+            let geometry = plan.invariant_geometry().ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "plan-laid data `{}` retains an unresolved target-family layout; the typed layout backend requires an invariant layout or a target-closed Terminal view",
+                    plan.data_name
+                ))
+            })?;
+            if geometry.offsets.len() != fields.len()
                 || plan
                     .field_symbols
                     .iter()
@@ -106,19 +112,19 @@ impl<'program> LayoutBuilder<'program> {
                     "plan-laid data `{}` changed its exact field identity inventory ({} fields, {} planned offsets)",
                     definition.name,
                     fields.len(),
-                    plan.offsets.len()
+                    geometry.offsets.len()
                 )));
             }
             let (fields, layout) = place_fields_by_plan(
                 &mut self.fields,
                 fields,
-                &plan.offsets,
+                &geometry.offsets,
                 TypeLayout {
-                    size: plan.size,
-                    alignment: plan.align,
+                    size: geometry.size,
+                    alignment: geometry.align,
                 },
             )?;
-            for bit_field in &plan.bit_fields {
+            for bit_field in &geometry.bit_fields {
                 let Some(field) = self
                     .fields
                     .span(fields)
@@ -144,7 +150,7 @@ impl<'program> LayoutBuilder<'program> {
                         .collect(),
                 });
             }
-            for integer_field in &plan.integer_fields {
+            for integer_field in &geometry.integer_fields {
                 let Some(field) = self
                     .fields
                     .span(fields)
@@ -162,7 +168,7 @@ impl<'program> LayoutBuilder<'program> {
                     write_is_total: integer_field.write_is_total,
                 });
             }
-            for repeated_field in &plan.repeated_fields {
+            for repeated_field in &geometry.repeated_fields {
                 let Some(field) = self
                     .fields
                     .span(fields)
@@ -183,7 +189,8 @@ impl<'program> LayoutBuilder<'program> {
                 .normalized_hermetic_symbol_identity(plan.policy_symbol)
                 .ok()
                 .or_else(|| {
-                    plan.private_callback_demands
+                    geometry
+                        .private_callback_demands
                         .first()
                         .map(|demand| demand.layout_subject_identity.clone())
                 })
@@ -193,7 +200,8 @@ impl<'program> LayoutBuilder<'program> {
                         .plan_laid_layouts
                         .iter()
                         .filter(|candidate| candidate.policy_symbol == plan.policy_symbol)
-                        .flat_map(|candidate| candidate.private_callback_demands.iter())
+                        .flat_map(|candidate| candidate.geometries(self.program))
+                        .flat_map(|geometry| geometry.private_callback_demands.iter())
                         .map(|demand| demand.layout_subject_identity.as_str())
                         .collect::<Vec<_>>();
                     retained.sort_unstable();
@@ -206,8 +214,8 @@ impl<'program> LayoutBuilder<'program> {
             let native_layout_report_fingerprint =
                 layout_plans::normalized_native_layout_plan_report_fingerprint(
                     &layout_plans::NativeLayoutPlanReport {
-                        layout: plan.validated_layout.clone(),
-                        private_callback_demands: plan.private_callback_demands.clone(),
+                        layout: geometry.validated_layout.clone(),
+                        private_callback_demands: geometry.private_callback_demands.clone(),
                     },
                 );
             let canonical_data_identity =
@@ -226,7 +234,7 @@ impl<'program> LayoutBuilder<'program> {
                 self.target.pointer_size,
                 self.target.pointer_alignment,
             );
-            let closed_demands = if plan.private_callback_demands.is_empty() {
+            let closed_demands = if geometry.private_callback_demands.is_empty() {
                 Vec::new()
             } else {
                 let canonical_layout_subject =
@@ -238,6 +246,7 @@ impl<'program> LayoutBuilder<'program> {
                     })?;
                 close_private_callback_demands(
                     plan,
+                    geometry,
                     self.fields
                         .span(fields)
                         .expect("newly inserted plan-laid fields retain their span"),

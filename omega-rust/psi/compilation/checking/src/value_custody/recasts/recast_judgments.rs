@@ -34,6 +34,52 @@ pub(crate) fn judge_scalar_recast(
     source_borrow_exclusive: Option<bool>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let source = strip_mutable(program, cast.value);
+    let source_type = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        source,
+    );
+    let roots = source_type
+        .into_iter()
+        .chain([cast.target_type, let_referee]);
+    let Ok(targets) = crate::layout_checking_targets(program, roots) else {
+        diagnostics.push(Diagnostic::error(
+            "recast has no complete exact layout alternative roster",
+        ));
+        return;
+    };
+    for target in targets {
+        let alternative = crate::LayoutCheckingContext::new(program, target);
+        judge_scalar_recast_alternative(
+            &alternative,
+            machine,
+            state,
+            statement_index,
+            cast,
+            cast_handle,
+            let_referee,
+            let_is_mutable,
+            source_borrow_exclusive,
+            diagnostics,
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn judge_scalar_recast_alternative(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    cast: &TableCastExpression,
+    cast_handle: ExpressionHandle,
+    let_referee: TypeReferenceHandle,
+    let_is_mutable: bool,
+    source_borrow_exclusive: Option<bool>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let context = format!(
         "machine `{}` state `{}`",
         machine.name.as_str(),
@@ -644,8 +690,11 @@ fn judge_slice_recast(
     }
 
     let element_count = source_representation.size / element_representation.size;
-    let Some(target_representation) = repeat_representation(&element_representation, element_count, element_representation.size)
-    else {
+    let Some(target_representation) = repeat_representation(
+        &element_representation,
+        element_count,
+        element_representation.size,
+    ) else {
         diagnostics.push(
             Diagnostic::error(format!(
                 "{context}: slice target `{target_label}` representation overflows"

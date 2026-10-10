@@ -41,6 +41,8 @@ pub(super) fn trees(compilation: &PackageReviewInput<'_>) -> TypedTrees {
         compilation.authored_declaration_selections().clone(),
     );
     projected.plan_laid_layouts = source.plan_laid_layouts.clone();
+    projected.plan_laid_target_layouts = source.plan_laid_target_layouts.clone();
+    projected.plan_laid_schema_fields = source.plan_laid_schema_fields.clone();
     projected.placed_view_plans = source.placed_view_plans.clone();
     projected.semantic_domains = source.semantic_domains.clone();
     projected.external_bindings = source.external_bindings.clone();

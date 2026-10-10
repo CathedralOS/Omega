@@ -86,7 +86,7 @@ pub fn element_representation_layout<'a>(
             return None;
         }
         active.push(element);
-        let layout = match &row.shape {
+        let mut layout = match &row.shape {
             StructuralTypeShape::PrimitiveScalar(scalar) => scalar_layout(*scalar, None)?,
             StructuralTypeShape::FixedArray { element, length } => {
                 let child = visit(types.clone(), *element, active, budget)?;
@@ -116,8 +116,7 @@ pub fn element_representation_layout<'a>(
                 }
             }
             StructuralTypeShape::Record { fields, .. } => {
-                let mut offset = 0;
-                let mut alignment = 1;
+                let (size, alignment) = crate::reference_storage_layout(types.clone(), element)?;
                 let mut leaves = Vec::new();
                 for field in fields {
                     if field.relevance.is_erased() {
@@ -138,29 +137,48 @@ pub fn element_representation_layout<'a>(
                         _ => return None,
                     };
                     *budget = budget.checked_sub(child.leaves.len())?;
-                    offset = align(offset, child.alignment)?;
-                    alignment = alignment.max(child.alignment);
                     leaves.try_reserve(child.leaves.len()).ok()?;
                     for leaf in child.leaves {
                         let mut path = vec![StructuralPathSegment::Field(field.identity.clone())];
                         path.extend(leaf.path);
                         leaves.push(ElementRepresentationLeaf {
                             path,
-                            offset: offset.checked_add(leaf.offset)?,
+                            // The complete path is resolved below; child
+                            // offsets do not imply parent authored placement.
+                            offset: leaf.offset,
                             scalar_type: leaf.scalar_type,
                             bounds: leaf.bounds,
                         });
                     }
-                    offset = offset.checked_add(child.size)?;
                 }
                 ElementRepresentationLayout {
-                    size: align(offset, alignment)?,
+                    size,
                     alignment,
                     leaves,
                 }
             }
             _ => return None,
         };
+        // The logical leaf walk owns validity predicates; the common storage
+        // query owns physical offsets, repeated strides, size and alignment.
+        // Pending applications return None here rather than ordinary packing.
+        let (size, alignment) = crate::reference_storage_layout(types.clone(), element)?;
+        for leaf in &mut layout.leaves {
+            let projection =
+                crate::reference_storage_projection(types.clone(), element, &leaf.path)?;
+            // This correspondence transports one scalar unchanged. A narrower
+            // codec needs an explicit encoded/logical value relation, not a
+            // semantic-width leaf silently placed over fewer bytes.
+            if projection.logical_scalar != leaf.scalar_type
+                || projection.stored_scalar != leaf.scalar_type
+            {
+                return None;
+            }
+            leaf.offset = projection.byte_offset;
+        }
+        layout.size = size;
+        layout.alignment = alignment;
+        layout.leaves.sort_by_key(|leaf| leaf.offset);
         active.pop();
         (layout.size != 0 && !layout.leaves.is_empty()).then_some(layout)
     }

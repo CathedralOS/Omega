@@ -7,8 +7,8 @@ use super::{has_structural_type, require_unique_nonempty_identities};
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule, structural_children};
+use terminal_psi::{StructuralRecordStorage, StructuralTypeDeclaration};
 
 /// One structural type declaration's shape is well founded: its referent,
 /// fields, element, cases and mixed payloads name known types with the
@@ -71,7 +71,7 @@ pub(super) fn validate_type_shape(
         // carrier declaration alone creates no source or borrowing authority.
         StructuralTypeShape::ByteSequence(_) => {}
         StructuralTypeShape::Record { fields, storage } => {
-            if let Some(storage) = storage {
+            if let StructuralRecordStorage::Authored(storage) = storage {
                 if storage.byte_alignment == 0 || !storage.byte_alignment.is_power_of_two() {
                     return malformed(
                         "authored record storage requires positive power-of-two alignment",
@@ -85,10 +85,12 @@ pub(super) fn validate_type_shape(
             let mut destinations = Vec::new();
             for field in fields {
                 match (storage, field.storage.as_ref()) {
-                    (Some(_), None) if !field.relevance.is_erased() => {
+                    (StructuralRecordStorage::Authored(_), None)
+                        if !field.relevance.is_erased() =>
+                    {
                         return malformed("authored record field has no storage interpretation");
                     }
-                    (Some(record), Some(field_storage)) => {
+                    (StructuralRecordStorage::Authored(record), Some(field_storage)) => {
                         if field.relevance.is_erased()
                             || field_storage
                                 .byte_offset()
@@ -495,7 +497,7 @@ fn validate_field_storage_envelope(shape: &StructuralTypeShape) -> Result<(), Co
     if matches!(
         shape,
         StructuralTypeShape::Record {
-            storage: Some(_),
+            storage: StructuralRecordStorage::Authored(_),
             ..
         }
     ) {
@@ -572,7 +574,7 @@ mod authored_storage_envelope_tests {
     };
     use terminal_psi::{
         BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
-        StructuralFieldType, StructuralTypeShape,
+        StructuralFieldType, StructuralRecordStorage, StructuralTypeShape,
     };
 
     #[test]
@@ -602,7 +604,7 @@ mod authored_storage_envelope_tests {
         for shape in [
             StructuralTypeShape::Record {
                 fields: vec![field.clone()],
-                storage: None,
+                storage: StructuralRecordStorage::Packed,
             },
             StructuralTypeShape::Sum {
                 cases: vec![case.clone()],
@@ -620,7 +622,7 @@ mod authored_storage_envelope_tests {
         }
         let authored = StructuralTypeShape::Record {
             fields: vec![field],
-            storage: Some(AuthoredRecordStorage {
+            storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
                 byte_size: 1,
                 byte_alignment: 1,
             }),

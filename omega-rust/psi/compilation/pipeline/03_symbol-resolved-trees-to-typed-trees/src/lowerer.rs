@@ -414,6 +414,8 @@ impl Lowerer<'_> {
             semantic_domains,
             external_bindings,
             plan_laid_layouts: _,
+            plan_laid_target_layouts: _,
+            plan_laid_schema_fields: _,
             placed_view_plans: _,
             wire_placements: _,
             wire_encode_obligations: _,

@@ -121,10 +121,8 @@ pub(in crate::execution::terminal_unit) fn plan(
         crossings,
     ));
     if !is_view
-        && base_type_identity(program, backing_type, &[],
-        &[])?
-            != base_type_identity(program, referent, &[],
-        &[])?
+        && base_type_identity(program, backing_type, &[], &[])?
+            != base_type_identity(program, referent, &[], &[])?
     {
         return None;
     }
@@ -195,8 +193,7 @@ pub(in crate::execution::terminal_unit) fn plan(
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                 symbol: root,
-                root_type_identity: base_type_identity(program, shell.referee, &[],
-        &[])?,
+                root_type_identity: base_type_identity(program, shell.referee, &[], &[])?,
             }
         } else {
             // Owned contents lend their admitted access independently of
@@ -223,7 +220,13 @@ pub(in crate::execution::terminal_unit) fn plan(
             // Aggregate field geometry is retained in the structural catalog.
             // Formation keeps the address here; field loans choose their exact
             // scalar codec when they project through this established parent.
-            validation::recast_scalar_layout(program, referent)?;
+            // The checked source recast covers every alternative. Formation
+            // retains its actual backing; the catalog owns target-dependent
+            // offsets and sizes until exact execution closure.
+            for target in validation::layout_checking_targets(program, [referent]).ok()? {
+                let context = validation::LayoutCheckingContext::new(program, target);
+                validation::recast_scalar_layout(&context, referent)?;
+            }
             None
         };
         CheckedReferenceStorage::View { stored_scalar }
@@ -234,8 +237,7 @@ pub(in crate::execution::terminal_unit) fn plan(
         source: CheckedUnitStructuralArgumentPlan {
             source,
             path,
-            type_identity: base_type_identity(program, backing_type, &[],
-        &[])?,
+            type_identity: base_type_identity(program, backing_type, &[], &[])?,
             access,
         },
         storage,

@@ -40,7 +40,9 @@ pub use const_evaluation::const_lengths::{
 };
 pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
 pub use layouts::access_plans::{compute_access_plan, compute_placement_plan};
-pub use layouts::layout_plans::{compute_layout_plan, compute_native_layout_plan};
+pub use layouts::layout_plans::{
+    compute_layout_plan, compute_native_layout_plan, compute_native_layout_plan_for_machine,
+};
 pub use layouts::materialization::{
     BuildTimeValue, ValidatedConstMaterialization,
     ValidatedConstNestedSumRecordOccurrenceMaterialization,

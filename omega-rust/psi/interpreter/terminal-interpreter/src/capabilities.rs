@@ -310,12 +310,12 @@ mod tests {
         let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
         let mut program = AdmittedTerminalProgram {
             identity,
-            catalogs: std::borrow::Cow::Owned(module),
+            catalogs: std::sync::Arc::new(std::borrow::Cow::Owned(module)),
+            target_layouts: None,
         };
         set_machine(&mut program, entry, machine(1, Vec::new()));
         let boundary = BoundaryMachineId::new(1).unwrap();
-        program
-            .catalogs
+        std::sync::Arc::make_mut(&mut program.catalogs)
             .to_mut()
             .boundary_machines
             .push(boundary_declaration(boundary));
@@ -330,7 +330,9 @@ mod tests {
         mut machine: TerminalMachine,
     ) {
         machine.id = identity;
-        let machines = &mut program.catalogs.to_mut().machines;
+        let machines = &mut std::sync::Arc::make_mut(&mut program.catalogs)
+            .to_mut()
+            .machines;
         match machines.binary_search_by_key(&identity, |machine| machine.id) {
             Ok(position) => machines[position] = machine,
             Err(position) => machines.insert(position, machine),
@@ -338,8 +340,10 @@ mod tests {
     }
 
     fn add_provider(program: &mut AdmittedTerminalProgram<'_>, boundary: BoundaryMachineId) {
-        program.catalogs.to_mut().provider_candidates.push(
-            terminal_psi::ProviderCandidateConformance {
+        std::sync::Arc::make_mut(&mut program.catalogs)
+            .to_mut()
+            .provider_candidates
+            .push(terminal_psi::ProviderCandidateConformance {
                 boundary,
                 requirement_identity: "graph boundary".into(),
                 provider_identity: "graph provider".into(),
@@ -347,8 +351,7 @@ mod tests {
                 candidate: MachineId::new(2).unwrap(),
                 signature: terminal_psi::ProviderSignature::empty(),
                 refinement: terminal_psi::ProviderRefinement::empty(),
-            },
-        );
+            });
     }
 
     fn boundary_declaration(
@@ -396,8 +399,7 @@ mod tests {
         boundary: BoundaryMachineId,
         kind: ExternalCompletionKind,
     ) {
-        program
-            .catalogs
+        std::sync::Arc::make_mut(&mut program.catalogs)
             .to_mut()
             .boundary_machines
             .iter_mut()
@@ -484,8 +486,7 @@ mod tests {
         let mut program = program();
         let external = BoundaryMachineId::new(1).unwrap();
         let missing = BoundaryMachineId::new(2).unwrap();
-        program
-            .catalogs
+        std::sync::Arc::make_mut(&mut program.catalogs)
             .to_mut()
             .boundary_machines
             .iter_mut()
@@ -546,14 +547,20 @@ mod tests {
             entry_claim_paths: Vec::new(),
             result: None,
         };
-        program.catalogs.to_mut().dynamic_dispatch.interfaces = (0..2)
+        std::sync::Arc::make_mut(&mut program.catalogs)
+            .to_mut()
+            .dynamic_dispatch
+            .interfaces = (0..2)
             .map(|id| terminal_psi::TerminalDynamicInterface {
                 id,
                 identity: format!("interface {id}"),
                 slots: vec![slot(0), slot(1)],
             })
             .collect();
-        program.catalogs.to_mut().dynamic_dispatch.tables = vec![
+        std::sync::Arc::make_mut(&mut program.catalogs)
+            .to_mut()
+            .dynamic_dispatch
+            .tables = vec![
             terminal_psi::TerminalDynamicTable {
                 id: 0,
                 interface: 0,
@@ -610,8 +617,7 @@ mod tests {
         );
         let provider = MachineId::new(4).unwrap();
         let provider_import = BoundaryMachineId::new(2).unwrap();
-        program
-            .catalogs
+        std::sync::Arc::make_mut(&mut program.catalogs)
             .to_mut()
             .boundary_machines
             .push(boundary_declaration(provider_import));
@@ -628,6 +634,7 @@ mod tests {
             )]),
             assumed_bindings: Vec::new(),
             target_machines: None,
+            target_layouts: None,
         };
         assert_eq!(
             check(&program, Some(&installation)),
@@ -642,7 +649,11 @@ mod tests {
     #[test]
     fn capability_graph_dynamic_call_refuses_external_completion_in_later_table() {
         let mut program = dynamic_program();
-        program.catalogs.to_mut().dynamic_dispatch.tables[0].rows[0] = Some(program.catalogs.entry);
+        std::sync::Arc::make_mut(&mut program.catalogs)
+            .to_mut()
+            .dynamic_dispatch
+            .tables[0]
+            .rows[0] = Some(program.catalogs.entry);
         let boundary = install_process_exit_caller(&mut program, 2);
         assert_eq!(
             check(&program, None),
@@ -660,8 +671,7 @@ mod tests {
         let mut program = dynamic_program();
         let boundary = BoundaryMachineId::new(1).unwrap();
         let kind = ExternalCompletionKind::ProcessExit;
-        program
-            .catalogs
+        std::sync::Arc::make_mut(&mut program.catalogs)
             .to_mut()
             .boundary_machines
             .iter_mut()
@@ -739,7 +749,11 @@ mod tests {
     #[test]
     fn capability_graph_demands_successor_cleanup_import() {
         let (mut program, action) = import_cleanup_program();
-        let entry = program.catalogs.to_mut().machines.first_mut().unwrap();
+        let entry = std::sync::Arc::make_mut(&mut program.catalogs)
+            .to_mut()
+            .machines
+            .first_mut()
+            .unwrap();
         let successor = BlockId::new(2).unwrap();
         let mut destination = entry.blocks[0].clone();
         destination.id = successor;
@@ -762,7 +776,11 @@ mod tests {
     #[test]
     fn capability_graph_ignores_unreachable_cleanup_import() {
         let (mut program, action) = import_cleanup_program();
-        let entry = program.catalogs.to_mut().machines.first_mut().unwrap();
+        let entry = std::sync::Arc::make_mut(&mut program.catalogs)
+            .to_mut()
+            .machines
+            .first_mut()
+            .unwrap();
         let mut unreachable = entry.blocks[0].clone();
         unreachable.id = BlockId::new(2).unwrap();
         unreachable.terminator = Terminator::ReturnUnit {
@@ -846,6 +864,7 @@ mod tests {
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),
             assumed_bindings: Vec::new(),
             target_machines: None,
+            target_layouts: None,
         };
         // Multi-source result transport no longer adds a capability demand.
         // Following the installed provider satisfies this graph's missing

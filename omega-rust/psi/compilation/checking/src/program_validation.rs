@@ -613,11 +613,10 @@ fn validate(
                     _ => None,
                 };
                 let local_write_origins = if matches!(statement, StatementNode::Assignment(_))
-                    && program
-                        .plan_laid_layouts
-                        .iter()
-                        .any(|plan| !plan.integer_fields.is_empty())
-                {
+                    && program.plan_laid_layouts.iter().any(|plan| {
+                        plan.geometries(program.typed_program())
+                            .any(|geometry| !geometry.integer_fields.is_empty())
+                    }) {
                     call_frames.as_ref().and_then(|frames| {
                         frames.local_write_origins_before_statement(machine, statement)
                     })

@@ -84,7 +84,10 @@ fn plan<'a>(
             "callback layout lost its unique checked application",
         ));
     };
-    if plan.size != layout.physical.size || plan.align != layout.physical.alignment {
+    let geometry = plan.invariant_geometry().ok_or_else(|| {
+        rejected("callback layout requires an exact target-family geometry closure")
+    })?;
+    if geometry.size != layout.physical.size || geometry.align != layout.physical.alignment {
         return Err(rejected(
             "callback layout geometry differs from its checked application",
         ));

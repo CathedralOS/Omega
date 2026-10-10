@@ -153,6 +153,7 @@ pub(crate) fn build_schema_value(
                     let (size, align, source_bits, primitive, kind, declared_range, repeated) =
                         reflected.unwrap_or((0, 1, 0, None, "Nested", None, None));
                     SchemaFieldInfo {
+                        schema_field: field.symbol,
                         name: field.name.to_string(),
                         identity: field.identity,
                         key: local_schema_field_discriminator(

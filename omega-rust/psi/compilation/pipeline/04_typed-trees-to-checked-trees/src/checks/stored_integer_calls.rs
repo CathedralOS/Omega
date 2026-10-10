@@ -40,10 +40,12 @@ pub(super) fn check(
     frames: Option<&CallFrameResolver<'_>>,
 ) -> Result<(), Vec<Diagnostic>> {
     if !program.plan_laid_layouts.iter().any(|layout| {
-        layout
-            .integer_fields
-            .iter()
-            .any(|field| !field.write_is_total)
+        layout.geometries(program.typed_program()).any(|geometry| {
+            geometry
+                .integer_fields
+                .iter()
+                .any(|field| !field.write_is_total)
+        })
     }) {
         return Ok(());
     }
@@ -404,8 +406,8 @@ impl<'a> Admission<'a> {
                             let destinations =
                                 self.destinations(machine, body, &source, self.stack.len())?;
                             for (_owner, state, destination) in destinations {
-                                if let Some((field, stored)) =
-                                    validation::stored_integer_source_projection(
+                                for (field, stored) in
+                                    validation::stored_integer_source_projections(
                                         self.program,
                                         state,
                                         &destination,
@@ -477,11 +479,11 @@ impl<'a> Admission<'a> {
             })?;
         if is_reference(self.program, reference)
             || !validation::has_contents(
-        self.program,
-        reference,
-        &[],
-        validation::ContentsRequirement::CleanupOwned
-    )
+                self.program,
+                reference,
+                &[],
+                validation::ContentsRequirement::CleanupOwned,
+            )
         {
             return None;
         }

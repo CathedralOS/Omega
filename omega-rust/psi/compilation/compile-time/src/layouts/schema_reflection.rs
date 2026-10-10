@@ -22,6 +22,7 @@ pub(crate) fn local_schema_field_discriminator(schema: &str, field: &str) -> u64
 
 #[derive(Debug, Clone)]
 pub(crate) struct SchemaFieldInfo {
+    pub(crate) schema_field: symbols::SymbolHandle,
     pub(crate) name: String,
     pub(crate) identity: Option<u64>,
     pub(crate) key: u64,
@@ -51,6 +52,7 @@ pub(crate) fn schema_fields(
     let data = typed
         .data_definition_by_name_str(schema_data)
         .ok_or_else(|| format!("no data definition named `{schema_data}` exists"))?;
+    require_invariant_schema(typed, data.symbol, &[])?;
     if data.quotient.is_some() {
         return Err(format!(
             "schema reflection cannot observe quotient `{schema_data}`: retained representatives are opaque and require a named lifted operation"
@@ -93,6 +95,7 @@ pub(crate) fn schema_fields(
             ));
         }
         fields.push(SchemaFieldInfo {
+            schema_field: field.symbol,
             name: field.name.to_string(),
             identity: field.identity,
             key,
@@ -123,6 +126,57 @@ pub(crate) fn schema_fields(
         ));
     }
     Ok((fields, normalized_schema_report_fingerprint(typed, data)))
+}
+
+/// Schema arguments must have one physical meaning before a pure policy runs.
+/// Pending family applications are supplied by the installer because none of
+/// that batch's results has entered typed storage yet.
+pub(crate) fn require_invariant_schema(
+    typed: &TypedTrees,
+    schema: symbols::SymbolHandle,
+    pending: &[symbols::SymbolHandle],
+) -> Result<(), String> {
+    let mut records = vec![schema];
+    let mut visited = Vec::new();
+    while let Some(symbol) = records.pop() {
+        if visited.contains(&symbol) {
+            continue;
+        }
+        visited.push(symbol);
+        if pending.contains(&symbol)
+            || typed.plan_laid_layout(symbol).is_some_and(|layout| {
+                matches!(
+                    layout.realizations,
+                    typed_trees::PlanLaidRealizations::TargetFamily(_)
+                )
+            })
+        {
+            return Err(format!(
+                "schema contains target-dependent layout `{}`; nested target-dependent schema arguments are not yet supported",
+                typed.symbols.name(symbol)
+            ));
+        }
+        let Some(data) = typed.data_definition_by_symbol(symbol) else {
+            continue;
+        };
+        let mut members = typed
+            .live_data_fields(typed.data_members(data))
+            .map(|field| field.type_reference)
+            .collect::<Vec<_>>();
+        while let Some(member) = members.pop() {
+            use typed_trees::types::TypeReferenceNode;
+            match typed.type_reference_table.type_reference(member) {
+                TypeReferenceNode::Named { symbol, .. } => records.push(*symbol),
+                TypeReferenceNode::FixedArray { element_type, .. }
+                | TypeReferenceNode::Constrained {
+                    base_type: element_type,
+                    ..
+                } => members.push(*element_type),
+                _ => {}
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn normalized_schema_report_fingerprint(
@@ -241,6 +295,15 @@ fn reflected_record_layout(
             data.name.as_str() == name
         }
     })?;
+    if let Some(layout) = typed.plan_laid_layout(data.symbol) {
+        return match &layout.realizations {
+            typed_trees::PlanLaidRealizations::Invariant(geometry) => Some((
+                geometry.validated_layout.size?,
+                geometry.validated_layout.align,
+            )),
+            typed_trees::PlanLaidRealizations::TargetFamily(_) => None,
+        };
+    }
     if data.quotient.is_some()
         || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
         || !data.type_parameters.is_empty()

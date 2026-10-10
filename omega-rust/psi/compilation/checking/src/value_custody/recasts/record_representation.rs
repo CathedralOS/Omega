@@ -669,7 +669,11 @@ fn mutable_record_representation_inner_body(
     }
 
     let (size, align, offsets) = if let Some(plan) = program.plan_laid_layout(data.symbol) {
-        if plan.field_symbols != field_symbols || plan.offsets.len() != fields.len() {
+        if plan.field_symbols != field_symbols {
+            return None;
+        }
+        let plan = plan.geometry_for_target(program.typed_program(), program.layout_target())?;
+        if plan.offsets.len() != fields.len() {
             visiting.remove(&symbol_identity);
             return None;
         }
@@ -714,11 +718,8 @@ fn mutable_record_representation_inner_body(
                 budget,
                 false,
             )?;
-            let repeated = repeat_representation(
-                &element,
-                *element_count,
-                repeated_field.element_stride,
-            )?;
+            let repeated =
+                repeat_representation(&element, *element_count, repeated_field.element_stride)?;
             *fields.get_mut(repeated_field.field_index)? = repeated;
         }
         if fields.iter().zip(&plan.offsets).any(|(field, offset)| {
@@ -967,9 +968,7 @@ pub(crate) fn recast_representations_equivalent(
     mutable_record_representations_equivalent(program, &source, &target)
 }
 
-pub(super) 
-
-fn repeat_representation(
+pub(super) fn repeat_representation(
     element: &MutableRecordRepresentation,
     count: usize,
     stride: usize,

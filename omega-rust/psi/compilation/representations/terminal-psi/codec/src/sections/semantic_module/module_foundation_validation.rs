@@ -17,6 +17,7 @@ mod declaration_foundations;
 mod machine_foundations;
 mod storage_foundations;
 mod structural_type_foundations;
+mod target_layouts;
 mod value_foundations;
 
 use crate::codec_error::{CodecError, malformed};
@@ -133,6 +134,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             .iter()
             .filter_map(|machine| machine.attachment),
     );
+    target_layouts::validate(module, &attachment_storage)?;
     for declaration in &module.structural_types {
         structural_type_foundations::validate_type_shape(module, declaration, &attachment_storage)?;
     }

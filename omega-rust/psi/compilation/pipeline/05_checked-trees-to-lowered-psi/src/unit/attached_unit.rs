@@ -61,6 +61,7 @@ mod entry_requirements;
 mod providers;
 pub(crate) mod signatures;
 pub(crate) mod target_families;
+mod target_layouts;
 
 // Body emission: each ordinary body and each composed state graph, through
 // one operation frame and one argument schedule over borrowed body views,
@@ -473,6 +474,15 @@ pub(crate) fn lower_unit_closure(
     // Publication: one module in canonical roster order.
     let target_machine_families =
         target_families::lower(checked, &machine_ids, &lowered_boundary_parameters)?;
+    let target_layout_applications = target_layouts::lower(
+        checked,
+        plans,
+        &structural_types,
+        &machine_ids,
+        &lowered_boundary_parameters,
+        &boundary_machines,
+        &target_machine_families,
+    )?;
     let mut scalar_qualifications = qualifications.catalog().clone();
     scalar_qualifications
         .coercions
@@ -527,6 +537,7 @@ pub(crate) fn lower_unit_closure(
             suspension_call_plans: Vec::new(),
             machines,
             target_machine_families,
+            target_layout_applications,
         },
         debug_map: None,
         source_call_occurrences: occurrences.source_calls,

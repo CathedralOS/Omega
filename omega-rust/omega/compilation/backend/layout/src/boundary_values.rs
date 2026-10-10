@@ -304,14 +304,19 @@ impl<'input> BoundaryValueLayout<'input> {
         let definition = typed
             .data_definition_by_symbol(symbol)
             .ok_or_else(|| format!("named boundary type `{name}` has no data definition"))?;
-        let planned_layout = typed.plan_laid_layout(definition.symbol);
+        let application = typed.plan_laid_layout(definition.symbol);
+        let planned_layout = application.map(|layout| {
+            layout.invariant_geometry().ok_or_else(|| format!(
+                "plan-laid data `{name}` retains an unresolved target-family layout; native boundary classification requires an invariant layout or a target-closed Terminal view"
+            ))
+        }).transpose()?;
         let runtime_field_symbols = typed
             .live_data_fields(typed.data_members(definition))
             .map(|field| field.symbol)
             .collect::<Vec<_>>();
-        if let Some(layout) = planned_layout
+        if let Some((application, layout)) = application.zip(planned_layout)
             && (layout.offsets.len() != runtime_field_symbols.len()
-                || layout.field_symbols != runtime_field_symbols)
+                || application.field_symbols != runtime_field_symbols)
         {
             return Err(format!(
                 "plan-laid data `{name}` has {} members but its layout publishes {} offsets",

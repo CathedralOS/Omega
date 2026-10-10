@@ -415,7 +415,13 @@ pub(crate) fn structural_shape(
             // two-word carrier as `ByteSequence::BorrowedView`.
             StructuralTypeShape::ElementView { .. } => Ok(ValueShape::integer(16, 8)),
             StructuralTypeShape::Record { fields, storage } => {
-                if let Some(storage) = storage {
+                if matches!(
+                    storage,
+                    terminal_psi::StructuralRecordStorage::TargetLayout(_)
+                ) {
+                    return Err(LoweringError::UnclosedTargetLayout(structural_type));
+                }
+                if let terminal_psi::StructuralRecordStorage::Authored(storage) = storage {
                     return Ok(ValueShape::integer(
                         u32::try_from(storage.byte_size)
                             .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,

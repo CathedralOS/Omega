@@ -27,6 +27,7 @@ mod sealed {
     impl Sealed for checked_trees::CheckedTrees {}
     impl Sealed for super::CheckingContext<'_> {}
     impl Sealed for super::CheckingProjection<'_> {}
+    impl Sealed for crate::layout_checking::LayoutCheckingContext<'_> {}
     impl Sealed for typed_trees::FrozenTypedTrees {}
 }
 
@@ -38,6 +39,12 @@ mod sealed {
 /// permission to retain this scratch in a compilation product.
 pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     fn typed_program(&self) -> &TypedTrees;
+
+    /// One universally checked layout alternative, never a deployment choice.
+    /// Bare inputs cannot supply concrete geometry for a target family.
+    fn layout_target(&self) -> Option<&str> {
+        None
+    }
 
     /// Source preparation reads resolution data. A checked input or a context
     /// carrying finalized selections reads checked choices over the same trees.
@@ -72,7 +79,8 @@ impl Deref for dyn CheckingInput + '_ {
 // Local proof-plan equality observes the typed program, never invocation scratch.
 impl PartialEq for dyn CheckingInput + '_ {
     fn eq(&self, other: &Self) -> bool {
-        self.typed_program() == other.typed_program()
+        self.layout_target() == other.layout_target()
+            && self.typed_program() == other.typed_program()
     }
 }
 
@@ -280,6 +288,10 @@ impl Deref for CheckingProjection<'_> {
 }
 
 impl CheckingInput for CheckingProjection<'_> {
+    fn layout_target(&self) -> Option<&str> {
+        self.original.layout_target()
+    }
+
     fn typed_program(&self) -> &TypedTrees {
         self.projected
             .as_ref()

@@ -25,18 +25,20 @@ fn private_callback_layout(offset: u64, size: usize) -> typed_trees::typed_trees
         schema_field_symbols: vec![symbols::SymbolHandle::from_arena_index(4)],
         policy_symbol: symbols::SymbolHandle::from_arena_index(5),
         policy_plan_machine_symbol: symbols::SymbolHandle::from_arena_index(6),
-        validated_layout: layout_plans::LayoutPlanReport {
-            schema_report_fingerprint: 0x51,
-            entries: vec![layout_plans::LayoutFieldEntryReport {
-                field: "payload".to_owned(),
-                member_identity: None,
-                placement: layout_plans::LayoutPlacementReport::At { offset: 0 },
-            }],
-            offsets: Some(vec![0]),
-            size: Some(size as u64),
-            align: 8,
-        },
-        private_callback_demands: vec![layout_plans::PrivateCallbackLayoutDemandReport {
+        schema_argument: None,
+        realizations: typed_trees::PlanLaidRealizations::Invariant(typed_trees::PlanLaidGeometry {
+            validated_layout: layout_plans::LayoutPlanReport {
+                schema_report_fingerprint: 0x51,
+                entries: vec![layout_plans::LayoutFieldEntryReport {
+                    field: "payload".to_owned(),
+                    member_identity: None,
+                    placement: layout_plans::LayoutPlacementReport::At { offset: 0 },
+                }],
+                offsets: Some(vec![0]),
+                size: Some(size as u64),
+                align: 8,
+            },
+            private_callback_demands: vec![layout_plans::PrivateCallbackLayoutDemandReport {
             slot_application: typed_trees::typed_trees::ClosedConformanceApplication {
                 declaration: symbols::SymbolHandle::from_arena_index(7),
                 arguments: Box::new([]),
@@ -59,12 +61,22 @@ fn private_callback_layout(offset: u64, size: usize) -> typed_trees::typed_trees
             callback_requirement_identity: "package::WindowProcedure::call#exact".to_owned(),
             offset,
         }],
-        offsets: vec![0],
-        bit_fields: Vec::new(),
-        integer_fields: Vec::new(),
-        repeated_fields: Vec::new(),
-        size,
-        align: 8,
+            offsets: vec![0],
+            bit_fields: Vec::new(),
+            integer_fields: Vec::new(),
+            repeated_fields: Vec::new(),
+            size,
+            align: 8,
+        }),
+    }
+}
+
+fn fixture_geometry_mut(
+    plan: &mut typed_trees::PlanLaidLayout,
+) -> &mut typed_trees::PlanLaidGeometry {
+    match &mut plan.realizations {
+        typed_trees::PlanLaidRealizations::Invariant(geometry) => geometry,
+        typed_trees::PlanLaidRealizations::TargetFamily(_) => panic!("fixture must be invariant"),
     }
 }
 
@@ -87,10 +99,11 @@ fn close_private_callback_demands(
     target: NativeTarget,
     canonical_layout_subject: &str,
 ) -> Result<Vec<crate::TargetClosedPrivateCallbackDemand>, diagnostics::Diagnostic> {
+    let geometry = plan.invariant_geometry().expect("invariant fixture");
     let fingerprint = layout_plans::normalized_native_layout_plan_report_fingerprint(
         &layout_plans::NativeLayoutPlanReport {
-            layout: plan.validated_layout.clone(),
-            private_callback_demands: plan.private_callback_demands.clone(),
+            layout: geometry.validated_layout.clone(),
+            private_callback_demands: geometry.private_callback_demands.clone(),
         },
     );
     let layout = calling_conventions::callback_layout_plan_id(
@@ -100,6 +113,7 @@ fn close_private_callback_demands(
     );
     super::private_callback_closure::close_private_callback_demands(
         plan,
+        geometry,
         fields,
         target,
         canonical_layout_subject,
@@ -122,7 +136,11 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
     );
     assert_eq!(
         closed.slot_application,
-        valid.private_callback_demands[0].slot_application
+        valid
+            .invariant_geometry()
+            .expect("invariant fixture")
+            .private_callback_demands[0]
+            .slot_application
     );
     assert_eq!(
         closed.requirement,
@@ -144,10 +162,10 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
     // This fixture changes only custody to pin the compatibility report's
     // deliberately unchanged inputs, not to claim application validation.
     let mut changed_application = valid.clone();
-    changed_application.private_callback_demands[0]
+    fixture_geometry_mut(&mut changed_application).private_callback_demands[0]
         .slot_application
         .declaration = symbols::SymbolHandle::from_arena_index(9);
-    changed_application.private_callback_demands[0]
+    fixture_geometry_mut(&mut changed_application).private_callback_demands[0]
         .slot_application
         .commitment =
         typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest([0x93; 32]);
@@ -160,7 +178,7 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
     assert_ne!(closed.slot_application, changed[0].slot_application);
     assert_eq!(
         changed[0].slot_application,
-        changed_application.private_callback_demands[0].slot_application
+        fixture_geometry_mut(&mut changed_application).private_callback_demands[0].slot_application
     );
 
     let unaligned = close_private_callback_demands(
@@ -195,9 +213,11 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
     );
 
     let mut private_overlap = valid;
-    let mut second = private_overlap.private_callback_demands[0].clone();
+    let mut second = fixture_geometry_mut(&mut private_overlap).private_callback_demands[0].clone();
     second.slot_identity.push_str("::Second");
-    private_overlap.private_callback_demands.push(second);
+    fixture_geometry_mut(&mut private_overlap)
+        .private_callback_demands
+        .push(second);
     let private_overlap =
         close_private_callback_demands(&private_overlap, &fields, target, "package::Spread")
             .expect_err("private/private overlap must reject");
@@ -216,12 +236,15 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
     assert!(subject_tamper.message.contains("changed layout subject"));
 
     let mut duplicate_slot = private_callback_layout(8, 24);
-    let mut conflicting = duplicate_slot.private_callback_demands[0].clone();
+    let mut conflicting =
+        fixture_geometry_mut(&mut duplicate_slot).private_callback_demands[0].clone();
     conflicting
         .callback_requirement_identity
         .push_str("::Other");
     conflicting.offset = 16;
-    duplicate_slot.private_callback_demands.push(conflicting);
+    fixture_geometry_mut(&mut duplicate_slot)
+        .private_callback_demands
+        .push(conflicting);
     let duplicate_slot =
         close_private_callback_demands(&duplicate_slot, &fields, target, "package::Spread")
             .expect_err("one canonical slot cannot close under conflicting requirements");

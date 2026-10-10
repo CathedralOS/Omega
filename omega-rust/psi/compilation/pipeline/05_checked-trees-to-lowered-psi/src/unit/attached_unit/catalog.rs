@@ -484,7 +484,7 @@ fn select_from<'a>(
 }
 
 /// The one checked declaration of `identity` in the Unit roster.
-fn selected_declaration<'a>(
+pub(super) fn selected_declaration<'a>(
     plans: UnitPlans<'a>,
     identity: TypeIdentityId,
 ) -> Result<&'a CheckedUnitStructuralTypePlan, LoweringError> {
@@ -560,7 +560,14 @@ pub(crate) fn lower_unit_structural_type_roots(
             } => {
                 collect(plans, *element_type_identity, active, selected)?;
             }
-            CheckedUnitStructuralTypeShape::Record { fields, .. } => {
+            CheckedUnitStructuralTypeShape::Record { fields, storage } => {
+                if let checked_trees::CheckedUnitRecordStorage::TargetLayout {
+                    schema_type_identity,
+                    ..
+                } = storage
+                {
+                    collect(checked, plans, schema_type_identity, active, selected)?;
+                }
                 for type_identity in fields.iter().flat_map(
                     checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
                 ) {
@@ -637,6 +644,7 @@ pub(crate) fn lower_unit_structural_type_roots(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_field = 1_u64;
     let mut next_case = 1_u64;
+    let mut next_layout_application = 1_u32;
     let mut declarations = Vec::with_capacity(selected.len());
     for plan in selected {
         let identity = plan.identity;
@@ -722,7 +730,23 @@ pub(crate) fn lower_unit_structural_type_roots(
                 }).collect::<Result<Vec<_>, LoweringError>>()?;
                 StructuralTypeShape::Record {
                     fields,
-                    storage: *storage,
+                    storage: match storage {
+                        checked_trees::CheckedUnitRecordStorage::Packed => {
+                            terminal_psi::StructuralRecordStorage::Packed
+                        }
+                        checked_trees::CheckedUnitRecordStorage::Authored(storage) => {
+                            terminal_psi::StructuralRecordStorage::Authored(*storage)
+                        }
+                        checked_trees::CheckedUnitRecordStorage::TargetLayout { .. } => {
+                            let id = terminal_psi::LayoutApplicationId(next_layout_application);
+                            next_layout_application = next_layout_application
+                                .checked_add(1)
+                                .ok_or(LoweringError::Unsupported(
+                                    "target layout application identity overflow",
+                                ))?;
+                            terminal_psi::StructuralRecordStorage::TargetLayout(id)
+                        }
+                    },
                 }
             }
             CheckedUnitStructuralTypeShape::FixedArray {

@@ -196,12 +196,9 @@ fn collect_field_leaves(
             let leaf = field_shape(field, declarations, cache, active)?;
             leaves.push((base_offset, leaf.byte_size, false));
         }
-        StructuralFieldType::ByteSequence(
-            terminal_psi::byte_sequence_view_carrier_pattern!(),
-        )
+        StructuralFieldType::ByteSequence(terminal_psi::byte_sequence_view_carrier_pattern!())
         | StructuralFieldType::PredicateByteSequence {
-            carrier:
-                terminal_psi::byte_sequence_view_carrier_pattern!(),
+            carrier: terminal_psi::byte_sequence_view_carrier_pattern!(),
             ..
         } => {
             let leaf = field_shape(field, declarations, cache, active)?;
@@ -361,7 +358,10 @@ fn shape(
             ValueShape::integer(u32::try_from(bytes).map_err(|_| InvalidStructuralShape)?, 8)
         }
         StructuralTypeShape::Record { fields, storage } => {
-            if let Some(storage) = storage {
+            if matches!(storage, terminal_psi::StructuralRecordStorage::TargetLayout(_)) {
+                return Err(InvalidStructuralShape);
+            }
+            if let terminal_psi::StructuralRecordStorage::Authored(storage) = storage {
                 active.remove(&structural_type);
                 return Ok(ValueShape::integer(u32::try_from(storage.byte_size).map_err(|_| InvalidStructuralShape)?, u16::try_from(storage.byte_alignment).map_err(|_| InvalidStructuralShape)?));
             }

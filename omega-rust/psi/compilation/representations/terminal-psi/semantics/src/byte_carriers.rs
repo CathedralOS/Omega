@@ -4,13 +4,10 @@
 //! storage: the checked recast judgment proved the record's representation
 //! fits inside the byte region the captured index begins, and consumers see
 //! an `Unrestricted` leaf copy of the record the region overlays. This module
-//! is the shared shape of that overlay: a record is byte-carrier eligible
-//! when every leaf is a fixed-width scalar, and its layout packs the
-//! declaration-order leaves at scalar-size alignment — the same algebra the
-//! checking side's `record_representation` proves. Verification re-checks the
-//! static fit (index plus extent within the array's declared length); the
-//! interpreter decodes each leaf little-endian out of consecutive `u8`
-//! elements, the host byte order the realized image writes.
+//! is the shared shape of that overlay. Closed authored placement and ordinary
+//! packing use the same storage geometry query; an unresolved target-family
+//! application supplies neither offsets nor a byte extent. Custody and the
+//! checked fit judgment remain independent from this decoding schedule.
 
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration};
@@ -24,9 +21,8 @@ pub struct ByteCarrierScalarLeaf {
 }
 
 /// The complete fixed layout a byte-carrier record occupies: scalar leaves
-/// at their computed offsets plus the region's total extent — leaf end
-/// aligned up to the widest scalar — so a consumer checks fit with one
-/// number and decodes with the leaf schedule.
+/// at their closed offsets plus the complete region extent, including authored
+/// padding, so a consumer checks fit and decodes with the same geometry.
 pub struct ByteCarrierLayout {
     pub leaves: Vec<ByteCarrierScalarLeaf>,
     pub size: u64,
@@ -51,32 +47,35 @@ fn leaf_scalar_carriers(field: &StructuralFieldDeclaration) -> Option<(u64, Scal
 /// sequences, erased members, floats — has no fixed overlay this vocabulary
 /// admits, so `None` refuses it rather than guessing a layout.
 pub fn byte_carrier_scalar_layout<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration>,
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> Option<ByteCarrierLayout> {
-    let declaration = types.into_iter().find(|item| item.id == root)?;
+    let declaration = types.clone().find(|item| item.id == root)?;
+    let size = crate::reference_storage_size(types.clone(), root)?;
     let Some(fields) = declaration.shape.record_fields() else {
         return None;
     };
     let mut leaves = Vec::with_capacity(fields.len());
-    let mut offset = 0u64;
-    let mut widest = 1u64;
     for field in fields {
         if field.relevance.is_erased() {
             return None;
         }
-        let (size, scalar_type) = leaf_scalar_carriers(field)?;
-        // Scalar-size alignment matches the checked representation judgment:
-        // a leaf's offset rounds up to its own width before it stores.
-        offset = offset.checked_add(size)?.checked_sub(1)? / size * size;
+        let (_, scalar_type) = leaf_scalar_carriers(field)?;
+        let projection = crate::reference_storage_projection(
+            types.clone(),
+            root,
+            &[terminal_psi::StructuralPathSegment::Field(
+                field.identity.clone(),
+            )],
+        )?;
+        if projection.logical_scalar != scalar_type || projection.stored_scalar != scalar_type {
+            return None;
+        }
         leaves.push(ByteCarrierScalarLeaf {
             field: field.id,
-            offset,
+            offset: projection.byte_offset,
             scalar_type,
         });
-        offset = offset.checked_add(size)?;
-        widest = widest.max(size.max(1));
     }
-    let size = offset.checked_add(widest)?.checked_sub(1)? / widest * widest;
     Some(ByteCarrierLayout { leaves, size })
 }

@@ -116,6 +116,9 @@ pub enum TerminalInterpretError {
     CompletionReceiptMismatch,
     ProviderInstallationIdentityMismatch,
     TargetMachineSelectionIdentityMismatch,
+    TargetLayoutSelectionIdentityMismatch,
+    TargetLayoutSelectionMissing(terminal_psi::LayoutApplicationId),
+    TargetLayoutSelection(terminal_installation::TargetLayoutSelectionError),
     TargetMachineSelectionMissing(terminal_psi::TargetMachineCallable),
     TargetMachineSelection(terminal_installation::TargetMachineSelectionError),
     RuntimeSupplySelectionRejected {

@@ -294,7 +294,7 @@ fn runtime_element_field_publication_rebuilds_the_declared_field() {
             id: cell,
             identity: "test::Cell".into(),
             shape: StructuralTypeShape::Record {
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![
                     field(
                         1,
@@ -946,7 +946,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
             id: owner.structural_type,
             identity: "test::OwnedBuffer".into(),
             shape: terminal_psi::StructuralTypeShape::Record {
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
                     storage: None,
                     id: field,
@@ -1365,7 +1365,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             id: root_type,
             identity: "test::Root".into(),
             shape: StructuralTypeShape::Record {
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
                     storage: None,
                     id: StructuralFieldId::new(2).unwrap(),
@@ -1389,7 +1389,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             id: holder_type,
             identity: "test::Holder".into(),
             shape: StructuralTypeShape::Record {
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
                     storage: None,
                     id: field,
@@ -2050,7 +2050,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             id: function.structural_parameters[0].structural_type,
             identity: "Root".into(),
             shape: terminal_psi::StructuralTypeShape::Record {
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
                     storage: None,
                     id: carrier_field,
@@ -2070,7 +2070,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
                 id: child,
                 identity: "Child".into(),
                 shape: terminal_psi::StructuralTypeShape::Record {
-                    storage: None,
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
                         storage: None,
                         id: carrier_field,
@@ -2121,7 +2121,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                 id: function.structural_parameters[0].structural_type,
                 identity: "Root".into(),
                 shape: terminal_psi::StructuralTypeShape::Record {
-                    storage: None,
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
                         storage: None,
                         id: maps_field,
@@ -2142,7 +2142,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                 id: element,
                 identity: "Map".into(),
                 shape: terminal_psi::StructuralTypeShape::Record {
-                    storage: None,
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
                         storage: None,
                         id: leaf,
@@ -2219,7 +2219,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
         let mut non_array = target.clone();
         non_array.graph.structural_types.make_mut()[1].shape =
             terminal_psi::StructuralTypeShape::Record {
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
                     storage: None,
                     id: leaf,

@@ -81,13 +81,20 @@ pub(super) fn encode_type(
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
         }
         StructuralTypeShape::Record { fields, storage } => {
-            bytes.push(if storage.is_some() { 10 } else { 2 });
-            if let Some(storage) = storage {
-                crate::codec_bytes::push_encoded(bytes, storage.byte_size.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, storage.byte_alignment.to_le_bytes());
+            match storage {
+                terminal_psi::StructuralRecordStorage::Packed => bytes.push(2),
+                terminal_psi::StructuralRecordStorage::Authored(storage) => {
+                    bytes.push(10);
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_size.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_alignment.to_le_bytes());
+                }
+                terminal_psi::StructuralRecordStorage::TargetLayout(application) => {
+                    bytes.push(13);
+                    crate::codec_bytes::push_encoded(bytes, application.0.to_le_bytes());
+                }
             }
             encode_fields(bytes, fields)?;
-            if storage.is_some() {
+            if matches!(storage, terminal_psi::StructuralRecordStorage::Authored(_)) {
                 for field in fields {
                     encode_authored_field_storage(bytes, field.storage.as_ref());
                 }
@@ -125,7 +132,13 @@ pub(super) fn decode_type(
         },
         1 => StructuralTypeShape::ByteSequence(decode_byte_sequence_carrier(cursor)?),
         2 => StructuralTypeShape::Record {
-            storage: None,
+            storage: terminal_psi::StructuralRecordStorage::Packed,
+            fields: decode_fields(cursor)?,
+        },
+        13 => StructuralTypeShape::Record {
+            storage: terminal_psi::StructuralRecordStorage::TargetLayout(
+                terminal_psi::LayoutApplicationId(cursor.u32()?),
+            ),
             fields: decode_fields(cursor)?,
         },
         10 => {
@@ -139,7 +152,7 @@ pub(super) fn decode_type(
             }
             StructuralTypeShape::Record {
                 fields,
-                storage: Some(storage),
+                storage: terminal_psi::StructuralRecordStorage::Authored(storage),
             }
         }
         3 => StructuralTypeShape::FixedArray {

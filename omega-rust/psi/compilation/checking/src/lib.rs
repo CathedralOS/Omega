@@ -324,7 +324,7 @@ pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::arithmetic_domains::{
     standing_integer_bounds, stored_integer_bounds, stored_integer_source_may_require_fit,
-    stored_integer_source_projection,
+    stored_integer_source_projection, stored_integer_source_projections,
 };
 pub use proof_contracts::contract_entailment::instantiated_value_call_requires_proven;
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
@@ -391,6 +391,8 @@ mod declarations;
 pub(crate) use optimization::digest_encoder;
 pub mod expression_traversal;
 mod frozen_program;
+mod layout_checking;
+pub use layout_checking::{LayoutCheckingContext, layout_checking_targets};
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;

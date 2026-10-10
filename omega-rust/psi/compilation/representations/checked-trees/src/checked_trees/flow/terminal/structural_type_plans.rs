@@ -62,6 +62,19 @@ pub struct CheckedUnitStructuralTypePlan {
     pub scalar_restriction: Option<CheckedUnitStructuralFieldType>,
 }
 
+/// Physical storage remains unresolved until the exact target layout is closed.
+/// The typed application owns its checked alternatives; this row retains the
+/// precise application and schema needed by source-free Terminal publication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedUnitRecordStorage {
+    Packed,
+    Authored(semantic_vocabulary::AuthoredRecordStorage),
+    TargetLayout {
+        application: SymbolHandle,
+        schema_type_identity: String,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralTypeShape {
     /// A routed binding occurrence, independent of provider selection.
@@ -84,7 +97,7 @@ pub enum CheckedUnitStructuralTypeShape {
     /// declaration identities rather than source spellings alone.
     Record {
         fields: Vec<CheckedUnitStructuralFieldPlan>,
-        storage: Option<semantic_vocabulary::AuthoredRecordStorage>,
+        storage: CheckedUnitRecordStorage,
     },
     /// The owning indexed aggregate carrier: its extent is the declaration's
     /// own literal length, so the length is part of the type identity rather

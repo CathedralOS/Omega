@@ -28,6 +28,7 @@ mod placed_view_wire;
 mod proof_output_wire;
 mod scalar_block_invariant_wire;
 mod target_family_wire;
+mod target_layout_wire;
 
 use terminal_psi::{TerminalModule, TerminalRootServiceReach, VocabularyMarker};
 
@@ -210,6 +211,13 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         target_family_wire::encode_family(&mut writer, family)?;
     }
     writer.len(
+        "target layout applications",
+        module.target_layout_applications.len(),
+    )?;
+    for application in &module.target_layout_applications {
+        target_layout_wire::encode(&mut writer, application)?;
+    }
+    writer.len(
         "boundary application demands",
         module.boundary_application_demands.len(),
     )?;
@@ -302,6 +310,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         machines.push(super::machine_wire::decode_machine(reader)?);
     }
     let target_machine_families = decode_counted(reader, target_family_wire::decode_family)?;
+    let target_layout_applications = decode_counted(reader, target_layout_wire::decode)?;
     let boundary_application_demands =
         decode_counted(reader, boundary_application_wire::decode_demand)?;
     let callback_applications = decode_counted(reader, callback_application_wire::decode)?;
@@ -342,6 +351,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         suspension_call_plans,
         machines,
         target_machine_families,
+        target_layout_applications,
         boundary_application_demands,
         boundary_application_candidates,
         callback_applications,

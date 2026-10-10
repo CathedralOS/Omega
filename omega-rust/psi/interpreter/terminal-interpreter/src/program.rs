@@ -6,7 +6,9 @@
 //! already-sorted declarations directly; no executable-machine projection or
 //! copied lookup tables intervene. Borrowed programs cannot outlive the artifact.
 //! External loads retain the whole decoded module, including non-executable
-//! catalogs, rather than copying a second runtime representation.
+//! catalogs, rather than copying a second runtime representation. Each execution
+//! may attach an admitted target-layout overlay; its small record replacement
+//! table borrows the same canonical catalog owner and preserves artifact identity.
 //!
 //! Per the embedding contract (wiki/spec/build/embedding.md), a Program is
 //! immutable admitted Psi plus descriptions and execution metadata; instances
@@ -36,10 +38,35 @@ pub(crate) struct AdmittedTerminalProgram<'artifact> {
     /// Canonical Terminal-Psi identity of the module, computed once
     /// at admission; provider installations bind to this exact identity.
     pub(crate) identity: TerminalPsiIdentity,
-    pub(crate) catalogs: Cow<'artifact, TerminalModule>,
+    pub(crate) catalogs: std::sync::Arc<Cow<'artifact, TerminalModule>>,
+    /// Selected geometry belongs to an execution view, never canonical storage.
+    pub(crate) target_layouts: Option<std::sync::Arc<terminal_installation::AdmittedTargetLayouts>>,
 }
 
 impl AdmittedTerminalProgram<'_> {
+    fn validate_layout_selection(
+        &self,
+        installation: Option<&crate::effects::TerminalRuntimeSupplies>,
+    ) -> Result<(), TerminalInterpretError> {
+        let layouts = installation.and_then(|supplies| supplies.target_layouts.as_ref());
+        if let Some(layouts) = layouts {
+            let machines = installation.and_then(|supplies| supplies.target_machines.as_ref());
+            if layouts.terminal_psi() != self.identity
+                || machines.is_none_or(|machines| {
+                    machines.terminal_psi() != self.identity
+                        || machines.target() != layouts.target()
+                })
+            {
+                return Err(TerminalInterpretError::TargetLayoutSelectionIdentityMismatch);
+            }
+        } else if let Some(application) = self.catalogs.target_layout_applications.first() {
+            return Err(TerminalInterpretError::TargetLayoutSelectionMissing(
+                application.id,
+            ));
+        }
+        Ok(())
+    }
+
     pub(crate) fn machines(&self) -> ProgramDeclarations<'_, terminal_psi::TerminalMachine> {
         ProgramDeclarations::new(&self.catalogs.machines)
     }
@@ -67,7 +94,12 @@ impl AdmittedTerminalProgram<'_> {
     }
 
     pub(crate) fn structural_types(&self) -> ProgramDeclarations<'_, StructuralTypeDeclaration> {
-        ProgramDeclarations::new(&self.catalogs.structural_types)
+        ProgramDeclarations::with_replacements(
+            &self.catalogs.structural_types,
+            self.target_layouts
+                .as_ref()
+                .map_or(&[], |layouts| layouts.resolved_records()),
+        )
     }
 
     /// The record-or-mixed field roster of `identity`, absent when the type
@@ -186,6 +218,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         &self,
         installation: Option<&crate::effects::TerminalRuntimeSupplies>,
     ) -> Result<crate::capabilities::TerminalExecutionRequirements, TerminalInterpretError> {
+        self.program.validate_layout_selection(installation)?;
         crate::capabilities::check(&self.program, installation)
     }
     /// Decode canonical semantic bytes and retain their module and identity.
@@ -200,7 +233,8 @@ impl<'artifact> TerminalProgram<'artifact> {
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
         Ok(Self::from_admitted(AdmittedTerminalProgram {
             identity,
-            catalogs: Cow::Owned(module),
+            catalogs: std::sync::Arc::new(Cow::Owned(module)),
+            target_layouts: None,
         }))
     }
 
@@ -210,7 +244,8 @@ impl<'artifact> TerminalProgram<'artifact> {
     pub fn borrow(artifact: terminal_codec::TerminalArtifactView<'artifact>) -> Self {
         Self::from_admitted(AdmittedTerminalProgram {
             identity: artifact.identity(),
-            catalogs: Cow::Borrowed(artifact.module()),
+            catalogs: std::sync::Arc::new(Cow::Borrowed(artifact.module())),
+            target_layouts: None,
         })
     }
 
@@ -222,7 +257,8 @@ impl<'artifact> TerminalProgram<'artifact> {
         let (module, identity) = artifact.into_semantics();
         Ok(Self::from_admitted(AdmittedTerminalProgram {
             identity,
-            catalogs: Cow::Owned(module),
+            catalogs: std::sync::Arc::new(Cow::Owned(module)),
+            target_layouts: None,
         }))
     }
 
@@ -263,8 +299,12 @@ impl<'artifact> TerminalProgram<'artifact> {
                 supplies: BTreeMap::new(),
                 assumed_bindings: Vec::new(),
                 target_machines: None,
+                target_layouts: None,
             });
         installation.target_machines = request.target_machines.cloned();
+        installation.target_layouts = request.target_layouts.cloned().map(std::sync::Arc::new);
+        self.program
+            .validate_layout_selection(Some(&installation))?;
         for &boundary in request.host_imports {
             let rejected = |reason| TerminalInterpretError::RuntimeSupplySelectionRejected {
                 boundary,
@@ -395,6 +435,21 @@ impl<'artifact> TerminalProgram<'artifact> {
             .map(|(execution, _)| execution)
     }
 
+    fn execution_program(
+        &self,
+        installation: Option<&crate::effects::TerminalRuntimeSupplies>,
+    ) -> std::sync::Arc<AdmittedTerminalProgram<'artifact>> {
+        let Some(layouts) = installation.and_then(|supplies| supplies.target_layouts.as_ref())
+        else {
+            return std::sync::Arc::clone(&self.program);
+        };
+        std::sync::Arc::new(AdmittedTerminalProgram {
+            identity: self.program.identity,
+            catalogs: std::sync::Arc::clone(&self.program.catalogs),
+            target_layouts: Some(std::sync::Arc::clone(layouts)),
+        })
+    }
+
     fn prepare_execution(
         &self,
         scalar_arguments: &[TerminalScalarValue],
@@ -429,7 +484,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             &converted_boolean_fields
         };
         let mut execution = crate::execution::TerminalExecution::start_with_program(
-            std::sync::Arc::clone(&self.program),
+            self.execution_program(installation),
             scalar_arguments,
             structural_inputs.arguments,
             scalar_fields,

@@ -34,11 +34,12 @@ pub(crate) fn canonical_plan_laid_data_identity(
 
 pub(crate) fn plan_laid_semantic_ranges(
     plan: &typed_trees::typed_trees::PlanLaidLayout,
+    geometry: &typed_trees::PlanLaidGeometry,
     fields: &[FieldLayout],
 ) -> Result<Vec<(usize, usize)>, Diagnostic> {
     let mut ranges = Vec::new();
     for (index, field) in fields.iter().enumerate() {
-        if let Some(bit_field) = plan
+        if let Some(bit_field) = geometry
             .bit_fields
             .iter()
             .find(|candidate| candidate.field_index == index)
@@ -47,6 +48,7 @@ pub(crate) fn plan_laid_semantic_ranges(
                 let byte_size = usize::from(fragment.container_width_bits).div_ceil(8);
                 push_semantic_range(
                     plan,
+                    geometry,
                     field.name.as_str(),
                     fragment.container_byte_offset,
                     byte_size,
@@ -55,13 +57,14 @@ pub(crate) fn plan_laid_semantic_ranges(
             }
             continue;
         }
-        if let Some(integer_field) = plan
+        if let Some(integer_field) = geometry
             .integer_fields
             .iter()
             .find(|candidate| candidate.field_index == index)
         {
             push_semantic_range(
                 plan,
+                geometry,
                 field.name.as_str(),
                 field.offset,
                 usize::from(integer_field.stored_width_bits).div_ceil(8),
@@ -69,7 +72,7 @@ pub(crate) fn plan_laid_semantic_ranges(
             )?;
             continue;
         }
-        if let Some(repeated_field) = plan
+        if let Some(repeated_field) = geometry
             .repeated_fields
             .iter()
             .find(|candidate| candidate.field_index == index)
@@ -107,12 +110,20 @@ pub(crate) fn plan_laid_semantic_ranges(
                     .ok_or_else(|| {
                         Diagnostic::error("repeated field callback-closure offset overflows")
                     })?;
-                push_semantic_range(plan, field.name.as_str(), start, element_size, &mut ranges)?;
+                push_semantic_range(
+                    plan,
+                    geometry,
+                    field.name.as_str(),
+                    start,
+                    element_size,
+                    &mut ranges,
+                )?;
             }
             continue;
         }
         push_semantic_range(
             plan,
+            geometry,
             field.name.as_str(),
             field.offset,
             field.layout.size,
@@ -124,6 +135,7 @@ pub(crate) fn plan_laid_semantic_ranges(
 
 fn push_semantic_range(
     plan: &typed_trees::typed_trees::PlanLaidLayout,
+    geometry: &typed_trees::PlanLaidGeometry,
     field: &str,
     start: usize,
     byte_size: usize,
@@ -138,10 +150,10 @@ fn push_semantic_range(
             plan.data_name
         ))
     })?;
-    if end > plan.size {
+    if end > geometry.size {
         return Err(Diagnostic::error(format!(
             "plan-laid data `{}` semantic field `{field}` range {start}..{end} lies outside its {}-byte layout during private callback closure",
-            plan.data_name, plan.size
+            plan.data_name, geometry.size
         )));
     }
     ranges.push((start, end));

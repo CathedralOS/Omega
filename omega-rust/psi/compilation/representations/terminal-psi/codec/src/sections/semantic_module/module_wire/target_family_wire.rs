@@ -6,7 +6,7 @@ use terminal_psi::{
     TargetMachineCallable, TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply,
 };
 
-fn encode_callable(writer: &mut Writer, callable: TargetMachineCallable) {
+pub(super) fn encode_callable(writer: &mut Writer, callable: TargetMachineCallable) {
     match callable {
         TargetMachineCallable::Machine(machine) => {
             writer.u8(1);
@@ -19,7 +19,9 @@ fn encode_callable(writer: &mut Writer, callable: TargetMachineCallable) {
     }
 }
 
-fn decode_callable(reader: &mut Reader<'_>) -> Result<TargetMachineCallable, CodecError> {
+pub(super) fn decode_callable(
+    reader: &mut Reader<'_>,
+) -> Result<TargetMachineCallable, CodecError> {
     Ok(match reader.u8()? {
         1 => TargetMachineCallable::Machine(reader.id("MachineId")?),
         2 => TargetMachineCallable::Boundary(reader.id("BoundaryMachineId")?),

@@ -261,13 +261,20 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
         }
         StructuralTypeShape::Record { fields, storage } => {
-            bytes.push(if storage.is_some() { 10 } else { 2 });
-            if let Some(storage) = storage {
-                crate::codec_bytes::push_encoded(bytes, storage.byte_size.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, storage.byte_alignment.to_le_bytes());
+            match storage {
+                terminal_psi::StructuralRecordStorage::Packed => bytes.push(2),
+                terminal_psi::StructuralRecordStorage::Authored(storage) => {
+                    bytes.push(10);
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_size.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, storage.byte_alignment.to_le_bytes());
+                }
+                terminal_psi::StructuralRecordStorage::TargetLayout(application) => {
+                    bytes.push(13);
+                    crate::codec_bytes::push_encoded(bytes, application.0.to_le_bytes());
+                }
             }
             encode_structural_fields(bytes, fields);
-            if storage.is_some() {
+            if matches!(storage, terminal_psi::StructuralRecordStorage::Authored(_)) {
                 for field in fields {
                     encode_authored_field_storage(bytes, field.storage.as_ref());
                 }

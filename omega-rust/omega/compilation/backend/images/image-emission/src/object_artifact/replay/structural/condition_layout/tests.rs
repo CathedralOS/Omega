@@ -67,7 +67,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
                 id: leaf,
                 identity: "Item".into(),
                 shape: StructuralTypeShape::Record {
-                    storage: None,
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![field(32, "value", scalar.clone())],
                 },
             },

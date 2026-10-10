@@ -215,16 +215,17 @@ pub(crate) fn close_two_hop_private_callback_paths(
 
 pub(crate) fn close_private_callback_demands(
     plan: &typed_trees::typed_trees::PlanLaidLayout,
+    geometry: &typed_trees::PlanLaidGeometry,
     fields: &[FieldLayout],
     target: NativeTarget,
     canonical_layout_subject: &str,
     layout: calling_conventions::LayoutPlanId,
 ) -> Result<Vec<TargetClosedPrivateCallbackDemand>, Diagnostic> {
-    if plan.private_callback_demands.is_empty() {
+    if geometry.private_callback_demands.is_empty() {
         return Ok(Vec::new());
     }
-    if plan.validated_layout.size != u64::try_from(plan.size).ok()
-        || plan.validated_layout.align != plan.align as u64
+    if geometry.validated_layout.size != u64::try_from(geometry.size).ok()
+        || geometry.validated_layout.align != geometry.align as u64
     {
         return Err(Diagnostic::error(format!(
             "plan-laid data `{}` changed its validated size/alignment before private callback closure",
@@ -240,18 +241,19 @@ pub(crate) fn close_private_callback_demands(
             plan.data_name, target.pointer_size, target.pointer_alignment
         )));
     }
-    if plan.align < target.pointer_alignment || !plan.align.is_multiple_of(target.pointer_alignment)
+    if geometry.align < target.pointer_alignment
+        || !geometry.align.is_multiple_of(target.pointer_alignment)
     {
         return Err(Diagnostic::error(format!(
             "plan-laid data `{}` has alignment {}, which cannot align a {}-byte private callback slot",
-            plan.data_name, plan.align, target.pointer_alignment
+            plan.data_name, geometry.align, target.pointer_alignment
         )));
     }
 
-    let semantic_ranges = plan_laid_semantic_ranges(plan, fields)?;
+    let semantic_ranges = plan_laid_semantic_ranges(plan, geometry, fields)?;
     let mut occupied_private = Vec::<(usize, usize, &str)>::new();
-    let mut closed = Vec::with_capacity(plan.private_callback_demands.len());
-    for demand in &plan.private_callback_demands {
+    let mut closed = Vec::with_capacity(geometry.private_callback_demands.len());
+    for demand in &geometry.private_callback_demands {
         if demand.layout_subject_identity != canonical_layout_subject {
             return Err(Diagnostic::error(format!(
                 "plan-laid data `{}` private callback slot `{}` changed layout subject from `{canonical_layout_subject}` to `{}`",
@@ -287,10 +289,10 @@ pub(crate) fn close_private_callback_demands(
                 plan.data_name, demand.slot_identity
             ))
         })?;
-        if end > plan.size {
+        if end > geometry.size {
             return Err(Diagnostic::error(format!(
                 "plan-laid data `{}` private callback slot `{}` range {}..{} lies outside its {}-byte layout",
-                plan.data_name, demand.slot_identity, offset, end, plan.size
+                plan.data_name, demand.slot_identity, offset, end, geometry.size
             )));
         }
         if semantic_ranges

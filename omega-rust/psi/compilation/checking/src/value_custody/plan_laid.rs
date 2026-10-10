@@ -19,6 +19,13 @@ pub(crate) fn validate_plans(
             continue;
         }
         data_symbols.push(plan.data_symbol);
+        if !crate::layout_checking::layout_family_is_complete(program, plan) {
+            diagnostics.push(Diagnostic::error(format!(
+                "plan-laid value type `{}` lost its complete exact target-family application roster",
+                plan.data_name
+            )));
+            continue;
+        }
 
         let Some(data) =
             crate::declarations::data_queries::data_definition_by_symbol(program, plan.data_symbol)
@@ -35,7 +42,9 @@ pub(crate) fn validate_plans(
             .map(|field| field.symbol)
             .collect::<Vec<_>>();
         if data_field_symbols != plan.field_symbols
-            || plan.offsets.len() != plan.field_symbols.len()
+            || plan
+                .geometries(program.typed_program())
+                .any(|geometry| geometry.offsets.len() != plan.field_symbols.len())
         {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` changed its exact synthesized field identity inventory",
@@ -67,6 +76,13 @@ pub(crate) fn validate_plans(
             )));
             continue;
         }
+        if !schema_argument_matches(program, plan, &schema_fields) {
+            diagnostics.push(Diagnostic::error(format!(
+                "plan-laid value type `{}` lost its exact complete captured Schema argument",
+                plan.data_name
+            )));
+            continue;
+        }
         if data_fields
             .iter()
             .zip(&schema_fields)
@@ -85,21 +101,29 @@ pub(crate) fn validate_plans(
             )));
             continue;
         }
-        if !target_neutral_report_matches(program, plan, schema, &schema_fields) {
+        if !plan.geometries(program.typed_program()).all(|geometry| {
+            target_neutral_report_matches(program, geometry, schema, &schema_fields)
+        }) {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` changed its exact target-neutral layout report identity",
                 plan.data_name
             )));
             continue;
         }
-        if !geometry_matches(plan, &schema_fields) {
+        if !plan
+            .geometries(program.typed_program())
+            .all(|geometry| geometry_matches(geometry, &schema_fields))
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` changed its exact validated geometry projection",
                 plan.data_name
             )));
             continue;
         }
-        if !stored_integer_capabilities_match(program, plan, &schema_fields) {
+        if !plan
+            .geometries(program.typed_program())
+            .all(|geometry| stored_integer_capabilities_match(program, geometry, &schema_fields))
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` changed its exact stored-integer type capability",
                 plan.data_name
@@ -138,9 +162,56 @@ pub(crate) fn validate_plans(
     }
 }
 
-fn target_neutral_report_matches(
+/// A captured argument is a complete ordered input, not a best-effort lookup.
+/// An empty span is valid only for an actually empty live schema; the option
+/// distinguishes that input from missing family-fold custody.
+fn schema_argument_matches(
     program: &dyn crate::CheckingInput,
     plan: &typed_trees::PlanLaidLayout,
+    schema_fields: &[&typed_trees::data::DataField],
+) -> bool {
+    let Some(argument) = plan.schema_argument else {
+        return matches!(
+            plan.realizations,
+            typed_trees::PlanLaidRealizations::Invariant(_)
+        );
+    };
+    if argument.abi_version != 1 {
+        return false;
+    }
+    let Some(rows) = program.plan_laid_schema_fields.span(argument.fields) else {
+        return false;
+    };
+    if rows.len() != schema_fields.len() || rows.len() > 32 {
+        return false;
+    }
+    rows.iter()
+        .zip(schema_fields)
+        .enumerate()
+        .all(|(index, (row, field))| {
+            row.schema_field == field.symbol
+                && row.identity == field.identity
+                && row.key != 0
+                && !rows[..index].iter().any(|previous| {
+                    previous.key == row.key || previous.schema_field == row.schema_field
+                })
+                && row.byte_size != 0
+                && row.byte_alignment.is_power_of_two()
+                && row.kind
+                    == if program
+                        .primitive_type_reference(field.type_reference)
+                        .is_some()
+                    {
+                        typed_trees::PlanLaidSchemaFieldKind::Scalar
+                    } else {
+                        typed_trees::PlanLaidSchemaFieldKind::Nested
+                    }
+        })
+}
+
+fn target_neutral_report_matches(
+    program: &dyn crate::CheckingInput,
+    plan: &typed_trees::PlanLaidGeometry,
     schema: &typed_trees::data::DataDefinition,
     schema_fields: &[&typed_trees::data::DataField],
 ) -> bool {
@@ -184,7 +255,7 @@ fn target_neutral_report_matches(
 
 fn stored_integer_capabilities_match(
     program: &dyn crate::CheckingInput,
-    plan: &typed_trees::PlanLaidLayout,
+    plan: &typed_trees::PlanLaidGeometry,
     schema_fields: &[&typed_trees::data::DataField],
 ) -> bool {
     plan.integer_fields.iter().all(|integer| {
@@ -236,7 +307,7 @@ fn stored_integer_bounds(
 }
 
 fn geometry_matches(
-    plan: &typed_trees::PlanLaidLayout,
+    plan: &typed_trees::PlanLaidGeometry,
     schema_fields: &[&typed_trees::data::DataField],
 ) -> bool {
     let report = &plan.validated_layout;

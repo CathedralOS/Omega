@@ -67,7 +67,7 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
                         StructuralFieldType::ByteSequence(OWNER),
                     ),
                 ],
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
             },
         ),
         declaration(

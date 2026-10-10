@@ -120,6 +120,7 @@ pub struct VerifiedPsiOptimizationInput {
     pub(crate) context: VerifiedPsiOptimizationContext,
     pub(crate) target_machine_selections:
         Option<terminal_installation::AdmittedTargetMachineSelections>,
+    pub(crate) target_layout_selections: Option<terminal_installation::AdmittedTargetLayouts>,
 }
 
 impl VerifiedPsiOptimizationInput {
@@ -137,6 +138,14 @@ impl VerifiedPsiOptimizationInput {
         &self,
     ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
         self.target_machine_selections.as_ref()
+    }
+
+    /// Exact geometry closure retained separately from immutable canonical Psi.
+    /// The executable plan uses only this receipt's selected declarations.
+    pub fn target_layout_selections(
+        &self,
+    ) -> Option<&terminal_installation::AdmittedTargetLayouts> {
+        self.target_layout_selections.as_ref()
     }
 
     /// Follow a portable family head as an internal execution edge. A missing

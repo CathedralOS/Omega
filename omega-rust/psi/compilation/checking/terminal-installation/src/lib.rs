@@ -9,7 +9,8 @@
 //! granting execution authority. Consumers still admit the portable contract
 //! and transport the selected member's authentic result evidence.
 //! This owner has no execution loop, host adapters, mutable guest storage, or
-//! target layout. Each consumer establishes its own invocation from these facts.
+//! native ABI policy. Authored layout closure retains a separate exact overlay.
+//! Each consumer establishes its own invocation from these facts.
 
 mod entry_values;
 mod provider_installation;
@@ -25,4 +26,10 @@ pub use provider_installation::{
 pub use target_families::{
     AdmittedTargetMachineSelections, TargetMachineSelection, TargetMachineSelectionError,
     admit_target_machine_selections,
+};
+
+mod target_layouts;
+pub use target_layouts::{
+    AdmittedTargetLayouts, TargetLayoutClosure, TargetLayoutGeometry, TargetLayoutSelectionError,
+    admit_target_layouts,
 };

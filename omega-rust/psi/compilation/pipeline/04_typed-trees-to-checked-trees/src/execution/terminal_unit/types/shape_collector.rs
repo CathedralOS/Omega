@@ -231,7 +231,7 @@ impl<'program> ShapeCollector<'program> {
             no_code_affine_cleanup: false,
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::Record {
-                storage: None,
+                storage: checked_trees::CheckedUnitRecordStorage::Packed,
                 fields: Vec::new(),
             },
         };
@@ -857,11 +857,23 @@ impl<'program> ShapeCollector<'program> {
         let program = self.program;
         let authored_layout = program.plan_laid_layout(data.symbol);
         let record_storage = match authored_layout {
-            Some(layout) => Some(semantic_vocabulary::AuthoredRecordStorage {
-                byte_size: u64::try_from(layout.size).ok()?,
-                byte_alignment: u64::try_from(layout.align).ok()?,
-            }),
-            None => None,
+            Some(layout) => match layout.invariant_geometry() {
+                Some(geometry) => checked_trees::CheckedUnitRecordStorage::Authored(
+                    semantic_vocabulary::AuthoredRecordStorage {
+                        byte_size: u64::try_from(geometry.size).ok()?,
+                        byte_alignment: u64::try_from(geometry.align).ok()?,
+                    },
+                ),
+                None => {
+                    let schema = program.data_definition_by_symbol(layout.schema_symbol)?;
+                    let schema_type_identity = self.add_attached_data(schema, binders)?;
+                    checked_trees::CheckedUnitRecordStorage::TargetLayout {
+                        application: layout.data_symbol,
+                        schema_type_identity,
+                    }
+                }
+            },
+            None => checked_trees::CheckedUnitRecordStorage::Packed,
         };
         let mut fields = Vec::new();
         for member in &members {
@@ -877,7 +889,7 @@ impl<'program> ShapeCollector<'program> {
                 return None;
             };
             if let Some(layout) = authored_layout {
-                if !field.relevance.is_erased() {
+                if !field.relevance.is_erased() && layout.invariant_geometry().is_some() {
                     field_plan.storage = Some(authored_field_storage(
                         layout,
                         field.symbol,
@@ -1130,7 +1142,14 @@ impl<'program> ShapeCollector<'program> {
                     }
                     CheckedUnitStructuralTypeShape::BindingCarrier
                     | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
-                    CheckedUnitStructuralTypeShape::Record { fields, .. } => {
+                    CheckedUnitStructuralTypeShape::Record { fields, storage } => {
+                        if let checked_trees::CheckedUnitRecordStorage::TargetLayout {
+                            schema_type_identity,
+                            ..
+                        } = storage
+                        {
+                            retained.insert(schema_type_identity.clone());
+                        }
                         retained.extend(
                             fields
                                 .iter()
@@ -1180,77 +1199,20 @@ fn authored_field_storage(
     symbol: SymbolHandle,
     field_type: &CheckedUnitStructuralFieldType,
 ) -> Option<semantic_vocabulary::AuthoredFieldStorage> {
-    use semantic_vocabulary::{
-        AuthoredBitFragment, AuthoredBitFragments, AuthoredFieldStorage, IntegerSign, IntegerType,
-        ScalarType,
-    };
     let field_index = layout
         .field_symbols
         .iter()
         .position(|candidate| *candidate == symbol)?;
-    if let Some(field) = layout
-        .bit_fields
-        .iter()
-        .find(|field| field.field_index == field_index)
-    {
-        let fragments = field
-            .fragments
-            .iter()
-            .map(|fragment| {
-                Some(AuthoredBitFragment {
-                    container_byte_offset: u64::try_from(fragment.container_byte_offset).ok()?,
-                    container_width_bits: u64::from(fragment.container_width_bits),
-                    destination_lsb: u64::from(fragment.destination_lsb),
-                    source_lsb: u64::from(fragment.source_lsb),
-                    width: u64::from(fragment.width),
-                })
-            })
-            .collect::<Option<Vec<_>>>()?;
-        return Some(AuthoredFieldStorage::Fragmented(AuthoredBitFragments::new(
-            fragments,
-        )));
-    }
-    let byte_offset = u64::try_from(*layout.offsets.get(field_index)?).ok()?;
-    if let Some(field) = layout
-        .repeated_fields
-        .iter()
-        .find(|field| field.field_index == field_index)
-    {
-        return Some(AuthoredFieldStorage::Repeated {
-            byte_offset,
-            element_stride: u64::try_from(field.element_stride).ok()?,
-        });
-    }
-    if let Some(field) = layout
-        .integer_fields
-        .iter()
-        .find(|field| field.field_index == field_index)
-    {
-        let sign = match field.interpretation {
-            layout_plans::IntegerInterpretation::Signed => IntegerSign::Signed,
-            layout_plans::IntegerInterpretation::Unsigned => IntegerSign::Unsigned,
-        };
-        return Some(AuthoredFieldStorage::Scalar {
-            byte_offset,
-            stored_scalar: Some(ScalarType::Integer(
-                IntegerType::new(sign, field.stored_width_bits).ok()?,
-            )),
-        });
-    }
-    if matches!(
+    let scalar_field = matches!(
         field_type,
         CheckedUnitStructuralFieldType::Scalar(_)
             | CheckedUnitStructuralFieldType::Atomic(_)
             | CheckedUnitStructuralFieldType::BoundedInteger(_)
             | CheckedUnitStructuralFieldType::RefinedScalar { .. }
-    ) {
-        Some(AuthoredFieldStorage::Scalar {
-            byte_offset,
-            stored_scalar: None,
-        })
-    } else {
-        Some(AuthoredFieldStorage::Direct { byte_offset })
-    }
+    );
+    layout
+        .invariant_geometry()?
+        .authored_field_storage(field_index, scalar_field)
 }
 
 /// A provider-backed field's logical receipt (when the carrier is an exact

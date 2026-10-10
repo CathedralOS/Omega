@@ -480,7 +480,7 @@ mod tests {
                         .structural_types
                         .make_mut()[0]
                         .shape = StructuralTypeShape::Record {
-                        storage: None,
+                        storage: terminal_psi::StructuralRecordStorage::Packed,
                         fields: vec![],
                     }
                 }

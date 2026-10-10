@@ -347,7 +347,7 @@ mod cleanup_tests {
             id: structural_type,
             identity: "Leaf".into(),
             shape: StructuralTypeShape::Record {
-                storage: None,
+                storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
                     storage: None,
                     id: StructuralFieldId::new(1).unwrap(),

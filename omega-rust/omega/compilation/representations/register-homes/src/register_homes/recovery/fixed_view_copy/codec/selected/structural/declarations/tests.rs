@@ -23,7 +23,7 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
         id: StructuralTypeId::new(7).unwrap(),
         identity: "Refined".into(),
         shape: StructuralTypeShape::Record {
-            storage: None,
+            storage: terminal_psi::StructuralRecordStorage::Packed,
             fields: vec![StructuralFieldDeclaration {
                 storage: None,
                 id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
@@ -72,7 +72,7 @@ fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
 
     let mut record = declaration.clone();
     record.shape = StructuralTypeShape::Record {
-        storage: None,
+        storage: terminal_psi::StructuralRecordStorage::Packed,
         fields: Vec::new(),
     };
     let mut record_bytes = Vec::new();

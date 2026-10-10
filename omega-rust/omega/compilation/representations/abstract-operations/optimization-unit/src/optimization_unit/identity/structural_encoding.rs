@@ -413,13 +413,20 @@ pub(super) fn encode_structural_type(
             bytes.id(*element);
         }
         StructuralTypeShape::Record { fields, storage } => {
-            bytes.u8(if storage.is_some() { 10 } else { 2 });
-            if let Some(storage) = storage {
-                bytes.u64(storage.byte_size);
-                bytes.u64(storage.byte_alignment);
+            match storage {
+                terminal_psi::StructuralRecordStorage::Packed => bytes.u8(2),
+                terminal_psi::StructuralRecordStorage::Authored(storage) => {
+                    bytes.u8(10);
+                    bytes.u64(storage.byte_size);
+                    bytes.u64(storage.byte_alignment);
+                }
+                terminal_psi::StructuralRecordStorage::TargetLayout(application) => {
+                    bytes.u8(13);
+                    bytes.u32(application.0);
+                }
             }
             bytes.slice(fields, encode_structural_field);
-            if storage.is_some() {
+            if matches!(storage, terminal_psi::StructuralRecordStorage::Authored(_)) {
                 for field in fields {
                     encode_authored_field_storage(bytes, field.storage.as_ref());
                 }

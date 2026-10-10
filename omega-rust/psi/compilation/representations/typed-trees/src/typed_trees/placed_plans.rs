@@ -96,10 +96,8 @@ pub(crate) fn named_type_reference_through_shells(
     }
 }
 
-/// One validated, FULLY-STATIC layout plan applied to a synthesized data
-/// definition (the compiler-generated `Policy<Schema>` instance). Offsets are
-/// per field in declaration order; the plan was validated (bounds, overlap,
-/// alignment) before it was recorded here, so the layout builder may trust it.
+/// One exact policy/schema application. Every retained geometry is validated;
+/// target-family alternatives remain guarded until target closure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanLaidLayout {
     /// Name of the synthesized data definition (e.g. `CLayout<GdtEntryish>`).
@@ -113,10 +111,114 @@ pub struct PlanLaidLayout {
     /// synthesized value type.
     pub schema_symbol: symbols::SymbolHandle,
     pub schema_field_symbols: Vec<symbols::SymbolHandle>,
-    /// Exact nominal layout policy and build-time plan machine that produced
-    /// this geometry. These identities do not grant runtime authority.
+    /// Exact nominal layout policy and plan machine, or the canonical family
+    /// interface for guarded alternatives. These grant no runtime authority.
     pub policy_symbol: symbols::SymbolHandle,
     pub policy_plan_machine_symbol: symbols::SymbolHandle,
+    /// Exact compiler-materialized Schema input for guarded family folds.
+    /// Only invariant applications may omit this retained argument.
+    pub schema_argument: Option<PlanLaidSchemaArgument>,
+    pub realizations: PlanLaidRealizations,
+}
+
+/// Versioned active rows of the compiler-owned Schema ABI. Version 1 has a
+/// record shape, no cases or retired identities, and fixed unused-row padding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlanLaidSchemaArgument {
+    pub abi_version: u16,
+    pub fields: arena::HandleSpan<PlanLaidSchemaField>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlanLaidSchemaField {
+    pub schema_field: symbols::SymbolHandle,
+    pub key: u64,
+    pub identity: Option<u64>,
+    pub byte_size: u64,
+    pub byte_alignment: u64,
+    pub kind: PlanLaidSchemaFieldKind,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PlanLaidSchemaFieldKind {
+    #[default]
+    Scalar,
+    Nested,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlanLaidRealizations {
+    Invariant(PlanLaidGeometry),
+    TargetFamily(arena::HandleSpan<PlanLaidTargetLayout>),
+}
+
+/// Exact member identity accompanies its geometry even for literal-only policies.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlanLaidTargetLayout {
+    pub target: crate::name::Identifier,
+    pub machine: symbols::SymbolHandle,
+    pub geometry: PlanLaidGeometry,
+}
+
+impl PlanLaidLayout {
+    /// Only an invariant application has geometry before target closure.
+    pub fn invariant_geometry(&self) -> Option<&PlanLaidGeometry> {
+        match &self.realizations {
+            PlanLaidRealizations::Invariant(geometry) => Some(geometry),
+            PlanLaidRealizations::TargetFamily(_) => None,
+        }
+    }
+
+    /// Query one exact target within a checked target context. Absence never
+    /// selects a family representative; unknown targets and lost spans refuse.
+    pub fn geometry_for_target<'a>(
+        &'a self,
+        typed: &'a crate::TypedTrees,
+        target: Option<&str>,
+    ) -> Option<&'a PlanLaidGeometry> {
+        match &self.realizations {
+            PlanLaidRealizations::Invariant(geometry) => Some(geometry),
+            PlanLaidRealizations::TargetFamily(span) => {
+                let target = target?;
+                typed
+                    .plan_laid_target_layouts
+                    .span(*span)?
+                    .iter()
+                    .find(|row| row.target.as_str() == target)
+                    .map(|row| &row.geometry)
+            }
+        }
+    }
+
+    /// Enumerate every alternative; no member is a representative for a family.
+    pub fn geometries<'a>(
+        &'a self,
+        typed: &'a crate::TypedTrees,
+    ) -> impl Iterator<Item = &'a PlanLaidGeometry> {
+        let invariant = match &self.realizations {
+            PlanLaidRealizations::Invariant(geometry) => Some(geometry),
+            PlanLaidRealizations::TargetFamily(_) => None,
+        };
+        invariant
+            .into_iter()
+            .chain(self.target_layouts(typed).iter().map(|row| &row.geometry))
+    }
+
+    /// Exact guarded alternatives after application validation. Validators must
+    /// check the arena span and complete nonempty family roster before use.
+    pub fn target_layouts<'a>(&self, typed: &'a crate::TypedTrees) -> &'a [PlanLaidTargetLayout] {
+        match self.realizations {
+            PlanLaidRealizations::Invariant(_) => &[],
+            PlanLaidRealizations::TargetFamily(span) => {
+                typed.plan_laid_target_layouts.span_or_empty(span)
+            }
+        }
+    }
+}
+
+/// One fully static geometry, derived only from a validated policy result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlanLaidGeometry {
     /// Exact validated target-neutral geometry from which the host-sized
     /// consumer projections below were derived.
     pub validated_layout: layout_plans::LayoutPlanReport,
@@ -145,6 +247,102 @@ pub struct PlanLaidLayout {
     /// Total value size (fixed by the value-type gate).
     pub size: usize,
     pub align: usize,
+}
+
+impl PlanLaidGeometry {
+    /// Project one validated field placement into the source-free storage
+    /// vocabulary. The caller supplies the exact declaration-order position
+    /// and semantic scalar classification; this operation never chooses a target.
+    pub fn authored_field_storage(
+        &self,
+        field_index: usize,
+        scalar_field: bool,
+    ) -> Option<semantic_vocabulary::AuthoredFieldStorage> {
+        use semantic_vocabulary::{
+            AuthoredBitFragment, AuthoredBitFragments, AuthoredFieldStorage, IntegerSign,
+            IntegerType, ScalarType,
+        };
+        if let Some(field) = self
+            .bit_fields
+            .iter()
+            .find(|field| field.field_index == field_index)
+        {
+            let fragments = field
+                .fragments
+                .iter()
+                .map(|fragment| {
+                    Some(AuthoredBitFragment {
+                        container_byte_offset: u64::try_from(fragment.container_byte_offset)
+                            .ok()?,
+                        container_width_bits: u64::from(fragment.container_width_bits),
+                        destination_lsb: u64::from(fragment.destination_lsb),
+                        source_lsb: u64::from(fragment.source_lsb),
+                        width: u64::from(fragment.width),
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?;
+            return Some(AuthoredFieldStorage::Fragmented(AuthoredBitFragments::new(
+                fragments,
+            )));
+        }
+        let byte_offset = u64::try_from(*self.offsets.get(field_index)?).ok()?;
+        if let Some(field) = self
+            .repeated_fields
+            .iter()
+            .find(|field| field.field_index == field_index)
+        {
+            return Some(AuthoredFieldStorage::Repeated {
+                byte_offset,
+                element_stride: u64::try_from(field.element_stride).ok()?,
+            });
+        }
+        if let Some(field) = self
+            .integer_fields
+            .iter()
+            .find(|field| field.field_index == field_index)
+        {
+            let sign = match field.interpretation {
+                layout_plans::IntegerInterpretation::Signed => IntegerSign::Signed,
+                layout_plans::IntegerInterpretation::Unsigned => IntegerSign::Unsigned,
+            };
+            return Some(AuthoredFieldStorage::Scalar {
+                byte_offset,
+                stored_scalar: Some(ScalarType::Integer(
+                    IntegerType::new(sign, field.stored_width_bits).ok()?,
+                )),
+            });
+        }
+        if scalar_field {
+            Some(AuthoredFieldStorage::Scalar {
+                byte_offset,
+                stored_scalar: None,
+            })
+        } else {
+            Some(AuthoredFieldStorage::Direct { byte_offset })
+        }
+    }
+}
+
+impl Default for PlanLaidGeometry {
+    /// Arena zero storage is absence, never a validated application.
+    fn default() -> Self {
+        Self {
+            validated_layout: layout_plans::LayoutPlanReport {
+                schema_report_fingerprint: 0,
+                entries: Vec::new(),
+                offsets: None,
+                size: None,
+                align: 0,
+            },
+            private_callback_demands: Vec::new(),
+            offsets: Vec::new(),
+            bit_fields: Vec::new(),
+            integer_fields: Vec::new(),
+            repeated_fields: Vec::new(),
+            size: 0,
+            align: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

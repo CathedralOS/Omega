@@ -887,6 +887,14 @@ pub fn retained_typed_base_is_exact_prefix(base: &TypedTrees, candidate: &TypedT
         && candidate
             .plan_laid_layouts
             .starts_with(&base.plan_laid_layouts)
+        && arena_is_exact_prefix(
+            &base.plan_laid_target_layouts,
+            &candidate.plan_laid_target_layouts,
+        )
+        && arena_is_exact_prefix(
+            &base.plan_laid_schema_fields,
+            &candidate.plan_laid_schema_fields,
+        )
         && candidate
             .placed_view_plans
             .starts_with(&base.placed_view_plans)

@@ -1,11 +1,13 @@
 //! Closed byte geometry for reference views. Authored record placements
 //! override canonical value geometry; fragmented scalar storage has no direct
-//! projection. These queries describe bytes, never access or lifetime.
+//! projection. Pending target applications expose no concrete geometry until
+//! the caller supplies admitted target-closed declarations. These queries
+//! describe bytes, never access or lifetime.
 
 use semantic_vocabulary::{AuthoredFieldStorage, ScalarType, StructuralTypeId};
 use terminal_psi::{
-    StructuralFieldDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralFieldDeclaration, StructuralPathSegment, StructuralRecordStorage,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,12 +68,12 @@ fn geometry<'types>(
     let result = match shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_geometry(*scalar),
         StructuralTypeShape::Record {
-            storage: Some(storage),
+            storage: StructuralRecordStorage::Authored(storage),
             ..
         } => Some((storage.byte_size, storage.byte_alignment)),
         StructuralTypeShape::Record {
             fields,
-            storage: None,
+            storage: StructuralRecordStorage::Packed,
         } => {
             let mut size = 0;
             let mut alignment = 1;
@@ -167,20 +169,27 @@ fn storage_path<'types>(
                 StructuralPathSegment::Field(identity),
             ) => {
                 let field = terminal_psi::live_field_by_identity(fields, identity)?;
-                let offset = if storage.is_some() {
-                    field.storage.as_ref()?.byte_offset()?
-                } else {
-                    let mut offset = 0;
-                    for candidate in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                        let (size, alignment) =
-                            field_geometry(types.clone(), candidate, &mut Vec::new())?;
-                        offset = align(offset, alignment)?;
-                        if candidate.id == field.id {
-                            break;
-                        }
-                        offset = offset.checked_add(size)?;
+                // A pending record's absent field recipe is not its logical
+                // scalar width or a declaration-order byte offset.
+                let offset = match storage {
+                    StructuralRecordStorage::TargetLayout(_) => return None,
+                    StructuralRecordStorage::Authored(_) => {
+                        field.storage.as_ref()?.byte_offset()?
                     }
-                    offset
+                    StructuralRecordStorage::Packed => {
+                        let mut offset = 0;
+                        for candidate in fields.iter().filter(|field| !field.relevance.is_erased())
+                        {
+                            let (size, alignment) =
+                                field_geometry(types.clone(), candidate, &mut Vec::new())?;
+                            offset = align(offset, alignment)?;
+                            if candidate.id == field.id {
+                                break;
+                            }
+                            offset = offset.checked_add(size)?;
+                        }
+                        offset
+                    }
                 };
                 byte_offset = byte_offset.checked_add(offset)?;
                 selected_storage = field
@@ -264,7 +273,7 @@ mod tests {
                 id: identity(1),
                 identity: "signed byte".into(),
                 shape: StructuralTypeShape::Record {
-                    storage: Some(AuthoredRecordStorage {
+                    storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
                         byte_size: 1,
                         byte_alignment: 1,
                     }),
@@ -283,7 +292,7 @@ mod tests {
                 id: identity(2),
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
-                    storage: None,
+                    storage: StructuralRecordStorage::Packed,
                     fields: vec![field(2, StructuralFieldType::Structural(identity(1)), None)],
                 },
             },
@@ -313,7 +322,7 @@ mod tests {
             id: identity(1),
             identity: "fragmented".into(),
             shape: StructuralTypeShape::Record {
-                storage: Some(AuthoredRecordStorage {
+                storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
                     byte_size: 1,
                     byte_alignment: 1,
                 }),

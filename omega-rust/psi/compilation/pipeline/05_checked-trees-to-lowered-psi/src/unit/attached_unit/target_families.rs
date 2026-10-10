@@ -46,33 +46,38 @@ pub(crate) fn runtime_families(
     Ok(families)
 }
 
+pub(super) fn callable(
+    source: SymbolHandle,
+    machines: &[(SymbolHandle, MachineId)],
+    boundaries: &[BoundaryParameters],
+) -> Result<TargetMachineCallable, LoweringError> {
+    let mut owners = machines
+        .iter()
+        .filter(|(symbol, _)| *symbol == source)
+        .map(|(_, identity)| TargetMachineCallable::Machine(*identity))
+        .chain(
+            boundaries
+                .iter()
+                .filter(|boundary| boundary.source == source)
+                .map(|boundary| TargetMachineCallable::Boundary(boundary.id)),
+        );
+    let owner = owners.next().ok_or(LoweringError::Unsupported(
+        "target-family member has no emitted callable",
+    ))?;
+    if owners.next().is_some() {
+        return unsupported("target-family member has multiple emitted callables");
+    }
+    Ok(owner)
+}
+
 pub(super) fn lower(
     checked: &CheckedTrees,
     machines: &[(SymbolHandle, MachineId)],
     boundaries: &[BoundaryParameters],
 ) -> Result<Vec<TargetMachineFamily>, LoweringError> {
-    let callable = |source: SymbolHandle| {
-        let mut owners = machines
-            .iter()
-            .filter(|(symbol, _)| *symbol == source)
-            .map(|(_, identity)| TargetMachineCallable::Machine(*identity))
-            .chain(
-                boundaries
-                    .iter()
-                    .filter(|boundary| boundary.source == source)
-                    .map(|boundary| TargetMachineCallable::Boundary(boundary.id)),
-            );
-        let owner = owners.next().ok_or(LoweringError::Unsupported(
-            "target-family member has no emitted callable",
-        ))?;
-        if owners.next().is_some() {
-            return unsupported("target-family member has multiple emitted callables");
-        }
-        Ok(owner)
-    };
     let mut families = Vec::with_capacity(checked.typed.target_machine_families.len());
     for family in runtime_families(checked)? {
-        let canonical = callable(family.canonical)?;
+        let canonical = callable(family.canonical, machines, boundaries)?;
         // Carry the checked published head row, never a selected member's
         // private contract or a digest reconstructed from display identity.
         // Legacy canonical-as-member families retain that exact callable's
@@ -124,7 +129,7 @@ pub(super) fn lower(
             };
             members.push(TargetMachineFamilyMember {
                 target: member.target.as_str().to_owned(),
-                callable: callable(member.machine)?,
+                callable: callable(member.machine, machines, boundaries)?,
                 supply,
             });
         }

@@ -218,6 +218,8 @@ pub struct TerminalModule {
     /// All target-scoped callable members, including unreachable bodies and
     /// opaque declarations. Selection belongs to subsequent realization.
     pub target_machine_families: Vec<TargetMachineFamily>,
+    /// Complete unclosed policy applications; exact deployment selects a result.
+    pub target_layout_applications: Vec<crate::TargetLayoutApplication>,
     /// Exact source-free operator requirements and closed applications for
     /// surviving operations. Provider choices belong to Omega, not this roster.
     pub boundary_application_demands: Vec<TerminalBoundaryApplicationDemand>,
@@ -314,6 +316,7 @@ impl TerminalModule {
             suspension_call_plans: Vec::new(),
             machines: Vec::new(),
             target_machine_families: Vec::new(),
+            target_layout_applications: Vec::new(),
             boundary_application_demands: Vec::new(),
         }
     }

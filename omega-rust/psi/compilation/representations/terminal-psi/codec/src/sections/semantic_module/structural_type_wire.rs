@@ -4,7 +4,10 @@
 //! case payload envelopes. Field payloads remain delegated to the dedicated
 //! structural-field codec.
 
-use terminal_psi::{StructuralCaseDeclaration, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::{
+    StructuralCaseDeclaration, StructuralRecordStorage, StructuralTypeDeclaration,
+    StructuralTypeShape,
+};
 
 use super::CodecError;
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
@@ -45,8 +48,15 @@ pub(crate) fn encode_structural_type(
             writer.id(*element);
         }
         StructuralTypeShape::Record { fields, storage } => {
-            writer.u8(if storage.is_some() { 10 } else { 1 });
-            if let Some(storage) = storage {
+            writer.u8(match storage {
+                StructuralRecordStorage::Packed => 1,
+                StructuralRecordStorage::Authored(_) => 10,
+                StructuralRecordStorage::TargetLayout(_) => 13,
+            });
+            if let StructuralRecordStorage::TargetLayout(application) = storage {
+                writer.u32(application.0);
+            }
+            if let StructuralRecordStorage::Authored(storage) = storage {
                 writer.u64(storage.byte_size);
                 writer.u64(storage.byte_alignment);
             }
@@ -54,7 +64,7 @@ pub(crate) fn encode_structural_type(
             for field in fields {
                 encode_structural_field(writer, field)?;
             }
-            if storage.is_some() {
+            if matches!(storage, StructuralRecordStorage::Authored(_)) {
                 for field in fields {
                     encode_authored_field_storage(writer, field.storage.as_ref())?;
                 }
@@ -118,7 +128,7 @@ pub(crate) fn decode_structural_type(
             StructuralTypeShape::PrimitiveScalar(carrier)
         }
         1 => StructuralTypeShape::Record {
-            storage: None,
+            storage: StructuralRecordStorage::Packed,
             fields: decode_counted(reader, decode_structural_field)?,
         },
         10 => {
@@ -132,9 +142,15 @@ pub(crate) fn decode_structural_type(
             }
             StructuralTypeShape::Record {
                 fields,
-                storage: Some(storage),
+                storage: StructuralRecordStorage::Authored(storage),
             }
         }
+        13 => StructuralTypeShape::Record {
+            storage: StructuralRecordStorage::TargetLayout(terminal_psi::LayoutApplicationId(
+                reader.u32()?,
+            )),
+            fields: decode_counted(reader, decode_structural_field)?,
+        },
         8 => StructuralTypeShape::ElementView {
             element: reader.id("StructuralTypeId")?,
         },
@@ -174,7 +190,7 @@ pub(crate) fn decode_structural_type(
     })
 }
 
-fn encode_authored_field_storage(
+pub(crate) fn encode_authored_field_storage(
     writer: &mut Writer,
     storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
 ) -> Result<(), CodecError> {
@@ -218,7 +234,7 @@ fn encode_authored_field_storage(
     Ok(())
 }
 
-fn decode_authored_field_storage(
+pub(crate) fn decode_authored_field_storage(
     reader: &mut Reader<'_>,
 ) -> Result<Option<semantic_vocabulary::AuthoredFieldStorage>, CodecError> {
     use semantic_vocabulary::AuthoredFieldStorage;
@@ -282,7 +298,7 @@ mod tests {
             id: StructuralTypeId::new(1).expect("record identity"),
             identity: "encoded record".into(),
             shape: StructuralTypeShape::Record {
-                storage: Some(AuthoredRecordStorage {
+                storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
                     byte_size: 1,
                     byte_alignment: 1,
                 }),

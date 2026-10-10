@@ -19,7 +19,9 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// Canonical checked footprint for the first precise indexed-recast loan rung.
 ///
 /// The collection expression names the fixed byte-array place. `start..end`
-/// is the complete validated target footprint in byte ordinals. This carrier
+/// covers the complete validated target footprint in byte ordinals. For a
+/// target family it is the union of all alternatives at this same captured
+/// start, not a selected physical layout. This carrier
 /// is produced only by replaying the ordinary recast judgment for a direct
 /// authored borrow occurrence; consumers must not reconstruct it from cast
 /// syntax alone.
@@ -124,7 +126,7 @@ fn slice_backed_recast_region<'program>(
     Some(Some(region))
 }
 
-/// Replay the canonical recast judgment and retain one exact literal-index
+/// Replay every recast alternative and retain one conservative literal-index
 /// byte footprint for borrow overlap.
 ///
 /// This excludes runtime or singleton-range offsets and whole-array sources.
@@ -160,8 +162,11 @@ pub fn validate_literal_indexed_recast_footprint(
     {
         usize::try_from(region.extent).ok()?
     } else {
-        start.checked_add(literal_indexed_recast_target_size(
+        start.checked_add(maximum_recast_footprint(
             program,
+            machine,
+            state,
+            indexed.collection,
             cast.target_type,
         )?)?
     };
@@ -231,8 +236,11 @@ pub fn validate_runtime_indexed_recast_source(
         return Some(region.collection);
     }
 
-    let target_size = i64::try_from(literal_indexed_recast_target_size(
+    let target_size = i64::try_from(maximum_recast_footprint(
         program,
+        machine,
+        state,
+        indexed.collection,
         cast.target_type,
     )?)
     .ok()?;
@@ -255,6 +263,32 @@ pub fn validate_runtime_indexed_recast_source(
     }
 
     Some(source)
+}
+
+/// Loan overlap may conservatively retain the largest footprint after all
+/// same-occurrence representation judgments pass. This result must not escape
+/// as a concrete size/offset recipe for execution or target realization.
+fn maximum_recast_footprint(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    collection: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+) -> Option<usize> {
+    let backing = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        collection,
+    )?;
+    let targets = crate::layout_checking_targets(program, [backing, target_type]).ok()?;
+    let mut maximum = None;
+    for target in targets {
+        let alternative = crate::LayoutCheckingContext::new(program, target);
+        let size = literal_indexed_recast_target_size(&alternative, target_type)?;
+        maximum = Some(maximum.map_or(size, |previous: usize| previous.max(size)));
+    }
+    maximum
 }
 
 pub(crate) fn literal_indexed_recast_target_size(

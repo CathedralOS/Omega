@@ -22,6 +22,7 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 pub enum NativeExecutionScopeError {
     TerminalIdentityMismatch,
     TargetFamily(String),
+    TargetLayout(String),
     MissingMachine(MachineId),
     MissingSelectedCheckedProvider(BoundaryMachineId),
     CompetingSelectedCheckedProviders(BoundaryMachineId),
@@ -34,7 +35,7 @@ impl std::fmt::Display for NativeExecutionScopeError {
                 formatter,
                 "native deployment selection names a different Terminal artifact"
             ),
-            Self::TargetFamily(error) => formatter.write_str(error),
+            Self::TargetFamily(error) | Self::TargetLayout(error) => formatter.write_str(error),
             Self::MissingMachine(machine) => write!(
                 formatter,
                 "native execution scope reaches absent machine {machine:?}"

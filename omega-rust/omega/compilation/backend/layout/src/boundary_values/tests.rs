@@ -173,33 +173,36 @@ fn plan_laid_fields_use_selected_offsets_and_stored_width_with_exact_member_cust
         schema_field_symbols: vec![field_symbol],
         policy_symbol: symbols::SymbolHandle::invalid(),
         policy_plan_machine_symbol: symbols::SymbolHandle::invalid(),
-        validated_layout: layout_plans::LayoutPlanReport {
-            schema_report_fingerprint: 1,
-            entries: vec![layout_plans::LayoutFieldEntryReport {
-                field: "value".into(),
-                member_identity: None,
-                placement: layout_plans::LayoutPlacementReport::IntegerAt {
-                    offset: 4,
-                    stored_width: 16,
-                    interpretation: layout_plans::IntegerInterpretation::Unsigned,
-                },
+        schema_argument: None,
+        realizations: typed_trees::PlanLaidRealizations::Invariant(typed_trees::PlanLaidGeometry {
+            validated_layout: layout_plans::LayoutPlanReport {
+                schema_report_fingerprint: 1,
+                entries: vec![layout_plans::LayoutFieldEntryReport {
+                    field: "value".into(),
+                    member_identity: None,
+                    placement: layout_plans::LayoutPlacementReport::IntegerAt {
+                        offset: 4,
+                        stored_width: 16,
+                        interpretation: layout_plans::IntegerInterpretation::Unsigned,
+                    },
+                }],
+                offsets: Some(vec![4]),
+                size: Some(8),
+                align: 4,
+            },
+            private_callback_demands: vec![],
+            offsets: vec![4],
+            bit_fields: vec![],
+            integer_fields: vec![PlanLaidIntegerField {
+                field_index: 0,
+                stored_width_bits: 16,
+                interpretation: layout_plans::IntegerInterpretation::Unsigned,
+                write_is_total: false,
             }],
-            offsets: Some(vec![4]),
-            size: Some(8),
+            repeated_fields: vec![],
+            size: 8,
             align: 4,
-        },
-        private_callback_demands: vec![],
-        offsets: vec![4],
-        bit_fields: vec![],
-        integer_fields: vec![PlanLaidIntegerField {
-            field_index: 0,
-            stored_width_bits: 16,
-            interpretation: layout_plans::IntegerInterpretation::Unsigned,
-            write_is_total: false,
-        }],
-        repeated_fields: vec![],
-        size: 8,
-        align: 4,
+        }),
     });
     let target = target::TargetProfile::UefiX64.native_target();
     let mut values = BoundaryValueLayout::new(&typed, target, &[], &[]);
@@ -211,15 +214,88 @@ fn plan_laid_fields_use_selected_offsets_and_stored_width_with_exact_member_cust
     assert_eq!(values.graph().shapes[0].byte_size, 2);
     drop(values);
 
-    typed.plan_laid_layouts[0].integer_fields[0].stored_width_bits = 7;
+    let typed_trees::PlanLaidRealizations::Invariant(geometry) =
+        &mut typed.plan_laid_layouts[0].realizations
+    else {
+        panic!("invariant fixture");
+    };
+    geometry.integer_fields[0].stored_width_bits = 7;
     let error = BoundaryValueLayout::new(&typed, target, &[], &[])
         .data(definition.symbol, "Packed")
         .expect_err("invalid width");
     assert!(error.contains("invalid stored-integer width 7"));
-    typed.plan_laid_layouts[0].integer_fields[0].stored_width_bits = 16;
+    let typed_trees::PlanLaidRealizations::Invariant(geometry) =
+        &mut typed.plan_laid_layouts[0].realizations
+    else {
+        panic!("invariant fixture");
+    };
+    geometry.integer_fields[0].stored_width_bits = 16;
     typed.plan_laid_layouts[0].field_symbols[0] = symbols::SymbolHandle::invalid();
     let error = BoundaryValueLayout::new(&typed, target, &[], &[])
         .data(definition.symbol, "Packed")
         .expect_err("wrong member identity");
     assert!(error.contains("layout publishes"));
+}
+
+#[test]
+fn typed_layout_consumers_reject_unclosed_target_family_geometry() {
+    use typed_trees::{
+        PlanLaidGeometry, PlanLaidLayout, PlanLaidRealizations, PlanLaidTargetLayout,
+    };
+
+    let mut typed = typed("data Record { value: u64; }");
+    let definition = typed.data_definitions()[0].clone();
+    let fields = typed
+        .live_data_fields(typed.data_members(&definition))
+        .map(|field| field.symbol)
+        .collect::<Vec<_>>();
+    let geometry = PlanLaidGeometry {
+        validated_layout: layout_plans::LayoutPlanReport {
+            schema_report_fingerprint: 1,
+            entries: vec![layout_plans::LayoutFieldEntryReport {
+                field: "value".into(),
+                member_identity: None,
+                placement: layout_plans::LayoutPlacementReport::At { offset: 0 },
+            }],
+            offsets: Some(vec![0]),
+            size: Some(8),
+            align: 8,
+        },
+        offsets: vec![0],
+        size: 8,
+        align: 8,
+        ..PlanLaidGeometry::default()
+    };
+    let alternatives = typed
+        .plan_laid_target_layouts
+        .insert_many([PlanLaidTargetLayout {
+            target: "windows_x86_64".into(),
+            machine: symbols::SymbolHandle::from_arena_index(20),
+            geometry: geometry.clone(),
+        }]);
+    typed.plan_laid_layouts.push(PlanLaidLayout {
+        data_name: "Record".into(),
+        data_symbol: definition.symbol,
+        field_symbols: fields.clone(),
+        schema_symbol: definition.symbol,
+        schema_field_symbols: fields,
+        policy_symbol: symbols::SymbolHandle::invalid(),
+        policy_plan_machine_symbol: symbols::SymbolHandle::invalid(),
+        schema_argument: None,
+        realizations: PlanLaidRealizations::TargetFamily(alternatives),
+    });
+    let target = target::NativeTarget::windows_x64();
+    let error = BoundaryValueLayout::new(&typed, target, &[], &[])
+        .data(definition.symbol, "Record")
+        .expect_err("a native target is not an application closure receipt");
+    assert!(error.contains("unresolved target-family layout"));
+    let error = crate::build_layout_plan(&typed, target, &[])
+        .expect_err("the typed backend must not choose a family member");
+    assert!(error.message.contains("unresolved target-family layout"));
+
+    typed.plan_laid_layouts[0].realizations = PlanLaidRealizations::Invariant(geometry);
+    BoundaryValueLayout::new(&typed, target, &[], &[])
+        .data(definition.symbol, "Record")
+        .expect("invariant boundary layout");
+    crate::build_layout_plan(&typed, target, &[]).expect("invariant typed layout");
 }

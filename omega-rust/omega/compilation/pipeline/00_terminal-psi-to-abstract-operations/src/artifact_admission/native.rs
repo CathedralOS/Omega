@@ -49,11 +49,28 @@ impl VerifiedNativeArtifactInput {
             return Err(crate::NativeExecutionScopeError::TerminalIdentityMismatch);
         }
         let mut input = self.select_target_families(profile);
-        input.optimization_input.target_machine_selections =
-            Some(terminal_installation::admit_target_machine_selections(
-                artifact.view(),
-                profile.target_name(),
-            ));
+        let selections = terminal_installation::admit_target_machine_selections(
+            artifact.view(),
+            profile.target_name(),
+        );
+        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
+            .map_err(|error| crate::NativeExecutionScopeError::TargetLayout(error.to_string()))?;
+        if !layouts.resolved_records().is_empty() {
+            let declarations = input.optimization_input.plan.structural_types.make_mut();
+            for resolved in layouts.resolved_records() {
+                let declaration = declarations
+                    .iter_mut()
+                    .find(|row| row.id == resolved.id)
+                    .ok_or_else(|| {
+                        crate::NativeExecutionScopeError::TargetLayout(
+                            "selected layout lost its executable structural declaration".to_owned(),
+                        )
+                    })?;
+                *declaration = resolved.clone();
+            }
+        }
+        input.optimization_input.target_machine_selections = Some(selections);
+        input.optimization_input.target_layout_selections = Some(layouts);
         let scope = crate::native_execution_scope::NativeExecutionScope::derive(
             &input.optimization_input,
             selected,
@@ -210,6 +227,7 @@ pub(super) fn lower_decoded_native_module(
             plan,
             context,
             target_machine_selections: None,
+            target_layout_selections: None,
         },
     })
 }

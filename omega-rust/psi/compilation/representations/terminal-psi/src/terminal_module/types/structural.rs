@@ -59,7 +59,7 @@ pub enum StructuralTypeShape {
         /// Declaration order is semantic. Field IDs must nevertheless be
         /// strictly increasing so the same record has one canonical spelling.
         fields: Vec<StructuralFieldDeclaration>,
-        storage: Option<semantic_vocabulary::AuthoredRecordStorage>,
+        storage: crate::StructuralRecordStorage,
     },
     FixedArray {
         element: StructuralTypeId,
@@ -720,7 +720,7 @@ mod tests {
                         field_type: StructuralFieldType::Structural(reference),
                         storage: None,
                     }],
-                    storage: None,
+                    storage: crate::StructuralRecordStorage::Packed,
                 },
             },
             StructuralTypeDeclaration {
