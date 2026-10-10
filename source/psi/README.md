@@ -426,7 +426,12 @@ checked). An operand evaluated before such a call keeps what it read: before
 the call forgets a place, each earlier operand reading it moves to a
 snapshot, an integer to a fresh subject equal to the one it read and a
 record to a place holding the fields known of it
-([`checking/snapshots.omg`](checking/snapshots.omg)). A value-position match's arms each run on the facts after its
+([`checking/snapshots.omg`](checking/snapshots.omg)). A construction's value
+is a place of its own whose integer fields stay pending until read: a field
+place entered below it, or below a place copied from it, holds the value
+written, a write drops the pending fields below the place written, and a
+write to what a pending field read enters that field first
+([`checking/constructions.omg`](checking/constructions.omg)). A value-position match's arms each run on the facts after its
 subject, their own pattern selected and earlier ones passed over as a
 transition's arms are; the facts after it are its arms' join and its value
 their hull, and an arm value landed at a qualified match type proves the

@@ -2325,6 +2325,59 @@ def main() -> None:
         b"    same(pair, reset(&mut pair));\n}",
     )
 
+    # A construction's fields hold the values it wrote, read through its
+    # value, a copy of it or a state's parameter (constructions.omg).
+    pair = (b"data Pair [copy] { first: u64; second: u64; replaced: bool; }\n"
+            b"machine same(pair: Pair)\nrequires pair.first == pair.second\n{}\n")
+    holder = (b"data Holder { amount: u64; }\n"
+              b"machine replace(holder: &mut Holder) -> bool { holder.amount = 9; true }\n")
+    accepted(
+        program,
+        "constructed-argument-keeps-its-fields",
+        pair + b"machine run(value: u64) { same(Pair { first: value, second: value, replaced: false }); }",
+    )
+    accepted(
+        program,
+        "constructed-local-keeps-its-fields",
+        pair + b"machine run(value: u64) {\n    let saved: Pair = Pair { first: value, second: value, replaced: false };\n"
+        b"    same(saved);\n}",
+    )
+    rejected(
+        program,
+        "constructed-fields-differ",
+        pair + b"machine run(value: u64) { same(Pair { first: value, second: 0, replaced: false }); }",
+        "RequirementUnproven",
+        b"same(Pair { first: value, second: 0, replaced: false })",
+    )
+    accepted(
+        program,
+        "construction-captures-before-a-later-field",
+        pair + holder + b"machine run(start: u64) {\n    let mut holder: Holder = Holder { amount: start };\n"
+        b"    same(Pair { first: holder.amount, second: holder.amount, replaced: replace(&mut holder) });\n}",
+    )
+    rejected(
+        program,
+        "field-after-a-write-reads-the-write",
+        pair + holder + b"machine run(start: u64) {\n    let mut holder: Holder = Holder { amount: start };\n"
+        b"    same(Pair { first: holder.amount, replaced: replace(&mut holder), second: holder.amount });\n}",
+        "RequirementUnproven",
+        b"same(Pair { first: holder.amount, replaced: replace(&mut holder), second: holder.amount })",
+    )
+    accepted(
+        program,
+        "stored-construction-outlives-a-later-write",
+        pair + holder + b"machine run(start: u64) {\n    let mut holder: Holder = Holder { amount: start };\n"
+        b"    let saved: Pair = Pair { first: holder.amount, second: holder.amount, replaced: false };\n"
+        b"    _ = replace(&mut holder);\n    same(saved);\n}",
+    )
+    accepted(
+        program,
+        "jump-carries-a-construction",
+        b"data Pair [copy] { first: u64; second: u64; }\nmachine run(value: u64) {\n"
+        b"    transition { _ -> next(Pair { first: value, second: value }) }\n"
+        b"    state next(pair: Pair)\n    requires pair.first == pair.second\n    {}\n}",
+    )
+
     # The product's own psi package, each module under source/psi as
     # `<directory>::<file>` of package `psi`: how far checking reaches today.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

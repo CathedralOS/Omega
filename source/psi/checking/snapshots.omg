@@ -45,7 +45,7 @@ crashes Trap
 
     state operand(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, place: u64 in Trapping, offset: u64 in Trapping) {
         let handle: u64 in Trapping = Checker::operand(syntax, expression, offset);
-        Checker::snapshot_tree(checker, syntax, typing, handle, lender, place);
+        Checker::snapshot_node(checker, typing, handle, lender, place);
         transition { _ -> own(checker, syntax, typing, expression, lender, place, offset + 1) }
     }
 
@@ -61,41 +61,11 @@ crashes Trap
 
     state pending(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, lender: u64 in Trapping, place: u64 in Trapping, root: u64 in Trapping) {
         let tree: Expression = SyntaxTrees::expression(syntax, root);
-        Checker::snapshot_tree(checker, syntax, typing, root, lender, place);
+        Checker::snapshot_node(checker, typing, root, lender, place);
         transition tree.first_row > checker.tree_low {
             true -> pending(checker, syntax, typing, lender, place, tree.first_row - 1)
             _ -> done()
         }
-    }
-
-    state done() {}
-}
-
-// Snapshot an operand, and every node of a construction, whose fields the
-// construction takes from those nodes' values.
-machine Checker::snapshot_tree(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping)
-crashes Trap
-{
-    let tree: Expression = SyntaxTrees::expression(syntax, root);
-    transition tree.kind == ExpressionKind::Construct && tree.first_row <= root {
-        true -> next(checker, typing, root, lender, place, tree.first_row)
-        _ -> single(checker, typing, root, lender, place)
-    }
-
-    state single(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping) {
-        Checker::snapshot_node(checker, typing, root, lender, place);
-    }
-
-    state next(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, node: u64 in Trapping) {
-        transition node <= root {
-            true -> node_snapshot(checker, typing, root, lender, place, node)
-            _ -> done()
-        }
-    }
-
-    state node_snapshot(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, node: u64 in Trapping) {
-        Checker::snapshot_node(checker, typing, node, lender, place);
-        transition { _ -> next(checker, typing, root, lender, place, node + 1) }
     }
 
     state done() {}

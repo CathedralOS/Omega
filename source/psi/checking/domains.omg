@@ -153,8 +153,8 @@ crashes Trap
 }
 
 // Whether the place (one-based) belongs to an established value: its root
-// is a parameter, a pattern binder, a call's result, an operand's snapshot
-// or a local with an initializer.
+// is a parameter, a pattern binder, a call's result, a construction, an
+// operand's snapshot or a local with an initializer.
 pub machine Checker::established(checker: &Checker, syntax: &SyntaxTrees, place: u64 in Trapping) -> bool
 crashes Trap
 {
@@ -176,6 +176,7 @@ crashes Trap
             PlaceKind::Parameter -> yes()
             PlaceKind::Binder -> yes()
             PlaceKind::Call -> yes()
+            PlaceKind::Construction -> yes()
             PlaceKind::Snapshot -> yes()
             PlaceKind::Local -> local(syntax, entry.handle)
             _ -> no()

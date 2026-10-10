@@ -1,5 +1,6 @@
 use psi::checking::aliases;
 use psi::checking::checker;
+use psi::checking::constructions;
 use psi::checking::contracts;
 use psi::checking::domains;
 use psi::checking::evaluation;
@@ -13,9 +14,9 @@ use psi::syntax::syntax;
 use psi::types::types;
 
 // The places a body names and the integer subjects among them. A place is a
-// parameter, a local, a case-pattern binder, a call's result, an operand's
-// snapshot, or a field or slice length of another place; equal paths are
-// one place. An integer place is a subject of
+// parameter, a local, a case-pattern binder, a call's result, a
+// construction, an operand's snapshot, or a field or slice length of
+// another place; equal paths are one place. An integer place is a subject of
 // the body's zone, entered with its carrier's range: a fixed integer's value
 // always lies in its carrier, whatever its policy
 // (wiki/spec/language/numeric_values.md#integer-equality-and-order). Facts
@@ -29,6 +30,9 @@ pub data PlaceKind [copy] {
     // A call's result, by the call's expression handle: the value its
     // callee's `ensures` facts describe.
     case Call;
+    // A construction's value, by its expression handle, its fields pending
+    // below it (constructions.omg).
+    case Construction;
     // What an operand read before a later operand wrote it, by the lending
     // operand's handle under the place read (snapshots.omg).
     case Snapshot;
@@ -93,6 +97,7 @@ crashes Trap
     checker.subject_count = 1;
     checker.domains_pending = false;
     checker.alias_count = 0;
+    checker.pending_count = 0;
     Zone::open(&mut checker.zone, 64);
 }
 
@@ -227,13 +232,15 @@ crashes Trap
         checker.place_count = next as u64;
         Checker::set_domain_mark(checker, position, DomainMark::Unseen);
         transition place.kind == PlaceKind::Field {
-            true -> field(checker, position, next)
+            true -> field(checker, place, position, next)
             _ -> entered(next)
         }
     }
 
-    state field(checker: &mut Checker, position: u64 in Trapping, next: u64 in Trapping) -> u64 in Trapping {
+    // A field a construction wrote there holds its value.
+    state field(checker: &mut Checker, place: Place, position: u64 in Trapping, next: u64 in Trapping) -> u64 in Trapping {
         Checker::note_field(checker, position);
+        Checker::take_pending(checker, place);
         next
     }
 
@@ -395,6 +402,7 @@ crashes Trap
 pub machine Checker::forget_place(checker: &mut Checker, typing: &Typing, place: u64 in Trapping)
 crashes Trap
 {
+    Checker::forget_pending(checker, typing, place);
     Checker::forget_aliases(checker, place);
     transition { _ -> next(checker, typing, place, 0) }
 
@@ -784,10 +792,12 @@ crashes Trap
 
 // A record bound from another place takes that place's known fields: each
 // integer field place directly below `source` equals the same field below
-// `target` from here on. Deeper fields are not carried.
+// `target` from here on, and each field pending below `source` is pending
+// below `target` too. Deeper fields are not carried.
 pub machine Checker::copy_fields(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping)
 crashes Trap
 {
+    Checker::copy_pending(checker, typing, target, source);
     transition target > 0 && source > 0 && target != source {
         true -> next(checker, typing, target, source, 0)
         _ -> done()

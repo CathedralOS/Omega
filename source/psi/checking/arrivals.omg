@@ -1,4 +1,5 @@
 use psi::checking::checker;
+use psi::checking::constructions;
 use psi::checking::evaluation;
 use psi::checking::places;
 use psi::checking::zone;
@@ -491,9 +492,25 @@ crashes Trap
         let handle: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + index);
         let value: Value = Checker::value_at(checker, handle);
         transition value.place > 0 && value.subject == 0 {
-            true -> place(checker, syntax, typing, expression, item, offset, first_subject, index, value.place, 0)
+            true -> settled(checker, syntax, typing, expression, item, offset, first_subject, index, value.place)
             _ -> parameter(checker, syntax, typing, expression, item, offset, first_subject, index + 1)
         }
+    }
+
+    // Fields a construction wrote below the argument become its places.
+    state settled(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        expression: Expression,
+        item: StateItem,
+        offset: u64 in Trapping,
+        first_subject: u64 in Trapping,
+        index: u64 in Trapping,
+        root: u64 in Trapping
+    ) -> u64 in Trapping {
+        Checker::settle_pending(checker, typing, root);
+        transition { _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, 0) }
     }
 
     // Each subject place of the body below the argument's place.

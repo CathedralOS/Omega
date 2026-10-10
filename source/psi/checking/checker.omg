@@ -1,5 +1,6 @@
 use psi::checking::aliases;
 use psi::checking::arrivals;
+use psi::checking::constructions;
 use psi::checking::contracts;
 use psi::checking::demand;
 use psi::checking::domains;
@@ -173,6 +174,9 @@ pub data Checker {
     alias_conditions: [u64; 16];
     alias_limits: [u64; 16];
     alias_count: u64;
+    // Fields constructions wrote that no place holds yet (constructions.omg).
+    pending: [PendingField; 32];
+    pending_count: u64;
 }
 
 pub machine Checker::check(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
@@ -1107,6 +1111,7 @@ crashes Trap
 pub machine Checker::forget_written_fields(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping)
 crashes Trap
 {
+    Checker::forget_pending(checker, typing, place);
     Checker::forget_aliases(checker, place);
     transition { _ -> next(checker, typing, place, callee, 0) }
 

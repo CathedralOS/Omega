@@ -1,5 +1,6 @@
 use psi::checking::arithmetic;
 use psi::checking::checker;
+use psi::checking::constructions;
 use psi::checking::contracts;
 use psi::checking::domains;
 use psi::checking::evaluation;
@@ -378,7 +379,7 @@ crashes Trap
         let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
         transition checking && constrained {
             true -> written(checker, syntax, resolution, typing, handle, expression, row, binding)
-            _ -> typed(checker, handle, row)
+            _ -> composed(checker, syntax, resolution, typing, handle, expression, row)
         }
     }
 
@@ -386,7 +387,7 @@ crashes Trap
         transition binding {
             ValueBinding::Data { item } -> constructed(checker, syntax, resolution, typing, handle, expression, row, item, false, 0, expression.first, expression.count)
             ValueBinding::DataCase { item, data_case } -> constructed(checker, syntax, resolution, typing, handle, expression, row, item, true, data_case, expression.first, expression.count)
-            _ -> typed(checker, handle, row)
+            _ -> composed(checker, syntax, resolution, typing, handle, expression, row)
         }
     }
 
@@ -445,14 +446,20 @@ crashes Trap
     ) {
         let held: bool = Checker::construction_holds(checker, syntax, resolution, typing, item, has_case, data_case, first, count);
         transition held {
-            true -> typed(checker, handle, row)
-            _ -> unproven_domain(checker, handle, expression, row)
+            true -> composed(checker, syntax, resolution, typing, handle, expression, row)
+            _ -> unproven_domain(checker, syntax, resolution, typing, handle, expression, row)
         }
     }
 
-    state unproven_domain(checker: &mut Checker, handle: u64 in Trapping, expression: Expression, row: TypeRow) {
+    state unproven_domain(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::DomainUnproven, expression.source_span);
-        transition { _ -> typed(checker, handle, row) }
+        transition { _ -> composed(checker, syntax, resolution, typing, handle, expression, row) }
+    }
+
+    // A construction's value: its own place, the fields it writes pending
+    // below it.
+    state composed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow) {
+        Checker::construction_value(checker, syntax, resolution, typing, handle, expression, row);
     }
 
     // A value known only by its type: a fixed integer's carrier range.
