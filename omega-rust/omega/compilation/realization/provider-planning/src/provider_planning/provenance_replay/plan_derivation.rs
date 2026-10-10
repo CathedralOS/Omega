@@ -19,6 +19,7 @@ use crate::provider_planning::provenance_replay::{
     SelectedTargetMachineOrigin, satisfies_plan_name,
 };
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
+use effects::provider_plan::ProviderIdentityTable;
 
 pub(crate) fn derive_provider_plans(
     context: ProviderPlanningContext<'_>,
@@ -75,7 +76,7 @@ pub(crate) fn derive_provider_plans(
                         ) else {
                             continue;
                         };
-                        (binding, Some(origin))
+                        (DraftRowBinding::Bound(binding), Some(origin))
                     }
                     (
                         language_semantics::MachineSupplyMode::ExternalRealization { .. },
@@ -95,7 +96,7 @@ pub(crate) fn derive_provider_plans(
                             &typed.attached_data_path(machine).unwrap_or_default(),
                             &realization_machine_identity(typed, machine),
                         );
-                        (binding, None)
+                        (DraftRowBinding::Bound(binding), None)
                     }
                     (
                         language_semantics::MachineSupplyMode::ExternalRealization {
@@ -112,7 +113,7 @@ pub(crate) fn derive_provider_plans(
                         ) else {
                             continue;
                         };
-                        (binding, None)
+                        (DraftRowBinding::Bound(binding), None)
                     }
                     (language_semantics::MachineSupplyMode::CheckedBody, None)
                         if machine.body_is_present && !clause.via_expression.is_valid() =>
@@ -129,14 +130,7 @@ pub(crate) fn derive_provider_plans(
                             continue;
                         }
                         (
-                            ProviderBinding::CheckedAdapter {
-                                machine_identity: typed
-                                    .machine_callable_identity_text(machine)
-                                    .unwrap_or_default(),
-                                machine_package_identity: typed
-                                    .symbols
-                                    .symbol_package_identity(machine.symbol),
-                            },
+                            checked_adapter_draft(typed, machine),
                             None,
                         )
                     }
@@ -170,6 +164,7 @@ pub(crate) fn derive_provider_plans(
                     plans[position].provenance.provider_type,
                     provider_type_symbol
                 );
+                let binding = row_binding.resolve(&mut plans[position].plan.identities);
                 plans[position].plan.rows.push(ProviderPlanRow {
                     method: requirement.as_str().to_owned(),
                     requirement_identity: semantic_requirement_identity.clone(),
@@ -177,7 +172,7 @@ pub(crate) fn derive_provider_plans(
                         language_semantics::type_identity::normalize_requirement_lifetime_partition(
                             &clause.trait_lifetime_arguments,
                         ),
-                    binding: row_binding.clone(),
+                    binding,
                 });
                 plans[position]
                     .provenance
@@ -247,10 +242,15 @@ fn derive_named_provider_plans(
                 .symbol_package_identity(rows.first()?.realization_machine);
             let target = selected_target.unwrap_or_default().to_owned();
             let mut plan = ProviderPlan {
-                name: satisfies_plan_name(&target, &schema.trait_name, &provider_type),
+                name: satisfies_plan_name(
+                    &target,
+                    schema.identity_text(schema.trait_name),
+                    &provider_type,
+                ),
                 provider_type,
                 provider_type_package_identity: package,
                 target,
+                identities: ProviderIdentityTable::default(),
                 schema,
                 rows: Vec::new(),
                 origin_package_identity: origin_package,
@@ -293,7 +293,9 @@ fn derive_named_provider_plans(
                 {
                     (
                         ProviderBinding::CheckedAdapter {
-                            machine_identity: typed.machine_callable_identity_text(machine)?,
+                            machine_identity: plan
+                                .identities
+                                .intern(&typed.machine_callable_identity_text(machine)?),
                             machine_package_identity: typed
                                 .symbols
                                 .symbol_package_identity(machine.symbol),
@@ -314,22 +316,35 @@ fn derive_named_provider_plans(
                                 && binding.requirement_identity == identity
                             {
                                 matched.push((
+                                    candidate,
                                     binding,
                                     candidate.provenance.row_target_machine_origins.get(index)?,
                                 ));
                             }
                         }
                     }
-                    let (binding, origin) = *matched.first()?;
+                    let (candidate, binding, origin) = *matched.first()?;
                     if matched
                         .iter()
-                        .any(|(other, other_origin)| *other != binding || *other_origin != origin)
+                        .any(|(_, other, other_origin)| *other != binding || *other_origin != origin)
                     {
                         return None;
                     }
                     let origin = origin.clone();
+                    let bound = match &binding.binding {
+                        ProviderBinding::CheckedAdapter {
+                            machine_identity,
+                            machine_package_identity,
+                        } => ProviderBinding::CheckedAdapter {
+                            machine_identity: plan
+                                .identities
+                                .intern(candidate.plan.identity_text(*machine_identity)),
+                            machine_package_identity: *machine_package_identity,
+                        },
+                        bound => bound.clone(),
+                    };
                     (
-                        binding.binding.clone(),
+                        bound,
                         binding.requirement_lifetime_partition.clone(),
                         origin,
                     )
@@ -418,7 +433,8 @@ fn derive_top_level_requirement_plans(
                 continue;
             };
             if requirement_identity.is_empty()
-                || schema_method.requirement_identity != requirement_identity
+                || schema.identity_text(schema_method.requirement_identity)
+                    != requirement_identity
             {
                 continue;
             }
@@ -426,7 +442,7 @@ fn derive_top_level_requirement_plans(
                 (language_semantics::MachineSupplyMode::CheckedBody, None)
                     if machine.body_is_present && !clause.via_expression.is_valid() =>
                 {
-                    checked_adapter_binding(typed, machine)
+                    checked_adapter_draft(typed, machine)
                 }
                 (
                     language_semantics::MachineSupplyMode::ExternalRealization { .. },
@@ -445,11 +461,11 @@ fn derive_top_level_requirement_plans(
                     ) else {
                         continue;
                     };
-                    external_provider_binding(
+                    DraftRowBinding::Bound(external_provider_binding(
                         binding,
                         &provider_type,
                         &realization_machine_identity(typed, machine),
-                    )
+                    ))
                 }
                 (
                     language_semantics::MachineSupplyMode::ExternalRealization {
@@ -463,12 +479,16 @@ fn derive_top_level_requirement_plans(
                     else {
                         continue;
                     };
-                    binding
+                    DraftRowBinding::Bound(binding)
                 }
                 _ => continue,
             };
             let target = selected_target.unwrap_or_default().to_owned();
-            let plan_name = satisfies_plan_name(&target, &schema.trait_name, &provider_type);
+            let plan_name = satisfies_plan_name(
+                &target,
+                schema.identity_text(schema.trait_name),
+                &provider_type,
+            );
             let position = derived_plan_position(
                 &mut plans,
                 plan_name,
@@ -480,6 +500,7 @@ fn derive_top_level_requirement_plans(
                 Some(provider_type_symbol),
                 origin_package_identity,
             );
+            let binding = binding.resolve(&mut plans[position].plan.identities);
             plans[position].plan.rows.push(ProviderPlanRow {
                 method: schema_method.name.clone(),
                 requirement_identity,
@@ -522,7 +543,7 @@ fn provider_plan_schema_target(
         crate::service_schema::from_typed_instance(context, calling_plans, definition, &[])?;
     Some((
         ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
-        schema.trait_name.clone(),
+        schema.identity_text(schema.trait_name).to_owned(),
         schema,
     ))
 }
@@ -572,13 +593,13 @@ fn derive_boundary_operator_plans(
                     ) else {
                         continue;
                     };
-                    external_provider_binding(
+                    DraftRowBinding::Bound(external_provider_binding(
                         binding,
                         &typed.attached_data_path(machine).unwrap_or_default(),
                         &typed
                             .machine_callable_identity_text(machine)
                             .unwrap_or_default(),
-                    )
+                    ))
                 }
                 (
                     language_semantics::MachineSupplyMode::ExternalRealization {
@@ -592,12 +613,12 @@ fn derive_boundary_operator_plans(
                     else {
                         continue;
                     };
-                    binding
+                    DraftRowBinding::Bound(binding)
                 }
                 (language_semantics::MachineSupplyMode::CheckedBody, None)
                     if machine.body_is_present && !clause.via_expression.is_valid() =>
                 {
-                    checked_adapter_binding(typed, machine)
+                    checked_adapter_draft(typed, machine)
                 }
                 _ => continue, // invalid via/body combinations are refused elsewhere
             };
@@ -606,7 +627,11 @@ fn derive_boundary_operator_plans(
             };
             let target = selected_target.unwrap_or_default().to_owned();
             let provider_type = typed.attached_data_path(machine).unwrap_or_default();
-            let plan_name = satisfies_plan_name(&target, &schema.trait_name, &provider_type);
+            let plan_name = satisfies_plan_name(
+                &target,
+                schema.identity_text(schema.trait_name),
+                &provider_type,
+            );
             let position = derived_plan_position(
                 &mut plans,
                 plan_name,
@@ -626,9 +651,12 @@ fn derive_boundary_operator_plans(
                 plans[position].provenance.provider_type,
                 provider_type_symbol
             );
+            let binding = binding.resolve(&mut plans[position].plan.identities);
             plans[position].plan.rows.push(ProviderPlanRow {
                 method: "realize".to_owned(),
-                requirement_identity: schema.methods[0].requirement_identity.clone(),
+                requirement_identity: schema
+                    .identity_text(schema.methods[0].requirement_identity)
+                    .to_owned(),
                 requirement_lifetime_partition: Vec::new(),
                 binding,
             });
@@ -649,13 +677,44 @@ fn derive_boundary_operator_plans(
     plans
 }
 
+/// A provider row binding whose checked-adapter identity still needs to be
+/// interned into its owning plan's table. Rows reach their plan after the
+/// draft is built, so canonical identity text rides along until the push
+/// site resolves it against `plan.identities`.
+enum DraftRowBinding {
+    /// A binding that carries no plan-local identities.
+    Bound(ProviderBinding),
+    /// The canonical machine identity text a checked-adapter binding interns
+    /// into the owning plan's `identities`.
+    CheckedAdapter {
+        machine_identity: String,
+        machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    },
+}
+
+impl DraftRowBinding {
+    /// The row binding with any deferred identity interned into `identities`.
+    fn resolve(&self, identities: &mut ProviderIdentityTable) -> ProviderBinding {
+        match self {
+            Self::Bound(binding) => binding.clone(),
+            Self::CheckedAdapter {
+                machine_identity,
+                machine_package_identity,
+            } => ProviderBinding::CheckedAdapter {
+                machine_identity: identities.intern(machine_identity),
+                machine_package_identity: *machine_package_identity,
+            },
+        }
+    }
+}
+
 /// The checked-adapter provider binding a machine supplies through its own
 /// checked body: the machine's callable identity plus its package identity.
-fn checked_adapter_binding(
+fn checked_adapter_draft(
     typed: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
-) -> ProviderBinding {
-    ProviderBinding::CheckedAdapter {
+) -> DraftRowBinding {
+    DraftRowBinding::CheckedAdapter {
         machine_identity: typed
             .machine_callable_identity_text(machine)
             .unwrap_or_default(),
@@ -713,6 +772,7 @@ fn derived_plan_position(
                     provider_type,
                     provider_type_package_identity,
                     target,
+                    identities: ProviderIdentityTable::default(),
                     schema,
                     rows: Vec::new(),
                     origin_package_identity,

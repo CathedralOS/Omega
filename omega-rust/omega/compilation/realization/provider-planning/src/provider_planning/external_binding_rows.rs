@@ -46,7 +46,7 @@ pub(crate) fn extract_native_external_binding_rows(
                 typed,
                 boundary_calling_plan_realizations,
                 plan,
-                &plan.schema.trait_name,
+                plan.schema.identity_text(plan.schema.trait_name),
                 &row.method,
                 &row.requirement_identity,
             )
@@ -63,7 +63,7 @@ pub(crate) fn extract_native_external_binding_rows(
                     crate::calling_policy_plans::evaluate_compatibility_boundary_entry_plan(
                         typed,
                         native_target,
-                        &plan.schema.trait_name,
+                        plan.schema.identity_text(plan.schema.trait_name),
                         plan.schema.trait_package_identity,
                         &row.method,
                         &row.requirement_identity,
@@ -76,7 +76,8 @@ pub(crate) fn extract_native_external_binding_rows(
                     .map_err(|reason| {
                         vec![Diagnostic::error(format!(
                             "cannot evaluate compatibility calling plan for `{}::{}`: {reason}",
-                            plan.schema.trait_name, row.method
+                            plan.schema.identity_text(plan.schema.trait_name),
+                            row.method
                         ))]
                     })?
                 }
@@ -88,7 +89,7 @@ pub(crate) fn extract_native_external_binding_rows(
                 } else {
                     plan.target.clone()
                 },
-                trait_name: plan.schema.trait_name.clone(),
+                trait_name: plan.schema.identity_text(plan.schema.trait_name).to_owned(),
                 method: row.method.clone(),
                 requirement_identity: row.requirement_identity.clone(),
                 table_type: plan.provider_type.clone(),
@@ -120,10 +121,11 @@ fn selected_source_boundary_entry_plan(
         ));
     }
     let provider_plan_name = plan.name.as_str();
-    if plan.schema.trait_name != trait_name {
+    if plan.schema.identity_text(plan.schema.trait_name) != trait_name {
         return Err(Diagnostic::error(format!(
             "selected source boundary entry ProviderPlan `{}` serves schema `{}`, not exact requested schema `{trait_name}`",
-            plan.name, plan.schema.trait_name
+            plan.name,
+            plan.schema.identity_text(plan.schema.trait_name)
         )));
     }
     if requirement_identity.is_empty() {
@@ -137,7 +139,8 @@ fn selected_source_boundary_entry_plan(
         .methods
         .iter()
         .filter(|method| {
-            method.name == method_name && method.requirement_identity == requirement_identity
+            method.name == method_name
+                && plan.schema.identity_text(method.requirement_identity) == requirement_identity
         })
         .collect::<Vec<_>>();
     let [method] = matching_methods.as_slice() else {
@@ -169,7 +172,7 @@ fn selected_source_boundary_entry_plan(
         let [operator] = schema_operators.as_slice() else {
             return Err(Diagnostic::error(format!(
                 "selected source boundary entry schema `{}` resolves to {} exact typed boundary operators",
-                plan.schema.trait_name,
+                plan.schema.identity_text(plan.schema.trait_name),
                 schema_operators.len()
             )));
         };
@@ -177,7 +180,7 @@ fn selected_source_boundary_entry_plan(
             typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
         if method.name != "realize"
             || method.requirement_owner != operator_identity
-            || method.requirement_identity != operator_identity
+            || plan.schema.identity_text(method.requirement_identity) != operator_identity
         {
             return Err(Diagnostic::error(format!(
                 "selected source boundary entry ProviderPlan `{provider_plan_name}` does not bind exact boundary operator `{operator_identity}`"
@@ -211,7 +214,7 @@ fn selected_source_boundary_entry_plan(
         let [requirement] = top_level_requirements.as_slice() else {
             return Err(Diagnostic::error(format!(
                 "selected source boundary entry schema `{}` resolves to {} exact typed top-level boundary requirements",
-                plan.schema.trait_name,
+                plan.schema.identity_text(plan.schema.trait_name),
                 top_level_requirements.len(),
             )));
         };
@@ -226,10 +229,11 @@ fn selected_source_boundary_entry_plan(
                 requirement.name,
             )));
         };
-        if requirement_path != plan.schema.trait_name
+        if requirement_path != plan.schema.identity_text(plan.schema.trait_name)
             || requirement_method != method_name
             || method.requirement_owner != requirement_owner
-            || method.requirement_identity != exact_requirement_identity
+            || plan.schema.identity_text(method.requirement_identity)
+                != exact_requirement_identity
             || requirement_identity != exact_requirement_identity
         {
             return Err(Diagnostic::error(format!(
@@ -263,7 +267,7 @@ fn selected_source_boundary_entry_plan(
     let [schema_owner] = schema_owners.as_slice() else {
         return Err(Diagnostic::error(format!(
             "selected source boundary entry schema `{}` resolves to {} exact typed boundary traits",
-            plan.schema.trait_name,
+            plan.schema.identity_text(plan.schema.trait_name),
             schema_owners.len()
         )));
     };

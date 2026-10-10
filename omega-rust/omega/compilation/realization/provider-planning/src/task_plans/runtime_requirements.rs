@@ -88,7 +88,8 @@ pub(crate) fn selected_task_runtime_provider(
                     method.requirement_owner
                         == program.typed.trait_declaration_path(requirement_owner)
                         && method.requirement_owner_package_identity == requirement_owner_package
-                        && method.requirement_identity == authored_requirement_identity
+                        && plan.schema.identity_text(method.requirement_identity)
+                            == authored_requirement_identity
                 })
         })
         .collect::<Vec<_>>();
@@ -111,7 +112,8 @@ pub(crate) fn selected_task_runtime_provider(
         .filter(|method| {
             method.requirement_owner == program.typed.trait_declaration_path(requirement_owner)
                 && method.requirement_owner_package_identity == requirement_owner_package
-                && method.requirement_identity == authored_requirement_identity
+                && plan.schema.identity_text(method.requirement_identity)
+                    == authored_requirement_identity
         })
         .collect::<Vec<_>>();
     let [method] = requirements.as_slice() else {
@@ -126,10 +128,11 @@ pub(crate) fn selected_task_runtime_provider(
             ),
         })]);
     };
-    if method.requirement_identity != authored_requirement_identity {
+    if plan.schema.identity_text(method.requirement_identity) != authored_requirement_identity {
         return Err(vec![Diagnostic::error(format!(
             "selected TaskRuntime provider plan `{}` binds `{requirement_name}` as `{}`, but the activation call requires `{authored_requirement_identity}`",
-            plan.name, method.requirement_identity
+            plan.name,
+            plan.schema.identity_text(method.requirement_identity)
         ))]);
     }
     let covering_rows = plan
@@ -148,7 +151,10 @@ pub(crate) fn selected_task_runtime_provider(
     Ok(SelectedTaskRuntimeProviderFact {
         runtime,
         provider_plan_name: plan.name.clone(),
-        requirement_identity: method.requirement_identity.clone(),
+        requirement_identity: plan
+            .schema
+            .identity_text(method.requirement_identity)
+            .to_owned(),
     })
 }
 

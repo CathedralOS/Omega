@@ -146,7 +146,7 @@ fn build_component_progress_manifest(
                     .plans()
                     .iter()
                     .filter(|plan| {
-                        plan.schema.trait_name == service
+                        plan.schema.identity_text(plan.schema.trait_name) == service
                             && plan.schema.trait_package_identity == service_package_identity
                     })
                     .collect::<Vec<_>>();
@@ -173,7 +173,8 @@ fn build_component_progress_manifest(
                     .filter(|row| {
                         row.requirement_identity == requirement_identity
                             && plan.schema.methods.iter().any(|method| {
-                                method.requirement_identity == row.requirement_identity
+                                plan.schema.identity_text(method.requirement_identity)
+                                    == row.requirement_identity
                                     && method.requirement_owner_package_identity
                                         == requirement_owner_package_identity
                             })

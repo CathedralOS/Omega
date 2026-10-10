@@ -48,7 +48,9 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
                 let matching_targets = selected
                     .iter()
                     .enumerate()
-                    .filter(|(_, target)| target.schema.trait_name == target_name)
+                    .filter(|(_, target)| {
+                        target.schema.identity_text(target.schema.trait_name) == target_name
+                    })
                     .collect::<Vec<_>>();
                 match matching_targets.as_slice() {
                     [] => {}
@@ -58,7 +60,7 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
                     [_] => {}
                     _ => diagnostics.push(diagnostics::Diagnostic::error(format!(
                         "selected synchronous invocation `{target_name}` from `{}::{}` is ambiguous across {} package-qualified boundary slots",
-                        source.schema.trait_name,
+                        source.schema.identity_text(source.schema.trait_name),
                         method.name,
                         matching_targets.len(),
                     ))),
@@ -78,9 +80,15 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
         {
             let names = cycle
                 .iter()
-                .map(|index| selected[*index].schema.trait_name.as_str())
+                .map(|index| {
+                    selected[*index]
+                        .schema
+                        .identity_text(selected[*index].schema.trait_name)
+                })
                 .chain(std::iter::once(
-                    selected[cycle[0]].schema.trait_name.as_str(),
+                    selected[cycle[0]]
+                        .schema
+                        .identity_text(selected[cycle[0]].schema.trait_name),
                 ))
                 .collect::<Vec<_>>()
                 .join(" -> ");
@@ -118,7 +126,7 @@ fn exact_selected_synchronous_plans(
 
     let mut seen_schemas = Vec::new();
     for plan in &selected {
-        if plan.schema.trait_name.is_empty() {
+        if plan.schema.identity_text(plan.schema.trait_name).is_empty() {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
                 "selected synchronous-invocation ProviderPlan `{}` has an empty exact schema identity",
                 plan.name,
@@ -127,12 +135,12 @@ fn exact_selected_synchronous_plans(
         }
         let schema_identity = (
             plan.schema.trait_package_identity,
-            plan.schema.trait_name.as_str(),
+            plan.schema.identity_text(plan.schema.trait_name),
         );
         if seen_schemas.contains(&schema_identity) {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
                 "selected synchronous-invocation schema `{}` is realized by more than one selected ProviderPlan",
-                plan.schema.trait_name,
+                plan.schema.identity_text(plan.schema.trait_name),
             )));
             continue;
         }

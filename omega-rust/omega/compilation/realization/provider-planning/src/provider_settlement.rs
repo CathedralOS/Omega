@@ -35,7 +35,9 @@ use crate::derive_satisfies_plans;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use effects::provider_plan::{
+    ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow,
+};
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
 };
@@ -163,7 +165,7 @@ fn mint_toolchain_settled_plan(
         requirement_symbols.push(signature.symbol);
         rows.push(ProviderPlanRow {
             method: method.name.clone(),
-            requirement_identity: method.requirement_identity.clone(),
+            requirement_identity: schema.identity_text(method.requirement_identity).to_owned(),
             requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::Syscall {
                 number: leaf.number,
@@ -176,10 +178,15 @@ fn mint_toolchain_settled_plan(
         return Ok(None);
     }
     let plan = ProviderPlan {
-        name: crate::satisfies_plan_name(target_name, &schema.trait_name, provider),
+        name: crate::satisfies_plan_name(
+            target_name,
+            schema.identity_text(schema.trait_name),
+            provider,
+        ),
         provider_type: provider.to_owned(),
         provider_type_package_identity: None,
         target: target_name.to_owned(),
+        identities: ProviderIdentityTable::default(),
         schema,
         rows,
         origin_package_identity: None,

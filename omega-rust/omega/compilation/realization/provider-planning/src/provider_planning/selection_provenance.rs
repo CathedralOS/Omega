@@ -11,7 +11,7 @@ type ProviderSelectionKey = (Option<semantic_vocabulary::PackageKeyIdentity>, St
 fn provider_slot_key(plan: &effects::provider_plan::ProviderPlan) -> ProviderSelectionKey {
     (
         plan.schema.trait_package_identity,
-        plan.schema.trait_name.clone(),
+        plan.schema.identity_text(plan.schema.trait_name).to_owned(),
     )
 }
 
@@ -195,7 +195,10 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
                 .symbol_provenance_source_span(declaration.selecting_machine);
             if !declaration
                 .subject
-                .selects_schema(schema_symbol, &plan.schema.trait_name)
+                .selects_schema(
+                    schema_symbol,
+                    plan.schema.identity_text(plan.schema.trait_name),
+                )
                 || Some(declaration.provider_type.symbol) != provenance.provider_type
                 || selecting_source.is_none_or(|source| {
                     source.source_id != declaration.source_span.source_id
@@ -303,7 +306,11 @@ fn replay_operator_family_selections(
                 .iter()
                 .filter(|selected_plan| {
                     selected_plan.derived.provenance.schema.symbol() == coordinate.symbol
-                        && selected_plan.derived.plan.schema.trait_name
+                        && selected_plan
+                            .derived
+                            .plan
+                            .schema
+                            .identity_text(selected_plan.derived.plan.schema.trait_name)
                             == coordinate.requirement_identity
                         && selected_plan.derived.provenance.provider_type
                             == Some(declaration.provider_type.symbol)

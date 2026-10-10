@@ -220,7 +220,7 @@ fn selected_operator_provider_evidence(
     // selected-plan join must also bind the exact declaration package or a
     // same-spelled foreign coordinate would substitute for this slot.
     if !candidates.iter().any(|candidate| {
-        candidate.schema.trait_name == slot
+        candidate.schema.identity_text(candidate.schema.trait_name) == slot
             && candidate.schema.trait_package_identity == operator_package
     }) {
         return Ok(());
@@ -229,7 +229,8 @@ fn selected_operator_provider_evidence(
         .plans()
         .iter()
         .filter(|plan| {
-            plan.schema.trait_name == slot && plan.schema.trait_package_identity == operator_package
+            plan.schema.identity_text(plan.schema.trait_name) == slot
+                && plan.schema.trait_package_identity == operator_package
         })
         .collect::<Vec<_>>();
     let [plan] = matching_selected.as_slice() else {
@@ -309,7 +310,7 @@ fn selected_operator_provider_evidence(
         );
         let specialized_providers = specialized_provider_machines(
             checked,
-            machine_identity,
+            plan.identity_text(*machine_identity),
             *machine_package_identity,
             operator.symbol,
             |realization| {
@@ -366,8 +367,9 @@ fn selected_operator_provider_evidence(
         });
         if !satisfies_slot {
             return Err(diagnostics::Diagnostic::error(format!(
-                "selected boundary-operator ProviderPlan `{}` binds checked adapter `{machine_identity}`, but that machine does not satisfy exact slot `{slot}` with a checked body",
+                "selected boundary-operator ProviderPlan `{}` binds checked adapter `{}`, but that machine does not satisfy exact slot `{slot}` with a checked body",
                 plan.name,
+                plan.identity_text(*machine_identity),
             )));
         }
         return Ok(());
@@ -460,7 +462,8 @@ pub fn selected_requirement_plan<'a>(
                 .iter()
                 .enumerate()
                 .filter(|(_, plan)| {
-                    plan.schema.trait_name == slot && plan.schema.trait_package_identity == package
+                    plan.schema.identity_text(plan.schema.trait_name) == slot
+                        && plan.schema.trait_package_identity == package
                 })
                 .collect()
         }
