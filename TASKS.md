@@ -3007,21 +3007,6 @@ slice unchanged (check plus `--native` where the code is backend-visible).
 Re-checking stays allowed at trust boundaries; these items remove repetition
 of a check the same flow already performed, not the check itself.
 
-- **TYPE-IDENTITY-INTERNED.** (new-scope) `NormalizedTypeIdentity(String)`
-  (`omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system/type_identity/normalized_identities.rs`)
-  is rendered afresh on every `TypedTrees::normalized_type_identity` call
-  across stages 04, 05 and checking, and compared as text. Keep a hash-consed
-  table of structural type keys in `TypedTrees` that issues one
-  `TypeIdentityId` handle per distinct type, and switch every comparison and
-  map key to that handle. Rendering stays only for diagnostics
-  and artifact encoding. Acceptance: `NormalizedTypeIdentity` holds no
-  `String`, type identity equality is a handle comparison, and full check plus
-  native corpus are unchanged.
-
-  Include layout, Omega stages 00/03 and provider-planning consumers in the
-  migration. Use coherent producer/consumer cuts, deleting each replaced
-  route rather than carrying parallel text and handle implementations.
-
 - **CHECKED-IDENTITY-IDS.** (new-scope) Depends on **TYPE-IDENTITY-INTERNED**;
   reuse the existing program-owned `CallableIdentityId` interner in
   `omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system/type_identity/callable_identity.rs`
