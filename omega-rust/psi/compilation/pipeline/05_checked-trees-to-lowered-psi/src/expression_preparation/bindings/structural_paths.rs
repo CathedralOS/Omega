@@ -113,7 +113,7 @@ pub(crate) fn prepare_structural_argument_path(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
     let Some(identity) = argument.borrowed_root_type_identity() else {
-        return prepare_argument_path(&argument.path, published_root, types);
+        return prepare_argument_path(argument.call_projection(), published_root, types);
     };
     let mut roots = types.iter().filter(|row| row.identity == identity);
     let logical_root = roots.next().ok_or(LoweringError::Unsupported(
@@ -151,7 +151,7 @@ pub(crate) fn prepare_structural_argument_path(
         ));
     }
     prepared.extend(prepare_argument_path(
-        &argument.path,
+        argument.call_projection(),
         logical_root.id,
         types,
     )?);

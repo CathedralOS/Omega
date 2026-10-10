@@ -418,16 +418,7 @@ pub(crate) fn call_index_selectors(
 ) -> Result<Vec<ValueId>, LoweringError> {
     let count = arguments
         .iter()
-        .flat_map(|argument| &argument.path)
-        .filter(|segment| {
-            matches!(
-                segment,
-                CheckedUnitStructuralPathSegment::ComputedIndex(_)
-                    | CheckedUnitStructuralPathSegment::RuntimeIndex(
-                        checked_trees::CheckedRuntimeIndex::StructuralField(_)
-                    )
-            )
-        })
+        .flat_map(|argument| argument.call_selector_segments())
         .count();
     let evaluated = evaluated.unwrap_or_default();
     if evaluated.len() != count || evaluated.iter().any(|value|

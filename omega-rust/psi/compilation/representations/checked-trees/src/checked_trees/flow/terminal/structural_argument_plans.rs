@@ -145,9 +145,10 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralArgumentPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
-    /// Empty names the complete source. Accepted parameter projections retain
-    /// exactly one literal fixed-array index or a finite nonempty record field
-    /// path; trivial locals and literals require an empty path.
+    /// Ordered declaration-resolved projection of the original source. A
+    /// range retains its collection path here; its completed descriptor enters
+    /// the callee whole through `call_projection`. Other arguments retain their
+    /// exact field and fixed or captured-index path into the call.
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: String,
     /// Explicit access presented at this call site. This is independently
@@ -169,6 +170,39 @@ impl Default for CheckedUnitStructuralArgumentPlan {
 }
 
 impl CheckedUnitStructuralArgumentPlan {
+    /// Projection applied when the completed argument enters its callee.
+    /// A range's path selects its original collection during range production;
+    /// the call instead receives the whole derived descriptor. Keeping these
+    /// coordinates separate prevents replaying its selectors after endpoints
+    /// or later arguments have changed the source bindings.
+    pub fn call_projection(&self) -> &[super::CheckedUnitStructuralPathSegment] {
+        match self.source {
+            CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. } => &[],
+            _ => &self.path,
+        }
+    }
+
+    /// Address operands the call schedule must capture, in projection order.
+    /// Parameter and local SSA indices already name captured values; computed
+    /// indices and stored-field observations require evaluation at this slot.
+    pub fn call_selector_segments(
+        &self,
+    ) -> impl Iterator<Item = (usize, &super::CheckedUnitStructuralPathSegment)> {
+        self.call_projection()
+            .iter()
+            .enumerate()
+            .filter(|(_, segment)| {
+                matches!(
+                    segment,
+                    super::CheckedUnitStructuralPathSegment::ComputedIndex(_)
+                        | super::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                            super::CheckedRuntimeIndex::StructuralField(_)
+                        )
+                )
+            })
+    }
+
     /// Complete-source structural-result argument: an empty projection path.
     pub fn structural_result(
         binding_ordinal: u32,

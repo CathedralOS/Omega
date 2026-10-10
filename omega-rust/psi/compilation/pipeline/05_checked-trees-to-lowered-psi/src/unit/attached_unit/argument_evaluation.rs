@@ -883,7 +883,7 @@ impl Evaluation {
         let path = call
             .structural_arguments
             .get(argument)
-            .and_then(|argument| argument.path.get(segment))
+            .and_then(|argument| argument.call_projection().get(segment))
             .ok_or(LoweringError::Unsupported(
                 "selector has no argument path occurrence",
             ))?;

@@ -102,7 +102,7 @@ pub(super) fn build_operations(
                 if operations[index].call().is_some_and(|call| {
                     call.structural_arguments
                         .iter()
-                        .any(|argument| argument.path.iter().any(evaluated_selector))
+                        .any(|argument| argument.call_selector_segments().next().is_some())
                 }) {
                     steps.push(Step::Begin);
                     append(
@@ -320,32 +320,16 @@ fn append(
                 steps,
             )?;
         }
-        for (segment, path) in structural_arguments[argument_ordinal]
-            .path
-            .iter()
-            .enumerate()
-        {
-            if evaluated_selector(path) {
-                steps.push(Step::Selector {
-                    operation: index,
-                    argument: argument_ordinal,
-                    segment,
-                });
-            }
+        for (segment, _) in structural_arguments[argument_ordinal].call_selector_segments() {
+            steps.push(Step::Selector {
+                operation: index,
+                argument: argument_ordinal,
+                segment,
+            });
         }
     }
     active.pop();
     emitted.push(index);
     steps.push(Step::Call(index));
     Ok(())
-}
-
-fn evaluated_selector(segment: &checked_trees::CheckedUnitStructuralPathSegment) -> bool {
-    matches!(
-        segment,
-        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(_)
-            | checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::StructuralField(_)
-            )
-    )
 }
