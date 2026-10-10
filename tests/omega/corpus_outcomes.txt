@@ -2539,32 +2539,24 @@ fail/structural/foreign_case_record_member rejected 119ms expected @ca8c127c90c5
 	machine `inspect` state `entry` reads a nested member `count`, but data `Scanned` has no field `count` (check the spelling of the field name)
 fail/targets/inactive_external_locator_target_rejected rejected 637ms expected @d54a6f89c75b+wt
 	ordinary external `via` returned an invalid locator: foreign locator MachODylibSymbol is not applicable to selected target `windows_x86_64`
-fail/targets/reached_foreign_body_through_selected_provider_rejected rejected 21527ms unexpected @d54a6f89c75b+wt
-	unimplemented: portable target-family contract for `Helper::firmware_only` referenced by `RelayValue::read`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
-fail/targets/reached_foreign_family_relay_rejected rejected 21078ms unexpected @d54a6f89c75b+wt
-	unimplemented: portable target-family contract for `Helper::firmware_only` referenced by `Helper::relay`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+fail/targets/reached_family_missing_member_rejected rejected 5438ms expected @26c92c17b8f4+wt
+	machine `Main::main` state `main` calls `Firmware::read`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Firmware::read` for the target being built.
+fail/targets/reached_foreign_body_through_selected_provider_rejected rejected 7147ms expected @26c92c17b8f4+wt
+	machine `RelayValue::read` state `read` calls `Helper::firmware_only`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::firmware_only` for the target being built.
+fail/targets/reached_foreign_family_relay_rejected rejected 6985ms expected @26c92c17b8f4+wt
+	machine `Helper::relay` state `relay` calls `Helper::firmware_only`, which is declared only for targets `macos_x86_64`, `uefi_x86_64`. This build realizes `<selected target>`, so those bodies are inert siblings and the call has no implementation; scope the caller to one of those targets, or declare `Helper::firmware_only` for the target being built.
+fail/targets/selected_family_member_missing_call_rejected rejected 5343ms expected @26c92c17b8f4+wt
+	machine `bridge` state `entry` calls `Firmware::read`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Firmware::read` for the target being built.
 fail/targets/sibling_body_type_error_rejected rejected 10935ms expected @d54a6f89c75b+wt
 	machine `Helper::paradigm_internal` state `paradigm_internal` local `wrong` stores a boolean into a `i32` local, which holds a numeric value
-fail/targets/single_target_internal_caller_rejected rejected 18489ms unexpected @d54a6f89c75b+wt
-	unimplemented: portable target-family contract for `Helper::paradigm_internal` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
-fail/targets/single_target_internal_package_caller_rejected rejected 17951ms unexpected @d54a6f89c75b+wt
-	unimplemented: portable target-family contract for `Helper::paradigm_internal` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
-fail/targets/single_target_internal_package_statement_caller_rejected rejected 17805ms unexpected @d54a6f89c75b+wt
-	unimplemented: portable target-family contract for `Helper::record_paradigm_event` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
-fail/targets/single_target_internal_statement_caller_rejected rejected 17027ms unexpected @d54a6f89c75b+wt
-	unimplemented: portable target-family contract for `Helper::record_paradigm_event` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+fail/targets/single_target_internal_caller_rejected rejected 6611ms expected @26c92c17b8f4+wt
+	machine `Main::main` state `main` calls `Helper::paradigm_internal`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::paradigm_internal` for the target being built.
+fail/targets/single_target_internal_package_caller_rejected rejected 6662ms expected @26c92c17b8f4+wt
+	machine `Main::main` state `main` calls `Helper::paradigm_internal`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::paradigm_internal` for the target being built.
+fail/targets/single_target_internal_package_statement_caller_rejected rejected 6174ms expected @26c92c17b8f4+wt
+	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
+fail/targets/single_target_internal_statement_caller_rejected rejected 6187ms expected @26c92c17b8f4+wt
+	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
 fail/targets/target_local_precondition_rejected rejected 1433ms expected @1df1ecfe4883
 	cannot prove requires contract for call private_value from read: 1 == 2 (needs fact `input == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/targets/target_machine_duplicate_rejected rejected 55ms expected @d54a6f89c75b+wt

@@ -1,1 +1,2 @@
-has no member for deployment tag
+machine `Main::main` state `main` calls `Firmware::read`, which is declared only for target `uefi_x86_64`
+is an inert sibling and the call has no implementation

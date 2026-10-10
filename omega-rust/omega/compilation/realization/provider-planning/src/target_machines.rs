@@ -95,9 +95,12 @@ pub fn settle_provider_defaults(
 /// Reach starts at the selected program entry, the root every executable
 /// product requires. It follows explicit calls and named transitions, and a
 /// call to a requirement continues into the realization each selected
-/// provider row binds for it, as the native execution scope does. It never
-/// enters an inert body, so a caller scoped to the sibling's own target goes
-/// inert with it and is never reported. A compilation without a selected
+/// provider row binds for it, as the native execution scope does. It does not
+/// treat a portable family head as an executable body: exact target membership
+/// selects the body whose calls must be visited. A missing member keeps the
+/// authored family at the diagnostic boundary rather than importing a sibling.
+/// It never enters an inert body, so a caller scoped to the sibling's own target
+/// goes inert with it and is never reported. A compilation without a selected
 /// entry realizes nothing: a dependency package's candidate check and a
 /// targetless check refuse no portable code, such as std's hosted console and
 /// filesystem adapters checked for `uefi_x86_64`. Machine-valued arguments are
@@ -127,8 +130,9 @@ pub fn reject_reached_inert_sibling_calls(
     // Roster positions index the reach marks; the roster is fixed here.
     let mut reached = vec![false; machines.len()];
     let mut frontier: Vec<usize> = entry
-        .and_then(|entry| typed.machine_position_by_symbol(entry))
-        .filter(|position| inert_target(typed, &machines[*position], target).is_none())
+        .and_then(|entry| called_machine(typed, entry))
+        .and_then(|entry| realized_machine(typed, entry, target))
+        .and_then(|entry| typed.machine_position_by_symbol(entry.symbol))
         .into_iter()
         .collect();
     for position in &frontier {
@@ -154,7 +158,7 @@ pub fn reject_reached_inert_sibling_calls(
                     })
                     .filter_map(|(_, realization)| called_machine(typed, *realization));
                 for callee in direct.into_iter().chain(realizations) {
-                    if inert_target(typed, callee, target).is_some() {
+                    let Some(callee) = realized_machine(typed, callee, target) else {
                         refusals.push((
                             position,
                             Diagnostic::error(unrealized_call_message(
@@ -162,7 +166,7 @@ pub fn reject_reached_inert_sibling_calls(
                             )),
                         ));
                         continue;
-                    }
+                    };
                     let Some(callee_position) = typed.machine_position_by_symbol(callee.symbol)
                     else {
                         continue;
@@ -195,17 +199,33 @@ fn called_machine(
         .or_else(|| typed.machine_holding_state(called_symbol))
 }
 
-/// The authored target of a body this build does not realize. Canonical
-/// members are not implicitly realized just because their suffix is absent.
-fn inert_target<'program>(
+/// Resolve an explicit execution edge against the complete retained family.
+/// A head has no authored target or states; visiting it would hide both a
+/// missing member and calls inside the selected member. Exact member references
+/// instead keep their own target and never redirect into another sibling.
+fn realized_machine<'program>(
     typed: &'program TypedTrees,
     machine: &'program typed_trees::machine::Machine,
     target: TargetProfile,
-) -> Option<&'program str> {
-    typed.machine_authored_target(machine).filter(|declared| {
-        !TargetProfile::from_canonical_target_name(declared)
-            .is_ok_and(|resolved| resolved == target)
-    })
+) -> Option<&'program typed_trees::machine::Machine> {
+    if machine.target_family_interface {
+        let family = typed
+            .target_machine_families
+            .iter()
+            .find(|family| family.canonical == machine.symbol)?;
+        let member = family
+            .members
+            .iter()
+            .find(|member| member.target.as_str() == target.target_name())?;
+        return typed.machine_by_symbol(member.machine);
+    }
+    typed
+        .machine_authored_target(machine)
+        .is_none_or(|declared| {
+            TargetProfile::from_canonical_target_name(declared)
+                .is_ok_and(|resolved| resolved == target)
+        })
+        .then_some(machine)
 }
 
 /// Select declaration candidates without changing the shared source program.
@@ -248,10 +268,11 @@ fn unrealized_call_message(
         .target_machine_families
         .iter()
         .find(|family| {
-            family
-                .members
-                .iter()
-                .any(|member| member.machine == callee.symbol)
+            family.canonical == callee.symbol
+                || family
+                    .members
+                    .iter()
+                    .any(|member| member.machine == callee.symbol)
         })
         .map(|family| {
             family

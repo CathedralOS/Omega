@@ -2671,9 +2671,7 @@ crash and native exit behavior.
     it currently requests review and acceptance of the dependency's
     `MacosApplication` program-entry binding, not a fabricated provider grant.
     Provider-default declaration operations must remain distinct from runtime
-    invocation dependencies. Existing std-dependent missing-target rejection
-    fixtures need their authored missing-target checks restored after the shared
-    integration dependency is repaired. Publish target-default effects in
+    invocation dependencies. Publish target-default effects in
     the source-free Build companion and prove distinct tagged realizations
     consume one unchanged Terminal artifact.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
