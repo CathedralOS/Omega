@@ -97,6 +97,7 @@ impl LiveDefinitions {
     fn element_view_backings(&self) -> super::scalar::element_views::ElementViewBackings<'_> {
         super::scalar::element_views::ElementViewBackings::new(
             &self.structural_homes,
+            &self.views,
             &self.address_joins,
             scalar_sources::ScalarSources::from(self),
         )
@@ -111,17 +112,7 @@ impl LiveDefinitions {
         function: &'function AbstractFunction,
         place: PlaceId,
     ) -> Option<&'function terminal_psi::StructuralOperationResult> {
-        let (producer, structural_type) = self.views.get(&place)?;
-        let mut results = function.operations.iter().filter_map(|operation| {
-            operation
-                .structural_result()
-                .filter(|(_, result)| result.place == place)
-        });
-        let (operation, result) = results.next()?;
-        (results.next().is_none()
-            && operation == *producer
-            && result.structural_type == *structural_type)
-            .then_some(result)
+        self.element_view_backings().view_result(function, place)
     }
 
     fn reference_edge_exit(&self, target: semantic_vocabulary::BlockId) -> ReferenceEdgeCustody {

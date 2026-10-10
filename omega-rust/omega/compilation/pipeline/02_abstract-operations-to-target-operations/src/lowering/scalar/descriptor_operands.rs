@@ -39,6 +39,14 @@ pub(in crate::lowering) fn descriptor_projection(
                 .map(|home| (home.structural_type(), home.access()))
         })
         .or_else(|| {
+            // Completed descriptors can retain their words in SSA instead of
+            // allocating a home. This joins the live producer's declared
+            // storage carrier; it grants no access to the borrowed backing.
+            backings
+                .view_result(function, source.place)
+                .map(|result| (result.structural_type, StructuralAccess::Owned))
+        })
+        .or_else(|| {
             function.operations.iter().find_map(|operation| {
                 let abstract_operations::AbstractOperation::EstablishByteSequenceLiteral {
                     place,

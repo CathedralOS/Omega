@@ -26,6 +26,7 @@ use terminal_psi::{
 #[derive(Clone, Copy)]
 pub(in crate::lowering) struct ElementViewBackings<'a> {
     pub(super) homes: &'a BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
+    views: &'a BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     address_joins: &'a BTreeSet<PlaceId>,
     pub(super) selectors: crate::lowering::control_flow::scalar_sources::ScalarSources<'a>,
 }
@@ -33,14 +34,37 @@ pub(in crate::lowering) struct ElementViewBackings<'a> {
 impl<'a> ElementViewBackings<'a> {
     pub(in crate::lowering) fn new(
         homes: &'a BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
+        views: &'a BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
         address_joins: &'a BTreeSet<PlaceId>,
         selectors: crate::lowering::control_flow::scalar_sources::ScalarSources<'a>,
     ) -> Self {
         Self {
             homes,
+            views,
             address_joins,
             selectors,
         }
+    }
+
+    /// Rejoin every completed descriptor to its exact unique operation result.
+    /// A shared descriptor may keep SSA words without an allocated home; that
+    /// changes storage realization, not its producer or declared carrier.
+    pub(super) fn view_result<'function>(
+        self,
+        function: &'function AbstractFunction,
+        place: PlaceId,
+    ) -> Option<&'function terminal_psi::StructuralOperationResult> {
+        let (producer, structural_type) = self.views.get(&place)?;
+        let mut results = function.operations.iter().filter_map(|operation| {
+            operation
+                .structural_result()
+                .filter(|(_, result)| result.place == place)
+        });
+        let (operation, result) = results.next()?;
+        (results.next().is_none()
+            && operation == *producer
+            && result.structural_type == *structural_type)
+            .then_some(result)
     }
 
     fn address(
