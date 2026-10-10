@@ -5,7 +5,16 @@ machine label() -> &[u8] {
     ("is_frozen")
 }
 
-machine main() {
+machine forward(name: &[u8]) -> &[u8] { name }
+
+machine main() crashes Trap {
     let name: &[u8] = label();
     let out: u64 = name.len;
+    let forwarded: &[u8] = forward(name);
+    transition out == 9 && forwarded.len == 9 && forwarded[0] == 105 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
 }

@@ -1,4 +1,8 @@
 //! Exact checked state-entry claims and their machine-local Terminal identities.
+//!
+//! Project an owner's stored type only when checked custody actually transfers
+//! a claim frontier. Borrowed values carry loans instead: an immutable literal
+//! can establish backing without an owned declaration whose claims need lowering.
 
 use super::super::{
     CarryPolicy, CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan, ClaimId,
@@ -153,26 +157,10 @@ pub(super) fn lower_owned_operand_claims(
         statement,
         expression,
     );
-    let (root, prefix, root_type) = if let Some(place) = place {
-        let root_type = validation::canonical_place_type_reference(
-            &checked.typed,
-            state,
-            statement,
-            &validation::CanonicalPlace {
-                root: place.root,
-                segments: Vec::new(),
-            },
-        )
-        .ok_or(LoweringError::Unsupported(
-            "returned owner has no exact carrier",
-        ))?;
-        (place.root, place.segments, root_type)
+    let (root, prefix) = if let Some(place) = &place {
+        (place.root, place.segments.as_slice())
     } else {
-        (
-            facts::PlaceRoot::Expression(expression),
-            Vec::new(),
-            checked.facts.resolved_types.result(expression),
-        )
+        (facts::PlaceRoot::Expression(expression), [].as_slice())
     };
     let transfers = checked
         .facts
@@ -217,7 +205,23 @@ pub(super) fn lower_owned_operand_claims(
     if transfers.is_empty() && !has_selected_transfer {
         return Ok(Vec::new());
     }
-    let (prefix, _) = validation::structural_owned_path(&checked.typed, root_type, &prefix)
+    let root_type = if let Some(place) = &place {
+        validation::canonical_place_type_reference(
+            &checked.typed,
+            state,
+            statement,
+            &validation::CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            },
+        )
+        .ok_or(LoweringError::Unsupported(
+            "returned owner has no exact carrier",
+        ))?
+    } else {
+        checked.facts.resolved_types.result(expression)
+    };
+    let (prefix, _) = validation::structural_owned_path(&checked.typed, root_type, prefix)
         .map_err(LoweringError::Unsupported)?;
     let mut claims = Vec::new();
     let mut consumer = expected_source;
