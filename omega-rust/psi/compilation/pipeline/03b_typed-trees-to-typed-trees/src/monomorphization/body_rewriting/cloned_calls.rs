@@ -7,7 +7,7 @@ use crate::monomorphization::body_rewriting::machine_arguments::{
     forwarded_static_argument_rewrites, substitute_forwarded_machine_arguments,
 };
 use crate::monomorphization::body_rewriting::{
-    cloned_runtime_call_subjects, insert_subject_name, runtime_value_subjects,
+    cloned_runtime_call_subjects, insert_subject_name, insert_subject_names, runtime_value_subjects,
 };
 use crate::monomorphization::selection::state_by_symbol;
 use crate::monomorphization::{
@@ -246,13 +246,7 @@ pub(crate) fn rewrite_cloned_calls(
                         .expression_table
                         .expression_handles(snapshot.arguments)
                         .to_vec();
-                    for (member, symbol) in subjects.iter().cloned() {
-                        arguments.push(insert_subject_name(
-                            &mut program.expression_table,
-                            member,
-                            symbol,
-                        ));
-                    }
+                    insert_subject_names(&mut program.expression_table, &mut arguments, subjects);
                     program
                         .expression_table
                         .insert_expression_handles(arguments)
@@ -417,13 +411,7 @@ pub(crate) fn rewrite_clone_transition_subjects(
             .statement_table
             .expression_handles(*arguments)
             .to_vec();
-        for (member, symbol) in subjects.iter().cloned() {
-            arguments.push(insert_subject_name(
-                &mut program.expression_table,
-                member,
-                symbol,
-            ));
-        }
+        insert_subject_names(&mut program.expression_table, &mut arguments, subjects);
         let new_arguments = program.statement_table.insert_expression_handles(arguments);
         let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
             program.statement_table.transition_target_mut(target)

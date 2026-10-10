@@ -123,6 +123,19 @@ pub(crate) fn insert_subject_name(
     ))
 }
 
+/// One `Name` argument per subject appended to `arguments` — the
+/// rewritten-call sites all grow the retained argument vector the same way
+/// before reinserting it as a handle span.
+pub(super) fn insert_subject_names(
+    table: &mut typed_trees::expression::ExpressionTable,
+    arguments: &mut Vec<ExpressionHandle>,
+    subjects: &[(typed_trees::name::Identifier, SymbolHandle)],
+) {
+    for (member, symbol) in subjects.iter().cloned() {
+        arguments.push(insert_subject_name(table, member, symbol));
+    }
+}
+
 /// The statement call's retained argument vector plus one `Name` expression
 /// per subject, reinserted as a handle span.
 pub(super) fn insert_arguments_with_subjects(
@@ -134,13 +147,7 @@ pub(super) fn insert_arguments_with_subjects(
         .statement_table
         .expression_handles(arguments_span)
         .to_vec();
-    for (member, symbol) in subjects.iter().cloned() {
-        arguments.push(insert_subject_name(
-            &mut program.expression_table,
-            member,
-            symbol,
-        ));
-    }
+    insert_subject_names(&mut program.expression_table, &mut arguments, subjects);
     program.statement_table.insert_expression_handles(arguments)
 }
 
@@ -196,13 +203,7 @@ pub(super) fn rewrite_selected_call_with_name(
                 .expression_table
                 .expression_handles(snapshot.arguments)
                 .to_vec();
-            for (member, symbol) in subjects.iter().cloned() {
-                arguments.push(insert_subject_name(
-                    &mut program.expression_table,
-                    member,
-                    symbol,
-                ));
-            }
+            insert_subject_names(&mut program.expression_table, &mut arguments, subjects);
             let new_arguments = program
                 .expression_table
                 .insert_expression_handles(arguments);
