@@ -5055,7 +5055,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   array extents with source selection retained through instance identity.
   Closed instances substitute selected extent fields and composite generic
   field arguments recursively while preserving lexical constructor-head
-  dependencies; ordinary type binders cannot supply generic constructors.
+  dependencies. Ordinary type binders cannot supply generic constructors;
+  const and runtime value binders cannot supply type positions.
 
   - Combine equations with argument/result inference and keep obligations
     through forwarding beyond closed scalar constructor indices, retained

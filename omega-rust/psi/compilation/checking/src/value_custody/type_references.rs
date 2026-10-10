@@ -20,6 +20,8 @@
 //! arguments (lengths and arguments through `generic_arguments`), dynamic
 //! trait values, and named types. Generic constructor heads must select a
 //! declaration: an ordinary type binder is not a higher-kinded constructor.
+//! A named binder in a type position must denote a type, not its value carrier:
+//! const and runtime value binders remain values even in an unused template.
 //! `generic_arguments` also exports the exact const-argument checks that
 //! checking, package review and the terminal artifact call.
 //!
@@ -914,6 +916,22 @@ fn validate_type_reference_handle_with_context(
 }
         }
         TypeReferenceNode::Named { symbol, name } => {
+            // Name resolution binds the lexical telescope before globals.
+            // Scope membership alone does not establish a type: these binders
+            // supply values to index/extent positions, never stored types.
+            if type_parameter_scope.type_parameters.iter().any(|parameter| {
+                matches!(
+                    parameter.kind,
+                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                ) && ((symbol.is_valid() && parameter.symbol == *symbol)
+                    || (!program.symbols.has_source_metadata()
+                        && parameter.name.as_str() == name.as_str()))
+            }) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses value parameter `{name}` as a type; const and runtime value parameters supply values, not types"
+                )));
+                return;
+            }
             if type_parameter_scope
                 .machine_parameter(*symbol, name.as_str())
                 .is_some()

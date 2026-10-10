@@ -1629,6 +1629,8 @@ fail/generics/closed_indexed_domain_mismatch rejected 537ms expected @2d8ed25366
 	index compatibility condition `index-equality:Quantity:mismatch::entry:statement-0:Quantity<Unit { exponent: 0 }>==Quantity<Unit { exponent: 1 }>` is not established: actual `Quantity<Unit { exponent: 0 }>` and expected `Quantity<Unit { exponent: 1 }>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/const_binder_carrier_range_names_sibling_rejected rejected 298ms expected @ada91cf0bd16+wt
 	machine `pick` parameter `N` declares a range that does not close over integers; an argument establishes its declared range from closed integer bounds
+fail/generics/const_binder_used_as_field_type rejected 1647ms expected @693af9eb9f9c+wt
+	data `Invalid` field `value` uses value parameter `Count` as a type; const and runtime value parameters supply values, not types
 fail/generics/const_container_mismatched_witness rejected 112ms expected @ca8c127c90c5
 	argument `buffer` for state `capacity` expects `&FixedBuffer<Capacity>`, got `named value`
 fail/generics/const_container_zero_extent rejected 5ms expected @ca8c127c90c5
@@ -1755,6 +1757,8 @@ fail/generics/structured_const_ineligible_float_field rejected 30ms expected @2d
 	const argument for `Indexed::I` is invalid at this index site: `f64` is not eligible as a const index: runtime floating/text identity is not canonical structural data
 fail/generics/structured_const_rat_unreduced rejected 47ms expected @2d8ed253669f
 	const argument for `RatIndexed::R` is invalid at this index site: `Rat` index numerator magnitude and denominator must be gcd-reduced
+fail/generics/value_binder_used_as_nested_type rejected 1615ms expected @693af9eb9f9c+wt
+	data `Invalid` field `nested` generic argument uses value parameter `Count` as a type; const and runtime value parameters supply values, not types
 fail/generics/value_generic_runtime_static_length rejected 130ms expected @2d8ed253669f
 	value parameter `Count` of machine `ident` is bound to a runtime argument and cannot determine a static type or layout
 fail/inline_asm/asm_cli_requires_machine_authority rejected 105ms expected @2d8ed253669f
@@ -3913,6 +3917,7 @@ pass/generics/runtime_machine_equation_nested_const_exit checked 5229ms check-ta
 pass/generics/runtime_machine_equation_selected_boolean_exit checked 5421ms check-target:linux_x86_64 @c6a6397a34af+wt
 pass/generics/runtime_machine_equation_selected_const_exit checked 5350ms check-target:linux_x86_64 @c6a6397a34af+wt
 pass/generics/runtime_mixed_generic_erased_sum_exit checked 515ms check-target:macos_arm64 @ca8c127c90c5
+pass/generics/runtime_nested_array_extent_binder_exit checked 4949ms check-target:linux_x86_64 @693af9eb9f9c+wt
 pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_selected_operator_body_exit checked 11304ms check-target:macos_arm64 @b7c2d2975497
 pass/generics/runtime_value_generic_subject_exit checked 1300ms check-target:macos_arm64 @2d8ed253669f
