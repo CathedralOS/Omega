@@ -1,7 +1,6 @@
 use crate::{
-    AcceptanceSummary, AcceptanceVerdict, AcceptanceView, CallAcceptance, ExitAcceptance,
+    AcceptanceSummary, AcceptanceVerdict, AcceptanceView, CallAcceptance,
     OperatorAcceptance, StateOperationAcceptance, StateOperationAcceptanceKind,
-    StatementAcceptance,
 };
 
 impl<'facts> AcceptanceView for StateOperationAcceptance<'facts> {
@@ -27,24 +26,10 @@ impl<'facts> StateOperationAcceptance<'facts> {
         }
     }
 
-    pub const fn as_statement(&self) -> Option<StatementAcceptance<'facts>> {
-        match self {
-            Self::Statement(statement) => Some(*statement),
-            Self::Call(_) | Self::Exit(_) | Self::Operator(_) => None,
-        }
-    }
-
     pub const fn as_call(&self) -> Option<CallAcceptance<'facts>> {
         match self {
             Self::Call(call) => Some(*call),
             Self::Statement(_) | Self::Exit(_) | Self::Operator(_) => None,
-        }
-    }
-
-    pub const fn as_exit(&self) -> Option<ExitAcceptance<'facts>> {
-        match self {
-            Self::Exit(exit) => Some(*exit),
-            Self::Statement(_) | Self::Call(_) | Self::Operator(_) => None,
         }
     }
 
