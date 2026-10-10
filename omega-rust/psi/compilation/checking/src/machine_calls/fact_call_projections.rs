@@ -145,15 +145,13 @@ fn append_substituted_projection_requests(
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
             if let Some(path) = program.expression_table.name_path_node(member.receiver)
-                && let Some((_, actual)) = bindings
-                    .iter()
-                    .find(|(parameter, _)| *parameter == path.symbol)
+                && let Some(actual) = crate::substitutions::actual_for(bindings, path.symbol)
                 && matches!(
-                    program.expression_table.expression(*actual),
+                    program.expression_table.expression(actual),
                     ExpressionNode::Call(_)
                 )
             {
-                requests.push((expression, *actual));
+                requests.push((expression, actual));
             }
             append_substituted_projection_requests(program, member.receiver, bindings, requests);
         }

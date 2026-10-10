@@ -24,10 +24,7 @@ pub struct RankRelevance {
 impl RankRelevance {
     /// Absence is not evidence that an unrelated or unresolved state is an exit.
     pub fn requires_rank(&self, state: SymbolHandle) -> bool {
-        self.states
-            .iter()
-            .find(|(symbol, _)| *symbol == state)
-            .is_none_or(|(_, relevant)| *relevant)
+        crate::substitutions::actual_for(&self.states, state).unwrap_or(true)
     }
 }
 

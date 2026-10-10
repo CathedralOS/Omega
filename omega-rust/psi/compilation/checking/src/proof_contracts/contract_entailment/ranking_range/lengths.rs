@@ -167,13 +167,11 @@ fn install_expression(
             let Some(parameter) = parameter(program, scope, receiver) else {
                 continue;
             };
-            let Some((_, identity)) = bindings
-                .iter()
-                .find(|(symbol, _)| *symbol == parameter.symbol)
+            let Some(identity) = crate::substitutions::actual_for(bindings, parameter.symbol)
             else {
                 continue;
             };
-            if !engine.bind_strict_projection(expression, Polynomial::atom(identity.clone())) {
+            if !engine.bind_strict_projection(expression, Polynomial::atom(identity)) {
                 return None;
             }
         }
@@ -256,10 +254,8 @@ fn evaluate_length(
     }
     let coordinate = |expression| {
         if let Some(parameter) = parameter(program, state, expression) {
-            let (_, identity) = bindings
-                .iter()
-                .find(|(symbol, _)| *symbol == parameter.symbol)?;
-            return Some(Polynomial::atom(identity.clone()));
+            let identity = crate::substitutions::actual_for(bindings, parameter.symbol)?;
+            return Some(Polynomial::atom(identity));
         }
         // A member chain ending at a slice leaf names the same canonical
         // coordinate the projected-storage owner installs for `.len`

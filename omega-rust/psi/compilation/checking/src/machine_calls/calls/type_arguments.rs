@@ -144,15 +144,13 @@ pub fn call_type_arguments(
         }
     }
     for (parameter, selected) in const_selections {
-        let Some((_, actual)) = bindings
-            .iter()
-            .find(|(symbol, _)| *symbol == parameter.symbol)
+        let Some(actual) = crate::substitutions::actual_for(&bindings, parameter.symbol)
         else {
             // An unused const has no carrier occurrence to instantiate. Its
             // retained authored operand remains with static-call admission.
             continue;
         };
-        if !const_selection_matches(program, selected, *actual) {
+        if !const_selection_matches(program, selected, actual) {
             return None;
         }
     }

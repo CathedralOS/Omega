@@ -28,11 +28,8 @@ pub(super) fn normal_return_interval(
         else {
             continue;
         };
-        if let Some((_, actual)) = actuals
-            .iter()
-            .find(|(symbol, _)| *symbol == parameter.symbol)
-        {
-            interval = interval.intersect(*actual);
+        if let Some(actual) = crate::substitutions::actual_for(actuals, parameter.symbol) {
+            interval = interval.intersect(actual);
         }
         for contract in callee
             .contracts
