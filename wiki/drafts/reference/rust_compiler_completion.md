@@ -376,6 +376,48 @@ referent shape. Windows x86-64 and matching-host Linux x86-64 remain open;
 emulation does not close either release row, and this was not an unfiltered
 Linux ARM64 release gate.
 
+The 2026-10-10 follow-on qualification used clean, published producer
+`0eb8571d0805391695f7940bf64890c65ced5cdd`, the same pinned Rust toolchain,
+macOS/Colima/Ubuntu/kernel/QEMU versions above, and
+`CARGO_PROFILE_DEV_OPT_LEVEL=1`. The CLI build took 2 minutes 26 seconds.
+Package preparation, emission and guest assertions completed within a
+63-second observation window, excluding that build and VM startup.
+All five programs returned their authored exit 0 directly on Linux ARM64
+and under Linux x86-64 QEMU: ten observations, no skips or mismatches.
+No compiler or fixture change was needed for this qualification.
+
+| Fixture under `tests/omega/pass/` | Authored exit |
+| --- | --- |
+| `ownership/runtime_generic_linear_case_restore_exit` | 0 |
+| `ownership/runtime_generic_borrowed_case_restore_exit` | 0 |
+| `generics/runtime_linear_constructor_instances_exit` | 0 |
+| `generics/runtime_finite_recursive_reference_catalog_exit` | 0 |
+| `drops/runtime_owner_scoped_generic_cleanup_exit` | 0 |
+
+The two restoration programs exercise both ordinary success/failure arms,
+preserving backing 73 and guard 19 while observing values 41 and 42.
+The constructor program observes scalar and array leaves from distinct linear
+applications before exact-once cleanup. The finite-field program reads through
+`Wrapper<Wrapper<&Cell>>` without expanding recursive referent families.
+The owner hooks write 73 through two caller-owned destinations at different
+layout offsets; both writes are required by the program's exit oracle.
+
+The two-target preparation/emission commands and separate guest assertions
+above were used for each listed fixture. Package preparation used
+`--dangerously-accept-all` for these first-party fixture projects; automatic
+acceptance is not a manual external-package audit.
+The generic linear restoration program's SHA-256 identities are:
+
+- `main.omg`: `e8ca8d39a7971d3c5b78ebb33db1c4bf53ed40c3fcdd46b97ac657fefba279fb`.
+- ARM64 ELF: `f1fd99cc10fc60ffa32e00ba0e6f022a92f1873ed9b7bada189b1bc194b3e5fb`.
+- x86-64 ELF: `7f63796c10378dea9020b0ef74b75799c90cd998b992f3e2d5d61b0a50be96ad`.
+
+The VM returned to its initial stopped state. This qualifies the listed
+ordinary generic restoration, constructor and cleanup paths only, not physical
+suspension, resume, cancellation or every referent shape. Windows x86-64 and
+matching-host Linux x86-64 remain open; QEMU does not close the latter row.
+Neither Linux release row is closed by this bounded qualification.
+
 ## Closure rule
 
 The contract closes only when all six named gates pass from a clean checkout
