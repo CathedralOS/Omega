@@ -77,15 +77,19 @@ pub(in crate::legalization) fn defined_type(
         .map(|definition| definition.scalar_type)
 }
 
-/// The structural call argument's runtime elements: each `RuntimeIndex`
-/// segment on `path` joined to its selector's definition and certificate by
-/// `operands`. A static path mints none.
-pub(crate) fn structural_argument(
+/// Join a projection's runtime elements under its retained endpoint access.
+/// A shared call may observe a constrained scalar's carrier without acquiring
+/// an owned or writable leaf. Use the same access-aware geometry as call
+/// placement and instruction selection; otherwise selector joining rejects a
+/// valid shared endpoint before those consumers see it. Storage extraction and
+/// restoration retain canonical owned geometry. A static path mints no indices.
+pub(crate) fn projection(
     optimized: &PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
     root: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
+    access: terminal_psi::StructuralAccess,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
     if !path.iter().any(|segment| {
@@ -97,9 +101,10 @@ pub(crate) fn structural_argument(
         return Ok(Vec::new());
     }
     let (_, _, elements) =
-        crate::structural_inputs::structural_reference_input::runtime_projection(
+        crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
             root,
             path,
+            access,
             declarations,
         )
         .ok_or(LegalizationError::custody())?;

@@ -123,12 +123,13 @@ pub(super) fn project_borrowed_window(
                 path: path.clone(),
                 byte_offset: *byte_offset,
                 shape: result_home.layout.shape(),
-                indices: crate::legalization::runtime_indices::structural_argument(
+                indices: crate::legalization::runtime_indices::projection(
                     optimized,
                     unit,
                     *psi_operation,
                     source.structural_type(),
                     selected,
+                    terminal_psi::StructuralAccess::Owned,
                     &plan.structural_types,
                 )?,
             })
@@ -159,12 +160,13 @@ pub(super) fn project_borrowed_window(
                 value: *value,
                 byte_offset: *byte_offset,
                 shape,
-                indices: crate::legalization::runtime_indices::structural_argument(
+                indices: crate::legalization::runtime_indices::projection(
                     optimized,
                     unit,
                     *psi_operation,
                     destination.structural_type(),
                     path,
+                    terminal_psi::StructuralAccess::Owned,
                     &plan.structural_types,
                 )?,
             })

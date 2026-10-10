@@ -42,12 +42,13 @@ pub(super) fn project_call(
         .collect::<Vec<_>>();
     for argument in arguments {
         lowered.push(LegalizedScalarArgument::Structural {
-            indices: crate::legalization::runtime_indices::structural_argument(
+            indices: crate::legalization::runtime_indices::projection(
                 optimized,
                 unit,
                 *psi_operation,
                 argument.root_structural_type,
                 &argument.path,
+                argument.access,
                 &unit.structural_types,
             )?,
             semantic: terminal_psi::StructuralArgument {
@@ -165,12 +166,13 @@ pub(super) fn project_normalized_foreign_call(
             structural_indices: structural_arguments
                 .iter()
                 .map(|argument| {
-                    crate::legalization::runtime_indices::structural_argument(
+                    crate::legalization::runtime_indices::projection(
                         optimized,
                         unit,
                         operation,
                         argument.root_structural_type,
                         &argument.path,
+                        argument.access,
                         &plan.structural_types,
                     )
                 })

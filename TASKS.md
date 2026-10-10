@@ -2257,10 +2257,9 @@ crash and native exit behavior.
     **PIPELINE-ARCHITECTURE-ENFORCEMENT**, blocks ordinary std package admission
     with its missing portable family contract; this prevents the public helper
     and descriptor sample commands before their own compilation. Runtime-indexed
-    shared reads of constrained scalar fields still fail native legalization with
-    `SourceCustodyMismatch` in `runtime_indices.rs`; the
-    [unchanged pending witness](tests/omega/pending/layouts/runtime_indexed_restricted_field_read/README.md)
-    retains its zero exit promises and requires access-aware runtime projection.
+    shared constrained-field reads still require cross-host execution coverage
+    under **PLACED-ACCESS-NATIVE-OPS**; preserve the
+    [unchanged authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md).
     The slice-return
     controls below still reject their captured range
     endpoint against an unknown length on untouched main `9657a66795`;
@@ -3786,9 +3785,9 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   shared reads, computed and signed indices, exact-once authored argument order,
   later mutation, private joins and dynamic Unit calls retain the selected
   caller cell and leave neighbors untouched. Keep the selected-extent and
-  shared-authority refusal controls. Runtime-indexed constrained shared field
-  reads remain open at `SourceCustodyMismatch` in
-  [the unchanged pending witness](tests/omega/pending/layouts/runtime_indexed_restricted_field_read/README.md).
+  shared-authority refusal controls. Include the constrained shared-field
+  [authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md)
+  and padded two-selector variation in that cross-host execution coverage.
   Use
   **CANONICALIZE-SCALAR-RANGE-CONTRACTS** for bounds. **WRITE-ONLY-BORROW** and
   **STRUCTURAL-BORROW-IDENTITY** own general loan admission;
