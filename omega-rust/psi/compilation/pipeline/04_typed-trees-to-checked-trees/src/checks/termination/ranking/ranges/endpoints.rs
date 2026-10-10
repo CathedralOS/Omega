@@ -2,7 +2,7 @@
 
 use super::super::patterns;
 use super::super::write_preservation::prefix_preserves_path;
-use super::Bounds;
+
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -16,7 +16,7 @@ pub(super) fn pinned_expression_bounds(
     machine: &Machine,
     expression: ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Bounds> {
+) -> Option<validation::WideInterval> {
     let [state] = program.machine_states(machine) else {
         return None;
     };
@@ -68,8 +68,5 @@ pub(super) fn pinned_expression_bounds(
             }
         }
     }
-    Some(Bounds {
-        low: i128::from(low),
-        high: i128::from(high),
-    })
+    Some(validation::WideInterval::from_i64(low, high))
 }

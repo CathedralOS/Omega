@@ -50,7 +50,7 @@ pub use machine_calls::structural_call_custody::{
     structural_result_projected_qualifications, structural_result_qualifications,
     structural_state_contract_scalar_predicates, view_result_carrier_qualifications,
 };
-pub use proof_contracts::arithmetic_domains::Interval;
+pub use proof_contracts::arithmetic_domains::{Interval, WideInterval};
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
     closed_interval_from_comparison, declared_domain_predicate_bounds,
     exact_declared_domain_carrier_interval, exact_declared_domain_interval,

@@ -108,13 +108,7 @@ fn proves_range(
             // nominal carrier. Its store-enforced type range bounds the
             // produced rank; reconstruction and descent remain separate checks.
             let (low, high) = validation::enforced_integer_type_bounds(program, *field_type)?;
-            (
-                Bounds {
-                    low: i128::from(low),
-                    high: i128::from(high),
-                },
-                None,
-            )
+            (validation::WideInterval::from_i64(low, high), None)
         }
         (RankingOrder::IncreasingTo(limit), DecreaseMeasure::Distance { lower, upper })
             if *limit == upper =>
@@ -126,7 +120,7 @@ fn proves_range(
             }
             // The view produces natural distance, including zero after the
             // cursor reaches its limit; it does not rank the cursor itself.
-            let rank = Bounds {
+            let rank = validation::WideInterval {
                 low: (bound.low - subject.high).max(0),
                 high: (bound.high - subject.low).max(0),
             };
@@ -152,11 +146,6 @@ fn proves_range(
     Some(floor_proven && (ceiling_proven || view_ceiling_proven))
 }
 
-#[derive(Clone, Copy)]
-struct Bounds {
-    low: i128,
-    high: i128,
-}
 
 fn endpoint_bounds(
     program: &dyn ::validation::CheckingInput,
@@ -164,7 +153,7 @@ fn endpoint_bounds(
     expression: ExpressionHandle,
     pinned_bound: Option<(ExpressionHandle, i128, i128)>,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Bounds> {
+) -> Option<validation::WideInterval> {
     // The IncreasingTo edge proof already pins this exact bound. Other scalar
     // endpoints need their own occurrence and write-preservation judgment.
     if let Some((bound, _, _)) = pinned_bound
@@ -198,15 +187,12 @@ fn bounds(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
-) -> Option<Bounds> {
+) -> Option<validation::WideInterval> {
     let state = program.machine_states(machine).first()?;
     if let Some((low, high)) =
         validation::immutable_integer_expression_bounds(program, machine, state, expression)
     {
-        return (low <= high).then_some(Bounds {
-            low: i128::from(low),
-            high: i128::from(high),
-        });
+        return (low <= high).then_some(validation::WideInterval::from_i64(low, high));
     }
     // The shared interval engine uses i64 endpoints and cannot bound an
     // unrestricted u64 above. Widen to its carrier, never invent a range fact.
@@ -220,7 +206,7 @@ fn bounds(
     })?;
     (program.primitive_type_reference(parameter.type_reference)
         == Some(typed_trees::types::PrimitiveType::U64))
-    .then_some(Bounds {
+    .then_some(validation::WideInterval {
         low: 0,
         high: i128::from(u64::MAX),
     })
