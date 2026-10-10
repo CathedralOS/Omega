@@ -73,13 +73,11 @@ pub(super) fn write(
         u32::from(byte_size),
         SelectedMemoryAccessRole::WritePlace,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Store {
-            byte_offset: 0,
-            byte_size,
-        },
-        builder.constraints.keys.store.ok_or_else(|| invalid())?,
-        &[pointer, value_register],
+    builder.emit_store(
+        0,
+        byte_size,
+        pointer,
+        value_register,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![value.value],

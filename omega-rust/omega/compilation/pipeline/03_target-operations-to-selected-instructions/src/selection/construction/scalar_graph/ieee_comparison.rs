@@ -131,12 +131,9 @@ impl Emitter<'_, '_> {
             ),
         )?;
         let provenance = self.provenance();
-        self.state.emit(
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(u128::from(bits)),
-            },
-            self.state.constraints.keys.materialize_i64,
-            &[output],
+        self.state.emit_materialize_i64(
+            IntegerValue::Unsigned(u128::from(bits)),
+            output,
             provenance,
         )?;
         Ok(output)

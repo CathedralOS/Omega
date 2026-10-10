@@ -378,12 +378,9 @@ impl IntegerComparisonSequence<'_, '_> {
             .state
             .register(self.value, self.site, ScalarType::Integer(carrier))?;
         let provenance = self.provenance();
-        self.state.emit(
-            SelectedInstructionKind::MaterializeI64 {
-                value: semantic_vocabulary::IntegerValue::Signed(0),
-            },
-            self.state.constraints.keys.materialize_i64,
-            &[output],
+        self.state.emit_materialize_i64(
+            semantic_vocabulary::IntegerValue::Signed(0),
+            output,
             provenance,
         )?;
         Ok(output)

@@ -497,16 +497,7 @@ fn project_join_address(
                 byte_count: 8,
                 role: selected_instructions::SelectedMemoryAccessRole::ReadPlace,
             });
-        builder.emit(
-            SelectedInstructionKind::Load64 { byte_offset },
-            builder
-                .constraints
-                .keys
-                .load64
-                .ok_or(SelectedInstructionError::custody())?,
-            &[pointer, output],
-            provenance.clone(),
-        )?;
+        builder.emit_load64(byte_offset, pointer, output, provenance.clone())?;
         pointer = output;
     }
     *base = SelectedAddressBase::Register(pointer);

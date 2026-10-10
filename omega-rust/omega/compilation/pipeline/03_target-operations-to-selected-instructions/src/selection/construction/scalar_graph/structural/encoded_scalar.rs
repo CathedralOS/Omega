@@ -30,14 +30,9 @@ pub(super) fn constant_codec(
     codec: runtime_abi::ScalarStorageCodec,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let output = transport_register(builder, place, 8)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(
-                codec.encode().ok_or(invalid())?,
-            )),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[output],
+    builder.emit_materialize_i64(
+        semantic_vocabulary::IntegerValue::Unsigned(u128::from(codec.encode().ok_or(invalid())?)),
+        output,
         provenance(row),
     )?;
     Ok(output)

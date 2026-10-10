@@ -2,7 +2,7 @@
 
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind, SelectedMemoryAccessRole, invalid, memory, place_pointer, provenance,
+    SelectedMemoryAccessRole, invalid, memory, place_pointer, provenance, transport_at_byte_offset,
     transport_register,
 };
 use crate::SelectedInstructionError;
@@ -79,14 +79,7 @@ pub(super) fn establish(
     )?;
     if address.byte_offset != 0 {
         let projected = transport_register(builder, result.place, address.byte_offset)?;
-        builder.emit(
-            SelectedInstructionKind::AddressOffset {
-                byte_offset: address.byte_offset,
-            },
-            builder.constraints.keys.address_offset.ok_or(invalid())?,
-            &[input, projected],
-            provenance(row),
-        )?;
+        builder.emit_address_offset(address.byte_offset, input, projected, provenance(row))?;
         input = projected;
     }
     if let Some(storage) = address.storage {
@@ -128,14 +121,11 @@ pub(super) fn establish(
         Some(codec)
     } else if let Some(codec) = address.codec {
         let register = transport_register(builder, result.place, 8)?;
-        builder.emit(
-            SelectedInstructionKind::MaterializeI64 {
-                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(
-                    codec.encode().ok_or(invalid())?,
-                )),
-            },
-            builder.constraints.keys.materialize_i64,
-            &[register],
+        builder.emit_materialize_i64(
+            semantic_vocabulary::IntegerValue::Unsigned(u128::from(
+                codec.encode().ok_or(invalid())?,
+            )),
+            register,
             provenance(row),
         )?;
         Some(register)
@@ -277,21 +267,6 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
         )
     };
     let output = transport_register(builder, place, offset)?;
-    builder.emit(
-        if offset == 0 {
-            SelectedInstructionKind::CopyI64
-        } else {
-            SelectedInstructionKind::AddressOffset {
-                byte_offset: offset,
-            }
-        },
-        if offset == 0 {
-            builder.constraints.keys.copy_i64
-        } else {
-            builder.constraints.keys.address_offset.ok_or(invalid())?
-        },
-        &[pointer, output],
-        provenance(row),
-    )?;
+    transport_at_byte_offset(builder, pointer, output, offset, provenance(row))?;
     Ok(output)
 }
