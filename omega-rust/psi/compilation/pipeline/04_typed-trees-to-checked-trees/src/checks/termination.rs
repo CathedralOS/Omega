@@ -112,7 +112,7 @@ pub(crate) fn admit_machine_rankings(
                     local_terminates =
                         machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody;
                     if let Some(arrival) = arrival
-                        && arrival.retain(&mut admitted, machine).is_none()
+                        && arrival.retain(program, &mut admitted, machine).is_none()
                     {
                         local_terminates = false;
                         entry_rank_formed = false;
@@ -162,7 +162,7 @@ pub(crate) fn admit_machine_rankings(
             && admitted.for_body(machine.symbol, machine.states).is_none()
         {
             if let Some(identity) = ranking::RankArrivalAdmission::entry_only(program, machine) {
-                if identity.retain(&mut admitted, machine).is_none() {
+                if identity.retain(program, &mut admitted, machine).is_none() {
                     local_terminates = false;
                     entry_rank_formed = false;
                     diagnostic = format!(

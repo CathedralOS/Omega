@@ -242,6 +242,34 @@ impl StateEntryCorrespondence {
         Some(destinations)
     }
 
+    /// Retain a selected receiving observation from its completed root. The
+    /// complete edge has already selected this coordinate; declaration lookup
+    /// supplies its qualified type and exact arrival site for publication,
+    /// without expanding other children or repeating the edge proof.
+    pub fn receiving_at_coordinate(
+        &self,
+        program: &dyn crate::CheckingInput,
+        destination: &RankSubjectCoordinate,
+    ) -> Vec<RankReceivingCoordinate> {
+        self.receiving
+            .iter()
+            .filter_map(|receiving| {
+                if receiving.destination.parameter != destination.parameter {
+                    return None;
+                }
+                let suffix = destination
+                    .path
+                    .strip_prefix(receiving.destination.path.as_slice())?;
+                let type_reference =
+                    declared_receiving_projection_type(program, receiving.type_reference, suffix)?;
+                let mut projected = receiving.clone();
+                projected.destination = destination.clone();
+                projected.type_reference = type_reference;
+                Some(projected)
+            })
+            .collect()
+    }
+
     /// Candidate readings of an entry coordinate at this state. Prefix transport
     /// composes an ordinary projected read; it does not search the carrier's
     /// type for a similarly shaped field. Repeated derivations deduplicate the

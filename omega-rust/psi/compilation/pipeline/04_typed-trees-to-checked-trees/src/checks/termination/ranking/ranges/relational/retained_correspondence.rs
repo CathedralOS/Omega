@@ -52,6 +52,7 @@ struct PreparedState {
 impl RankArrivalAdmission {
     pub(in crate::checks::termination) fn retain(
         self,
+        program: &dyn validation::CheckingInput,
         plan: &mut CheckedRankArrivalPlan,
         machine: &Machine,
     ) -> Option<()> {
@@ -127,9 +128,8 @@ impl RankArrivalAdmission {
                     }
                 }
                 let receiving = origin
-                    .receiving
-                    .iter()
-                    .filter(|receiving| receiving.destination == selected.destination)
+                    .receiving_at_coordinate(program, &selected.destination)
+                    .into_iter()
                     .map(|receiving| {
                         Some(PreparedReceiving {
                             destination: receiving.destination.clone(),
