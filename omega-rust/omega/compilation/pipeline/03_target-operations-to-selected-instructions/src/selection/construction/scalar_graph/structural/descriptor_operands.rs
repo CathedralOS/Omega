@@ -2,9 +2,8 @@
 //! runtime selectors keep their own ordered storage regions; this operation
 //! neither extracts a descriptor nor grants an independent payload loan.
 use super::{
-    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, SelectedInstructionKind,
-    SelectedMemoryAccessRole, VirtualRegisterId, invalid, memory, place_pointer, provenance,
-    transport_register,
+    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, SelectedMemoryAccessRole,
+    VirtualRegisterId, invalid, memory, place_pointer, provenance, transport_register,
 };
 use crate::SelectedInstructionError;
 use crate::structural_inputs::structural_reference_input::{
@@ -99,14 +98,7 @@ pub(super) fn backing(
                 8,
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
-            builder.emit(
-                SelectedInstructionKind::Load64 {
-                    byte_offset: displacement,
-                },
-                builder.constraints.keys.load64.ok_or(invalid())?,
-                &[pointer, output],
-                provenance(row),
-            )?;
+            builder.emit_load64(displacement, pointer, output, provenance(row))?;
         }
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
             ..

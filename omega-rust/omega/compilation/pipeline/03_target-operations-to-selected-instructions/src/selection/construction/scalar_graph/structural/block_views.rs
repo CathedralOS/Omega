@@ -8,8 +8,8 @@
 //! loads that address once, so later consumers receive the referent pointer an
 //! incoming borrowed parameter would supply, never a pointer to the carrier.
 use super::{
-    Builder, LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccess, SelectedMemoryAccessRole,
+    Builder, LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionProvenance,
+    SelectedMemoryAccess, SelectedMemoryAccessRole,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -84,10 +84,10 @@ pub(in crate::selection::construction) fn block_entry(
                 byte_count: shape.byte_size,
                 role: SelectedMemoryAccessRole::ReadPlace,
             });
-            builder.emit(
-                SelectedInstructionKind::Load64 { byte_offset: 0 },
-                builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-                &[pointer, referent],
+            builder.emit_load64(
+                0,
+                pointer,
+                referent,
                 SelectedInstructionProvenance::default(),
             )?;
             referent

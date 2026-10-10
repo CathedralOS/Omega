@@ -5,8 +5,7 @@
 //! whole descriptor home; no backing byte is read or copied.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
-    StructuralAccess, memory,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, StructuralAccess, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -115,12 +114,7 @@ pub(super) fn replace(
         8,
         SelectedMemoryAccessRole::ReadPlace,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Load64 { byte_offset: 0 },
-        builder.constraints.keys.load64.ok_or(invalid())?,
-        &[descriptor, backing],
-        provenance(row),
-    )?;
+    builder.emit_load64(0, descriptor, backing, provenance(row))?;
     let extent = transport_register(builder, *source, 8)?;
     memory(
         builder,
@@ -130,12 +124,7 @@ pub(super) fn replace(
         8,
         SelectedMemoryAccessRole::ReadPlace,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Load64 { byte_offset: 8 },
-        builder.constraints.keys.load64.ok_or(invalid())?,
-        &[descriptor, extent],
-        provenance(row),
-    )?;
+    builder.emit_load64(8, descriptor, extent, provenance(row))?;
     super::runtime_address::footprint(
         builder,
         row,
