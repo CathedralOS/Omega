@@ -26,101 +26,249 @@ pub(super) enum CompletedValueSource {
 }
 
 #[derive(Clone)]
-pub(super) struct DeclaredValueProjection {
+pub(super) struct CompletedValueProjection {
     pub path: Vec<PlaceSegment>,
-    pub type_reference: TypeReferenceHandle,
+    pub sources: Vec<CompletedValueSource>,
+    /// A whole unknown aggregate is an obligation too. Its omitted children
+    /// cannot establish absence merely because a few demanded leaves are known.
+    pub terminal: bool,
 }
 
-/// Enumerate finite declaration geometry, independently of the expression
-/// which supplies it. Recursive referents and collections are retained at
-/// their root; this record-field demand does not invent element observations.
-pub(super) fn declared_value_projections(
+/// Authenticate term field names against the current declared owner. These are
+/// already captured term projections, not source selectors to replay.
+fn field_projections(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
-) -> Vec<DeclaredValueProjection> {
-    fn append(
-        program: &dyn crate::CheckingInput,
-        reference: TypeReferenceHandle,
-        path: &mut Vec<PlaceSegment>,
-        owners: &mut Vec<SymbolHandle>,
-        projections: &mut Vec<DeclaredValueProjection>,
-    ) {
-        projections.push(DeclaredValueProjection {
-            path: path.clone(),
-            type_reference: reference,
+    name: &str,
+) -> Vec<(Vec<PlaceSegment>, TypeReferenceHandle)> {
+    let peeled = program.type_reference_table.unconstrained_type_reference(
+        program
+            .type_reference_table
+            .dereferenced_type_reference(reference),
+    );
+    let Some(owner) = crate::value_custody::type_shapes::head_data_symbol(program, peeled) else {
+        return Vec::new();
+    };
+    let Some(data) = program.data_definition_by_symbol(owner) else {
+        return Vec::new();
+    };
+    program
+        .data_members(data)
+        .iter()
+        .flat_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+            typed_trees::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
+            _ => &[],
+        })
+        .filter(|field| field.name.as_str() == name)
+        .filter_map(|field| {
+            let mut path = Vec::new();
+            crate::value_custody::places::push_field_place_segments(
+                program,
+                &mut path,
+                field.symbol,
+            );
+            let projected = crate::value_custody::places::project_type_reference_from_segments(
+                program, reference, &path,
+            )?;
+            Some((path, projected))
+        })
+        .collect()
+}
+
+fn term_field_paths(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    value: &StructuralTerm,
+    names: &[&str],
+) -> Vec<Vec<PlaceSegment>> {
+    let Some((name, remaining)) = names.split_first() else {
+        return vec![Vec::new()];
+    };
+    let mut paths = Vec::new();
+    for (prefix, projected_type) in field_projections(program, reference, name) {
+        let Some(projected) = project_observed_value(program, reference, value.clone(), &prefix)
+        else {
+            continue;
+        };
+        for suffix in term_field_paths(program, projected_type, &projected, remaining) {
+            let mut path = prefix.clone();
+            path.extend(suffix);
+            paths.push(path);
+        }
+    }
+    paths
+}
+
+fn append_projection(
+    projections: &mut Vec<CompletedValueProjection>,
+    path: Vec<PlaceSegment>,
+    terminal: bool,
+) {
+    if let Some(existing) = projections
+        .iter_mut()
+        .find(|existing| existing.path == path)
+    {
+        existing.terminal |= terminal;
+    } else {
+        projections.push(CompletedValueProjection {
+            path,
+            sources: Vec::new(),
+            terminal,
         });
+    }
+}
+
+/// Observed constructors supply their finite actual child roster. A collection
+/// descriptor or opaque aggregate remains a whole-value obligation; declaration
+/// extent does not manufacture observations of its children.
+fn observed_projections(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    value: &StructuralTerm,
+    path: &mut Vec<PlaceSegment>,
+    projections: &mut Vec<CompletedValueProjection>,
+) {
+    let mut children = Vec::new();
+    let mut complete_constructor = false;
+    if let StructuralTerm::Constructor {
+        data: name,
+        case,
+        fields,
+    } = value.semantic_value()
+    {
         let peeled = program.type_reference_table.unconstrained_type_reference(
             program
                 .type_reference_table
                 .dereferenced_type_reference(reference),
         );
-        if let typed_trees::types::TypeReferenceNode::FixedArray {
-            length: typed_trees::types::FixedArrayLength::Literal(length),
-            ..
-        } = program.type_reference_table.type_reference(peeled)
+        if let Some(owner) = crate::value_custody::type_shapes::head_data_symbol(program, peeled)
+            && let Some(data) = program.data_definition_by_symbol(owner)
+            && data.name.as_str() == name.as_str()
         {
-            for index in 0..*length {
-                let segment = PlaceSegment::FixedIndex { index };
+            let declared = program
+                .data_members(data)
+                .iter()
+                .flat_map(|member| match member {
+                    typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+                    typed_trees::data::DataMember::Variant(variant)
+                        if variant.name.as_str() == case.as_str() =>
+                    {
+                        program.data_payload_fields(variant)
+                    }
+                    _ => &[],
+                })
+                .collect::<Vec<_>>();
+            complete_constructor = declared.len() == fields.len()
+                && declared.iter().all(|field| {
+                    fields
+                        .iter()
+                        .any(|(name, _)| name.as_str() == field.name.as_str())
+                });
+            for (name, _) in fields {
+                for (prefix, projected_type) in field_projections(program, reference, name) {
+                    if let Some(projected) =
+                        project_observed_value(program, reference, value.clone(), &prefix)
+                    {
+                        children.push((prefix, projected_type, projected));
+                    }
+                }
+            }
+            complete_constructor &= children.len() == fields.len();
+        }
+    }
+    // Each observed constructor edge supplies a distinct declared selector.
+    // Explicit/public demands below perform their own union with these rows.
+    projections.push(CompletedValueProjection {
+        path: path.clone(),
+        sources: Vec::new(),
+        terminal: !complete_constructor || children.is_empty(),
+    });
+    for (prefix, projected_type, projected) in children {
+        let previous = path.len();
+        path.extend(prefix);
+        observed_projections(program, projected_type, &projected, path, projections);
+        path.truncate(previous);
+    }
+}
+
+/// Locate only projections carried by the requested term. The final identity
+/// check uses the same normal-result owner as completion; declared field lookup
+/// merely authenticates selectors and does not donate an equality.
+fn parameter_projection_paths(
+    program: &dyn crate::CheckingInput,
+    judge: &StructuralJudge<'_>,
+    reference: TypeReferenceHandle,
+    value: &StructuralTerm,
+    observed: &StructuralTerm,
+) -> Vec<Vec<PlaceSegment>> {
+    let mut paths = Vec::new();
+    if value == observed {
+        paths.push(Vec::new());
+    }
+    let suffix = match (value.semantic_value(), observed.semantic_value()) {
+        (
+            StructuralTerm::Variable(base) | StructuralTerm::Opaque(base),
+            StructuralTerm::Opaque(projected),
+        ) => projected
+            .strip_prefix(base)
+            .and_then(|suffix| suffix.strip_prefix('.')),
+        (StructuralTerm::BoundValue(base), StructuralTerm::BoundProjection { subject, path })
+            if base == subject =>
+        {
+            Some(path.as_str())
+        }
+        (
+            StructuralTerm::BoundProjection {
+                subject: base,
+                path: prefix,
+            },
+            StructuralTerm::BoundProjection { subject, path },
+        ) if base == subject => path
+            .strip_prefix(prefix)
+            .and_then(|suffix| suffix.strip_prefix('.')),
+        (_, StructuralTerm::Projection { subject, path }) if subject.as_ref() == value => {
+            Some(path.as_str())
+        }
+        _ => None,
+    };
+    if let Some(suffix) = suffix {
+        for path in term_field_paths(
+            program,
+            reference,
+            value,
+            &suffix.split('.').collect::<Vec<_>>(),
+        ) {
+            if project_observed_value(program, reference, value.clone(), &path)
+                .is_some_and(|projected| judge.completed_value_identity(projected) == *observed)
+                && !paths.contains(&path)
+            {
+                paths.push(path);
+            }
+        }
+    }
+    if let StructuralTerm::Constructor { fields, .. } = value.semantic_value() {
+        for (name, _) in fields {
+            for (prefix, projected_type) in field_projections(program, reference, name) {
                 let Some(projected) =
-                    crate::value_custody::places::project_type_reference_from_segments(
-                        program,
-                        reference,
-                        std::slice::from_ref(&segment),
-                    )
+                    project_observed_value(program, reference, value.clone(), &prefix)
                 else {
                     continue;
                 };
-                path.push(segment);
-                append(program, projected, path, owners, projections);
-                path.pop();
-            }
-            return;
-        }
-        let Some(owner) = crate::value_custody::type_shapes::head_data_symbol(program, peeled)
-        else {
-            return;
-        };
-        if owners.contains(&owner) {
-            return;
-        }
-        let Some(data) = program.data_definition_by_symbol(owner) else {
-            return;
-        };
-        owners.push(owner);
-        let fields = program
-            .data_members(data)
-            .iter()
-            .flat_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-                typed_trees::data::DataMember::Variant(variant) => {
-                    program.data_payload_fields(variant)
+                let projected = judge.completed_value_identity(projected);
+                for suffix in
+                    parameter_projection_paths(program, judge, projected_type, &projected, observed)
+                {
+                    let mut path = prefix.clone();
+                    path.extend(suffix);
+                    if !paths.contains(&path) {
+                        paths.push(path);
+                    }
                 }
-            });
-        for field in fields {
-            let previous = path.len();
-            crate::value_custody::places::push_field_place_segments(program, path, field.symbol);
-            if let Some(projected) =
-                crate::value_custody::places::project_type_reference_from_segments(
-                    program,
-                    reference,
-                    &path[previous..],
-                )
-            {
-                append(program, projected, path, owners, projections);
             }
-            path.truncate(previous);
         }
-        owners.pop();
     }
-    let mut projections = Vec::new();
-    append(
-        program,
-        reference,
-        &mut Vec::new(),
-        &mut Vec::new(),
-        &mut projections,
-    );
-    projections
+    paths
 }
 
 pub(super) fn expression_statement_index(
@@ -152,50 +300,45 @@ pub(super) fn completed_value_projection_sources(
     reference: TypeReferenceHandle,
     path: &[PlaceSegment],
 ) -> Option<Vec<CompletedValueSource>> {
-    let type_reference = crate::value_custody::places::project_type_reference_from_segments(
-        program, reference, path,
-    )?;
-    let projection = DeclaredValueProjection {
-        path: path.to_vec(),
-        type_reference,
-    };
-    completed_value_projections_sources(
+    crate::value_custody::places::project_type_reference_from_segments(program, reference, path)?;
+    completed_value_observations(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        std::slice::from_ref(&projection),
+        &[path.to_vec()],
     )?
     .into_iter()
-    .next()
+    .find(|projection| projection.path == path)
+    .map(|projection| projection.sources)
     .filter(|sources| !sources.is_empty())
 }
 
-/// Evaluate the prefix and producing expression once for all demanded paths.
-/// Unsupported projections keep an empty observation row, not an empty
-/// dependency inventory. Consumers retain known rows beside those unknowns.
-pub(super) fn completed_value_projections_sources(
+/// Execute the normal-return owner once. Explicit demands and paths actually
+/// observed by constructors/public result equations share one query. Unknown
+/// aggregate roots remain terminal obligations beside their known leaves.
+pub(super) fn completed_value_observations(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    projections: &[DeclaredValueProjection],
-) -> Option<Vec<Vec<CompletedValueSource>>> {
+    demands: &[Vec<PlaceSegment>],
+) -> Option<Vec<CompletedValueProjection>> {
     let mut visitor = CompletedProjectionVisitor {
         state: state.symbol,
         statement_index,
         expression,
         reference,
-        projections,
-        sources: None,
+        demands,
+        observations: None,
         recognized: true,
     };
     observe_runtime_state_prefix(program, machine, state, &mut visitor)?;
-    visitor.recognized.then_some(visitor.sources?)
+    visitor.recognized.then_some(visitor.observations?)
 }
 
 struct CompletedProjectionVisitor<'path> {
@@ -203,8 +346,8 @@ struct CompletedProjectionVisitor<'path> {
     statement_index: usize,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    projections: &'path [DeclaredValueProjection],
-    sources: Option<Vec<Vec<CompletedValueSource>>>,
+    demands: &'path [Vec<PlaceSegment>],
+    observations: Option<Vec<CompletedValueProjection>>,
     recognized: bool,
 }
 
@@ -247,7 +390,7 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
             return;
         };
         for outcome in outcomes {
-            let mut candidates = outcome
+            let candidates = outcome
                 .judge
                 .completed_expression_values()
                 .iter()
@@ -266,59 +409,120 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
                     )
                 })
                 .collect::<Vec<_>>();
-            for parameter in program.state_parameters(state) {
-                let Some((_, value)) = environment
-                    .iter()
-                    .find(|(name, _)| name == parameter.name.as_str())
-                else {
-                    continue;
-                };
-                for candidate in declared_value_projections(program, parameter.type_reference) {
-                    if let Some(value) = project_observed_value(
-                        program,
-                        parameter.type_reference,
+            let formals = program
+                .state_parameters(state)
+                .iter()
+                .filter_map(|parameter| {
+                    let (_, value) = environment
+                        .iter()
+                        .find(|(name, _)| name == parameter.name.as_str())?;
+                    Some((
+                        parameter,
                         outcome.judge.completed_value_identity(value.clone()),
-                        &candidate.path,
-                    ) {
-                        candidates.push((
-                            CompletedValueSource::Parameter {
-                                symbol: parameter.symbol,
-                                path: candidate.path,
-                            },
-                            outcome.judge.completed_value_identity(value),
-                        ));
+                    ))
+                })
+                .collect::<Vec<_>>();
+            let value = outcome
+                .judge
+                .completed_value_identity(outcome.value.clone());
+            let mut projections = Vec::new();
+            observed_projections(
+                program,
+                self.reference,
+                &value,
+                &mut Vec::new(),
+                &mut projections,
+            );
+            for path in self.demands {
+                if crate::value_custody::places::project_type_reference_from_segments(
+                    program,
+                    self.reference,
+                    path,
+                )
+                .is_some()
+                {
+                    append_projection(&mut projections, path.clone(), false);
+                }
+            }
+            for path in outcome
+                .judge
+                .completed_value_projection_paths(&outcome.value)
+            {
+                for path in term_field_paths(
+                    program,
+                    self.reference,
+                    &value,
+                    &path.split('.').collect::<Vec<_>>(),
+                ) {
+                    if crate::value_custody::places::project_type_reference_from_segments(
+                        program,
+                        self.reference,
+                        &path,
+                    )
+                    .is_some()
+                    {
+                        append_projection(&mut projections, path, false);
                     }
                 }
             }
-            let observations = self
-                .projections
-                .iter()
-                .map(|projection| {
-                    let Some(projected) = project_observed_value(
+            for projection in &mut projections {
+                let Some(projected) = project_observed_value(
+                    program,
+                    self.reference,
+                    value.clone(),
+                    &projection.path,
+                ) else {
+                    continue;
+                };
+                let projected = outcome.judge.completed_value_identity(projected);
+                projection.sources.extend(
+                    candidates.iter().filter_map(|(source, value)| {
+                        (projected == *value).then_some(source.clone())
+                    }),
+                );
+                for (parameter, value) in &formals {
+                    for path in parameter_projection_paths(
                         program,
-                        self.reference,
-                        outcome
-                            .judge
-                            .completed_value_identity(outcome.value.clone()),
-                        &projection.path,
-                    ) else {
-                        return Vec::new();
-                    };
-                    let projected = outcome.judge.completed_value_identity(projected);
-                    candidates
+                        &outcome.judge,
+                        parameter.type_reference,
+                        value,
+                        &projected,
+                    ) {
+                        let source = CompletedValueSource::Parameter {
+                            symbol: parameter.symbol,
+                            path,
+                        };
+                        if !projection.sources.contains(&source) {
+                            projection.sources.push(source);
+                        }
+                    }
+                }
+            }
+            if let Some(retained) = &mut self.observations {
+                for previous in retained.iter_mut() {
+                    if let Some(current) = projections
                         .iter()
-                        .filter_map(|(source, value)| {
-                            (projected == *value).then_some(source.clone())
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
-            if let Some(retained) = &mut self.sources {
-                for (retained, observations) in retained.iter_mut().zip(observations) {
-                    retained.retain(|source| observations.contains(source));
+                        .find(|current| current.path == previous.path)
+                    {
+                        previous
+                            .sources
+                            .retain(|source| current.sources.contains(source));
+                        previous.terminal |= current.terminal;
+                    } else {
+                        previous.sources.clear();
+                    }
+                }
+                for mut projection in projections {
+                    if !retained
+                        .iter()
+                        .any(|previous| previous.path == projection.path)
+                    {
+                        projection.sources.clear();
+                        retained.push(projection);
+                    }
                 }
             } else {
-                self.sources = Some(observations);
+                self.observations = Some(projections);
             }
         }
     }

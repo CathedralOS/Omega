@@ -45,6 +45,45 @@ impl<'program> StructuralJudge<'program> {
         &self.normal_results
     }
 
+    /// Projection demands carried by this exact completed result's public
+    /// equations. The consumer authenticates each field against its declared
+    /// type; unrelated captures, hypotheses and private bodies contribute none.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_value_projection_paths(
+        &self,
+        value: &StructuralTerm,
+    ) -> Vec<String> {
+        let (root, prefix) = match value.semantic_value() {
+            StructuralTerm::Projection { subject, path } => (subject.as_ref(), Some(path.as_str())),
+            _ => (value, None),
+        };
+        let mut paths = Vec::new();
+        for (left, right) in &self.captured_result_equations {
+            for term in [left, right] {
+                let StructuralTerm::Projection { subject, path } = term else {
+                    continue;
+                };
+                if subject.as_ref() != root {
+                    continue;
+                }
+                let path = if let Some(prefix) = prefix {
+                    let Some(suffix) = path
+                        .strip_prefix(prefix)
+                        .and_then(|suffix| suffix.strip_prefix('.'))
+                    else {
+                        continue;
+                    };
+                    suffix
+                } else {
+                    path.as_str()
+                };
+                if !paths.iter().any(|previous| previous == path) {
+                    paths.push(path.to_owned());
+                }
+            }
+        }
+        paths
+    }
+
     /// Resolve captured value identities without folding arithmetic or using
     /// caller hypotheses. Discovery needs the producing operand structure;
     /// ring equality cannot replace its intermediate formation obligations.

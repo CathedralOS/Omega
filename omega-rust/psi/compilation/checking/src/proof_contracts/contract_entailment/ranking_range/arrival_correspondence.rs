@@ -216,19 +216,27 @@ impl StateEntryCorrespondence {
         )?;
         let mut destinations = Vec::new();
         for receiving in &self.receiving {
-            if !receiving.destination.path.ends_with(&entry.path)
-                || !crate::value_custody::places::declared_carriers_match(
+            // Retain the receiving root once; this exact authored selector is
+            // the demand. Declared collection extent never expands the query.
+            for (path, actual_type) in
+                receiving_projection_paths(program, receiving.type_reference, &entry.path)
+            {
+                if !crate::value_custody::places::declared_carriers_match(
                     program,
                     reference,
-                    receiving.type_reference,
-                )
-                || program.arithmetic_domain_for_type_reference(reference)
-                    != program.arithmetic_domain_for_type_reference(receiving.type_reference)
-            {
-                continue;
-            }
-            if !destinations.contains(&receiving.destination) {
-                destinations.push(receiving.destination.clone());
+                    actual_type,
+                ) || program.arithmetic_domain_for_type_reference(reference)
+                    != program.arithmetic_domain_for_type_reference(actual_type)
+                {
+                    continue;
+                }
+                let destination = RankSubjectCoordinate {
+                    parameter: receiving.destination.parameter,
+                    path,
+                };
+                if !destinations.contains(&destination) {
+                    destinations.push(destination);
+                }
             }
         }
         Some(destinations)
@@ -669,27 +677,22 @@ fn completed_projected_coordinates(
     depth: usize,
 ) -> Option<CompletedCoordinateInventory> {
     use super::super::completed_values::{
-        CompletedValueSource, completed_value_projections_sources, declared_value_projections,
-        expression_statement_index,
+        CompletedValueSource, completed_value_observations, expression_statement_index,
     };
     let reference = crate::expression_result_type_reference(program, machine, state, expression)?;
-    let projections = declared_value_projections(program, reference);
-    let observations = completed_value_projections_sources(
+    let projections = completed_value_observations(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        &projections,
+        &[],
     )?;
     let mut completed = CompletedCoordinateInventory::complete(Vec::new());
-    for (projection, observations) in projections.iter().zip(observations) {
-        let terminal = !projections.iter().any(|child| {
-            child.path.len() > projection.path.len() && child.path.starts_with(&projection.path)
-        });
+    for projection in projections {
         let mut complete_projection = false;
-        for observation in observations {
+        for observation in projection.sources {
             let observed = match observation {
                 CompletedValueSource::Parameter { symbol, path } => Some(
                     completed_parameter_coordinates(source, symbol, &path, expression),
@@ -718,7 +721,7 @@ fn completed_projected_coordinates(
                 }
             }
         }
-        if terminal {
+        if projection.terminal {
             completed.complete &= complete_projection;
         }
     }
@@ -752,24 +755,123 @@ fn select_completed(
     selected
 }
 
-/// Retain receiving geometry independently of operand dependency lineage.
-/// The ordinary declared projection geometry supplies every finite location,
-/// independently of source spelling. It never evaluates a leaf or proves
-/// formation, lineage or the active case of a receiving value.
-fn completed_receiving_coordinates(
+/// Receiving candidates require declaration geometry, independently of the
+/// later expression formation proof. The ordinary type projection query does
+/// not check index bounds or case ownership, so retain those exact obligations
+/// which the previous declaration enumeration established by construction.
+fn declared_receiving_projection_type(
     program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
+    mut reference: TypeReferenceHandle,
+    demand: &[PlaceSegment],
+) -> Option<TypeReferenceHandle> {
+    for segment in demand {
+        let carrier = crate::value_custody::places::unwrapped_type_reference(program, reference)?;
+        match segment {
+            PlaceSegment::Case { variant } => {
+                let (owner, _) = program.variant_owner(*variant)?;
+                if crate::value_custody::type_shapes::head_data_symbol(program, carrier)
+                    != Some(owner.symbol)
+                {
+                    return None;
+                }
+            }
+            PlaceSegment::Field { symbol }
+                if symbol.is_valid() && program.any_field_owner(*symbol).is_some() => {}
+            PlaceSegment::FixedIndex { index } => {
+                let capacity =
+                    crate::value_custody::field_domains::type_reference_fixed_array_capacity(
+                        program, carrier,
+                    )?;
+                if *index >= capacity {
+                    return None;
+                }
+            }
+            PlaceSegment::Field { .. }
+            | PlaceSegment::Index { .. }
+            | PlaceSegment::FixedRange { .. } => return None,
+        }
+        reference = crate::value_custody::places::project_type_reference_from_segments(
+            program,
+            reference,
+            std::slice::from_ref(segment),
+        )?;
+    }
+    Some(reference)
+}
+
+/// Apply one authored selector through finite declared containing owners.
+/// Record fields supply owner prefixes; collections contribute only the exact
+/// indices present in the demand. No carrier match chooses an array element.
+fn receiving_projection_paths(
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
-    receiving: &mut Vec<(Vec<PlaceSegment>, TypeReferenceHandle, ExpressionHandle)>,
-) -> Option<()> {
-    if !program.expression_table.expression_is_valid(expression) {
-        return None;
+    demand: &[PlaceSegment],
+) -> Vec<(Vec<PlaceSegment>, TypeReferenceHandle)> {
+    fn append(
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+        demand: &[PlaceSegment],
+        prefix: &mut Vec<PlaceSegment>,
+        owners: &mut Vec<SymbolHandle>,
+        projections: &mut Vec<(Vec<PlaceSegment>, TypeReferenceHandle)>,
+    ) {
+        if let Some(actual) = declared_receiving_projection_type(program, reference, demand) {
+            let mut path = prefix.clone();
+            path.extend_from_slice(demand);
+            if !projections.iter().any(|(previous, _)| previous == &path) {
+                projections.push((path, actual));
+            }
+        }
+        let peeled = program.type_reference_table.unconstrained_type_reference(
+            program
+                .type_reference_table
+                .dereferenced_type_reference(reference),
+        );
+        let Some(owner) = crate::value_custody::type_shapes::head_data_symbol(program, peeled)
+        else {
+            return;
+        };
+        if owners.contains(&owner) {
+            return;
+        }
+        let Some(data) = program.data_definition_by_symbol(owner) else {
+            return;
+        };
+        owners.push(owner);
+        for field in program
+            .data_members(data)
+            .iter()
+            .flat_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+                typed_trees::data::DataMember::Variant(variant) => {
+                    program.data_payload_fields(variant)
+                }
+                _ => &[],
+            })
+        {
+            let previous = prefix.len();
+            crate::value_custody::places::push_field_place_segments(program, prefix, field.symbol);
+            if let Some(actual) = crate::value_custody::places::project_type_reference_from_segments(
+                program,
+                reference,
+                &prefix[previous..],
+            ) {
+                append(program, actual, demand, prefix, owners, projections);
+            }
+            prefix.truncate(previous);
+        }
+        owners.pop();
     }
-    for projection in super::super::completed_values::declared_value_projections(program, reference)
-    {
-        receiving.push((projection.path, projection.type_reference, expression));
-    }
-    Some(())
+    let mut projections = Vec::new();
+    append(
+        program,
+        reference,
+        demand,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut projections,
+    );
+    projections
 }
 
 /// Build the finite coordinate closure over the exact executable arrival
@@ -811,31 +913,18 @@ pub(super) fn discover(
                 return None;
             }
             for (formal, actual) in formals.iter().zip(arrival.arguments) {
-                let mut receiving = Vec::new();
-                if completed_receiving_coordinates(
-                    program,
-                    *actual,
-                    formal.type_reference,
-                    &mut receiving,
-                )
-                .is_none()
-                {
-                    // Unsupported geometry contributes no receiving candidate,
-                    // without suppressing independently retained lineage.
-                    receiving.clear();
-                }
-                for (path, reference, expression) in receiving {
+                if program.expression_table.expression_is_valid(*actual) {
                     let coordinate = RankReceivingCoordinate {
                         destination: RankSubjectCoordinate {
                             parameter: formal.symbol,
-                            path,
+                            path: Vec::new(),
                         },
-                        type_reference: reference,
+                        type_reference: formal.type_reference,
                         source_state: source.symbol,
                         statement_index: arrival.statement_index,
                         target: arrival.target,
                         actual: *actual,
-                        expression,
+                        expression: *actual,
                     };
                     let rows = &mut mappings[arrival.destination].receiving;
                     if !rows.contains(&coordinate) {
