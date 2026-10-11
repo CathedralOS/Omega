@@ -24,7 +24,7 @@ pub(crate) fn prepare_checked_build(
     packages: Option<&PackageCompilationInputs>,
     execution_profile: Option<target::TargetProfile>,
     timings: &mut artifacts::compile_timings::CompileTimings,
-    prior: Option<&typed_trees_to_checked_trees::RetainedCheck>,
+    priors: &[&typed_trees_to_checked_trees::RetainedCheck],
     retain: bool,
 ) -> Result<
     (
@@ -107,9 +107,11 @@ pub(crate) fn prepare_checked_build(
         )?
         .evaluate_pending(typed, pending)?;
     }
-    // Carry the discovery pass's language judgment only for the exact settled
-    // Build program. Psi still admits this invocation's declaration authority;
-    // provider/comparison settlement and executor grants remain fresh below.
+    // Carry the invocation's earlier language judgments only for the exact
+    // settled Build program this activation projects: its own slot's chain
+    // plus sibling rows whose projections arrived equal. Psi still admits
+    // this invocation's declaration authority; provider/comparison settlement
+    // and executor grants remain fresh below.
     let outcome = timings.record(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {
@@ -121,9 +123,11 @@ pub(crate) fn prepare_checked_build(
                     packages.map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
                 );
             let admission = preparation_request.admission();
-            let result = match prior
-                .filter(|prior| prior.judges_preparation_input(&program, &admission))
-            {
+            let prior = priors
+                .iter()
+                .copied()
+                .find(|prior| prior.judges_preparation_input(&program, &admission));
+            let result = match prior {
                 Some(prior) => {
                     typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, retain)
                 }

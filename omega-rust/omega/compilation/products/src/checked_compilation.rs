@@ -35,6 +35,12 @@ pub use report::CheckedProductReport;
 pub struct RetainedCompilationChecks {
     pub build: Option<typed_trees_to_checked_trees::RetainedCheck>,
     pub product: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    /// Retained Build judgments made by sibling occurrences of this same
+    /// invocation. Sibling rows scope different entries through projections
+    /// that can still arrive equal; an exact-input match takes the earlier
+    /// judgment rather than repeating the whole-program check it owns.
+    /// The pool is invocation-local: rows never reuse a sibling's admission.
+    pub sibling_build_checks: Vec<typed_trees_to_checked_trees::RetainedCheck>,
     pub occurrences: Vec<Option<RetainedCompilationChecks>>,
 }
 

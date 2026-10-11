@@ -129,6 +129,12 @@ fn compile_occurrences(
         std::iter::repeat_with(|| None)
             .take(graph.packages().len() * 2)
             .collect();
+    // Sibling rows of this one invocation may project the exact same Build
+    // program; an equal-input match takes the earlier judgment instead of
+    // repeating the whole-program check. Retained checks enter the pool only
+    // after their row's own admission and execution, so a row can never
+    // consume a judgment that has not yet been made.
+    let mut sibling_build_checks = Vec::new();
 
     for key in dependency_first_package_order(closure) {
         let position = graph
@@ -265,6 +271,7 @@ fn compile_occurrences(
                             } else {
                                 occurrence_prior.and_then(|prior| prior.build.clone())
                             },
+                            sibling_build_checks: sibling_build_checks.clone(),
                             ..compilation_products::RetainedCompilationChecks::default()
                         },
                         retain: request.settled_check_reuse.retain,
@@ -309,9 +316,11 @@ fn compile_occurrences(
                     diagnostics: failure.into_diagnostics(),
                 })?);
             } else {
-                occurrence_retained[position * 2 + purpose_slot(purpose)] = prepared
-                    .retained_build_check()
-                    .cloned()
+                let retained_build_check = prepared.retained_build_check().cloned();
+                if let Some(build) = retained_build_check.clone() {
+                    sibling_build_checks.push(build);
+                }
+                occurrence_retained[position * 2 + purpose_slot(purpose)] = retained_build_check
                     .map(|build| compilation_products::RetainedCompilationChecks {
                         build: Some(build),
                         ..compilation_products::RetainedCompilationChecks::default()

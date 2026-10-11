@@ -38,7 +38,9 @@ pub struct BuildEvaluationRequest<'request> {
     pub restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     pub artifact_only: bool,
     /// This occurrence's earlier Build language judgment, not grants or effects.
-    pub prior_check: Option<&'request typed_trees_to_checked_trees::RetainedCheck>,
+    /// Prior judgments this invocation may reuse: its own slot's chain plus
+    /// sibling rows whose projections arrived equal. Scan-ordered by custody.
+    pub prior_checks: Vec<&'request typed_trees_to_checked_trees::RetainedCheck>,
     /// Retain a successful judgment only when another review pass will use it.
     pub retain_check: bool,
 }
@@ -78,7 +80,7 @@ pub fn evaluate_build(
         snapshot,
         mut restricted_build_grants,
         artifact_only,
-        prior_check,
+        prior_checks,
         retain_check,
     } = request;
     // Source-owned entry selection requires no interpreter or host resources.
@@ -136,7 +138,7 @@ pub fn evaluate_build(
         package_inputs,
         execution_profile,
         timings,
-        prior_check,
+        &prior_checks,
         retain_check,
     )?;
     let filesystem_scope = crate::prepare_filesystem_scope(

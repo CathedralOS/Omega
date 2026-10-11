@@ -71,7 +71,13 @@ pub(crate) fn evaluate_build_and_continue(
             artifact_only: application
                 .as_ref()
                 .is_some_and(|application| application.artifact_only),
-            prior_check: settled_check_reuse.prior.build.as_ref(),
+            prior_checks: settled_check_reuse
+                .prior
+                .build
+                .as_ref()
+                .into_iter()
+                .chain(settled_check_reuse.prior.sibling_build_checks.iter())
+                .collect(),
             retain_check: settled_check_reuse.retain,
         },
         timings,
