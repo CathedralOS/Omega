@@ -1,18 +1,11 @@
-// `asm` is a statement keyword: `asm { jmp other() }` jumps
-// to an Omega state transition — control-flow assembly
-// resolves against the machine's own states.
-//
-//   * `machine main()` free-form entry carrying the asm
-//     block and the named state.
-//
-// Compile-checked only: no standard-library dependency, no
-// ProcessExit provider.
+// Compact control-flow assembly `asm { jmp my_state() }` is accepted when
+// the target resolves to an Omega state transition.
+data Main {}
 
-machine main() {
+machine Main::main(main: &mut Main) {
     asm {
         jmp other()
     }
-
     state other() {
     }
 }
