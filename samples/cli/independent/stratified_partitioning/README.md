@@ -71,8 +71,8 @@ preserving the original 70-case freeze.
 
 `invalid/` is a separate complete intended-invalid application. Its seventeenth
 array-slot write must reject at checking, independent of the runtime-invalid
-inputs to the valid application. It uses `control.omg` so positive sample discovery
-does not mistake the intended rejection for an ordinary executable sample.
+inputs to the valid application. Shared sample discovery recognizes its `intended-invalid` role and `control.omg`
+entry; both gates check its authored bounds rejection separately.
 
 ## Existing sample comparison
 

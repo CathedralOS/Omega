@@ -1,7 +1,7 @@
 # Omega Samples
 
 Samples are miniature Omega projects that pressure-test the language from a
-user-code point of view. Each one is a program that runs: its `build.omg`
+user-code point of view. A runnable sample's `build.omg`
 binds a target's program entry, and its `main.omg` header documents the result
 with `// Expected exit: <n>` or `// Expected output contains: <text>`, so
 `tools/sample_native_gate.py` can hold it to that result. A check-only probe of
@@ -10,6 +10,72 @@ not a sample; the existing `cli/probes/` projects predate this rule, and new
 probes go to the fixture tree. When the
 boards run dry, new samples at the language frontier are how the next real work
 is found.
+
+Samples can grow through actual use into complete programs or supply reusable
+libraries. Keep useful projects at their current paths; size or maturity alone
+does not require a move, deletion or another permanent hierarchy. A stable
+contract describes observable behavior and obligations; it does not freeze an
+implementation. Extract a shared kernel only after real consumers establish
+its contract. One outcome owner extracts it into the existing `source/library`
+and migrates its consumers together, retaining each consumer's frozen oracles,
+invalid controls and host evidence. Extraction is a separately bounded outcome,
+not permission for a broad library rewrite.
+
+## Project roles and discovery
+
+`python3 tools/sample_projects.py` derives the current catalog from existing
+build roots. It does not keep another checked-in list of projects. Both sample
+gates use this discovery, including nested consumers and invalid controls under
+a parent program. W100 groups without their own build root are containers;
+their child projects are the discovery results.
+
+| Role | Meaning in repository tooling |
+| --- | --- |
+| `program` | Complete application declared with `Build::application`. |
+| `example` | Runnable demonstration, also usable as ordinary user code. |
+| `library-consumer` | Runnable witness of a reusable library contract. |
+| `library` | Package declarations; qualify through their consumers, not a native entry invented by the gate. |
+| `check-only` | Existing positive probe without a program-entry binding; failure is still a gate failure. New isolated compiler witnesses go in `tests/omega`. |
+| `intended-invalid` | Complete source control that must reject for its authored reason. |
+| `external` | Pinned submodule with its own workflow; excluded from these gates. |
+
+The defaults use build declaration text, direct invalid-control names and
+existing `expected.txt`, `expected_error.txt` or `expected_diagnostic.txt` files.
+They are discovery hints, not a parser or an assertion of source validity.
+Dependency packages inside an invalid project remain libraries, not additional
+negative controls. Squalr is discovered as an external project from `.gitmodules`;
+its Git submodule entry retains the pinned revision.
+
+For an ambiguous role or non-`main.omg` entry, add one local `sample.json`:
+
+```json
+{
+  "role": "intended-invalid",
+  "entry": "rejected.omg",
+  "rejection_contains": ["the authored callee contract", "the authored reason"]
+}
+```
+
+`entry` names one local Omega source. `rejection_contains` is a list of literal
+stderr diagnostic fragments, all required. Optional `rejection_any_contains`
+requires at least one listed literal as well; `rejection_casefold: true`
+preserves authored case-insensitive matching. These fields restate
+the control's authored contract, not whatever error happens to occur on a machine. Without it, an intended-invalid
+project uses every nonempty line of its existing diagnostic expectation file.
+Missing expectations are reported as failures, never skipped or guessed from an
+unrelated refusal. Source rejection must exit 1 and match the identity; timeout,
+crash, unexpected acceptance, package/custody/provider refusals and wrong reasons
+cannot pass the control. Negative controls enter `--check`, never package
+acceptance or runtime execution. Runtime-invalid input cases remain cases of the
+positive program and its own validator.
+
+`sample_gate.py` checks the positive entries and validates the negative controls.
+`sample_native_gate.py` shares the same selection and reports negative coverage
+separately from runtime scores. Failed positive check-only probes still make it
+fail. No-oracle and freestanding projects retain their explicit unscored reporting.
+Library-only packages appear in the catalog; their runnable consumers enter the
+gates. This changes repository discovery, not the shipped `omega refresh-samples`
+command, package authority, review policy or compiler semantics.
 
 They are allowed to be rough while the language is moving, but each sample
 should still have a clear project shape:
@@ -81,3 +147,8 @@ CLI subdomains:
 - `cli/proofs/`: proof/domain-surface samples.
 - `cli/probes/`: compact compiler/runtime behavior probes.
 - `cli/interpreters/`: calculators, stack/token interpreters, and VM-ish samples.
+- `cli/independent/`: complete bounded domain applications, with private algorithms,
+  input variants, independent oracles and separate source-invalid controls.
+- `cli/scientific/`: scientific models and reusable numerical-contract consumers;
+  groups such as W100 contain multiple independently discoverable projects.
+- `cli/device/`: device and extent-access programs exercising ordinary providers.

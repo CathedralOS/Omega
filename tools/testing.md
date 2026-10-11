@@ -470,8 +470,11 @@ differently from its golden. Those block landing.
 `tools/sample_gate.py` is the samples' cheap counterpart to the corpus gate.
 `tools/sample_native_gate.py` builds and runs applicable samples against their
 native oracles, which is the release gate; this one runs `omega --check` over
-each `samples/**` project carrying a
-`build.omg` (except `apps/squalr`), in parallel, into a scratch build
+each positive `samples/**` project and validates intended-invalid source controls
+against their authored diagnostic identity. The gates share the role-aware
+[project discovery](../samples/README.md#project-roles-and-discovery), including
+nested build roots and non-`main.omg` entries. Libraries qualify through consumers;
+external submodules use their own gates. Checks run into a scratch build
 directory, and groups the first diagnostic per sample by cause.
 
 ```bash
@@ -482,7 +485,8 @@ python3 tools/sample_gate.py --cli target/debug/omega --write-results out.json
 
 It writes nothing into the working tree and needs no native toolchain, so it
 is the sweep to run before reporting sample coverage. About twelve minutes
-on eight workers for all 148 projects.
+for a historical 148-project tree; current selection comes from discovery, not
+that historical count.
 
 `tools/sample_native_gate.py` runs each sample's `omega update`, then builds
 and runs it. Give it an optimized compiler: package review of a std-using
@@ -490,6 +494,11 @@ sample costs about 160 s once per compiler build and about 8 s after the
 compiled-review cache holds std, against minutes per sample with the debug
 binary. A sample whose `build.omg` binds no `ProgramEntry` is a check-only
 probe; the gate checks it and reports it apart from the native score.
+Its failure still makes the gate fail. Intended-invalid projects never enter
+package acceptance or native execution: they must exit 1 from checking and match
+all authored diagnostic fragments. Missing expectations, wrong reasons, crashes
+and timeouts fail; no negative coverage disappears into an unscored row. Existing
+no-oracle/freestanding reporting and positive package-review behavior are unchanged.
 
 ```bash
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=../tgt-opt mbx build -p omega

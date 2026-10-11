@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "`interval_height` violates required fact `upper > lower`",
+    "the instantiated fact is structurally false"
+  ]
+}

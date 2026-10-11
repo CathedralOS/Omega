@@ -1,0 +1,6 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "constant initializer literal does not satisfy its declared integer range"
+  ]
+}

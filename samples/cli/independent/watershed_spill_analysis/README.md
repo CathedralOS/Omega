@@ -112,6 +112,6 @@ uses finite fixture files and isolated domain-exit delegation, and serializes al
 executions. `build/validation/bulk/` retains both engines' exact stdout, stderr
 and exit observations plus the normal published native executable.
 
-The complete intended-invalid control uses `intended_invalid/invalid.omg`, so ordinary sample discovery does not treat its expected bounds rejection as a runnable application. Validate it separately with `omega --check` and require the index-within-length-25 diagnostic.
+The complete intended-invalid control uses `intended_invalid/invalid.omg`; shared sample discovery recognizes its negative role and non-main entry, so both gates check its authored bounds rejection separately. Validate it separately with `omega --check` and require the index-within-length-25 diagnostic.
 
 Current-main integration uses the allocator recovery already landed on main; the earlier private repair is retained only in the archived review candidate. The division/call/remainder regression remains in the ordinary corpus.

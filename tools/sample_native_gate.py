@@ -26,6 +26,10 @@ checkout's accepted lock" requires.
 Accepting a review records project acceptance, NOT that an audit occurred.
 This script accepts every pending decision so the corpus can be measured; do
 not mistake a green row here for an audited dependency.
+
+Discovery is shared with the check gate. Complete intended-invalid controls use
+source checking only and require their authored rejection identity. Positive
+check-only probes have no runtime score but their failure still fails this gate.
 """
 
 import argparse
@@ -35,8 +39,11 @@ import re
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
-EXCLUDED = ("samples/apps/squalr",)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sample_projects import ROOT, discover as discover_projects, project_at, rejection_verdict
+
 # Freestanding targets have no host oracle: a UEFI image cannot run on the
 # development host, so scoring it against `Expected exit` would report a
 # platform mismatch as a sample defect. Reported, not scored.
@@ -46,34 +53,13 @@ EXPECT_EXIT = re.compile(r"//\s*Expected exit:\s*(\d+)")
 EXPECT_OUTPUT = re.compile(r"//\s*Expected output contains:\s*(.+)")
 
 
-def discover(root):
-    found = []
-    for directory, subdirectories, files in os.walk(root):
-        if "build" in subdirectories:
-            subdirectories.remove("build")
-        relative = os.path.relpath(directory).replace(os.sep, "/")
-        if any(relative.startswith(skip) for skip in EXCLUDED):
-            subdirectories[:] = []
-            continue
-        if "main.omg" in files and "build.omg" in files:
-            found.append(relative)
-            subdirectories[:] = []
-    return sorted(found)
+def discover(root, filters=()):
+    return [os.path.relpath(project.directory).replace(os.sep, "/")
+            for project in discover_projects(Path(root), ROOT, tuple(filters)) if project.role != "library"]
 
 
-def binds_program_entry(sample):
-    """Whether the sample's build binds any target's program entry.
-
-    A build that binds none (most `samples/cli/probes`, which set
-    `builder.freestanding = true`) is a compile-time probe: its claims are
-    proved by checking, and native production has no entry to build.
-    """
-    text = open(os.path.join(sample, "build.omg"), errors="ignore").read()
-    return "ProgramEntry" in text
-
-
-def oracle(sample):
-    text = open(os.path.join(sample, "main.omg"), errors="ignore").read()
+def oracle(sample, entry=None):
+    text = Path(entry or os.path.join(sample, "main.omg")).read_text(encoding="utf-8", errors="ignore")
     exit_match = EXPECT_EXIT.search(text)
     output_match = EXPECT_OUTPUT.search(text)
     return (
@@ -181,21 +167,32 @@ def check_refusal(cli, sample, timeout):
 
 
 def measure(cli, sample, target, timeout):
+    project = project_at(Path(sample), ROOT)
+    if project.entry is None:
+        return {"sample": sample, "state": "discovery-error", "detail": "missing unambiguous entry; declare sample.json entry"}
+    if project.role == "intended-invalid":
+        # Negative controls check their source contract and never enter package
+        # acceptance or native execution. A refusal for another reason is red.
+        completed = run([cli, "--check", "--target", target, str(project.entry)], timeout)
+        if completed is None:
+            return {"sample": sample, "role": project.role, "state": "timeout", "detail": f">{timeout}s"}
+        matched, detail = rejection_verdict(project, completed.returncode, completed.stderr)
+        return {"sample": sample, "role": project.role, "state": "rejected" if matched else "rejection-failed", "detail": detail}
     if any(sample.startswith(prefix) for prefix in NOT_HOST_RUNNABLE):
         return {
             "sample": sample,
             "state": "not-host-runnable",
             "detail": "freestanding target; no host oracle",
         }
-    expected_exit, expected_output = oracle(sample)
+    expected_exit, expected_output = oracle(sample, project.entry)
     reason, review_output = accept_review(cli, sample, target, timeout)
     if reason:
         detail = reason + (": " + classify(review_output) if review_output else "")
         return {"sample": sample, "state": "error", "detail": detail}
-    if not binds_program_entry(sample):
+    if project.role in ("check-only", "library"):
         # A check-only probe: report whether it checks, never as a native
         # build failure. It is not scored against a runtime oracle.
-        completed = run([cli, "--check", os.path.join(sample, "main.omg")], timeout)
+        completed = run([cli, "--check", str(project.entry)], timeout)
         if completed is None:
             return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
         if completed.returncode != 0:
@@ -205,14 +202,14 @@ def measure(cli, sample, target, timeout):
     if expected_exit is None and expected_output is None:
         # Nothing to compare, so publish the native product without launching
         # it: an interactive sample would wait for input until the timeout.
-        completed = run([cli, "--target", target, os.path.join(sample, "main.omg")], timeout)
+        completed = run([cli, "--target", target, str(project.entry)], timeout)
         if completed is None:
             return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
         if completed.returncode != 0:
             detail = classify(completed.stdout + completed.stderr)
             return {"sample": sample, "state": "no-native-build", "detail": detail}
         return {"sample": sample, "state": "no-oracle", "detail": "header documents neither"}
-    completed = run([cli, "run", os.path.join(sample, "main.omg")], timeout)
+    completed = run([cli, "run", str(project.entry)], timeout)
     if completed is None:
         return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
     combined = completed.stdout + completed.stderr
@@ -245,10 +242,8 @@ def main():
     parser.add_argument("--write-results", metavar="PATH")
     arguments = parser.parse_args()
 
-    samples = discover("samples")
-    if arguments.filter:
-        wanted = [fragment.strip() for fragment in arguments.filter.split(",")]
-        samples = [s for s in samples if any(w in s for w in wanted)]
+    wanted = [fragment.strip() for fragment in (arguments.filter or "").split(",") if fragment.strip()]
+    samples = discover("samples", wanted)
     if not samples:
         print("sample_native_gate: nothing selected", file=sys.stderr)
         return 2
@@ -271,17 +266,19 @@ def main():
             print(f"   {row['sample']:52} {row['detail'][:104]}")
 
     check_only = ("checked", "check-fail")
+    negatives = [result for result in results if result.get("role") == "intended-invalid"]
     scored = [
         r
         for r in results
-        if r["state"] not in ("no-oracle", "not-host-runnable", *check_only)
+        if r.get("role") != "intended-invalid"
+        and r["state"] not in ("no-oracle", "not-host-runnable", *check_only)
     ]
     passed = len(buckets.get("pass", []))
     probes = sum(len(buckets.get(state, [])) for state in check_only)
     print(
         f"\nsample_native_gate: {passed}/{len(scored)} samples meet their documented "
         f"oracle on {arguments.target} "
-        f"({len(results) - len(scored) - probes} unscored: no oracle or not host-runnable)"
+        f"({len(results) - len(scored) - probes - len(negatives)} unscored: no oracle or not host-runnable)"
     )
     if probes:
         print(
@@ -289,9 +286,13 @@ def main():
             f"{len(buckets.get('checked', []))} check, "
             f"{len(buckets.get('check-fail', []))} refused"
         )
+    if negatives:
+        print(f"sample_native_gate: {len(buckets.get('rejected', []))}/{len(negatives)} intended-invalid controls match their authored rejection")
     if arguments.write_results:
         json.dump(results, open(arguments.write_results, "w"), indent=1)
-    return 0 if passed == len(scored) else 1
+    failures = [result for result in results if result["state"] not in
+                ("pass", "checked", "rejected", "no-oracle", "not-host-runnable")]
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

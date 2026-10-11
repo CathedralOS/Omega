@@ -153,7 +153,13 @@ The rules that touch every edit:
   it; `samples/` are language pressure tests: runnable programs whose header
   documents an `Expected exit` or `Expected output contains` oracle. A
   check-only probe that binds no program entry pins one behavior and belongs
-  in the fixture tree. A Rust test of one crate stays beside that crate.
+  in the fixture tree. Existing projects and separate invalid controls retain
+  their [discovery roles](samples/README.md#project-roles-and-discovery). Samples
+  may evolve through use into complete programs or reusable kernels; a stable
+  contract does not freeze implementation. One owner extracts an approved kernel
+  into `source/library` and migrates its consumers together, preserving oracles
+  and negative coverage. Do not create another permanent hierarchy or stale
+  inventory. A Rust test of one crate stays beside that crate.
 - Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   board work, `rust-systems-programmer` for Rust implementation and review,

@@ -21,7 +21,11 @@ development CLI is built once with `mbx` when present and `cargo` otherwise.
 `samples/apps/squalr` is excluded: it is a separate application checkout with
 its own gate.
 
-Exit status is 0 when every selected sample checks and 1 otherwise, so this
+Both gates use sample_projects.py: nested projects remain visible and complete
+intended-invalid controls must match their authored rejection identity.
+
+Exit status is 0 when every selected positive checks and every control matches,
+and 1 otherwise, so this
 runs as an ordinary gate. On a host missing a provider a sample declares,
 the refusal is the host's, not the sample's — read the `provider absent on
 this host` cluster before treating it as breakage.
@@ -41,9 +45,11 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sample_projects import discover, project_at, rejection_verdict
+
 ROOT = Path(__file__).resolve().parent.parent
 SAMPLES = ROOT / "samples"
-EXCLUDED = (SAMPLES / "apps" / "squalr",)
 
 # First matching rule names the cluster. Order is deliberate: a more specific
 # refusal is listed before the general shape it would otherwise fall into.
@@ -96,16 +102,10 @@ NOISE = re.compile(r"linker stderr|warn\(linker|^\s*\|\s*$|^\s*=\s*note:|^$")
 
 def sample_roots(filters: list[str]) -> list[Path]:
     roots = []
-    for build in sorted(SAMPLES.rglob("build.omg")):
-        directory = build.parent
-        if any(excluded in directory.parents or excluded == directory
-               for excluded in EXCLUDED):
+    for project in discover(SAMPLES, ROOT, tuple(filters)):
+        if project.role == "library":
             continue
-        if not (directory / "main.omg").is_file():
-            continue
-        relative = directory.relative_to(ROOT).as_posix()
-        if filters and not any(fragment in relative for fragment in filters):
-            continue
+        directory = project.directory
         roots.append(directory)
     return roots
 
@@ -171,16 +171,26 @@ def site_of(message: str) -> str | None:
     return f"state {found.group(1)}, statement {found.group(2)}" if found else None
 
 
-def check_one(cli: Path, scratch: Path, directory: Path) -> dict:
+def check_one(cli: Path, scratch: Path, directory: Path, timeout: int = 300) -> dict:
+    project = project_at(directory, ROOT)
     relative = directory.relative_to(ROOT).as_posix()
     build_dir = scratch / relative.replace("/", "__")
-    proc = subprocess.run(
-        [str(cli), "--check", "--build-dir", str(build_dir),
-         str(directory / "main.omg")],
-        cwd=ROOT, capture_output=True, text=True)
+    record = {"sample": relative, "role": project.role, "checked": False}
+    if project.entry is None:
+        return dict(record, diagnostic="missing unambiguous entry; declare sample.json entry", cluster="discovery")
+    try:
+        proc = subprocess.run(
+            [str(cli), "--check", "--build-dir", str(build_dir), str(project.entry)],
+            cwd=ROOT, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return dict(record, diagnostic=f"check timed out after {timeout}s", cluster="infrastructure")
     output = proc.stdout + proc.stderr
     checked = proc.returncode == 0
-    record = {"sample": relative, "checked": checked}
+    if project.role == "intended-invalid":
+        matched, detail = rejection_verdict(project, proc.returncode, proc.stderr)
+        return dict(record, checked=matched, rejected=matched, diagnostic=detail,
+                    cluster="intended rejection" if matched else "invalid-control failure")
+    record["checked"] = checked
     if not checked:
         message = first_error(output)
         record["diagnostic"] = message
@@ -204,6 +214,7 @@ def main() -> int:
                              "parallelism, capped at the sample count)")
     parser.add_argument("--cli", type=Path,
                         help="use this omega binary instead of building one")
+    parser.add_argument("--timeout", type=int, default=300, help="seconds per source check")
     parser.add_argument("--write-results", type=Path, metavar="PATH",
                         help="write every sample's record to PATH as JSON")
     options = parser.parse_args()
@@ -224,7 +235,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="omega-sample-gate-") as scratch:
         scratch_path = Path(scratch)
         with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
-            futures = [pool.submit(check_one, cli, scratch_path, directory)
+            futures = [pool.submit(check_one, cli, scratch_path, directory, options.timeout)
                        for directory in roots]
             for done, future in enumerate(
                     concurrent.futures.as_completed(futures), start=1):
@@ -273,8 +284,11 @@ def main() -> int:
         for record in members:
             print(f"   {record['sample']}\n       {record['diagnostic'][:160]}")
     checked = len(records) - len(failures)
+    rejected = sum(record.get("rejected", False) for record in records)
     print(f"\nsample_gate: {checked}/{len(records)} check on "
           f"{platform.system()} {platform.machine()}")
+    if rejected:
+        print(f"sample_gate: {rejected} of these matched intended rejection controls")
     return 1 if failures else 0
 
 
