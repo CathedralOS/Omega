@@ -1,0 +1,3 @@
+machine hidden() -> i32 {
+    7
+}
