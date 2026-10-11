@@ -2,9 +2,7 @@
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedInstructionKind,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
 };
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
@@ -245,23 +243,11 @@ fn expected_effects(
         .view_named("rsp")
         .expect("canonical x86-64 model contains rsp")
         .id;
-    MachineEncodedEffects {
-        external_operand_reads: (0..arity as u16).collect(),
-        external_operand_writes: vec![arity as u16],
-        implicit_unit_uses: row.implicit_uses.clone(),
-        implicit_unit_defs: row.implicit_defs.clone(),
-        implicit_unit_clobbers: row.clobbers.clone(),
-        memory: MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
-            stack_pointer,
-            byte_count: 8,
-        },
-        stack: MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
-            stack_pointer,
-            return_address_byte_count: 8,
-        },
-        trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        control: MachineEncodedControlEffect::DirectRelativeCallV1,
-    }
+    let mut effects =
+        crate::machine_effects::user_direct_call_effects(row, stack_pointer);
+    effects.external_operand_reads = (0..arity as u16).collect();
+    effects.external_operand_writes = vec![arity as u16];
+    effects
 }
 
 #[cfg(test)]
@@ -828,6 +814,7 @@ pub fn encode_x86_64_selected_dynamic_call_template(
 #[cfg(test)]
 mod dynamic_call_tests {
     use super::*;
+    use selected_instructions::MachineEncodedControlEffect;
     #[test]
     fn dispatch_register_is_separate_from_each_supported_data_arity_and_result() {
         let physical = register_model::validate_physical_register_model(

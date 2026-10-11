@@ -12,7 +12,7 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 
 mod memory;
 mod scalar_call;
-pub(crate) use scalar_call::normalized_foreign_constraint;
+pub(crate) use scalar_call::{normalized_foreign_constraint, user_direct_call_effects};
 pub use scalar_call::x86_64_normalized_foreign_call_declaration;
 
 use scalar_call::declaration as scalar_call_declaration;

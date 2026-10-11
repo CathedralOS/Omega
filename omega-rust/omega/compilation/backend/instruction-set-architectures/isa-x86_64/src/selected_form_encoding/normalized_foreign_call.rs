@@ -453,9 +453,8 @@ mod tests {
         validate_physical_register_model,
     };
     use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-        MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-        MachineEncodedTrapBehavior, SelectedInstructionKind, SelectedNormalizedForeignCall,
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
+        SelectedInstructionKind, SelectedNormalizedForeignCall,
     };
     use semantic_vocabulary::BoundaryMachineId;
     use target::NativeTarget;
@@ -497,33 +496,7 @@ mod tests {
             .map(|operand| operand.access)
             .collect::<Vec<_>>();
         let stack_pointer = physical.model().view_named("rsp").unwrap().id;
-        let effects = MachineEncodedEffects {
-            external_operand_reads: row
-                .operands
-                .iter()
-                .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-                .map(|operand| operand.operand)
-                .collect(),
-            external_operand_writes: row
-                .operands
-                .iter()
-                .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
-                .map(|operand| operand.operand)
-                .collect(),
-            implicit_unit_uses: row.implicit_uses.clone(),
-            implicit_unit_defs: row.implicit_defs.clone(),
-            implicit_unit_clobbers: row.clobbers.clone(),
-            memory: MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
-                stack_pointer,
-                byte_count: 8,
-            },
-            stack: MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
-                stack_pointer,
-                return_address_byte_count: 8,
-            },
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            control: MachineEncodedControlEffect::DirectRelativeCallV1,
-        };
+        let effects = crate::machine_effects::user_direct_call_effects(&row, stack_pointer);
         (
             physical,
             kind,

@@ -9,6 +9,43 @@ use selected_instructions::{
     MachineSizeKnowledge, MachineTrapBehavior,
 };
 
+
+/// The canonical user-mode direct call: the row's external footprint and
+/// implicit units under the return-address write/lifecycle pair. Supervisor
+/// calls share this head and override the memory/stack/control contract.
+pub(crate) fn user_direct_call_effects(
+    row: &register_model::RegisterInstructionConstraint,
+    stack_pointer: register_model::RegisterViewId,
+) -> MachineEncodedEffects {
+    MachineEncodedEffects {
+        external_operand_reads: row
+            .operands
+            .iter()
+            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
+            .map(|operand| operand.operand)
+            .collect(),
+        external_operand_writes: row
+            .operands
+            .iter()
+            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
+            .map(|operand| operand.operand)
+            .collect(),
+        implicit_unit_uses: row.implicit_uses.clone(),
+        implicit_unit_defs: row.implicit_defs.clone(),
+        implicit_unit_clobbers: row.clobbers.clone(),
+        memory: MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+            stack_pointer,
+            byte_count: 8,
+        },
+        stack: MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+            stack_pointer,
+            return_address_byte_count: 8,
+        },
+        trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        control: MachineEncodedControlEffect::DirectRelativeCallV1,
+    }
+}
+
 pub(super) fn declaration(
     semantic: MachineSemanticKind,
     constraint: RegisterConstraintKey,
@@ -41,33 +78,7 @@ pub(super) fn declaration(
             applicability: MachineAlternativeApplicability::Always,
             size: MachineSizeKnowledge::ExactBytes(5),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: MachineEncodedEffects {
-                external_operand_reads: row
-                    .operands
-                    .iter()
-                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-                    .map(|operand| operand.operand)
-                    .collect(),
-                external_operand_writes: row
-                    .operands
-                    .iter()
-                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
-                    .map(|operand| operand.operand)
-                    .collect(),
-                implicit_unit_uses: row.implicit_uses.clone(),
-                implicit_unit_defs: row.implicit_defs.clone(),
-                implicit_unit_clobbers: row.clobbers.clone(),
-                memory: MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
-                    stack_pointer,
-                    byte_count: 8,
-                },
-                stack: MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
-                    stack_pointer,
-                    return_address_byte_count: 8,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: MachineEncodedControlEffect::DirectRelativeCallV1,
-            },
+            encoded: user_direct_call_effects(row, stack_pointer),
         }],
     }
 }
@@ -203,44 +214,14 @@ pub fn x86_64_normalized_foreign_call_declaration(
             applicability: MachineAlternativeApplicability::Always,
             size: MachineSizeKnowledge::ExactBytes(byte_count),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: MachineEncodedEffects {
-                external_operand_reads: row
-                    .operands
-                    .iter()
-                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-                    .map(|operand| operand.operand)
-                    .collect(),
-                external_operand_writes: row
-                    .operands
-                    .iter()
-                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
-                    .map(|operand| operand.operand)
-                    .collect(),
-                implicit_unit_uses: row.implicit_uses.clone(),
-                implicit_unit_defs: row.implicit_defs.clone(),
-                implicit_unit_clobbers: row.clobbers.clone(),
-                memory: if supervisor {
-                    MachineEncodedMemoryEffect::NoneV1
-                } else {
-                    MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
-                        stack_pointer,
-                        byte_count: 8,
-                    }
-                },
-                stack: if supervisor {
-                    MachineEncodedStackEffect::UnchangedV1
-                } else {
-                    MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
-                        stack_pointer,
-                        return_address_byte_count: 8,
-                    }
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: if supervisor {
-                    MachineEncodedControlEffect::SupervisorCallV1
-                } else {
-                    MachineEncodedControlEffect::DirectRelativeCallV1
-                },
+            encoded: {
+                let mut encoded = user_direct_call_effects(row, stack_pointer);
+                if supervisor {
+                    encoded.memory = MachineEncodedMemoryEffect::NoneV1;
+                    encoded.stack = MachineEncodedStackEffect::UnchangedV1;
+                    encoded.control = MachineEncodedControlEffect::SupervisorCallV1;
+                }
+                encoded
             },
         }],
     })
