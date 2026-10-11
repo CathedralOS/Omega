@@ -3037,6 +3037,26 @@ crash and native exit behavior.
   well-formed 64-hex digest then lands in the build's accepted-assumption
   records, a malformed spelling still rejects at its authored span, and
   the staged controls are flipped/removed accordingly.
+- **TERMINAL-ARTIFACT-DEBUG-MAP-IDENTITY.** (new-scope) `omega
+  inspect-terminal --machine <qualified> <root.omg>` fails on every
+  program with `Artifact(Debug(SemanticIdentityMismatch { ... }))`: the
+  produced artifact's embedded debug-map semantic fingerprint never
+  equals the identity recomputed from the artifact's own module by
+  `validate_debug_map`
+  (`omega-rust/psi/compilation/representations/terminal-psi/codec/src/sections/debug_map.rs`).
+  Reproduced freestanding with no build-dir state: `machine entry() ->
+  i32 { 42 }` plus a trivial application `build.omg` reports expected
+  `2cd9d304...`, actual `90dd8fee...`; a second program reports a
+  different actual (`0f6f9efa...`), so the embedded identity is
+  program-derived but stamped over a different module state than the
+  artifact's final module — the debug map is built at lowering from the
+  pre-artifact module (`05_checked-trees-to-lowered-psi`), while
+  validation recomputes from the round-tripped module. The command is
+  broken for all programs. Acceptance: `inspect-terminal --machine
+  <qualified>` on a freestanding program prints that machine's terminal
+  artifact instead of failing production; the embedded debug-map
+  semantic equals the artifact module's recomputed identity, and a
+  corrupted artifact still rejects.
 
 ## Lowering simplification
 

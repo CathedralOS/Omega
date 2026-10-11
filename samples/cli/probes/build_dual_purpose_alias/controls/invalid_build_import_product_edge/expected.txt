@@ -1,0 +1,2 @@
+cannot check prepared project: checked compilation failed for package `invalid_build_import_product_edge` with 1 diagnostic(s)
+  error: import `kit::main` in ... names product dependency `kit` (package `custody_kernel` ...); a build import may only select build dependencies -- declare `builder.build_depend_as("kit", ...)` in the root build.omg to select that package for the build scope
