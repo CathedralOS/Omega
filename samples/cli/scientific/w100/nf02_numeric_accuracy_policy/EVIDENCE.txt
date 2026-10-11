@@ -1,3 +1,12 @@
+Final changed-input reconciliation on baseee75d2affd16632836b6eeec2a3064dceb33d8d8
+Scoped Rust check atd04e553e864862a7ffef63a9d0c6a6e9eb987e55 passed0/51.586s.
+Existing cache identity codec test passed1/1 with7unselected tests; build+run
+468.278s. This qualifies the newly encoded identity roster, not a full package
+execution. The additional requirement-discovery change adds no new facts in
+these consumers. See evidence/changed-input-review.txt for explicit conditions.
+Older source/provider/native/Terminal receipts retain their actual revisions.
+Final exact landing check and remote ancestry confirmation follow separately.
+
 Latest provider-roster qualification at2b4e080ed7d637b0fb1deafb6ac56432838f0639
 Actual base4787be6abc2b8b37c762b7a87a7406ddbff6fe70; clean execution.
 Product build0/420.945s; scoped Rust check0/52.689s; effects ownercheck0/29.938s;

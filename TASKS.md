@@ -86,8 +86,7 @@ Workflow is in [AGENTS.md](AGENTS.md), live assignments in the
   descriptor-backed moments to the shared layout, canonical float slice access
   and numeric policy; qualify both complete consumers and separate invalid
   controls, then continue the retained rank-two kernels. Preserve unrelated work
-  and land
-  coherent qualified chunks through the normal queue. Candidate preservation in
+  and land coherent qualified chunks through the normal queue. Candidate preservation in
   IMPORTS.json is not capability acceptance.
 
 ## Updating the boards
