@@ -2,3 +2,5 @@
 /omega.lock
 /omega.admissions
 /omega.review.*
+__pycache__/
+*.pyc

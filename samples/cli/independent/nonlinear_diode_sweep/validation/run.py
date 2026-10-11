@@ -12,7 +12,7 @@ from check_output import check
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def run(binary, target, route, cases):
+def run(binary, target, route, cases, native_executable=None):
     destination = ROOT / 'build/validation' / route
     destination.mkdir(parents=True, exist_ok=True)
     records = []
@@ -39,6 +39,9 @@ def run(binary, target, route, cases):
                 command.append('--both')
             # run --target is compile-only even when it names the host.
             command.append(str(ROOT / 'main.omg'))
+            if native_executable:
+                assert route == 'native', 'executable reuse is native-only'
+                command = [native_executable]
             result = subprocess.run(command, input=(ROOT / 'data' / (name + '.stdin')).read_bytes(),
                                     capture_output=True, timeout=300)
             output = destination / (name + '.stdout')
@@ -69,9 +72,11 @@ if __name__ == '__main__':
     parser.add_argument('--target', default='linux_x86_64')
     parser.add_argument('--route', choices=['check', 'native', 'terminal', 'invalid'], required=True)
     parser.add_argument('--case', action='append')
+    parser.add_argument('--native-executable', help='reuse the verified retained native application')
     arguments = parser.parse_args()
     try:
-        run(arguments.omega, arguments.target, arguments.route, arguments.case)
+        run(arguments.omega, arguments.target, arguments.route, arguments.case,
+            arguments.native_executable)
     except (AssertionError, subprocess.TimeoutExpired) as error:
         print(str(error), file=sys.stderr)
         raise SystemExit(1)
