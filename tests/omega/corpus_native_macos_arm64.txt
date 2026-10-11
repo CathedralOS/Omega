@@ -1793,3 +1793,5 @@ pass/calls/callback_scalar_loan_permutation built 5941ms exit:0 @09084c02ea24
 pass/borrows/runtime_shared_carrier_storage_observation_exit built 5346ms exit:0 @759f6dbf1dfa
 pass/calls/callback_owned_float_record built 78977ms exit:0 @759f6dbf1dfa
 pass/calls/callback_owned_float_record_packing built 78974ms exit:0 @759f6dbf1dfa
+pass/calls/callback_owned_indirect_float_record built 80220ms exit:0 @2afb09bae86c
+pass/calls/callback_owned_indirect_record built 5482ms exit:0 @2afb09bae86c

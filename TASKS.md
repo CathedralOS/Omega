@@ -4435,8 +4435,8 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   the unchanged input and return every permuted member at exit 0. Owned ABI
   pointers use complete activation-local copies, not inferred loans; the
   caller's hidden result pointer stays separate from the body's result area.
-  Complete stack-based caller-area result protocols and differing entry
-  conventions; these retain explicit implementation fences.
+  Complete over-aligned owned storage, stack-based caller-area result protocols
+  and differing entry conventions; these retain explicit implementation fences.
   Preserve `pass/calls/callback_future_registration_cycle`:
   genuine macOS Arm64 `pthread_key_create` registers a destructor whose body
   can register itself; native `_exit` must exit 0 without invoking it.
