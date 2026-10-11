@@ -9,15 +9,7 @@ pub(super) fn live_range_custody_receipt(
     ranges: LiveRangeValidationReceipt,
 ) -> StagedOptimizedLiveRangeCustodyReceipt {
     StagedOptimizedLiveRangeCustodyReceipt {
-        psi: upstream.psi(),
-        target: upstream.target(),
-        entry: upstream.entry(),
-        optimization: upstream.optimization(),
-        projection: upstream.projection(),
-        manifest: upstream.manifest(),
-        optimization_unit: upstream.optimization_unit(),
-        fuel_schedule: upstream.fuel_schedule(),
-        register_environment: upstream.register_environment(),
+        core: upstream.core(),
         selected: upstream.selected(),
         liveness: upstream.liveness(),
         ranges: ranges.identity(),

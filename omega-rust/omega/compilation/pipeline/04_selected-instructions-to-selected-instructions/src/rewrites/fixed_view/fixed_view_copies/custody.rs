@@ -9,15 +9,7 @@ pub(super) fn fixed_view_copy_custody_receipt(
     copies: FixedViewCopyValidationReceipt,
 ) -> StagedOptimizedFixedViewCopyCustodyReceipt {
     StagedOptimizedFixedViewCopyCustodyReceipt {
-        psi: segment_homes.upstream().psi(),
-        target: segment_homes.upstream().target(),
-        entry: segment_homes.upstream().entry(),
-        optimization: segment_homes.upstream().optimization(),
-        projection: segment_homes.upstream().projection(),
-        manifest: segment_homes.upstream().manifest(),
-        optimization_unit: segment_homes.upstream().optimization_unit(),
-        fuel_schedule: segment_homes.upstream().fuel_schedule(),
-        register_environment: segment_homes.upstream().register_environment(),
+        core: segment_homes.upstream().core(),
         allocator_availability: segment_homes.upstream().allocator_availability(),
         source_selected: segment_homes.upstream().selected(),
         source_liveness: segment_homes.upstream().liveness(),

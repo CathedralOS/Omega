@@ -18,7 +18,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{LivenessIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target_operations_to_selected_instructions::{
-    StagedOptimizedSelectedInstructions, ValidatedSelectedInstructions,
+    StagedOptimizedCustodyCore, StagedOptimizedSelectedInstructions, ValidatedSelectedInstructions,
 };
 use terminal_psi::TerminalPsiIdentity;
 
@@ -83,15 +83,7 @@ impl StagedOptimizedLiveness {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedLivenessCustodyReceipt {
-    psi: TerminalPsiIdentity,
-    target: target::NativeTarget,
-    entry: MachineId,
-    optimization: OptimizationIdentityBundleIdentity,
-    projection: OptimizedAbstractPlanProjectionIdentity,
-    manifest: PrePhysicalOptimizationManifestIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    register_environment: register_model::TargetRegisterEnvironmentIdentity,
+    core: StagedOptimizedCustodyCore,
     selected: SelectedInstructionPlanIdentity,
     liveness: LivenessIdentity,
     function_count: usize,

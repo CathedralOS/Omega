@@ -11,15 +11,7 @@ pub(super) fn custody_receipt(
     legality: AllocationLegalityValidationReceipt,
 ) -> StagedOptimizedAllocationLegalityCustodyReceipt {
     StagedOptimizedAllocationLegalityCustodyReceipt {
-        psi: upstream.psi(),
-        target: upstream.target(),
-        entry: upstream.entry(),
-        optimization: upstream.optimization(),
-        projection: upstream.projection(),
-        manifest: upstream.manifest(),
-        optimization_unit: upstream.optimization_unit(),
-        fuel_schedule: upstream.fuel_schedule(),
-        register_environment: upstream.register_environment(),
+        core: upstream.core(),
         allocator_availability,
         selected: upstream.selected(),
         liveness: upstream.liveness(),

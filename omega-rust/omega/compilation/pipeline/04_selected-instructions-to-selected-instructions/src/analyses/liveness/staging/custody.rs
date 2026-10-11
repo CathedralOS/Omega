@@ -9,15 +9,7 @@ pub(super) fn liveness_custody_receipt(
     validation: LivenessValidationReceipt,
 ) -> StagedOptimizedLivenessCustodyReceipt {
     StagedOptimizedLivenessCustodyReceipt {
-        psi: upstream.psi(),
-        target: upstream.target(),
-        entry: upstream.entry(),
-        optimization: upstream.optimization(),
-        projection: upstream.projection(),
-        manifest: upstream.manifest(),
-        optimization_unit: upstream.optimization_unit(),
-        fuel_schedule: upstream.fuel_schedule(),
-        register_environment: upstream.register_environment(),
+        core: upstream.core(),
         selected: upstream.selected(),
         liveness: validation.identity(),
         function_count: validation.function_count(),

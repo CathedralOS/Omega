@@ -18,7 +18,9 @@ use optimization_core::{
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::{
+    StagedOptimizedCustodyCore, ValidatedSelectedInstructions,
+};
 use terminal_psi::TerminalPsiIdentity;
 
 pub(crate) fn stage_optimized_live_ranges(
@@ -87,15 +89,7 @@ impl StagedOptimizedLiveRanges {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedLiveRangeCustodyReceipt {
-    psi: TerminalPsiIdentity,
-    target: target::NativeTarget,
-    entry: MachineId,
-    optimization: OptimizationIdentityBundleIdentity,
-    projection: OptimizedAbstractPlanProjectionIdentity,
-    manifest: PrePhysicalOptimizationManifestIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    register_environment: register_model::TargetRegisterEnvironmentIdentity,
+    core: StagedOptimizedCustodyCore,
     selected: SelectedInstructionPlanIdentity,
     liveness: selected_instructions::LivenessIdentity,
     ranges: LiveRangeIdentity,

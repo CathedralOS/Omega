@@ -23,7 +23,9 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use target_operations_to_selected_instructions::{
+    StagedOptimizedCustodyCore, ValidatedSelectedInstructions,
+};
 use terminal_psi::TerminalPsiIdentity;
 
 pub fn stage_optimized_allocation_legality(
@@ -119,15 +121,7 @@ impl StagedOptimizedAllocationLegality {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
-    psi: TerminalPsiIdentity,
-    target: target::NativeTarget,
-    entry: MachineId,
-    optimization: OptimizationIdentityBundleIdentity,
-    projection: OptimizedAbstractPlanProjectionIdentity,
-    manifest: PrePhysicalOptimizationManifestIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    register_environment: register_model::TargetRegisterEnvironmentIdentity,
+    core: StagedOptimizedCustodyCore,
     allocator_availability: AllocatorAvailabilityIdentity,
     selected: SelectedInstructionPlanIdentity,
     liveness: selected_instructions::LivenessIdentity,

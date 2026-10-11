@@ -26,6 +26,7 @@ use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedFixedViewCopies, ValidatedLiveRanges, ValidatedLiveness,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use target_operations_to_selected_instructions::StagedOptimizedCustodyCore;
 use terminal_psi::TerminalPsiIdentity;
 
 pub(crate) fn stage_register_homes_with_assignment(
@@ -122,15 +123,7 @@ impl StagedOptimizedRegisterHomes {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedRegisterHomeCustodyReceipt {
-    psi: TerminalPsiIdentity,
-    target: target::NativeTarget,
-    entry: MachineId,
-    optimization: OptimizationIdentityBundleIdentity,
-    projection: OptimizedAbstractPlanProjectionIdentity,
-    manifest: PrePhysicalOptimizationManifestIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    register_environment: register_model::TargetRegisterEnvironmentIdentity,
+    core: StagedOptimizedCustodyCore,
     allocator_availability: AllocatorAvailabilityIdentity,
     selected: SelectedInstructionPlanIdentity,
     liveness: LivenessIdentity,

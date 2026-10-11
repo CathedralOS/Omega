@@ -8,7 +8,10 @@ use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 
-use crate::{LegalizationError, SelectedInstructionError, ValidatedSelectedInstructions};
+use crate::{
+    LegalizationError, SelectedInstructionError, StagedOptimizedCustodyCore,
+    ValidatedSelectedInstructions,
+};
 use register_environment::ValidatedTargetRegisterEnvironment;
 
 /// Opt-in selected-instruction staging with complete optimized lowering and
@@ -62,15 +65,7 @@ impl StagedOptimizedSelectedInstructions {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedSelectionCustodyReceipt {
-    pub(super) psi: TerminalPsiIdentity,
-    pub(super) target: target::NativeTarget,
-    pub(super) entry: MachineId,
-    pub(super) optimization: OptimizationIdentityBundleIdentity,
-    pub(super) projection: OptimizedAbstractPlanProjectionIdentity,
-    pub(super) manifest: PrePhysicalOptimizationManifestIdentity,
-    pub(super) optimization_unit: OptimizationUnitIdentity,
-    pub(super) fuel_schedule: FuelScheduleIdentity,
-    pub(super) register_environment: register_model::TargetRegisterEnvironmentIdentity,
+    pub(super) core: StagedOptimizedCustodyCore,
     pub(super) legalized: legalized_operations::LegalizedOperationPlanIdentity,
     pub(super) legalization_validator: OptimizationValidatorIdentity,
     pub(super) selected: SelectedInstructionPlanIdentity,
