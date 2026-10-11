@@ -372,8 +372,15 @@ impl TerminalExecution<'_> {
         {
             return Ok(None);
         }
+        // Shared descriptor words are unrestricted values: a loan supplies a
+        // shared formal, while an owned transfer supplies an owned join slot.
+        // Neither owns or copies the backing octets. Exclusive bindings above
+        // cannot enter this route, and custody still has to agree on both ends.
         if parameter.structural_type != value.structural_type
-            || parameter.access != StructuralAccess::SharedBorrow
+            || !matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::Owned
+            )
             || argument.access != parameter.access
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.projected_qualifications.is_empty()

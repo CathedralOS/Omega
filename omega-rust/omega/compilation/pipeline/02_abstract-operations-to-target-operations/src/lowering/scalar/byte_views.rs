@@ -670,10 +670,7 @@ pub(in crate::lowering) fn descriptor_result<'a>(
 ) -> Option<(OperationId, &'a terminal_psi::StructuralOperationResult)> {
     let (producer, stored) = homes.get(&place)?.operation_result()?;
     let mut producers = function.operations.iter().filter_map(|operation| {
-        let result = match operation {
-            AbstractOperation::EstablishStructuralLocal { .. } => operation.structural_result(),
-            _ => operation.structural_call_result(),
-        };
+        let result = operation.materialized_structural_result();
         result.filter(|(_, result)| result.place == place)
     });
     let (operation, result) = producers.next()?;

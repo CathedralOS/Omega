@@ -668,18 +668,3 @@ fn executable_target(
     validation::find_machine_head(program, target)
         .or_else(|| validation::find_state(program, target))
 }
-
-/// Whether a call to `target` produces its result through a machine body:
-/// the executable target `build_call_operation` resolves supplies a checked
-/// body. A boundary requirement, a bodyless `boundary machine` declaration
-/// and a dynamic slot each complete through their own call route, which
-/// binds the result to the authored statement instead.
-pub(crate) fn completes_in_machine_body(
-    program: &dyn ::validation::CheckingInput,
-    target: SymbolHandle,
-) -> bool {
-    matches!(boundary_requirement(program, target), BoundaryTarget::Body)
-        && program.dynamic_slot_by_symbol(target).is_none()
-        && executable_target(program, target)
-            .is_some_and(|(machine, _)| machine.supplies_checked_body())
-}

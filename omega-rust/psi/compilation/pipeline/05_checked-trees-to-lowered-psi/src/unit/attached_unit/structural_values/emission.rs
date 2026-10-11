@@ -1384,6 +1384,14 @@ impl Emission<'_, '_, '_> {
                 path,
                 type_identity,
             } => {
+                // A whole-value projection has no residual complement or new
+                // storage. Evaluate its retained producer at this DAG position,
+                // including only its selected arm, then use the ordinary value
+                // continuation. Reborrowing a shared descriptor preserves its
+                // actual geometry rather than reforming its backing's view.
+                if path.is_empty() {
+                    return self.value(identities, source, continuation);
+                }
                 // Copied provenance observes its original backing; an owned
                 // projection instead transfers one child on the selected edge
                 // and disposes of the root's residual complement there. Only

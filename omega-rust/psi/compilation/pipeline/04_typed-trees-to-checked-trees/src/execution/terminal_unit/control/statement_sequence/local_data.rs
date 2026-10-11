@@ -448,36 +448,44 @@ pub(super) fn plan(
             .filter(|result| validation::slice_view_shell(program, *result, &[]).is_some())
             .unwrap_or(local.type_reference)
     };
-    let subslice = crate::execution::terminal_unit::calls::view_subslice::admit(
-        program,
-        facts,
-        machine,
-        state,
-        structural_parameters,
-        subslice_target,
-        local.initial_value,
-        index,
-        checked_trees::CheckedSubsliceSite::LocalBinding,
-    )
-    .map(|subslice| (subslice, None))
-    // The `coll[a..b]` spelling declined; the whole-extent spelling
-    // (`let v: &T = coll`) is the same view with both endpoints omitted.
-    // Its element-declared sibling (`let v: u8 = coll`) is not a view
-    // binding at all, so only a view-declared local qualifies here.
-    .or_else(|| {
-        declared_is_view.then(|| {
-            crate::execution::terminal_unit::calls::view_subslice::whole_extent(
+    // A retained initializer value owns its actual descriptor and evaluation
+    // schedule. Its loan backing is only custody evidence, not an alternative
+    // whole-extent producer. Place-only aliases below may still form a view.
+    let subslice = structural_root
+        .is_none()
+        .then(|| {
+            crate::execution::terminal_unit::calls::view_subslice::admit(
                 program,
+                facts,
                 machine,
                 state,
                 structural_parameters,
                 subslice_target,
                 local.initial_value,
                 index,
+                checked_trees::CheckedSubsliceSite::LocalBinding,
             )
-            .map(|(subslice, storage)| (subslice, Some(storage)))
-        })?
-    });
+            .map(|subslice| (subslice, None))
+            // The `coll[a..b]` spelling declined; the whole-extent spelling
+            // (`let v: &T = coll`) is the same view with both endpoints omitted.
+            // Its element-declared sibling (`let v: u8 = coll`) is not a view
+            // binding at all, so only a view-declared local qualifies here.
+            .or_else(|| {
+                declared_is_view.then(|| {
+                    crate::execution::terminal_unit::calls::view_subslice::whole_extent(
+                        program,
+                        machine,
+                        state,
+                        structural_parameters,
+                        subslice_target,
+                        local.initial_value,
+                        index,
+                    )
+                    .map(|(subslice, storage)| (subslice, Some(storage)))
+                })?
+            })
+        })
+        .flatten();
     if let Some((subslice, storage)) = subslice {
         if let checked_trees::CheckedStorageRoot::ViewLocal { symbol } = subslice.range.root
             && !structural_local_symbols.contains(&symbol)

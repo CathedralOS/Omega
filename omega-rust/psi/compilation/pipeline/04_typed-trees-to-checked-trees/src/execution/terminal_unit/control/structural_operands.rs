@@ -273,10 +273,8 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     result.clone(),
                 )?;
                 // Every completed structural call produces a value operand.
-                let (_, discard_result_on_return) = operation
-                    .call_mut()
-                    .filter(|call| call.is_module())?
-                    .structural_result_mut()?;
+                let (_, discard_result_on_return) =
+                    operation.call_mut()?.structural_result_mut()?;
                 *discard_result_on_return = false;
                 let mut preparation = preparation.split_off(predecessor_count);
                 super::statement_sequence::consume_retained_results(&mut preparation, &operation)?;

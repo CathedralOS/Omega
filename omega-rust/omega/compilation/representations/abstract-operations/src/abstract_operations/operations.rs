@@ -814,15 +814,23 @@ impl AbstractOperation {
         }
     }
 
-    /// A completed call's carrier, independent of ordinary, selected or
-    /// boundary dispatch. Unlike a view-establishment recipe whose words may
-    /// stay in SSA, call ABI reception materializes this carrier in its result
-    /// home. This distinction describes storage, not authority over backing.
-    pub fn structural_call_result(&self) -> Option<(OperationId, &StructuralOperationResult)> {
-        match self {
-            Self::CallStructural { .. } | Self::BoundaryCall { .. } => self.structural_result(),
-            _ => None,
+    /// A carrier whose producer writes its physical home: construction, copy
+    /// and call reception all publish the same stored value. View formation
+    /// and cuts may instead remain SSA descriptor recipes; reserving a home
+    /// for their eventual transport does not initialize descriptor words.
+    /// This distinction describes storage, not authority over the backing.
+    pub fn materialized_structural_result(
+        &self,
+    ) -> Option<(OperationId, &StructuralOperationResult)> {
+        if matches!(
+            self,
+            Self::EstablishElementView { .. }
+                | Self::ByteSequenceSubslice { .. }
+                | Self::ElementViewSubslice { .. }
+        ) {
+            return None;
         }
+        self.structural_result()
     }
 
     /// The declared structural value produced by this operation, independent

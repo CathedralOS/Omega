@@ -233,14 +233,40 @@ fn argument_matches_type_reference_using(
         else {
             return false;
         };
-        return inner_expression.access == *access
-            && argument_matches_type_reference_using(
+        if inner_expression.access != *access {
+            return false;
+        }
+        // Reborrowing an existing reference lends its referent, not its
+        // descriptor as though that were an owned value of the referee type.
+        // Keep the same declared/carrier correspondence the consumer selected;
+        // this type relation supplies neither access authority nor a loan.
+        let mut substitutions = Vec::new();
+        if let Some(actual) = reference_values::declared_value_type(
+            program,
+            inner_expression.target,
+            &mut substitutions,
+        )
+        .and_then(|actual| reference_values::substituted_reference(program, actual, &substitutions))
+            && matches!(
+                program.type_reference_table.type_reference(actual),
+                TypeReferenceNode::Reference { .. }
+            )
+        {
+            return correspondence(
                 program,
-                inner_expression.target,
-                *referee,
-                correspondence,
+                actual,
+                type_reference,
+                &substitutions,
                 required_substitutions,
             );
+        }
+        return argument_matches_type_reference_using(
+            program,
+            inner_expression.target,
+            *referee,
+            correspondence,
+            required_substitutions,
+        );
     }
 
     // A recast states its viewed carrier explicitly. The enclosing Borrow

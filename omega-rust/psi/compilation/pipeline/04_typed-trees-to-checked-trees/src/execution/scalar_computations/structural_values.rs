@@ -257,7 +257,9 @@ impl Builder<'_, '_> {
                     == self.program.normalized_type_identity(expected))
             .then_some(root.root);
         }
-        let kind = if matches!(
+        let kind = if let Some(value) = self.computed_shared_reborrow(expression, expected) {
+            value
+        } else if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::String(_)
         ) {
@@ -321,6 +323,11 @@ impl Builder<'_, '_> {
             // copies. Only a local's later read takes the copy route below,
             // because the local's initializer need not be its current value.
             CheckedStructuralValueKind::Place(argument)
+        } else if let Some(copied) = self.copied_place(expression, expected) {
+            // Reading an already stored carrier copies that value, including
+            // a shared view's captured extent. Its backing loan cannot replace
+            // the descriptor with a newly formed whole-collection view.
+            copied
         } else if let Some(view) = self
             .subslice_view_place(expression, expected)
             .or_else(|| self.slice_view_place(expression, expected))
@@ -334,32 +341,18 @@ impl Builder<'_, '_> {
             self.program.expression_table.expression(expression)
         {
             let call_target = validation::call_target_symbol(self.program, call);
-            // Only a machine body produces a structural value here. A boundary
-            // requirement, a bodyless boundary declaration or a dynamic slot
-            // completes through its own call route, which binds the result
-            // to the authored statement.
-            if !crate::execution::terminal_unit::calls::completes_in_machine_body(
-                self.program,
-                call_target,
-            ) {
-                return None;
-            }
             let returned = validation::call_target_return_type(self.program, call_target)?;
+            // Result storage does not depend on the source of executable
+            // supply. The ordinary call planner retains the exact boundary,
+            // body or dynamic route and its independent completion custody.
             if !value_predicates::structural_call_carrier_matches(self.program, returned, expected)
-                || !(validation::has_contents(
+                || crate::execution::terminal_unit::control::checked_structural_result_type(
                     self.program,
+                    &mut crate::execution::terminal_unit::types::ShapeCollector::new(self.program),
                     returned,
                     &[],
-                    validation::ContentsRequirement::StructuralConstruction,
-                ) || validation::has_contents(
-                    self.program,
-                    returned,
-                    &[],
-                    validation::ContentsRequirement::LinearOwned,
-                ) || validation::reference_result_custody::is_reference_record(
-                    self.program,
-                    returned,
-                ) || validation::borrowed_slice_view_result(self.program, returned))
+                )
+                .is_none()
             {
                 return None;
             }
@@ -375,8 +368,6 @@ impl Builder<'_, '_> {
             CheckedStructuralValueKind::Call { source_call }
         } else if let Some(copy) = self.view_element_copy(expression, expected) {
             copy
-        } else if let Some(copied) = self.copied_place(expression, expected) {
-            copied
         } else if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Name(_)

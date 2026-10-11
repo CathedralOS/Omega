@@ -554,11 +554,12 @@ impl CheckedStructuralValueCall {
         operands: CheckedOperandSequence,
         operation: CheckedUnitEffectOperationPlan,
     ) -> Option<Self> {
-        // Only an ordinary structural call produces a value operand; a
-        // boundary result keeps its own statement-level binding.
+        // The call's admitted result owns its value, independently of where
+        // executable supply comes from or which expression consumes it. The
+        // operation retains that route and its exact completion custody.
         operation
             .call()
-            .is_some_and(|call| !call.is_boundary() && call.structural_result().is_some())
+            .is_some_and(|call| call.structural_result().is_some())
             .then_some(Self {
                 value,
                 operands,

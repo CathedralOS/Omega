@@ -56,17 +56,10 @@ pub(super) fn lower(
         )
     };
     match operation {
-        AbstractOperation::ByteSequenceRead { source, .. } => {
-            // A live byte-owner address join observes its own storage. The
-            // semantic operation, not the pointer layout, determines whether
-            // this is a metadata or payload observation.
-            if prepared.parameter(*source).is_none()
-                && !live.views.contains_key(source)
-                && !live.block_views.contains(source)
-                && !bounded_owner_storage(function, structural_types, live, *source)
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
+        AbstractOperation::ByteSequenceRead { .. } => {
+            // The shared descriptor resolver rejoins the exact live storage
+            // or SSA recipe. Producer-family admission here would omit copies
+            // and other materialized values with the same readable carrier.
             lower_byte_observation(operation, &mut values, &mut provenance.operations)?;
         }
         AbstractOperation::ByteSequencePredicate { operand, .. } => {
@@ -91,16 +84,8 @@ pub(super) fn lower(
             }
             _ => {}
         },
-        AbstractOperation::ElementViewRead { source, .. } => {
-            if prepared.parameter(*source).is_none()
-                && !live.views.contains_key(source)
-                && !live.block_views.contains(source)
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-            if !matches!(operation, AbstractOperation::ElementViewSubslice { .. }) {
-                lower_element_observation(operation, &mut values, &mut provenance.operations)?;
-            }
+        AbstractOperation::ElementViewRead { .. } => {
+            lower_element_observation(operation, &mut values, &mut provenance.operations)?;
         }
         _ => {}
     }
@@ -641,10 +626,10 @@ pub(super) fn bounded_owner_storage(
             .is_some_and(|home| bounded_owner(home.structural_type()))
 }
 
-/// The readable-view and measured-length gates every byte-sequence operand
-/// asks: a whole-sequence source must be a prepared parameter or a locally
-/// tracked view (or an owner address join), exactly the live-view gate a
-/// byte observation asks; a field operand spells an immutable byte view
+/// Field operands retain their exact readable-field and measured-length
+/// coupling here. Whole operands resolve their live descriptor and measured
+/// length through the shared byte operand resolver, not a producer catalogue.
+/// A field operand spells an immutable byte view
 /// whose length operand is the field-length observation that measured it —
 /// the same authority and coupling a concatenation operand asks.
 fn byte_sequence_operand_gate(
@@ -655,15 +640,7 @@ fn byte_sequence_operand_gate(
     operand: &terminal_psi::control_flow::ByteSequenceOperand,
 ) -> Result<(), LoweringError> {
     match operand {
-        terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-            if prepared.parameter(*source).is_none()
-                && !live.views.contains_key(source)
-                && !live.block_views.contains(source)
-                && !bounded_owner_storage(function, structural_types, live, *source)
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-        }
+        terminal_psi::control_flow::ByteSequenceOperand::Whole { .. } => {}
         terminal_psi::control_flow::ByteSequenceOperand::Field {
             source,
             field,

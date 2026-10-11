@@ -446,16 +446,20 @@ helper that passes does not close an item.
     it must run once in the selected arm and never in the unselected arm.
     Preserve captured operand snapshots through generic cloning and later
     effects (`runtime_declared_open_range_preserves_operand_snapshot_exit`).
-    Imported `Slice::range` still needs its admitted executable realization,
-    outer-borrow call sequencing and returned extent guarantees. Preserve
+    Imported `Slice::range` still needs its array-to-view argument presentation,
+    admitted executable realization and returned extent guarantees. Preserve
     `pass/borrows/runtime_boundary_range_view_exit`: named and anonymous
     checked-provider results must retain the actual descriptor and backing
     loan in native and Terminal execution; overlapping backing mutation must
     reject (`fail/borrows/boundary_returned_view_keeps_backing_loan`). On macOS,
     `omega run --both tests/omega/pending/slices/runtime_imported_range_views_exit/main.omg`
-    stops at `outer calls: ordered statement call`. Preserve the selected
+    stops at `call operation: structural arguments: parameter path`. Preserve the selected
     requirement, returned loan custody and bounds; do not substitute builtin
-    slicing. `pass/modules/runtime_public_generic_dependency_exit` must keep
+    slicing. Keep `pass/borrows/runtime_computed_shared_view_reborrow_exit`
+    at exit 0: reborrowing a produced or stored descriptor must retain its
+    actual extent through guarded calls and value joins; backing mutation
+    must reject (`fail/borrows/reborrowed_call_view_keeps_backing_loan`).
+    `pass/modules/runtime_public_generic_dependency_exit` must keep
     executing the public template's selected range bodies; private templates
     remain inaccessible across packages.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs

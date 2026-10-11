@@ -16,6 +16,67 @@ use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
 
 impl Builder<'_, '_> {
+    /// A computed shared reference with the same unrestricted carrier retains
+    /// its descriptor on reborrow. It does not reconstruct a view from the
+    /// loan's backing: that would lose the producer's actual range and effects.
+    /// Existing stored places keep their loan route; access attenuation and
+    /// affine carriers need their own ordinary reference establishment.
+    pub(super) fn computed_shared_reborrow(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<CheckedStructuralValueKind> {
+        let borrow = self
+            .program
+            .expression_table
+            .borrow_expression(expression)?;
+        if borrow.access != language_semantics::ReferenceAccess::Shared
+            || !matches!(
+                self.program.type_reference_table.type_reference(expected),
+                TypeReferenceNode::Reference {
+                    access: language_semantics::ReferenceAccess::Shared,
+                    ..
+                }
+            )
+            || self.program.type_multiplicity(expected)
+                != language_semantics::Multiplicity::Unrestricted
+        {
+            return None;
+        }
+        let target = borrow.target;
+        let place = validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            target,
+        )?;
+        if place.root.as_expression().is_none() || !place.segments.is_empty() {
+            return None;
+        }
+        let actual = validation::canonical_place_type_reference(
+            self.program,
+            self.state,
+            self.statement_index,
+            &place,
+        )?;
+        if self.program.normalized_type_identity(actual)
+            != self.program.normalized_type_identity(expected)
+        {
+            return None;
+        }
+        let source = self.structural_value(target, actual)?;
+        Some(CheckedStructuralValueKind::Projection {
+            source,
+            path: Vec::new(),
+            type_identity: validation::stored_structural_type_identity(
+                self.program,
+                actual,
+                &[],
+                &[],
+            ),
+        })
+    }
+
     /// One `[copy]` record element copied out of a borrowed view: the same
     /// element selection an element read takes, then one read per scalar
     /// field of the element in declaration order.
@@ -362,6 +423,12 @@ impl Builder<'_, '_> {
         let (source, reference) = if let Some((parameter_index, type_reference)) =
             self.structural_parameter(name.symbol)
         {
+            // A reference formal is borrowed ingress, not owned descriptor
+            // storage. Its value must retain the ordinary loan/view route.
+            // Locals may own stored carriers even when their type is a view.
+            if validation::reference_shell(self.program, type_reference).is_some() {
+                return None;
+            }
             (
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index,

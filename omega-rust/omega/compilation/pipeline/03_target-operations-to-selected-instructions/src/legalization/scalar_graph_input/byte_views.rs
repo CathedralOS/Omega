@@ -355,12 +355,7 @@ pub(in crate::legalization) fn descriptor_result(
             result.structural_type,
         )
         && function.block_nodes().any(|node| {
-            let materialized = match &node.operation {
-                abstract_operations::AbstractOperation::EstablishStructuralLocal { .. } => {
-                    node.operation.structural_result()
-                }
-                _ => node.operation.structural_call_result(),
-            };
+            let materialized = node.operation.materialized_structural_result();
             materialized == Some((producer, result))
         }))
     .then_some((producer, result.structural_type))
