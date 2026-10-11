@@ -57,6 +57,31 @@ pub(crate) fn canonical_file_executable(
     }
 }
 
+/// Read one canonical symlink target and charge its spelling against the
+/// caller's aggregate ceiling — the sequence every metadata walker repeats.
+pub(crate) fn canonical_symlink_target(
+    path: &std::path::Path,
+    aggregate_content_bytes: &mut u64,
+    ceiling: u64,
+) -> Result<(Vec<u8>, u64), String> {
+    let target = std::fs::read_link(path).map_err(|error| {
+        format!(
+            "could not read canonical Source symlink {}: {error}",
+            path.display()
+        )
+    })?;
+    let target = os_str_bytes(target.as_os_str())?;
+    let target_length = u64::try_from(target.len())
+        .map_err(|_| "canonical Source symlink target length exceeds u64".to_owned())?;
+    *aggregate_content_bytes = aggregate_content_bytes
+        .checked_add(target_length)
+        .filter(|total| *total <= ceiling)
+        .ok_or_else(|| {
+            format!("canonical Source content exceeds its {ceiling}-byte ceiling")
+        })?;
+    Ok((target, target_length))
+}
+
 #[cfg(unix)]
 pub(crate) fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
     use std::os::unix::ffi::OsStrExt;

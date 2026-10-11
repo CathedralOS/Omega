@@ -769,16 +769,11 @@ fn capture_physical_metadata_row(
         });
     }
     if metadata.file_type().is_symlink() {
-        let target = std::fs::read_link(path).map_err(|error| {
-            format!(
-                "could not read canonical Source symlink {}: {error}",
-                path.display()
-            )
-        })?;
-        let target = os_str_bytes(target.as_os_str())?;
-        let target_length = u64::try_from(target.len())
-            .map_err(|_| "canonical Source symlink target length exceeds u64".to_owned())?;
-        charge_canonical_source_content(aggregate_content_bytes, target_length)?;
+        let (target, target_length) = crate::canonical_fs::canonical_symlink_target(
+            path,
+            aggregate_content_bytes,
+            CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT,
+        )?;
         return Ok(CapturedSourceMetadataRow {
             kind: CanonicalFilesystemMetadataRowKind::Symlink {
                 target_spelling_logical_byte_length: target_length,
@@ -825,16 +820,11 @@ fn capture_physical_source_row(
         ));
     }
     if metadata.file_type().is_symlink() {
-        let target = std::fs::read_link(path).map_err(|error| {
-            format!(
-                "could not read canonical Source symlink {}: {error}",
-                path.display()
-            )
-        })?;
-        let target = os_str_bytes(target.as_os_str())?;
-        let target_length = u64::try_from(target.len())
-            .map_err(|_| "canonical Source symlink target length exceeds u64".to_owned())?;
-        charge_canonical_source_content(aggregate_content_bytes, target_length)?;
+        let (target, target_length) = crate::canonical_fs::canonical_symlink_target(
+            path,
+            aggregate_content_bytes,
+            CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT,
+        )?;
         let entry = CapturedSourceEntry::symlink(target);
         return Ok((
             CapturedSourceMetadataRow {
