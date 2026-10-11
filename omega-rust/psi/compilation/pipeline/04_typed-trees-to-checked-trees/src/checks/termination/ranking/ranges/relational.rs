@@ -1,4 +1,10 @@
 //! Exact range custody and occurrence guards enter the shared arithmetic owner.
+//!
+//! Prefix preservation is independent of where a value-producing call occurs.
+//! Complete caller-relative frames cover direct stores and nested operand
+//! evaluation before the range owner reuses an entry premise. Only inert
+//! evaluations enter its arithmetic context; a disjoint call preserves existing
+//! facts but does not establish a fact about its returned value.
 use super::super::{ExpressionHandle, ExpressionNode, write_preservation};
 use crate::checks::termination::graph;
 use crate::checks::termination::ranking::DecreaseMeasure;
@@ -407,114 +413,84 @@ fn preserved_entry_prefix<'program>(
         if validation::is_arm_pattern_marker(statement) {
             continue;
         }
+        // One frame bar covers assignments, locals, statement calls, guards,
+        // and discarded expressions. The complete operand frame includes
+        // nested calls, including calls evaluating an indexed store target.
+        let frames = frames?;
+        if !protected.iter().all(|input| {
+            write_preservation::prefix_preserves_path(
+                frames,
+                machine,
+                std::slice::from_ref(statement),
+                input,
+            )
+        }) {
+            return None;
+        }
+        let known_evaluation = |expression| {
+            pure_guard_or_calls(program, machine, state, expression, 0, &|call| {
+                call.target_symbol.is_valid()
+            })
+        };
         if let Some(assignment) = statement.as_assignment() {
             // Entry hypotheses name the protected premise carriers only. A
             // direct store whose alias-closed frame is disjoint from each of
             // them preserves every hypothesis, whatever it stores into an
             // unprotected mutable input; the frame and the operand evaluation
             // must both be known before reusing them.
-            let preserved = inert_store_target(program, machine, state, assignment.target, 0)
-                && pure_guard(program, machine, state, assignment.value, 0)
-                && frames.is_some_and(|frames| {
-                    frames
-                        .assignment_write_frame(machine, statement)
-                        .into_complete_paths()
-                        .is_some_and(|paths| {
-                            protected.iter().all(|input| {
-                                paths
-                                    .iter()
-                                    .all(|path| !validation::frame_paths_overlap(path, input))
-                            })
-                        })
-                });
+            let preserved = validation::place_has_builtin_coordinates(
+                program,
+                machine,
+                Some(state),
+                assignment.target,
+            ) && known_evaluation(assignment.target)
+                && known_evaluation(assignment.value);
             if !preserved {
                 return None;
             }
             // Retain selected-operator custody without assuming the stored
             // expression establishes a new entry hypothesis.
-            evaluated.push(assignment.value);
+            if pure_guard(program, machine, state, assignment.value, 0) {
+                evaluated.push(assignment.value);
+            }
             continue;
         }
         if let Some(local) = statement.as_local_data() {
             // An unrelated local does not revise the entry
             // telescope. Keep numeric substitution handle-first: local
             // expressions are not promoted into parameter hypotheses.
-            // A call-bearing initializer keeps the statement-call bar at
-            // every value position: the bound local is fresh storage no
-            // premise carrier can name, each call names a checked-body
-            // callee with pure subterms, and the complete aggregate frame
-            // misses every protected carrier -- nested call arguments and
-            // composed initializers are admitted alike.
+            // A local's binding is fresh storage no premise carrier can name;
+            // its initializer has already met the shared operand-frame bar.
             let fresh_local = local.symbol.is_valid()
                 && !program
                     .state_parameter_by_symbol(state, local.symbol)
                     .is_some();
-            let pure_initializer = pure_guard(program, machine, state, local.initial_value, 0)
-                && frames.is_some_and(|frames| {
-                    frames
-                        .expression_write_frame(machine, local.initial_value)
-                        .into_complete_paths()
-                        .is_some_and(|paths| paths.is_empty())
-                });
-            let preserved = fresh_local
-                && (pure_initializer
-                    || call_tree_initializer_preserves_entry(
-                        program,
-                        machine,
-                        state,
-                        local.initial_value,
-                        frames,
-                        protected,
-                    ));
+            let preserved = fresh_local && known_evaluation(local.initial_value);
             if !preserved {
                 return None;
             }
-            if pure_initializer {
+            if pure_guard(program, machine, state, local.initial_value, 0) {
                 evaluated.push(local.initial_value);
             }
             continue;
         }
         if let Some(call) = statement.as_call() {
-            // A statement-position call preserves the entry telescope only
-            // with complete write-frame evidence: its own caller-relative
-            // frame and the aggregated frame of any value calls nested in
-            // its arguments must each be known and disjoint from every
-            // premise carrier. The arguments stay inert the way transition
-            // actuals are -- an authored operator or index selection could
-            // hide a write no frame sees. The discarded result establishes
-            // no hypothesis, so nothing is pushed to `evaluated`.
-            //
-            // The frame query itself selects the callee's contract: a
-            // checked body is summarized, a boundary, requirement, or
-            // admitted declaration is bounded by its signature's exclusive
-            // reach, and anything unresolved stays opaque rather than
-            // admitted.
+            // The direct call and every nested argument have already met
+            // the same frame bar. Its discarded result grants no hypothesis.
             let preserved = program
                 .statement_table
                 .expression_handles(call.arguments)
                 .iter()
-                .all(|argument| pure_guard(program, machine, state, *argument, 0))
-                && frames.is_some_and(|frames| {
-                    protected.iter().all(|input| {
-                        write_preservation::frame_preserves_path(
-                            frames.may_write_frame(machine, call),
-                            input,
-                        ) && write_preservation::frame_preserves_path(
-                            frames.statement_value_write_frame(machine, statement),
-                            input,
-                        )
-                    })
-                });
+                .all(|argument| known_evaluation(*argument));
             if !preserved {
                 return None;
             }
             continue;
         }
         if let Some(expression) = statement.as_expression() {
-            // A bare evaluated expression writes nothing only while it stays
-            // inert; nested calls and authored operators keep failing closed
-            // rather than borrowing the discarded value as a hypothesis.
-            if !pure_guard(program, machine, state, *expression, 0) {
+            // Discarding a value changes no premise; evaluation still owes
+            // the same known-callee and complete-frame evidence.
+            if !known_evaluation(*expression) {
                 return None;
             }
             continue;
@@ -523,88 +499,16 @@ fn preserved_entry_prefix<'program>(
         match transition.guard {
             TransitionGuardNode::Always => {}
             TransitionGuardNode::When(guard) => {
-                if !pure_guard(program, machine, state, guard, 0) {
+                if !known_evaluation(guard) {
                     return None;
                 }
-                evaluated.push(guard);
+                if pure_guard(program, machine, state, guard, 0) {
+                    evaluated.push(guard);
+                }
             }
         }
     }
     Some(evaluated)
-}
-
-/// A `let` whose initializer carries calls keeps the statement-call bar at
-/// every value position: each call must resolve to a callee the frame query
-/// can answer for (a checked body's own summary, or a boundary,
-/// requirement, or admitted declaration's selected signature contract), and
-/// every non-call subterm stays pure the way transition actuals are, so
-/// nested call arguments and composed initializers are admitted alike. The
-/// initializer's aggregate write frame is conservative over every nested
-/// call and must be complete and disjoint from every protected carrier.
-/// The binding writes a fresh local, so nothing else in the statement can
-/// disturb the entry telescope.
-fn call_tree_initializer_preserves_entry<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    machine: &'program typed_trees::machine::Machine,
-    state: &State,
-    initial_value: ExpressionHandle,
-    frames: Option<&validation::CallFrameResolver<'program>>,
-    protected: &[&str],
-) -> bool {
-    let resolved_callee =
-        |call: &typed_trees::expression::TableCallExpression| call.target_symbol.is_valid();
-    pure_guard_or_calls(program, machine, state, initial_value, 0, &resolved_callee)
-        && frames.is_some_and(|frames| {
-            protected.iter().all(|input| {
-                write_preservation::frame_preserves_path(
-                    frames.expression_write_frame(machine, initial_value),
-                    input,
-                )
-            })
-        })
-}
-
-/// A store target must be a place whose own evaluation performs no call:
-/// the direct-store write frame covers only the store itself, never an
-/// operation hiding inside the target. `Name`/`Member`/`Borrow` spines are
-/// structural places; an `Indexed` place is admitted only with builtin
-/// coordinates (no authored `[]` selection), a builtin index operand, and an
-/// inert collection spine. The operand checks stay structural because bound
-/// meaning deliberately treats calls as symbolic leaves, so
-/// `entries[next()]` would otherwise pass `place_has_builtin_coordinates`.
-fn inert_store_target(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &State,
-    expression: ExpressionHandle,
-    depth: usize,
-) -> bool {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
-        return false;
-    };
-    match node {
-        ExpressionNode::Name(_) => true,
-        ExpressionNode::Member(member) => {
-            inert_store_target(program, machine, state, member.receiver, depth + 1)
-        }
-        ExpressionNode::Borrow(borrow) => {
-            inert_store_target(program, machine, state, borrow.target, depth + 1)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            inert_store_target(program, machine, state, indexed.collection, depth + 1)
-                && pure_guard(program, machine, state, indexed.index, depth + 1)
-                && validation::place_has_builtin_coordinates(
-                    program,
-                    machine,
-                    Some(state),
-                    expression,
-                )
-        }
-        _ => false,
-    }
 }
 
 /// An operand is inert when its evaluation cannot perform a write: every

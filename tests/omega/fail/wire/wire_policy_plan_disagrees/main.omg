@@ -10,9 +10,11 @@ data Message {
 }
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField { size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
-data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
-data FieldPlan {
+data SchemaField where size <= 4096, align >= 1, align <= 16 {
+    size: u64; align: u64; number: i64; kind: FieldKind;
+}
+data Schema where field_count <= 32 { fields: [SchemaField; 32]; field_count: u64; }
+data FieldPlan [copy] {
     case At(offset: u64);
     case Bits(container: u64, container_width: u64, lsb: u64, width: u64);
     case Varint(tag: u64);
@@ -29,19 +31,24 @@ machine CompactBinary::plan(compact_binary: &mut CompactBinary, schema: Schema) 
     CompactBinary::evaluate(compact_binary, schema, 96)
 }
 
-machine CompactBinary::evaluate(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64 [1..=96]) -> Plan
+machine CompactBinary::evaluate(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64) -> Plan
+requires fuel >= 1 && fuel <= 96
 terminates by fuel;
 {
     compact_binary.index = 0;
     transition { _ -> fill(compact_binary, schema, fuel) }
 
-    state fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64 [1..=96]) {
+    state fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64)
+    requires fuel >= 1 && fuel <= 96
+    {
         transition fuel > 1 && compact_binary.index < 32 && compact_binary.index < schema.field_count {
             true -> put_wrong(compact_binary, schema, fuel - 1)
             _ -> done(compact_binary, schema)
         }
     }
-    state put_wrong(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64 [1..=96]) {
+    state put_wrong(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64)
+    requires fuel >= 1 && fuel <= 96
+    {
         compact_binary.tag = narrow_i64_to_u64_wrapping(schema.fields[compact_binary.index].number);
         // WRONG on purpose: scalars must be Varint.
         compact_binary.plans[compact_binary.index] = FieldPlan::LengthPrefixed { tag: compact_binary.tag };

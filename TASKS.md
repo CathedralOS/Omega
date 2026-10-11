@@ -1619,8 +1619,6 @@ defines the complete product bar.
     mutation controls). Keep `pass/dependent/runtime_state_dependent_index_forward_exit`
     and `fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`
     as controls for captured state arguments and invalidated bound observations.
-  - Migrate `fail/wire/wire_policy_plan_disagrees` keeping its plan/schema
-    disagreement rejection.
   Canonical controls to keep: `pass/collections/runtime_argmax_index_exit`,
   `pass/time/runtime_duration_core_exit`,
   `pass/constants/runtime_predicate_constant_materialization_exit` and the
@@ -1631,6 +1629,10 @@ defines the complete product bar.
   `fail/layouts/placement_policy_unproved_callee_premise` and
   `pass/filesystem/native_crud` (policy admission keeps each concrete callee
   premise without checking unrelated unfinished runtime layouts),
+  `fail/wire/wire_policy_plan_disagrees`,
+  `pass/termination/runtime_ranked_assignment_call_prefix_exit` and
+  `fail/termination/ranked_{assignment,index}_call_prefix_write` (complete
+  operand frames preserve only disjoint ranked premises),
   `pass/collections/runtime_nested_const_row_indexed_read_exit`,
   `pass/arithmetic/runtime_guard_narrowed_transition_arg_exit`,
   `pass/arithmetic/runtime_exact_guarded_shift_count_exit`,
