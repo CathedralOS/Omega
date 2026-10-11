@@ -816,3 +816,4 @@ pass/providers/inherited_applied_binding_borrowed_result_exit built 2919ms exit:
 pass/borrows/runtime_stored_boolean_reference_exit built 2791ms exit:0 interpreter-exit:0 interpreter:agrees @e6e0563889f4+wt
 pass/text/runtime_mixed_byte_field_equality_exit built 3896ms exit:70 interpreter-exit:70 interpreter:agrees @d00cc8b447da+wt
 pass/traits/equatable_string_field_equality_exit built 3986ms exit:70 interpreter-exit:70 interpreter:agrees @d00cc8b447da+wt
+pass/build/explicit_lifetime_entry_context_exit built 2775ms exit:0 interpreter-exit:0 interpreter:agrees @d00cc8b447d+wt

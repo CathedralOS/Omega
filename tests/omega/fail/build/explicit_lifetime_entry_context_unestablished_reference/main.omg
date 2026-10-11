@@ -1,0 +1,2 @@
+data Main<'entry> { view: &'entry i32; }
+machine Main::main<'entry>(main: &'entry mut Main<'entry>) {}

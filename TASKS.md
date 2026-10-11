@@ -2752,9 +2752,13 @@ crash and native exit behavior.
     and unused property/const obligations must reject. Invocation-lifetime
     results retain their exact input loan and access; shared-to-mutable calls,
     unrelated returned sources and live-source writes must reject.
-    Region-bearing receiver identities still need retained exact application
-    joins; the current
-    Binding classifier refuses them rather than using erased carrier matching.
+    Preserve `build/explicit_lifetime_entry_context_exit` through both engines:
+    ordinary entry contexts use their retained closed data applications, without
+    bypassing mutable access or ZII eligibility. This storage correspondence is
+    not a portable region identity. Region-bearing Binding receiver identities
+    still need exact application joins and indexed named-provider family
+    coverage; the current classifier refuses rather than using erased carrier
+    matching. Build selects the provider declaration, not a runtime caller region.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.
 

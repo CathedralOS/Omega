@@ -1,0 +1,2 @@
+data Main<'entry> { value: i32; }
+machine Main::main<'entry>(main: &'entry Main<'entry>) {}

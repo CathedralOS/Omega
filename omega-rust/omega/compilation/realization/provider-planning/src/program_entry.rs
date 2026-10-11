@@ -355,7 +355,7 @@ fn provisioned_entry_context_from_parameters<'program>(
             "entry machine `{machine_name}` context must be an ordinary runtime parameter"
         )));
     }
-    let definition_symbol = {
+    let context_reference = {
         let TypeReferenceNode::Reference {
             access: language_core::ReferenceAccess::Mutable,
             referee,
@@ -369,20 +369,15 @@ fn provisioned_entry_context_from_parameters<'program>(
                 parameter.name
             )));
         };
-        let Some(symbol) = typed
-            .type_reference_table
-            .type_reference(*referee)
-            .as_named_symbol()
-        else {
-            return Err(Diagnostic::error(format!(
-                "entry machine `{machine_name}` context `{}` must name its exact provisioned data type",
-                parameter.name
-            )));
-        };
-        symbol
+        *referee
     };
+    // Entry provisioning consumes the same retained closed carrier as other
+    // nominal operations. A lifetime application changes semantic borrowing,
+    // not the context's storage declaration; requiring a bare Named node here
+    // rejected valid applications before the ordinary loan checks could run.
+    // Keep the full parameter reference for signature and establishment custody.
     let definition = typed
-        .data_definition_by_symbol(definition_symbol)
+        .closed_data_definition(context_reference)
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "entry machine `{machine_name}` context `{}` has no exact data declaration",

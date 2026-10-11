@@ -5313,3 +5313,8 @@ fail/providers/applied_binding_mutable_result_shared_source rejected 220ms expec
 pass/borrows/runtime_stored_boolean_reference_exit checked 2644ms check-target:macos_arm64 @e6e0563889f4+wt
 fail/borrows/opaque_sibling_stored_view_local_escape rejected 429ms expected @d00cc8b447da+wt
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
+fail/build/explicit_lifetime_entry_context_shared rejected 1272ms expected @d00cc8b447d+wt
+	entry machine `Main::main` context `main` requires an exclusive mutable borrow
+fail/build/explicit_lifetime_entry_context_unestablished_reference rejected 5162ms expected @d00cc8b447d+wt
+	native artifact ProgramEntry receiver provisioning failed: hosted receiver requires a checked ZII-valid value with no executable nominal cleanup
+pass/build/explicit_lifetime_entry_context_exit checked 2593ms check-target:macos_arm64 @d00cc8b447d+wt

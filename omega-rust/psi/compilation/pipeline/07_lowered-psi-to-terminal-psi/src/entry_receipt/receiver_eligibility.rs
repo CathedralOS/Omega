@@ -29,21 +29,24 @@ pub(super) fn derive(
     let machine = checked.machine(selection.machine)?;
     let state = checked.machine_states(machine).first()?;
     let source_parameters = checked.state_parameters(state);
-    let mut receivers = source_parameters.iter().enumerate().filter(|(_, parameter)| {
-        // An ordinary mutable record parameter can be provisioned by the
-        // selected entry schema. This is eligibility, not root authority;
-        // selection must still name and replay this exact source occurrence.
-        // Do not strip refinements to manufacture zero-valid context storage.
-        !parameter.relevance.is_erased()
-            && matches!(
-                checked.type_reference_table.type_reference(parameter.type_reference),
-                TypeReferenceNode::Reference {
-                    access: ReferenceAccess::Mutable,
-                    referee,
-                    ..
-                } if matches!(checked.type_reference_table.type_reference(*referee), TypeReferenceNode::Named { .. })
-            )
-    });
+    let mut receivers = source_parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| {
+            // An ordinary mutable record parameter can be provisioned by the
+            // selected entry schema. This is eligibility, not root authority;
+            // selection must still name and replay this exact source occurrence.
+            // Do not strip refinements to manufacture zero-valid context storage.
+            !parameter.relevance.is_erased()
+                && matches!(
+                    checked.type_reference_table.type_reference(parameter.type_reference),
+                    TypeReferenceNode::Reference {
+                        access: ReferenceAccess::Mutable,
+                        referee,
+                        ..
+                    } if checked.closed_data_definition(*referee).is_some()
+                )
+        });
     let (source_position, receiver) = receivers.next()?;
     if receivers.next().is_some() {
         return None;
@@ -52,16 +55,11 @@ pub(super) fn derive(
     let owned = checked
         .type_reference_table
         .peeled_type_reference(receiver.type_reference);
-    let symbol = &checked
-        .type_reference_table
-        .type_reference(owned)
-        .as_named_symbol()?;
-    let definition = checked.data_definition_by_symbol(*symbol)?;
-    // Source parameters name their nominal data directly. Rejoin that identity;
-    // never infer eligibility from a matching layout or display name.
-    if !checked.data_type_parameters(definition).is_empty()
-        || validation::data_requires_establishment(&checked.typed, definition)
-    {
+    // Resolve the complete retained application, as source entry selection
+    // does. Layout erases regions, but that does not turn an applied context
+    // into its bare declaration or establish any of its stored views.
+    let definition = checked.closed_data_definition(owned)?;
+    if validation::data_requires_establishment(&checked.typed, definition) {
         return None;
     }
     // Nominal cleanup does not reject outright: a retained receiver's hosted
@@ -127,8 +125,7 @@ pub(super) fn derive(
     if structural_types.next().is_some() {
         return None;
     }
-    let owned_receiver_type_identity =
-        checked.normalized_nominal_type_identity(definition.symbol)?;
+    let owned_receiver_type_identity = checked.normalized_type_identity(owned);
     let Some(fields) = structural_type.shape.record_fields() else {
         return None;
     };
