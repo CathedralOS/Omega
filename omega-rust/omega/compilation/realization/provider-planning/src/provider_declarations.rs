@@ -213,7 +213,7 @@ fn collect_provider_selections<'a>(
                                 is_provider: bool| {
             let authored_path = argument.path.joined_path();
             let symbol = if product_operands {
-                validation::compiler_operations::resolve_product_operand(
+                typed_trees::product_operand::resolve_product_operand(
                     typed,
                     argument,
                     source_span,
