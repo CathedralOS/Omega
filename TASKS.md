@@ -3324,7 +3324,9 @@ of a check the same flow already performed, not the check itself.
   source-acceptance frontier remains
   `shared_subslice_state_cannot_lend_mutable` and
   `family_callback_first_member_guarantee_only_rejected`. Attribute
-  contextual slice formation here; keep portable callback refinement with
+  contextual slice formation here: its bare-range access rule is OWNER-BLOCKED
+  on Q16 (`bare-range-reference-access`), not the remaining qualification.
+  Keep portable callback refinement with
   **PSI-TARGET-FAMILIES**. Full qualification must retain the inverted-distance
   refusal, fixed bounded-distance upper coordinates across state and call
   arrivals, crossed entry cursors and renamed/permuted call-component binders.

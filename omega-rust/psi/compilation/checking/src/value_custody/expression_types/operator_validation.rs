@@ -394,8 +394,8 @@ pub(crate) fn report_non_integer_index(
              endpoint must be an integer",
             machine.name.as_str(),
             state.name.as_str(),
-            program.expression_table.display_name(indexed.collection),
-            program.expression_table.display_name(operand),
+            program.diagnostic_expression_name(indexed.collection),
+            program.diagnostic_expression_name(operand),
             primitive.name(),
         )));
     }

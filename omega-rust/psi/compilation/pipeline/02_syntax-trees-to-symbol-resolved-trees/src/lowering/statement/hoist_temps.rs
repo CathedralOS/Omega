@@ -45,10 +45,16 @@ pub(crate) fn mint_hoist_temp(
     initial: impl FnOnce(&mut Lowerer, &mut Vec<Statement>) -> ExpressionHandle,
 ) -> ExpressionHandle {
     let shared_temp = shared_subject.and_then(|subject| lowerer.match_subject_temp(subject));
-    let name = match shared_temp {
-        Some(existing) => DiagnosticName::generated(existing),
+    let (name, source_span) = match shared_temp {
+        Some((existing, source_span)) => (DiagnosticName::generated(existing), source_span),
         None => {
             let initial_value = initial(lowerer, hoisted);
+            let source_span = lowerer
+                .symbol_resolved_trees
+                .tables
+                .bodies
+                .expressions
+                .source_span(initial_value);
             // Later arms and payload receivers read this temp's place again.
             capture_reference_initializer_selectors(
                 lowerer,
@@ -58,7 +64,7 @@ pub(crate) fn mint_hoist_temp(
             );
             let fresh = lowerer.next_hoist_name();
             if let Some(subject) = shared_subject {
-                lowerer.record_match_subject_temp(subject, fresh.clone());
+                lowerer.record_match_subject_temp(subject, fresh.clone(), source_span);
             }
             let name = DiagnosticName::generated(fresh);
             let type_is_inferred = matches!(declared, TypeReference::Unit);
@@ -74,10 +80,21 @@ pub(crate) fn mint_hoist_temp(
                     relevance: language_core::BindingRelevance::Relevant,
                 },
             }));
-            name
+            (name, source_span)
         }
     };
-    reference_temp(lowerer, name)
+    let reference = reference_temp(lowerer, name);
+    // The captured value has a new semantic identity, but diagnostics still
+    // name the expression evaluated here. Do not copy authored-selection
+    // authority to this compiler-generated read. Match arms share the exact
+    // captured occurrence, not a source label reconstructed from its temp name.
+    lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .set_source_span(reference, source_span);
+    reference
 }
 
 /// A fresh source occurrence of an already established temporary. Its symbol

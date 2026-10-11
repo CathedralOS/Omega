@@ -9,7 +9,7 @@
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
-use source::SourceMap;
+use source::{SourceMap, SourceSpan};
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionHandle;
@@ -175,14 +175,14 @@ pub(crate) struct Lowerer {
     pub(crate) current_machine_name: Option<String>,
     pub(crate) current_state_name: Option<String>,
     pub(crate) current_evidence_term_names: Vec<String>,
-    /// Maps a match SUBJECT syntax expression handle to the name of the single
-    /// hoisted temp for it. All arms of one enum-variant match share the same
+    /// Maps a match SUBJECT syntax expression handle to the name and diagnostic
+    /// source span of its single hoisted temp. All arms of one enum-variant match share the same
     /// syntax subject handle (the parser reuses it across arms), so the first
     /// arm mints `let __hoist_N = <subject>` and the siblings reuse the name --
     /// keeping ONE shared subject so match exhaustiveness still groups the arms
     /// (`statement::hoist_membership_match_subject`).
     match_subject_temps:
-        std::collections::HashMap<syntax_trees::expression::ExpressionHandle, String>,
+        std::collections::HashMap<syntax_trees::expression::ExpressionHandle, (String, SourceSpan)>,
     /// The CURRENT state's parameters (name, resolved type,
     /// mutability). The scalar-computation classification of transition
     /// values reads them. Overwritten at each state.
@@ -406,12 +406,12 @@ impl Lowerer {
         result
     }
 
-    /// The shared hoist-temp name for a match subject syntax handle, if the first arm already
-    /// minted one.
+    /// The shared hoist-temp name and source occurrence, if the first arm
+    /// already captured this exact match subject.
     pub(crate) fn match_subject_temp(
-        &mut self,
+        &self,
         subject: syntax_trees::expression::ExpressionHandle,
-    ) -> Option<String> {
+    ) -> Option<(String, SourceSpan)> {
         self.match_subject_temps.get(&subject).cloned()
     }
 
@@ -419,8 +419,10 @@ impl Lowerer {
         &mut self,
         subject: syntax_trees::expression::ExpressionHandle,
         name: String,
+        source_span: SourceSpan,
     ) {
-        self.match_subject_temps.insert(subject, name);
+        self.match_subject_temps
+            .insert(subject, (name, source_span));
     }
 
     pub(crate) fn next_hoist_name(&mut self) -> String {

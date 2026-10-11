@@ -229,7 +229,7 @@ pub(super) fn check_indexed_access(
                 } else {
                     "index"
                 },
-                program.expression_table.display_name(indexed.index),
+                program.diagnostic_expression_name(indexed.index),
             ),
             attribution,
         )));
@@ -470,7 +470,7 @@ fn check_known_length_index(
                 }
                 // Tailor the diagnostic to the half that is missing, naming
                 // the user's spelling when the index is a hoisted temp.
-                let shown_label = initializer_label.unwrap_or(&index_label);
+                let shown_label = program.diagnostic_expression_name(index);
                 let message = if !upper_bound_proven {
                     format!(
                         "cannot prove index `{}` is within length {} in {}::{}",
@@ -491,7 +491,7 @@ fn check_known_length_index(
                 diagnostics.push(Diagnostic::error(with_attribution(
                     format!(
                         "cannot prove index `{}` is within length {}",
-                        program.expression_table.display_name(index),
+                        program.diagnostic_expression_name(index),
                         length
                     ),
                     attribution,
@@ -525,21 +525,22 @@ fn check_unknown_length_slice_index(
                 format!(
                     "cannot prove subslice range {} `{}` is within unknown slice length",
                     failure.label(),
-                    program.expression_table.display_name(index)
+                    program.diagnostic_expression_name(index)
                 ),
                 attribution,
             )));
         }
         _ => {
-            let collection_label = program.expression_table.display_name(collection);
-            let index_label = program.expression_table.display_name(index);
             if unknown_length_index_is_proven(program, facts, collection, index) {
                 return true;
             }
             diagnostics.push(Diagnostic::error(with_attribution(
                 format!(
                     "cannot prove index `{}` is within unknown slice length of `{}` in {}::{}",
-                    index_label, collection_label, machine.name, state.name
+                    program.diagnostic_expression_name(index),
+                    program.diagnostic_expression_name(collection),
+                    machine.name,
+                    state.name
                 ),
                 attribution,
             )));
@@ -573,15 +574,13 @@ fn check_symbolic_extent_index(
                 format!(
                     "cannot prove subslice range {} `{}` is within const extent `{}`",
                     failure.label(),
-                    program.expression_table.display_name(index),
+                    program.diagnostic_expression_name(index),
                     extent.1.as_str()
                 ),
                 attribution,
             )));
         }
         _ => {
-            let collection_label = program.expression_table.display_name(collection);
-            let index_label = program.expression_table.display_name(index);
             if symbolic_extent_scalar_index_is_proven(
                 program, machine, state, facts, collection, index, &extent,
             ) {
@@ -590,9 +589,9 @@ fn check_symbolic_extent_index(
             diagnostics.push(Diagnostic::error(with_attribution(
                 format!(
                     "cannot prove index `{}` is within const extent `{}` of `{}` in {}::{}",
-                    index_label,
+                    program.diagnostic_expression_name(index),
                     extent.1.as_str(),
-                    collection_label,
+                    program.diagnostic_expression_name(collection),
                     machine.name,
                     state.name
                 ),

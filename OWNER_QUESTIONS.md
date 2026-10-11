@@ -845,3 +845,39 @@ invalid surface for that artifact path?
 Until answered, the two borrows fixtures remain correctly rejected: no
 sound predicate relaxation exists — claims simply have no retained
 counterpart to verify.
+
+### Q16 - What access does an unadorned collection range produce?
+
+Named decision: `bare-range-reference-access`.
+
+**Customer:** systems programs partition mutable buffers into windows and
+forward them to processing machines. Access must have one predictable source
+rule before checking records loans; moving a window into a local cannot
+silently create mutation authority.
+
+[Expressions](wiki/spec/language/expressions.md#calls-places-and-temporaries)
+requires explicit mutable lending for named calls. Its
+[range rules](wiki/spec/language/expressions.md#indexing-and-ranges) preserve
+existing core collection adaptations without defining contextual range-result
+access. `source/library/core/slice.omg` declares a shared `Slice::range`
+result, while [byte views](wiki/spec/terminal-psi/byte_views.md) permits mutable
+subslices backed by mutable authority. These clauses do not settle whether a
+bare `items[start..end]` itself selects shared or source-inherited access.
+
+Current elaboration accepts `let middle: &mut [u8] = view[2..4]`, including
+`samples/cli/probes/subslice_element_ops` and existing executable customers.
+It also accepts a bare range from a mutable source at a state transfer, while
+`shared_subslice_state_cannot_lend_mutable` expects that transfer to reject.
+Owned collection ranges additionally consult the destination access.
+
+**Decision needed:** require explicit `&mut` for every newly formed mutable
+range, inherit the source view's access consistently, or explicitly authorize
+contextual formation at declaration bindings only? Existing reference values
+must still forward without borrowing again, and no choice permits mutation
+through a shared ancestor. Recommendation: explicit new-loan spelling, with
+ordinary reference forwarding unchanged. Normalize the chosen rule before the
+frozen boundary rather than adding receiving-site permission exceptions.
+
+Only this language-rule portion of **TYPED-FROZEN-BEFORE-CHECKING** is
+owner-blocked; other qualification and implementation work continues. Keep
+the conflicting controls visible until the rule is settled.

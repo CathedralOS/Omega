@@ -7,12 +7,57 @@ use crate::expression::{
 };
 use crate::name::Identifier;
 
+/// One rendering context; diagnostic callers may display a captured operand's
+/// initializer without changing the table or duplicating the expression printer.
+struct ExpressionDisplay<'table> {
+    table: &'table ExpressionTable,
+    displayed_expression: &'table dyn Fn(ExpressionHandle) -> ExpressionHandle,
+}
+
+impl std::ops::Deref for ExpressionDisplay<'_> {
+    type Target = ExpressionTable;
+
+    fn deref(&self) -> &Self::Target {
+        self.table
+    }
+}
+
+impl ExpressionDisplay<'_> {
+    fn write_display_name(&self, expression: ExpressionHandle, rendered: &mut String) {
+        self.table
+            .expression((self.displayed_expression)(expression))
+            .write_display_name_with(self, rendered);
+    }
+}
+
+impl ExpressionTable {
+    pub(crate) fn display_name_resolving(
+        &self,
+        expression: ExpressionHandle,
+        displayed_expression: &dyn Fn(ExpressionHandle) -> ExpressionHandle,
+    ) -> String {
+        let mut rendered = String::new();
+        ExpressionDisplay {
+            table: self,
+            displayed_expression,
+        }
+        .write_display_name(expression, &mut rendered);
+        rendered
+    }
+}
+
 macro_rules! display_name_via_writer {
     () => {
         /// Renders this node's display name through `write_display_name`.
         pub fn display_name(&self, table: &ExpressionTable) -> String {
             let mut rendered = String::new();
-            self.write_display_name(table, &mut rendered);
+            self.write_display_name_with(
+                &ExpressionDisplay {
+                    table,
+                    displayed_expression: &|expression| expression,
+                },
+                &mut rendered,
+            );
             rendered
         }
     };
@@ -88,6 +133,16 @@ impl ExpressionNode {
     /// one buffer instead of formatting a `String` per node and copying it
     /// into its parent's.
     pub fn write_display_name(&self, table: &ExpressionTable, out: &mut String) {
+        self.write_display_name_with(
+            &ExpressionDisplay {
+                table,
+                displayed_expression: &|expression| expression,
+            },
+            out,
+        );
+    }
+
+    fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
         use std::fmt::Write as _;
         match self {
             Self::Match(dispatch) => {
@@ -124,12 +179,12 @@ impl ExpressionNode {
                 table.write_display_name(atomic.value, out);
                 out.push(')');
             }
-            Self::Binary(binary) => binary.write_display_name(table, out),
+            Self::Binary(binary) => binary.write_display_name_with(table, out),
             Self::Boolean(value) => {
                 let _ = write!(out, "{value}");
             }
-            Self::Cast(cast) => cast.write_display_name(table, out),
-            Self::Call(call) => call.write_display_name(table, out),
+            Self::Cast(cast) => cast.write_display_name_with(table, out),
+            Self::Call(call) => call.write_display_name_with(table, out),
             Self::Float(value) => {
                 let _ = write!(out, "{value}");
             }
@@ -174,7 +229,7 @@ impl ExpressionNode {
                 let _ = write!(out, "{}", struct_literal.type_name);
             }
             Self::String(value) => out.push_str(&source::display_literal_bytes(value)),
-            Self::Unary(unary) => unary.write_display_name(table, out),
+            Self::Unary(unary) => unary.write_display_name_with(table, out),
             Self::ZeroValue(_) => out.push_str("zero_value<type>()"),
         }
     }
@@ -252,7 +307,7 @@ impl BinaryExpression {
 impl TableBinaryExpression {
     display_name_via_writer!();
 
-    fn write_display_name(&self, table: &ExpressionTable, out: &mut String) {
+    fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
         table.write_display_name(self.left, out);
         out.push(' ');
         out.push_str(self.operator.display_name());
@@ -264,7 +319,7 @@ impl TableBinaryExpression {
 impl TableUnaryExpression {
     display_name_via_writer!();
 
-    fn write_display_name(&self, table: &ExpressionTable, out: &mut String) {
+    fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
         out.push_str(self.operator.display_name());
         table.write_display_name(self.operand, out);
     }
@@ -293,7 +348,7 @@ impl CastExpression {
 impl TableCastExpression {
     display_name_via_writer!();
 
-    fn write_display_name(&self, table: &ExpressionTable, out: &mut String) {
+    fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
         table.write_display_name(self.value, out);
         out.push_str(" as ");
         write_display_name_path(table.name_path_members(self.target_label), "::", out);
@@ -315,7 +370,7 @@ impl CallExpression {
 impl TableCallExpression {
     display_name_via_writer!();
 
-    fn write_display_name(&self, table: &ExpressionTable, out: &mut String) {
+    fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
         use std::fmt::Write as _;
         if self.receiver.is_valid() {
             table.write_display_name(self.receiver, out);
