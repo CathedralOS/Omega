@@ -193,6 +193,65 @@ def affected_packages(repository, base, candidate):
     return {package for packages in affected_workspaces(repository, base, candidate).values()
             for package in packages}
 
+# A commit that states its own validation or review is still outstanding is
+# not ready for main. On 2026-10-10 two such landings each broke programs that
+# ran before them: 20d5a856716 ("held for parent-arranged independent review;
+# not published") and 17a82816ca3 ("final exact-commit validation and
+# independent review remain pending").
+PENDING_DECLARATION = re.compile(
+    r"(?i)\b(?:not published|review (?:remains? |is )?pending|"
+    r"validation[^.]{0,60}pending|held for [^.]{0,60}review)\b")
+
+def declared_pending(repository, base, candidate):
+    """(commit, phrase) for each commit in base..candidate whose message says
+    its validation or review is still pending."""
+    log = coordination.git(repository, "log", "--format=%H%x00%B%x01",
+                           f"{base}..{candidate}").stdout
+    pending = []
+    for entry in log.split("\x01"):
+        commit, _, body = entry.strip().partition("\x00")
+        match = PENDING_DECLARATION.search(body)
+        if commit and match:
+            pending.append((commit[:12], match.group(0)))
+    return pending
+
+def intermediate_checks(repository, base, head, tool):
+    """Check every commit before `head` in base..head on its own.
+
+    Main is bisected one commit at a time, so a commit that compiles only
+    with its successor breaks every later bisect over it (3469d8ce0ff and
+    17a82816ca3 did). Each intermediate commit is checked for the packages
+    changed since `base` up to it, in this clean worktree, which is returned
+    to `head` afterwards."""
+    commits = coordination.git(repository, "rev-list", "--reverse",
+                               f"{base}..{head}").stdout.split()
+    results = []
+    if len(commits) < 2:
+        return results
+    branch = coordination.git(repository, "symbolic-ref", "-q", "--short", "HEAD",
+                              allow_failure=True).stdout.strip()
+    try:
+        for commit in commits[:-1]:
+            workspaces = affected_workspaces(repository, base, commit)
+            if not workspaces:
+                continue
+            coordination.git(repository, "checkout", "-q", "--detach", commit)
+            for workspace, names in sorted(workspaces.items()):
+                command = [tool, "check"]
+                if workspace != ".":
+                    command += ["--manifest-path", str(repository / workspace)]
+                for package in sorted(names):
+                    command += ["-p", package]
+                exit_code = subprocess.run(command, cwd=repository).returncode
+                results.append({"commit": commit, "workspace": workspace,
+                                "packages": sorted(names), "exit_code": exit_code})
+    finally:
+        if branch:
+            coordination.git(repository, "checkout", "-q", branch)
+        else:
+            coordination.git(repository, "checkout", "-q", "--detach", head)
+    return results
+
 def receipt_path(repository, candidate):
     return (Path(repository) / "build" / "landing_receipts"
             / f"{candidate}.json")
@@ -243,6 +302,18 @@ def verify(repository, base):
                 command = check_command
             if checked_exit and not exit_code:
                 exit_code = checked_exit
+    intermediate = intermediate_checks(repository, base, head, tool) if packages else []
+    broken = sorted({check["commit"][:12] for check in intermediate if check["exit_code"]})
+    if broken:
+        exit_code = exit_code or 1
+        print("landing: these commits do not build on their own; squash each into "
+              f"the commit that completes it: {', '.join(broken)}", file=sys.stderr)
+    pending = declared_pending(repository, base, head)
+    if pending:
+        exit_code = exit_code or 1
+        for commit, phrase in pending:
+            print(f"landing: commit {commit} says \"{phrase}\"; finish that "
+                  "validation or review before landing", file=sys.stderr)
     # A golden corpus row can only vanish through a record/history accident;
     # an intended retirement deletes the fixture with it, which
     # lost_golden_rows does not flag. Block the publish here, before the
@@ -257,7 +328,8 @@ def verify(repository, base):
                 print(f"landing:   {path}: {key}", file=sys.stderr)
     receipt = {"schema": RECEIPT_SCHEMA, "candidate": head, "base": base,
                "packages": packages, "command": command,
-               "checks": checks,
+               "checks": checks, "intermediate": intermediate,
+               "pending": [list(item) for item in pending],
                "exit_code": exit_code, "utc": now()}
     if lost:
         receipt["lost_rows"] = lost
@@ -283,6 +355,10 @@ def receipt_failure(repository, candidate, affected, workspaces=None):
                 f"{receipt['lost_rows']}")
     if receipt.get("exit_code") != 0:
         return f"build receipt {path} recorded exit {receipt.get('exit_code')}"
+    broken = [check["commit"][:12] for check in receipt.get("intermediate", [])
+              if check.get("exit_code")]
+    if broken:
+        return f"build receipt {path} recorded commits that do not build alone: {broken}"
     missing = affected - set(receipt.get("packages") or [])
     if missing:
         return (f"build receipt {path} covers {receipt.get('packages')}; "
@@ -548,6 +624,12 @@ class Landing:
         self.git("merge-base", "--is-ancestor", options.base, options.candidate)
         if self.git("rev-list", "--merges", f"{options.base}..{options.candidate}").stdout:
             raise LandingError("The candidate contains merge commits; main must remain linear.")
+        pending = declared_pending(self.repository, options.base, options.candidate)
+        if pending:
+            commit, phrase = pending[0]
+            raise LandingError(
+                f"Commit {commit} says \"{phrase}\". Finish that validation or "
+                "review, then reword the commit before landing.")
         changed = self.git("diff", "--name-only", options.base,
                            options.candidate).stdout.splitlines()
         if not changed:

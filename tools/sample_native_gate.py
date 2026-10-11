@@ -61,6 +61,17 @@ def discover(root):
     return sorted(found)
 
 
+def binds_program_entry(sample):
+    """Whether the sample's build binds any target's program entry.
+
+    A build that binds none (most `samples/cli/probes`, which set
+    `builder.freestanding = true`) is a compile-time probe: its claims are
+    proved by checking, and native production has no entry to build.
+    """
+    text = open(os.path.join(sample, "build.omg"), errors="ignore").read()
+    return "ProgramEntry" in text
+
+
 def oracle(sample):
     text = open(os.path.join(sample, "main.omg"), errors="ignore").read()
     exit_match = EXPECT_EXIT.search(text)
@@ -138,9 +149,20 @@ def classify(message):
         return "package review incomplete"
     # A checked-compilation failure leads with a wrapper line and carries the
     # real refusal on the following `error:` line; report that, not the wrapper.
-    errors = re.findall(r"error: (.+)", message)
-    if errors:
-        return errors[0].strip()[:110]
+    # The message is already flattened to one line, so split on each `error:`
+    # rather than matching to the end of the line, which kept the wrapper.
+    wrappers = (
+        "cannot compile accepted package inputs",
+        "checked compilation failed for package",
+        "cannot check prepared project",
+    )
+    errors = [
+        part.split(" source-unit ")[0].strip()
+        for part in re.split(r"\berror: ", message)[1:]
+    ]
+    refusals = [error for error in errors if not error.startswith(wrappers)]
+    if refusals or errors:
+        return (refusals or errors)[0][:110]
     return message.strip()[:110] or "unknown"
 
 
@@ -170,6 +192,16 @@ def measure(cli, sample, target, timeout):
     if reason:
         detail = reason + (": " + classify(review_output) if review_output else "")
         return {"sample": sample, "state": "error", "detail": detail}
+    if not binds_program_entry(sample):
+        # A check-only probe: report whether it checks, never as a native
+        # build failure. It is not scored against a runtime oracle.
+        completed = run([cli, "--check", os.path.join(sample, "main.omg")], timeout)
+        if completed is None:
+            return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
+        if completed.returncode != 0:
+            detail = classify(completed.stdout + completed.stderr)
+            return {"sample": sample, "state": "check-fail", "detail": detail}
+        return {"sample": sample, "state": "checked", "detail": "check-only: binds no program entry"}
     if expected_exit is None and expected_output is None:
         # Nothing to compare, so publish the native product without launching
         # it: an interactive sample would wait for input until the timeout.
@@ -238,17 +270,25 @@ def main():
         for row in sorted(rows, key=lambda r: r["sample"]):
             print(f"   {row['sample']:52} {row['detail'][:104]}")
 
+    check_only = ("checked", "check-fail")
     scored = [
         r
         for r in results
-        if r["state"] not in ("no-oracle", "not-host-runnable")
+        if r["state"] not in ("no-oracle", "not-host-runnable", *check_only)
     ]
     passed = len(buckets.get("pass", []))
+    probes = sum(len(buckets.get(state, [])) for state in check_only)
     print(
         f"\nsample_native_gate: {passed}/{len(scored)} samples meet their documented "
         f"oracle on {arguments.target} "
-        f"({len(results) - len(scored)} unscored: no oracle or not host-runnable)"
+        f"({len(results) - len(scored) - probes} unscored: no oracle or not host-runnable)"
     )
+    if probes:
+        print(
+            f"sample_native_gate: {probes} check-only probes bind no program entry: "
+            f"{len(buckets.get('checked', []))} check, "
+            f"{len(buckets.get('check-fail', []))} refused"
+        )
     if arguments.write_results:
         json.dump(results, open(arguments.write_results, "w"), indent=1)
     return 0 if passed == len(scored) else 1

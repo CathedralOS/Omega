@@ -135,7 +135,13 @@ only coordination files (`TASKS*.md`, `OWNER_QUESTIONS.md`,
 the coordinator's flag for batched board sweeps. A product change that carries
 its board update inside the same commit needs no flag. A third guard refuses a
 candidate that changes Rust packages without a passing `verify` receipt for
-this exact sha (see "Verify the build before publishing"). Only the candidate's own
+this exact sha (see "Verify the build before publishing"). That receipt also
+records a check of every earlier commit in a multi-commit candidate, because
+main is bisected one commit at a time; a commit that builds only with its
+successor fails `verify` and should be squashed into it. Publish and `verify`
+both refuse a commit whose message says its own validation or review is still
+pending ("not published", "review pending", "validation … pending", "held for …
+review"): finish that work, then reword the commit. Only the candidate's own
 changes are checked. Compiler advancement uses the
 change-scoped validation policy in [tools/testing.md](testing.md); a fresh full baseline is not a
 publication prerequisite. Reuse evidence for unchanged inputs after rebasing,
