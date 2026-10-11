@@ -158,6 +158,23 @@ pub(super) fn builtin(
                 &owner,
             )))
         }
+        ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
+            // A value cast between fixed integer primitives denotes the same
+            // arithmetic operand the strict judgment normalizes through; its
+            // carrier is the authored target, not the source. Recasts,
+            // non-integer targets and non-integer sources keep no builtin
+            // meaning: their formation obligations stay with the cast owner.
+            builtin(program, machine, state, cast.value, depth + 1)?;
+            let integer_target = program
+                .primitive_type_reference(cast.target_type)
+                .is_some_and(|target| target.is_fixed_integer());
+            let integer_source = crate::proof_contracts::proof_embeddings::integer_embedding(
+                program,
+                cast.value,
+            )
+            .is_some_and(|source| source.primitive.is_fixed_integer());
+            (integer_target && integer_source).then(|| Some(cast.target_type))
+        }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             builtin(program, machine, state, unary.operand, depth + 1)?;
             Some(None)
