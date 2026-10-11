@@ -1,0 +1,2 @@
+cannot check prepared project: checked compilation failed for package `invalid_build_in_product` with 1 diagnostic(s)
+  error: import `kit::main` in .../main.omg names build dependency `kit` (package `scope_kernel` (...)); a product import may only select product dependencies -- declare `builder.depend_as("kit", ...)` in the root build.omg to select that package for the product scope

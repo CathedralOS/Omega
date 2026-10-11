@@ -16,3 +16,7 @@ machines while wiring the product. Product edges (`depend`/
   in helpers or states.
 - `invalid_private_import`: `use kit::main` then calling a non-`pub`
   machine rejects "selects private machine".
+- `invalid_build_in_product`: the mirror — `use kit::main` inside
+  main.omg over a BUILD `build_depend_as` edge rejects "names build
+  dependency `kit` ... a product import may only select product
+  dependencies". The two scopes reject each other symmetrically.
