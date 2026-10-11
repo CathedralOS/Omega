@@ -197,7 +197,13 @@ pub(super) fn assign_statement_symbols(
                         ) && index == 0,
                     ),
                     None => {
-                        assign_static_argument_symbols(symbols, machine.symbol, argument, false);
+                        assign_static_argument_symbols(
+                            symbols,
+                            machine.symbol,
+                            machine.type_parameters,
+                            argument,
+                            false,
+                        );
                         assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
                     }
                 }

@@ -184,7 +184,7 @@ pub(super) fn assign_expression_symbols(
             if let ExpressionNode::Call(call) = expressions.expression_mut(expression) {
                 call.target_symbol = target_symbol;
                 for argument in &mut call.machine_arguments {
-                    assign_static_argument_symbols(symbols, owner_symbol, argument, true);
+                    assign_static_argument_symbols(symbols, owner_symbol, &[], argument, true);
                 }
             }
         }

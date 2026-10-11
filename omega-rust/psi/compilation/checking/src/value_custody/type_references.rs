@@ -414,14 +414,16 @@ pub fn validate_static_type_argument(
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let (type_parameters, lifetime_parameters) = match caller {
+    let (type_parameters, lifetime_parameters, lexical_owner) = match caller {
         StaticTypeArgumentOwner::Machine(machine) => (
             program.machine_type_parameters(machine),
             machine.lifetime_parameters.as_ref(),
+            machine.symbol,
         ),
         StaticTypeArgumentOwner::Data(data) => (
             program.data_type_parameters(data),
             data.lifetime_parameters.as_ref(),
+            data.symbol,
         ),
     };
     validate_type_reference_handle(
@@ -433,8 +435,11 @@ pub fn validate_static_type_argument(
             owner: caller,
             generic_depth: 0,
         },
-        type_parameters,
-        lifetime_parameters,
+        TypeParameterScope {
+            lexical_owner,
+            type_parameters,
+            lifetime_parameters,
+        },
     );
 }
 
@@ -444,8 +449,7 @@ pub(crate) fn validate_type_reference_handle(
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
-    type_parameters: &[TypeParameter],
-    lifetime_parameters: &[typed_trees::name::Identifier],
+    type_parameter_scope: TypeParameterScope<'_>,
 ) {
     validate_routed_service_carrier_placement(program, type_reference, owner, true, diagnostics);
     // `range-constraints-require-exact-domain`: a range constraint under a
@@ -465,10 +469,7 @@ pub(crate) fn validate_type_reference_handle(
         diagnostics,
         owner,
         false,
-        TypeParameterScope {
-            type_parameters,
-            lifetime_parameters,
-        },
+        type_parameter_scope,
     );
 }
 
@@ -619,6 +620,7 @@ pub(crate) fn validate_generic_instance_argument_bounds(
         base_name.as_str(),
         *arguments,
         TypeParameterScope {
+            lexical_owner: instance.symbol,
             type_parameters: &[],
             lifetime_parameters: &instance.lifetime_parameters,
         },
@@ -890,6 +892,7 @@ fn validate_type_reference_node(
                     program,
                     definition,
                     argument_handles,
+                    lifetime_arguments,
                     base_name.as_str(),
                     symbols,
                     type_parameter_scope,
@@ -940,6 +943,7 @@ fn validate_type_reference_node(
                 program,
                 trait_definition,
                 arguments,
+                &[],
                 name.as_str(),
                 symbols,
                 type_parameter_scope,
@@ -1015,6 +1019,7 @@ fn validate_type_reference_node(
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TypeParameterScope<'program> {
+    pub(crate) lexical_owner: symbols::SymbolHandle,
     pub(crate) type_parameters: &'program [TypeParameter],
     pub(crate) lifetime_parameters: &'program [typed_trees::name::Identifier],
 }

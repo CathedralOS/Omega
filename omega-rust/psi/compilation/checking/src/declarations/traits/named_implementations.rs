@@ -82,13 +82,20 @@ pub(crate) fn validate_conformances(
             continue;
         }
 
+        let applied_lifetimes = conformance
+            .trait_lifetime_arguments
+            .iter()
+            .map(|ordinal| conformance.lifetime_parameters[*ordinal as usize].clone())
+            .collect::<Vec<_>>();
         super::conformance::validate_trait_application_obligations(
             program,
             trait_definition,
             arguments,
+            &applied_lifetimes,
             &format!("conformance `{implementation_name} satisfies {trait_name}`"),
             symbols,
             crate::value_custody::type_references::TypeParameterScope {
+                lexical_owner: conformance.symbol,
                 type_parameters: program
                     .data_type_parameters
                     .span_or_empty(conformance.type_parameters),

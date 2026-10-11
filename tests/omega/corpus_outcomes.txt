@@ -5287,3 +5287,17 @@ fail/providers/inherited_applied_binding_wrong_receiver rejected 5040ms expected
 pass/providers/inherited_applied_binding_dispatch_exit checked 2567ms check-target:macos_arm64 @344ec0329ba8+wt
 pass/providers/inherited_applied_binding_finite_family_exit checked 2579ms check-target:macos_arm64 @344ec0329ba8+wt
 pass/providers/inherited_applied_binding_forwarded_value_exit checked 2554ms check-target:macos_arm64 @344ec0329ba8+wt
+fail/traits/explicit_implementation_const_identity rejected 62ms expected @5449698b9b02
+	`ConsumerMap<i32, 7>` implements `Consumer<Value, SelectedReading<Value, Tag>>`, not the `Consumer<i32, SelectedReading<i32, 19>>` this call of `Consumer::tag` names
+fail/traits/explicit_implementation_const_in_type_argument rejected 65ms expected @5449698b9b02
+	trait `Invalid` parent `Consumer` cannot bind implementation `Reader`: conformance `SelectedReading` parameter `Value` requires a type argument, but `7` has another static category
+fail/traits/explicit_implementation_invocation_region_mismatch rejected 336ms expected @5449698b9b02
+	Uses cannot bind implementation `Reader`: `SelectedReading<<structural type>>` must select a complete `Reading` implementation with the instantiated trait arguments
+fail/traits/explicit_implementation_missing_const_argument rejected 83ms expected @5449698b9b02
+	trait `Incomplete` parent `Consumer` cannot bind implementation `Reader`: generic conformance `SelectedReading` requires 2 explicit non-lifetime argument(s), got 1; expected subject and trait shape never fill its own telescope
+fail/traits/explicit_implementation_nested_type_identity rejected 156ms expected @5449698b9b02
+	trait `Invalid` parent `Consumer` cannot bind implementation `Reader`: `SelectedReading<<structural type>>` must select a complete `Reading` implementation with the instantiated trait arguments
+fail/traits/explicit_implementation_region_mismatch rejected 53ms expected @5449698b9b02
+	trait `Invalid` parent `Uses` cannot bind implementation `Reader`: `SelectedReading<<structural type>>` must select a complete `Reading` implementation with the instantiated trait arguments
+pass/traits/implementation_argument_region_mapping checked 566ms @5449698b9b02
+pass/traits/runtime_explicit_implementation_arguments_exit checked 2834ms check-target:macos_arm64 @5449698b9b02

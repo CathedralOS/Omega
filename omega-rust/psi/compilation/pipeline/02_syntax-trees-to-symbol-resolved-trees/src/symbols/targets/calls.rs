@@ -435,6 +435,7 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
 pub(in crate::symbols) fn assign_static_argument_symbols(
     symbols: &SymbolTable,
     scope_symbol: SymbolHandle,
+    lexical_parameters: &[symbol_resolved_trees::data::TypeParameter],
     argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
     proof_static: bool,
 ) {
@@ -443,6 +444,16 @@ pub(in crate::symbols) fn assign_static_argument_symbols(
         || argument.const_literal.is_some()
     {
         argument.symbol = SymbolHandle::invalid();
+    } else if let [name] = argument.path.as_ref()
+        && let Some(parameter) = lexical_parameters
+            .iter()
+            .find(|parameter| parameter.name == *name)
+    {
+        // A realization uses its owner's telescope without owning another set
+        // of symbol children. Resolve static operands in the same lexical
+        // scope as its parameter/result types, before looking up declarations.
+        // Machine-local shadowing is already settled by declaration_type_scope.
+        argument.symbol = parameter.symbol;
     } else {
         argument.symbol = if proof_static {
             resolve_proposition_binder_argument_symbol(symbols, scope_symbol, &argument.path)
@@ -452,7 +463,7 @@ pub(in crate::symbols) fn assign_static_argument_symbols(
     }
     if let Some(application) = &mut argument.application {
         for nested in &mut application.arguments {
-            assign_static_argument_symbols(symbols, scope_symbol, nested, true);
+            assign_static_argument_symbols(symbols, scope_symbol, lexical_parameters, nested, true);
         }
     }
 }

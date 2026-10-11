@@ -21,6 +21,7 @@ pub(crate) fn validate_trait_application_obligations(
     program: &dyn crate::CheckingInput,
     applied_trait: &TraitDefinition,
     applied_arguments: &[TypeReferenceHandle],
+    applied_lifetime_arguments: &[typed_trees::name::Identifier],
     application_label: &str,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     caller_scope: crate::value_custody::type_references::TypeParameterScope<'_>,
@@ -62,8 +63,7 @@ pub(crate) fn validate_trait_application_obligations(
                     parameter: parameter.name.as_str(),
                     generic_depth: 0,
                 },
-                caller_scope.type_parameters,
-                caller_scope.lifetime_parameters,
+                caller_scope,
             ),
             TypeParameterKind::Const { type_reference }
             | TypeParameterKind::Value { type_reference } => validate_const_application_argument(
@@ -101,6 +101,8 @@ pub(crate) fn validate_trait_application_obligations(
         program,
         applied_trait,
         applied_arguments,
+        applied_lifetime_arguments,
+        caller_scope.lexical_owner,
         application_label,
         diagnostics,
     );

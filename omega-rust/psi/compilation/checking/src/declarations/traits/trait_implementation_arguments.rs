@@ -7,17 +7,25 @@
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::TypeParameterKind;
-use typed_trees::expression::{StaticMachineArgument, StaticSymbolApplication};
 use typed_trees::machine::GenericConformanceBound;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::type_identity::{
+    AppliedTypeIdentityScope, IndexIdentityArgument, applied_type_identity,
+};
+use typed_trees::types::TypeReferenceHandle;
 
-use super::conformance_applications::{close_conformance_application, substituted_type_identity};
+use super::conformance_applications::{
+    applied_bound_argument_identities, close_conformance_application,
+};
 
 pub(super) fn validate_trait_implementation_arguments(
     program: &dyn crate::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let mut validate = |symbol, arguments: &[TypeReferenceHandle], label: String| {
+    let mut validate = |symbol,
+                        arguments: &[TypeReferenceHandle],
+                        lifetime_arguments: &[typed_trees::name::Identifier],
+                        owner: SymbolHandle,
+                        label: String| {
         let Some(definition) = program.trait_definition_by_symbol(symbol) else {
             return;
         };
@@ -25,6 +33,8 @@ pub(super) fn validate_trait_implementation_arguments(
             program,
             definition,
             arguments,
+            lifetime_arguments,
+            owner,
             &label,
             &mut diagnostics,
         );
@@ -36,6 +46,8 @@ pub(super) fn validate_trait_implementation_arguments(
                 program
                     .type_reference_table
                     .type_reference_handles(relationship.arguments),
+                &relationship.lifetime_arguments,
+                definition.symbol,
                 format!("trait `{}` parent `{}`", definition.name, relationship.name),
             );
         }
@@ -45,6 +57,8 @@ pub(super) fn validate_trait_implementation_arguments(
                 program
                     .type_reference_table
                     .type_reference_handles(base.arguments),
+                &base.lifetime_arguments,
+                definition.symbol,
                 format!("trait refinement `{}`", definition.name),
             );
         }
@@ -52,6 +66,8 @@ pub(super) fn validate_trait_implementation_arguments(
             validate(
                 bound.trait_symbol,
                 &bound.arguments,
+                &[],
+                definition.symbol,
                 format!(
                     "trait `{}` evidence binder `{}`",
                     definition.name, bound.binder_name
@@ -60,11 +76,23 @@ pub(super) fn validate_trait_implementation_arguments(
         }
     }
     for implementation in program.conformances() {
+        let lifetimes = implementation
+            .trait_lifetime_arguments
+            .iter()
+            .filter_map(|ordinal| {
+                implementation
+                    .lifetime_parameters
+                    .get(*ordinal as usize)
+                    .cloned()
+            })
+            .collect::<Vec<_>>();
         validate(
             implementation.trait_symbol,
             program
                 .type_reference_table
                 .type_reference_handles(implementation.arguments),
+            &lifetimes,
+            implementation.symbol,
             format!(
                 "implementation `{}`",
                 program.symbols.display_path(implementation.symbol, "::")
@@ -73,11 +101,22 @@ pub(super) fn validate_trait_implementation_arguments(
     }
     for machine in program.machines() {
         for edge in program.machine_trait_conformances(machine) {
+            let owner = match super::conformance::authored_conformance_machine(program, machine) {
+                Ok(owner) => owner,
+                Err(diagnostic) => return Err(vec![diagnostic]),
+            };
+            let lifetimes = edge
+                .trait_lifetime_arguments
+                .iter()
+                .filter_map(|ordinal| owner.lifetime_parameters.get(*ordinal as usize).cloned())
+                .collect::<Vec<_>>();
             validate(
                 edge.symbol,
                 program
                     .type_reference_table
                     .type_reference_handles(edge.arguments),
+                &lifetimes,
+                owner.symbol,
                 format!("machine `{}` satisfaction edge", machine.name),
             );
         }
@@ -85,6 +124,8 @@ pub(super) fn validate_trait_implementation_arguments(
             validate(
                 bound.trait_symbol,
                 &bound.arguments,
+                &[],
+                machine.symbol,
                 format!(
                     "machine `{}` evidence binder `{}`",
                     machine.name, bound.binder_name
@@ -101,24 +142,38 @@ pub(super) fn validate_trait_implementation_arguments(
 
 /// One exact positional evidence telescope, shared by declaration edges and
 /// trait constructors in types. Stored phantom arguments are not exempt.
+/// Both routes retain the caller's owner and applied regions: declaration
+/// parameter names alone cannot identify a region in the consuming scope.
 pub(super) fn validate_trait_implementation_application(
     program: &dyn crate::CheckingInput,
     definition: &typed_trees::trait_definition::TraitDefinition,
     arguments: &[TypeReferenceHandle],
+    lifetime_arguments: &[typed_trees::name::Identifier],
+    owner: SymbolHandle,
     label: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let parameters = program.trait_type_parameters(definition);
     if parameters.len() != arguments.len() {
-        return;
+        return; // The declaration validator owns ordinary arity diagnostics.
     }
+    let lifetimes = definition
+        .lifetime_parameters
+        .iter()
+        .zip(lifetime_arguments)
+        .map(|(parameter, argument)| (parameter.as_str().to_owned(), argument.as_str().to_owned()))
+        .collect::<Vec<_>>();
     let substitutions = parameters
         .iter()
         .zip(arguments)
         .map(|(parameter, argument)| {
             (
                 parameter.symbol,
-                program.normalized_type_identity_text(*argument),
+                if parameter.kind == TypeParameterKind::Type {
+                    IndexIdentityArgument::TypeArgument(*argument)
+                } else {
+                    IndexIdentityArgument::TypeReference(*argument)
+                },
             )
         })
         .collect::<Vec<_>>();
@@ -137,7 +192,17 @@ pub(super) fn validate_trait_implementation_application(
             )));
             continue;
         };
-        if let Err(reason) = validate_binding(program, bound, *argument, &substitutions) {
+        if let Err(reason) = validate_binding(
+            program,
+            bound,
+            *argument,
+            owner,
+            &[AppliedTypeIdentityScope {
+                declaration: definition.symbol,
+                arguments: &substitutions,
+                lifetimes: &lifetimes,
+            }],
+        ) {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} cannot bind implementation `{}`: {reason}",
                 parameter.name
@@ -150,26 +215,72 @@ fn validate_binding(
     program: &dyn crate::CheckingInput,
     bound: &GenericConformanceBound,
     argument: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, String)],
+    owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Result<(), String> {
-    let selected = static_argument(program, argument)?;
+    let selected = program
+        .static_operand_from_type_reference(argument)
+        .map_err(str::to_owned)?;
     if !selected.symbol.is_valid() {
         return Err("expected an explicitly named implementation, not a data argument".to_owned());
     }
     let carrier = super::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
-    let expected_arguments = bound_arguments(program, bound, substitutions);
+    let expected_arguments = applied_bound_argument_identities(program, bound, owner, scopes)
+        .ok_or_else(|| "implementation slot has incomplete applied argument identity".to_owned())?;
     if program.symbols.get(selected.symbol).kind == SymbolKind::ConformanceParameter {
         return super::conformance_applications::validate_forwarded_argument(
             program,
             bound,
             &selected,
-            |actual| bound_arguments(program, actual, &[]) == expected_arguments,
+            |actual| {
+                applied_bound_argument_identities(program, actual, owner, &[])
+                    .is_some_and(|actual| actual == expected_arguments)
+            },
         );
     }
     let application = close_conformance_application(program, &selected)
         .map_err(|diagnostic| diagnostic.message)?;
+    let implementation = program
+        .conformance_by_symbol(application.declaration)
+        .ok_or_else(|| "closed implementation has no declaration".to_owned())?;
+    let actuals = program
+        .conformance_type_parameters(implementation)
+        .iter()
+        .zip(&application.arguments)
+        .map(|(parameter, argument)| {
+            (
+                parameter.symbol,
+                IndexIdentityArgument::StaticArgument(argument),
+            )
+        })
+        .collect::<Vec<_>>();
+    let lifetimes = implementation
+        .lifetime_parameters
+        .iter()
+        .zip(&application.lifetime_arguments)
+        .map(|(parameter, argument)| (parameter.as_str().to_owned(), argument.clone()))
+        .collect::<Vec<_>>();
+    // Compare the declared application under its complete caller-owned tuple.
+    // Rendered commitment payloads do not substitute for exact local identity.
+    let actual_arguments = program
+        .type_reference_table
+        .type_reference_handles(implementation.arguments)
+        .iter()
+        .map(|argument| {
+            applied_type_identity(
+                program.typed_program(),
+                *argument,
+                owner,
+                &[AppliedTypeIdentityScope {
+                    declaration: implementation.symbol,
+                    arguments: &actuals,
+                    lifetimes: &lifetimes,
+                }],
+            )
+        })
+        .collect::<Option<Vec<_>>>();
     if application.trait_definition != carrier.base
-        || application.trait_arguments != expected_arguments
+        || !actual_arguments.is_some_and(|actual| actual == expected_arguments)
     {
         return Err(format!(
             "`{}` must select a complete `{}` implementation with the instantiated trait arguments",
@@ -178,9 +289,6 @@ fn validate_binding(
         ));
     }
     if let Some(refinement) = carrier.refinement {
-        let implementation = program
-            .conformance_by_symbol(application.declaration)
-            .ok_or_else(|| "closed implementation has no declaration".to_owned())?;
         let diagnostics = super::refinement_fit::refinement_fit_diagnostics(
             program,
             refinement,
@@ -193,90 +301,4 @@ fn validate_binding(
         }
     }
     Ok(())
-}
-
-fn bound_arguments(
-    program: &dyn crate::CheckingInput,
-    bound: &GenericConformanceBound,
-    substitutions: &[(SymbolHandle, String)],
-) -> Vec<String> {
-    let identity = |argument, substitutions: &[(SymbolHandle, String)]| {
-        substituted_type_identity(program, argument, substitutions, &[])
-    };
-    let carrier = super::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
-    if let Some((refinement, base)) = carrier
-        .refinement
-        .and_then(|refinement| refinement.refines.as_ref().map(|base| (refinement, base)))
-    {
-        let substitutions = program
-            .trait_type_parameters(refinement)
-            .iter()
-            .zip(&bound.arguments)
-            .map(|(parameter, argument)| (parameter.symbol, identity(*argument, substitutions)))
-            .collect::<Vec<_>>();
-        program
-            .type_reference_table
-            .type_reference_handles(base.arguments)
-            .iter()
-            .map(|argument| identity(*argument, &substitutions))
-            .collect()
-    } else {
-        bound
-            .arguments
-            .iter()
-            .map(|argument| identity(*argument, substitutions))
-            .collect()
-    }
-}
-
-fn static_argument(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Result<StaticMachineArgument, String> {
-    let (symbol, name, application) = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, name } => (*symbol, name.clone(), None),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            base_name,
-            lifetime_arguments,
-            arguments,
-        } => {
-            let arguments = program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-                .iter()
-                .map(|argument| static_argument(program, *argument))
-                .collect::<Result<Vec<_>, _>>()?;
-            (
-                *base_symbol,
-                base_name.clone(),
-                Some(Box::new(StaticSymbolApplication {
-                    lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
-                    arguments: arguments.into_boxed_slice(),
-                })),
-            )
-        }
-        _ => {
-            return Err(
-                "implementation arguments require an explicit named application".to_owned(),
-            );
-        }
-    };
-    let type_reference = if symbol.is_valid()
-        && matches!(
-            program.symbols.get(symbol).kind,
-            SymbolKind::Conformance | SymbolKind::ConformanceParameter
-        ) {
-        TypeReferenceHandle::invalid()
-    } else {
-        reference
-    };
-    Ok(StaticMachineArgument {
-        type_reference,
-        path: Box::from([name]),
-        application,
-        const_literal: None,
-        evidence_projection: None,
-        symbol,
-    })
 }

@@ -42,7 +42,11 @@ pub(crate) fn validate_data_field_types(
             symbols,
             &format!("data `{}`", data_definition.name),
             type_parameters,
-            (type_parameters, &data_definition.lifetime_parameters),
+            crate::value_custody::type_references::TypeParameterScope {
+                lexical_owner: data_definition.symbol,
+                type_parameters,
+                lifetime_parameters: &data_definition.lifetime_parameters,
+            },
             diagnostics,
         );
         validate_generic_instance_argument_bounds(program, data_definition, symbols, diagnostics);
@@ -69,8 +73,11 @@ pub(crate) fn validate_data_field_types(
                         field: field.name.as_str(),
                         generic_depth: 0,
                     },
-                    type_parameters,
-                    &data_definition.lifetime_parameters,
+                    crate::value_custody::type_references::TypeParameterScope {
+                        lexical_owner: data_definition.symbol,
+                        type_parameters,
+                        lifetime_parameters: &data_definition.lifetime_parameters,
+                    },
                 );
                 validate_stored_field_has_a_representation(
                     program,

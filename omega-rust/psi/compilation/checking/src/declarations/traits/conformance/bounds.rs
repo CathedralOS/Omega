@@ -42,6 +42,7 @@ pub(crate) fn validate_generic_conformance_bounds(
         &machine.conformance_bounds,
         symbols,
         crate::value_custody::type_references::TypeParameterScope {
+            lexical_owner: machine.symbol,
             type_parameters: program.machine_type_parameters(machine),
             lifetime_parameters: &machine.lifetime_parameters,
         },
@@ -62,6 +63,7 @@ pub(crate) fn validate_trait_conformance_bounds(
         &trait_definition.conformance_bounds,
         symbols,
         crate::value_custody::type_references::TypeParameterScope {
+            lexical_owner: trait_definition.symbol,
             type_parameters: program.trait_type_parameters(trait_definition),
             lifetime_parameters: &trait_definition.lifetime_parameters,
         },
@@ -109,6 +111,7 @@ fn validate_conformance_bounds(
             program,
             trait_definition,
             &bound.arguments,
+            &[],
             &format!(
                 "{owner_kind} `{owner_name}` evidence binder `{} satisfies {}`",
                 bound.binder_name, bound.trait_name

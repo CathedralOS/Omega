@@ -4,7 +4,9 @@
 
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_proof_facts};
-use crate::value_custody::type_references::{TypeReferenceOwner, validate_type_reference_handle};
+use crate::value_custody::type_references::{
+    TypeParameterScope, TypeReferenceOwner, validate_type_reference_handle,
+};
 use diagnostics::Diagnostic;
 use std::fmt;
 use typed_trees::machine::Machine;
@@ -31,7 +33,11 @@ pub(crate) fn validate_callable_state_signatures(
             symbols,
             &format!("machine `{}`", machine.name),
             program.machine_type_parameters(machine),
-            (&type_parameters, &lifetime_parameters),
+            TypeParameterScope {
+                lexical_owner: machine.symbol,
+                type_parameters: &type_parameters,
+                lifetime_parameters: &lifetime_parameters,
+            },
             diagnostics,
         );
         validate_state_signature_types(
@@ -49,8 +55,11 @@ pub(crate) fn validate_callable_state_signatures(
             symbols,
             diagnostics,
             StateSignatureOwner::Machine(machine),
-            &type_parameters,
-            &lifetime_parameters,
+            TypeParameterScope {
+                lexical_owner: machine.symbol,
+                type_parameters: &type_parameters,
+                lifetime_parameters: &lifetime_parameters,
+            },
         );
         validate_machine_parameter_signatures(
             program,
@@ -116,8 +125,11 @@ pub(crate) fn validate_callable_state_signatures(
                 symbols,
                 diagnostics,
                 StateSignatureOwner::Trait(trait_definition.name.as_str()),
-                &type_parameters,
-                &lifetime_parameters,
+                TypeParameterScope {
+                    lexical_owner: machine.symbol,
+                    type_parameters: &type_parameters,
+                    lifetime_parameters: &lifetime_parameters,
+                },
             );
             validate_machine_parameter_signatures(
                 program,
@@ -220,8 +232,11 @@ fn validate_machine_parameter_signatures<'program>(
             symbols,
             diagnostics,
             StateSignatureOwner::Requirement(parameter.name.as_str()),
-            &local_type_parameters,
-            &local_lifetime_parameters,
+            TypeParameterScope {
+                lexical_owner: contract.symbol,
+                type_parameters: &local_type_parameters,
+                lifetime_parameters: &local_lifetime_parameters,
+            },
         );
         validate_machine_parameter_signatures(
             program,
@@ -241,11 +256,10 @@ fn validate_state_signature_types<'program>(
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: StateSignatureOwner<'program>,
-    type_parameters: &[typed_trees::data::TypeParameter],
-    inherited_lifetime_parameters: &[Identifier],
+    type_parameter_scope: TypeParameterScope<'_>,
 ) {
     for signature in signatures {
-        let mut lifetime_parameters = inherited_lifetime_parameters.to_vec();
+        let mut lifetime_parameters = type_parameter_scope.lifetime_parameters.to_vec();
         for parameter in signature.lifetime_parameters {
             if !lifetime_parameters
                 .iter()
@@ -266,7 +280,7 @@ fn validate_state_signature_types<'program>(
                 .is_some()
                 && (parameter.is_const
                     || parameter.is_mutable
-                    || !type_parameters.is_empty()
+                    || !type_parameter_scope.type_parameters.is_empty()
                     || !signature.lifetime_parameters.is_empty())
             {
                 diagnostics.push(Diagnostic::error(format!(
@@ -286,8 +300,10 @@ fn validate_state_signature_types<'program>(
                     parameter: parameter.name.as_str(),
                     generic_depth: 0,
                 },
-                type_parameters,
-                &lifetime_parameters,
+                TypeParameterScope {
+                    lifetime_parameters: &lifetime_parameters,
+                    ..type_parameter_scope
+                },
             );
         }
 
@@ -302,8 +318,10 @@ fn validate_state_signature_types<'program>(
                     state: signature.name,
                     generic_depth: 0,
                 },
-                type_parameters,
-                &lifetime_parameters,
+                TypeParameterScope {
+                    lifetime_parameters: &lifetime_parameters,
+                    ..type_parameter_scope
+                },
             );
         }
     }

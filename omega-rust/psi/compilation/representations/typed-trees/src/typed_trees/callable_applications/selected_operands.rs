@@ -7,6 +7,120 @@ use super::CallableApplication;
 use crate::{TypedTrees, expression, types};
 
 impl TypedTrees {
+    /// Recover one static operand without duplicating its category authority.
+    /// Applied data stays a complete type payload; named code keeps its own
+    /// recursive telescope. In particular, a const expression is never a type.
+    pub fn static_operand_from_type_reference(
+        &self,
+        reference: types::TypeReferenceHandle,
+    ) -> Result<expression::StaticMachineArgument, &'static str> {
+        use expression::{ExpressionNode, StaticMachineArgument, StaticSymbolApplication};
+        use types::TypeReferenceNode;
+
+        if !reference.is_valid() || !self.type_reference_table.contains_type_reference(reference) {
+            return Err("static operand has no retained type payload");
+        }
+        if let Some(literal) = self.static_const_literal_from_type_reference(reference) {
+            return Ok(StaticMachineArgument {
+                const_literal: Some(literal),
+                ..StaticMachineArgument::default()
+            });
+        }
+        match self.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, name } => Ok(StaticMachineArgument {
+                symbol: *symbol,
+                path: Box::from([name.clone()]),
+                ..StaticMachineArgument::default()
+            }),
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                lifetime_arguments,
+                arguments,
+            } if self.symbols.get(*base_symbol).kind != symbols::SymbolKind::Data => {
+                let arguments = self
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .iter()
+                    .map(|argument| self.static_operand_from_type_reference(*argument))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(StaticMachineArgument {
+                    symbol: *base_symbol,
+                    path: Box::from([base_name.clone()]),
+                    application: Some(Box::new(StaticSymbolApplication {
+                        lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
+                        arguments: arguments.into_boxed_slice(),
+                    })),
+                    ..StaticMachineArgument::default()
+                })
+            }
+            TypeReferenceNode::ConstExpression(value) => match self
+                .expression_table
+                .expression(*value)
+            {
+                ExpressionNode::Name(path) => Ok(StaticMachineArgument {
+                    symbol: path.resolved_symbol().unwrap_or_default(),
+                    path: self
+                        .expression_table
+                        .name_path_members(path.members)
+                        .to_vec()
+                        .into_boxed_slice(),
+                    ..StaticMachineArgument::default()
+                }),
+                ExpressionNode::Boolean(value) => Ok(StaticMachineArgument {
+                    path: Box::from([crate::name::Identifier::generated(
+                        language_semantics::const_value::CanonicalConstValue::boolean(*value)
+                            .atom(),
+                    )]),
+                    ..StaticMachineArgument::default()
+                }),
+                _ => Err("static operand requires a retained declaration or evaluated const value"),
+            },
+            _ => Ok(StaticMachineArgument {
+                type_reference: reference,
+                ..StaticMachineArgument::default()
+            }),
+        }
+    }
+
+    /// Numeric type payloads are retained by older specialization bindings as
+    /// unresolved literal names, and by callable applications as expressions.
+    /// Both denote a const operand, never a second named/type selection.
+    pub fn static_const_literal_from_type_reference(
+        &self,
+        reference: types::TypeReferenceHandle,
+    ) -> Option<numerics::literals::IntegerLiteral> {
+        use numerics::literals::{IntegerLiteral, IntegerRadix};
+        match self.type_reference_table.type_reference(reference) {
+            types::TypeReferenceNode::ConstExpression(value) => {
+                let expression::ExpressionNode::Integer(literal) =
+                    self.expression_table.expression(*value)
+                else {
+                    return None;
+                };
+                Some(literal.clone())
+            }
+            types::TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
+                let mut spelling = name.as_str();
+                let negative = spelling.starts_with('-');
+                if negative {
+                    spelling = &spelling[1..];
+                }
+                let (radix, digits) = if let Some(digits) = spelling.strip_prefix("0b") {
+                    (IntegerRadix::Binary, digits)
+                } else if let Some(digits) = spelling.strip_prefix("0o") {
+                    (IntegerRadix::Octal, digits)
+                } else if let Some(digits) = spelling.strip_prefix("0x") {
+                    (IntegerRadix::Hexadecimal, digits)
+                } else {
+                    (IntegerRadix::Decimal, spelling)
+                };
+                IntegerLiteral::from_parts(negative, radix, digits).ok()
+            }
+            _ => None,
+        }
+    }
+
     /// Project the complete static operand into a type payload without
     /// selecting evidence or discarding its lifetime application.
     pub fn static_operand_type_reference(

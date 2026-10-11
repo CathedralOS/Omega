@@ -109,8 +109,11 @@ fn validate_operator_types(
                 parameter: parameter.name.as_str(),
                 generic_depth: 0,
             },
-            type_parameters,
-            &operator.lifetime_parameters,
+            crate::value_custody::type_references::TypeParameterScope {
+                lexical_owner: operator.symbol,
+                type_parameters,
+                lifetime_parameters: &operator.lifetime_parameters,
+            },
         );
     }
     if operator.return_type.is_valid() {
@@ -123,8 +126,11 @@ fn validate_operator_types(
                 operator: &name,
                 generic_depth: 0,
             },
-            type_parameters,
-            &operator.lifetime_parameters,
+            crate::value_custody::type_references::TypeParameterScope {
+                lexical_owner: operator.symbol,
+                type_parameters,
+                lifetime_parameters: &operator.lifetime_parameters,
+            },
         );
     }
 }

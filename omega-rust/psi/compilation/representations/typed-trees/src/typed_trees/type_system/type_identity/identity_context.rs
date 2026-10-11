@@ -112,40 +112,56 @@ impl TypeIdentityContext<'_> {
             .application_scopes
             .last()
             .map_or(self.application_owner, |scope| scope.declaration);
-        let owner = program.lifetime_declaration_owner(owner);
-        let parameters = program
-            .machine_by_symbol(owner)
-            .map(|owner| &owner.lifetime_parameters)
-            .or_else(|| {
-                program
-                    .conformance_by_symbol(owner)
-                    .map(|owner| &owner.lifetime_parameters)
-            })
-            .or_else(|| {
-                program
-                    .trait_definition_by_symbol(owner)
-                    .map(|owner| &owner.lifetime_parameters)
-            })
-            .or_else(|| {
-                program
-                    .data_definition_by_symbol(owner)
-                    .map(|owner| &owner.lifetime_parameters)
-            });
-        if let Some(ordinal) = parameters.and_then(|parameters| {
-            parameters
-                .iter()
-                .position(|parameter| parameter.as_str() == name)
-        }) {
-            return compound(
-                "region",
-                [
-                    atom(
-                        "owner",
-                        &format!("{}:{}", owner.arena_index(), owner.generation()),
-                    ),
-                    atom("ordinal", &ordinal.to_string()),
-                ],
-            );
+        let mut owner = program.lifetime_declaration_owner(owner);
+        // Invocation signatures own regions even when they have no executable
+        // Machine row. Captured regions retain their enclosing declaration's
+        // identity rather than acquiring the child's parameter ordinal.
+        while owner.is_valid() {
+            let parameters = program
+                .machine_by_symbol(owner)
+                .map(|owner| &owner.lifetime_parameters)
+                .or_else(|| {
+                    program
+                        .conformance_by_symbol(owner)
+                        .map(|owner| &owner.lifetime_parameters)
+                })
+                .or_else(|| {
+                    program
+                        .trait_definition_by_symbol(owner)
+                        .map(|owner| &owner.lifetime_parameters)
+                })
+                .or_else(|| {
+                    program
+                        .data_definition_by_symbol(owner)
+                        .map(|owner| &owner.lifetime_parameters)
+                })
+                .or_else(|| {
+                    program
+                        .trait_machine_signature(owner)
+                        .map(|(_, signature)| &signature.lifetime_parameters)
+                })
+                .or_else(|| {
+                    program
+                        .retained_static_machine_contract(owner)
+                        .map(|contract| &contract.signature().lifetime_parameters)
+                });
+            if let Some(ordinal) = parameters.and_then(|parameters| {
+                parameters
+                    .iter()
+                    .position(|parameter| parameter.as_str() == name)
+            }) {
+                return compound(
+                    "region",
+                    [
+                        atom(
+                            "owner",
+                            &format!("{}:{}", owner.arena_index(), owner.generation()),
+                        ),
+                        atom("ordinal", &ordinal.to_string()),
+                    ],
+                );
+            }
+            owner = program.lifetime_declaration_owner(program.symbols.get(owner).parent);
         }
         if let Some(invalid) = self.invalid_application {
             invalid.set(true);
@@ -348,6 +364,14 @@ fn generic_reference_identity<'program>(
             )],
         );
     }
+    // The declaration's telescope owns argument roles for code selections as
+    // well as data applications. A const in a nested implementation must use
+    // the same index grammar before and after caller-side substitution.
+    let parameters = if context.invalid_application.is_some() {
+        application_parameters(program, symbol)
+    } else {
+        &[]
+    };
     generic_type_identity(
         program,
         symbol,
@@ -360,9 +384,8 @@ fn generic_reference_identity<'program>(
             .enumerate()
             .map(|(ordinal, argument)| {
                 let is_index = context.invalid_application.is_some()
-                    && program
-                        .data_definition_by_symbol(symbol)
-                        .and_then(|data| program.data_type_parameters(data).get(ordinal))
+                    && parameters
+                        .get(ordinal)
                         .is_some_and(|parameter| parameter.kind.is_const_or_value());
                 if is_index {
                     substitution::index_argument(
@@ -376,6 +399,32 @@ fn generic_reference_identity<'program>(
             }),
         context,
     )
+}
+
+fn application_parameters(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> &[crate::data::TypeParameter] {
+    use symbols::SymbolKind;
+    match program.symbols.get(symbol).kind {
+        SymbolKind::Data => program
+            .data_definition_by_symbol(symbol)
+            .map(|declaration| program.data_type_parameters(declaration)),
+        SymbolKind::Domain => crate::domain::domain_by_symbol(program, symbol)
+            .map(|declaration| program.domain_type_parameters(declaration)),
+        SymbolKind::Trait => program
+            .trait_definition_by_symbol(symbol)
+            .map(|declaration| program.trait_type_parameters(declaration)),
+        SymbolKind::Conformance => program
+            .conformance_by_symbol(symbol)
+            .map(|declaration| program.conformance_type_parameters(declaration)),
+        SymbolKind::Machine | SymbolKind::State => program
+            .machine_by_symbol(symbol)
+            .or_else(|| program.machine_holding_state(symbol))
+            .map(|declaration| program.machine_type_parameters(declaration)),
+        _ => None,
+    }
+    .unwrap_or_default()
 }
 
 /// A source static type application and a type-reference application denote

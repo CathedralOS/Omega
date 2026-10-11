@@ -15,9 +15,11 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::typed_trees::StaticRequirementDispatch;
-use validation::conformance_applications::{
-    close_conformance_application, substituted_type_identity, type_argument_identity,
-};
+use typed_trees::types::TypeReferenceHandle;
+use validation::conformance_applications::close_conformance_application;
+
+mod application_arguments;
+use application_arguments::{ApplicationArguments, ApplicationScope};
 
 struct ExplicitRequirementRewrite {
     call: ExpressionHandle,
@@ -52,29 +54,36 @@ pub(crate) fn route_explicit_requirement_calls(
     }
     let mut rewrites = Vec::new();
     let mut diagnostics = Vec::new();
-    for (handle, node) in program.expression_table.iter_expressions() {
-        let ExpressionNode::Call(call) = node else {
-            continue;
-        };
-        let Some((requirement, declaring_trait)) = requirements
-            .iter()
-            .find(|(requirement, _)| *requirement == call.target_symbol)
-        else {
-            continue;
-        };
-        if !call
-            .machine_arguments
-            .iter()
-            .any(|argument| names_implementation(program, argument))
-        {
-            continue;
-        }
+    let calls = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, node)| {
+            let ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            let (requirement, declaring_trait) = requirements
+                .iter()
+                .find(|(requirement, _)| *requirement == call.target_symbol)?;
+            call.machine_arguments
+                .iter()
+                .any(|argument| names_implementation(program, argument))
+                .then(|| {
+                    (
+                        handle,
+                        *requirement,
+                        *declaring_trait,
+                        call.machine_arguments.clone(),
+                    )
+                })
+        })
+        .collect::<Vec<_>>();
+    for (handle, requirement, declaring_trait, arguments) in calls {
         match explicit_requirement_rewrite(
             program,
             handle,
-            *requirement,
-            *declaring_trait,
-            &call.machine_arguments,
+            requirement,
+            declaring_trait,
+            &arguments,
         ) {
             Ok(rewrite) => rewrites.push(rewrite),
             Err(message) => diagnostics.push(
@@ -123,7 +132,7 @@ fn names_implementation(
 /// The implementation is the last static argument; every argument before it
 /// is the trait's application, in the trait's declaration order.
 fn explicit_requirement_rewrite(
-    program: &dyn ::validation::CheckingInput,
+    program: &mut TypedTrees,
     call: ExpressionHandle,
     requirement: SymbolHandle,
     declaring_trait: SymbolHandle,
@@ -133,16 +142,55 @@ fn explicit_requirement_rewrite(
     let Some((implementation, trait_arguments)) = arguments.split_last() else {
         return Err(format!("`{requirement_name}` names no implementation"));
     };
+    let definition = program
+        .trait_definition_by_symbol(declaring_trait)
+        .ok_or_else(|| format!("`{requirement_name}` lost its declaring trait"))?;
+    let parameters = program.trait_type_parameters(definition);
     if !names_implementation(program, implementation)
-        || trait_arguments
+        || trait_arguments.len() != parameters.len()
+        || parameters
             .iter()
-            .any(|argument| names_implementation(program, argument))
+            .zip(trait_arguments)
+            .any(|(parameter, argument)| {
+                (parameter.kind == typed_trees::data::TypeParameterKind::Implementation)
+                    != names_implementation(program, argument)
+            })
     {
         return Err(format!(
             "`{requirement_name}` names its implementation as its one last static argument, after the trait's arguments"
         ));
     }
-    let request = ExplicitApplication {
+    let trait_references = trait_arguments
+        .iter()
+        .map(|argument| {
+            program
+                .static_operand_type_reference(argument)
+                .map_err(str::to_owned)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let implementation_references = implementation
+        .application
+        .as_ref()
+        .map_or(&[][..], |application| &application.arguments)
+        .iter()
+        .map(|argument| {
+            program
+                .static_operand_type_reference(argument)
+                .map_err(str::to_owned)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let lexical_owner = program
+        .expression_table
+        .call_node(call)
+        .filter(|call| call.authored_machine_application.is_valid())
+        .map(|call| {
+            program
+                .expression_table
+                .static_machine_application(call.authored_machine_application)
+                .lexical_owner
+        })
+        .unwrap_or_default();
+    let mut request = ExplicitApplication {
         program,
         call,
         requirement,
@@ -150,8 +198,11 @@ fn explicit_requirement_rewrite(
         declaring_trait,
         trait_arguments,
         implementation,
+        trait_references,
+        implementation_references,
+        lexical_owner,
     };
-    if program.symbols.get(implementation.symbol).kind == SymbolKind::ConformanceParameter {
+    if request.program.symbols.get(implementation.symbol).kind == SymbolKind::ConformanceParameter {
         request.through_binder()
     } else {
         request.through_implementation()
@@ -159,21 +210,27 @@ fn explicit_requirement_rewrite(
 }
 
 struct ExplicitApplication<'a> {
-    program: &'a dyn ::validation::CheckingInput,
+    program: &'a mut TypedTrees,
     call: ExpressionHandle,
     requirement: SymbolHandle,
     requirement_name: String,
     declaring_trait: SymbolHandle,
     trait_arguments: &'a [StaticMachineArgument],
     implementation: &'a StaticMachineArgument,
+    trait_references: Vec<TypeReferenceHandle>,
+    implementation_references: Vec<TypeReferenceHandle>,
+    lexical_owner: SymbolHandle,
 }
 
 impl ExplicitApplication<'_> {
-    fn through_implementation(&self) -> Result<ExplicitRequirementRewrite, String> {
-        let program = self.program;
+    fn through_implementation(&mut self) -> Result<ExplicitRequirementRewrite, String> {
+        let program = &*self.program;
         let application = close_conformance_application(program, self.implementation)
             .map_err(|diagnostic| diagnostic.message)?;
-        let Some(conformance) = program.conformance_by_symbol(application.declaration) else {
+        let Some(conformance) = program
+            .conformance_by_symbol(application.declaration)
+            .cloned()
+        else {
             return Err(format!(
                 "`{}` does not name an implementation",
                 self.implementation.display_name()
@@ -185,13 +242,39 @@ impl ExplicitApplication<'_> {
                 .type_reference_table
                 .type_reference_handles(conformance.arguments),
         );
-        let Some(expected) = self.declaring_application(
-            application.trait_definition,
-            application.trait_arguments.clone(),
-        ) else {
-            return Err(self.wrong_trait(&implemented));
+        let scope = ApplicationScope::new(
+            conformance.symbol,
+            program.conformance_type_parameters(&conformance),
+            &self.implementation_references,
+            conformance
+                .lifetime_parameters
+                .iter()
+                .map(|parameter| parameter.as_str().to_owned())
+                .zip(application.lifetime_arguments.iter().cloned())
+                .collect(),
+        )
+        .ok_or_else(|| self.wrong_trait(&implemented))?;
+        let lifetimes = conformance
+            .trait_lifetime_arguments
+            .iter()
+            .map(|ordinal| {
+                conformance
+                    .lifetime_parameters
+                    .get(*ordinal as usize)
+                    .map(|name| name.as_str().to_owned())
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| self.wrong_trait(&implemented))?;
+        let expected = ApplicationArguments {
+            declaration: application.trait_definition,
+            arguments: program
+                .type_reference_table
+                .type_reference_handles(conformance.arguments)
+                .to_vec(),
+            lifetimes,
+            scopes: vec![scope],
         };
-        self.check_trait_arguments(&implemented, &expected)?;
+        self.check_trait_arguments(&implemented, expected)?;
         let Some(row) = conformance
             .rows
             .iter()
@@ -228,14 +311,18 @@ impl ExplicitApplication<'_> {
 
     /// A binder's placeholder children are its trait's requirement closure in
     /// order, the same order specialization rewrites when it binds them.
-    fn through_binder(&self) -> Result<ExplicitRequirementRewrite, String> {
-        let program = self.program;
+    fn through_binder(&mut self) -> Result<ExplicitRequirementRewrite, String> {
+        if self.implementation.application.is_some() {
+            return Err("an implementation evidence binder is already selected and takes no application arguments".to_owned());
+        }
+        let program = &*self.program;
         let binder = self.implementation.symbol;
         let Some(bound) = program
             .machines()
             .iter()
             .flat_map(|machine| machine.conformance_bounds.iter())
             .find(|bound| bound.binder == binder)
+            .cloned()
         else {
             return Err(format!(
                 "evidence binder `{}` has no declared trait",
@@ -259,15 +346,6 @@ impl ExplicitApplication<'_> {
         else {
             return Err(self.wrong_trait(&bounded));
         };
-        let declared = bound
-            .arguments
-            .iter()
-            .map(|argument| program.normalized_type_identity_text(*argument))
-            .collect::<Vec<_>>();
-        let Some(expected) = self.declaring_application(bound.trait_symbol, declared) else {
-            return Err(self.wrong_trait(&bounded));
-        };
-        self.check_trait_arguments(&bounded, &expected)?;
         let Some(placeholder) = program
             .symbols
             .child_handles(binder)
@@ -281,10 +359,20 @@ impl ExplicitApplication<'_> {
                 self.requirement_name
             ));
         };
+        let target_name = typed_trees::name::Identifier::generated(closure[position].name.as_str());
+        self.check_trait_arguments(
+            &bounded,
+            ApplicationArguments {
+                declaration: bound.trait_symbol,
+                arguments: bound.arguments.clone(),
+                lifetimes: Vec::new(),
+                scopes: Vec::new(),
+            },
+        )?;
         Ok(ExplicitRequirementRewrite {
             call: self.call,
             target: placeholder,
-            name: typed_trees::name::Identifier::generated(closure[position].name.as_str()),
+            name: target_name,
             application_arguments: Box::default(),
             dispatch: None,
             binder_receiver: Some((bound.binder_name.clone(), binder)),
@@ -330,57 +418,22 @@ impl ExplicitApplication<'_> {
         )
     }
 
-    /// The application of the requirement's declaring trait that an
-    /// implementation of `implemented` with `arguments` (type identities) also
-    /// supplies: the trait itself, or a parent reached through its inheritance
-    /// edges with each child's parameters substituted into the parent's
-    /// arguments. `None` when the declaring trait is not among them.
-    fn declaring_application(
-        &self,
-        implemented: SymbolHandle,
-        arguments: Vec<String>,
-    ) -> Option<Vec<String>> {
-        let program = self.program;
-        let mut pending = vec![(implemented, arguments)];
-        let mut visited = Vec::new();
-        while let Some((trait_symbol, arguments)) = pending.pop() {
-            if trait_symbol == self.declaring_trait {
-                return Some(arguments);
-            }
-            if visited.contains(&trait_symbol) {
-                continue;
-            }
-            visited.push(trait_symbol);
-            let definition = program.trait_definition_by_symbol(trait_symbol)?;
-            let substitutions = program
-                .trait_type_parameters(definition)
-                .iter()
-                .map(|parameter| parameter.symbol)
-                .zip(arguments)
-                .collect::<Vec<_>>();
-            for parent in program.trait_requirements(definition) {
-                let parent_arguments = program
-                    .type_reference_table
-                    .type_reference_handles(parent.arguments)
-                    .iter()
-                    .map(|argument| {
-                        substituted_type_identity(program, *argument, &substitutions, &[])
-                    })
-                    .collect();
-                pending.push((parent.symbol, parent_arguments));
-            }
-        }
-        None
-    }
-
-    fn check_trait_arguments(&self, implemented: &str, expected: &[String]) -> Result<(), String> {
-        let supplied = self
-            .trait_arguments
-            .iter()
-            .map(|argument| type_argument_identity(self.program, argument))
-            .collect::<Vec<_>>();
-        if supplied == expected {
-            return Ok(());
+    fn check_trait_arguments(
+        &mut self,
+        implemented: &str,
+        expected: ApplicationArguments,
+    ) -> Result<(), String> {
+        let matched = application_arguments::matches_declaring_application(
+            self.program,
+            self.lexical_owner,
+            self.declaring_trait,
+            &self.trait_references,
+            expected,
+        );
+        match matched {
+            Some(true) => return Ok(()),
+            None => return Err(self.wrong_trait(implemented)),
+            Some(false) => {}
         }
         Err(format!(
             "`{}` {} `{implemented}`, not the `{}<{}>` this call of `{}` names",

@@ -56,8 +56,11 @@ pub(crate) fn validate_domain_definitions(
                 domain: domain.name.as_str(),
                 generic_depth: 0,
             },
-            program.domain_type_parameters(domain),
-            &[],
+            crate::value_custody::type_references::TypeParameterScope {
+                lexical_owner: domain.symbol,
+                type_parameters: program.domain_type_parameters(domain),
+                lifetime_parameters: &[],
+            },
         );
         validate_domain_fact_payloads(
             program,

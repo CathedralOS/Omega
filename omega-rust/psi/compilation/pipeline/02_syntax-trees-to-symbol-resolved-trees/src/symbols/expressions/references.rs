@@ -254,7 +254,13 @@ pub(super) fn assign_call_symbol(
                                 | SymbolKind::PropositionParameter
                                 | SymbolKind::MathematicalDefinition
                         );
-                    assign_static_argument_symbols(symbols, machine.symbol, argument, proof_static);
+                    assign_static_argument_symbols(
+                        symbols,
+                        machine.symbol,
+                        machine.type_parameters,
+                        argument,
+                        proof_static,
+                    );
                     if !proof_static {
                         assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
                     }

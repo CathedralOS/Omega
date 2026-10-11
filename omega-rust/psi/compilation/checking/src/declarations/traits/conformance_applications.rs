@@ -375,17 +375,12 @@ fn close_const_argument(
         ));
     }
     if program.symbols.get(argument.symbol).kind == SymbolKind::TypeParameter {
-        let matching = program
-            .data_type_parameters
-            .iter()
-            .map(|(_, parameter)| parameter)
-            .filter(|parameter| parameter.symbol == argument.symbol)
-            .collect::<Vec<_>>();
-        let [binder] = matching.as_slice() else {
+        // Lowered realization signatures may retain copies of their owner's
+        // telescope. The exact symbol names one declaration, not one arena row.
+        let Some(binder) = program.data_type_parameter_by_symbol(argument.symbol) else {
             return Err(Diagnostic::error(format!(
-                "conformance `{conformance}` parameter `{parameter}` resolves caller const binder `{}` to {} declarations; expected exactly one",
+                "conformance `{conformance}` parameter `{parameter}` names const binder `{}` without its declaration",
                 argument.display_name(),
-                matching.len(),
             )));
         };
         let TypeParameterKind::Const {

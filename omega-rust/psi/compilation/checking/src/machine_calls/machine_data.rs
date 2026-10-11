@@ -26,8 +26,11 @@ pub(crate) fn validate_owned_data(
                 data: owned_data.name.as_str(),
                 generic_depth: 0,
             },
-            program.machine_type_parameters(machine),
-            &machine.lifetime_parameters,
+            crate::value_custody::type_references::TypeParameterScope {
+                lexical_owner: machine.symbol,
+                type_parameters: program.machine_type_parameters(machine),
+                lifetime_parameters: &machine.lifetime_parameters,
+            },
         );
 
         if owned_data.initial_value.is_valid() {

@@ -69,12 +69,14 @@ pub(crate) fn validate_trait_requirements(
                     program
                         .type_reference_table
                         .type_reference_handles(requirement.arguments),
+                    &requirement.lifetime_arguments,
                     &format!(
                         "trait `{}` parent `{}`",
                         trait_definition.name, requirement.name
                     ),
                     symbols,
                     crate::value_custody::type_references::TypeParameterScope {
+                        lexical_owner: trait_definition.symbol,
                         type_parameters: program.trait_type_parameters(trait_definition),
                         lifetime_parameters: &trait_definition.lifetime_parameters,
                     },

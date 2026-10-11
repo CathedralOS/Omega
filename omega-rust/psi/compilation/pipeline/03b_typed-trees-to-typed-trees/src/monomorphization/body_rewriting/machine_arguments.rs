@@ -2,8 +2,7 @@
 
 use crate::monomorphization::selection::state_by_symbol;
 use crate::monomorphization::{
-    Candidate, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
-    TypedTrees,
+    Candidate, StaticMachineArgument, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 
 pub(crate) fn substitute_machine_parameter_type_references(
@@ -86,7 +85,9 @@ pub(crate) fn forwarded_static_argument_rewrites(
         .iter()
         .zip(candidate.type_bindings.iter())
         .filter_map(|((parameter, _), binding)| {
-            static_argument_from_type_reference(program, binding.as_ref().copied()?)
+            program
+                .static_operand_from_type_reference(binding.as_ref().copied()?)
+                .ok()
                 .map(|argument| (*parameter, argument))
         })
         .chain(
@@ -103,20 +104,7 @@ pub(crate) fn forwarded_static_argument_rewrites(
                         return None;
                     }
                     let binding = binding.as_ref().copied()?;
-                    let argument = if let Some(literal) =
-                        static_const_literal_from_type_reference(program, binding)
-                    {
-                        StaticMachineArgument {
-                            type_reference: TypeReferenceHandle::invalid(),
-                            path: Box::default(),
-                            application: None,
-                            const_literal: Some(literal),
-                            evidence_projection: None,
-                            symbol: SymbolHandle::invalid(),
-                        }
-                    } else {
-                        static_argument_from_type_reference(program, binding)?
-                    };
+                    let argument = program.static_operand_from_type_reference(binding).ok()?;
                     Some((*parameter, argument))
                 }),
         )
@@ -147,78 +135,4 @@ pub(crate) fn forwarded_static_argument_rewrites(
                 }),
         )
         .collect()
-}
-
-pub(crate) fn static_argument_from_type_reference(
-    program: &dyn ::validation::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> Option<StaticMachineArgument> {
-    if !program.type_reference_table.contains_type_reference(handle) || !handle.is_valid() {
-        return None;
-    }
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Named { symbol, name } => Some(StaticMachineArgument {
-            type_reference: TypeReferenceHandle::invalid(),
-            path: vec![name.clone()].into_boxed_slice(),
-            application: None,
-            const_literal: None,
-            evidence_projection: None,
-            symbol: *symbol,
-        }),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            base_name,
-            lifetime_arguments,
-            arguments,
-        } => Some(StaticMachineArgument {
-            type_reference: TypeReferenceHandle::invalid(),
-            path: vec![base_name.clone()].into_boxed_slice(),
-            application: Some(Box::new(typed_trees::expression::StaticSymbolApplication {
-                lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
-                arguments: program
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .map(|argument| static_argument_from_type_reference(program, *argument))
-                    .collect::<Option<Vec<_>>>()?
-                    .into_boxed_slice(),
-            })),
-            const_literal: None,
-            evidence_projection: None,
-            symbol: *base_symbol,
-        }),
-        _ => Some(StaticMachineArgument {
-            type_reference: handle,
-            path: Box::default(),
-            application: None,
-            const_literal: None,
-            evidence_projection: None,
-            symbol: SymbolHandle::invalid(),
-        }),
-    }
-}
-
-pub(crate) fn static_const_literal_from_type_reference(
-    program: &dyn ::validation::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> Option<numerics::literals::IntegerLiteral> {
-    let TypeReferenceNode::Named { name, .. } = program.type_reference_table.type_reference(handle)
-    else {
-        return None;
-    };
-    let mut spelling = name.as_str();
-    let negative = spelling.starts_with('-');
-    if negative {
-        spelling = &spelling[1..];
-    }
-    let (radix, digits) = if let Some(digits) = spelling.strip_prefix("0b") {
-        (numerics::literals::IntegerRadix::Binary, digits)
-    } else if let Some(digits) = spelling.strip_prefix("0o") {
-        (numerics::literals::IntegerRadix::Octal, digits)
-    } else if let Some(digits) = spelling.strip_prefix("0x") {
-        (numerics::literals::IntegerRadix::Hexadecimal, digits)
-    } else {
-        (numerics::literals::IntegerRadix::Decimal, spelling)
-    };
-    numerics::literals::IntegerLiteral::from_parts(negative, radix, digits).ok()
 }

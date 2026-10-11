@@ -46,8 +46,11 @@ pub(super) fn validate(
             local: local_data.name.as_str(),
             generic_depth: 0,
         },
-        &type_parameters,
-        &lifetime_parameters,
+        crate::value_custody::type_references::TypeParameterScope {
+            lexical_owner: machine.symbol,
+            type_parameters: &type_parameters,
+            lifetime_parameters: &lifetime_parameters,
+        },
     );
     let local_target_primitive = program.primitive_type_reference(local_data.type_reference);
     // An array-literal initializer (`let a: [T; N] = [300, ..]`) is checked

@@ -186,6 +186,7 @@ pub fn validate_closed_const_argument(
         type_reference,
         argument,
         TypeParameterScope {
+            lexical_owner: symbols::SymbolHandle::invalid(),
             type_parameters: &[],
             lifetime_parameters: &[],
         },
@@ -226,6 +227,7 @@ pub(crate) fn const_argument_matches_parameter(
         type_reference,
         argument,
         TypeParameterScope {
+            lexical_owner: symbols::SymbolHandle::invalid(),
             type_parameters: caller_parameters,
             lifetime_parameters: &[],
         },
@@ -977,10 +979,9 @@ pub(crate) fn validate_const_binder_carriers(
     symbols: &TopLevelSymbols<'_>,
     owner: &str,
     parameters: &[TypeParameter],
-    scope: (&[TypeParameter], &[typed_trees::name::Identifier]),
+    scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let (scope_type_parameters, scope_lifetime_parameters) = scope;
     for parameter in parameters {
         let (TypeParameterKind::Const {
             type_reference: carrier,
@@ -1001,8 +1002,7 @@ pub(crate) fn validate_const_binder_carriers(
                 parameter: parameter.name.as_str(),
                 generic_depth: 0,
             },
-            scope_type_parameters,
-            scope_lifetime_parameters,
+            scope,
         );
         let Some(primitive_type) = program
             .type_reference_table

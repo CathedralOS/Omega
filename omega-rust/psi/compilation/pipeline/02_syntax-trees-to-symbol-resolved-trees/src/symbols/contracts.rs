@@ -432,7 +432,13 @@ fn assign_contract_call_symbols(
                                 | SymbolKind::PropositionParameter
                                 | SymbolKind::MathematicalDefinition
                         );
-                    assign_static_argument_symbols(symbols, machine.symbol, argument, proof_static);
+                    assign_static_argument_symbols(
+                        symbols,
+                        machine.symbol,
+                        machine.type_parameters,
+                        argument,
+                        proof_static,
+                    );
                 }
             }
         }

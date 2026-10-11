@@ -65,6 +65,13 @@ pub(crate) fn validate_machine_trait_conformances(
             )));
             continue;
         };
+        let authored_machine = match authored_conformance_machine(program, machine) {
+            Ok(owner) => owner,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
         let expected_lifetime_arguments = trait_definition.lifetime_parameters.len();
         if conformance.trait_lifetime_arguments.len() != expected_lifetime_arguments {
             diagnostics.push(Diagnostic::error(format!(
@@ -76,8 +83,9 @@ pub(crate) fn validate_machine_trait_conformances(
             continue;
         }
         if conformance.trait_lifetime_arguments.iter().any(|ordinal| {
-            usize::try_from(*ordinal)
-                .map_or(true, |ordinal| ordinal >= machine.lifetime_parameters.len())
+            usize::try_from(*ordinal).map_or(true, |ordinal| {
+                ordinal >= authored_machine.lifetime_parameters.len()
+            })
         }) {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` conformance to trait `{}` retains a target-trait lifetime outside its machine telescope",
@@ -99,23 +107,23 @@ pub(crate) fn validate_machine_trait_conformances(
             continue;
         }
 
-        let authored_machine = match authored_conformance_machine(program, machine) {
-            Ok(owner) => owner,
-            Err(diagnostic) => {
-                diagnostics.push(diagnostic);
-                continue;
-            }
-        };
+        let applied_lifetimes = conformance
+            .trait_lifetime_arguments
+            .iter()
+            .map(|ordinal| authored_machine.lifetime_parameters[*ordinal as usize].clone())
+            .collect::<Vec<_>>();
         validate_trait_application_obligations(
             program,
             trait_definition,
             explicit_type_arguments,
+            &applied_lifetimes,
             &format!(
                 "machine `{}` conformance to trait `{}`",
                 machine.name, trait_definition.name
             ),
             symbols,
             crate::value_custody::type_references::TypeParameterScope {
+                lexical_owner: authored_machine.symbol,
                 type_parameters: program.machine_type_parameters(authored_machine),
                 lifetime_parameters: &authored_machine.lifetime_parameters,
             },
