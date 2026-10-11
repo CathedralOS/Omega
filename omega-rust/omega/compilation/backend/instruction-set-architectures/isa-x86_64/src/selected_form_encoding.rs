@@ -126,6 +126,44 @@ pub(super) fn hosted_alternative_declaration(
     }
 }
 
+/// The canonical rflags-clobbering footprint for memory-form encoders whose
+/// operands split contiguously: the first `read_count` operands are the
+/// register reads (external reads `0..read_count`), the rest the register
+/// writes (external writes `read_count..len`), under the unchanged-stack,
+/// architectural-fault, fall-through effects every byte-sequence encoder
+/// declares.
+pub(super) fn canonical_effects_encoding(
+    physical: &ValidatedPhysicalRegisterModel,
+    operands: &[RegisterViewId],
+    bytes: &[u8],
+    read_count: usize,
+    memory: MachineEncodedMemoryEffect,
+) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    let flags = physical
+        .model()
+        .view_named("rflags")
+        .ok_or(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel)?;
+    Ok(ValidatedX86_64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: X86_64SelectedFormFootprint {
+            register_reads: operands[..read_count].to_vec(),
+            register_writes: operands[read_count..].to_vec(),
+            writes_rflags: true,
+            encoded: MachineEncodedEffects {
+                external_operand_reads: (0..read_count as u16).collect(),
+                external_operand_writes: (read_count as u16..operands.len() as u16).collect(),
+                implicit_unit_uses: Vec::new(),
+                implicit_unit_defs: Vec::new(),
+                implicit_unit_clobbers: flags.units.clone(),
+                memory,
+                stack: MachineEncodedStackEffect::UnchangedV1,
+                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                control: MachineEncodedControlEffect::FallThroughV1,
+            },
+        },
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86_64SelectedFormFootprint {
     pub register_reads: Vec<RegisterViewId>,

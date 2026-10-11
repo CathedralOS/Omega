@@ -1,11 +1,9 @@
 //! Exact live-byte copy with explicit scratch registers and local control flow.
 
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, RegisterViewId, ValidatedPhysicalRegisterModel,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
+    RegisterViewId, ValidatedPhysicalRegisterModel,
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
-    X86_64SelectedFormFootprint,
 };
 use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
 use crate::selected_form_encoding::request_validation::resolve_registers;
@@ -87,33 +85,17 @@ pub(super) fn validate(
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    let flags = physical
-        .model()
-        .view_named("rflags")
-        .ok_or(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel)?;
-    Ok(ValidatedX86_64SelectedFormEncoding {
-        bytes: bytes.to_vec(),
-        footprint: X86_64SelectedFormFootprint {
-            register_reads: operands[..3].to_vec(),
-            register_writes: operands[3..].to_vec(),
-            writes_rflags: true,
-            encoded: MachineEncodedEffects {
-                external_operand_reads: vec![0, 1, 2],
-                external_operand_writes: vec![3, 4],
-                implicit_unit_uses: Vec::new(),
-                implicit_unit_defs: Vec::new(),
-                implicit_unit_clobbers: flags.units.clone(),
-                memory: MachineEncodedMemoryEffect::CopyBytesV1 {
+    super::canonical_effects_encoding(
+        physical,
+        operands,
+        bytes,
+        3,
+        MachineEncodedMemoryEffect::CopyBytesV1 {
                     source_pointer_operand: 0,
                     destination_pointer_operand: 1,
                     count_operand: 2,
                 },
-                stack: MachineEncodedStackEffect::UnchangedV1,
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: MachineEncodedControlEffect::FallThroughV1,
-            },
-        },
-    })
+    )
 }
 
 /// Decode one REX.W register-direct instruction `opcode r/m64, r64` and

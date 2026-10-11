@@ -3,11 +3,9 @@
 //! stored byte is an immediate, so no register carries the zero.
 
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, RegisterViewId, ValidatedPhysicalRegisterModel,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
+    RegisterViewId, ValidatedPhysicalRegisterModel,
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
-    X86_64SelectedFormFootprint,
 };
 use crate::selected_form_encoding::copy_bytes::register_instruction;
 use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
@@ -86,32 +84,16 @@ pub(super) fn validate(
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    let flags = physical
-        .model()
-        .view_named("rflags")
-        .ok_or(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel)?;
-    Ok(ValidatedX86_64SelectedFormEncoding {
-        bytes: bytes.to_vec(),
-        footprint: X86_64SelectedFormFootprint {
-            register_reads: operands[..2].to_vec(),
-            register_writes: operands[2..].to_vec(),
-            writes_rflags: true,
-            encoded: MachineEncodedEffects {
-                external_operand_reads: vec![0, 1],
-                external_operand_writes: vec![2],
-                implicit_unit_uses: Vec::new(),
-                implicit_unit_defs: Vec::new(),
-                implicit_unit_clobbers: flags.units.clone(),
-                memory: MachineEncodedMemoryEffect::ZeroBytesV1 {
+    super::canonical_effects_encoding(
+        physical,
+        operands,
+        bytes,
+        2,
+        MachineEncodedMemoryEffect::ZeroBytesV1 {
                     destination_pointer_operand: 0,
                     count_operand: 1,
                 },
-                stack: MachineEncodedStackEffect::UnchangedV1,
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: MachineEncodedControlEffect::FallThroughV1,
-            },
-        },
-    })
+    )
 }
 
 /// `mov byte [base + cursor*1 + disp32], imm8` with a zero displacement and
