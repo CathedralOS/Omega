@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 10.8, "load1_start": 8.93, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 1.35, "load1_start": 0.88, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -59,14 +59,11 @@ pass/borrow/runtime_exclusive_loan_local_write_exit built 747ms exit:70 @2d8ed25
 pass/borrow/runtime_method_view_write_after_last_use_exit built 1370ms exit:70 @9baafc0ace88
 pass/borrow/write_only_constrained_record_field checked 281ms @2d8ed253669f+wt
 pass/borrow/write_only_whole_scalar_replace checked 275ms @2d8ed253669f+wt
-pass/borrows/borrow_domain_window_write_and_call rejected 6561ms @aeb3a47a1e0
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(27), place: PlaceId(6) }))
+pass/borrows/borrow_domain_window_write_and_call built 5146ms exit:0 @130503d5df59
 pass/borrows/borrow_guarded_window_write_and_call checked 268ms @2d8ed253669f+wt
-pass/borrows/borrow_returned_window_write_and_call rejected 6580ms @aeb3a47a1e0
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(28), place: PlaceId(6) }))
+pass/borrows/borrow_returned_window_write_and_call built 5152ms exit:0 @130503d5df59
 pass/borrows/borrow_stated_index_disequality_mut checked 269ms @2d8ed253669f+wt
-pass/borrows/branch_selected_record_composed_receiver_exit rejected 1143ms @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`CommandSource::connect`), which was itself omitted at local construction at `outer calls: structural operands`
+pass/borrows/branch_selected_record_composed_receiver_exit built 6982ms exit:70 @130503d5df59
 pass/borrows/branch_selected_record_receiver_exit built 2553ms exit:70 @8735cafb4cf
 pass/borrows/case_payload_state_loan_exit built 4101ms exit:70 @c773c4ad3c34
 pass/borrows/local_fixed_array_shared_state_loan_exit built 6843ms exit:70 stdout:match @42528495d791
@@ -75,10 +72,8 @@ pass/borrows/owned_byte_value_call_exit built 10173ms exit:70 @0df0a0c4183
 pass/borrows/projected_indexed_member_loan built 743ms @2d8ed253669f+wt
 pass/borrows/projected_local_member_loan built 767ms @2d8ed253669f+wt
 pass/borrows/projected_param_member_loan built 763ms exit:0 @2d8ed253669f+wt
-pass/borrows/projected_reference_record_argument_exit rejected 1242ms @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`exercise`), which was itself omitted at local construction at `call operation: structural arguments: caller structural result`
-pass/borrows/projected_reference_record_residual_exit rejected 1134ms @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`exercise`), which was itself omitted at local construction at `call operation: structural arguments: caller structural result`
+pass/borrows/projected_reference_record_argument_exit built 6750ms exit:29 @130503d5df59
+pass/borrows/projected_reference_record_residual_exit built 6985ms exit:29 @130503d5df59
 pass/borrows/projected_scalar_member_loan built 751ms @2d8ed253669f+wt
 pass/borrows/runtime_array_primitive_reference_capture_exit built 2933ms exit:0 @3f342b86d6b4
 pass/borrows/runtime_carrier_reference_reselection_exit built 14396ms exit:70 @c126b22315d4
@@ -246,6 +241,8 @@ pass/calls/state_and_machine_names_exit built 540ms exit:0 @2d8ed253669f+wt
 pass/calls/statement_call_recursive_overload_compile checked 322ms @2d8ed253669f+wt
 pass/calls/structural_mut_to_shared_argument built 410ms @2d8ed253669f+wt
 pass/calls/structural_self_rooted_argument built 418ms @2d8ed253669f+wt
+pass/calls/terminal_call_acknowledgements built 7354ms exit:0 stdout:match stderr:match @1ade44fe20d0+wt
+pass/calls/terminal_call_acknowledgements_declarations checked 1166ms @1ade44fe20d0+wt
 pass/calls/transition_arg_local_from_embedded_call_exit built 1367ms exit:70 @2d8ed253669f+wt
 pass/calls/transition_tail_call_to_machine built 948ms @2d8ed253669f+wt
 pass/calls/unread_multistate_receiver_exit built 882ms exit:70 @2d8ed253669f+wt
@@ -1153,5 +1150,3 @@ run/borrows/transition_shared_borrow built 1448ms exit:0 @2d8ed253669f+wt
 run/calls/fixed_dividend_across_console_calls built 7037ms exit:0 stdout:match @20d50fee2e55
 run/contained_health_loop_command_branch checked 773ms @2d8ed253669f+wt
 run/nested_mut_alias_assignment_return built 1524ms exit:0 stdout:match @9baafc0ace88
-pass/calls/terminal_call_acknowledgements built 7354ms exit:0 stdout:match stderr:match @1ade44fe20d0+wt
-pass/calls/terminal_call_acknowledgements_declarations checked 1166ms @1ade44fe20d0+wt
