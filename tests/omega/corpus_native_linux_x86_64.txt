@@ -1161,3 +1161,5 @@ pass/calls/runtime_wrapping_division_call_span_exit built 5427ms exit:70 stdout:
 run/arithmetic/pinned_dividend_across_console_calls built 6649ms exit:0 stdout:match @9d9e2c34aa73
 pass/arithmetic/reused_fixed_integer_operands_exit built 6623ms exit:0 @7223309ebb5b
 pass/arithmetic/reused_masked_shift_count_exit built 6668ms exit:0 @56b53faa47a8
+pass/text/runtime_decimal_scalar_across_output_alternate_exit built 19925ms exit:70 stdout:match stderr:match @767574d46ddd
+pass/text/runtime_decimal_scalar_across_output_exit built 15096ms exit:70 stdout:match stderr:match @767574d46ddd

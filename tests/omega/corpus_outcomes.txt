@@ -5175,3 +5175,5 @@ fail/slices/projected_descriptor_index_requires_live_bound rejected 570ms expect
 	cannot prove index `position` is within unknown slice length of `envelope.window.cells` in read::entry
 pass/collections/runtime_owned_descriptor_parameter_read_exit checked 3978ms check-target:macos_arm64 @f76abd8ea830+wt
 pass/collections/runtime_projected_element_descriptor_read_exit checked 3982ms check-target:macos_arm64 @f76abd8ea830+wt
+pass/text/runtime_decimal_scalar_across_output_alternate_exit checked 17418ms check-target:linux_x86_64 @767574d46ddd
+pass/text/runtime_decimal_scalar_across_output_exit checked 18174ms check-target:linux_x86_64 @767574d46ddd
