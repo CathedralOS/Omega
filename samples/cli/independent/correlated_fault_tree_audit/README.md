@@ -11,7 +11,7 @@ events; the tree ORs the active terms. Inactive term slots must be zero. An acti
 zero term is unconditional failure; zero active terms means no failure.
 Duplicates and subsumed terms are allowed. All eight weights must be 0..1000000
 and sum to 1000000. The joint distribution may have arbitrary correlations and
-zero-weight states. Whitespace separates tokens; negative numbers, junk,
+zero-weight states. Space, tab, LF, and CR separate tokens; negative numbers, junk,
 missing/extra tokens, overlong tokens and inputs containing 256 bytes or more are rejected with exit 2 and `INVALID INPUT`.
 
 The domain module enumerates all eight event assignments. It emits the failure
@@ -53,6 +53,7 @@ PROJECT=samples/cli/independent/correlated_fault_tree_audit
 # Inspect any pending package review and accept only reviewed decisions.
 # Resume once, after acceptance; a denied route remains a blocker.
 "$OMEGA" update --resume --project "$PROJECT"
+"$OMEGA" run "$PROJECT/main.omg" < "$PROJECT/data/correlated.in"
 python3 "$PROJECT/reference.py"
 python3 "$PROJECT/validate.py" --omega "$OMEGA" --route check
 python3 "$PROJECT/validate.py" --omega "$OMEGA" --route native
@@ -60,6 +61,9 @@ python3 "$PROJECT/validate.py" --omega "$OMEGA" --route terminal
 python3 "$PROJECT/validate.py" --omega "$OMEGA" --route invalid
 ```
 
+Native validation first uses the public CLI to compile, run and retain the
+program, then reuses that exact native image for all remaining fixture inputs.
+The image SHA-256 and build directory are recorded with its first result.
 Run only one compiler execution at a time. `--both` uses finite stdin for native
 and Terminal replay. The CLI compares termination, not interpreted stdout;
 byte-exact native output checks and recorded Terminal agreement are distinct
@@ -71,3 +75,7 @@ The required rejection is `cannot prove index`, the documented collection bounds
 rule; package/custody/review rejection is a wrong-reason failure. See
 `wiki/spec/language/counts_and_addresses.md#bounds-and-lowering` for bounds obligations.
 Generated route logs and native products stay under ignored `build/`.
+
+Execution status: see [VALIDATION.md](VALIDATION.md). Package resume rejected source
+drift; application check/native/Terminal remain blocked, and this candidate has
+not landed. The separate intended-invalid bounds rejection passed.

@@ -3,16 +3,18 @@ use omega::language::core::binding;
 
 // Emit decimal digits through the standard byte writer. No fabricated UTF-8
 // domain or host-side formatter is required. All callers pass nonnegative sums.
-pub machine number(console: &mut Binding<Console>, value: i32) reaches Console {
+pub machine number(console: &mut Binding<Console>, value: i32) reaches Console
+invokes console;
+{
     transition value >= 10 {
         true -> prefix(console, value)
         _ -> digit(console, value)
     }
-    state prefix(console: &mut Binding<Console>, value: i32) reaches Console {
+    state prefix(console: &mut Binding<Console>, value: i32) {
         number(console, value / 10);
         transition { _ -> digit(console, value % 10) }
     }
-    state digit(console: &mut Binding<Console>, value: i32) reaches Console {
+    state digit(console: &mut Binding<Console>, value: i32) {
         console.write_byte(((value as i32 in Wrapping) + 48) as i32);
     }
 }
