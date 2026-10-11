@@ -66,6 +66,7 @@ pub(super) fn append(
                 .filter(|fact| {
                     fact.template == application.template
                         && fact.closed_requirement == application.signature.symbol
+                        && fact.receiving_application == application.trait_application_identity
                         && fact.selecting_declaration
                             == selecting_map.map_or(fact.provider, |map| map.symbol)
                         && typed.requirement_realization_matches(

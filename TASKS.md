@@ -2826,9 +2826,10 @@ crash and native exit behavior.
     a differently applied selected provider must still reject. Executable
     requirement preparation checks closure after complete scope substitution.
     Region-bearing Binding admission still needs occurrence scopes through
-    source inventory and requirement preparation, checked provider region-slot
-    correspondence and application-plus-requirement joins through canonical
-    candidates and receiving installation. The classifier and provider
+    source inventory and requirement preparation, source-level qualification of
+    complete provider region-slot correspondence, and propagation of checked
+    receiving applications and region arguments through canonical candidates and
+    receiving installation. The classifier and provider
     eligibility remain fail-closed until those associations exist. Build selects
     the provider declaration, not a runtime caller region. Preserve
     `traits/default_row_captured_invocation_regions_exit` through both engines:

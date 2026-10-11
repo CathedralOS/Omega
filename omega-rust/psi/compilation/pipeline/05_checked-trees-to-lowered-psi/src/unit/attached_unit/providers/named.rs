@@ -62,6 +62,9 @@ pub(super) fn provider_identities(
                         && row.selecting_declaration == implementation.symbol
                         && row.template == template
                         && row.closed_requirement == signature.symbol
+                        && application.is_some_and(|application| {
+                            row.receiving_application == application.trait_application_identity
+                        })
                 })
                 || !typed.requirement_realization_matches(
                     signature.symbol,

@@ -82,7 +82,10 @@ impl AppliedTraitScope<'_> {
         })
     }
 
-    fn parameter_application(
+    /// Borrow the actual and the number of preceding simultaneous scopes it
+    /// sees. Compound actuals must retain that prefix during structural walks;
+    /// their existing arena handle alone does not carry the substitutions.
+    pub fn parameter_application(
         &self,
         parameter: SymbolHandle,
     ) -> Option<(crate::types::TypeReferenceHandle, usize)> {

@@ -10,13 +10,14 @@
 //! checked exact outer applications and realization tuple receipts; no machine
 //! or token requirement is manufactured for either conformance route.
 
-use checked_trees::CheckedProviderClosedRequirement;
+use arena::HandleSpan;
+use checked_trees::{CheckedProviderClosedRequirement, CheckedProviderClosedRequirements};
 use language_semantics::MachineSupplyMode;
 use typed_trees::trait_definition::AppliedTraitScope;
 
 pub(crate) fn record_provider_closed_requirements(
     program: &dyn validation::CheckingInput,
-) -> Vec<CheckedProviderClosedRequirement> {
+) -> CheckedProviderClosedRequirements {
     // Built on the first generic template: most programs name none. An
     // invalid declaration identity was reported when checking resolved the
     // same symbols; the rows below only join what checking admitted.
@@ -49,12 +50,17 @@ pub(crate) fn record_provider_closed_requirements(
                             provider.symbol,
                         )
                     {
-                        rows.push(CheckedProviderClosedRequirement {
-                            provider: provider.symbol,
-                            selecting_declaration: provider.symbol,
-                            template: application.template,
-                            closed_requirement: application.signature.symbol,
-                        });
+                        rows.push((
+                            CheckedProviderClosedRequirement {
+                                provider: provider.symbol,
+                                selecting_declaration: provider.symbol,
+                                template: application.template,
+                                closed_requirement: application.signature.symbol,
+                                receiving_application: application.trait_application_identity,
+                                receiving_regions: HandleSpan::empty(),
+                            },
+                            Vec::new(),
+                        ));
                     }
                 }
             }
@@ -74,12 +80,17 @@ pub(crate) fn record_provider_closed_requirements(
             if let Ok(closed) = validation::resolve_closed_requirement_application(
                 program, provider, template, symbols,
             ) {
-                rows.push(CheckedProviderClosedRequirement {
-                    provider: provider.symbol,
-                    selecting_declaration: provider.symbol,
-                    template: template.symbol,
-                    closed_requirement: closed.symbol,
-                });
+                rows.push((
+                    CheckedProviderClosedRequirement {
+                        provider: provider.symbol,
+                        selecting_declaration: provider.symbol,
+                        template: template.symbol,
+                        closed_requirement: closed.symbol,
+                        receiving_application: Default::default(),
+                        receiving_regions: HandleSpan::empty(),
+                    },
+                    Vec::new(),
+                ));
             }
         }
         // Named maps retain their authored requirement coordinate. Close it
@@ -88,16 +99,30 @@ pub(crate) fn record_provider_closed_requirements(
         // Record every selecting map rather than collapsing them with `any`:
         // one executable body may belong to multiple independent selections.
         for application in program.closed_requirement_applications() {
+            let Some(declaration) = program.trait_definition_by_symbol(application.declaring_trait)
+            else {
+                continue;
+            };
+            let Some(receiving_scope) = AppliedTraitScope::new(
+                program.typed_program(),
+                declaration,
+                typed_trees::trait_definition::TraitApplicationArguments {
+                    lexical_owner: program
+                        .expression_table
+                        .static_machine_application(application.application)
+                        .lexical_owner,
+                    enclosing_data_applications: &[],
+                    arguments: application.trait_arguments,
+                    lifetimes: &[],
+                },
+            ) else {
+                continue;
+            };
             for implementation in program.conformances().iter().filter(|implementation| {
                 implementation.type_parameters.is_empty()
+                    // Regional execution stays fenced until the correspondence
+                    // travels with this row through canonical installation.
                     && implementation.lifetime_parameters.is_empty()
-                    && AppliedTraitScope::from_conformance(program.typed_program(), implementation)
-                        .is_some_and(|scope| {
-                            program.requirement_application_matches_scope(
-                                application.signature.symbol,
-                                &scope,
-                            )
-                        })
                     && implementation.rows.iter().any(|row| {
                         row.declaring_trait == application.declaring_trait
                             && row.requirement == application.template
@@ -108,16 +133,28 @@ pub(crate) fn record_provider_closed_requirements(
                             )
                     })
             }) {
-                rows.push(CheckedProviderClosedRequirement {
-                    provider: provider.symbol,
-                    selecting_declaration: implementation.symbol,
-                    template: application.template,
-                    closed_requirement: application.signature.symbol,
-                });
+                let Some(correspondence) = validation::provider_region_correspondence(
+                    program,
+                    implementation,
+                    &receiving_scope,
+                ) else {
+                    continue;
+                };
+                rows.push((
+                    CheckedProviderClosedRequirement {
+                        provider: provider.symbol,
+                        selecting_declaration: implementation.symbol,
+                        template: application.template,
+                        closed_requirement: application.signature.symbol,
+                        receiving_application: application.trait_application_identity,
+                        receiving_regions: HandleSpan::empty(),
+                    },
+                    correspondence.receiving_regions,
+                ));
             }
         }
     }
-    rows.sort_by_key(|row| {
+    rows.sort_by_key(|(row, _)| {
         (
             row.provider.arena_index(),
             row.provider.generation(),
@@ -127,15 +164,15 @@ pub(crate) fn record_provider_closed_requirements(
             row.template.generation(),
             row.closed_requirement.arena_index(),
             row.closed_requirement.generation(),
+            row.receiving_application,
         )
     });
-    rows.dedup_by(|later, earlier| {
-        later.provider == earlier.provider
-            && later.selecting_declaration == earlier.selecting_declaration
-            && later.template == earlier.template
-            && later.closed_requirement == earlier.closed_requirement
-    });
-    rows
+    rows.dedup();
+    let mut recorded = CheckedProviderClosedRequirements::default();
+    for (row, receiving_regions) in rows {
+        recorded.insert(row, receiving_regions);
+    }
+    recorded
 }
 
 /// The exact specialization receipt, not a generated-name suffix, owns the

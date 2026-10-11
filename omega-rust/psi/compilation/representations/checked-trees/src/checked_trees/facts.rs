@@ -116,7 +116,9 @@ pub use nominal_machine_uses::{
     NominalMachineUseSite,
 };
 pub use placement::CheckedPlacedViewInput;
-pub use provider_closed_requirements::CheckedProviderClosedRequirement;
+pub use provider_closed_requirements::{
+    CheckedProviderClosedRequirement, CheckedProviderClosedRequirements,
+};
 pub use qualifications::{
     CheckedValueQualification, MachineQualifications, QualificationFacts, VacuousQualificationUse,
 };

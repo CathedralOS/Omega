@@ -36,6 +36,7 @@ mod conformance;
 pub mod conformance_applications;
 mod dynamic;
 mod named_implementations;
+mod provider_regions;
 pub mod refinement_fit;
 mod requirements;
 mod trait_implementation_arguments;
@@ -61,6 +62,7 @@ pub(crate) use dynamic::{
     report_dynamic_receiver_call_error,
 };
 pub(crate) use named_implementations::validate_conformances;
+pub use provider_regions::{ProviderRegionCorrespondence, provider_region_correspondence};
 pub(crate) use requirements::validate_trait_requirements;
 
 /// The trait `symbol` declares, or `None` for an invalid symbol or a symbol

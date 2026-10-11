@@ -825,7 +825,8 @@ pub(crate) fn type_reference_lifetimes_match_requirement_application(
         required,
         actual_scope,
         required_scope,
-        &mut |_, required_scope, _, actual, required| {
+        &mut (),
+        &mut |_, _, required_scope, _, actual, required| {
             if required_scope.is_provider() {
                 required.is_none_or(|required| actual == Some(required))
             } else {

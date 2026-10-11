@@ -38,13 +38,25 @@ impl TypeRegionScope for () {
     }
 }
 
-pub(crate) fn type_reference_regions_match<Scope: TypeRegionScope>(
+/// Callable inputs may accept weaker qualifications; a provider application
+/// must retain the complete qualification set in both directions. Erasing
+/// regions can collapse distinct domain terms, so erased equality alone does
+/// not establish that second judgment.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypeRegionRelationship {
+    CallableRefinement,
+    ExactApplication,
+}
+
+pub(crate) fn type_reference_regions_match<Scope: TypeRegionScope, State: Clone + PartialEq>(
     program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     actual_scope: Scope,
     required_scope: Scope,
+    state: &mut State,
     lifetime_matches: &mut impl FnMut(
+        &mut State,
         Scope,
         Scope,
         TypeReferenceHandle,
@@ -52,6 +64,53 @@ pub(crate) fn type_reference_regions_match<Scope: TypeRegionScope>(
         Option<&Identifier>,
     ) -> bool,
 ) -> bool {
+    let mut applications = vec![state.clone()];
+    if !type_reference_region_applications(
+        program,
+        actual,
+        required,
+        actual_scope,
+        required_scope,
+        TypeRegionRelationship::CallableRefinement,
+        &mut applications,
+        lifetime_matches,
+    ) {
+        return false;
+    }
+    let [application] = applications.as_slice() else {
+        return false;
+    };
+    *state = application.clone();
+    true
+}
+
+/// Retain distinct viable applications across the complete structural query.
+/// A later operand can disambiguate equal-erased-shape domain alternatives.
+/// Each branch owns its constraints; a failed branch contributes nothing.
+/// Consumers settle uniqueness only after all their input operands are joined.
+pub(crate) fn type_reference_region_applications<
+    Scope: TypeRegionScope,
+    State: Clone + PartialEq,
+>(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    actual_scope: Scope,
+    required_scope: Scope,
+    relationship: TypeRegionRelationship,
+    applications: &mut Vec<State>,
+    lifetime_matches: &mut impl FnMut(
+        &mut State,
+        Scope,
+        Scope,
+        TypeReferenceHandle,
+        Option<&Identifier>,
+        Option<&Identifier>,
+    ) -> bool,
+) -> bool {
+    if applications.is_empty() {
+        return false;
+    }
     if !actual.is_valid() || !required.is_valid() {
         return actual.is_valid() == required.is_valid();
     }
@@ -65,43 +124,25 @@ pub(crate) fn type_reference_regions_match<Scope: TypeRegionScope>(
     else {
         return false;
     };
-    // Formation owns property implication: a provider may accept a weaker
-    // qualification. This query compares only corresponding domain terms,
-    // joined by their already-formed erased operands, not domain membership.
-    if !required_domains.iter().all(|(required, required_scope)| {
-        let corresponding =
-            actual_domains
-                .iter()
-                .filter(|(actual, actual_scope)| {
-                    actual.subject == required.subject
-                        && actual.symbol == required.symbol
-                        && actual.arguments.len() == required.arguments.len()
-                        && actual.arguments.iter().zip(&required.arguments).all(
-                            |(actual, required)| {
-                                actual_scope.erased_identity(program, *actual)
-                                    == required_scope.erased_identity(program, *required)
-                            },
-                        )
-                })
-                .collect::<Vec<_>>();
-        corresponding.is_empty()
-            || corresponding.iter().any(|(actual, actual_scope)| {
-                actual
-                    .arguments
-                    .iter()
-                    .zip(&required.arguments)
-                    .all(|(actual, required)| {
-                        type_reference_regions_match(
-                            program,
-                            *actual,
-                            *required,
-                            *actual_scope,
-                            *required_scope,
-                            lifetime_matches,
-                        )
-                    })
-            })
-    }) {
+    if !domain_region_applications(
+        program,
+        &actual_domains,
+        &required_domains,
+        DomainCoverage::Required,
+        relationship,
+        applications,
+        lifetime_matches,
+    ) || (relationship == TypeRegionRelationship::ExactApplication
+        && !domain_region_applications(
+            program,
+            &actual_domains,
+            &required_domains,
+            DomainCoverage::Actual,
+            relationship,
+            applications,
+            lifetime_matches,
+        ))
+    {
         return false;
     }
     match (
@@ -120,18 +161,24 @@ pub(crate) fn type_reference_regions_match<Scope: TypeRegionScope>(
                 ..
             },
         ) => {
-            lifetime_matches(
-                actual_scope,
-                required_scope,
-                actual,
-                actual_lifetime.as_ref(),
-                required_lifetime.as_ref(),
-            ) && type_reference_regions_match(
+            applications.retain_mut(|state| {
+                lifetime_matches(
+                    state,
+                    actual_scope,
+                    required_scope,
+                    actual,
+                    actual_lifetime.as_ref(),
+                    required_lifetime.as_ref(),
+                )
+            });
+            type_reference_region_applications(
                 program,
                 *actual_referee,
                 *required_referee,
                 actual_scope,
                 required_scope,
+                relationship,
+                applications,
                 lifetime_matches,
             )
         }
@@ -152,12 +199,14 @@ pub(crate) fn type_reference_regions_match<Scope: TypeRegionScope>(
             TypeReferenceNode::Slice {
                 element_type: required_element,
             },
-        ) => type_reference_regions_match(
+        ) => type_reference_region_applications(
             program,
             *actual_element,
             *required_element,
             actual_scope,
             required_scope,
+            relationship,
+            applications,
             lifetime_matches,
         ),
         (
@@ -175,13 +224,17 @@ pub(crate) fn type_reference_regions_match<Scope: TypeRegionScope>(
             actual_lifetimes.len() == required_lifetimes.len()
                 && actual_lifetimes.iter().zip(required_lifetimes).all(
                     |(actual_lifetime, required_lifetime)| {
-                        lifetime_matches(
-                            actual_scope,
-                            required_scope,
-                            actual,
-                            Some(actual_lifetime),
-                            Some(required_lifetime),
-                        )
+                        applications.retain_mut(|state| {
+                            lifetime_matches(
+                                state,
+                                actual_scope,
+                                required_scope,
+                                actual,
+                                Some(actual_lifetime),
+                                Some(required_lifetime),
+                            )
+                        });
+                        !applications.is_empty()
                     },
                 )
                 && actual_arguments.count() == required_arguments.count()
@@ -205,12 +258,14 @@ pub(crate) fn type_reference_regions_match<Scope: TypeRegionScope>(
                             .type_reference_handles(*required_arguments),
                     )
                     .all(|(actual_argument, required_argument)| {
-                        type_reference_regions_match(
+                        type_reference_region_applications(
                             program,
                             *actual_argument,
                             *required_argument,
                             actual_scope,
                             required_scope,
+                            relationship,
+                            applications,
                             lifetime_matches,
                         )
                     })
@@ -245,18 +300,111 @@ pub(crate) fn type_reference_regions_match<Scope: TypeRegionScope>(
                             .type_reference_handles(*required),
                     )
                     .all(|(actual, required)| {
-                        type_reference_regions_match(
+                        type_reference_region_applications(
                             program,
                             *actual,
                             *required,
                             actual_scope,
                             required_scope,
+                            relationship,
+                            applications,
                             lifetime_matches,
                         )
                     })
         }
         _ => true,
     }
+}
+
+#[derive(Clone, Copy)]
+enum DomainCoverage {
+    Required,
+    Actual,
+}
+
+fn domain_region_applications<Scope: TypeRegionScope, State: Clone + PartialEq>(
+    program: &dyn crate::CheckingInput,
+    actual_domains: &[(&DomainConstraint, Scope)],
+    required_domains: &[(&DomainConstraint, Scope)],
+    coverage: DomainCoverage,
+    relationship: TypeRegionRelationship,
+    applications: &mut Vec<State>,
+    lifetime_matches: &mut impl FnMut(
+        &mut State,
+        Scope,
+        Scope,
+        TypeReferenceHandle,
+        Option<&Identifier>,
+        Option<&Identifier>,
+    ) -> bool,
+) -> bool {
+    let (obligations, candidates) = match coverage {
+        DomainCoverage::Required => (required_domains, actual_domains),
+        DomainCoverage::Actual => (actual_domains, required_domains),
+    };
+    for (obligation, obligation_scope) in obligations {
+        let corresponding = candidates.iter().filter(|(candidate, candidate_scope)| {
+            candidate.subject == obligation.subject
+                && candidate.symbol == obligation.symbol
+                && candidate.arguments.len() == obligation.arguments.len()
+                && candidate.arguments.iter().zip(&obligation.arguments).all(
+                    |(candidate, obligation)| {
+                        candidate_scope.erased_identity(program, *candidate)
+                            == obligation_scope.erased_identity(program, *obligation)
+                    },
+                )
+        });
+        // Keep branch constraints private and delay uniqueness until all
+        // operands have contributed. Reverse coverage still constrains the
+        // original supplied-to-receiving relation; it never inverts binders.
+        let mut found = false;
+        let mut alternatives = Vec::new();
+        for (candidate, candidate_scope) in corresponding {
+            found = true;
+            let (actual, actual_scope, required, required_scope) = match coverage {
+                DomainCoverage::Required => {
+                    (*candidate, *candidate_scope, *obligation, *obligation_scope)
+                }
+                DomainCoverage::Actual => {
+                    (*obligation, *obligation_scope, *candidate, *candidate_scope)
+                }
+            };
+            let mut candidate_applications = applications.clone();
+            if actual
+                .arguments
+                .iter()
+                .zip(&required.arguments)
+                .all(|(actual, required)| {
+                    type_reference_region_applications(
+                        program,
+                        *actual,
+                        *required,
+                        actual_scope,
+                        required_scope,
+                        relationship,
+                        &mut candidate_applications,
+                        lifetime_matches,
+                    )
+                })
+            {
+                for application in candidate_applications {
+                    if !alternatives.contains(&application) {
+                        alternatives.push(application);
+                    }
+                }
+            }
+        }
+        if !found && relationship == TypeRegionRelationship::CallableRefinement {
+            // Formation already checked property implication. No shared term
+            // adds a region constraint to that independent refinement judgment.
+            continue;
+        }
+        *applications = alternatives;
+        if applications.is_empty() {
+            return false;
+        }
+    }
+    true
 }
 
 fn type_structure<Scope: TypeRegionScope>(

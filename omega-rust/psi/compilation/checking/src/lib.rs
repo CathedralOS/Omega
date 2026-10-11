@@ -18,6 +18,7 @@ pub use declarations::operators::{
     derive_pre_flow_operator_selections,
 };
 pub use declarations::traits::refinement_fit;
+pub use declarations::traits::{ProviderRegionCorrespondence, provider_region_correspondence};
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;
 pub use machine_calls::{compiler_operations, contract_identities};

@@ -6,10 +6,27 @@
 use super::carried_lifetimes::RegionIdentity;
 use typed_trees::types::TypeReferenceHandle;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct InputRegionApplication {
     fresh: Vec<(usize, RegionIdentity)>,
     pub(super) elided: Vec<(usize, TypeReferenceHandle, RegionIdentity)>,
+}
+
+// Constraints form a relation, not a trace of which domain term was tried
+// first. Equivalent successful alternatives may encounter them in any order.
+impl PartialEq for InputRegionApplication {
+    fn eq(&self, other: &Self) -> bool {
+        self.fresh.len() == other.fresh.len()
+            && self
+                .fresh
+                .iter()
+                .all(|binding| other.fresh.contains(binding))
+            && self.elided.len() == other.elided.len()
+            && self
+                .elided
+                .iter()
+                .all(|binding| other.elided.contains(binding))
+    }
 }
 
 impl InputRegionApplication {

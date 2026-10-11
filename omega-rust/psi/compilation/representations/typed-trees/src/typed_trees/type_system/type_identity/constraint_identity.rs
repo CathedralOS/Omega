@@ -123,7 +123,11 @@ fn normalized_declared_domain_identity(
     context: &TypeIdentityContext<'_>,
 ) -> String {
     let ordinary_name = declared_domain_identity(program, domain);
-    if context.qualification == TypeIdentityQualification::Ordinary {
+    // Namespace qualification and complete static application are separate
+    // axes. Ordinary identity may erase regions for layout, but cannot merge
+    // Tagged<First> with Tagged<Second> merely because their domain head agrees.
+    // Each argument uses the same supplying substitution context as the base.
+    if context.qualification == TypeIdentityQualification::Ordinary && domain.arguments.is_empty() {
         return ordinary_name;
     }
     compound(

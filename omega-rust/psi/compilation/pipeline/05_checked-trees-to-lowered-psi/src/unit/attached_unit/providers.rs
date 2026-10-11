@@ -99,6 +99,8 @@ fn satisfies_requirement(
                                 && row.selecting_declaration == machine.symbol
                                 && row.template == application.template
                                 && row.closed_requirement == signature.symbol
+                                && row.receiving_application
+                                    == application.trait_application_identity
                         });
             }
             return conformance.symbol == definition.symbol

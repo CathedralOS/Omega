@@ -7,7 +7,10 @@ use super::callable_refinement::{CallableBorrowContract, captured_lifetimes};
 use super::callable_regions::CallableRegions;
 use super::carried_lifetimes::{CarriedLifetime, RegionIdentity};
 use super::region_inference::InputRegionApplication;
-use crate::type_regions::{TypeRegionScope, type_reference_regions_match};
+use crate::type_regions::{
+    TypeRegionRelationship, TypeRegionScope, type_reference_region_applications,
+    type_reference_regions_match,
+};
 use symbols::SymbolHandle;
 use typed_trees::name::Identifier;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -173,7 +176,7 @@ pub(super) fn infer_inputs(
     if required.parameters.len() != actual.parameters.len() {
         return Err("callable input arity does not match its requirement");
     }
-    let mut application = InputRegionApplication::default();
+    let mut applications = vec![InputRegionApplication::default()];
     for (ordinal, (required_parameter, actual_parameter)) in required
         .parameters
         .iter()
@@ -181,7 +184,8 @@ pub(super) fn infer_inputs(
         .enumerate()
     {
         let mut failure = "callable input does not preserve its region identity";
-        let mut constrain = |actual_scope: RegionScope<'_>,
+        let mut constrain = |application: &mut InputRegionApplication,
+                             actual_scope: RegionScope<'_>,
                              required_scope: RegionScope<'_>,
                              reference,
                              actual: Option<&Identifier>,
@@ -240,19 +244,39 @@ pub(super) fn infer_inputs(
             };
             false
         };
-        if !type_reference_regions_match(
+        if !type_reference_region_applications(
             program,
             actual_parameter.type_reference,
             required_parameter.type_reference,
             contract_scope(actual, actual_regions),
             contract_scope(required, required_regions),
+            TypeRegionRelationship::CallableRefinement,
+            &mut applications,
             &mut constrain,
         ) {
             return Err(failure);
         }
     }
-    application.finish(actual_regions.fresh_count, required_regions.fresh_count)?;
-    Ok(application)
+    // Only the complete input tuple and universal telescope settle inference.
+    // A domain alternative may look ambiguous before a later input fixes a
+    // binder. Results consume this application; they never choose among it.
+    let mut completed = Vec::new();
+    let mut failure = "callable input regions do not determine one application";
+    for mut application in applications {
+        match application.finish(actual_regions.fresh_count, required_regions.fresh_count) {
+            Ok(()) if !completed.contains(&application) => completed.push(application),
+            Ok(()) => {}
+            Err(reason) => failure = reason,
+        }
+    }
+    if completed.len() != 1 {
+        return Err(if completed.is_empty() {
+            failure
+        } else {
+            "callable input regions do not determine one application"
+        });
+    }
+    completed.pop().ok_or(failure)
 }
 
 pub(super) fn validate(
@@ -266,7 +290,8 @@ pub(super) fn validate(
 ) -> Result<(), &'static str> {
     let required_scope = contract_scope(required, required_regions);
     let actual_scope = contract_scope(actual, actual_regions);
-    let mut matches = |actual_scope: RegionScope<'_>,
+    let mut matches = |_: &mut (),
+                       actual_scope: RegionScope<'_>,
                        required_scope: RegionScope<'_>,
                        reference: TypeReferenceHandle,
                        actual: Option<&Identifier>,
@@ -313,6 +338,7 @@ pub(super) fn validate(
                 ..actual_scope
             },
             required_scope,
+            &mut (),
             &mut matches,
         ) {
             return Err("callable type does not preserve its region identity");
@@ -327,6 +353,7 @@ pub(super) fn validate(
             ..actual_scope
         },
         required_scope,
+        &mut (),
         &mut matches,
     ) {
         return Err("callable type does not preserve its region identity");
