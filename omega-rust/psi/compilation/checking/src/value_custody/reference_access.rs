@@ -61,7 +61,8 @@ pub(crate) fn receiving_reference_access_refusal(
             });
     }
     let expected_access = declared_reference_access(program, required);
-    let completed_borrow = completed_reference_borrow_source(program, machine, state, value);
+    let completed_borrow =
+        completed_reference_borrow_source(program, machine, state, value, expected_access);
     let supplied_access = completed_borrow
         .map(|(_, access)| access)
         .or_else(|| declared_call_reference_access(program, value));
@@ -110,6 +111,7 @@ fn completed_reference_borrow_source(
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
+    expected_access: Option<language_semantics::ReferenceAccess>,
 ) -> Option<(ExpressionHandle, language_semantics::ReferenceAccess)> {
     use language_semantics::ReferenceAccess;
     use language_semantics::declaration_selection::CollectionViewOperation;
@@ -151,9 +153,17 @@ fn completed_reference_borrow_source(
             if !crate::collection_operations::type_reference_is_collection(program, reference) {
                 return None;
             }
+            // A range view borrows its collection under the receiving
+            // destination's declared access: `coll[a..b]` has no borrow
+            // spelling of its own, so the `&`/`&mut`/`&write` shell being
+            // bound selects the loan. A collection that is itself a declared
+            // reference already carries that access on its own type; only a
+            // data collection takes the destination's. Exclusivity then
+            // rejoins the collection's own place permission below rather
+            // than trusting the destination or the slot.
             Some((
                 indexed.collection,
-                declared_reference_access(program, reference)?,
+                declared_reference_access(program, reference).or(expected_access)?,
             ))
         }
         _ => None,
