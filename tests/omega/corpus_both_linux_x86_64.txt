@@ -214,7 +214,7 @@ run/stores/runtime_float_indexed_call_result_exit built 94679ms exit:0 stdout:ma
 run/stores/runtime_float_store_selector_snapshot_exit built 121925ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a15293788ba4
 
 # NEW039 scoped source and native/Terminal observations; full commands and hashes in qualified Library packet.
-pass/float/runtime_absolute_return_sum_exit built 145101ms exit:70 interpreter-exit:70 interpreter:agrees @e977d51d9986
-pass/float/runtime_absolute_shared_call_operands_exit built 141592ms exit:70 interpreter-exit:70 interpreter:agrees @e977d51d9986
-pass/float/runtime_nested_float_min_max_exit built 142196ms exit:70 interpreter-exit:70 interpreter:agrees @e977d51d9986
-pass/float/runtime_resultless_law_equality_custody_exit built 144731ms exit:70 interpreter-exit:70 interpreter:agrees @e977d51d9986
+pass/float/runtime_absolute_return_sum_exit built 144047ms exit:70 interpreter-exit:70 interpreter:agrees @da6989bd511e
+pass/float/runtime_absolute_shared_call_operands_exit built 141932ms exit:70 interpreter-exit:70 interpreter:agrees @da6989bd511e
+pass/float/runtime_nested_float_min_max_exit built 142923ms exit:70 interpreter-exit:70 interpreter:agrees @da6989bd511e
+pass/float/runtime_resultless_law_equality_custody_exit built 144350ms exit:70 interpreter-exit:70 interpreter:agrees @da6989bd511e
