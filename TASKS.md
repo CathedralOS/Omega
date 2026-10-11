@@ -2723,14 +2723,18 @@ crash and native exit behavior.
   representation, x86 scalar FMA provider, grants, behavior exclusions and wire
   demands.
   - `BuildConfig` is still largely global. Finish authored rows and
-    retain/check unrequested rows. Final product checking now shares across
-    targets wherever inputs converge: each target's retained judgment joins
-    a `sibling_product_checks` pool on the request, and
+    retain/check unrequested rows. Final product checking shares across the
+    whole invocation wherever inputs converge: each target's retained
+    judgment joins a `sibling_product_checks` pool on the request, every
+    occurrence component check consults the same pool, and
     `check_selected_execution` takes the first exact-input match through
     `reuse_retained_check` — authority admission still runs per invocation.
-    Programs that genuinely diverge per target (the deferred pre-check
-    custody map injecting per-target selections into `typed`) still check
-    their own.
+    The admission's BuildConfig-derived inputs (wire demands, asm authority,
+    privileged services, freestanding) are invocation-global and already
+    converge across targets; the residual per-target divergence is the
+    opaque-receipt derivation and the deferred pre-check custody map
+    injecting per-target selections into `typed` — genuinely target-keyed
+    values whose partitioning is an owner ruling, not dedup work.
   - The duplicate preliminary whole-program check is gone for equal inputs:
     sibling occurrence rows of one invocation now consult a shared
     `sibling_build_checks` pool before `prepare_checked_build`, and an
