@@ -1095,7 +1095,11 @@ fn write_destination(
                     _ => return false,
                 };
                 result.place == place
-                    && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                    && matches!(
+                        result.multiplicity,
+                        terminal_psi::StructuralMultiplicity::Unrestricted
+                            | terminal_psi::StructuralMultiplicity::Affine
+                    )
                     && result.qualification_establishments.is_empty()
             });
         return (owned_record
