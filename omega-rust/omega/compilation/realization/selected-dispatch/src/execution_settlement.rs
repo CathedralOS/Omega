@@ -3,7 +3,7 @@
 //! FMA associations leave with the program they were settled against. The
 //! compiler neither projects service roles nor completes this result afterward.
 
-use crate::provider_checking::CheckedProviderProgram;
+use crate::provider_binding::CheckedProviderProgram;
 use checked_trees::CheckedTrees as CheckedProgram;
 use diagnostics::Diagnostic;
 use package_compilation::AcceptedSemanticBindingRole;
@@ -15,6 +15,8 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
     pub program: Arc<CheckedProgram>,
+    /// Target execution associations, never written into portable checked facts.
+    pub dispatch: crate::selected_dispatch::SelectedExecutionDispatch,
     pub selected_target_profile: Option<target::TargetProfile>,
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
@@ -192,7 +194,7 @@ pub struct SelectedExecutionRequest<'a> {
 /// Consume a complete checked surface and settle every selected execution
 /// rewrite before publishing the final compiler-facing surface.
 pub fn settle_selected_execution(
-    mut checked: CheckedProviderProgram,
+    checked: CheckedProviderProgram,
     mut settlement: SelectedExecutionRequest<'_>,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
     // The same selected entry supplies component progress and receives fused
@@ -216,8 +218,8 @@ pub fn settle_selected_execution(
             exact_component_progress_root,
             None,
         )?;
-    checked.program = crate::settle_selected_execution_dispatch(
-        checked.program,
+    let dispatch = crate::settle_selected_execution_dispatch(
+        &checked.program,
         settlement.calling_plans,
         &checked.selected_provider_plan_facts,
         &settlement.selected_provider_provenance,
@@ -307,6 +309,7 @@ pub fn settle_selected_execution(
 
     Ok(SelectedExecution {
         program: checked.program,
+        dispatch,
         selected_target_profile: settlement.selected_target_profile,
         selected_program_entry: settlement.selected_program_entry,
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,

@@ -42,12 +42,14 @@ use identity::{
     foreign_call_custody_digest,
 };
 
-/// Complete source-independent Terminal-Psi native realization.
+/// Complete source-independent Terminal-Psi native realization. Independent
+/// target images may retain the same immutable Terminal artifact without copying
+/// its semantic arenas or encoded sections.
 #[derive(Debug)]
 #[must_use = "a native artifact owns the canonical semantic and target artifact join"]
 pub struct NativeArtifact {
     target: target::NativeTarget,
-    psi_artifact: terminal_codec::CanonicalTerminalArtifact,
+    psi_artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     object: image_emission::ObjectArtifact,
     image: image_emission::ExecutableImage,
     selected_provider_closure_report_identity: u64,
@@ -71,7 +73,7 @@ pub struct NativeArtifact {
 #[derive(Debug)]
 pub struct NativeArtifactParts {
     pub target: target::NativeTarget,
-    pub psi_artifact: terminal_codec::CanonicalTerminalArtifact,
+    pub psi_artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     pub object: image_emission::ObjectArtifact,
     pub image: image_emission::ExecutableImage,
     pub selected_provider_closure_report_identity: u64,
@@ -100,7 +102,7 @@ pub struct NativeArtifactParts {
 #[derive(Debug)]
 pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> {
     pub target: target::NativeTarget,
-    pub psi_artifact: terminal_codec::CanonicalTerminalArtifact,
+    pub psi_artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     pub object: image_emission::ObjectArtifact,
     pub image: Image,
     pub selected_provider_closure_report_identity: u64,
@@ -384,7 +386,7 @@ impl NativeArtifact {
         self.psi_artifact.semantic_bytes()
     }
 
-    pub const fn psi_artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+    pub fn psi_artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.psi_artifact
     }
 

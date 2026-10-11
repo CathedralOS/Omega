@@ -23,7 +23,10 @@ use typed_trees::TypedTrees;
 /// carrier. Cross-target and package-build callers supply the selected checked
 /// metadata layout explicitly.
 #[derive(Clone, Debug, Default)]
-pub struct InterpretOptions {
+pub struct InterpretOptions<'bindings> {
+    /// Explicit Product execution associations, separate from immutable Psi.
+    pub boundary_adapters: &'bindings [checked_trees::CheckedBoundaryAdapterDispatch],
+    pub float_comparisons: &'bindings [checked_trees::CheckedSelectedFloatComparisonExecution],
     /// Exact externally selected wait requirements, served only by virtual time.
     pub virtual_clock_bindings: Vec<crate::VirtualClockBinding>,
     pub filesystem: FilesystemAccess,
@@ -52,7 +55,7 @@ pub fn interpret_entry(
     checked: &CheckedTrees,
     entry: BuildMachineEntry<'_>,
     stdin: &[u8],
-    options: InterpretOptions,
+    options: InterpretOptions<'_>,
 ) -> InterpretOutcome {
     // Run on a worker thread with a generous stack: the tree-walker recurses with the
     // program's call/expression nesting, which can exceed the default test-thread stack on
@@ -691,9 +694,11 @@ fn interpret_on_current_thread(
     checked: &CheckedTrees,
     entry: BuildMachineEntry<'_>,
     stdin: &[u8],
-    options: InterpretOptions,
+    options: InterpretOptions<'_>,
 ) -> InterpretOutcome {
     let mut evaluator = Evaluator::new_checked(checked, stdin);
+    evaluator.boundary_adapter_dispatch = options.boundary_adapters;
+    evaluator.selected_product_float_comparisons = Some(options.float_comparisons);
     if checked
         .facts
         .operators

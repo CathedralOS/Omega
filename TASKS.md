@@ -2341,9 +2341,13 @@ crash and native exit behavior.
   items. Contributors may own those slices; a slice landing or an architecture
   lint alone does not close this outcome.
   - Remove the current violations rather than grandfathering them:
-    `compiler.rs` loops targets around checking and Terminal production;
-    `checked/checking/execution_settlement.rs` still plans providers before
-    checking and Terminal production; target-layout source folding is removed,
+    `compiler.rs` checks Product once and shares checked arenas and Terminal
+    storage for matching entry/optimization requests. Distinct entry roots and
+    callback bodies still need one whole-program Terminal roster rather than
+    separate productions. Package-manager batches retain separate
+    checked activations. `checked/checking/execution_settlement.rs` plans
+    providers after checking but before Terminal production. Target-layout source
+    folding is removed,
     with portable layout-query execution tracked by **TARGET-SEMANTIC-APPLICATIONS**;
     `realization/provider-planning` still depends on typed/checked trees,
     stage 04, validation and the checked interpreter; Omega stage 00 consumes
@@ -2832,19 +2836,9 @@ crash and native exit behavior.
   target: providers, entry, subsystem, application intent, opaque
   representation, x86 scalar FMA provider, grants, behavior exclusions and wire
   demands.
-  - `BuildConfig` is still largely global. Finish authored rows and
-    retain/check unrequested rows. Final product checking shares across the
-    whole invocation wherever inputs converge: each target's retained
-    judgment joins a `sibling_product_checks` pool on the request, every
-    occurrence component check consults the same pool, and
-    `check_selected_execution` takes the first exact-input match through
-    `reuse_retained_check` — authority admission still runs per invocation.
-    The admission's BuildConfig-derived inputs (wire demands, asm authority,
-    privileged services, freestanding) are invocation-global and already
-    converge across targets; the residual per-target divergence is the
-    opaque-receipt derivation and the deferred pre-check custody map
-    injecting per-target selections into `typed` — genuinely target-keyed
-    values whose partitioning is an owner ruling, not dedup work.
+  - `BuildConfig` is still largely global. Finish authored rows and retain/check
+    unrequested rows. Direct `CompileRequest` Product checking and source-custody
+    sealing run once; package batches still need the same shared checked product.
   - The duplicate preliminary whole-program check is gone for equal inputs:
     sibling occurrence rows of one invocation now consult a shared
     `sibling_build_checks` pool before `prepare_checked_build`, and an
@@ -2918,12 +2912,18 @@ crash and native exit behavior.
     `typed-trees-to-checked-trees` dependencies
     (`omega-rust/omega/compilation/realization/provider-planning/Cargo.toml`)
     and enforce the layering boundary.
-  - Const exception: provider-dependent constants belong to the one checked
-    program. Every realized target must select the same provider for that
-    application; evaluate it once in Psi through `SelectedConstantEvaluation`
-    (`omega-rust/omega/compilation/realization/selected-dispatch/src/constant_evaluation.rs`),
-    rejecting disagreement with the diverging targets named. Do not move a
-    layout-determining fold into per-target realization.
+  - Product constants requiring selected-provider evaluation now reject with
+    `unimplemented: portable provider-dependent constant recipes`. Retain exact
+    symbolic applications and their dependencies through the shared Psi program,
+    then close them under the target capsule as specified by
+    [evaluation](wiki/spec/language/evaluation.md#target-dependent-applications).
+    Do not restore per-target typed-tree folding or substitute host values.
+    Admitted Build evaluation remains a separate execution and still supports
+    its explicitly selected operators.
+  - Selected-provider completion-role discovery now rejects rather than
+    rewriting checked source and rederiving schemas. Accepted package roles
+    enter source preparation before checking. Move discovery to explicit source
+    contract admission, without inferring public completion from a provider.
   - `BoundaryMachineDeclaration` has no field for general scalar `ensures`;
     add it and validate provider/call agreement without narrowing the public
     contract to the selected body.
@@ -2945,9 +2945,11 @@ crash and native exit behavior.
 - **ONE-DRIVER-PER-STAGE.** (new-scope) `compiler.rs` runs Psi 00–07 once,
   then Omega 00–09 and emission per realization, per the
   [pipeline](omega-rust/pipeline.md). Closes after the items above.
-  - `compile` completes source and Build once, then copies complete typed
-    storage for per-target provider settlement, checking and production. Move
-    those remaining operations behind shared checked/Terminal storage and
+  - `compile` completes source, Build and Product checking once; realizations
+    borrow the same checked storage; matching entry/optimization requests also
+    share Terminal production and storage, with separate target admissions.
+    Move distinct entry roots, callbacks and the package-manager batch route
+    behind whole-program shared checked/Terminal storage and
     retire its per-target typed copies. Remove `compile_checked_reusing_builds`
     and package-manager's `CandidateSourcePreparation` as package invocations
     move into the same shared stages; the per-target `PreparedBuilds` cache

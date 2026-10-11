@@ -11,7 +11,8 @@ mod custody;
 mod stage_timings;
 mod terminal_production;
 pub use custody::{
-    ProducedTerminalArtifact, TerminalBehaviorExclusions, TerminalProductionCustody,
+    ProducedTerminalArtifact, TerminalApplicationCustody, TerminalBehaviorExclusions,
+    TerminalProductionCustody,
 };
 pub use psi_terminal_production::{TerminalMachineSelection, TerminalProductionStage};
 pub use terminal_production::{

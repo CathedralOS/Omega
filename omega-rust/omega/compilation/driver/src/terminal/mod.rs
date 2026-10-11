@@ -10,5 +10,4 @@
 mod native_proposal;
 mod terminal_artifact;
 
-pub(crate) use terminal_artifact::produce_retained_terminal_artifact;
-pub(crate) use terminal_artifact::produce_terminal_product;
+pub(crate) use terminal_artifact::{TerminalProductRequest, produce_retained_terminal_artifacts};

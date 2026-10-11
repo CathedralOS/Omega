@@ -22,7 +22,9 @@ mod observation;
 mod terminal_production;
 
 pub use checked_trees_to_lowered_psi::TerminalMachineSelection;
-pub use custody::{ProducedTerminalArtifact, TerminalProductionCustody};
+pub use custody::{
+    ProducedTerminalArtifact, TerminalApplicationCustody, TerminalProductionCustody,
+};
 pub use observation::{TerminalProductionObserver, TerminalProductionStage, UnmeasuredProduction};
 pub use terminal_production::{
     ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,

@@ -2,7 +2,7 @@
 
 //! Checked-Psi dispatch settlement for exact build-selected realizations.
 //!
-//! Start at `provider_checking.rs` for build-selected checking inputs, then
+//! Start at `provider_binding.rs` for binding immutable checked input, then
 //! `execution_settlement.rs` for dispatch, accepted services and activation.
 //! Psi owns source checking and execution plans. This crate owns realization
 //! associations, not another entrance into source checking.
@@ -12,7 +12,7 @@ mod compiler_intrinsic;
 mod constant_evaluation;
 mod execution_settlement;
 mod intrinsic_review;
-mod provider_checking;
+mod provider_binding;
 mod selected_dispatch;
 mod service_custody;
 
@@ -26,14 +26,14 @@ pub(crate) use intrinsic_review::{
     ResolvedAcceptedSemanticBinding, resolve_accepted_service_binding,
     retain_selected_compiler_intrinsic_review_identities,
 };
-pub use provider_checking::{ProviderCheckingInputs, ProviderCheckingRequest};
+pub use provider_binding::{ProviderBindingRequest, bind_checked_providers};
 
 pub(crate) use service_custody::derive_fused_program_entry_establishments;
 pub use service_custody::program_entry_service_requirements;
 
 pub use selected_dispatch::{
     CheckedOperatorAuthoredUseKind, SelectedCompilerIntrinsicExecutionIdentity,
-    derive_checked_nongeneric_operator_application_realizations,
+    SelectedExecutionDispatch, derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,
     settle_selected_comparison_execution,
 };

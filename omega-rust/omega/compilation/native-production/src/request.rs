@@ -81,7 +81,7 @@ impl NativeCompileRequest<'_> {
         retained: terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
     ) -> Result<
         (
-            terminal_codec::CanonicalTerminalArtifact,
+            std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
             terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal,
         ),
         Vec<Diagnostic>,

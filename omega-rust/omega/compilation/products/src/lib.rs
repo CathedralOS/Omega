@@ -64,7 +64,9 @@ pub use native_artifact::{TerminalRuntimeHostProvision, TerminalRuntimeProvision
 pub use optimization_core::OptimizationRollbackReceipt;
 pub use package_build::{PackageBuildOutcome, PreparedPackageBuild};
 pub use package_compilation::RetainedBuildOutputs;
-pub use prepared_build::{BuiltTypedProgram, PreparedBuild, PreparedProductSource};
+pub use prepared_build::{
+    BuiltTypedProgram, CheckedProductSource, PreparedBuild, PreparedProductSource,
+};
 pub use prepared_source::{
     PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier,
 };

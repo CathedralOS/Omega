@@ -55,24 +55,8 @@ impl<'a> TerminalProductionRequest<'a> {
         custody: TerminalProductionCustody<'_>,
         observer: &mut impl TerminalProductionObserver,
     ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
-        let TerminalProductionCustody {
-            entry_identity,
-            entry_machine,
-            admission,
-        } = custody;
+        let TerminalProductionCustody { applications } = custody;
         let checked = self.checked;
-        // The receipt names the selected checked machine, so the selection is
-        // rejoined for receipts and diagnostic attribution before lowering.
-        let entry_selection = match (entry_identity, admission.is_some()) {
-            (Some(_), _) | (_, true) => Some(
-                observer
-                    .record_result(TerminalProductionStage::MachineSelection, || {
-                        select_terminal_machine(checked, entry_machine.unwrap_or(self.machine))
-                    })
-                    .map_err(TerminalArtifactProductionError::Lowering)?,
-            ),
-            _ => None,
-        };
         let lowered = observer
             .record_result(TerminalProductionStage::Lowering, || {
                 lower_machine(
@@ -83,58 +67,91 @@ impl<'a> TerminalProductionRequest<'a> {
                 )
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
-        if let (Some(admission), Some(selection)) = (admission, entry_selection) {
-            let provenance = lowered_machine_provenance(
-                checked,
-                &lowered,
-                selection.machine,
-                self.exact_toolchain_sources,
-            );
-            admission
-                .admit(&lowered.semantic_module, &provenance)
-                .map_err(TerminalArtifactProductionError::Admission)?;
-        }
+        // Every consumer observes the same unoptimized composition. A target's
+        // refusal cannot erase behavior or reject an independently admitted one.
+        let admissions: Vec<_> = applications
+            .iter()
+            .map(|application| -> Result<_, Vec<Diagnostic>> {
+                if application.entry_identity.is_none() && application.admission.is_none() {
+                    return Ok(None);
+                }
+                let selection = observer
+                    .record_result(TerminalProductionStage::MachineSelection, || {
+                        select_terminal_machine(
+                            checked,
+                            application.entry_machine.unwrap_or(self.machine),
+                        )
+                    })
+                    .map_err(|error| {
+                        TerminalArtifactProductionError::Lowering(error).diagnostics()
+                    })?;
+                if let Some(admission) = application.admission {
+                    let provenance = lowered_machine_provenance(
+                        checked,
+                        &lowered,
+                        selection.machine,
+                        self.exact_toolchain_sources,
+                    );
+                    admission.admit(&lowered.semantic_module, &provenance)?;
+                }
+                Ok(Some(selection))
+            })
+            .collect();
         let optimized = observer
             .record_result(TerminalProductionStage::Optimization, || {
                 run_psi_optimization(lowered, self.optimization_selections)
             })
             .map_err(TerminalArtifactProductionError::Optimization)?;
-        let entry_receipt = match (entry_identity, entry_selection) {
-            (Some(source_signature_identity), Some(selection)) => Some(
-                observer
-                    .record_result(TerminalProductionStage::EntryReceipt, || {
-                        prepare_program_entry_receipt(
-                            checked,
-                            selection,
-                            source_signature_identity,
-                            self.exact_toolchain_sources,
-                            optimized.lowered(),
-                        )
-                    })
-                    .map_err(TerminalArtifactProductionError::EntryReceipt)?,
-            ),
-            _ => None,
-        };
+        let receipts: Vec<_> = applications
+            .iter()
+            .zip(admissions)
+            .map(|(application, admission)| {
+                let entry_selection = admission?;
+                match (application.entry_identity, entry_selection) {
+                    (Some(source_signature_identity), Some(selection)) => observer
+                        .record_result(TerminalProductionStage::EntryReceipt, || {
+                            prepare_program_entry_receipt(
+                                checked,
+                                selection,
+                                source_signature_identity,
+                                self.exact_toolchain_sources,
+                                optimized.lowered(),
+                            )
+                        })
+                        .map(Some)
+                        .map_err(|error| {
+                            TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
+                        }),
+                    _ => Ok(None),
+                }
+            })
+            .collect();
         let artifact = observer
             .record_result(TerminalProductionStage::Publication, || {
                 lowered_psi_to_terminal_psi::finalize_terminal_artifact(optimized)
             })
             .map_err(TerminalArtifactProductionError::Artifact)?;
-        let receipt = match entry_receipt {
-            Some(receipt) => {
-                rejoin_program_entry_receipt(&receipt, &artifact)
-                    .map_err(TerminalArtifactProductionError::EntryReceipt)?;
-                Some(receipt)
-            }
-            None => None,
-        };
-        Ok(ProducedTerminalArtifact { artifact, receipt })
+        let applications = receipts
+            .into_iter()
+            .map(|receipt| {
+                let receipt = receipt?;
+                if let Some(receipt) = &receipt {
+                    rejoin_program_entry_receipt(receipt, &artifact).map_err(|error| {
+                        TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
+                    })?;
+                }
+                Ok(receipt)
+            })
+            .collect();
+        Ok(ProducedTerminalArtifact {
+            artifact,
+            applications,
+        })
     }
 }
 
 #[derive(Debug)]
 pub enum TerminalArtifactProductionError {
-    Admission(Vec<Diagnostic>),
     Lowering(LoweringError),
     Optimization(PsiOptimizationStageError),
     Artifact(terminal_codec::CanonicalTerminalArtifactError),
@@ -143,10 +160,7 @@ pub enum TerminalArtifactProductionError {
 
 impl TerminalArtifactProductionError {
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
-        match self {
-            Self::Admission(diagnostics) => diagnostics.clone(),
-            _ => vec![self.diagnostic()],
-        }
+        vec![self.diagnostic()]
     }
 
     /// The refusal as the diagnostic compilation reports. A body this

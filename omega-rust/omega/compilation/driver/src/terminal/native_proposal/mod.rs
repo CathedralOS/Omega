@@ -48,19 +48,25 @@ fn produce_callback_thunk_artifact(
         optimization_selections: psi_optimizations.selections().clone(),
     }
     .produce(TerminalProductionCustody {
-        entry_identity: None,
-        entry_machine: None,
-        behavior_exclusions: terminal_production::TerminalBehaviorExclusions::new(
-            checked.build().config.behavior_exclusions.as_slice(),
-            &checked.execution().selected_provider_plan_facts,
-            checked
-                .execution()
-                .selected_target_profile
-                .unwrap_or_else(target::TargetProfile::host),
-        ),
+        applications: &[terminal_production::TerminalApplicationCustody {
+            entry_identity: None,
+            entry_machine: None,
+            behavior_exclusions: terminal_production::TerminalBehaviorExclusions::new(
+                checked.build().config.behavior_exclusions.as_slice(),
+                &checked.execution().selected_provider_plan_facts,
+                checked
+                    .execution()
+                    .selected_target_profile
+                    .unwrap_or_else(target::TargetProfile::host),
+            ),
+        }],
         timings: &mut production_timings,
     })
     .map_err(|error| error.diagnostics())?;
+    let (artifact, applications) = produced.into_parts();
+    for application in applications {
+        application?;
+    }
     let entry = checked
         .execution()
         .program
@@ -84,7 +90,7 @@ fn produce_callback_thunk_artifact(
         .map(|parameter| parameter.position)
         .collect::<Vec<_>>();
     compilation_products::TerminalCallbackThunkArtifact::new(
-        produced.into_artifact(),
+        artifact,
         &scalar_positions,
         &structural_positions,
     )

@@ -21,13 +21,31 @@ fn package_operations_do_not_assemble_compiler_products() {
             ".prepare_product_report(",
             "CheckedProductReport::",
             "produce_native_product(",
-            "produce_terminal_product(",
+            "produce_retained_terminal_artifacts(",
         ] {
             assert!(
                 !source.contains(forbidden),
                 "package operation drives {forbidden}"
             );
         }
+    }
+}
+
+#[test]
+fn native_product_consumes_terminal_without_producing_it() {
+    let source = include_str!("native.rs");
+    assert!(source.contains("terminal: compilation_products::RetainedTerminalArtifact"));
+    assert!(!source.contains("crate::terminal::"));
+    assert!(!source.contains("TerminalProductionRequest"));
+}
+
+#[test]
+fn selected_execution_does_not_copy_checked_programs() {
+    for source in [
+        include_str!("../../realization/selected-dispatch/src/selected_dispatch.rs"),
+        include_str!("../../realization/selected-dispatch/src/boundary_dispatch.rs"),
+    ] {
+        assert!(!source.contains("Arc::make_mut"));
     }
 }
 

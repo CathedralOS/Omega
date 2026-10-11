@@ -568,14 +568,9 @@ pub(in crate::execution) fn build_call_operation(
         // a registered producer, or the callee's own ordinary body when it
         // completes with a scalar (`scalar_targets::available_target`), and
         // the caller is dropped as `UnavailableScalarTarget` otherwise. A
-        // pass with no scalar-callee catalog has no closure to defer to and
-        // still admits only a settled provider adapter, whose settlement
-        // already re-verified the exact signature and reach.
+        // pass with no scalar-callee catalog has no closure to defer to.
+        // Provider selection cannot supply source-checking facts.
         && scalar_callees.is_none()
-        && !facts
-            .boundary_adapter_dispatch
-            .iter()
-            .any(|row| row.realization_state == target_state.symbol)
     {
         phase("call operation: scalar result producer");
         None

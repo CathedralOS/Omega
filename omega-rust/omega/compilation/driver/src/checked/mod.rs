@@ -2,9 +2,9 @@
 //!
 //! Start at `checking.rs`. This compiler operation takes the assembled forest, evaluates
 //! its build machine, resolves and types the source that build generated
-//! against the retained base, settles providers, dispatch, entry bindings and
-//! task activations, admits package declarations, checks, and seals the
-//! result with its source custody. The `checking` folder holds the build
+//! against the retained base, checks all source and seals its custody once.
+//! Each target then settles providers, dispatch, entry bindings and task
+//! activations without reopening checking. The `checking` folder holds the build
 //! continuation, direct calls into the Psi stages, execution
 //! settlement; `compilation_products` owns the sealed carrier and its projections.
 //! The checked product settles trust through the realization trust owner;
@@ -27,10 +27,8 @@ pub use checking::{
     compile_to_checked, prepare_package_build,
 };
 pub(crate) use checking::{
-    SettledCompletedSource, check_settled_source, prepare_checked_source, prepare_product_source,
-    reject_divergent_constant_providers, settle_completed_source,
+    check_product_source, prepare_checked_source, prepare_product_source, settle_product_target,
 };
-pub(crate) use checking::execution_settlement::unify_settled_execution_views;
 pub use optimization_core::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,
 };

@@ -1,28 +1,26 @@
-//! Checked compilation to the canonical Terminal artifact.
+//! Produce each checked entry closure once, with independent target admission.
 //!
-//! One product leaves here: retained Terminal with callback custody and a
-//! native-realization proposal. Both Terminal publication and immediate native
-//! production consume this same boundary; no native route reopens checked source.
+//! Terminal has one entry today. Targets selecting the same source closure,
+//! entry and Psi optimization share its artifact; different roots remain
+//! distinct products. Target signatures, exclusion judgments and native
+//! proposals never participate in portable production identity.
 
-use crate::checked::{CheckedCompilation, OptimizationRollback};
+use crate::checked::CheckedCompilation;
 use crate::terminal::native_proposal;
 use artifacts::allocations::AllocationDelta;
 use artifacts::compile_timings::{StageMeta, TimingCategory};
+use compilation_products::RetainedTerminalArtifact;
 use diagnostics::Diagnostic;
-use terminal_production::TerminalProductionCustody;
+use optimization_core::OptimizationSelections;
+use std::sync::Arc;
+use terminal_production::{TerminalApplicationCustody, TerminalProductionCustody};
 
-/// Terminal production internally lowers, optimizes and publishes
-/// (checked-trees -> lowered-psi -> lowered-psi -> terminal-psi). The request
-/// keeps this coarse row as the boundary total; the production sequence
-/// records its per-leg rows into the same ladder, below it.
-/// Psi's semantic stages have no reporting dependency.
 const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     "terminal-production",
     "CheckedTrees",
     "CanonicalTerminalArtifact",
     TimingCategory::Pipeline,
 );
-
 const NATIVE_REALIZATION_PROPOSAL_STAGE: StageMeta = StageMeta::new(
     "native-realization-proposal",
     "CanonicalTerminalArtifact",
@@ -30,144 +28,232 @@ const NATIVE_REALIZATION_PROPOSAL_STAGE: StageMeta = StageMeta::new(
     TimingCategory::Pipeline,
 );
 
-/// What one Terminal stage sequence produces for the admitted settlement to
-/// turn into a report: the retained product, the settled rollback receipt, the
-/// post-production timing ladder.
-/// None of it is a report, an admission or a publication.
-pub(crate) struct ProducedTerminalProduct {
-    pub artifact: compilation_products::RetainedTerminalArtifact,
-    pub rollback_receipt: Option<optimization_core::OptimizationRollbackReceipt>,
-    pub timings: Vec<artifacts::compile_timings::PhaseTiming>,
+pub(crate) struct TerminalProductRequest<'a> {
+    pub checked: &'a mut CheckedCompilation,
+    pub selections: &'a OptimizationSelections,
 }
 
-/// Run the Terminal stage sequence the product admission already allowed. The
-/// stop, its Build requirements and its package production custody were
-/// settled by `CheckedCompilation::prepare_product_report`; this owner never
-/// re-admits them.
-pub(crate) fn produce_terminal_product(
-    mut checked: CheckedCompilation,
-    rollback: &OptimizationRollback,
-) -> Result<ProducedTerminalProduct, Vec<Diagnostic>> {
-    let rollback = rollback.settle(&checked.build().config.settings.optimizations);
-    let produced = produce_retained_terminal_artifact(&mut checked, rollback.effective())?;
-    Ok(ProducedTerminalProduct {
-        artifact: produced.artifact,
-        rollback_receipt: rollback.into_receipt(),
-        timings: checked.timings().phases().to_vec(),
-    })
+struct TerminalEntry {
+    portable_machine: symbols::SymbolHandle,
+    selected_machine: symbols::SymbolHandle,
+    signature_identity: [u8; 32],
+    target: target::TargetProfile,
 }
 
-/// Produce one retained Terminal product from the complete checked frontend
-/// result.
-///
-/// This owner closes the checked-to-Terminal boundary and binds the
-/// target-owned native-realization proposal. It does not re-verify the
-/// artifact it just produced: under verification placement
-/// (`omega-rust/pipeline.md`) the producer is the gate, and the corpus runner
-/// and tests exercise the verifier. It does not assemble a compiler report or
-/// enter native realization.
-/// The retained product.
-pub(crate) struct ProducedRetainedTerminal {
-    pub(crate) artifact: compilation_products::RetainedTerminalArtifact,
-}
-
-pub(crate) fn produce_retained_terminal_artifact(
-    checked: &mut CheckedCompilation,
-    selections: &optimization_core::OptimizationSelections,
-) -> Result<ProducedRetainedTerminal, Vec<Diagnostic>> {
-    let selected_program_entry = checked.admit_terminal_production()?;
-    let entry_machine_symbol = selected_program_entry.machine_symbol();
-    // Only an independent contract head is a portable root. A legacy
-    // member-backed catalog's canonical body is not an alias for whichever
-    // concrete entry the Build selected.
-    let portable_entry_symbol = checked
-        .execution()
-        .program
-        .typed
-        .target_machine_families
+/// Invocation-local sharing, not a cache: source custody and checked arenas
+/// must be the same owners, not merely equal-looking programs. The small
+/// target roster is grouped by direct scans; no source hashing or copying.
+pub(crate) fn produce_retained_terminal_artifacts(
+    mut requests: Vec<TerminalProductRequest<'_>>,
+) -> Vec<Result<RetainedTerminalArtifact, Vec<Diagnostic>>> {
+    let entries: Vec<_> = requests
         .iter()
-        .find(|family| {
-            (family.canonical == entry_machine_symbol
-                || family
-                    .members
+        .map(|request| {
+            request.checked.admit_terminal_production().map(|entry| {
+                let selected_machine = entry.machine_symbol();
+                let typed = &request.checked.execution().program.typed;
+                let portable_machine = typed
+                    .target_machine_families
                     .iter()
-                    .any(|member| member.machine == entry_machine_symbol))
-                && checked
-                    .execution()
-                    .program
-                    .typed
-                    .machine_by_symbol(family.canonical)
-                    .is_some_and(|machine| machine.target_family_interface)
+                    .find(|family| {
+                        (family.canonical == selected_machine
+                            || family
+                                .members
+                                .iter()
+                                .any(|member| member.machine == selected_machine))
+                            && typed
+                                .machine_by_symbol(family.canonical)
+                                .is_some_and(|machine| machine.target_family_interface)
+                    })
+                    .map_or(selected_machine, |family| family.canonical);
+                TerminalEntry {
+                    portable_machine,
+                    selected_machine,
+                    signature_identity: entry.source_signature().identity().bytes(),
+                    target: entry.source_signature().target_slot().owner,
+                }
+            })
         })
-        .map_or(entry_machine_symbol, |family| family.canonical);
-    let source_signature_identity = selected_program_entry.source_signature().identity().bytes();
-    let entry_target_profile = selected_program_entry
-        .source_signature()
-        .target_slot()
-        .owner;
-    // The accumulator steps out of the checked record across the measured
-    // legs below so each closure may borrow the record while it is timed; it
-    // rejoins the record once the product is produced and admitted.
-    let mut stage_timings = std::mem::take(checked.timings_mut());
-    let psi_optimizations = selections.project_psi();
-    let context = provider_planning::ProviderPlanningContext::new(
-        &checked.execution().program.typed,
-        source::DependencyScope::Product,
-    );
-    let boundary_roots = provider_planning::target_machines::provider_selection_roots(
-        context,
-        checked
-            .build_admission()
-            .provider_defaults
-            .iter()
-            .flat_map(|row| &row.selections)
-            .chain(&checked.build().config.provider_selections),
-    )?;
-    // Production records its own legs into this same ladder, so the aggregate
-    // row cannot be taken with `record_result`: that holds the accumulator
-    // borrowed across the call. Measuring around it and adding the row
-    // afterwards is what `record_result` does internally, rejection included,
-    // and `add_completed` is a no-op on a disabled ladder.
-    //
-    // The row is opened at zero first so it keeps the position it held when a
-    // separate carrier was merged in afterwards: the ladder orders phases by
-    // first insertion, and the legs below would otherwise land ahead of their
-    // own total. `add_completed` sums onto an existing label, so the real
-    // elapsed is added to this row rather than replacing it.
-    stage_timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0, AllocationDelta::default());
-    let production_started = std::time::Instant::now();
-    let produced = terminal_production::TerminalProductionRequest {
-        checked: &checked.execution().program,
-        exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
-        machine: terminal_production::TerminalMachineSelection::Symbol(portable_entry_symbol),
-        boundary_roots: &boundary_roots,
-        optimization_selections: psi_optimizations.selections().clone(),
+        .collect();
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    let mut results: Vec<_> = entries
+        .iter()
+        .map(|entry| entry.as_ref().err().cloned().map(Err))
+        .collect();
+    for (request_index, entry) in entries.iter().enumerate() {
+        let Ok(entry) = entry else {
+            continue;
+        };
+        let request = &requests[request_index];
+        let group = groups.iter_mut().find(|group| {
+            let first_index = group[0];
+            let first = &requests[first_index];
+            entries[first_index]
+                .as_ref()
+                .is_ok_and(|first_entry| first_entry.portable_machine == entry.portable_machine)
+                && Arc::ptr_eq(
+                    &first.checked.execution().program,
+                    &request.checked.execution().program,
+                )
+                && std::ptr::eq(first.checked.sources(), request.checked.sources())
+                && first.selections.project_psi() == request.selections.project_psi()
+        });
+        if let Some(group) = group {
+            group.push(request_index);
+        } else {
+            groups.push(vec![request_index]);
+        }
     }
-    .produce(TerminalProductionCustody {
-        entry_identity: Some(source_signature_identity),
-        entry_machine: Some(terminal_production::TerminalMachineSelection::Symbol(
-            entry_machine_symbol,
-        )),
-        behavior_exclusions: terminal_production::TerminalBehaviorExclusions::new(
-            checked.build().config.behavior_exclusions.as_slice(),
-            &checked.execution().selected_provider_plan_facts,
-            entry_target_profile,
-        ),
-        timings: &mut stage_timings,
-    });
-    stage_timings.add_completed(
-        TERMINAL_PRODUCTION_STAGE,
-        production_started.elapsed().as_micros(),
-        AllocationDelta::default(),
-    );
-    // A capacity refusal keeps its exceeded provision on the diagnostic so
-    // the target's outcome publishes `Incomplete`, not a rejection.
-    let produced = produced.map_err(|error| error.diagnostics())?;
-    let checked_program_entry = produced.receipt().cloned().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "terminal-artifact production retained no checked ProgramEntry receipt",
-        )]
-    })?;
+
+    for group in groups {
+        let first_index = group[0];
+        let mut timings = std::mem::take(requests[first_index].checked.timings_mut());
+        timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0, AllocationDelta::default());
+        let started = std::time::Instant::now();
+        let applications: Vec<_> = group
+            .iter()
+            .map(|&request_index| {
+                let checked = &requests[request_index].checked;
+                TerminalApplicationCustody {
+                    entry_identity: entries[request_index]
+                        .as_ref()
+                        .ok()
+                        .map(|entry| entry.signature_identity),
+                    entry_machine: entries[request_index].as_ref().ok().map(|entry| {
+                        terminal_production::TerminalMachineSelection::Symbol(
+                            entry.selected_machine,
+                        )
+                    }),
+                    behavior_exclusions: terminal_production::TerminalBehaviorExclusions::new(
+                        checked.build().config.behavior_exclusions.as_slice(),
+                        &checked.execution().selected_provider_plan_facts,
+                        entries[request_index]
+                            .as_ref()
+                            .map(|entry| entry.target)
+                            .unwrap_or_else(|_| target::TargetProfile::host()),
+                    ),
+                }
+            })
+            .collect();
+        // Groups contain only admitted entries. Keep a diagnostic if internal
+        // request assembly ever violates that property, never guess a root.
+        let produced = match &entries[first_index] {
+            Ok(entry) => {
+                let first = &requests[first_index];
+                let context = provider_planning::ProviderPlanningContext::new(
+                    &first.checked.execution().program.typed,
+                    source::DependencyScope::Product,
+                );
+                provider_planning::target_machines::provider_selection_roots(
+                    context,
+                    first
+                        .checked
+                        .build_admission()
+                        .provider_defaults
+                        .iter()
+                        .flat_map(|row| &row.selections)
+                        .chain(&first.checked.build().config.provider_selections),
+                )
+                .and_then(|boundary_roots| {
+                    terminal_production::TerminalProductionRequest {
+                        checked: &first.checked.execution().program,
+                        exact_toolchain_sources: first.checked.sources().exact_toolchain_sources(),
+                        machine: terminal_production::TerminalMachineSelection::Symbol(
+                            entry.portable_machine,
+                        ),
+                        boundary_roots: &boundary_roots,
+                        optimization_selections: first
+                            .selections
+                            .project_psi()
+                            .selections()
+                            .clone(),
+                    }
+                    .produce(TerminalProductionCustody {
+                        applications: &applications,
+                        timings: &mut timings,
+                    })
+                    .map_err(|error| error.diagnostics())
+                })
+            }
+            Err(diagnostics) => Err(diagnostics.clone()),
+        };
+        drop(applications);
+        let elapsed = started.elapsed().as_micros();
+        timings.add_completed(
+            TERMINAL_PRODUCTION_STAGE,
+            elapsed,
+            AllocationDelta::default(),
+        );
+        *requests[first_index].checked.timings_mut() = timings;
+        for &request_index in &group[1..] {
+            // The shared cost is visible in each product report; per-leg rows
+            // remain on the producing request, not fabricated executions.
+            requests[request_index].checked.timings_mut().add_completed(
+                TERMINAL_PRODUCTION_STAGE,
+                elapsed,
+                AllocationDelta::default(),
+            );
+        }
+        match produced {
+            Err(diagnostics) => {
+                for request_index in group {
+                    results[request_index] = Some(Err(diagnostics.clone()));
+                }
+            }
+            Ok(produced) => {
+                let (artifact, applications) = produced.into_parts();
+                let artifact = Arc::new(artifact);
+                for (request_index, application) in group.into_iter().zip(applications) {
+                    let request = &mut requests[request_index];
+                    let mut timings = std::mem::take(request.checked.timings_mut());
+                    let result = application.and_then(|receipt| {
+                        let receipt = receipt.ok_or_else(|| vec![Diagnostic::error(
+                            "terminal-artifact production retained no checked ProgramEntry receipt",
+                        )])?;
+                        timings
+                            .record_result(NATIVE_REALIZATION_PROPOSAL_STAGE, || {
+                                native_proposal::project_terminal_native_realization_proposal(
+                                    request.checked,
+                                    &artifact,
+                                    receipt,
+                                    request.selections,
+                                )
+                            })
+                            .map(|proposal| {
+                                let target_providers = publish_target_providers(
+                                    request.checked,
+                                    &artifact,
+                                    request.selections,
+                                );
+                                RetainedTerminalArtifact::new_with_native_realization_proposal(
+                                    Arc::clone(&artifact),
+                                    proposal.with_target_provider_proposals(target_providers),
+                                )
+                            })
+                    });
+                    *request.checked.timings_mut() = timings;
+                    results[request_index] = Some(result);
+                }
+            }
+        }
+    }
+    results
+        .into_iter()
+        .map(|result| {
+            result.unwrap_or_else(|| {
+                Err(vec![Diagnostic::error(
+                    "Terminal production lost an application outcome",
+                )])
+            })
+        })
+        .collect()
+}
+
+fn publish_target_providers(
+    checked: &CheckedCompilation,
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    selections: &OptimizationSelections,
+) -> Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal> {
     let mut targets = checked
         .build_admission()
         .provider_defaults
@@ -181,38 +267,28 @@ pub(crate) fn produce_retained_terminal_artifact(
             targets.push(profile.target_name().to_owned());
         }
     }
-    targets.push(entry_target_profile.target_name().to_owned());
+    targets.push(
+        checked
+            .execution()
+            .selected_target_profile
+            .unwrap_or_else(target::TargetProfile::host)
+            .target_name()
+            .to_owned(),
+    );
     targets.sort();
     targets.dedup();
-    let target_provider_proposals =
-        provider_planning::target_machines::TargetProviderPublicationRequest {
-            context,
-            artifact: produced.artifact().view(),
-            exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
-            defaults: &checked.build_admission().provider_defaults,
-            overrides: &checked.build().config.provider_selections,
-            settlement: checked.providers(),
-            targets: &targets,
-            optimization_selection: selections.identity(),
-        }
-        .publish();
-    let artifact = produced.into_artifact();
-    let native_realization_proposal =
-        stage_timings.record_result(NATIVE_REALIZATION_PROPOSAL_STAGE, || {
-            native_proposal::project_terminal_native_realization_proposal(
-                checked,
-                &artifact,
-                checked_program_entry,
-                selections,
-            )
-        });
-    *checked.timings_mut() = stage_timings;
-    let native_realization_proposal =
-        native_realization_proposal?.with_target_provider_proposals(target_provider_proposals);
-    let artifact =
-        compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
-            artifact,
-            native_realization_proposal,
-        );
-    Ok(ProducedRetainedTerminal { artifact })
+    provider_planning::target_machines::TargetProviderPublicationRequest {
+        context: provider_planning::ProviderPlanningContext::new(
+            &checked.execution().program.typed,
+            source::DependencyScope::Product,
+        ),
+        artifact: artifact.view(),
+        exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
+        defaults: &checked.build_admission().provider_defaults,
+        overrides: &checked.build().config.provider_selections,
+        settlement: checked.providers(),
+        targets: &targets,
+        optimization_selection: selections.identity(),
+    }
+    .publish()
 }

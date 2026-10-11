@@ -8,8 +8,6 @@
 //! diagnostics remain the checked producer's original dependency/phase
 //! report; provider selection does not reinterpret a Psi construction failure.
 
-use std::sync::Arc;
-
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
@@ -30,12 +28,18 @@ pub use operator_adapter::{
 
 /// Settle selected execution for the checked program the caller hands over.
 /// Failure publishes nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedExecutionDispatch {
+    pub boundary_adapters: Vec<checked_trees::CheckedBoundaryAdapterDispatch>,
+    pub float_comparisons: Vec<checked_trees::CheckedSelectedFloatComparisonExecution>,
+}
+
 pub(crate) fn settle_selected_execution_dispatch(
-    mut checked: Arc<CheckedTrees>,
+    checked: &CheckedTrees,
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_provider_plans: &SelectedProviderPlanFacts,
     selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
-) -> Result<Arc<CheckedTrees>, Vec<Diagnostic>> {
+) -> Result<SelectedExecutionDispatch, Vec<Diagnostic>> {
     if selected_provider_provenance.iter().any(|provider| {
         selected_provider_plans
             .plan_by_exact_evidence(provider.plan.report_fingerprint(), &provider.plan)
@@ -49,27 +53,20 @@ pub(crate) fn settle_selected_execution_dispatch(
     // its provider adds associations, not new source facts or execution plans;
     // rebuilding Psi here would introduce a second stage entrance and require
     // exclusive custody of an otherwise shareable checked program.
-    crate::boundary_dispatch::settle_selected_boundary_adapter_dispatch(
-        &mut checked,
+    let boundary_adapters = crate::boundary_dispatch::settle_selected_boundary_adapter_dispatch(
+        checked,
         calling_plans,
         selected_provider_plans,
     )?;
-    let executions = float_comparisons::selected_executions(
-        &checked,
+    let float_comparisons = float_comparisons::selected_executions(
+        checked,
         source::DependencyScope::Product,
         selected_provider_provenance,
     )?;
-    if !checked
-        .facts
-        .operators
-        .selected_float_comparisons
-        .iter()
-        .map(|(_, execution)| execution)
-        .eq(executions.iter())
-    {
-        float_comparisons::replace_executions(Arc::make_mut(&mut checked), executions);
-    }
-    Ok(checked)
+    Ok(SelectedExecutionDispatch {
+        boundary_adapters,
+        float_comparisons,
+    })
 }
 
 /// Settle comparison execution without importing runtime adapter dispatch or

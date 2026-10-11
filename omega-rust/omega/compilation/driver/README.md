@@ -21,18 +21,24 @@ there is no compiler-owned `report` or `artifact_publication` module. Root-level
 request/result exports remain conveniences for the compilation entrypoints.
 
 [compiler.rs](src/compiler.rs) sequences request admission, one source/Build
-prefix, then the Check / Terminal / Native product dispatch. Its target loop
-still runs checking, trust admission and production: moving those behind a shared
-Terminal boundary remains unfinished. It never resumes a frontend or Build.
+prefix, then the Check / Terminal / Native product dispatch. It settles all
+targets before producing Terminal. Targets with the same checked source owner,
+entry and Psi optimization share that production and artifact storage; target
+receipts and exclusion judgments stay separate. Native production receives the
+artifact explicitly and never calls Psi. Distinct roots and callbacks remain
+separate productions until the whole-program Terminal entry roster lands.
+`cargo run -p compiler --example terminal_sharing` exercises two native targets
+through this route and checks actual production counts and shared backing
+storage. It does not execute a foreign-host image.
 The independent [product request owner](../products/src/compile_request.rs)
 expands explicit targets over one invocation policy, rejects duplicates and incompatible rollback,
 and admits evaluated Build requirements. It returns immutable per-target inputs;
 the coordinator owns the loop, not those policy decisions.
 It assembles, resolves, executes Build and completes authored/generated typing
 once. [Prepared source products](../products/src/prepared_build.rs) carry that
-completed prefix, not a cache keyed by target inputs. `compile_target` consumes
-one copy because provider settlement still mutates typed metadata. The last
-target consumes the original storage. Package review enters the same operations
+checked prefix and sealed source custody, not a cache keyed by target inputs.
+Provider settlement borrows those owners and cannot mutate checked metadata.
+Package review enters the same operations
 with its own admitted activation; the package batch caller still needs to move
 onto this shared request. Native production consumes each
 target's retained Terminal artifact without a second scheduling pass. Product
@@ -69,8 +75,8 @@ Scratch never publishes, and a failed compilation returns no successful set. See
 [scoped build inputs](../../../../wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem).
 The [checked entrance](src/checked/checking.rs) shows the lifecycle:
 [evaluate Build and continue generated source](src/checked/checking/build_continuation.rs),
-[check selected execution](src/checked/checking/execution_settlement.rs),
-then [seal the result against current source custody](../products/src/checked_compilation.rs).
+[check Product and seal source custody](src/checked/checking/source_checking.rs),
+then [settle each target](src/checked/checking/execution_settlement.rs).
 The product owner retains the complete checked result, its evaluated Build and
 source custody, and owns metadata and production-subject projections. Its shared
 Build records are data contracts consumed by evaluation and product assembly;
@@ -296,17 +302,20 @@ The coordinator supplies evaluated build authority to Psi's checking request;
 Psi checks assembly authority even when the language judgment is memoized.
 Language-only probes do not issue runtime installation authority.
 
-[Provider checking inputs](../realization/selected-dispatch/src/provider_checking.rs)
-belong to Omega realization. That owner prepares representation inputs, then
-binds callback placements and provider grants to Psi's checked result. Psi
+[Source checking](src/checked/checking/source_checking.rs) consumes Product typing
+once, admits representation properties and seals source custody before target
+settlement. Targets share both the checked arenas and sealed custody.
+[Provider binding](../realization/selected-dispatch/src/provider_binding.rs)
+belongs to Omega realization. It binds callback placements and provider grants
+without preparing or rewriting Psi's checked result. Psi
 derives candidate specializations from authored conformances independently of
 runtime provider selection. `CheckedProviderProgram` retains the resulting program
 and exact review records; the coordinator does not reconstruct them.
 
-Deferred constant folds keep provider-plan rederivation in Omega. Their final
-source-occurrence checks and invocation replay belong to Psi's
-`build-time-evaluation::validate_folded_array_lengths`, which consumes the final
-checked program directly; the coordinator does not reconstruct those judgments.
+Provider-dependent Product constants currently reject with an explicit
+`unimplemented:` diagnostic. Portable symbolic recipes must cross Psi before
+realization closes them; selected runtime values cannot be folded into shared
+source. Admitted Build evaluation retains its separate evaluation authority.
 Selected execution preparation belongs to Psi: one Omega authority pass joins
 each source requirement to an exact intrinsic or checked adapter and plan
 commitment. Psi derives the Float operation and carriers or provider entry,

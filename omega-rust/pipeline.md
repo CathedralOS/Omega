@@ -95,9 +95,16 @@ stages, representations, backend or package-compilation helpers.
 The current Rust implementation does not meet this yet. Source preparation and
 checked/Terminal coordination still sit outside the numbered stages. One
 `CompileRequest` assembles sources, executes Build and completes authored/generated
-typing before its target loop. Each target still copies the typed input, settles
-providers, checks Product and produces Terminal Psi separately; provider metadata
-still changes the checking input. Package-manager batches also retain separate
+typing and checks Product before its target loop. Targets borrow the same checked
+arenas and sealed source custody, and settle providers without rewriting source
+contracts or rehashing the consumed source closure. Checked-tree
+pruning retains all Build-declared roots, not one target's selected entry.
+Targets selecting the same entry and Psi optimizations share Terminal production
+and storage; distinct roots still produce separate artifacts. Product constants
+requiring selected-provider evaluation reject until portable recipes cross this
+boundary; selected providers cannot inject completion roles into checked source.
+Accepted package roles enter source preparation before checking instead.
+Package-manager batches also retain separate
 checked activations. These are unfinished ownership moves, not the intended route:
 
 | Input → output | Owner |
@@ -244,6 +251,14 @@ supplies operator selections. Adapter dispatch reads the canonical backing
 through a Product declaration/occurrence selection instead of cloning and
 pruning a separate program. Build copies remain outside that selected frontier.
 Provider grants resolve through backend provider evidence.
+Product adapter dispatch and selected float executions live beside the checked
+program in `SelectedExecution`; they never copy or mutate checked Psi. The
+reference checked interpreter receives those explicit execution bindings.
+Matching source-owner/entry/Psi-optimization requests share one Terminal
+production and backing allocation, including in retained native images. Each
+target independently admits the unoptimized composition and retains its own
+entry receipt and native proposal. Distinct roots and callbacks remain separate
+productions until the whole-program entry roster is implemented.
 These remain checked-tree realization seams with package-input custody;
 moving them out of the coordinator does not establish the intended Terminal-only
 handoff. Callback proposal production now closes source placements into body,

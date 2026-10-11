@@ -43,6 +43,7 @@ impl<'program> Evaluator<'program> {
             checked: None,
             operator_facts: None,
             boundary_adapter_dispatch: &[],
+            selected_product_float_comparisons: None,
             selected_build_time_operators: &[],
             semantic_float_evaluation: false,
             stdout: Vec::new(),
@@ -117,7 +118,6 @@ impl<'program> Evaluator<'program> {
         let mut evaluator = Self::new(&checked.typed, stdin);
         evaluator.checked = Some(checked);
         evaluator.operator_facts = Some(&checked.facts.operators);
-        evaluator.boundary_adapter_dispatch = &checked.facts.boundary_adapter_dispatch;
         evaluator
     }
 

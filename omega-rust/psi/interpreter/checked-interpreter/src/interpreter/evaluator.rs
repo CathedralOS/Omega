@@ -224,7 +224,10 @@ pub(crate) struct Evaluator<'program> {
     /// operation. Admitted Build evaluation retains the same facts; early
     /// constant preparation still runs before they exist.
     operator_facts: Option<&'program CheckedOperatorFacts>,
-    boundary_adapter_dispatch: &'program [checked_trees::CheckedBoundaryAdapterDispatch],
+    pub(super) boundary_adapter_dispatch:
+        &'program [checked_trees::CheckedBoundaryAdapterDispatch],
+    pub(super) selected_product_float_comparisons:
+        Option<&'program [checked_trees::CheckedSelectedFloatComparisonExecution]>,
     pub(super) selected_build_time_operators: &'program [crate::SelectedBuildTimeBinaryOperator],
     /// Semantic evaluation cannot choose observable bits for computed NaN.
     semantic_float_evaluation: bool,

@@ -5,38 +5,24 @@ use diagnostics::Diagnostic;
 
 use compilation_products::NativeProductRequest;
 
-/// What one native stage sequence produces for the admitted settlement to turn
-/// into a report: the realized image, the settled rollback receipt, the
-/// post-production timing ladder.
-pub(crate) struct ProducedNativeProduct {
-    pub artifact: native_artifact::RequestedNativeArtifact,
-    pub runtime_provisions: Option<compilation_products::TerminalRuntimeProvisions>,
-    pub rollback_receipt: Option<optimization_core::OptimizationRollbackReceipt>,
-    pub timings: Vec<artifacts::compile_timings::PhaseTiming>,
-}
-
-/// Produce the same retained Terminal product used by package re-entry, then
-/// consume it through the single source-free native pipeline. The stop and its
+/// Consume the retained Terminal product through the source-free native
+/// pipeline. This operation never enters Psi production. The stop and its
 /// Build requirements were admitted by
 /// `CheckedCompilation::prepare_product_report`; nothing is re-admitted here.
 pub(crate) fn produce_native_product(
     request: NativeProductRequest,
-    mut checked: CheckedCompilation,
-) -> Result<ProducedNativeProduct, Vec<Diagnostic>> {
-    let rollback = request
-        .optimization_rollback
-        .settle(&checked.build().config.settings.optimizations);
-
+    checked: &CheckedCompilation,
+    terminal: compilation_products::RetainedTerminalArtifact,
+    selections: &optimization_core::OptimizationSelections,
+) -> Result<native_production::RealizedNativeProduct, Vec<Diagnostic>> {
     // Capture package acceptance from the checked source, independently of the
     // proposal being produced. These are NOT receiver permission rows: the
     // separately supplied receiver policy remains optional and unchanged.
     let accepted_package_terminal_authority_permission_policy =
-        accepted_terminal_authority_permission_policy(&checked)?;
-    let terminal =
-        crate::terminal::produce_retained_terminal_artifact(&mut checked, rollback.effective())?;
-    let post_terminal = rollback.effective().project_post_terminal();
-    let realized = native_production::compile(
-        terminal.artifact,
+        accepted_terminal_authority_permission_policy(checked)?;
+    let post_terminal = selections.project_post_terminal();
+    native_production::compile(
+        terminal,
         native_production::NativeCompileRequest {
             optimization_selections: post_terminal.selections(),
             terminal_authority_policy: request.terminal_authority_policy,
@@ -48,13 +34,7 @@ pub(crate) fn produce_native_product(
             imports: &[],
         },
     )
-    .map_err(|(_, diagnostics)| diagnostics)?;
-    Ok(ProducedNativeProduct {
-        artifact: realized.artifact,
-        runtime_provisions: realized.runtime_provisions,
-        rollback_receipt: rollback.into_receipt(),
-        timings: checked.timings().phases().to_vec(),
-    })
+    .map_err(|(_, diagnostics)| diagnostics)
 }
 
 /// Project and validate the checked package's accepted Terminal permission

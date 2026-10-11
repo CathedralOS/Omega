@@ -799,6 +799,8 @@ fn interpret_checked_fixture(
         checked_interpreter::BuildMachineEntry::Symbol(entry.machine_symbol()),
         &input_bytes,
         checked_interpreter::InterpretOptions {
+            boundary_adapters: &checked.execution().dispatch.boundary_adapters,
+            float_comparisons: &checked.execution().dispatch.float_comparisons,
             provisioned_context_parameter: entry
                 .context_parameter()
                 .is_valid()
@@ -2065,6 +2067,13 @@ fn main() {
         let done = std::sync::Arc::clone(&done);
         workers_joined.push(std::thread::spawn(move || {
             loop {
+                // Exhaustion needs no execution capacity. In particular, the
+                // last timed-out fixture must not delay publishing its record
+                // while this worker waits for work that does not exist.
+                let slot = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                if slot >= order.len() {
+                    break;
+                }
                 // Back-pressure: never leave more than `workers` compiles in
                 // flight, stragglers included. Give up after 2*cap so genuinely
                 // wedged compiles stall the pool only temporarily, not forever.
@@ -2073,10 +2082,6 @@ fn main() {
                 {
                     std::thread::sleep(std::time::Duration::from_millis(50));
                     waited += std::time::Duration::from_millis(50);
-                }
-                let slot = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                if slot >= order.len() {
-                    break;
                 }
                 let index = order[slot];
                 let (tier, base, main, fixture_cap) = &jobs[index];

@@ -11,9 +11,7 @@ use crate::{BuildAdmission, ComputedBuildConfig};
 use artifacts::compile_timings::CompileTimings;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
-use package_compilation::BuildSourceCustody;
 use package_compilation::CheckedSourceCustody;
-use package_compilation::PackageCompilationInputs;
 use provider_planning::ProviderSettlement;
 use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
@@ -88,7 +86,7 @@ pub struct CheckedCompilationInputs {
 #[derive(Debug, Clone)]
 pub struct CheckedCompilation {
     execution: CheckedCompilationInputs,
-    sources: CheckedSourceCustody,
+    sources: Arc<CheckedSourceCustody>,
     timings: CompileTimings,
     /// The settled language judgments and their exact inputs, kept only when the
     /// request asked to retain it for a later compile of the same occurrence.
@@ -107,22 +105,20 @@ impl PartialEq for CheckedCompilation {
 impl Eq for CheckedCompilation {}
 
 impl CheckedCompilation {
-    /// Seal supplied stage products against their exact consumed source closure.
-    /// This binds custody, not package admission or native publication authority;
-    /// consumers still independently reconstruct the supplied evidence.
-    pub fn seal(
+    /// Retain a target's settlement beside the common source closure. Source
+    /// checking already sealed that closure; realization must not hash it again.
+    /// This assembles products, not package admission or publication authority.
+    pub fn from_settled_execution(
         execution: CheckedCompilationInputs,
-        sources: BuildSourceCustody,
-        package_inputs: Option<&PackageCompilationInputs>,
+        sources: Arc<CheckedSourceCustody>,
         timings: CompileTimings,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let sources = sources.seal(&execution.settled.program, package_inputs)?;
-        Ok(Self {
+    ) -> Self {
+        Self {
             execution,
             sources,
             timings,
             settled_checks: RetainedCompilationChecks::default(),
-        })
+        }
     }
 
     /// Keep the settled checks this compilation ran (or took) for a later
@@ -170,7 +166,7 @@ impl CheckedCompilation {
     /// The exact physical/generated source closure sealed against this
     /// program, with its package subject when package-aware. Source IDs are
     /// private join coordinates and never enter canonical product bytes.
-    pub const fn sources(&self) -> &CheckedSourceCustody {
+    pub fn sources(&self) -> &CheckedSourceCustody {
         &self.sources
     }
 

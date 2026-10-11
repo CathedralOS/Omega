@@ -23,14 +23,17 @@ separates canonical sealing from source-entry correspondence audits.
 `TerminalProductionRequest` carries the checked trees, the
 `TerminalMachineSelection` naming the machine, and the exact Psi optimization
 selection. Its one `produce` entry takes a `TerminalProductionCustody`: an
-optional ProgramEntry source-signature identity, optional behavior exclusions,
-and the stage-timing carrier. Every product runs the same
+ordered application rows (each with optional ProgramEntry source-signature
+identity and behavior exclusions) and the stage-timing carrier. Every shared
+entry closure runs the same
 lowering, optimization and publication legs; an entry identity
 adds the ProgramEntry receipt legs, which check the unique Unit entry before
 publication and rejoin the published semantic identity afterward. The
-`ProducedTerminalArtifact` returns the artifact beside the requested entry
-receipt. No lowering or unoptimized clone leaves production. Before optimization,
-the policy borrows the actual Terminal module and a diagnostic attribution
+`ProducedTerminalArtifact` returns one artifact beside each application's
+refusal or requested entry receipt. A refusal does not reject sibling applications,
+and successful artifact production alone admits none of them. No lowering or
+unoptimized clone leaves production. Before optimization,
+each policy borrows the same Terminal module and a diagnostic attribution
 companion. Exclusion admission uses exact service owners retained in boundary
 declarations, not checked trees or a callable-name lookup. The same operation
 admits program entries and callback thunks; an admission cannot mutate the

@@ -129,8 +129,6 @@ pub struct CheckFacts {
     /// Compiler-owned call meanings selected only after exact receiver and
     /// owner checking.
     pub intrinsic_calls: Vec<CheckedIntrinsicCallFact>,
-    /// Exact selected call associations; never substitutes for source call facts.
-    pub boundary_adapter_dispatch: Vec<crate::CheckedBoundaryAdapterDispatch>,
     /// Direct state inputs whose opaque placed-view meaning has been joined to
     /// its exact source-derived placement plan. These rows grant no runtime
     /// storage, accessor, provider, or ABI authority.

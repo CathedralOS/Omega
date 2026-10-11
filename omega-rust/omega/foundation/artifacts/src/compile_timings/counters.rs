@@ -20,6 +20,17 @@ static SOURCE_ASSEMBLY_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::
 static BUILD_EXECUTIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static PRODUCT_SOURCE_COMPLETIONS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
+static TERMINAL_PRODUCTIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Product-adapter Psi production attempts, including independent callback roots.
+#[doc(hidden)]
+pub fn terminal_production_count() -> u64 {
+    TERMINAL_PRODUCTIONS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn record_terminal_production() {
+    TERMINAL_PRODUCTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
 
 /// Actual Build machine execution attempts, excluding retained results.
 #[doc(hidden)]
@@ -114,7 +125,6 @@ pub fn record_preliminary_check(elapsed: std::time::Duration) {
         std::sync::atomic::Ordering::Relaxed,
     );
 }
-
 /// Record entry to the checked-compilation API, including rejected requests.
 pub fn record_checked_compilation() {
     CHECKED_COMPILATION_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);

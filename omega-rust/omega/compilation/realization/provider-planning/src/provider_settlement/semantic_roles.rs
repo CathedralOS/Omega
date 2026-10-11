@@ -1,6 +1,5 @@
-//! Package consumer roles become exact source completion declarations before
-//! published provider schemas are committed. Discovery proposes the same role
-//! from selected declaration custody; it grants no execution authority.
+//! Accepted package roles enter source checking before provider selection.
+//! Discovery cannot rewrite a completed source judgment to match a provider.
 
 use crate::{ProviderSchemaDeclaration, SelectedProviderPlanWithProvenance};
 use checked_trees::typed_trees::{BoundaryCompletionDeclaration, TypedTrees};
@@ -10,7 +9,9 @@ use package_compilation::{AcceptedSemanticBindingRole, PackageCompilationInputs}
 use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind, PackageKeyIdentity};
 use symbols::SymbolHandle;
 
-pub(super) fn attach_accepted(
+/// Resolve an accepted package role to its exact source requirement. This
+/// precedes checking and never observes a selected realization provider.
+pub fn prepare_source_completion(
     typed: &mut TypedTrees,
     inputs: Option<&PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -47,15 +48,14 @@ pub(super) fn attach_accepted(
     Ok(())
 }
 
-/// Only unpublished selected-plan scratch reaches this proposal step. The
-/// caller rebuilds provider schemas with the proposed source semantics before
-/// retaining any schema or plan digest for review.
-pub(super) fn attach_proposed(
-    typed: &mut TypedTrees,
+/// Discovery cannot change the source judgment to fit a selected provider.
+/// A new completion meaning must enter through source admission before checking.
+pub(super) fn validate_proposed(
+    typed: &TypedTrees,
     selected: &[SelectedProviderPlanWithProvenance],
-) -> Result<bool, Vec<Diagnostic>> {
+) -> Result<(), Vec<Diagnostic>> {
     if !typed.boundary_completion_declarations.is_empty() {
-        return Ok(false);
+        return Ok(());
     }
     let mut declarations = Vec::new();
     for selected in selected {
@@ -98,11 +98,12 @@ pub(super) fn attach_proposed(
             "completion role discovery has multiple selected package-owned Console declarations",
         )]);
     }
-    let changed = !declarations.is_empty();
-    for declaration in declarations {
-        let _ = typed.boundary_completion_declarations.append(declaration);
+    if !declarations.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "unimplemented: portable completion-role discovery; selected providers cannot change a checked source contract",
+        )]);
     }
-    Ok(changed)
+    Ok(())
 }
 
 fn completion_declaration(

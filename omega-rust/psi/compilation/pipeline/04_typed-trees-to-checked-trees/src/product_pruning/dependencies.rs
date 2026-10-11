@@ -115,14 +115,6 @@ pub(super) fn interface_retention_set(
         }
     }
 
-    // Boundary adapter dispatch selects an exact realization state for each
-    // routed boundary requirement.
-    for dispatch in &facts.boundary_adapter_dispatch {
-        retain_symbol(&mut retained, index, dispatch.realization_state);
-        retain_symbol(&mut retained, index, dispatch.requirement);
-        retain_symbol(&mut retained, index, dispatch.receiver);
-    }
-
     // Placed-view plans retain the exact `Policy::plan` machine whose
     // evaluated output produced the placement.
     for plan in &program.placed_view_plans {

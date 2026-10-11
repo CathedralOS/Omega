@@ -67,14 +67,12 @@ impl BuildConfig {
     }
 
     /// Project the effective checked-tree pruning selection into exact roots.
-    /// A target product retains only its validated entry; a targetless product
-    /// retains every authored root. An enabled selection with no roots remains
+    /// The shared source product retains every authored root, independently of
+    /// the selected realization targets. An enabled selection with no roots remains
     /// `Some(empty)` so Psi rejects it rather than silently disabling pruning.
     /// This selects inputs only: Psi owns the transformation and its evidence.
     pub fn checked_tree_product_roots(
         &self,
-        selected_target: Option<target::TargetProfile>,
-        selected_entry: Option<&provider_planning::program_entry::SelectedCompilerProgramEntry>,
         rollback: &optimization_core::OptimizationRollback,
     ) -> Option<Vec<symbols::SymbolHandle>> {
         let effective = rollback.settle(&self.settings.optimizations);
@@ -82,19 +80,14 @@ impl BuildConfig {
             .effective()
             .contains(optimization_core::Optimization::CheckedTreeProductPruning)
             .then(|| {
-                let roots: std::collections::HashSet<symbols::SymbolHandle> = match selected_target
-                {
-                    Some(_) => selected_entry
-                        .iter()
-                        .map(|entry| entry.machine_symbol())
-                        .collect(),
-                    None => self
-                        .root_bindings
-                        .iter()
-                        .map(|binding| binding.implementation_symbol)
-                        .collect(),
-                };
-                roots.into_iter().collect()
+                let mut roots: Vec<_> = self
+                    .root_bindings
+                    .iter()
+                    .map(|binding| binding.implementation_symbol)
+                    .collect();
+                roots.sort_unstable_by_key(|root| (root.arena_index(), root.generation()));
+                roots.dedup();
+                roots
             })
     }
 }

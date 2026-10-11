@@ -20,22 +20,7 @@ use crate::boundary_dispatch::boundary_fields::{
 };
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
-use std::sync::Arc;
 use typed_trees::TypedTrees;
-
-/// Bind selected execution without changing typed source or source-derived plans.
-/// All fallible work completes before publishing the association set.
-pub(crate) fn settle_selected_boundary_adapter_dispatch(
-    checked: &mut Arc<CheckedTrees>,
-    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
-    selected_plans: &effects::SelectedProviderPlanFacts,
-) -> Result<(), Vec<Diagnostic>> {
-    let dispatch = plan_selected_boundary_adapter_dispatch(checked, calling_plans, selected_plans)?;
-    if checked.facts.boundary_adapter_dispatch != dispatch {
-        Arc::make_mut(checked).facts.boundary_adapter_dispatch = dispatch;
-    }
-    Ok(())
-}
 
 /// Service erasure joins the selected plan, not its checked-adapter subset.
 /// Intrinsic and foreign rows deliberately produce no adapter dispatch; an
@@ -68,7 +53,8 @@ fn selected_service_plan_for_carrier<'plans>(
     matching.next().is_none().then_some(plan)
 }
 
-fn plan_selected_boundary_adapter_dispatch(
+/// Produce selected execution associations without changing source-derived facts.
+pub(crate) fn settle_selected_boundary_adapter_dispatch(
     checked: &CheckedTrees,
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_plans: &effects::SelectedProviderPlanFacts,

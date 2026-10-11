@@ -588,8 +588,9 @@ pub struct CheckedOperatorFacts {
     /// operation it emits for each one, so the proof pass consumes the
     /// decision instead of searching for a certificate.
     pub decided_formations: Vec<ExpressionHandle>,
-    /// Target-neutral executions settled by Omega from exact selected plans.
-    /// Source classification alone never populates this roster.
+    /// Executions admitted for the separate Build evaluation program.
+    /// Product provider associations belong to selected execution, not these
+    /// immutable source facts. Source classification never populates this roster.
     pub selected_float_comparisons: Arena<CheckedSelectedFloatComparisonExecution>,
     pub named_uses: Arena<CheckedNamedOperatorUseFact>,
     /// Direct calls to public receiver-free top-level boundary requirements,

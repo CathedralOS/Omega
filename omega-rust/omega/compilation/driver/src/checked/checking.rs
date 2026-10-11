@@ -3,6 +3,8 @@
 pub(crate) mod build_continuation;
 pub(crate) mod compile_thread;
 pub(crate) mod execution_settlement;
+mod source_checking;
+pub(crate) use source_checking::check_product_source;
 
 pub use compilation_products::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
@@ -15,8 +17,8 @@ use artifacts::compile_timings::{
     BUILD_AND_CHECKED_CONTINUATION, CompileTimings, EXECUTION_SETTLEMENT, StageMeta, counters,
 };
 use compilation_products::{
-    CheckedExecutionRequest, CompileFailure, PreparedBuild, PreparedProductSource,
-    PreparedSourceFrontier, TypedCompilationFrontier,
+    CheckedExecutionRequest, CheckedProductSource, CompileFailure, PreparedBuild,
+    PreparedProductSource, PreparedSourceFrontier, TypedCompilationFrontier,
 };
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
@@ -407,14 +409,14 @@ fn check_completed_build(
         .built
         .computed_build_config
         .independent_components();
-    match complete_prepared_build(prepared, package_inputs) {
-        Ok(source) => check_completed_source(
-            source,
+    match complete_prepared_build(prepared, package_inputs).and_then(|source| {
+        check_product_source(source, package_inputs, rollback, settled_check_reuse)
+    }) {
+        Ok(source) => settle_product_target(
+            &source,
             selected_target_profile,
             package_inputs,
-            rollback,
             permit_unsettled_fused_service_fields,
-            settled_check_reuse,
         ),
         Err(diagnostics) => CheckedCompileOutcome {
             prepared_source: None,
@@ -424,160 +426,33 @@ fn check_completed_build(
     }
 }
 
-/// A target's settled selection plus the checked-compilation side inputs the
-/// outcome path needs. The driver settles every admitted target before any
-/// checking runs, so per-target selection travels as recorded data.
-pub(crate) struct SettledCompletedSource {
-    selection: Result<execution_settlement::InitialExecutionSelection, Vec<Diagnostic>>,
-    build_sources: package_compilation::BuildSourceCustody,
-    retained_build_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
-    timings: CompileTimings,
-    symbol_sources: Option<std::sync::Arc<source::SourceMap>>,
-    independent_components: IndependentComponentDiscovery,
-}
-
-impl SettledCompletedSource {
-    /// A successfully settled selection's view, for the driver's cross-target
-    /// unification pass; a failed settlement carries no view to unify.
-    pub(crate) fn selection_mut(
-        &mut self,
-    ) -> Option<&mut execution_settlement::InitialExecutionSelection> {
-        self.selection.as_mut().ok()
-    }
-
-    fn selection(&self) -> Option<&execution_settlement::InitialExecutionSelection> {
-        self.selection.as_ref().ok()
-    }
-}
-
-/// Provider-dependent constants fold once into the one checked program every
-/// realized target shares, so the provider a pending use folds under must
-/// agree across targets. A target whose selection disagrees with another's
-/// rejects here — every disagreeing pair is a divergence, no subset is
-/// privileged as canonical — with the diagnostic naming the diverging
-/// targets and the pending use whose providers differ. Per-target layout
-/// custody is not part of the agreement.
-pub(crate) fn reject_divergent_constant_providers(
-    selections: &mut [Result<SettledCompletedSource, Vec<Diagnostic>>],
-    target_names: &[&str],
-) {
-    let mut disagreements: Vec<Vec<(usize, String)>> = vec![Vec::new(); selections.len()];
-    for left_index in 0..selections.len() {
-        for right_index in (left_index + 1)..selections.len() {
-            let (Some(left), Some(right)) = (
-                selections[left_index]
-                    .as_ref()
-                    .ok()
-                    .and_then(SettledCompletedSource::selection),
-                selections[right_index]
-                    .as_ref()
-                    .ok()
-                    .and_then(SettledCompletedSource::selection),
-            ) else {
-                continue;
-            };
-            if left.pending_fold_providers() == right.pending_fold_providers() {
-                continue;
-            }
-            let detail =
-                execution_settlement::first_divergent_pending_fold(left, right).unwrap_or_else(|| {
-                    "a pending constant's selected providers".to_owned()
-                });
-            disagreements[left_index].push((right_index, detail.clone()));
-            disagreements[right_index].push((left_index, detail));
-        }
-    }
-    for (index, partners) in disagreements.iter().enumerate() {
-        if partners.is_empty() {
-            continue;
-        }
-        let diagnostics = partners
-            .iter()
-            .map(|(partner, detail)| {
-                Diagnostic::error(format!(
-                    "targets `{}` and `{}` select different providers for {detail} -- \
-                     provider-dependent constants belong to the one checked program",
-                    target_names[index], target_names[*partner],
-                ))
-            })
-            .collect();
-        selections[index] = Err(diagnostics);
-    }
-}
-
-/// Settle one target's initial source-dependent selection against the shared
-/// typed product. Seal inputs move beside the selection so a failed settle
-/// still attributes its diagnostics the same way.
-pub(crate) fn settle_completed_source(
-    source: PreparedProductSource,
+/// Bind one target to shared checked source, never a resumable frontend.
+pub(crate) fn settle_product_target(
+    source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
-) -> SettledCompletedSource {
+    permit_unsettled_fused_service_fields: bool,
+) -> CheckedCompileOutcome {
     let independent_components = source.computed_build_config.independent_components();
     let mut timings = source.timings.clone();
-    let build_sources = source.build_sources.clone();
-    let retained_build_check = source.retained_build_check.clone();
-    let symbol_sources = source.typed.symbols.source_map();
-    let selection = timed(&mut timings, EXECUTION_SETTLEMENT, |_timings| {
-        execution_settlement::settle_initial_execution(
+    let result = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
+        execution_settlement::settle_checked_execution(
             source,
             selected_target_profile,
             package_inputs,
+            permit_unsettled_fused_service_fields,
         )
     });
-    SettledCompletedSource {
-        selection,
-        build_sources,
-        retained_build_check,
-        timings,
-        symbol_sources,
-        independent_components,
-    }
-}
-
-/// Check a settled selection and seal its checked compilation. Checking,
-/// per-target entry/binding/dispatch settlement and the retained-check chain
-/// all consume the recorded selection rather than re-deriving it.
-pub(crate) fn check_settled_source(
-    settled: SettledCompletedSource,
-    selected_target_profile: Option<target::TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
-    rollback: &crate::OptimizationRollback,
-    permit_unsettled_fused_service_fields: bool,
-    settled_check_reuse: SettledCheckReuse,
-) -> CheckedCompileOutcome {
-    let SettledCompletedSource {
-        selection,
-        build_sources,
-        retained_build_check,
-        mut timings,
-        symbol_sources,
-        independent_components,
-    } = settled;
-    let result = selection.and_then(|selection| {
-        timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
-            execution_settlement::check_selected_execution(
-                selection,
-                selected_target_profile,
-                package_inputs,
-                rollback,
-                timings,
-                permit_unsettled_fused_service_fields,
-                settled_check_reuse,
-            )
-        })
-    });
-    let result = result.and_then(|(execution, settled_check)| {
-        CheckedCompilation::seal(execution, build_sources, package_inputs, timings).map(|checked| {
-            checked.with_settled_checks(compilation_products::RetainedCompilationChecks {
-                build: retained_build_check,
-                product: settled_check,
-                ..compilation_products::RetainedCompilationChecks::default()
-            })
-        })
+    let result = result.map(|execution| {
+        CheckedCompilation::from_settled_execution(
+            execution,
+            std::sync::Arc::clone(&source.sources),
+            timings,
+        )
+        .with_settled_checks(source.retained_checks.clone())
     });
     let result = result.map_err(|mut diagnostics| {
-        if let Some(sources) = symbol_sources.as_deref() {
+        if let Some(sources) = source.program.typed.symbols.source_map().as_deref() {
             attribute_diagnostics(&mut diagnostics, sources, package_inputs);
         }
         diagnostics
@@ -587,26 +462,6 @@ pub(crate) fn check_settled_source(
         result: result.map_err(CompileFailure::from),
         independent_components,
     }
-}
-
-/// Target settlement consumes complete source, never a resumable frontend.
-pub(crate) fn check_completed_source(
-    source: PreparedProductSource,
-    selected_target_profile: Option<target::TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
-    rollback: &crate::OptimizationRollback,
-    permit_unsettled_fused_service_fields: bool,
-    settled_check_reuse: SettledCheckReuse,
-) -> CheckedCompileOutcome {
-    let settled = settle_completed_source(source, selected_target_profile, package_inputs);
-    check_settled_source(
-        settled,
-        selected_target_profile,
-        package_inputs,
-        rollback,
-        permit_unsettled_fused_service_fields,
-        settled_check_reuse,
-    )
 }
 
 /// Interpret each diagnostic's authored span against the compilation's

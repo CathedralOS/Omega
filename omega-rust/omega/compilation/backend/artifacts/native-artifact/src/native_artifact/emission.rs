@@ -25,7 +25,7 @@ impl RequestedNativeArtifact {
     /// Compact report identities never replace the full selection digest.
     pub fn emit_admitted(
         target: target::NativeTarget,
-        terminal: terminal_codec::CanonicalTerminalArtifact,
+        terminal: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
         published: crate::PublishedFragmentObject,
         image: ExecutableImageEmissionRequest,
         selected: &effects::SelectedProviderPlanFacts,

@@ -44,12 +44,23 @@ impl<'a> TerminalProductionRequest<'a> {
         self,
         custody: TerminalProductionCustody<'_>,
     ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
+        artifacts::compile_timings::counters::record_terminal_production();
         let TerminalProductionCustody {
-            entry_identity,
-            entry_machine,
-            behavior_exclusions,
+            applications,
             timings,
         } = custody;
+        let applications: Vec<_> = applications
+            .iter()
+            .map(
+                |application| psi_terminal_production::TerminalApplicationCustody {
+                    entry_identity: application.entry_identity,
+                    entry_machine: application.entry_machine,
+                    admission: application.behavior_exclusions.as_ref().map(|policy| {
+                        policy as &dyn psi_terminal_production::TerminalCompositionAdmission
+                    }),
+                },
+            )
+            .collect();
         let produced = psi_terminal_production::TerminalProductionRequest {
             checked: self.checked,
             exact_toolchain_sources: self.exact_toolchain_sources,
@@ -59,11 +70,7 @@ impl<'a> TerminalProductionRequest<'a> {
         }
         .produce(
             psi_terminal_production::TerminalProductionCustody {
-                entry_identity,
-                entry_machine,
-                admission: behavior_exclusions.as_ref().map(|policy| {
-                    policy as &dyn psi_terminal_production::TerminalCompositionAdmission
-                }),
+                applications: &applications,
             },
             &mut ProductProductionObserver { timings },
         )?;

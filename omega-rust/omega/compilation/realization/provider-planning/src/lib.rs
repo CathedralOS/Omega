@@ -37,8 +37,8 @@ pub mod x86_fma_plan_association;
 
 pub(crate) use provider_settlement::SettledTargetMachineDeclarations;
 pub use provider_settlement::{
-    CheckedProviderSelection, ProviderSettlement, TargetProviderDefaults, settle_checked_providers,
-    verify_selected_compositions_are_realized,
+    CheckedProviderSelection, ProviderSettlement, TargetProviderDefaults,
+    prepare_source_completion, settle_checked_providers, verify_selected_compositions_are_realized,
 };
 
 pub use intrinsic_requirements::{

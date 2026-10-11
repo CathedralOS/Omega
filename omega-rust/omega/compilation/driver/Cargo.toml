@@ -37,6 +37,7 @@ backend-plan = { path = "../backend/plans/backend-plan" }
 artifacts = { path = "../../foundation/artifacts" }
 build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
 validation = { path = "../../../psi/compilation/checking" }
+representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 target = { path = "../backend/target" }

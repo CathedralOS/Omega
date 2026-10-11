@@ -596,7 +596,7 @@ impl CompileReport {
         ))
     }
 
-    pub const fn artifact(&self) -> Option<&terminal_codec::CanonicalTerminalArtifact> {
+    pub fn artifact(&self) -> Option<&terminal_codec::CanonicalTerminalArtifact> {
         match &self.product {
             CompileProduct::TerminalArtifact(product) => Some(product.artifact.artifact()),
             _ => None,

@@ -29,7 +29,7 @@ pub struct RealizedNativeProduct {
 /// permission policy, and a violated exclusion publishes no product. The public
 /// compiler entrance retains the image request on every failure path.
 pub(crate) fn realize_native_artifact(
-    artifact: terminal_codec::CanonicalTerminalArtifact,
+    artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     request: NativeRealizationRequest<'_>,
 ) -> Result<RealizedNativeProduct, Vec<Diagnostic>> {
     let AdmittedNativeRealization {

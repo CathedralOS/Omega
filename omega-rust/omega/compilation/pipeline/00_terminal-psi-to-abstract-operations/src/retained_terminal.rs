@@ -216,12 +216,14 @@ impl TerminalNativeRealizationProposal {
 
 /// Canonical Terminal artifact and its target-constrained native proposal.
 ///
+/// Target products share immutable semantic storage; each owns only its own
+/// realization proposal. Cloning an ownership handle never copies Terminal.
 /// The proposal owns callback ABI and materialization rows; no checked-source
 /// placement survives this boundary. This carrier grants no registration,
 /// invocation, address, or lifetime authority.
 #[derive(Debug)]
 pub struct RetainedTerminalArtifact {
-    artifact: terminal_codec::CanonicalTerminalArtifact,
+    artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     native_realization_proposal: Option<TerminalNativeRealizationProposal>,
 }
 
@@ -230,7 +232,7 @@ impl RetainedTerminalArtifact {
     /// this compile produced beside it. The proposal's producer already
     /// joined every unit to this artifact; the carrier adds no second replay.
     pub fn new_with_native_realization_proposal(
-        artifact: terminal_codec::CanonicalTerminalArtifact,
+        artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
         native_realization_proposal: TerminalNativeRealizationProposal,
     ) -> Self {
         Self {
@@ -239,7 +241,7 @@ impl RetainedTerminalArtifact {
         }
     }
 
-    pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+    pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.artifact
     }
 
@@ -250,7 +252,7 @@ impl RetainedTerminalArtifact {
     pub fn into_parts(
         self,
     ) -> (
-        terminal_codec::CanonicalTerminalArtifact,
+        std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
         Option<TerminalNativeRealizationProposal>,
     ) {
         (self.artifact, self.native_realization_proposal)

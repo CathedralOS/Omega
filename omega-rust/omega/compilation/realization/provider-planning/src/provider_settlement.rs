@@ -27,6 +27,7 @@ mod independent_components;
 mod semantic_roles;
 
 pub use composition_modes::verify_selected_compositions_are_realized;
+pub use semantic_roles::prepare_source_completion;
 
 use crate::ProviderSelection;
 use crate::SelectedProviderReviewProvenance;
@@ -266,11 +267,10 @@ pub struct ProviderSettlement {
         Vec<package_compilation::IndependentComponentDescription>,
 }
 
-/// Settle the final authored/generated target roster, derive and select its
-/// provider candidates, then bind fused erasure and exact invocation evidence.
-/// This must precede deferred const evaluation and typed-to-checked settlement.
+/// Derive and select providers against the immutable, source-checked roster.
+/// A realization cannot rewrite source contracts or fold target values into them.
 pub fn settle_checked_providers(
-    typed: &mut TypedTrees,
+    typed: &TypedTrees,
     settled_target_machines: SettledTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
@@ -280,18 +280,14 @@ pub fn settle_checked_providers(
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     inferred_synchronous_invocations: &flow_effects::InvocationInferencePlan,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
-    // Target-scoped machines were selected before resolution against the
-    // choice `filter_target_machines_by_scope` makes: the requested target,
-    // or the compiler host when none is requested. Provider planning follows
-    // that same choice, so an unprofiled check derives and evaluates exactly
-    // the leaves it selected.
+    // Every Product body has already been checked. This target chooses only
+    // realization rows; it never narrows the source program.
     let planning_target = selected_target_profile.or_else(target::TargetProfile::host_if_supported);
     let target_name = planning_target.map(target::TargetProfile::target_name);
     let provider_selection_target = planning_target
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
     let target_provider_defaults = settled_target_machines.provider_defaults;
-    semantic_roles::attach_accepted(typed, package_inputs)?;
     let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
@@ -301,30 +297,21 @@ pub fn settle_checked_providers(
         planning_target,
         package_inputs,
     )?;
-    let derive_selected = |typed: &TypedTrees| -> Result<_, Vec<Diagnostic>> {
-        let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-        let derived = derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
-            context,
-            &boundary_calling_plan_realizations,
-            target_name,
-            &evaluated_via_bindings,
-            &settled_target_machines.origins,
-        ));
-        let selected = crate::select_derived_provider_plans(
-            &derived,
-            provider_selection_target,
-            &target_provider_defaults,
-            build_provider_selections,
-        )?;
-        Ok((derived, selected))
-    };
-    let (mut derived_provider_plans, mut selected_provider_plans) = derive_selected(typed)?;
-    if package_inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery)
-        && semantic_roles::attach_proposed(typed, &selected_provider_plans)?
-    {
-        // Only completion-dependent provider metadata is rebuilt. Build and
-        // ordinary `via` evaluation above execute exactly once.
-        (derived_provider_plans, selected_provider_plans) = derive_selected(typed)?;
+    let derived_provider_plans = derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
+        context,
+        &boundary_calling_plan_realizations,
+        target_name,
+        &evaluated_via_bindings,
+        &settled_target_machines.origins,
+    ));
+    let selected_provider_plans = crate::select_derived_provider_plans(
+        &derived_provider_plans,
+        provider_selection_target,
+        &target_provider_defaults,
+        build_provider_selections,
+    )?;
+    if package_inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery) {
+        semantic_roles::validate_proposed(typed, &selected_provider_plans)?;
     }
     let mut provider_plans = derived_provider_plans
         .iter()

@@ -22,9 +22,7 @@ pub fn inspect_terminal(
         checked.sources().exact_toolchain_sources(),
     )
     .produce(TerminalProductionCustody {
-        entry_identity: None,
-        entry_machine: None,
-        behavior_exclusions: None,
+        applications: &[],
         timings: &mut timings,
     })
     .map(|produced| produced.into_artifact())

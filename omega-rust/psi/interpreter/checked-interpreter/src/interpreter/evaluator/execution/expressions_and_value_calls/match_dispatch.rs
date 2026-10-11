@@ -118,11 +118,20 @@ impl Evaluator<'_> {
         if uses.next().is_some() {
             return Err(missing());
         }
-        let mut executions = facts
+        // Product selections arrive from its execution owner. Build has its
+        // separately admitted comparison executions; they are never a fallback
+        // for an unbound Product call.
+        let product_executions = self.selected_product_float_comparisons.unwrap_or(&[]);
+        let build_executions = facts
             .selected_float_comparisons
             .iter()
-            .filter(|(_, execution)| execution.operator_use() == operator_use);
-        let (_, execution) = executions.next().ok_or_else(missing)?;
+            .filter(|_| self.selected_product_float_comparisons.is_none())
+            .map(|(_, execution)| execution);
+        let mut executions = product_executions
+            .iter()
+            .chain(build_executions)
+            .filter(|execution| execution.operator_use() == operator_use);
+        let execution = executions.next().ok_or_else(missing)?;
         if executions.next().is_some() {
             return Err(missing());
         }

@@ -1,22 +1,24 @@
-//! Owned artifact and entry receipt retained on production success.
+//! Shared portable output and independent application judgments.
 //!
 //! These are producer results beside the canonical artifact, not another Psi IR.
 
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 /// Canonical Terminal output beside the checked-source evidence the caller
-/// asked production to retain: the checked `ProgramEntry` receipt when an
-/// entry identity was supplied. Provider and boundary declaration identities
-/// live in the canonical catalog; no source-index companion escapes.
+/// asked production to retain, in request order. Each application carries its
+/// own refusal or optional checked `ProgramEntry` receipt. Production success
+/// alone does not mean an application was admitted. Earlier representations
+/// never escape.
 ///
 /// The retained native route rejoins the checked entry receipt after the
 /// checked frontend is gone, so the receipt leaves production beside the
 /// artifact instead of remaining a direct-route-only custody object.
 #[derive(Debug, PartialEq, Eq)]
-#[must_use = "Terminal production retains the artifact and entry receipt"]
+#[must_use = "Terminal production retains independent application judgments"]
 pub struct ProducedTerminalArtifact {
     pub(super) artifact: terminal_codec::CanonicalTerminalArtifact,
-    pub(super) receipt: Option<CheckedProgramEntryTerminalReceipt>,
+    pub(super) applications:
+        Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
 }
 
 impl ProducedTerminalArtifact {
@@ -24,13 +26,8 @@ impl ProducedTerminalArtifact {
         &self.artifact
     }
 
-    /// The checked `ProgramEntry` receipt, present exactly when the request
-    /// carried an entry identity.
-    pub const fn receipt(&self) -> Option<&CheckedProgramEntryTerminalReceipt> {
-        self.receipt.as_ref()
-    }
-
-    /// Keep only the canonical portable artifact.
+    /// Keep only the canonical portable artifact. This discards application
+    /// judgments and confers no authority to execute or publish a native product.
     pub fn into_artifact(self) -> terminal_codec::CanonicalTerminalArtifact {
         self.artifact
     }
@@ -39,9 +36,9 @@ impl ProducedTerminalArtifact {
         self,
     ) -> (
         terminal_codec::CanonicalTerminalArtifact,
-        Option<CheckedProgramEntryTerminalReceipt>,
+        Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
     ) {
-        (self.artifact, self.receipt)
+        (self.artifact, self.applications)
     }
 }
 
@@ -49,10 +46,18 @@ impl ProducedTerminalArtifact {
 /// The entry identity is opaque checked source-signature custody; it does not
 /// select a target or install host services.
 #[derive(Clone, Copy, Default)]
-pub struct TerminalProductionCustody<'a> {
+pub struct TerminalApplicationCustody<'a> {
     pub entry_identity: Option<[u8; 32]>,
     /// Exact checked source member whose signature the companion retains.
     /// This does not select or rewrite the portable semantic root.
     pub entry_machine: Option<crate::TerminalMachineSelection<'a>>,
     pub admission: Option<&'a dyn crate::TerminalCompositionAdmission>,
+}
+
+/// Independent consumers of one checked execution closure. Admission failure
+/// belongs to that application, not to another consumer of the same program.
+/// An empty slice requests only the portable artifact.
+#[derive(Clone, Copy, Default)]
+pub struct TerminalProductionCustody<'a> {
+    pub applications: &'a [TerminalApplicationCustody<'a>],
 }

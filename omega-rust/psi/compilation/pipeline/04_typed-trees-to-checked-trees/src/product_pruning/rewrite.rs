@@ -220,13 +220,6 @@ fn apply_fact_pruning(
         .contract_expression_static_conformance_applications
         .retain(|row| contract_owner_retained(row.owner, pruned));
 
-    // Boundary adapter rows keyed by the selected realization machine.
-    facts.boundary_adapter_dispatch.retain(|row| {
-        index
-            .machine_of(row.realization_state)
-            .is_none_or(|machine| retained.contains(&machine))
-    });
-
     // Machine-keyed roster arenas with no inbound handles or spans are
     // rebuilt so iteration sees exactly the retained product. Arenas whose
     // rows are referenced by `Handle`/`HandleSpan` from other retained rows

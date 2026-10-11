@@ -1,23 +1,23 @@
-//! Compile shared source into independently checked target products.
+//! Check shared source once, then realize independent target products.
 //!
 //! `compile` assembles source, evaluates Build and completes authored/generated
-//! typing once. Each target then settles its execution and produces its product.
-//! Checking and Terminal production still need to move into the shared prefix;
-//! provider metadata currently changes their typed inputs.
+//! typing and checking once. Each target borrows that judgment, settles its
+//! execution, then matching entry closures share Terminal production. Each
+//! target realizes its own native product. No realization reopens checking.
 
 use crate::checked::{
-    SettledCompletedSource, check_settled_source, prepare_checked_source, prepare_product_source,
-    run_on_compile_thread, settle_completed_source,
+    check_product_source, prepare_checked_source, prepare_product_source, run_on_compile_thread,
+    settle_product_target,
 };
 use crate::native::produce_native_product;
-use crate::terminal::produce_terminal_product;
+use crate::terminal::{TerminalProductRequest, produce_retained_terminal_artifacts};
 use crate::{
     CheckedCompilation, CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome,
 };
 use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
 use compilation_products::{
-    CheckedProductReport, CompileFailure, NativeProductRequest, RequestedCompileProduct,
-    SettledCheckReuse,
+    CheckedProductReport, CheckedProductSource, CompileFailure, NativeProductRequest,
+    RequestedCompileProduct, SettledCheckReuse,
 };
 use diagnostics::Diagnostic;
 use std::path::PathBuf;
@@ -57,130 +57,63 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                     target.checked_execution(&shared.build_directory),
                 )
                 .map_err(CompileFailure::into_diagnostics)
+                .and_then(|source| {
+                    check_product_source(
+                        source,
+                        target.package_inputs(),
+                        target.optimization_rollback(),
+                        SettledCheckReuse::default(),
+                    )
+                })
             });
         let target_count = targets.len();
-        let mut outcomes = Vec::with_capacity(target_count);
-        // No resumable frontend or Build reaches this loop. Target settlement
-        // still needs private typed metadata; the final target consumes the
-        // original storage rather than cloning another copy.
-        let admitted_count = admissions
-            .iter()
-            .filter(|admission| admission.is_ok())
-            .count();
-        let mut sources = std::iter::repeat_n(source, admitted_count);
-        // The initial source-dependent selection settles for every admitted
-        // target before any checking runs: each target's provider settlement
-        // and pending constant evaluation are recorded against its own view
-        // of the shared typed product instead of interleaving with the check
-        // and production work a previous target already ran.
-        let mut selections = Vec::with_capacity(target_count);
-        for ((target, admission), source) in
-            targets.iter().zip(&admissions).zip(&mut sources)
-        {
-            let settled = admission.as_ref().map_err(Clone::clone).and_then(|()| {
+        let mut profiles = Vec::with_capacity(target_count);
+        let mut products = Vec::with_capacity(target_count);
+        // All targets borrow the same checked arenas. Neither frontend work,
+        // Build, nor a mutable typed copy reaches this loop.
+        for (target, admission) in targets.into_iter().zip(admissions) {
+            let profile = target.profile();
+            let outcome = admission.and_then(|()| {
                 source
+                    .as_ref()
                     .ok_or_else(|| {
                         vec![Diagnostic::error(
                             "admitted target has no shared source preparation",
                         )]
                     })?
-                    .map(|source| {
-                        settle_completed_source(
-                            source,
-                            target.profile(),
-                            target.package_inputs(),
-                        )
-                    })
+                    .as_ref()
+                    .map_err(Clone::clone)
+                    .and_then(|source| prepare_target(&shared, target, source))
             });
-            selections.push(settled);
+            profiles.push(profile);
+            products.push(outcome.map_err(CompilationProductError::Production));
         }
-        // Provider-dependent constants belong to the one checked program:
-        // every realized target must select the same provider for the same
-        // pending use, so a selection that disagrees with another's rejects
-        // its target here — before the views unify — with the diverging
-        // targets named. Per-target layout custody is not part of the
-        // agreement.
-        let target_names: Vec<&'static str> = targets
-            .iter()
-            .map(|target| {
-                target
-                    .profile()
-                    .unwrap_or_else(target::TargetProfile::host)
-                    .target_name()
+        // Settle every consumer before producing shared Psi. Native realization
+        // begins only after those shared products have been published.
+        let outcomes = profiles
+            .into_iter()
+            .zip(finish_compilations(products))
+            .map(|(profile, outcome)| {
+                CompileTargetOutcome::new(
+                    profile,
+                    outcome.map_err(CompilationProductError::into_diagnostics),
+                )
             })
             .collect();
-        crate::checked::reject_divergent_constant_providers(&mut selections, &target_names);
-        // A boundary completion is a fact of the requirement it completes —
-        // whichever target's selection discovered the external row — so the
-        // settled views unify before checking: declaration-scoped facts
-        // union, and converged views share one storage. Targets whose
-        // pending folds diverged still check their own program.
-        crate::checked::unify_settled_execution_views(
-            selections.iter_mut().filter_map(|settled| {
-                settled
-                    .as_mut()
-                    .ok()
-                    .and_then(SettledCompletedSource::selection_mut)
-            }),
-        );
-        // Psi already checks every target-scoped body in one compilation, so a
-        // settled typed program that survives provider settlement unchanged
-        // lets the next target take the same language judgment instead of
-        // repeating it. A target whose settlement diverges the input simply
-        // checks afresh and retains its own judgment for the next target. Only
-        // a target with admitted successors retains one: the clone it stores is
-        // the whole checked program, wasted when nothing follows.
-        let mut retained_checks = compilation_products::RetainedCompilationChecks::default();
-        let mut admitted_remaining = admitted_count;
-        for ((target, settled), admission) in
-            targets.into_iter().zip(selections).zip(admissions)
-        {
-            let profile = target.profile();
-            let retain_for_successors = admission.is_ok() && {
-                admitted_remaining -= 1;
-                admitted_remaining > 0
-            };
-            let outcome = settled.and_then(|settled| {
-                compile_target(
-                    &shared,
-                    target,
-                    settled,
-                    &mut retained_checks,
-                    retain_for_successors,
-                )
-            });
-            outcomes.push(CompileTargetOutcome::new(profile, outcome));
-        }
         Ok(CompileOutcomes::new(outcomes))
     })
 }
 
-/// One target checks its settled selection, then produces its product.
-/// `retained_checks` chains the previous target's settled judgments: an equal
-/// check input takes the retained judgment, and this target's own retained
-/// judgment replaces it for the next target only when settlement succeeds.
-fn compile_target(
+/// Settle one target against shared checked source without starting production.
+fn prepare_target(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,
-    settled: SettledCompletedSource,
-    retained_checks: &mut compilation_products::RetainedCompilationChecks,
-    retain_for_successors: bool,
-) -> Result<CompileReport, Vec<Diagnostic>> {
+    source: &CheckedProductSource,
+) -> Result<(CheckedCompilation, PathBuf, CompilationProduct), Vec<Diagnostic>> {
     let root_path = shared.root_path.clone();
-    let checked = check_settled_source(
-        settled,
-        target.profile(),
-        target.package_inputs(),
-        target.optimization_rollback(),
-        false,
-        SettledCheckReuse {
-            prior: retained_checks.clone(),
-            retain: retain_for_successors,
-        },
-    )
-    .result
-    .map_err(CompileFailure::into_diagnostics)?;
-    *retained_checks = checked.settled_checks().clone();
+    let checked = settle_product_target(source, target.profile(), target.package_inputs(), false)
+        .result
+        .map_err(CompileFailure::into_diagnostics)?;
 
     let product = match shared.requested_product {
         RequestedCompileProduct::Check => CompilationProduct::Check,
@@ -191,8 +124,7 @@ fn compile_target(
             CompilationProduct::Native(target.into_native_product_request())
         }
     };
-    finish_compilation(checked, root_path, product)
-        .map_err(CompilationProductError::into_diagnostics)
+    Ok((checked, root_path, product))
 }
 
 /// The remaining work after source checking. Native authority has no meaning
@@ -226,6 +158,78 @@ pub fn finish_compilation(
     root_path: PathBuf,
     requested: CompilationProduct,
 ) -> Result<CompileReport, CompilationProductError> {
+    finish_compilations(vec![Ok((checked, root_path, requested))])
+        .into_iter()
+        .next()
+        .ok_or_else(|| {
+            CompilationProductError::Production(vec![Diagnostic::error(
+                "compilation lost its product outcome",
+            )])
+        })?
+}
+
+struct PendingProduct {
+    checked: CheckedCompilation,
+    requested: CompilationProduct,
+    settlement: CheckedProductReport,
+    rollback: optimization_core::OptimizationRollbackSettlement,
+}
+
+/// Keep ordering and refusal local to each target while sharing portable work.
+fn finish_compilations(
+    requests: Vec<
+        Result<(CheckedCompilation, PathBuf, CompilationProduct), CompilationProductError>,
+    >,
+) -> Vec<Result<CompileReport, CompilationProductError>> {
+    let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
+    let mut pending = Vec::new();
+    for (request_index, request) in requests.into_iter().enumerate() {
+        let prepared = request
+            .and_then(|(checked, root, requested)| prepare_product(checked, root, requested));
+        match prepared {
+            Ok(product) => {
+                if let CheckedProductReport::Complete(report) = product.settlement {
+                    outcomes[request_index] = Some(Ok(report));
+                } else {
+                    pending.push((request_index, product));
+                }
+            }
+            Err(error) => outcomes[request_index] = Some(Err(error)),
+        }
+    }
+    let terminals = produce_retained_terminal_artifacts(
+        pending
+            .iter_mut()
+            .map(|(_, product)| TerminalProductRequest {
+                checked: &mut product.checked,
+                selections: product.rollback.effective(),
+            })
+            .collect(),
+    );
+    for ((request_index, product), terminal) in pending.into_iter().zip(terminals) {
+        outcomes[request_index] = Some(
+            terminal
+                .map_err(CompilationProductError::Production)
+                .and_then(|terminal| finish_product(product, terminal)),
+        );
+    }
+    outcomes
+        .into_iter()
+        .map(|outcome| {
+            outcome.unwrap_or_else(|| {
+                Err(CompilationProductError::Production(vec![
+                    Diagnostic::error("compilation lost its target outcome"),
+                ]))
+            })
+        })
+        .collect()
+}
+
+fn prepare_product(
+    checked: CheckedCompilation,
+    root_path: PathBuf,
+    requested: CompilationProduct,
+) -> Result<PendingProduct, CompilationProductError> {
     checked
         .admit_trust()
         .map_err(CompilationProductError::TrustAdmission)?;
@@ -243,28 +247,44 @@ pub fn finish_compilation(
     let settlement = checked
         .prepare_product_report(root_path, kind, rollback)
         .map_err(CompilationProductError::Production)?;
+    let rollback = rollback.settle(&checked.build().config.settings.optimizations);
+    Ok(PendingProduct {
+        checked,
+        requested,
+        settlement,
+        rollback,
+    })
+}
+
+fn finish_product(
+    product: PendingProduct,
+    terminal: compilation_products::RetainedTerminalArtifact,
+) -> Result<CompileReport, CompilationProductError> {
+    let PendingProduct {
+        checked,
+        requested,
+        settlement,
+        rollback,
+    } = product;
+    let timings = checked.timings().phases().to_vec();
     let result = match (settlement, requested) {
-        (CheckedProductReport::Complete(report), _) => Ok(report),
-        // Psi 05-07: lower, optimize and publish the Terminal artifact.
-        (CheckedProductReport::Terminal(settlement), CompilationProduct::Terminal(rollback)) => {
-            produce_terminal_product(checked, &rollback).and_then(|produced| {
-                settlement
-                    .with_timings(produced.timings)
-                    .finish_terminal(produced.artifact, produced.rollback_receipt)
-            })
-        }
-        // The same retained Terminal boundary, then Omega 00-09 and image emission.
+        (CheckedProductReport::Terminal(settlement), CompilationProduct::Terminal(_)) => settlement
+            .with_timings(timings)
+            .finish_terminal(terminal, rollback.into_receipt()),
+        // Omega 00-09 and image emission consume the same Terminal boundary.
         (CheckedProductReport::Native(settlement), CompilationProduct::Native(request)) => {
-            produce_native_product(request, checked).and_then(|produced| {
-                settlement
-                    .with_timings(produced.timings)
-                    .finish_native(produced.artifact, produced.rollback_receipt)
-                    .and_then(|report| {
-                        report
-                            .with_runtime_provisions(produced.runtime_provisions)
-                            .map_err(|message| vec![Diagnostic::error(message)])
-                    })
-            })
+            produce_native_product(request, &checked, terminal, rollback.effective()).and_then(
+                |produced| {
+                    settlement
+                        .with_timings(timings)
+                        .finish_native(produced.artifact, rollback.into_receipt())
+                        .and_then(|report| {
+                            report
+                                .with_runtime_provisions(produced.runtime_provisions)
+                                .map_err(|message| vec![Diagnostic::error(message)])
+                        })
+                },
+            )
         }
         _ => Err(vec![Diagnostic::error(
             "product settlement disagrees with the requested compilation stop",

@@ -59,7 +59,7 @@ impl std::fmt::Display for DynamicElfNativeArtifactIdentity {
 #[must_use = "dynamic ELF native custody is non-installable and must be replayed"]
 pub struct DynamicElfNativeArtifact {
     target: target::NativeTarget,
-    psi_artifact: terminal_codec::CanonicalTerminalArtifact,
+    psi_artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     object: image_emission::ObjectArtifact,
     image: image_emission::RequestedDynamicElfImage,
     selected_provider_closure_report_identity: u64,
@@ -85,7 +85,7 @@ pub struct DynamicElfNativeArtifact {
 #[derive(Debug)]
 pub struct DynamicElfNativeArtifactParts {
     pub target: target::NativeTarget,
-    pub psi_artifact: terminal_codec::CanonicalTerminalArtifact,
+    pub psi_artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     pub object: image_emission::ObjectArtifact,
     pub image: image_emission::RequestedDynamicElfImage,
     pub selected_provider_closure_report_identity: u64,
@@ -383,7 +383,7 @@ impl DynamicElfNativeArtifact {
         self.target
     }
 
-    pub const fn psi_artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+    pub fn psi_artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.psi_artifact
     }
 

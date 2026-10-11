@@ -1957,9 +1957,11 @@ pass/providers/boundary_declaration_structural_result_return_exit checked 11322m
 pass/providers/boundary_primitive_array_argument_exit checked 12398ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/boundary_scalar_field_store checked 11793ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/build_product_adapter_frontiers_exit checked 10791ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/checked_boundary_operator_const_application_alternate_exit checked 8596ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 1937ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d986b866df88+wt
+	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
 pass/providers/checked_boundary_operator_physical_custody checked 12039ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/checked_boundary_requirement_dispatch_exit checked 11834ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/checked_boundary_requirement_dispatch_exit rejected 1151ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d986b866df88+wt
+	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
 pass/providers/checked_fixed_operator_dispatch_exit checked 12029ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/checked_fixed_operator_physical_custody checked 11307ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/component_owner_provider_override_compile checked 11504ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -2004,7 +2006,8 @@ pass/providers/runtime_named_provider_explicit_state_exit checked 11429ms check-
 pass/providers/runtime_result_domain_requirement_overload_exit checked 11708ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/same_name_requirement_dispatch_exit checked 11740ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/same_name_requirement_right_dispatch_exit checked 11571ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/selected_const_provider_call_identity_exit checked 8459ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/selected_const_provider_call_identity_exit rejected 964ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d986b866df88+wt
+	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
 pass/providers/service_borrowed_parameter checked 1655ms @a9ae30e1c334+wt
 pass/providers/service_fused_root_establishment checked 10617ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/providers/specialized_boundary_operator_physical_custody checked 11506ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5278,8 +5281,8 @@ fail/providers/applied_binding_unused_const_overflow rejected 892ms expected @a9
 	const argument `256` for `Parent::Count` does not fit `u8`
 fail/providers/applied_binding_unused_property_bound rejected 827ms expected @a9ae30e1c334+wt
 	type parameter `Value [copy]` of `Parent` was instantiated with `Token`, which does not satisfy `[copy]`
-fail/providers/checked_boundary_operator_const_application_unselected rejected 1422ms expected @a9ae30e1c334+wt
-	const-generic application: const evaluation failed: machine `limit` is not build-time admissible: build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/providers/checked_boundary_operator_const_application_unselected rejected 952ms unexpected @d986b866df88+wt
+	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
 fail/providers/checked_boundary_operator_missing_contract rejected 1307ms expected @a9ae30e1c334+wt
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
 fail/providers/computed_binding_receiver_fabricated_carrier rejected 3603ms expected @a9ae30e1c334+wt

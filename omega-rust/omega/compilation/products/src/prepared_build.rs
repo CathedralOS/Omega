@@ -32,11 +32,8 @@ pub struct PreparedBuild {
     pub timings: CompileTimings,
 }
 
-/// Complete authored and generated Product source, independent of realization.
-/// Target settlement still mutates typed metadata and therefore consumes its own
-/// copy; it must not execute Build or complete source bodies again. Moving those
-/// remaining mutations behind Terminal permits sharing checked storage instead.
-#[derive(Clone)]
+/// Complete authored and generated Product source, consumed once by Psi checking.
+/// Realization never receives a mutable copy of this source continuation.
 pub struct PreparedProductSource {
     pub typed: typed_trees::TypedTrees,
     pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
@@ -45,4 +42,18 @@ pub struct PreparedProductSource {
     pub build_sources: BuildSourceCustody,
     pub timings: CompileTimings,
     pub retained_build_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
+}
+
+/// One source judgment shared by every realization in the invocation.
+/// The source checker produces this before any target provider is selected.
+pub struct CheckedProductSource {
+    pub program: Arc<checked_trees::CheckedTrees>,
+    pub inferred_synchronous_invocations: flow_effects::InvocationInferencePlan,
+    pub computed_build_config: Arc<ComputedBuildConfig>,
+    pub admission: BuildAdmission,
+    pub sources: Arc<package_compilation::CheckedSourceCustody>,
+    pub timings: CompileTimings,
+    pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
+    pub retained_checks: crate::RetainedCompilationChecks,
+    pub product_selection: Option<typed_trees_to_checked_trees::CheckedTreeProductSelection>,
 }

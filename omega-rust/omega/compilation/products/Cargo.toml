@@ -12,6 +12,7 @@ calling-conventions = { path = "../backend/calling-conventions" }
 runtime-abi = { path = "../backend/runtime/runtime-abi" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 effects = { path = "../backend/plans/provider-evidence" }
+flow-effects = { path = "../../../psi/foundation/flow-effects" }
 provider-planning = { path = "../realization/provider-planning" }
 representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
 selected-dispatch = { path = "../realization/selected-dispatch" }

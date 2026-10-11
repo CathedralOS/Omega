@@ -7,18 +7,21 @@ pub use psi_terminal_production::ProducedTerminalArtifact;
 /// the borrow before optimization. No checked-source or LoweredPsi sidecar is
 /// retained in the result.
 pub struct TerminalProductionCustody<'a> {
+    pub applications: &'a [TerminalApplicationCustody<'a>],
+    pub timings: &'a mut CompileTimings,
+}
+
+/// A target's admission and entry correspondence, independent of shared Psi work.
+pub struct TerminalApplicationCustody<'a> {
     pub entry_identity: Option<[u8; 32]>,
     pub entry_machine: Option<psi_terminal_production::TerminalMachineSelection<'a>>,
     pub behavior_exclusions: Option<TerminalBehaviorExclusions<'a>>,
-    pub timings: &'a mut CompileTimings,
 }
 
 impl<'a> TerminalProductionCustody<'a> {
     pub fn artifact_only(timings: &'a mut CompileTimings) -> Self {
         Self {
-            entry_identity: None,
-            entry_machine: None,
-            behavior_exclusions: None,
+            applications: &[],
             timings,
         }
     }
