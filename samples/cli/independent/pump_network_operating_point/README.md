@@ -96,12 +96,18 @@ remaining blocker, not permission to retry acceptance or bypass review.
 omega run --both --keep samples/cli/independent/pump_network_operating_point/main.omg < samples/cli/independent/pump_network_operating_point/data/rational.in
 omega inspect-terminal --machine main --target linux_x86_64 samples/cli/independent/pump_network_operating_point/main.omg
 python3 samples/cli/independent/pump_network_operating_point/validate.py <published-native-executable>
+python3 samples/cli/independent/pump_network_operating_point/terminal_matrix.py <verified-corpus-runner>
 omega --check samples/cli/independent/pump_network_operating_point/controls/intended_invalid/main.omg
+omega --check samples/cli/independent/pump_network_operating_point/controls/valid_extent/main.omg
 ```
 
-The last command must reject the fixed-array extent rule pinned in the control's
+The intended-invalid command must reject the fixed-array extent rule pinned in the control's
 `expected.txt`; rejection for another reason is not acceptance. It has its own
 complete root, takes no runtime input and is never imported by the application.
+The positive extent control must check successfully. The Terminal matrix stages
+unchanged application modules temporarily under the repository test tree and
+uses its documented fixture acceptance policy. It requires all 76 authored
+native and Terminal outputs and exits; it does not rewrite any corpus golden.
 Supporting immutable evidence and command results belong in `evidence/`;
 generated artifacts belong in ignored `build/`. `evidence/assignment.txt` retains
 the isolated scope and base. See `evidence/validation.md` for actual route results.

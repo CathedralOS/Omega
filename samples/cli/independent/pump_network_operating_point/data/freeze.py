@@ -82,8 +82,17 @@ def freeze():
         cases.append({'name':name,'input':text,'exit':64,'stdout':'INVALID_INPUT\n'})
     cases.append({'name':'eof_terminator','input':'20 0 1 1 2 2 0 8 0',**oracle([20,0,1,1,2,2,0,8,0])})
     payload={'model':'quadratic pump, parallel linear valves; synthetic only','flow_scale':1024,'flow_tolerance':'1/1024','head_residual_tolerance':'800/1024','reporting':'exact integer numerators and denominators','cases':cases}
-    (ROOT/'expected.json').write_text(json.dumps(payload,indent=2)+'\n')
-    (ROOT/'freeze.sha256').write_text(hashlib.sha256((ROOT/'expected.json').read_bytes()).hexdigest()+'  expected.json\n')
-    print(f'Frozen {len(cases)} cases')
+    rendered = (json.dumps(payload,indent=2)+'\n').encode()
+    expected = ROOT/'expected.json'
+    seal = ROOT/'freeze.sha256'
+    digest_line = hashlib.sha256(rendered).hexdigest()+'  expected.json\n'
+    if expected.exists() or seal.exists():
+        assert expected.read_bytes() == rendered, 'reference differs from frozen oracle; refusing overwrite'
+        assert seal.read_text() == digest_line, 'frozen seal differs; refusing overwrite'
+        print(f'Verified {len(cases)} frozen cases without writing')
+    else:
+        expected.write_bytes(rendered)
+        seal.write_text(digest_line)
+        print(f'Frozen {len(cases)} cases')
 
 if __name__=='__main__':freeze()
