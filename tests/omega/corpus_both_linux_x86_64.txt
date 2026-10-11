@@ -123,3 +123,6 @@ pass/slices/runtime_cut_byte_view_cycle_exit built 6139ms exit:70 interpreter-ex
 pass/calls/runtime_owned_state_scalar_field_store_exit built 5907ms exit:70 interpreter-exit:70 interpreter:agrees @c24b141cb29b+wt
 pass/calls/runtime_exact_division_call_span_exit built 5514ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @6301348b6fe2
 pass/calls/runtime_wrapping_division_call_span_exit built 5417ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @6301348b6fe2
+pass/arithmetic/runtime_remainder_result_cast_exit built 10204ms exit:70 interpreter-exit:70 interpreter:agrees @4a5e90b862b4
+pass/arithmetic/saturating_signed_divide_min_by_neg_one built 8255ms exit:70 interpreter-exit:70 interpreter:agrees @4a5e90b862b4
+pass/arithmetic/wrapping_signed_divide_min_by_neg_one built 7877ms exit:70 interpreter-exit:70 interpreter:agrees @4a5e90b862b4
