@@ -5647,6 +5647,8 @@ fail/targets/single_target_internal_package_statement_caller_rejected rejected 1
 	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
 fail/targets/single_target_internal_statement_caller_rejected rejected 17532ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
+fail/targets/target_body_call_to_unimported_std_leaf_named rejected 26883ms expected @379893891e38
+	cannot publish target-family crash envelope for `pace`: retained member `pace::macos_arm64` calls `darwin_poll`, which selects no declaration
 fail/targets/target_local_precondition_rejected rejected 3680ms unexpected @a9ae30e1c334+wt
 	machine `read` state `entry` value call to `private_value` violates required fact `input == 2`: the instantiated fact is structurally false
 fail/targets/target_machine_duplicate_rejected rejected 53ms expected @a9ae30e1c334+wt

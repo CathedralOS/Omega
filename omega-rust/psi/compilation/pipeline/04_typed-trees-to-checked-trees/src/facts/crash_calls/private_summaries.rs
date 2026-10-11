@@ -43,11 +43,21 @@ pub(crate) fn prepare_crash_summary_graph(
                 && !nodes.iter().any(|node| node.machine == machine.symbol)
         })
         .map(|machine| {
-            let reason = complete_family_members(program, machine, plans)
-                .err()
+            let reason = match complete_family_members(program, machine, plans) {
+                Err(reason) => reason,
+                Ok(members) => unviable_member_dependency(
+                    program,
+                    operators,
+                    flow,
+                    crash_capsules,
+                    plans,
+                    &nodes,
+                    &members,
+                )
                 .unwrap_or_else(|| {
                     "incomplete or unresolved member invocation dependencies".to_owned()
-                });
+                }),
+            };
             diagnostics::Diagnostic::error(format!(
                 "cannot publish target-family crash envelope for `{}`: {reason}",
                 machine.name,
@@ -62,6 +72,55 @@ pub(crate) fn prepare_crash_summary_graph(
     Ok(PreparedCrashSummaryGraph {
         nodes,
         family_potential_causes,
+    })
+}
+
+/// Name the first member dependency that kept a family out of the viable
+/// summary graph, so the refusal points at the authored call that caused it.
+fn unviable_member_dependency(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    flow: &checked_trees::FlowFacts,
+    crash_capsules: &[checked_trees::CrashContractCapsule],
+    plans: &[checked_trees::MachineContractPlan],
+    nodes: &[SummaryNode],
+    members: &[SymbolHandle],
+) -> Option<String> {
+    let viable = |machine: SymbolHandle| nodes.iter().any(|node| node.machine == machine);
+    members.iter().find_map(|member| {
+        let plan = checked_trees::contract_plan_by_machine(plans, *member)?;
+        let machine = program.machine_by_symbol(*member)?;
+        if !needs_inferred_summary(machine, plan) || viable(*member) {
+            return None;
+        }
+        let member_name = program.symbols.display_path(*member, "::");
+        let sites = match machine_non_transition_invocation_sites(program, operators, flow, plan) {
+            Ok(sites) => sites,
+            Err(reason) => return Some(format!("retained member `{member_name}` {reason}")),
+        };
+        sites.iter().find_map(|site| {
+            let target = program.symbols.display_path(site.target_machine, "::");
+            let Some(target_plan) =
+                checked_trees::contract_plan_by_machine(plans, site.target_machine)
+            else {
+                let pinned = crash_capsules.iter().any(|capsule| {
+                    capsule.target_machine() == site.target_machine
+                        && capsule.target_state() == site.target_state
+                });
+                return (!pinned).then(|| {
+                    format!("retained member `{member_name}` calls `{target}` without a pinned crash capsule")
+                });
+            };
+            program
+                .machine_by_symbol(site.target_machine)
+                .filter(|target_machine| {
+                    needs_inferred_summary(target_machine, target_plan)
+                        && !viable(site.target_machine)
+                })
+                .map(|_| {
+                    format!("retained member `{member_name}` calls `{target}`, whose crash summary is unresolved")
+                })
+        })
     })
 }
 
@@ -96,7 +155,8 @@ fn prepare_summary_nodes(
                 family_members,
                 invocations: machine_non_transition_invocation_sites(
                     program, operators, flow, target,
-                )?,
+                )
+                .ok()?,
             })
         })
         .collect::<Vec<_>>();
@@ -410,12 +470,13 @@ pub(crate) fn solve_private_summary_fixed_point(
     resolved
 }
 
+/// Every machine edge of one body, or why one call cannot become an edge.
 fn machine_non_transition_invocation_sites(
     program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     flow: &checked_trees::FlowFacts,
     plan: &checked_trees::MachineContractPlan,
-) -> Option<Vec<SummaryInvocationSite>> {
+) -> Result<Vec<SummaryInvocationSite>, String> {
     let mut sites = Vec::new();
     for (_, state) in flow
         .control
@@ -441,7 +502,13 @@ fn machine_non_transition_invocation_sites(
                 state.state_symbol,
                 call.statement_index,
                 call.call_ordinal,
-            )?;
+            )
+            .ok_or_else(|| {
+                format!(
+                    "has no typed call site for statement {} call {}",
+                    call.statement_index, call.call_ordinal
+                )
+            })?;
             if matches!(site, validation::CallSite::TransitionNamed { .. }) {
                 continue;
             }
@@ -472,7 +539,8 @@ fn machine_non_transition_invocation_sites(
                 let operator = typed_trees::operator::declaration_by_symbol(
                     program,
                     named.selected_operator_symbol,
-                )?;
+                )
+                .ok_or_else(|| "selects an operator with no typed declaration".to_owned())?;
                 let declares_crashes =
                     program.operator_contracts(operator).iter().any(|contract| {
                         matches!(
@@ -486,12 +554,20 @@ fn machine_non_transition_invocation_sites(
                             && site.selected_operator == named.selected_operator_symbol
                     })
                 {
-                    return None;
+                    return Err(
+                        "has a crash-bearing operator use without a checked site".to_owned()
+                    );
                 }
                 continue;
             }
             let (target_machine, target_state) =
-                crate::proof::contract_target_from_state_symbol(program, call.target_symbol)?;
+                crate::proof::contract_target_from_state_symbol(program, call.target_symbol)
+                    .ok_or_else(|| {
+                        format!(
+                            "calls `{}`, which selects no declaration",
+                            spelled_callee(program, site)
+                        )
+                    })?;
             sites.push(SummaryInvocationSite {
                 caller_state: state.state_symbol,
                 statement_index: call.statement_index,
@@ -501,7 +577,20 @@ fn machine_non_transition_invocation_sites(
             });
         }
     }
-    Some(sites)
+    Ok(sites)
+}
+
+fn spelled_callee(
+    program: &dyn ::validation::CheckingInput,
+    site: validation::CallSite<'_>,
+) -> String {
+    match site {
+        validation::CallSite::Statement(call) => call.target.as_str().to_owned(),
+        validation::CallSite::Expression { call, .. } => call.target.as_str().to_owned(),
+        validation::CallSite::TransitionNamed { path, .. } => {
+            program.symbols.display_path(path.symbol, "::")
+        }
+    }
 }
 
 /// Read the retained call selection rather than recognizing a provider-default

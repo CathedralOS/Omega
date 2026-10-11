@@ -1,0 +1,18 @@
+// A target-scoped body is checked in every compilation. std's `darwin_poll`
+// leaf lives in its macOS implementation module, which `macos_gui` does not
+// re-export, so this call selects no declaration. The refusal names the call
+// instead of reporting an anonymous incomplete crash envelope for `pace`.
+use omega_language_std::console;
+use omega_language_std::macos_gui;
+use omega::language::core::binding;
+
+macos_arm64 machine pace(timeout: i32)
+reaches DarwinClock
+{
+    let status: i32 = darwin_poll(0, 0, timeout);
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.exit_process(70);
+}
