@@ -4,10 +4,10 @@
 // Expected output contains: INVALID_INPUT
 use omega_language_std::console;
 use omega::language::core::binding;
-use domain::model;
-use domain::balance;
-use domain::inventory;
-use domain::report;
+use chemistry::model;
+use chemistry::balance;
+use chemistry::inventory;
+use chemistry::report;
 
 data Main { console: Binding<Console>; }
 data Input {

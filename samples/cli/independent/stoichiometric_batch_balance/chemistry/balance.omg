@@ -1,0 +1,89 @@
+module chemistry::balance;
+use chemistry::model;
+
+// All arithmetic is bounded independently of machine representation: atoms
+// <=16, coefficients <=8, and each elemental side <=256. Wrapping carriers
+// specify ordinary operators, but none of these operations can wrap.
+machine divisor(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
+    transition { _ -> reduce(left, right) }
+    state reduce(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
+        transition right != 0 {
+            true -> reduce(right, left % right)
+            false -> left
+        }
+    }
+}
+
+machine conserved(atoms: &[i64 in Wrapping; 4], coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) -> bool {
+    atoms[0] * coefficient_first + atoms[1] * coefficient_second == atoms[2] * coefficient_third + atoms[3] * coefficient_fourth
+}
+
+// Fixed radix traversal visits coefficient tuples lexicographically. Only
+// primitive tuples count, so scalar multiples are not alternative balances.
+// Retaining the first tuple at coefficient_first minimum sum gives the declared tie break.
+pub machine solve(reaction: &Reaction, result: &mut Balance) {
+    result.coefficients = [0, 0, 0, 0];
+    result.solutions = 0;
+    result.sum = 33;
+    transition { _ -> scan(reaction, result, 0) }
+    state scan(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping) {
+        transition ordinal < 4096 {
+            true -> decode(reaction, result, ordinal)
+            false -> done()
+        }
+    }
+    state decode(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping) {
+        let coefficient_first: i64 in Wrapping = ordinal / 512 + 1;
+        let coefficient_second: i64 in Wrapping = (ordinal / 64) % 8 + 1;
+        let coefficient_third: i64 in Wrapping = (ordinal / 8) % 8 + 1;
+        let coefficient_fourth: i64 in Wrapping = ordinal % 8 + 1;
+        transition coefficient_first <= reaction.bound && coefficient_second <= reaction.bound && coefficient_third <= reaction.bound {
+            true -> fourth(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth)
+            false -> scan(reaction, result, ordinal + 1)
+        }
+    }
+    state fourth(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+        transition reaction.species == 3 {
+            true -> absent(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth)
+            false -> present(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth)
+        }
+    }
+    state absent(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+        transition coefficient_fourth == 1 {
+            true -> consider(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, 0)
+            false -> scan(reaction, result, ordinal + 1)
+        }
+    }
+    state present(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+        transition coefficient_fourth <= reaction.bound {
+            true -> consider(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth)
+            false -> scan(reaction, result, ordinal + 1)
+        }
+    }
+    state consider(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+        let pair: i64 in Wrapping = divisor(coefficient_first, coefficient_second);
+        let triple: i64 in Wrapping = divisor(pair, coefficient_third);
+        let common: i64 in Wrapping = divisor(triple, coefficient_fourth);
+        let first: bool = conserved(&reaction.first, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
+        let second: bool = conserved(&reaction.second, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
+        let third: bool = conserved(&reaction.third, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
+        transition common == 1 && first && second && third {
+            true -> accept(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth)
+            false -> scan(reaction, result, ordinal + 1)
+        }
+    }
+    state accept(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+        result.solutions = result.solutions + 1;
+        let sum: i64 in Wrapping = coefficient_first + coefficient_second + coefficient_third + coefficient_fourth;
+        transition sum < result.sum {
+            true -> select(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth, sum)
+            false -> scan(reaction, result, ordinal + 1)
+        }
+    }
+    state select(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping, sum: i64 in Wrapping) {
+        result.coefficients = [coefficient_first, coefficient_second, coefficient_third, coefficient_fourth];
+        result.sum = sum;
+        transition { _ -> scan(reaction, result, ordinal + 1) }
+    }
+    state done() { }
+}

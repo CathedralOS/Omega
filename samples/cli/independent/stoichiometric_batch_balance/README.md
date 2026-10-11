@@ -31,7 +31,7 @@ The three axes may name different elements in different independent fixtures.
 Water uses H/O/unused; methane combustion uses H/O/C; ammonia H/unused/N;
 iron oxide Fe/O/unused. Inventories use synthetic integer formula-unit counts.
 
-`domain/balance.omg` visits the complete bounded coefficient cube, checks all
+`chemistry/balance.omg` visits the complete bounded coefficient cube, checks all
 three independent exact elemental equations and excludes tuples whose gcd is
 not one. It counts primitive solutions and selects minimum total coefficient
 sum, breaking ties lexicographically. `NO_BALANCE_WITHIN_BOUND` is a bounded
@@ -39,7 +39,7 @@ search result; it does not assert impossibility outside that declared bound.
 The impossible fixture has nonzero nitrogen only on the product side, so its
 impossibility also follows independently from the third elemental equation.
 
-`domain/inventory.omg` takes the minimum whole-batch reagent capacity and
+`chemistry/inventory.omg` takes the minimum whole-batch reagent capacity and
 requested cap. `limiting_mask` uses bit 1 for reactant 0 and bit 2 for reactant 1;
 it identifies tied integer reagent capacities before applying the cap.
 `cap_limited` indicates a stricter cap. All products are proposed before any
