@@ -90,6 +90,47 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         exit.statement_index,
         returned,
     );
+    // A reference return observes the completed descriptor's live referents.
+    // An owned return keeps its detached value namespace below; redirecting a
+    // copy to a historical source would let later writes change its evidence.
+    let readable_reference = validation::reference_shell(program, entry.return_type)
+        .is_some_and(|shell| shell.access.is_readable());
+    let returned_storage = readable_reference
+        .then(|| {
+            if !facts.flow.control.operands.is_valid(exit.returned_value) {
+                return None;
+            }
+            let operand = facts.flow.control.operands.get(exit.returned_value);
+            if operand.expression != returned
+                || operand.state_symbol != exit.state_symbol
+                || operand.statement_index != exit.statement_index
+            {
+                return None;
+            }
+            let referents = facts
+                .flow
+                .control
+                .operand_referents
+                .span(operand.referents)?;
+            if referents.is_empty() {
+                return None;
+            }
+            referents
+                .iter()
+                .map(|referent| {
+                    Some(CanonicalPlace {
+                        root: referent.root,
+                        segments: facts
+                            .flow
+                            .control
+                            .operand_referent_segments
+                            .span(referent.segments)?
+                            .to_vec(),
+                    })
+                })
+                .collect::<Option<Vec<_>>>()
+        })
+        .flatten();
     let cases = super::super::cases::CaseObservation::for_exit(
         program,
         facts,
@@ -135,7 +176,8 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         // evidence available to its body. Use the same occurrence-bound
         // membership judgment as value construction: it proves literals,
         // completed calls and live places without minting routed membership.
-        let root_satisfied = path.is_empty()
+        let root_satisfied = !readable_reference
+            && path.is_empty()
             && super::super::super::writes::value_proves_qualification_in_contexts(
                 program,
                 facts,
@@ -146,25 +188,20 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 semantic_domain,
                 &entry_contexts,
             );
-        let satisfied = root_satisfied
-            || crate::flow::literal_value_projections(
-                program,
-                returned,
-                entry.return_type,
-                &path,
-                false,
-            )
-            .is_some_and(|projections| {
-                !projections.is_empty()
-                    && projections.iter().all(|projection| {
-                        canonical_place_from_expression_in_state(
-                            program,
-                            exit.state_symbol,
-                            exit.statement_index,
-                            projection.expression,
-                        )
-                        .is_some_and(|mut subject| {
-                            if !crate::flow::place_cases_are_selected(
+        let satisfied = if readable_reference {
+            returned_storage.as_ref().is_some_and(|subjects| {
+                subjects.iter().all(|storage| {
+                    crate::flow::place_cases_are_selected(
+                        program,
+                        &facts.semantic,
+                        &entry_contexts,
+                        exit.machine_symbol,
+                        exit.state_symbol,
+                        exit.statement_index,
+                        storage,
+                    ) && crate::flow::project_captured_view_place(storage.clone(), &path)
+                        .is_some_and(|subject| {
+                            crate::flow::place_case_path_is_inactive(
                                 program,
                                 &facts.semantic,
                                 &entry_contexts,
@@ -172,30 +209,62 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                                 exit.state_symbol,
                                 exit.statement_index,
                                 &subject,
-                            ) {
-                                return false;
-                            }
-                            subject.extend_segments(&projection.remaining);
-                            proves(&subject)
+                            ) || proves(&subject)
                         })
-                    })
+                })
             })
-            || base.as_ref().is_some_and(|base| {
-                if !crate::flow::place_cases_are_selected(
+        } else {
+            root_satisfied
+                || crate::flow::literal_value_projections(
                     program,
-                    &facts.semantic,
-                    &entry_contexts,
-                    exit.machine_symbol,
-                    exit.state_symbol,
-                    exit.statement_index,
-                    base,
-                ) {
-                    return false;
-                }
-                let mut subject = base.clone();
-                subject.extend_segments(&path);
-                proves(&subject)
-            });
+                    returned,
+                    entry.return_type,
+                    &path,
+                    false,
+                )
+                .is_some_and(|projections| {
+                    !projections.is_empty()
+                        && projections.iter().all(|projection| {
+                            canonical_place_from_expression_in_state(
+                                program,
+                                exit.state_symbol,
+                                exit.statement_index,
+                                projection.expression,
+                            )
+                            .is_some_and(|mut subject| {
+                                if !crate::flow::place_cases_are_selected(
+                                    program,
+                                    &facts.semantic,
+                                    &entry_contexts,
+                                    exit.machine_symbol,
+                                    exit.state_symbol,
+                                    exit.statement_index,
+                                    &subject,
+                                ) {
+                                    return false;
+                                }
+                                subject.extend_segments(&projection.remaining);
+                                proves(&subject)
+                            })
+                        })
+                })
+                || base.as_ref().is_some_and(|base| {
+                    if !crate::flow::place_cases_are_selected(
+                        program,
+                        &facts.semantic,
+                        &entry_contexts,
+                        exit.machine_symbol,
+                        exit.state_symbol,
+                        exit.statement_index,
+                        base,
+                    ) {
+                        return false;
+                    }
+                    let mut subject = base.clone();
+                    subject.extend_segments(&path);
+                    proves(&subject)
+                })
+        };
         if !satisfied {
             let (root, mut segments) = base
                 .as_ref()

@@ -1,5 +1,8 @@
 pub mod resolution;
+mod view_coordinates;
 pub mod write_frame;
+
+pub use view_coordinates::{compose_captured_view_segments, project_captured_view_segments};
 
 use crate::PlaceHandle;
 use arena::HandleSpan;

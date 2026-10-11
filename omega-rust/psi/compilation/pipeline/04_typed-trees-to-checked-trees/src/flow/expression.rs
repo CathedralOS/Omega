@@ -171,7 +171,32 @@ pub(super) fn append_statement_calls<'plans>(
             stored_value = execution.context.control.operands.append(evaluated.capture);
         }
         StatementNode::Expression(expression) => {
-            execution.expression(*expression, contexts, constraints);
+            if state.return_type.is_valid()
+                && statement_index + 1
+                    == program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .len()
+            {
+                let evaluated = execution.evaluated_operand_as(
+                    *expression,
+                    state.return_type,
+                    contexts,
+                    constraints,
+                );
+                let returned_value = execution.context.control.operands.append(evaluated.capture);
+                super::exits::append_outgoing_state_fact(
+                    execution.context,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    TransitionTargetHandle::invalid(),
+                    *constraints,
+                    returned_value,
+                );
+            } else {
+                execution.expression(*expression, contexts, constraints);
+            }
         }
         StatementNode::Call(call) => {
             let mut captured = Vec::new();
@@ -458,17 +483,46 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let first_write = self.operand_writes.len();
         let (boolean, children, referents) =
             self.expression_result(expression, destination, contexts, constraints);
-        let referents = referents.unwrap_or_else(|| {
-            if destination.is_valid() && self.is_view_type(destination) {
-                self.reference_operand_referents(expression)
-            } else {
-                self.operand_referents(expression)
-            }
-        });
+        // Place evaluation may have formed an address for an owned field.
+        // Copying that field does not turn the copy into a live view: even a
+        // carrier with interior authority keeps its own observation epoch.
+        let binds_view = if destination.is_valid() {
+            self.is_view_type(destination)
+        } else {
+            self.operand_is_view(expression)
+        };
+        let referents = if binds_view {
+            referents.unwrap_or_else(|| self.reference_operand_referents(expression))
+        } else {
+            HandleSpan::empty()
+        };
         let mut capture =
             self.capture_operand(expression, first_write, *contexts, *constraints, referents);
         capture.children = children;
         capture.type_reference = destination;
+        EvaluatedOperand { boolean, capture }
+    }
+
+    /// Address formation observes a place, even when reading that place would
+    /// produce an owned value. Keep an indexed child's completed coordinates;
+    /// an unresolved produced address cannot be recovered from later syntax.
+    fn evaluated_place(
+        &mut self,
+        expression: ExpressionHandle,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> EvaluatedOperand {
+        let first_write = self.operand_writes.len();
+        let (boolean, children, referents) = self.expression_result(
+            expression,
+            TypeReferenceHandle::invalid(),
+            contexts,
+            constraints,
+        );
+        let referents = referents.unwrap_or_else(|| self.reference_operand_referents(expression));
+        let mut capture =
+            self.capture_operand(expression, first_write, *contexts, *constraints, referents);
+        capture.children = children;
         EvaluatedOperand { boolean, capture }
     }
 
@@ -634,13 +688,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     /// transports the referent's live facts. The fail-closed resolver returns
     /// `None` for referents it cannot place exactly; those operands keep the
     /// context-identity intersection transport.
-    fn operand_referents(
-        &mut self,
-        expression: ExpressionHandle,
-    ) -> HandleSpan<checked_trees::FlowOperandReferent> {
+    fn operand_is_view(&mut self, expression: ExpressionHandle) -> bool {
         // A value-type query strips a borrow to its target, so `Borrow`
         // operands identify their view shape structurally.
-        let is_view = if matches!(
+        if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Borrow(_)
         ) {
@@ -649,11 +700,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             self.context
                 .expression_result_type_at(self.program, self.machine, self.state, expression)
                 .is_some_and(|reference| self.is_view_type(reference))
-        };
-        if !is_view {
-            return HandleSpan::empty();
         }
-        self.reference_operand_referents(expression)
     }
 
     fn is_view_type(&self, mut reference: typed_trees::types::TypeReferenceHandle) -> bool {
@@ -856,10 +903,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 return None;
             }
             ExpressionNode::Boolean(value) => return Some(*value),
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-                if let Some(member) = self.program.expression_table.member_node(expression) {
-                    self.expression(member.receiver, contexts, constraints);
-                }
+            ExpressionNode::Name(_) => {
+                self.record_case_access(expression, *constraints);
+                return self.live_boolean(expression, *contexts);
+            }
+            ExpressionNode::Member(member) => {
+                let receiver = self.evaluated_place(member.receiver, contexts, constraints);
+                *referents = Some(self.capture_member_referents(expression, &receiver.capture));
                 self.record_case_access(expression, *constraints);
                 return self.live_boolean(expression, *contexts);
             }
@@ -924,13 +974,27 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // operand's write destroys facts an earlier copied operand
                 // still owns.
                 let named_uses = self.named_uses_at(expression);
+                let whole_collection_view = matches!(
+                    validation::collection_operations::collection_view_call(self.program, call),
+                    Some(
+                        language_semantics::declaration_selection::CollectionViewOperation::SharedSlice
+                            | language_semantics::declaration_selection::CollectionViewOperation::MutableSlice
+                    )
+                );
                 let mut captured = Vec::new();
                 if call.receiver.is_valid() {
-                    captured.push((
-                        call.receiver,
+                    let receiver = if whole_collection_view {
+                        self.evaluated_place(call.receiver, contexts, constraints)
+                    } else {
                         self.evaluated_operand(call.receiver, contexts, constraints)
-                            .capture,
-                    ));
+                    };
+                    if whole_collection_view {
+                        // The selected whole-collection operation lends exactly
+                        // its completed receiver. Named machines do not inherit
+                        // this identity from matching source spelling.
+                        *referents = Some(receiver.capture.referents);
+                    }
+                    captured.push((call.receiver, receiver.capture));
                 }
                 for (position, argument) in self
                     .program
@@ -1074,7 +1138,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // expands it to [collection, start, end] — so each bound is
                 // evaluated and captured at its own completion.
                 let collection_operand = self
-                    .evaluated_operand(indexed.collection, contexts, constraints)
+                    .evaluated_place(indexed.collection, contexts, constraints)
                     .capture;
                 if indexed.index.is_valid()
                     && let ExpressionNode::Range(range) =
@@ -1134,7 +1198,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 self.expression(cast.value, contexts, constraints);
             }
             ExpressionNode::Borrow(borrow) => {
-                let evaluated = self.evaluated_operand(borrow.target, contexts, constraints);
+                let evaluated = self.evaluated_place(borrow.target, contexts, constraints);
                 *referents = Some(evaluated.capture.referents);
             }
             ExpressionNode::Unary(unary) => {

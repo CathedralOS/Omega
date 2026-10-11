@@ -36,15 +36,14 @@ printf 'help\nexit\n\n' | omega run samples/cli/games/dungeon_crawler_cli/main.o
 Both cases should exit 0 after the initial room and goodbye output; the second
 also prints command help.
 
-Verified on 2026-10-02 with compiler `66b7a242b3` and unchanged program/library
-inputs from `356d43c6d6`: both commands printed
+Verified again on 2026-10-11 on macOS ARM64 with the optimized Rust reference
+compiler (`CARGO_PROFILE_DEV_OPT_LEVEL=1`). Both commands printed
 `A bottomless dark room near the dungeon heart.`, paths, command help and the
-goodbye message, then exited 0. The input route also repeated help in response
-to the authored command. This establishes those two routes, not every gameplay
-path or another host. Compilation plus execution took 1,571.83 seconds for
-closed stdin and 1,569.55 seconds for help/exit. The compiler was built with
-`CARGO_PROFILE_DEV_OPT_LEVEL=1`; these are not default unoptimized dev timings
-or a controlled speedup comparison.
+goodbye message, then exited 0. The input route repeated help in response to
+the authored command. Compilation plus execution took 23.92 seconds for EOF
+and 22.98 seconds for help/exit; normal offline package refresh completed first.
+These measurements establish those two routes on this host, not every gameplay
+path or another host, and are not a controlled comparison with older compilers.
 
 The existing sample gate reads the standalone `Expected exit` and
 `Expected output contains` lines in [main.omg](main.omg). Its closed-stdin
@@ -55,8 +54,8 @@ previously lost the description while the process still exited successfully.
 python3 tools/sample_native_gate.py --filter cli/games/dungeon_crawler_cli --jobs 1 --timeout 7200
 ```
 
-The timeout accommodates the observed hour-long native compilation; it is a
-runner budget, not a language limit. This gate does not replace the separate
+The timeout is a runner budget, not a language limit; the current qualified
+commands complete in under thirty seconds after package preparation. This gate does not replace the separate
 `help`/`exit` input acceptance above.
 
 Current state cycle:

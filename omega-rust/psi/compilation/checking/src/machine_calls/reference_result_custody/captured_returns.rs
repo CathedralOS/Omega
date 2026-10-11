@@ -264,8 +264,17 @@ impl Captures<'_> {
                 selected = referent;
             }
         }
-        let segments = self.facts.borrow.access_segments.span(loan.segments)?;
-        let (suffix, selected) = self.structural_path(selected, segments)?;
+        // Returned loans retain address selections across each parent view.
+        // Compose those frozen windows before turning the address into typed
+        // structural projections; a window offset is not an array dimension.
+        let mut segments = self
+            .facts
+            .borrow
+            .access_segments
+            .span(loan.segments)?
+            .to_vec();
+        facts::compose_captured_view_segments(&mut segments)?;
+        let (suffix, selected) = self.structural_path(selected, &segments)?;
         path.extend(suffix);
         if self.program.normalized_type_identity(selected) != leaf.source.type_identity {
             return None;

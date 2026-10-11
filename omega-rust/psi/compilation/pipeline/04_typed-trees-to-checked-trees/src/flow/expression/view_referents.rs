@@ -11,6 +11,71 @@ use typed_trees::expression::ExpressionHandle;
 use validation::CanonicalPlace;
 
 impl Execution<'_, '_, '_> {
+    /// Project an owned field from its receiver's completed address. Reading a
+    /// view field instead loads its stored descriptor; the address of that
+    /// descriptor is not the address it denotes.
+    pub(super) fn capture_member_referents(
+        &mut self,
+        expression: ExpressionHandle,
+        receiver: &FlowOperandFact,
+    ) -> HandleSpan<FlowOperandReferent> {
+        let is_view = self
+            .context
+            .expression_result_type_at(self.program, self.machine, self.state, expression)
+            .is_some_and(|reference| self.is_view_type(reference));
+        let Some(member) = self.program.expression_table.member_node(expression) else {
+            return HandleSpan::empty();
+        };
+        let symbol = validation::effective_member_symbol(self.program, member.receiver, member);
+        if !symbol.is_valid() {
+            return HandleSpan::empty();
+        }
+        let mut path = Vec::new();
+        if let Some(variant) = facts::payload_variant_for_field(self.program, symbol) {
+            path.push(PlaceSegment::Case { variant });
+        }
+        path.push(PlaceSegment::Field { symbol });
+        let places = self
+            .context
+            .control
+            .operand_referents
+            .span_or_empty(receiver.referents)
+            .iter()
+            .map(|referent| {
+                super::super::project_captured_view_place(
+                    CanonicalPlace {
+                        root: referent.root,
+                        segments: self
+                            .context
+                            .control
+                            .operand_referent_segments
+                            .span_or_empty(referent.segments)
+                            .to_vec(),
+                    },
+                    &path,
+                )
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(places) = places else {
+            return HandleSpan::empty();
+        };
+        let mut resolved = Vec::new();
+        for place in places {
+            if is_view && let Some(referents) = self.stored_view_referents_at_place(&place) {
+                if referents.is_empty() {
+                    return HandleSpan::empty();
+                }
+                resolved.extend(self.captured_referent_places(referents));
+            } else {
+                // Incoming view fields have their own symbolic contents
+                // namespace. A reaching stored descriptor replaces it above;
+                // its receiver coordinates always come from this evaluation.
+                resolved.push(place);
+            }
+        }
+        self.append_referent_places(&resolved)
+    }
+
     /// Read the completed value installed by a reaching store. A matching
     /// unresolved capture or an intervening replacement is authoritative:
     /// neither may fall back to the declaration's initializer.
@@ -24,12 +89,19 @@ impl Execution<'_, '_, '_> {
             self.statement_index,
             expression,
         )?;
+        self.stored_view_referents_at_place(&source)
+    }
+
+    fn stored_view_referents_at_place(
+        &mut self,
+        source: &CanonicalPlace,
+    ) -> Option<HandleSpan<FlowOperandReferent>> {
         if !super::super::operand_contexts::binding_origin_is_stable(
             self.program,
             &self.context.control,
             self.entry_origin_writes,
             self.entry_origin_unknown_write,
-            &source,
+            source,
         ) {
             return Some(HandleSpan::empty());
         }
@@ -111,7 +183,7 @@ impl Execution<'_, '_, '_> {
                 &self.context.control,
                 statement.completed_writes,
                 statement.completed_unknown_write,
-                &source,
+                source,
             ) {
                 return Some(HandleSpan::empty());
             }
@@ -249,41 +321,31 @@ impl Execution<'_, '_, '_> {
         .and_then(|value| usize::try_from(value).ok())
     }
 
-    fn captured_collection_places(&mut self, operand: &FlowOperandFact) -> Vec<CanonicalPlace> {
-        if !operand.referents.is_empty() {
-            return self
-                .context
-                .control
-                .operand_referents
-                .span_or_empty(operand.referents)
-                .iter()
-                .map(|referent| CanonicalPlace {
-                    root: referent.root,
-                    segments: self
-                        .context
-                        .control
-                        .operand_referent_segments
-                        .span_or_empty(referent.segments)
-                        .to_vec(),
-                })
-                .collect();
-        }
-        if self
-            .context
-            .expression_result_type_at(self.program, self.machine, self.state, operand.expression)
-            .is_some_and(|reference| self.is_view_type(reference))
-        {
-            return Vec::new();
-        }
-        validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state.symbol,
-            self.statement_index,
-            operand.expression,
-        )
-        .filter(|place| matches!(place.root, PlaceRoot::Symbol(_)))
-        .into_iter()
-        .collect()
+    fn captured_collection_places(&self, operand: &FlowOperandFact) -> Vec<CanonicalPlace> {
+        // Collection operands are evaluated as places. An empty capture is
+        // authoritative, including for owned fields behind an unresolved view.
+        self.captured_referent_places(operand.referents)
+    }
+
+    fn captured_referent_places(
+        &self,
+        referents: HandleSpan<FlowOperandReferent>,
+    ) -> Vec<CanonicalPlace> {
+        self.context
+            .control
+            .operand_referents
+            .span_or_empty(referents)
+            .iter()
+            .map(|referent| CanonicalPlace {
+                root: referent.root,
+                segments: self
+                    .context
+                    .control
+                    .operand_referent_segments
+                    .span_or_empty(referent.segments)
+                    .to_vec(),
+            })
+            .collect()
     }
 
     pub(super) fn append_referent_places(

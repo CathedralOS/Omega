@@ -29,6 +29,7 @@ pub(super) fn append_outgoing_state_fact(
     statement_index: usize,
     transition_target: typed_trees::statement::TransitionTargetHandle,
     constraints: HandleSpan<FlowConstraintRef>,
+    returned_value: arena::Handle<checked_trees::FlowOperandFact>,
 ) {
     let constraints = retained_constraint_refs(&build.contexts.constraint_refs, constraints);
     build
@@ -39,6 +40,7 @@ pub(super) fn append_outgoing_state_fact(
             state_symbol,
             statement_index,
             transition_target,
+            returned_value,
             constraints,
         });
 }
@@ -62,7 +64,25 @@ pub(super) fn append_state_exit_facts(
             && exit.transition_target == transition_target)
             .then_some(exit)
     }) {
-        if !transition_target.is_valid() {
+        let outgoing = build
+            .control
+            .outgoing
+            .iter()
+            .filter_map(|(_, outgoing)| {
+                (outgoing.machine_symbol == machine_symbol
+                    && outgoing.state_symbol == state_symbol
+                    && outgoing.statement_index == contract_exit.statement_index
+                    && outgoing.transition_target == transition_target)
+                    .then_some(outgoing.returned_value)
+            })
+            .collect::<Vec<_>>();
+        // The capture belongs to one selected exit, not an expression-keyed
+        // cache. Ambiguous or absent publication supplies no result evidence.
+        let returned_value = match outgoing.as_slice() {
+            [capture] => *capture,
+            _ => arena::Handle::invalid(),
+        };
+        if !transition_target.is_valid() && outgoing.is_empty() {
             append_outgoing_state_fact(
                 build,
                 machine_symbol,
@@ -70,6 +90,7 @@ pub(super) fn append_state_exit_facts(
                 contract_exit.statement_index,
                 transition_target,
                 active_constraints,
+                arena::Handle::invalid(),
             );
         }
         let entry_exit_contexts =
@@ -132,6 +153,7 @@ pub(super) fn append_state_exit_facts(
                 state_symbol,
                 statement_index: contract_exit.statement_index,
                 transition_target,
+                returned_value,
                 parameter_origins,
                 entry_semantic_contexts: entry_exit_contexts,
                 entry_constraints,

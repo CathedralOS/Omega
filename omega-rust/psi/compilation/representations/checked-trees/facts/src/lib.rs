@@ -36,7 +36,10 @@ pub use fact_plan::places::resolution::{
     resolve_place_member_symbol,
 };
 pub use fact_plan::places::write_frame::{NormalizedWriteFrame, WriteFrameCompleteness};
-pub use fact_plan::places::{FactPlace, Place, PlaceRoot, PlaceSegment, resolution, write_frame};
+pub use fact_plan::places::{
+    FactPlace, Place, PlaceRoot, PlaceSegment, compose_captured_view_segments,
+    project_captured_view_segments, resolution, write_frame,
+};
 pub use fact_plan::{
     FactContextHandle, FactHandle, FactPlan, FactRefHandle, PlaceHandle, PlaceSegmentHandle,
     QualificationCorrespondenceHandle, contexts, evidence, places,

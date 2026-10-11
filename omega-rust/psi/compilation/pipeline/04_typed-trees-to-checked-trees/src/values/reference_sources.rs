@@ -71,8 +71,12 @@ pub(crate) fn plan(
         if loans.next().is_some() || !access_can_supply(supplied, access) {
             return None;
         }
-        let mut segments = borrow_facts.loan_segments(loan).to_vec();
-        segments.extend(place.segments);
+        // The descriptor's window and the first selected element share one
+        // dimension. Nested array projections after that boundary stay intact.
+        let segments = facts::project_captured_view_segments(
+            borrow_facts.loan_segments(loan),
+            &place.segments,
+        )?;
         place = validation::CanonicalPlace {
             root: loan.root,
             segments,

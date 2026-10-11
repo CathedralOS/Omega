@@ -192,6 +192,10 @@ pub struct FlowStateOutgoingFact {
     pub statement_index: usize,
     /// Invalid only for implicit completion or a final expression.
     pub transition_target: typed_trees::statement::TransitionTargetHandle,
+    /// Exact completed value on this outgoing occurrence. Zero for named
+    /// transfers and valueless completion; reference results retain live
+    /// referents captured during evaluation rather than replaying selectors.
+    pub returned_value: arena::Handle<super::FlowOperandFact>,
     pub constraints: HandleSpan<FlowConstraintRef>,
 }
 
@@ -201,6 +205,10 @@ pub struct FlowExitFact {
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
     pub transition_target: typed_trees::statement::TransitionTargetHandle,
+    /// Exact completed value on this outgoing occurrence. Zero for named
+    /// transfers and valueless completion; reference results retain live
+    /// referents captured during evaluation rather than replaying selectors.
+    pub returned_value: arena::Handle<super::FlowOperandFact>,
     pub parameter_origins: HandleSpan<FlowExitParameterOrigin>,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     pub entry_constraints: HandleSpan<FlowConstraintRef>,

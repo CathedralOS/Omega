@@ -15,6 +15,7 @@ impl Execution<'_, '_, '_> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
+        let mut returned_value = arena::Handle::invalid();
         let mut operands = Vec::new();
         let mut captured_operands = Vec::new();
         let mut values = Vec::new();
@@ -63,7 +64,13 @@ impl Execution<'_, '_, '_> {
                 }
             }
             TransitionTargetNode::Value(expression) => {
-                self.expression(*expression, contexts, constraints);
+                let completed = self.evaluated_operand_as(
+                    *expression,
+                    self.state.return_type,
+                    contexts,
+                    constraints,
+                );
+                returned_value = self.context.control.operands.append(completed.capture);
             }
             TransitionTargetNode::Terminal => {}
         }
@@ -105,6 +112,7 @@ impl Execution<'_, '_, '_> {
             self.statement_index,
             target,
             *constraints,
+            returned_value,
         );
         self.invoke(
             InvocationSite::Transition(target),

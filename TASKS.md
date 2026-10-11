@@ -1678,21 +1678,20 @@ defines the complete product bar.
   on macOS ARM64. A byte store preserves `Utf8` only with carrier/byte
   evidence: `ValidUtf8` does not imply `AsciiOnly`.
 
-  The Dungeon Crawler no longer checks on any host. Import locality
-  (2026-10-09) ended its `platform/console.omg` re-export hop on every
-  target; with the consumers migrated to direct `omega_language_std::console`
-  imports the first failure is nominal-inputs admission:
-  `cannot prove default-domain field requirement ... event.enemy.name
-  requires [u8; N]::Utf8` at `RoomEvents::roll_event` (from `carve_room`)
-  and `MazeBuilder::clear_event` (from `force_quiet_room`). The domain is
-  genuinely established — `clear_level` writes `event.enemy.name = ""` on all
-  sixteen rooms through `&mut rooms[i]` element arguments before either call —
-  but the fact does not reach the callee through `Level::room_mut`'s
-  runtime-indexed `&mut Room` return. A same-state write to
-  `room.event.enemy.name` through the borrow satisfies the check, so the gap
-  is prior-establishment transport across element-argument handbacks and the
-  borrowed return's runtime cell, not argument capture. The macOS ARM64
-  native qualification predates both failures and is not re-qualified.
+  The unchanged Dungeon Crawler now runs natively on macOS ARM64 through
+  the public EOF and `help`/`exit` routes: both print the authored opening room
+  and goodbye, then exit 0. Completed operands retain exact borrowed addresses
+  through member, view and return transport; shared view-coordinate composition
+  preserves nested array dimensions. Native projection consumes each view
+  backing once, and fixed-operand allocation reuses its prepared occurrence
+  slots within the existing work cap. The focused native/Terminal selection
+  executes 23 of 24 programs at their authored exits. The remaining
+  `pass/text/qualified_byte_state_snapshot_exit` still rejects the same
+  `StructuralByteSequenceFieldStore` as the pre-change compiler at native
+  function-fragment accounting. Close that snapshot-store frontier, retain the
+  invalid field-domain/owned-copy controls, complete the remaining cases below,
+  and qualify the other declared hosts. The whole application remains the
+  acceptance driver; see its README for the public commands.
 
   Acceptance:
   - Paired qualified/free-machine corpus cases over the same established
@@ -2915,10 +2914,15 @@ crash and native exit behavior.
     Do not restore per-target typed-tree folding or substitute host values.
     Admitted Build evaluation remains a separate execution and still supports
     its explicitly selected operators.
-  - Selected-provider completion-role discovery now rejects rather than
-    rewriting checked source and rederiving schemas. Accepted package roles
-    enter source preparation before checking. Move discovery to explicit source
-    contract admission, without inferring public completion from a provider.
+  - Completion-role review now fixes a provisional exact source declaration
+    before checking and rejoins every proposal to its selected external supply
+    afterward. Ordinary compilation still requires the accepted schema/plan
+    binding; provider selection never rewrites checked source. Discovery uses
+    the complete authored external-supply roster, independent of target choice.
+    Replace this nomination with explicit early consumer designations for mixed
+    returning/external candidates: an unused external candidate currently makes
+    a selected returning implementation fail closed. Keep no-role ordinary
+    returning services and stale/foreign/unmatched binding controls.
   - `BoundaryMachineDeclaration` `ensures` is landed: codec module admission
     checks every declared scalar contract row over the declaration
     telescope — input formals and structural-parameter places, plus the

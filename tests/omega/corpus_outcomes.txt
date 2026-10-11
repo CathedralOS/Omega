@@ -6079,3 +6079,12 @@ fail/layouts/public_layout_keeps_private_schema rejected 364ms expected @63dcd4d
 	public interface selects private data `LayoutPolicy<HiddenSchema>`
 fail/layouts/public_schema_keeps_private_layout rejected 370ms expected @63dcd4df414+wt
 	public interface selects private data `HiddenPolicy<RecordSchema>`
+fail/domains/offset_borrow_return_unestablished_field rejected 411ms expected @1e469c9b15bb
+	cannot prove default-domain field requirement for return from pick at statement 2: rows[1].labels[1].text requires [u8; N]::NonEmpty
+	cannot prove default-domain field requirement for return from pick at statement 2: bag.rows[2].labels[1].text requires [u8; N]::NonEmpty
+	cannot prove default-domain field requirement for return from pick at statement 3: bag.rows[2].labels[1].text requires [u8; N]::NonEmpty
+	cannot prove index `0` is within unknown slice length of `bag.rows[2].labels[1].text` in pick::entry
+fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms expected @1e469c9b15bb
+	cannot prove ensures contract for exit from impossible at statement 1: false
+pass/collections/runtime_offset_view_case_observation_exit checked 2717ms check-target:macos_arm64 @1e469c9b15bb
+pass/domains/runtime_selected_nested_field_domain_exit checked 2724ms check-target:macos_arm64 @1e469c9b15bb

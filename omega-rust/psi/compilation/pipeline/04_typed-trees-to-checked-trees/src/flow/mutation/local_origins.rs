@@ -263,14 +263,18 @@ pub(crate) fn rebase_exact_local_place(
     {
         return None;
     }
-    let (mut canonical, exact) = origin_place(program, state, statement_index, origin)?;
+    let (canonical, exact) = origin_place(program, state, statement_index, origin)?;
     if !exact {
         return None;
     }
-    canonical
-        .segments
-        .extend_from_slice(&place.segments[origin.local_segments.len()..]);
-    Some(canonical)
+    // The origin may be a captured view window. Its first child projection
+    // uses that window's coordinates, while subsequent array dimensions
+    // belong to the selected value. Share the captured-operand address join
+    // so returned-reference candidates and call handback name actual storage.
+    crate::flow::project_captured_view_place(
+        canonical,
+        &place.segments[origin.local_segments.len()..],
+    )
 }
 
 pub(super) fn rebase_local_write_places(
