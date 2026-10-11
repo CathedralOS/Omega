@@ -368,7 +368,11 @@ pub(super) fn emit(
                     ..Default::default()
                 },
             )?;
-            output
+            if environment.target().architecture == target::Architecture::X86_64 {
+                builder.copy(output, result.value, result.definition_site, scalar_type)?
+            } else {
+                output
+            }
         }
         LegalizedScalarInstructionKind::SaturatingRemainder {
             carrier,
@@ -433,7 +437,11 @@ pub(super) fn emit(
                     ..Default::default()
                 },
             )?;
-            output
+            if environment.target().architecture == target::Architecture::X86_64 {
+                builder.copy(output, result.value, result.definition_site, scalar_type)?
+            } else {
+                output
+            }
         }
         LegalizedScalarInstructionKind::WrappingRemainder {
             left,
@@ -504,7 +512,13 @@ pub(super) fn emit(
                 },
             )?;
             if selection != WrappingDivision::DivideSignedNarrow {
-                raw
+                if environment.target().architecture == target::Architecture::X86_64 {
+                    // The architectural result is local: retain its bits in a
+                    // flexible value before another call or divide writes it.
+                    builder.copy(raw, result.value, result.definition_site, scalar_type)?
+                } else {
+                    raw
+                }
             } else {
                 // The only quotient outside a narrow signed
                 // carrier is MIN / -1, whose widened i64 value is
@@ -881,7 +895,12 @@ pub(super) fn emit(
                     ..Default::default()
                 },
             )?;
-            output
+            if divide_operator && environment.target().architecture == target::Architecture::X86_64
+            {
+                builder.copy(output, result.value, result.definition_site, scalar_type)?
+            } else {
+                output
+            }
         }
         _ => return Err(invalid()),
     })

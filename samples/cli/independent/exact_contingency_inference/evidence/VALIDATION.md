@@ -69,6 +69,18 @@ tail-recursion rule. `controls/recursive_unit` retains that complete reproductio
 The formatter now uses a bounded iterative state loop. The recursion eligibility
 guard is unchanged; that refusal is not claimed as a compiler defect.
 
+Final native production also witnessed an x86 fixed-register lifetime gap in
+that ordinary iterative formatter: the same loop-carried dividend was constrained
+to RAX at division/remainder uses with a Console clobber between them. The complete
+minimal `runtime_wrapping_division_call_span_exit` corpus source reproduces the
+same `NoCommonCandidate` rejection. The corresponding exact arithmetic control
+also rejects on the pre-fix producer. Selection now transports x86 fixed
+division inputs and results through instruction-local copies, consistently for
+wrapping, exact and saturating forms. Original values retain flexible homes;
+architectural constraints, divisor proofs, scratch and result normalization
+remain intact. No allocator legality or custody guard was relaxed. The delivery
+retains complete before/after source, commands and output observations.
+
 Ordinary project-local std review was accepted after inspecting all 286 exact
 decisions: 140 callables, 140 supplies, three Console terminal permissions and
 three nominal service declarations. No restricted build, assumed binding or host
