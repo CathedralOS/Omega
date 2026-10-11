@@ -149,7 +149,7 @@ pub fn compute_boundary_calling_plans(
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
-    let vocabularies = validation::standard_calling_vocabularies(typed);
+    let vocabularies = typed_trees::calling_vocabulary::standard_calling_vocabularies(typed);
     if vocabularies.is_empty() {
         // Programs that do not import std::calling cannot accidentally opt in
         // merely by having an unrelated local trait named Calling.

@@ -1,5 +1,6 @@
 //! declarations in the current typed trees program.
 
+pub mod calling_vocabulary;
 pub mod constant;
 pub mod data;
 pub mod domain;
