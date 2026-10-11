@@ -33,8 +33,8 @@ use super::const_record_with_sum_materializable::{
     prepare_sum_array_field, validate_outer_layout, validate_outer_record_owner,
 };
 use super::{
-    BuildTimeValue, RepeatedFieldInfo, normalized_schema_report_fingerprint,
-    validate_const_materializable_conventional_sum,
+    BuildTimeValue, RepeatedFieldInfo, copy_const_materializable_bytes,
+    normalized_schema_report_fingerprint, validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sums,
 };
 use crate::layouts::materialization::{
@@ -252,15 +252,7 @@ impl ValidatedConstRecordWithNestedSumRecordMaterialization {
             &self.value,
             self.byte_order,
         )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable nested-record path copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        copy_const_materializable_bytes("nested-record path copy", &self.bytes, destination)
     }
 }
 
@@ -430,15 +422,7 @@ impl ValidatedConstRecordWithNestedSumRecordsMaterialization {
             &self.value,
             self.byte_order,
         )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable nested-record paths copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        copy_const_materializable_bytes("nested-record paths copy", &self.bytes, destination)
     }
 }
 

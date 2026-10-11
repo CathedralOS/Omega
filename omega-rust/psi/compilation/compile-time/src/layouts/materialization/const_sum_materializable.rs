@@ -14,8 +14,9 @@ use super::const_materializable::{
     hash_byte, hash_bytes, hash_text, hash_u64, unique_data_by_name, validate_value, value_kind,
 };
 use super::{
-    BuildTimeValue, checked_align_up, encode_typed_owned_value,
-    normalized_schema_report_fingerprint, reflected_nested_member_layout,
+    BuildTimeValue, checked_align_up, copy_const_materializable_bytes,
+    encode_typed_owned_value, normalized_schema_report_fingerprint,
+    reflected_nested_member_layout,
 };
 
 const CONVENTIONAL_TAG_SIZE: u64 = 4;
@@ -171,15 +172,7 @@ impl ValidatedConstSumMaterialization {
             &self.value,
             self.byte_order,
         )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable sum copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        copy_const_materializable_bytes("sum copy", &self.bytes, destination)
     }
 }
 

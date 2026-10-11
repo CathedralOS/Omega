@@ -8,6 +8,7 @@ use super::{
     normalized_layout_plan_report_fingerprint,
 };
 use crate::layouts::materialization::const_record_with_nested_sum_materializable::derivation::derive_record_level_children_bytes;
+use crate::layouts::materialization::copy_const_materializable_bytes;
 use crate::layouts::materialization::const_record_with_nested_sum_materializable::report_identity::{
     child_materializations_match_for_replay, record_sum_paths_reports_match_for_replay,
     recursive_level_materialization_report_fingerprint,
@@ -204,15 +205,7 @@ impl ValidatedConstRecordWithRecursiveNestedSumsMaterialization {
             self.byte_order,
             &mut reachability,
         )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable recursive copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        copy_const_materializable_bytes("recursive copy", &self.bytes, destination)
     }
 }
 

@@ -41,6 +41,25 @@ fn retained_custody_drift(label: &str) -> MaterializationDiagnostic {
     ))
 }
 
+/// Every const materialization `apply` finishes identically once its replay
+/// passes: a short destination rejects without being touched, otherwise the
+/// retained bytes land atomically.
+pub(super) fn copy_const_materializable_bytes(
+    subject: &str,
+    bytes: &[u8],
+    destination: &mut [u8],
+) -> Result<(), MaterializationDiagnostic> {
+    if destination.len() < bytes.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable {subject} needs {} bytes, destination has {}",
+            bytes.len(),
+            destination.len()
+        )));
+    }
+    destination[..bytes.len()].copy_from_slice(bytes);
+    Ok(())
+}
+
 mod const_materializable;
 mod const_record_with_nested_sum_materializable;
 mod const_record_with_sum_materializable;

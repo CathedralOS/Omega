@@ -12,8 +12,8 @@ use typed_trees::data::{DataDefinition, DataShapeKind};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use super::{
-    BuildTimeValue, materialize_typed_owned_layout_into, normalized_schema_report_fingerprint,
-    schema_fields,
+    BuildTimeValue, copy_const_materializable_bytes, materialize_typed_owned_layout_into,
+    normalized_schema_report_fingerprint, schema_fields,
 };
 
 /// Validated evidence that one closed typed value and fixed layout determine
@@ -148,15 +148,7 @@ impl ValidatedConstMaterialization {
             &self.value,
             self.byte_order,
         )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        copy_const_materializable_bytes("copy", &self.bytes, destination)
     }
 }
 

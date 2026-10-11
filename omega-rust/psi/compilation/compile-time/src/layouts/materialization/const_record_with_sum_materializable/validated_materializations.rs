@@ -19,6 +19,7 @@ use crate::layouts::materialization::const_record_with_sum_materializable::repor
 };
 use crate::layouts::materialization::{
     BuildTimeValue, ValidatedConstRecordArrayFieldMaterialization, ValidatedConstSumMaterialization,
+    copy_const_materializable_bytes,
 };
 use layout_plans::{
     ByteOrder, ConventionalSumArrayFieldLayoutReport, ConventionalSumFieldLayoutReport,
@@ -201,15 +202,7 @@ impl ValidatedConstRecordWithSumArrayMaterialization {
             &self.value,
             self.byte_order,
         )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable sum-array record copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        copy_const_materializable_bytes("sum-array record copy", &self.bytes, destination)
     }
 }
 
@@ -322,15 +315,7 @@ impl ValidatedConstRecordWithSumArraysMaterialization {
             &self.value,
             self.byte_order,
         )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable sum-array fields copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        copy_const_materializable_bytes("sum-array fields copy", &self.bytes, destination)
     }
 }
 
@@ -538,14 +523,6 @@ impl ValidatedConstRecordWithSumMaterialization {
             &self.value,
             self.byte_order,
         )?;
-        if destination.len() < self.bytes.len() {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable nested-sum record copy needs {} bytes, destination has {}",
-                self.bytes.len(),
-                destination.len()
-            )));
-        }
-        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
-        Ok(())
+        copy_const_materializable_bytes("nested-sum record copy", &self.bytes, destination)
     }
 }
