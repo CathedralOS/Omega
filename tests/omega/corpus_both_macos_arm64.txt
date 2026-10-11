@@ -804,3 +804,4 @@ pass/traits/runtime_dyn_guarded_result_exit built 2710ms exit:0 interpreter-exit
 pass/traits/runtime_dyn_linear_result_exit built 2736ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
 pass/traits/runtime_dyn_nested_result_exit built 2701ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
 pass/traits/runtime_dyn_structural_result_exit built 2661ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
+pass/ownership/runtime_owned_parameter_restoration_exit built 2843ms exit:0 interpreter-exit:0 interpreter:agrees @b296be94ff95

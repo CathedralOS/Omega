@@ -5263,3 +5263,6 @@ pass/float/hydrostatic_load_format_exit checked 65830ms check-target:linux_x86_6
 pass/float/returned_record_computed_fields_exit checked 64486ms check-target:linux_x86_64 @8ddd180821eb+wt
 pass/float/waterline_record_computed_return_exit checked 50657ms check-target:linux_x86_64 @8ddd180821eb+wt
 pass/arithmetic/fixed_unsigned_multiply_values_survive_calls_exit checked 4051ms check-target:linux_x86_64 @ab2d2d262b5c
+pass/ownership/runtime_owned_parameter_restoration_exit checked 2733ms check-target:macos_arm64 @b296be94ff95
+fail/ownership/owned_parameter_strict_child_restoration rejected 300ms expected @b296be94ff95
+	cannot store into `holder.value` in machine `invalid` state `entry` (statement 1) after `holder` was transferred or consumed at statement 0: assign a whole value to `holder` to re-establish it
