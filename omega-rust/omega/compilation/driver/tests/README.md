@@ -21,6 +21,13 @@ Ordinary fixtures retain privately issued snapshot/staging execution. This
 is test-supplied authority, not a source spelling or a new product grant mode.
 
 `corpus_runner.rs` compiles every fixture and prints one outcome record each.
+Negative fixtures check once under their authored Build sponsors and input
+custody. Without a declared program entry, source acceptance records `checked`,
+not a rejection caused by demanding an absent entry. With a declared entry,
+native production continues the same checked compilation to expose later-stage
+refusals; it does not acquire sources or execute Build again. An accepted
+negative control remains red until its source semantics or authored expectation
+is resolved; no native fallback hides it.
 `tools/corpus_gate.py` diffs those records against
 `tests/omega/corpus_outcomes.txt`:
 

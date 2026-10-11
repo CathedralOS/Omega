@@ -4,7 +4,10 @@
 //! `compiler::compile` with a `Check` product (run fixtures are compile-
 //! checked only — the suite's execution leg is not reproduced here), fail
 //! fixtures through `compile_to_checked` with reviewed repository package
-//! inputs. A pass or run fixture whose own `build.omg` binds a
+//! inputs, continuing that checked compilation to native production only when
+//! their own Build declares an entry. Source acceptance never restarts compilation
+//! or demands an entry invented by the harness. A pass or run
+//! fixture whose own `build.omg` binds a
 //! program-entry root is instead realized for one target that build binds
 //! (`CHECK_LEG_TARGET_PREFERENCE`, never the recording host) and the record
 //! names it as `check-target:<target>`: the `Check` product establishes no
@@ -1109,18 +1112,27 @@ fn receive_stream(
         .and_then(Result::ok)
 }
 
-/// `check_canary`: reviewed repository package inputs plus `compile_to_checked`.
-/// A declared rollback rides the checked route too: the checked tree's own
-/// rules subtract there, and Psi-phase names settle inertly so a shared
-/// `rollback.txt` cannot fail the fixture on the wrong axis.
+/// Check a refusal control once and continue only to its authored product.
+/// Entryless fixtures stop at checking: demanding a native entry after source
+/// acceptance would hide that acceptance behind the harness's own refusal.
+/// An entry-bearing fixture can pin later production failures, but consumes
+/// the checked compilation instead of repeating package preparation and Build.
+/// Sponsors, rollback and output-effect controls belong to this one activation.
 fn check_fail_fixture(
     root_path: &Path,
     build_dir: PathBuf,
     rollback: Option<&OptimizationRollback>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let prepared = reviewed_repository_fixture_package_inputs(root_path, None)?;
+    let target_name = declared_realization_target(root_path);
+    let native_product = target_name.as_ref().map(|_| compilation_products::NativeProductRequest {
+        terminal_authority_policy:
+            terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: rollback.cloned().unwrap_or_default(),
+    });
+    let prepared = reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
-    let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
+    let mut request = CheckedCompileRequest::new(&prepared.root_path, target_name.as_deref());
     request.package_inputs = prepared.package_inputs;
     request.build_snapshot = build_snapshot;
     // A fail fixture's build machine may still reach the build filesystem
@@ -1267,7 +1279,19 @@ fn check_fail_fixture(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(vec![diagnostics::Diagnostic::error(error.to_string())]),
     }
-    let mut result = compile_to_checked(request).map(|_| ());
+    let mut result = compile_to_checked(request).and_then(|checked| {
+        if let Some(native_product) = native_product {
+            compiler::finish_compilation(
+                checked,
+                prepared.root_path,
+                compiler::CompilationProduct::Native(native_product),
+            )
+            .map(|_| ())
+            .map_err(compiler::CompilationProductError::into_diagnostics)
+        } else {
+            Ok(())
+        }
+    });
     for output in absent_outputs {
         if build_dir.join(&output).try_exists().map_err(|error| {
             vec![diagnostics::Diagnostic::error(format!(
@@ -1291,17 +1315,10 @@ fn check_fail_fixture(
 
 /// Realize one fixture as a native artifact for the first target its own
 /// `build.omg` binds a program-entry root for, without publishing or running
-/// it. Two routes lean on this:
-///
-/// - a fail fixture whose refusal belongs to a stage after checking -- a
-///   layout size overflow, target lowering, provider selection -- checks
-///   clean on `compile_to_checked` and is realized before it is recorded as
-///   having stopped rejecting;
-/// - a pass or run fixture on the check leg, where the `Check` product
-///   establishes no program entry and so never demands the unit-plan roster
-///   the fixture's own root binding claims -- realizing accounts that
-///   roster, and an omitted plan records `rejected` with its `Lowering`
-///   diagnostic instead of `checked`.
+/// it. A pass or run fixture on the check leg uses this because the `Check`
+/// product establishes no program entry and so never demands the unit-plan
+/// roster the fixture's own root binding claims. Realizing accounts that roster:
+/// an omitted plan records `rejected` instead of `checked`.
 fn realize_fixture(
     root_path: &Path,
     build_dir: PathBuf,
@@ -1686,15 +1703,6 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             check_outcome
         }
     };
-    if tier == "fail" && outcome.is_ok() {
-        outcome = realize_fixture(
-            main,
-            unique_build_dir(sequence),
-            declared_realization_target(main),
-            declared_rollback.as_ref(),
-            None,
-        );
-    }
     let mut interpreter_diagnostics = Vec::new();
     if terminal_target_oracle && (!interpreter_leg() || checked_interpreter_leg()) {
         if let Some(observation) = interpreter_observation.take() {

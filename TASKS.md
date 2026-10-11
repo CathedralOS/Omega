@@ -3320,7 +3320,16 @@ of a check the same flow already performed, not the check itself.
   lexical owners through folding and substitution against the full check
   corpus and focused native cohort. The original 113-case cohort at fixed
   producer `8ec8362fcf0` has 34 checked, 69 rejected and ten incomplete;
-  25 invalid controls reject without their intended fragment, none is accepted.
+  25 negative controls lack their intended fragment; that old harness also
+  masked source acceptance behind a native missing-entry refusal. The focused
+  ten-control gate on the integrated compiler exposes three source acceptances:
+  `shared_subslice_state_cannot_lend_mutable`,
+  `family_callback_first_member_guarantee_only_rejected` and
+  `bounded_distance_inverted`. Public source checks confirm them. Attribute
+  the slice formation and ranking judgments here; keep portable callback
+  refinement with **PSI-TARGET-FAMILIES**. Entry-bearing native refusals and
+  sponsored Build controls must retain their intended diagnostics without
+  replaying the accepted source compilation.
   The two excluded float cases now have one checked and one timeout at 360s
   on that producer. Attribute these remaining reds on the integrated compiler
   before full qualification; fixed-producer evidence is not latest-main
@@ -3333,7 +3342,8 @@ of a check the same flow already performed, not the check itself.
   qualification; private implementation summaries cannot supply missing abstract
   termination promises. Bounded operator, algebra-law and computed-index
   execution does not replace full-corpus acceptance.
-  No selected invalid fixture was accepted. Do not repin these refusals. Include
+  Do not repin these refusals or hide accepted controls with a later missing-entry
+  error. Include
   `runtime_computed_backing_reference_copy_exit`, `runtime_boundary_range_view_exit`
   and their escape/conflicting-write controls; unchosen backing homes must not
   acquire custody and nested requirements must not select a provider in Psi.
