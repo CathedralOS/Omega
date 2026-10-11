@@ -1214,24 +1214,29 @@ fn projected_loan_transfer(
     if identity.is_some_and(|identity| declared_contains_reference(shapes, identity)) {
         return None;
     }
-    // Static geometry uses the existing rooted storage route; it does not
-    // need an address snapshot. An admitted borrowed carrier need not
-    // also belong to the separately registered reference-carrier family.
-    // Dynamic selectors still require a
-    // retained descriptor, and refuse if its exact carrier is unavailable.
-    let carrier_type_identity = match shapes.add_reference_type(target_type_reference, &[]) {
-        Some(identity) => identity,
-        None if !path.iter().any(|segment| {
-            matches!(
-                segment,
-                CheckedUnitStructuralPathSegment::RuntimeIndex(_)
-                    | CheckedUnitStructuralPathSegment::ComputedIndex(_)
-            )
-        }) =>
-        {
-            Default::default()
+    let has_dynamic_selector = path.iter().any(|segment| {
+        matches!(
+            segment,
+            CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                | CheckedUnitStructuralPathSegment::ComputedIndex(_)
+        )
+    });
+    // A bounded byte view already carries its pointer under the full declared
+    // reference identity. Static rooted storage lends that backing directly;
+    // enrolling an additional Reference shape would add an indirection and
+    // conflict with the existing carrier. Dynamic selectors still require an
+    // explicit retained descriptor, and refuse when its carrier is unavailable.
+    let carrier_type_identity = if matches!(
+        super::super::types::byte_sequence_carrier(program, target_type_reference, &[]),
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. })
+    ) && !has_dynamic_selector {
+        Default::default()
+    } else {
+        match shapes.add_reference_type(target_type_reference, &[]) {
+            Some(identity) => identity,
+            None if !has_dynamic_selector => Default::default(),
+            None => return None,
         }
-        None => return None,
     };
     Some(CheckedStructuralControlTransferPlan {
         source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
