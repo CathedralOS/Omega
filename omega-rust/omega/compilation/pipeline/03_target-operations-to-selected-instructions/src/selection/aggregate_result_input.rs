@@ -51,7 +51,7 @@ pub(super) fn owned_parameter_uses_local_home(
 }
 
 /// Owned aggregate inputs only need addressable storage when an operation observes a
-/// field or byte contents, observes a projected case, lends the original value,
+/// field or byte contents, writes a field, observes a projected case, lends the original value,
 /// or a case dispatch reads its tag and payloads. State-edge transport copies
 /// from an address into the successor's owned home, so even an otherwise
 /// unobserved incoming value must be materialized for that edge. Direct call
@@ -137,6 +137,10 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             // Reseating register-carried owned storage requires an addressable
             // home even when no separate read or projection exposed it first.
             LegalizedScalarInstructionKind::StoreStructuralField { destination, .. } => destination.place() == place,
+            // A scalar store also writes the current owned value, so even a
+            // store-only entry needs the same home as a field observation.
+            LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
+            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => destination.place() == place,
             LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
                 matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }

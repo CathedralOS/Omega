@@ -901,7 +901,11 @@ pub(super) fn validate_operation(
                     },
                 ) => {
                     *place == parameter.place
-                        && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                        && matches!(
+                            parameter.access,
+                            terminal_psi::StructuralAccess::Owned
+                                | terminal_psi::StructuralAccess::MutableBorrow
+                        )
                         && optimized.blocks.iter().any(|entry| {
                             entry.id == *block && entry.structural_parameters.contains(parameter)
                         })

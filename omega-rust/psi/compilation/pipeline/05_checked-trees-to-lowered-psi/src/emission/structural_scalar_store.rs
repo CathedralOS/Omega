@@ -233,15 +233,18 @@ pub(crate) fn lower_structural_field_place_steps<'a>(
 }
 
 /// Typed field projections and representation-byte projections require the
-/// same exclusive live root authority. Geometry cannot turn a shared place
-/// exclusive.
+/// same live write authority. A nonlinear owned entry or continuation
+/// home supplies that authority directly, just as a completed local home does.
+/// Borrowed roots still need exclusive access. Geometry never changes access
+/// or discards root and projected qualification evidence.
 pub(crate) fn validate_root_access(
     parameter: &StructuralParameterDeclaration,
 ) -> Result<(), LoweringError> {
-    let access_matches = matches!(
-        parameter.access,
-        terminal_psi::exclusive_borrow_pair_pattern!()
-    );
+    let access_matches = match parameter.access {
+        terminal_psi::ownership::StructuralAccess::Owned => true,
+        terminal_psi::exclusive_borrow_pair_pattern!() => true,
+        _ => false,
+    };
     if !access_matches
         || !matches!(
             parameter.multiplicity,

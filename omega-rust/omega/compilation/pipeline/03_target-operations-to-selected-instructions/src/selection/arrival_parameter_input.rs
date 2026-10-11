@@ -1,4 +1,4 @@
-//! Rejoin a store's borrowed parameter independently of its physical carrier.
+//! Rejoin a store's owned or borrowed parameter independently of its carrier.
 //!
 //! An arrival can transport a referent address or a view descriptor. The store
 //! keeps its exact semantic declaration in either case; transport chooses how
@@ -17,7 +17,7 @@ pub(super) fn store_destination(
     };
     if !matches!(
         expected.access,
-        terminal_psi::exclusive_borrow_pair_pattern!()
+        StructuralAccess::Owned | terminal_psi::exclusive_borrow_pair_pattern!()
     ) || expected.multiplicity == StructuralMultiplicity::Linear
         || !expected.qualifications.is_empty()
         || !expected.projected_qualifications.is_empty()
@@ -33,9 +33,13 @@ pub(super) fn store_destination(
             .structural_place(expected.place)
             .map(|row| row.kind)
         {
-            Some(StructuralPlaceKind::BlockParameter { .. }) => {
-                expected.access == StructuralAccess::MutableBorrow
-            }
+            Some(StructuralPlaceKind::BlockParameter { block, .. }) => match expected.access {
+                StructuralAccess::Owned => {
+                    super::owned_block_home_input::store_destination(source, block, expected)
+                }
+                StructuralAccess::MutableBorrow => true,
+                _ => false,
+            },
             _ => true,
         }
 }

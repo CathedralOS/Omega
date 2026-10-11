@@ -386,11 +386,13 @@ impl<'a> Destination<'a> {
         Some(segments)
     }
 
-    /// The root's exclusive write authority for a projected store: an
-    /// unqualified, non-linear mutable or write-only borrow whose declared
-    /// reference agrees with the checked access, inside a signature whose
-    /// complete ABI roster the plan covers. An established owned local
-    /// supplies its own authority.
+    /// The root's write authority belongs to its current storage, independent
+    /// of entry versus continuation spelling. A nonlinear mutable owned
+    /// parameter supplies its home directly; a mutable or write-only borrow
+    /// supplies its referent. Both retain the complete signature roster and
+    /// all qualification checks. An established owned local supplies its own
+    /// authority. Ownership checking still rejects writes through immutable
+    /// bindings and outstanding incompatible loans.
     pub(super) fn exclusive_authority(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -407,7 +409,9 @@ impl<'a> Destination<'a> {
         if plan.multiplicity == Multiplicity::Linear
             || !matches!(
                 plan.access,
-                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+                CheckedStructuralAccess::Owned
+                    | CheckedStructuralAccess::MutableBorrow
+                    | CheckedStructuralAccess::WriteOnlyBorrow
             )
             || !plan.qualifications.is_empty()
         {
@@ -442,18 +446,20 @@ impl<'a> Destination<'a> {
         {
             return None;
         }
-        let TypeReferenceNode::Reference { access, .. } = program
+        let expected_access = match program
             .type_reference_table
             .type_reference(parameter.type_reference)
-        else {
-            return None;
-        };
-        let expected_access = match access {
-            language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-            language_semantics::ReferenceAccess::WriteOnly => {
-                CheckedStructuralAccess::WriteOnlyBorrow
-            }
-            language_semantics::ReferenceAccess::Shared => return None,
+        {
+            TypeReferenceNode::Reference { access, .. } => match access {
+                language_semantics::ReferenceAccess::Mutable => {
+                    CheckedStructuralAccess::MutableBorrow
+                }
+                language_semantics::ReferenceAccess::WriteOnly => {
+                    CheckedStructuralAccess::WriteOnlyBorrow
+                }
+                language_semantics::ReferenceAccess::Shared => return None,
+            },
+            _ => CheckedStructuralAccess::Owned,
         };
         (plan.access == expected_access).then_some(())
     }

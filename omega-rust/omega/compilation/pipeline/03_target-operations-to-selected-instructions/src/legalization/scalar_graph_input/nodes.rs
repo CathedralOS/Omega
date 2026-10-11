@@ -594,16 +594,33 @@ pub(super) fn validate(
             let declared = match destination {
                 abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
                     (optimized.structural_parameters.contains(parameter)
-                        || parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-                            && optimized
-                                .blocks
-                                .iter()
-                                .any(|block| block.structural_parameters.contains(parameter)))
+                        || matches!(
+                            parameter.access,
+                            terminal_psi::StructuralAccess::Owned
+                                | terminal_psi::StructuralAccess::MutableBorrow
+                        ) && optimized
+                            .blocks
+                            .iter()
+                            .any(|block| block.structural_parameters.contains(parameter)))
                         && matches!(
                             parameter.access,
-                            terminal_psi::StructuralAccess::MutableBorrow
+                            terminal_psi::StructuralAccess::Owned
+                                | terminal_psi::StructuralAccess::MutableBorrow
                                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
                         )
+                        && (parameter.access != terminal_psi::StructuralAccess::Owned
+                            || (parameter.multiplicity
+                                != terminal_psi::StructuralMultiplicity::Linear
+                                && parameter.qualifications.is_empty()
+                                && parameter.projected_qualifications.is_empty()
+                                && optimized
+                                    .entry_claim_declarations
+                                    .iter()
+                                    .all(|claim| claim.input != parameter.place)
+                                && optimized
+                                    .content_entry_claims
+                                    .iter()
+                                    .all(|claim| claim.input.root != parameter.place)))
                 }
                 abstract_operations::StructuralScalarStoreDestination::OwnedResult {
                     producer,
