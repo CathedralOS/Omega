@@ -1,0 +1,102 @@
+// Complete IND02 entrypoint: finite stdin -> validated model -> exact schedule
+// -> independent invariant walk -> machine-readable output. No closing pause.
+// The sample sweep supplies closed stdin: that invalid request must exit 2.
+// Expected exit: 2.
+// Expected output contains: INVALID
+use omega_language_std::console;
+use omega::language::core::binding;
+use domain::model;
+use domain::input;
+use domain::solver;
+use domain::verify;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let mut input: Input;
+    let received: LineReadResult = block main.console.read_line(&mut input.bytes);
+    transition received {
+        LineReadResult::LineComplete { count } -> length(main, &input, count)
+        LineReadResult::EndOfInput { count } -> length(main, &input, count)
+        _ -> invalid(main)
+    }
+    state length(main: &mut Main, input: &Input, count: u64) {
+        transition count <= 256 {
+            true -> parse_request(main, input, count as i32 in Wrapping)
+            _ -> invalid(main)
+        }
+    }
+    state parse_request(main: &mut Main, input: &Input, count: i32 in Wrapping) {
+        let mut tokens: Tokens;
+        let accepted: bool = parse(input, count, &mut tokens);
+        transition accepted {
+            true -> model(main, &tokens)
+            _ -> invalid(main)
+        }
+    }
+    state model(main: &mut Main, tokens: &Tokens) {
+        let mut problem: Problem;
+        let valid: bool = decode(tokens, &mut problem);
+        transition valid {
+            true -> schedule(main, &problem)
+            _ -> invalid(main)
+        }
+    }
+    state schedule(main: &mut Main, problem: &Problem) {
+        let mut result: Schedule;
+        let possible: bool = solve(problem, &mut result);
+        transition possible {
+            true -> verify_result(main, problem, &result)
+            _ -> impossible(main)
+        }
+    }
+    state verify_result(main: &mut Main, problem: &Problem, result: &Schedule) {
+        let valid: bool = verify(problem, result);
+        transition valid {
+            true -> render(main, problem, result, 0)
+            _ -> internal_failure(main)
+        }
+    }
+    state render(main: &mut Main, problem: &Problem, result: &Schedule,
+                  index: i32 in Wrapping) {
+        transition index >= 0 && index < problem.count && index < 4 {
+            true -> row(main, problem, result, index)
+            _ -> finish(main, result)
+        }
+    }
+    state row(main: &mut Main, problem: &Problem, result: &Schedule,
+               index: i32 in Wrapping) {
+        main.console.write("TASK ");
+        print_number(main, index);
+        main.console.write(" START ");
+        print_number(main, result.starts[index]);
+        main.console.write(" END ");
+        print_number(main, result.ends[index]);
+        main.console.write_line("");
+        transition { _ -> render(main, problem, result, index + 1) }
+    }
+    state finish(main: &mut Main, result: &Schedule) {
+        main.console.write("MAKESPAN ");
+        print_number(main, result.makespan);
+        main.console.write_line("");
+        main.console.exit_process(0);
+    }
+    state invalid(main: &mut Main) {
+        main.console.write_line("INVALID");
+        main.console.exit_process(2);
+    }
+    state impossible(main: &mut Main) {
+        main.console.write_line("IMPOSSIBLE");
+        main.console.exit_process(3);
+    }
+    state internal_failure(main: &mut Main) {
+        main.console.write_line("INVARIANT_FAILURE");
+        main.console.exit_process(4);
+    }
+}
+// The public caller prints only IDs and verified times (0..20). Two digits
+// make output comparisons unambiguous without a shared formatting dependency.
+machine print_number(main: &mut Main, value: i32 in Wrapping) reaches Console {
+    main.console.write_byte((48 + value / 10) as i32);
+    main.console.write_byte((48 + value % 10) as i32);
+}
