@@ -53,13 +53,16 @@ stdout and exit oracles. `validation/reference.py` independently enumerates the
 Cartesian product of interval members and verifies every contradiction witness's
 inconsistency and irreducibility. All arithmetic is integer: tolerance is zero.
 The oracle was frozen before the first Omega check; its SHA-256 identity is in
-`validation/oracle-freeze.sha256`. Validation never regenerates expectations.
+`validation/oracle-freeze.sha256`. Validation never regenerates expectations. `verify_frozen.py` checks exact raw
+input/stdout/exit bytes and both frozen ledgers while retaining the original
+reference source unchanged. Two separately frozen supplemental cases exercise
+EOF without LF and the unconstrained 1000-assignment upper limit (44 total).
 
 From the repository root, using the compiler built from the recorded base:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-python3 samples/cli/independent/uncertain_event_chronology/validation/reference.py
+python3 samples/cli/independent/uncertain_event_chronology/validation/verify_frozen.py
 sha256sum -c samples/cli/independent/uncertain_event_chronology/validation/oracle-freeze.sha256
 python3 samples/cli/independent/uncertain_event_chronology/validation/validate.py --omega target/debug/omega --route check
 # Review packages through the documented update/review/resume workflow first.

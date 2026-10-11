@@ -10,3 +10,12 @@ Target: linux_x86_64; matching OMEGA_LIBRARY_ROOT explicitly selected.
 Default sandbox root UID: 65534; compiler --check rejects cache ancestry custody.
 The per-command require_escalated real-ownership check was approved.
 Custody guards and filesystem ownership were not edited.
+
+Optimized compiler: same pinned Rust and source base, separate target-opt.
+CARGO_TARGET_DIR=/workspace/Omega/.codex/worktrees/new068/target-opt CARGO_BUILD_JOBS=3 CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega
+Build exit 0, dev opt-level=1, 7m21s.
+Binary: target-opt/debug/omega
+SHA256: f7a2fa493d90f6f0ead59a1dee63d279b8b1fb5dd90012fbfb27e5b22a7cd09f
+Unoptimized preparation runs produced no verdict and were terminated by the
+executor after 20m18s and 14m23s respectively; logs preserved, not treated as
+compiler rejection or acceptance. Final source has explicit helper preconditions.

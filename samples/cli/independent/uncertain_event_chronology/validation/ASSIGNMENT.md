@@ -7,5 +7,5 @@ Base: 7192503a18f205b359c279dd79575835c2b3a7bb (fetched origin/main).
 Starting checkout /workspace/Omega, branch work, preserved unchanged.
 Isolated branch new068, worktree /workspace/Omega/.codex/worktrees/new068.
 Claims status exceeded the coordination deadline; registration is not claimed.
-No remote worker branch or landing publication is requested; deliver clean local
-candidate and Library bundle for independent review.
+Follow the authorized main-only landing workflow after independent review and
+validation; deliver a readable Library bundle. No remote worker branches.
