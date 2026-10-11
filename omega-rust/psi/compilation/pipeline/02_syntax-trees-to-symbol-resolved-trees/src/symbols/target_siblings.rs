@@ -63,11 +63,14 @@ fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTa
                 // Ordinary resolution owns which declaration this call
                 // names. Only a member of that exact target family may
                 // replace it; a same-spelled helper elsewhere is unrelated.
-                let state = symbols.get(site.target_symbol);
-                if state.kind != SymbolKind::State {
-                    return None;
-                }
-                let callee = state.parent;
+                // A call names its callee's state; a named transition such as
+                // `true -> drain(...)` names the machine itself.
+                let target = symbols.get(site.target_symbol);
+                let callee = match target.kind {
+                    SymbolKind::State => target.parent,
+                    SymbolKind::Machine => site.target_symbol,
+                    _ => return None,
+                };
                 if same_target
                     .iter()
                     .any(|candidate| candidate.machine == callee)
@@ -80,6 +83,9 @@ fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTa
                 let replacement = same_target
                     .iter()
                     .find(|candidate| candidate.family == *family)?;
+                if target.kind == SymbolKind::Machine {
+                    return Some(replacement.machine);
+                }
                 let state = child_symbol_by_kinds(
                     symbols,
                     replacement.machine,

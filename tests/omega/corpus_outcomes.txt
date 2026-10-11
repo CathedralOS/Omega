@@ -2314,6 +2314,7 @@ pass/targets/sysv_mixed_aggregate_entry checked 34254ms @a9ae30e1c334+wt
 pass/targets/target_body_call_contracts_exit checked 10525ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/target_family_entry_exit checked 11169ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/target_machine_gating_exit checked 12231ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/targets/target_member_ranked_self_transition_exit checked 7211ms check-target:macos_arm64 @24b103700a81
 pass/targets/unreached_family_missing_member_exit checked 11591ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/unreached_foreign_body_caller_exit checked 11335ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/tasks/task_runtime_machine_selection_compile checked 1727ms @a9ae30e1c334+wt
