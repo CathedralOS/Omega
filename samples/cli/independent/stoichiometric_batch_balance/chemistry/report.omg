@@ -5,7 +5,9 @@ use omega::language::core::numeric_conversion;
 
 // Prints nonnegative i64 values through existing Console byte providers.
 // Largest reachable element total is 64*INT32_MAX (<10^12).
-pub machine number(console: &mut Binding<Console>, value: i64 in Wrapping) reaches Console {
+machine number(console: &mut Binding<Console>, value: i64 in Wrapping) reaches Console
+invokes console;
+{
     transition { _ -> place(console, value, 1000000000000, false) }
     state place(console: &mut Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
         transition divisor > 0 {
@@ -30,12 +32,16 @@ pub machine number(console: &mut Binding<Console>, value: i64 in Wrapping) reach
     state done() { }
 }
 
-pub machine line_number(console: &mut Binding<Console>, value: i64 in Wrapping) reaches Console {
+machine line_number(console: &mut Binding<Console>, value: i64 in Wrapping) reaches Console
+invokes console;
+{
     number(console, value);
     console.write_line("");
 }
 
-pub machine line_four(console: &mut Binding<Console>, values: &[i64 in Wrapping; 4]) reaches Console {
+machine line_four(console: &mut Binding<Console>, values: &[i64 in Wrapping; 4]) reaches Console
+invokes console;
+{
     number(console, values[0]);
     console.write(" ");
     number(console, values[1]);

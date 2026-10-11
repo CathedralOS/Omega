@@ -65,7 +65,8 @@ OMEGA_LIBRARY_ROOT="$PWD/source/library" omega update --project samples/cli/inde
 omega update --resume --project samples/cli/independent/stoichiometric_batch_balance
 omega --check --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/main.omg
 omega run --both --keep --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/main.omg < samples/cli/independent/stoichiometric_batch_balance/data/water_first.stdin
-python3 samples/cli/independent/stoichiometric_batch_balance/validation/verify.py --omega /absolute/path/to/omega --mode native
+omega --target linux_x86_64 --build-dir samples/cli/independent/stoichiometric_batch_balance/build/native samples/cli/independent/stoichiometric_batch_balance/main.omg
+python3 samples/cli/independent/stoichiometric_batch_balance/validation/verify.py --omega /absolute/path/to/omega --mode native --executable /absolute/path/to/produced/application
 python3 samples/cli/independent/stoichiometric_batch_balance/validation/verify.py --omega /absolute/path/to/omega --mode both
 omega --check --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/controls/intended_invalid/main.omg
 ```
@@ -90,3 +91,17 @@ Only Linux x86_64 is declared and validated here. Generated compiler products,
 logs, locks and review state belong under ignored local build locations or
 local package files. The review handoff records the exact binary, base, commands,
 source hashes, outcomes and any remaining package-review blockers.
+
+The application exposed a current-main arithmetic checking gap: an indexed
+coefficient's positive `requires` fact did not reach division definedness.
+The bounded repair retains the collection and selector as a private ordered
+operand, checks their exact state scope when admitting requirements, and
+invalidates their facts on either write. A scalar local copies the live
+literal bounds and exclusions of its evaluated observation before destination
+invalidation, preserving nonzero facts through dynamic-index hoisting. The application retains its original
+preconditions and divisions. Feature-shaped controls under
+`tests/omega/{pass,fail}/arithmetic/indexed_divisor_*` pin valid contracts,
+state forwarding, storage mutation, selector mutation and different collections.
+The generic CLI comparison verifies Terminal exits only; native stdout is checked
+byte for byte against the frozen fixtures. Terminal stdout comparison is not
+exposed by this CLI route and is not claimed.

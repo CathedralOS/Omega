@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    Build::application(builder, "stoichiometric_chemistry::balance");
+    Build::application(builder, "stoichiometric_batch_balance");
     Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });

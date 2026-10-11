@@ -2,7 +2,7 @@ module chemistry::model;
 
 // Columns are species. Rows are three declared elemental axes, never inferred
 // molecular weights. Species 0 and 1 are consumed, species 2 and 3 produced.
-pub data Reaction {
+data Reaction {
     species: i64 in Wrapping;
     bound: i64 in Wrapping;
     first: [i64 in Wrapping; 4];
@@ -12,13 +12,13 @@ pub data Reaction {
     cap: i64 in Wrapping;
 }
 
-pub data Balance {
+data Balance {
     coefficients: [i64 in Wrapping; 4];
     solutions: i64 in Wrapping;
     sum: i64 in Wrapping;
 }
 
-pub data Batch {
+data Batch {
     inventory: [i64 in Wrapping; 4];
     extent: i64 in Wrapping;
     limiting: i64 in Wrapping;
@@ -26,7 +26,7 @@ pub data Batch {
     overflow: bool;
 }
 
-pub machine element_total(atoms: &[i64 in Wrapping; 4], inventory: &[i64 in Wrapping; 4]) -> i64 in Wrapping {
+machine element_total(atoms: &[i64 in Wrapping; 4], inventory: &[i64 in Wrapping; 4]) -> i64 in Wrapping {
     atoms[0] * inventory[0] + atoms[1] * inventory[1]
         + atoms[2] * inventory[2] + atoms[3] * inventory[3]
 }

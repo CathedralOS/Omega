@@ -7,8 +7,11 @@ from reference import reference
 parser = argparse.ArgumentParser()
 parser.add_argument("--omega", required=True)
 parser.add_argument("--mode", choices=("native", "both"), required=True)
+parser.add_argument("--executable", help="Reuse one compiled native application; native mode only")
 parser.add_argument("--case", action="append")
 options = parser.parse_args()
+if options.executable and options.mode != "native":
+    parser.error("--executable requires native mode")
 root = Path(__file__).resolve().parents[1]
 manifest = json.loads((root/"validation/frozen_oracle.json").read_text())
 output = root/"build"/options.mode
@@ -23,10 +26,13 @@ for case in manifest["cases"]:
     assert hashlib.sha256(raw).hexdigest() == case["input_sha256"]
     assert hashlib.sha256(expected).hexdigest() == case["stdout_sha256"]
     assert reference(raw) == (case["exit"],expected.decode())
-    command = [options.omega,"run"]
-    if options.mode == "both":
-        command.append("--both")
-    command += ["--keep", "--target", "linux_x86_64", str(root/"main.omg")]
+    if options.executable:
+        command = [str(Path(options.executable).resolve())]
+    else:
+        command = [options.omega,"run"]
+        if options.mode == "both":
+            command.append("--both")
+        command += ["--keep", "--target", "linux_x86_64", str(root/"main.omg")]
     result = subprocess.run(command,input=raw,capture_output=True,timeout=180)
     (output/(name+".stdout")).write_bytes(result.stdout)
     (output/(name+".stderr")).write_bytes(result.stderr)
