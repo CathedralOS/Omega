@@ -1,0 +1,37 @@
+// EOF oracle for the generic sample harness. Supplied valid fixtures exit 0.
+// Expected exit: 64.
+// Expected output contains: ERROR input
+use domain::model;
+use domain::input;
+use domain::paths;
+use domain::report;
+use omega_language_std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let mut job: Job;
+    let valid: bool = block load(&mut job);
+    transition valid {
+        true -> generate(main, &mut job)
+        _ -> invalid(main)
+    }
+    state generate(main: &mut Main, job: &mut Job) {
+        let complete: bool = paths(job);
+        transition complete {
+            true -> success(main, job)
+            _ -> internal(main)
+        }
+    }
+    state success(main: &mut Main, job: &Job) {
+        audit(job);
+        main.console.exit_process(0);
+    }
+    state invalid(main: &mut Main) {
+        main.console.write_line("ERROR input");
+        main.console.exit_process(64);
+    }
+    state internal(main: &mut Main) {
+        main.console.write_line("ERROR internal bounds");
+        main.console.exit_process(70);
+    }
+}
