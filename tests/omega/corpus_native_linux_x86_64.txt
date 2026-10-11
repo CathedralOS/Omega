@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "1", "load1_end": 1.02, "load1_start": 1.85, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 10.8, "load1_start": 8.93, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -15,9 +15,12 @@ pass/arithmetic/const_fold_unsigned_landed_ops_exit built 1087ms exit:70 @2d8ed2
 pass/arithmetic/constant_trapping_shift_value_overflow_traps built 1145ms exit:signal signal:4 @2d8ed253669f+wt
 pass/arithmetic/exact_integer_cast_proven checked 308ms @2d8ed253669f+wt
 pass/arithmetic/narrowing_flow_and_widen_permitted built 784ms exit:5 @2d8ed253669f+wt
+pass/arithmetic/reused_fixed_integer_operands_exit built 6623ms exit:0 @7223309ebb5b
+pass/arithmetic/reused_masked_shift_count_exit built 6668ms exit:0 @56b53faa47a8
 pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit built 2470ms exit:70 @2d8ed253669f+wt
 pass/arithmetic/runtime_bitwise_high_ops_exit built 842ms exit:70 @2d8ed253669f+wt
 pass/arithmetic/runtime_comparison_signedness_exit built 810ms exit:70 @2d8ed253669f+wt
+pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit built 15446ms exit:70 stdout:match @ddde64811628+wt
 pass/arithmetic/runtime_domain_boundaries_exit built 775ms exit:70 @2d8ed253669f+wt
 pass/arithmetic/runtime_exact_guarded_shift_count_exit built 732ms exit:70 @2d8ed253669f+wt
 pass/arithmetic/runtime_float_nan_comparison_exit built 3185ms exit:70 @2d8ed253669f+wt
@@ -78,52 +81,35 @@ pass/borrows/projected_reference_record_residual_exit rejected 1134ms @8735cafb4
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`exercise`), which was itself omitted at local construction at `call operation: structural arguments: caller structural result`
 pass/borrows/projected_scalar_member_loan built 751ms @2d8ed253669f+wt
 pass/borrows/runtime_array_primitive_reference_capture_exit built 2933ms exit:0 @3f342b86d6b4
-pass/borrows/runtime_carrier_reference_reselection_exit rejected 2933ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(6) }))
+pass/borrows/runtime_carrier_reference_reselection_exit built 14396ms exit:70 @c126b22315d4
 pass/borrows/runtime_carrier_reference_store_exit built 4917ms exit:70 @362d09f71f3
-pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit rejected 2820ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(7) }))
-pass/borrows/runtime_indexed_carrier_reference_read_exit rejected 2896ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(6) }))
+pass/borrows/runtime_guarded_local_byte_loan_exit built 6355ms exit:0 @a7846c335879
+pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit built 15044ms exit:70 @c126b22315d4
+pass/borrows/runtime_indexed_carrier_reference_read_exit built 15187ms exit:70 @c126b22315d4
+pass/borrows/runtime_mixed_static_dynamic_loan_header_exit built 6092ms exit:0 @a7846c335879
 pass/borrows/runtime_mutable_primitive_reference_exit built 3423ms exit:0 @944fb1232f17
-pass/borrows/runtime_nested_carrier_bounded_reference_read_exit rejected 2880ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(13) }))
-pass/borrows/runtime_nested_carrier_reference_read_exit rejected 2844ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(12) }))
+pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 14628ms exit:70 @c126b22315d4
+pass/borrows/runtime_nested_carrier_reference_read_exit built 15240ms exit:70 @c126b22315d4
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit built 5280ms exit:70 @74a22511782
 pass/borrows/runtime_record_byte_region_loan_exit built 21745ms exit:50 @c773c4ad3c34
-pass/borrows/runtime_record_primitive_reference_capture_exit rejected 3109ms regressed-from:built+exit:0 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(2) }))
+pass/borrows/runtime_record_primitive_reference_capture_exit built 11267ms exit:0 @c126b22315d4
 pass/borrows/runtime_released_loan_with_forwarded_view_exit built 1431ms exit:70 @34627c25182b
-pass/borrows/runtime_stored_reference_array_constructor_transfer_exit rejected 2883ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(16) }))
-pass/borrows/runtime_stored_reference_array_leaf_retirement_exit rejected 2843ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(8) }))
+pass/borrows/runtime_stored_reference_array_constructor_transfer_exit built 14873ms exit:70 @c126b22315d4
+pass/borrows/runtime_stored_reference_array_leaf_retirement_exit built 15236ms exit:70 @c126b22315d4
 pass/borrows/runtime_stored_reference_case_residual_retirement_exit built 4907ms exit:70 @835baa6033e
-pass/borrows/runtime_stored_reference_child_constructor_retirement_exit rejected 2161ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(16) }))
-pass/borrows/runtime_stored_reference_leaf_call_retirement_exit rejected 2180ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(8) }))
-pass/borrows/runtime_stored_reference_leaf_child_retirement_exit rejected 2185ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(11) }))
-pass/borrows/runtime_stored_reference_leaf_constructor_transfer_exit rejected 2107ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(15) }))
-pass/borrows/runtime_stored_reference_leaf_field_retirement_exit rejected 2090ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(11) }))
-pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit rejected 2253ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(20) }))
+pass/borrows/runtime_stored_reference_child_constructor_retirement_exit built 13030ms exit:70 @c126b22315d4
+pass/borrows/runtime_stored_reference_leaf_call_retirement_exit built 13514ms exit:70 @c126b22315d4
+pass/borrows/runtime_stored_reference_leaf_child_retirement_exit built 13011ms exit:70 @c126b22315d4
+pass/borrows/runtime_stored_reference_leaf_constructor_transfer_exit built 13014ms exit:70 @c126b22315d4
+pass/borrows/runtime_stored_reference_leaf_field_retirement_exit built 13012ms exit:70 @c126b22315d4
+pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit built 13850ms exit:70 @c126b22315d4
 pass/borrows/runtime_stored_reference_leaf_residual_retirement_exit built 5979ms exit:70 @835baa6033e
-pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit rejected 2157ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(15) }))
+pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit built 12881ms exit:70 @c126b22315d4
 pass/borrows/shared_recast_loan_member_read built 1743ms exit:0 @a3bac00e54bb
-pass/borrows/static_carrier_bounded_reference_read_exit rejected 2202ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(7) }))
-pass/borrows/static_carrier_reference_read_exit rejected 2083ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(6) }))
-pass/borrows/stored_reference_projection_exit rejected 2116ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(6) }))
-pass/borrows/transition_shared_borrow_result rejected 2194ms regressed-from:built+exit:181 @faca6c5c7f5
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/static_carrier_bounded_reference_read_exit built 13352ms exit:70 @c126b22315d4
+pass/borrows/static_carrier_reference_read_exit built 12508ms exit:70 @c126b22315d4
+pass/borrows/stored_reference_projection_exit built 12989ms exit:70 @c126b22315d4
+pass/borrows/transition_shared_borrow_result built 12698ms exit:181 @c126b22315d4
 pass/boundary/interleaved_structural_crash_formal_exit built 91830ms exit:0 @751b9f2d3396
 pass/boundary/nested_projected_structural_crash_formal_exit built 82086ms exit:0 @751b9f2d3396
 pass/boundary/static_foreign_scalar_result_locals_exit built 27224ms @95e4e5c52dc
@@ -194,8 +180,10 @@ pass/calls/ordered_field_selector_calls_exit built 1439ms exit:70 @2d8ed253669f+
 pass/calls/owned_state_parameter_call_exit built 1086ms exit:70 @2d8ed253669f+wt
 pass/calls/requires_carrier_ceiling_vacuous built 835ms @2d8ed253669f+wt
 pass/calls/requires_operand_flip_discharge built 1227ms @2d8ed253669f+wt
+pass/calls/resultless_native_callback_compile built 3835ms @10b02229ff8b
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 1280ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_assignment_call_post_mutation_value_exit built 1593ms exit:70 @2d8ed253669f+wt
+pass/calls/runtime_boolean_result_across_console_exit built 16813ms exit:70 stdout:match @b342aa09cb97+wt
 pass/calls/runtime_case_record_return_exit built 1177ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit built 7945ms exit:0 @e72bacf8dae5
 pass/calls/runtime_completed_operand_then_shared_borrow_exit built 7994ms exit:0 @e72bacf8dae5
@@ -211,7 +199,9 @@ pass/calls/runtime_dispatch_result_enum_case_exit built 1193ms exit:70 @2d8ed253
 pass/calls/runtime_dispatch_slice_element_terminal_exit built 1081ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_distinct_receiver_value_calls_exit built 936ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_enum_self_method_exit built 1274ms exit:70 @2d8ed253669f+wt
+pass/calls/runtime_exact_division_call_span_exit built 6259ms exit:70 stdout:match @6301348b6fe2
 pass/calls/runtime_explicit_discard_executes_exit built 899ms exit:70 @2d8ed253669f+wt
+pass/calls/runtime_float_result_across_call_exit built 151268ms exit:70 stdout:match @b342aa09cb97+wt
 pass/calls/runtime_guard_call_vs_call_exit built 1307ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_guarded_effectful_transition_argument_exit built 9136ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_indexed_scalar_calls_exit built 1890ms exit:70 @2d8ed253669f+wt
@@ -231,6 +221,7 @@ pass/calls/runtime_option_value_call_exit built 1177ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit built 1085ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_owned_parameter_primitive_borrow_exit rejected 6878ms @527bb17dc5
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
+pass/calls/runtime_owned_state_scalar_field_store_exit built 6228ms exit:70 @c24b141cb29b+wt
 pass/calls/runtime_param_receiver_second_instance_exit built 1243ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_qualified_tail_recursion_exit built 1001ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_reference_returned_slice_element_write_exit built 1624ms exit:181 @bd26d3a01ac1
@@ -249,6 +240,7 @@ pass/calls/runtime_value_call_return_types_exit built 2776ms exit:70 @2d8ed25366
 pass/calls/runtime_value_call_single_execution_exit built 1107ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_value_call_statement_recursive_walk_exit built 1310ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_value_call_terminal_exit built 29119ms exit:70 @bd26d3a01ac1
+pass/calls/runtime_wrapping_division_call_span_exit built 5427ms exit:70 stdout:match @6301348b6fe2
 pass/calls/serviceful_borrowed_scalar_exit built 1271ms exit:70 stdout:match @2d8ed253669f+wt
 pass/calls/state_and_machine_names_exit built 540ms exit:0 @2d8ed253669f+wt
 pass/calls/statement_call_recursive_overload_compile checked 322ms @2d8ed253669f+wt
@@ -313,8 +305,7 @@ pass/collections/runtime_computed_scalar_selector_argument_exit built 78156ms ex
 pass/collections/runtime_computed_selector_nested_argument_exit built 69707ms exit:0 @1b00d3e3ab8b
 pass/collections/runtime_computed_signed_shared_borrow_exit built 3839ms exit:0 @a4b3d5fb0060+wt
 pass/collections/runtime_declared_range_index_write_exit built 921ms exit:30 @2d8ed253669f+wt
-pass/collections/runtime_double_indexed_rmw_exit rejected 2139ms regressed-from:built+exit:1 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(5), place: PlaceId(10) }))
+pass/collections/runtime_double_indexed_rmw_exit built 13535ms exit:1 @c126b22315d4
 pass/collections/runtime_dutch_flag_partition_exit built 2751ms exit:70 @2d8ed253669f+wt
 pass/collections/runtime_dynamic_borrow_selector_join_exit built 3591ms exit:0 @b1483d0a8790+wt
 pass/collections/runtime_dynamic_borrow_selector_order_exit built 3635ms exit:0 @b1483d0a8790+wt
@@ -511,8 +502,7 @@ pass/expressions/arithmetic_domain_requires_proven_exact_exit built 1047ms exit:
 pass/expressions/arithmetic_domain_saturating_signed_exit built 900ms exit:70 @2d8ed253669f+wt
 pass/expressions/arithmetic_domain_trapping_overflow built 967ms exit:signal signal:4 @2d8ed253669f+wt
 pass/expressions/arithmetic_domain_wrapping_exit built 856ms exit:70 @2d8ed253669f+wt
-pass/expressions/borrow_carrying_data_field_exit rejected 2122ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(4) }))
+pass/expressions/borrow_carrying_data_field_exit built 13114ms exit:70 @c126b22315d4
 pass/expressions/dead_trapping_let_traps built 977ms exit:signal signal:4 @2d8ed253669f+wt
 pass/expressions/declared_operator_match_result built 1520ms exit:70 @9baafc0ace88
 pass/expressions/explicit_scalar_tag_erasure checked 476ms @2d8ed253669f+wt
@@ -539,8 +529,7 @@ pass/expressions/owned_match_record_values checked 395ms @2d8ed253669f+wt
 pass/expressions/owned_match_values checked 438ms @2d8ed253669f+wt
 pass/expressions/qualified_call_result_argument checked 397ms @2d8ed253669f+wt
 pass/expressions/runtime_flat_boolean_logic_exit built 1316ms exit:70 @2d8ed253669f+wt
-pass/expressions/runtime_float_record_field_reads_exit rejected 3611ms regressed-from:built+exit:70 @faca6c5c7f5
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: result custody accounting` (state 0)
+pass/expressions/runtime_float_record_field_reads_exit built 101675ms exit:70 @c126b22315d4
 pass/expressions/runtime_indexed_float_record_fields_exit built 9026ms exit:70 @6ba9c43af35
 pass/expressions/runtime_numeric_cast_exit built 3007ms exit:70 @2d8ed253669f+wt
 pass/expressions/runtime_widened_comparison_exit built 1053ms exit:70 @2d8ed253669f+wt
@@ -634,6 +623,8 @@ pass/float/named_provider_multiply_then_add_exit built 3137ms exit:70 @2d8ed2536
 pass/float/named_provider_negate_is_nan_exit built 4094ms exit:70 @2d8ed253669f+wt
 pass/float/nearest_even_binary_arithmetic_exit built 4132ms exit:70 @2d8ed253669f+wt
 pass/float/nested_float_operator_applications_exit built 7752ms exit:70 @2d8ed253669f+wt
+pass/float/owned_local_computed_float_store_exit built 63210ms exit:70 @6d6a4e9b3408
+pass/float/requirement_nested_record_arithmetic_exit built 128668ms exit:70 stdout:match @ddde64811628+wt
 pass/float/runtime_float_digit_separators_exit built 87648ms exit:0 @e129ea486356
 pass/float/runtime_float_integer_conversion_boundaries_exit built 2906ms exit:70 @2d8ed253669f+wt
 pass/float/runtime_named_float_to_integer_conversion_exit built 3232ms exit:70 @2d8ed253669f+wt
@@ -643,6 +634,7 @@ pass/float/runtime_total_order_satisfiers_exit built 46092ms exit:70 @e8239f945e
 pass/float/scalar_helper_boundary_sequence_exit built 2975ms exit:70 @2d8ed253669f+wt
 pass/float/x86_fma_plan_association rejected 2566ms @2d8ed253669f+wt
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Elf, pointer_size: 8, pointer_alignment: 8 }
+pass/formatting/runtime_repeated_wrapping_decimal_format_exit built 12077ms exit:0 stdout:match @a7846c335879
 pass/generics/closed_generic_local_field_observation_exit built 6887ms exit:0 @9719c66eb4a
 pass/generics/closed_indexed_quantity built 10615ms @b2906d953be
 pass/generics/closed_sum_case_membership checked 292ms @2d8ed253669f+wt
@@ -860,8 +852,7 @@ pass/providers/checked_boundary_requirement_dispatch_exit built 1549ms exit:70 @
 pass/providers/checked_fixed_operator_dispatch_exit built 770ms exit:70 @2d8ed253669f+wt
 pass/providers/checked_fixed_operator_physical_custody built 759ms @2d8ed253669f+wt
 pass/providers/component_owner_provider_override_compile built 649ms @2d8ed253669f+wt
-pass/providers/direct_boundary_array_snapshot_exit rejected 2300ms regressed-from:built+exit:70 @8735cafb4cf
-	terminal-artifact production failed: Lowering(Unsupported("copied record lost its established local"))
+pass/providers/direct_boundary_array_snapshot_exit built 12713ms exit:70 @c126b22315d4
 pass/providers/external_boundary_requirement_via_exit built 942ms exit:21 @9baafc0ace88
 pass/providers/external_leaf_dllimport_compile built 783ms @2d8ed253669f+wt
 pass/providers/foreign_address_result_release_exit built 5698ms exit:70 @365e35212c0c
@@ -875,8 +866,7 @@ pass/providers/kernel_import_result_chain_exit built 4147ms exit:70 @ce0ed8ee8e3
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 851ms exit:41 @2d8ed253669f+wt
 pass/providers/provider_type_target_default_override built 643ms @2d8ed253669f+wt
 pass/providers/runtime_adapter_dispatch_exit built 787ms exit:70 @2d8ed253669f+wt
-pass/providers/runtime_boundary_array_construction_exit rejected 2280ms regressed-from:built+exit:70 @8735cafb4cf
-	terminal-artifact production failed: Lowering(Unsupported("structural argument operand is not a construction or copy"))
+pass/providers/runtime_boundary_array_construction_exit built 12654ms exit:70 @c126b22315d4
 pass/providers/runtime_boundary_array_forwarding_exit built 4879ms exit:70 @95e4e5c52dc
 pass/providers/runtime_boundary_array_result_exit built 4344ms exit:70 @362d09f71f3
 pass/providers/runtime_boundary_primitive_array_argument_exit built 985ms exit:70 @2d8ed253669f+wt
@@ -891,8 +881,7 @@ pass/range/runtime_guarded_runtime_index_increment_exit built 864ms exit:1 @2d8e
 pass/ranges/runtime_subject_guard_compound_read_exit built 1175ms exit:70 @f64782b89114+wt
 pass/ranges/sum_payload_range_arith_narrowed_exit built 858ms exit:70 @2d8ed253669f+wt
 pass/recast/nested_operand_view_compile checked 400ms @a3bac00e54bb
-pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 2183ms regressed-from:built+exit:70 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(OwnedStructuralFrontierJoinMismatch(BlockId(7))))
+pass/recast/runtime_aggregate_slice_representation_recast_exit built 9972ms exit:70 @c126b22315d4
 pass/recast/runtime_bool_representation_recast_exit built 1909ms exit:70 @a3bac00e54bb
 pass/recast/runtime_float_range_representation_recast_exit built 4207ms exit:70 @a3bac00e54bb
 pass/recast/runtime_guarded_offset_recast_exit built 1728ms exit:70 @a3bac00e54bb
@@ -912,6 +901,7 @@ pass/recast/runtime_shared_domain_weakening_recast_exit built 1130ms exit:70 @a3
 pass/recast/runtime_shared_parameter_view_calls_exit built 6651ms exit:0 @e8239f945e8
 pass/recast/runtime_shared_record_float_range_weakening_exit built 3421ms exit:70 @a3bac00e54bb
 pass/references/runtime_shared_ref_param_guard_exit built 818ms exit:1 @2d8ed253669f+wt
+pass/register_allocation/fixed_uses_across_hosted_clobbers_exit built 10473ms exit:0 stdout:match stderr:match @650ad856cea9+wt
 pass/relevance/erased_case_payload_field_exit built 805ms exit:70 @2d8ed253669f+wt
 pass/relevance/erased_formal_before_borrowed_argument_exit built 804ms exit:70 @2d8ed253669f+wt
 pass/relevance/erased_parameter_named_transition_forward checked 277ms @2d8ed253669f+wt
@@ -922,6 +912,7 @@ pass/slices/byte_sequence_literal_tail_return_compile built 1009ms @c773c4ad3c34
 pass/slices/callee_non_byte_view_len_index_subslice built 1330ms exit:9 @9baafc0ace88
 pass/slices/disjoint_mut_subslice_windows_compile checked 278ms @2d8ed253669f+wt
 pass/slices/domained_runtime_end_subslice_exit built 1419ms exit:70 @34627c25182b
+pass/slices/fixed_array_slice_state_arguments_exit built 9847ms exit:70 stdout:match stderr:match @bfff43e67094+wt
 pass/slices/guarded_slice_parameter_bounded_subslice_compile checked 283ms @2d8ed253669f+wt
 pass/slices/guarded_slice_parameter_empty_false_index_compile checked 281ms @2d8ed253669f+wt
 pass/slices/guarded_slice_parameter_min_length_tail_compile checked 286ms @2d8ed253669f+wt
@@ -1077,10 +1068,11 @@ pass/text/runtime_bounded_carrier_normal_status_exit built 4394ms exit:70 stdout
 pass/text/runtime_bounded_carrier_write_read_exit built 5634ms exit:70 @2d8ed253669f+wt
 pass/text/runtime_carrier_indexed_read_exit built 1894ms exit:70 @2d8ed253669f+wt
 pass/text/runtime_chained_string_append_exit built 3475ms exit:70 @2d8ed253669f+wt
+pass/text/runtime_decimal_scalar_across_output_alternate_exit built 19925ms exit:70 stdout:match stderr:match @767574d46ddd
+pass/text/runtime_decimal_scalar_across_output_exit built 15096ms exit:70 stdout:match stderr:match @767574d46ddd
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 3357ms @15c77983aab0
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "borrowed reference source changes its incoming type" }))
-pass/text/runtime_number_to_decimal_exit rejected 1284ms regressed-from:built+exit:70 @faca6c5c7f5
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 7, statement 1)
+pass/text/runtime_number_to_decimal_exit built 9419ms exit:70 @c126b22315d4
 pass/text/runtime_owned_string_byte_view_exit built 1416ms exit:70 @73da00dde06d+wt
 pass/text/runtime_param_domain_forward_exit built 959ms exit:70 @9baafc0ace88
 pass/text/runtime_slice_indexed_string_guard_exit built 4091ms exit:70 @34627c25182b
@@ -1113,10 +1105,10 @@ pass/traits/nominal_machine_binder_static_dispatch checked 1768ms @c00769b616a+w
 pass/traits/ring_requirement_satisfies_exit built 2576ms exit:70 @2d8ed253669f+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1574ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
+pass/traits/runtime_exact_requirement_edge_exit checked 1588ms @655eb1d82b+wt
 pass/traits/runtime_inherited_trait_default_exit rejected 818ms @655eb1d82b+wt
 	authored Call declaration selection occurrence remained unresolved after successful checking (CheckedCall): sibling requirement call `set(&mut subject, ...)` inside a trait default body
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 1604ms @655eb1d82b+wt
-pass/traits/runtime_exact_requirement_edge_exit checked 1588ms @655eb1d82b+wt
 pass/traits/trait_generic_bound_static_dispatch checked 1595ms @655eb1d82b+wt
 pass/traits/transparent_refinement_declaration built 895ms @2d8ed253669f+wt
 pass/types/runtime_addr_algebra_exit built 1056ms exit:70 @9baafc0ace88
@@ -1139,6 +1131,10 @@ pass/wire/runtime_wire_utf8_edge_verdicts_exit built 35899ms exit:70 @fa71a470ad
 pass/wire/wire_compatibility_migration_across_shapes built 5019ms exit:0 @fa71a470ad1
 pass/wire/wire_data_reserved_field built 814ms @2d8ed253669f+wt
 pass/wire/wire_preserving_decode_relay_exit built 13841ms exit:70 @176f9a7001a
+run/arithmetic/fixed_integer_operand_after_call built 5765ms exit:70 stdout:match @3c6fd126c67d
+run/arithmetic/fixed_integer_operand_after_pressure built 5568ms exit:70 stdout:match @3c6fd126c67d
+run/arithmetic/fixed_integer_operand_join built 5235ms exit:70 stdout:match @3c6fd126c67d
+run/arithmetic/pinned_dividend_across_console_calls built 6649ms exit:0 stdout:match @9d9e2c34aa73
 run/borrows/direct_runtime_index_write built 2083ms exit:9 @2d8ed253669f+wt
 run/borrows/local_mut_borrow built 2536ms exit:9 @944fb1232f17
 run/borrows/mut_record_loan_member_access built 2044ms exit:0 @2d8ed253669f+wt
@@ -1154,33 +1150,6 @@ run/borrows/shared_recast_borrow built 1091ms exit:0 @a3bac00e54bb
 run/borrows/shared_record_loan_member_read built 1849ms exit:0 @2d8ed253669f+wt
 run/borrows/shared_runtime_index_borrow built 1976ms exit:0 @2d8ed253669f+wt
 run/borrows/transition_shared_borrow built 1448ms exit:0 @2d8ed253669f+wt
+run/calls/fixed_dividend_across_console_calls built 7037ms exit:0 stdout:match @20d50fee2e55
 run/contained_health_loop_command_branch checked 773ms @2d8ed253669f+wt
 run/nested_mut_alias_assignment_return built 1524ms exit:0 stdout:match @9baafc0ace88
-# context: {"cpus": 5, "jobs": "2", "load1_end": 1.83, "load1_start": 1.79, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
-run/calls/fixed_dividend_across_console_calls built 7037ms exit:0 stdout:match @20d50fee2e55
-pass/calls/runtime_owned_state_scalar_field_store_exit built 6228ms exit:70 @c24b141cb29b+wt
-pass/calls/runtime_exact_division_call_span_exit built 6259ms exit:70 stdout:match @6301348b6fe2
-pass/calls/runtime_wrapping_division_call_span_exit built 5427ms exit:70 stdout:match @6301348b6fe2
-run/arithmetic/pinned_dividend_across_console_calls built 6649ms exit:0 stdout:match @9d9e2c34aa73
-pass/arithmetic/reused_fixed_integer_operands_exit built 6623ms exit:0 @7223309ebb5b
-pass/arithmetic/reused_masked_shift_count_exit built 6668ms exit:0 @56b53faa47a8
-pass/text/runtime_decimal_scalar_across_output_alternate_exit built 19925ms exit:70 stdout:match stderr:match @767574d46ddd
-pass/text/runtime_decimal_scalar_across_output_exit built 15096ms exit:70 stdout:match stderr:match @767574d46ddd
-# context: {"cpus": 5, "jobs": "1", "load1_end": 1.91, "load1_start": 2.08, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
-pass/float/owned_local_computed_float_store_exit built 63210ms exit:70 @6d6a4e9b3408
-pass/borrows/runtime_guarded_local_byte_loan_exit built 6355ms exit:0 @a7846c335879
-pass/borrows/runtime_mixed_static_dynamic_loan_header_exit built 6092ms exit:0 @a7846c335879
-pass/formatting/runtime_repeated_wrapping_decimal_format_exit built 12077ms exit:0 stdout:match @a7846c335879
-pass/slices/fixed_array_slice_state_arguments_exit built 9847ms exit:70 stdout:match stderr:match @bfff43e67094+wt
-pass/register_allocation/fixed_uses_across_hosted_clobbers_exit built 10473ms exit:0 stdout:match stderr:match @650ad856cea9+wt
-pass/float/requirement_nested_record_arithmetic_exit built 128668ms exit:70 stdout:match @ddde64811628+wt
-pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit built 15446ms exit:70 stdout:match @ddde64811628+wt
-# context: {"cpus": 5, "jobs": "1", "load1_end": 1.79, "load1_start": 0.53, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
-pass/calls/runtime_boolean_result_across_console_exit built 16813ms exit:70 stdout:match @b342aa09cb97+wt
-pass/calls/runtime_float_result_across_call_exit built 151268ms exit:70 stdout:match @b342aa09cb97+wt
-pass/calls/resultless_native_callback_compile built 3835ms @10b02229ff8b
-# context: {"cpus": 5, "jobs": "1", "load1_end": 0.96, "load1_start": 0.83, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
-run/arithmetic/fixed_integer_operand_after_call built 5765ms exit:70 stdout:match @3c6fd126c67d
-run/arithmetic/fixed_integer_operand_after_pressure built 5568ms exit:70 stdout:match @3c6fd126c67d
-run/arithmetic/fixed_integer_operand_join built 5235ms exit:70 stdout:match @3c6fd126c67d
-pass/slices/fixed_array_slice_state_arguments_exit built 9847ms exit:70 stdout:match stderr:match @bfff43e67094+wt
