@@ -6,6 +6,9 @@
 //! its address to the unchanged internal convention. The codec interprets bytes;
 //! it supplies neither borrow permission nor referent extent. Admission of the
 //! exact callback signature remains with the realization owner.
+//! Owned indirect values copy their complete bytes into this frame; their ABI
+//! pointer never becomes a loan. The inbound caller's result pointer is saved
+//! before argument redistribution, separately from the internal result storage.
 //!
 //! This is a physical adapter, not a Terminal machine or another semantic stage.
 //! Its one unresolved ordinary call targets the real body entry symbol. Body
@@ -97,10 +100,71 @@ struct ValuePiece {
 }
 
 struct ValueTransport {
-    source: Vec<ValuePiece>,
-    destination: Vec<ValuePiece>,
+    source: ValueStorage,
+    destination: ValueStorage,
     byte_size: u32,
     scalar_codec: u64,
+}
+
+enum ValueStorage {
+    Direct(Vec<ValuePiece>),
+    Indirect {
+        pointer: ValuePiece,
+        copy_offset: Option<u32>,
+    },
+}
+
+impl ValueStorage {
+    fn pieces(&self) -> &[ValuePiece] {
+        match self {
+            Self::Direct(pieces) => pieces,
+            Self::Indirect { pointer, .. } => std::slice::from_ref(pointer),
+        }
+    }
+    fn is_indirect(&self) -> bool {
+        matches!(self, Self::Indirect { .. })
+    }
+}
+
+struct ValueSnapshot {
+    value_offset: u32,
+    source_pointer_offset: Option<u32>,
+    descriptor_offset: Option<u32>,
+}
+
+fn pointer_piece(pointer: IndirectPointerLocation) -> ValuePiece {
+    ValuePiece {
+        location: match pointer {
+            IndirectPointerLocation::Register(register) => WordLocation::Register(register),
+            IndirectPointerLocation::Stack {
+                stack_byte_offset, ..
+            } => WordLocation::Stack(stack_byte_offset),
+        },
+        value_byte_offset: 0,
+        byte_size: 8,
+    }
+}
+
+fn value_storage(placement: &ValuePlacement, byte_size: u32) -> Result<ValueStorage, Error> {
+    if !is_borrowed(placement.shape.class)
+        && let [
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset,
+                byte_size: extent,
+                alignment,
+            },
+        ] = placement.locations.as_slice()
+    {
+        if *extent != byte_size || *alignment > 16 {
+            return Err(Error::UnsupportedValueTransport);
+        }
+        return Ok(ValueStorage::Indirect {
+            pointer: pointer_piece(*pointer),
+            copy_offset: *copy_stack_byte_offset,
+        });
+    }
+    Ok(ValueStorage::Direct(value_pieces(placement, byte_size)?))
 }
 
 fn is_borrowed(class: ValueClass) -> bool {
@@ -225,8 +289,8 @@ fn value_transport(
         _ => return Err(Error::UnsupportedValueTransport),
     };
     Ok(ValueTransport {
-        source: value_pieces(source, byte_size)?,
-        destination: value_pieces(destination, byte_size)?,
+        source: value_storage(source, byte_size)?,
+        destination: value_storage(destination, byte_size)?,
         byte_size,
         scalar_codec,
     })
@@ -310,7 +374,16 @@ impl Encoding {
     }
 
     fn address(&self, bytes: &mut Vec<u8>, offset: u32) -> Result<(), Error> {
-        let view = self.view(self.scratch)?;
+        self.address_register(bytes, self.scratch, offset)
+    }
+
+    fn address_register(
+        &self,
+        bytes: &mut Vec<u8>,
+        register: MachineRegister,
+        offset: u32,
+    ) -> Result<(), Error> {
+        let view = self.view(register)?;
         let encoded = match self.architecture {
             Architecture::Aarch64 => {
                 isa_aarch64::encode_aarch64_frame_address(&self.model, view, offset)
@@ -339,6 +412,123 @@ impl Encoding {
         };
         bytes.extend_from_slice(&encoded);
         Ok(())
+    }
+
+    fn place_address(
+        &self,
+        bytes: &mut Vec<u8>,
+        location: WordLocation,
+        offset: u32,
+    ) -> Result<(), Error> {
+        match location {
+            WordLocation::Register(register) => self.address_register(bytes, register, offset),
+            WordLocation::Stack(destination) => {
+                self.address(bytes, offset)?;
+                self.memory(bytes, self.scratch, destination, 8, false)
+            }
+        }
+    }
+
+    fn pointer_memory(
+        &self,
+        bytes: &mut Vec<u8>,
+        offset: u32,
+        size: u8,
+        load: bool,
+    ) -> Result<(), Error> {
+        let view = self.view(self.scratch)?;
+        let base = self.view(self.address_scratch)?;
+        let encoded = match self.architecture {
+            Architecture::Aarch64 => isa_aarch64::encode_aarch64_pointer_memory(
+                &self.model,
+                view,
+                base,
+                offset,
+                size,
+                load,
+            )
+            .map_err(|_| Error::Encoding)?,
+            Architecture::X86_64 => isa_x86_64::encode_x86_64_pointer_memory(
+                &self.model,
+                view,
+                base,
+                offset,
+                size,
+                load,
+            )
+            .map_err(|_| Error::Encoding)?,
+        };
+        bytes.extend_from_slice(&encoded);
+        Ok(())
+    }
+
+    fn copy_indirect(
+        &self,
+        bytes: &mut Vec<u8>,
+        snapshot: u32,
+        pointer: u32,
+        extent: u32,
+        load: bool,
+    ) -> Result<(), Error> {
+        let mut offset = 0_u32;
+        while offset < extent {
+            let size = [8, 4, 2, 1]
+                .into_iter()
+                .find(|size| *size <= extent - offset)
+                .ok_or(Error::UnsupportedValueTransport)?;
+            let slot = snapshot.checked_add(offset).ok_or(Error::FrameOverflow)?;
+            // Frame addressing may reuse the base scratch. Reload the saved
+            // pointer after every frame operation, including large offsets.
+            if !load {
+                self.memory(bytes, self.scratch, slot, size as u8, true)?;
+            }
+            self.memory(bytes, self.address_scratch, pointer, 8, true)?;
+            self.pointer_memory(bytes, offset, size as u8, load)?;
+            if load {
+                self.memory(bytes, self.scratch, slot, size as u8, false)?;
+            }
+            offset = offset.checked_add(size).ok_or(Error::FrameOverflow)?;
+        }
+        Ok(())
+    }
+
+    fn distribute_argument(
+        &self,
+        bytes: &mut Vec<u8>,
+        storage: &ValueStorage,
+        snapshot: u32,
+        extent: u32,
+    ) -> Result<(), Error> {
+        match storage {
+            ValueStorage::Direct(pieces) => self.distribute(bytes, pieces, snapshot),
+            ValueStorage::Indirect {
+                pointer,
+                copy_offset,
+            } => {
+                let destination = if let Some(destination) = copy_offset {
+                    let mut offset = 0;
+                    while offset < extent {
+                        let size = [8, 4, 2, 1]
+                            .into_iter()
+                            .find(|size| *size <= extent - offset)
+                            .ok_or(Error::UnsupportedValueTransport)?;
+                        self.copy_word(
+                            bytes,
+                            snapshot.checked_add(offset).ok_or(Error::FrameOverflow)?,
+                            destination
+                                .checked_add(offset)
+                                .ok_or(Error::FrameOverflow)?,
+                            size as u8,
+                        )?;
+                        offset = offset.checked_add(size).ok_or(Error::FrameOverflow)?;
+                    }
+                    *destination
+                } else {
+                    snapshot
+                };
+                self.place_address(bytes, pointer.location, destination)
+            }
+        }
     }
 
     fn capture_registers(
@@ -433,9 +623,9 @@ impl Encoding {
     }
 }
 
-/// Build an adapter from two already admitted calling plans. Unsupported owned
-/// indirect aggregates and non-call entry regimes reject rather than inventing
-/// storage. Equal thin-pointer geometry never admits a scalar loan.
+/// Build an adapter from two already admitted calling plans. Owned ABI pointers
+/// name complete byte extents, not borrows. Non-call entry regimes reject;
+/// equal thin-pointer geometry never admits a scalar loan.
 pub fn emit_native_entry_bridge(
     request: NativeEntryBridgeRequest,
 ) -> Result<NativeEntryBridge, Error> {
@@ -470,7 +660,18 @@ pub fn emit_native_entry_bridge(
         }
         used_inbound.push(ordinal);
         let transport = value_transport(source, destination, parameter.scalar_codec)?;
-        for piece in &transport.destination {
+        if let ValueStorage::Indirect {
+            copy_offset: Some(offset),
+            ..
+        } = &transport.destination
+        {
+            cursor = cursor.max(
+                offset
+                    .checked_add(transport.byte_size)
+                    .ok_or(Error::FrameOverflow)?,
+            );
+        }
+        for piece in transport.destination.pieces() {
             if let WordLocation::Stack(offset) = piece.location {
                 cursor = cursor.max(
                     offset
@@ -487,8 +688,9 @@ pub fn emit_native_entry_bridge(
             let transport = value_transport(source, destination, 0)?;
             if transport
                 .source
+                .pieces()
                 .iter()
-                .chain(&transport.destination)
+                .chain(transport.destination.pieces())
                 .any(|piece| matches!(piece.location, WordLocation::Stack(_)))
             {
                 // A stack return is a caller-owned result area, not this
@@ -504,7 +706,7 @@ pub fn emit_native_entry_bridge(
     // and floating banks cannot overwrite another member.
     let occupied = |register| {
         transports.iter().chain(result.iter()).any(|transport| {
-            transport.source.iter().chain(&transport.destination).any(|piece|
+            transport.source.pieces().iter().chain(transport.destination.pieces()).any(|piece|
                 matches!(piece.location, WordLocation::Register(candidate) if candidate == register))
         })
     };
@@ -535,7 +737,11 @@ pub fn emit_native_entry_bridge(
         .copied()
         .filter(|register| inbound.ordinary_clobbers.contains(*register) && !occupied(*register));
     let scratch_register = scratch.next().ok_or(Error::NoVolatileScratch)?;
-    let address_scratch = if request.target.architecture == Architecture::Aarch64 {
+    let indirect = transports
+        .iter()
+        .chain(result.iter())
+        .any(|transport| transport.source.is_indirect() || transport.destination.is_indirect());
+    let address_scratch = if request.target.architecture == Architecture::Aarch64 || indirect {
         scratch.next().ok_or(Error::NoVolatileScratch)?
     } else {
         scratch_register
@@ -557,7 +763,18 @@ pub fn emit_native_entry_bridge(
     };
     let mut snapshots = Vec::with_capacity(transports.len());
     for transport in &transports {
+        if transport.source.is_indirect() || transport.destination.is_indirect() {
+            cursor = cursor
+                .checked_add(15)
+                .map(|value| value & !15)
+                .ok_or(Error::FrameOverflow)?;
+        }
         let snapshot = allocate_value(&mut cursor, transport.byte_size)?;
+        let source_pointer = transport
+            .source
+            .is_indirect()
+            .then(|| allocate_word(&mut cursor))
+            .transpose()?;
         let descriptor = if transport.scalar_codec != 0 {
             let address = allocate_word(&mut cursor)?;
             allocate_word(&mut cursor)?;
@@ -565,11 +782,29 @@ pub fn emit_native_entry_bridge(
         } else {
             None
         };
-        snapshots.push((snapshot, descriptor));
+        snapshots.push(ValueSnapshot {
+            value_offset: snapshot,
+            source_pointer_offset: source_pointer,
+            descriptor_offset: descriptor,
+        });
+    }
+    if result
+        .as_ref()
+        .is_some_and(|transport| transport.source.is_indirect())
+    {
+        cursor = cursor
+            .checked_add(15)
+            .map(|value| value & !15)
+            .ok_or(Error::FrameOverflow)?;
     }
     let result_snapshot = result
         .as_ref()
         .map(|transport| allocate_value(&mut cursor, transport.byte_size))
+        .transpose()?;
+    let caller_result_pointer = result
+        .as_ref()
+        .is_some_and(|transport| transport.destination.is_indirect())
+        .then(|| allocate_word(&mut cursor))
         .transpose()?;
     let continuation = if request.target.architecture == Architecture::Aarch64 {
         Some(allocate_word(&mut cursor)?)
@@ -622,8 +857,17 @@ pub fn emit_native_entry_bridge(
         encoding.memory(&mut bytes, MachineRegister::Aarch64X(30), offset, 8, false)?;
     }
     // Capture registers before any scratch-based stack transfer.
-    for (transport, (snapshot, _)) in transports.iter().zip(&snapshots) {
-        encoding.capture_registers(&mut bytes, &transport.source, *snapshot)?;
+    for (transport, snapshot) in transports.iter().zip(&snapshots) {
+        encoding.capture_registers(
+            &mut bytes,
+            transport.source.pieces(),
+            snapshot
+                .source_pointer_offset
+                .unwrap_or(snapshot.value_offset),
+        )?;
+    }
+    if let (Some(transport), Some(pointer)) = (&result, caller_result_pointer) {
+        encoding.capture_registers(&mut bytes, transport.destination.pieces(), pointer)?;
     }
     let incoming_bias = frame_bytes
         .checked_add(if request.target.architecture == Architecture::X86_64 {
@@ -632,12 +876,28 @@ pub fn emit_native_entry_bridge(
             0
         })
         .ok_or(Error::FrameOverflow)?;
-    for (transport, (snapshot, _)) in transports.iter().zip(&snapshots) {
-        encoding.capture_stack(&mut bytes, &transport.source, *snapshot, incoming_bias)?;
+    for (transport, snapshot) in transports.iter().zip(&snapshots) {
+        encoding.capture_stack(
+            &mut bytes,
+            transport.source.pieces(),
+            snapshot
+                .source_pointer_offset
+                .unwrap_or(snapshot.value_offset),
+            incoming_bias,
+        )?;
+        if let Some(pointer) = snapshot.source_pointer_offset {
+            encoding.copy_indirect(
+                &mut bytes,
+                snapshot.value_offset,
+                pointer,
+                transport.byte_size,
+                true,
+            )?;
+        }
     }
-    for (transport, (snapshot, descriptor)) in transports.iter().zip(&snapshots) {
-        if let Some(descriptor) = descriptor {
-            encoding.copy_word(&mut bytes, *snapshot, *descriptor, 8)?;
+    for (transport, snapshot) in transports.iter().zip(&snapshots) {
+        if let Some(descriptor) = snapshot.descriptor_offset {
+            encoding.copy_word(&mut bytes, snapshot.value_offset, descriptor, 8)?;
             encoding.constant(&mut bytes, transport.scalar_codec)?;
             encoding.memory(
                 &mut bytes,
@@ -646,10 +906,26 @@ pub fn emit_native_entry_bridge(
                 8,
                 false,
             )?;
-            encoding.address(&mut bytes, *descriptor)?;
-            encoding.memory(&mut bytes, encoding.scratch, *snapshot, 8, false)?;
+            encoding.address(&mut bytes, descriptor)?;
+            encoding.memory(
+                &mut bytes,
+                encoding.scratch,
+                snapshot.value_offset,
+                8,
+                false,
+            )?;
         }
-        encoding.distribute(&mut bytes, &transport.destination, *snapshot)?;
+        encoding.distribute_argument(
+            &mut bytes,
+            &transport.destination,
+            snapshot.value_offset,
+            transport.byte_size,
+        )?;
+    }
+    if let (Some(transport), Some(snapshot)) = (&result, result_snapshot)
+        && let ValueStorage::Indirect { pointer, .. } = &transport.source
+    {
+        encoding.place_address(&mut bytes, pointer.location, snapshot)?;
     }
     let call_field_offset = bytes.len()
         + if request.target.architecture == Architecture::X86_64 {
@@ -662,8 +938,27 @@ pub fn emit_native_entry_bridge(
         Architecture::X86_64 => bytes.extend_from_slice(&isa_x86_64::ORDINARY_DIRECT_CALL_BYTES),
     }
     if let (Some(transport), Some(snapshot)) = (&result, result_snapshot) {
-        encoding.capture_registers(&mut bytes, &transport.source, snapshot)?;
-        encoding.distribute(&mut bytes, &transport.destination, snapshot)?;
+        if let ValueStorage::Direct(pieces) = &transport.source {
+            encoding.capture_registers(&mut bytes, pieces, snapshot)?;
+        }
+        match &transport.destination {
+            ValueStorage::Direct(pieces) => encoding.distribute(&mut bytes, pieces, snapshot)?,
+            ValueStorage::Indirect { .. } => {
+                let pointer = caller_result_pointer.ok_or(Error::UnsupportedValueTransport)?;
+                encoding.copy_indirect(
+                    &mut bytes,
+                    snapshot,
+                    pointer,
+                    transport.byte_size,
+                    false,
+                )?;
+                if request.target.architecture == Architecture::X86_64 {
+                    // SysV and Microsoft aggregate returns echo the original
+                    // caller's destination in RAX, not the body's local area.
+                    encoding.memory(&mut bytes, MachineRegister::X86Rax, pointer, 8, true)?;
+                }
+            }
+        }
     }
     if let Some(offset) = continuation {
         encoding.memory(&mut bytes, MachineRegister::Aarch64X(30), offset, 8, true)?;
@@ -937,6 +1232,56 @@ mod tests {
                 validate_native_entry_bridge(&bridge).unwrap();
                 assert!(bridge.frame_bytes() >= aggregate.byte_size * 2);
             }
+        }
+    }
+
+    #[test]
+    fn owned_indirect_arguments_and_results_keep_separate_frame_storage() {
+        for target in [
+            NativeTarget::macos_arm64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::linux_x64(),
+            NativeTarget::macos_x64(),
+            NativeTarget::windows_x64(),
+        ] {
+            let shape = ValueShape::integer(24, 8);
+            let bridge = emit_native_entry_bridge(request(
+                target,
+                vec![shape; 9],
+                vec![shape; 9],
+                &[8, 7, 6, 5, 4, 3, 2, 1, 0],
+                &[0; 9],
+                Some(shape),
+            ))
+            .unwrap();
+            validate_native_entry_bridge(&bridge).unwrap();
+            assert!(bridge.frame_bytes() >= 10 * shape.byte_size);
+        }
+    }
+
+    #[test]
+    fn direct_float_entry_can_call_indirect_body_and_return_directly() {
+        for target in [NativeTarget::macos_arm64(), NativeTarget::linux_arm64()] {
+            let aggregate = ValueShape::homogeneous_float_aggregate(8, 4);
+            let ordinary = ValueShape::integer(32, 8);
+            let mut request = request(
+                target,
+                vec![ordinary],
+                vec![aggregate],
+                &[0],
+                &[0],
+                Some(ordinary),
+            );
+            request.inbound.result = evaluate_call_plan(
+                request.inbound.policy,
+                &CallSignature {
+                    parameters: vec![aggregate],
+                    result: Some(aggregate),
+                },
+            )
+            .unwrap()
+            .result;
+            validate_native_entry_bridge(&emit_native_entry_bridge(request).unwrap()).unwrap();
         }
     }
 

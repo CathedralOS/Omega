@@ -4429,9 +4429,15 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   both transformed members and retains the unchanged input at exit 0.
   Shared observation of already-shared reference-bearing carrier storage stays
   valid in the independent audit; moves, writes and disposal remain conflicting.
-  Complete owned-indirect and caller-area result transport plus differing entry
-  conventions; they retain explicit implementation fences, not inferred copies
-  or pointer equivalence. Preserve `pass/calls/callback_future_registration_cycle`:
+  Preserve `pass/calls/callback_owned_indirect_record` and
+  `pass/calls/callback_owned_indirect_float_record`: real libffi must transport
+  three owned integer words and four doubles through ordinary helpers, retain
+  the unchanged input and return every permuted member at exit 0. Owned ABI
+  pointers use complete activation-local copies, not inferred loans; the
+  caller's hidden result pointer stays separate from the body's result area.
+  Complete stack-based caller-area result protocols and differing entry
+  conventions; these retain explicit implementation fences.
+  Preserve `pass/calls/callback_future_registration_cycle`:
   genuine macOS Arm64 `pthread_key_create` registers a destructor whose body
   can register itself; native `_exit` must exit 0 without invoking it.
   Same-stack composition follows the registrar's declared synchronous reach,

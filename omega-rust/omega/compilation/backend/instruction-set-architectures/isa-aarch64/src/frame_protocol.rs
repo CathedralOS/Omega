@@ -239,7 +239,7 @@ fn append_memory(
     scratch: Option<u8>,
     load: bool,
 ) -> Result<(), Aarch64FrameProtocolError> {
-    append_sized_memory(bytes, register, offset_bytes, scratch, 8, load)
+    append_sized_memory(bytes, register, 31, offset_bytes, scratch, 8, load)
 }
 
 /// Encode a physical SP-relative transfer without inventing a semantic frame
@@ -270,8 +270,43 @@ pub fn encode_aarch64_frame_memory(
     append_sized_memory(
         &mut bytes,
         value_register,
+        31,
         u64::from(offset_bytes),
         Some(scratch),
+        byte_size,
+        load,
+    )?;
+    Ok(bytes)
+}
+
+/// Transfer physical bytes through an explicit pointer register. The caller
+/// owns its extent and authority; this encoder supplies neither. Large offsets
+/// may advance the base scratch, so each transfer must provide a fresh base.
+pub fn encode_aarch64_pointer_memory(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    base: RegisterViewId,
+    offset_bytes: u32,
+    byte_size: u8,
+    load: bool,
+) -> Result<Vec<u8>, Aarch64FrameProtocolError> {
+    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
+    }
+    let value_register = register(model, view)?;
+    let Register::X(base_register) = register(model, base)? else {
+        return Err(Aarch64FrameProtocolError::UnknownOrUnsupportedView(base));
+    };
+    if matches!(value_register, Register::X(number) if number == base_register) {
+        return Err(Aarch64FrameProtocolError::NonCanonicalSlots);
+    }
+    let mut bytes = Vec::new();
+    append_sized_memory(
+        &mut bytes,
+        value_register,
+        base_register,
+        u64::from(offset_bytes),
+        Some(base_register),
         byte_size,
         load,
     )?;
@@ -322,6 +357,7 @@ pub fn encode_aarch64_integer_constant(
 fn append_sized_memory(
     bytes: &mut Vec<u8>,
     register: Register,
+    base_register: u8,
     offset_bytes: u64,
     scratch: Option<u8>,
     byte_size: u8,
@@ -331,7 +367,7 @@ fn append_sized_memory(
         return Err(Aarch64FrameProtocolError::OffsetOutOfRange);
     }
     let (base_register, displacement) = if offset_bytes / u64::from(byte_size) <= 4095 {
-        (31, offset_bytes)
+        (base_register, offset_bytes)
     } else {
         let scratch = scratch.ok_or(Aarch64FrameProtocolError::NonCanonicalSlots)?;
         // add xIP, sp, #pages, lsl #12, one step per 4095 pages; the memory
@@ -339,7 +375,13 @@ fn append_sized_memory(
         // committed base throughout, so earlier saves stay inside the live
         // activation.
         let mut words = Vec::new();
-        append_page_steps(&mut words, ADD_IMMEDIATE, scratch, 31, offset_bytes >> 12);
+        append_page_steps(
+            &mut words,
+            ADD_IMMEDIATE,
+            scratch,
+            base_register,
+            offset_bytes >> 12,
+        );
         for word in words {
             append_word(bytes, word);
         }
@@ -403,6 +445,26 @@ mod tests {
                 expected.to_le_bytes()
             );
         }
+    }
+
+    #[test]
+    fn pointer_transfers_keep_base_and_large_offset_steps_explicit() {
+        let model =
+            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let value = model.model().view_named("x16").unwrap().id;
+        let base = model.model().view_named("x17").unwrap().id;
+        assert_eq!(
+            super::encode_aarch64_pointer_memory(&model, value, base, 24, 8, false).unwrap(),
+            0xf900_0e30_u32.to_le_bytes()
+        );
+        assert_eq!(
+            super::encode_aarch64_pointer_memory(&model, value, base, 65_536, 8, true).unwrap(),
+            [0x9140_4231_u32, 0xf940_0230]
+                .into_iter()
+                .flat_map(u32::to_le_bytes)
+                .collect::<Vec<_>>()
+        );
+        assert!(super::encode_aarch64_pointer_memory(&model, base, base, 0, 8, false).is_err());
     }
 
     #[test]

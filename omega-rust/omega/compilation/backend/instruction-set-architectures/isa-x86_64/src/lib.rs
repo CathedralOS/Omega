@@ -73,7 +73,7 @@ pub use fma::{DecodedScalarFmaFormat, decode_vfmadd132_scalar};
 pub use frame_protocol::{
     X86_64FrameProtocolError, X86_64FrameSlot, X86_64StackProbe,
     encode_system_v_amd64_frame_protocol, encode_x86_64_frame_address, encode_x86_64_frame_memory,
-    encode_x86_64_integer_constant,
+    encode_x86_64_integer_constant, encode_x86_64_pointer_memory,
 };
 pub use ieee_float::{
     OMEGA_CANONICAL_MXCSR, encode_binary32_bits_to_xmm, encode_binary64_bits_to_xmm,

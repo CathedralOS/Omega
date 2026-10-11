@@ -238,6 +238,37 @@ pub fn encode_x86_64_frame_memory(
     byte_size: u8,
     load: bool,
 ) -> Result<Vec<u8>, X86_64FrameProtocolError> {
+    encode_memory(model, view, 4, offset_bytes, byte_size, load)
+}
+
+/// Transfer physical bytes through a caller-selected pointer register. No
+/// semantic storage or authority is inferred from its address.
+pub fn encode_x86_64_pointer_memory(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    base: RegisterViewId,
+    offset_bytes: u32,
+    byte_size: u8,
+    load: bool,
+) -> Result<Vec<u8>, X86_64FrameProtocolError> {
+    encode_memory(
+        model,
+        view,
+        register_code(model, base)?,
+        offset_bytes,
+        byte_size,
+        load,
+    )
+}
+
+fn encode_memory(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    base: u8,
+    offset_bytes: u32,
+    byte_size: u8,
+    load: bool,
+) -> Result<Vec<u8>, X86_64FrameProtocolError> {
     if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64FrameProtocolError::PhysicalRegisterModelMismatch);
     }
@@ -260,19 +291,20 @@ pub fn encode_x86_64_frame_memory(
             _ => return Err(X86_64FrameProtocolError::OffsetOutOfRange),
         };
         bytes.push(prefix);
-        if number >= 8 {
-            bytes.push(0x44);
+        let rex = 0x40 | ((number >> 3) << 2) | (base >> 3);
+        if rex != 0x40 {
+            bytes.push(rex);
         }
         bytes.extend_from_slice(&[0x0f, if load { 0x10 } else { 0x11 }]);
-        append_stack_operand(&mut bytes, number, offset_bytes)?;
+        append_memory_operand(&mut bytes, number, base, offset_bytes)?;
         return Ok(bytes);
     }
     let register = register_code(model, view)?;
-    if byte_size == 8 {
+    if byte_size == 8 && base == 4 {
         append_register_memory(&mut bytes, register, u64::from(offset_bytes), load)?;
         return Ok(bytes);
     }
-    if !matches!(byte_size, 1 | 2 | 4) {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return Err(X86_64FrameProtocolError::OffsetOutOfRange);
     }
     if byte_size == 2 && !load {
@@ -280,19 +312,19 @@ pub fn encode_x86_64_frame_memory(
     }
     // Byte/halfword loads zero-extend into r32. Stores select the exact
     // width; a byte register numbered 4..7 needs REX to name sil/dil/bpl.
-    let rex = 0x40 | ((register >> 3) << 2);
+    let rex = 0x40 | ((register >> 3) << 2) | (base >> 3) | if byte_size == 8 { 8 } else { 0 };
     if rex != 0x40 || (byte_size == 1 && !load && register >= 4) {
         bytes.push(rex);
     }
     match (load, byte_size) {
         (true, 1) => bytes.extend_from_slice(&[0x0f, 0xb6]),
         (true, 2) => bytes.extend_from_slice(&[0x0f, 0xb7]),
-        (true, 4) => bytes.push(0x8b),
+        (true, 4 | 8) => bytes.push(0x8b),
         (false, 1) => bytes.push(0x88),
         (false, _) => bytes.push(0x89),
         _ => return Err(X86_64FrameProtocolError::OffsetOutOfRange),
     }
-    append_stack_operand(&mut bytes, register, offset_bytes)?;
+    append_memory_operand(&mut bytes, register, base, offset_bytes)?;
     Ok(bytes)
 }
 
@@ -301,10 +333,22 @@ fn append_stack_operand(
     register: u8,
     offset_bytes: u32,
 ) -> Result<(), X86_64FrameProtocolError> {
+    append_memory_operand(bytes, register, 4, offset_bytes)
+}
+
+fn append_memory_operand(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    base: u8,
+    offset_bytes: u32,
+) -> Result<(), X86_64FrameProtocolError> {
     if offset_bytes > i32::MAX as u32 {
         return Err(X86_64FrameProtocolError::OffsetOutOfRange);
     }
-    bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
+    bytes.push(0x80 | ((register & 7) << 3) | (base & 7));
+    if base & 7 == 4 {
+        bytes.push(0x24);
+    }
     bytes.extend_from_slice(&offset_bytes.to_le_bytes());
     Ok(())
 }
@@ -376,6 +420,46 @@ mod tests {
             let view = model.model().view_named(name).unwrap().id;
             assert_eq!(
                 super::encode_x86_64_frame_memory(&model, view, offset, width, load).unwrap(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn pointer_transfers_encode_extended_base_and_exact_tail_width() {
+        let model =
+            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        for (value, base, offset, width, load, expected) in [
+            (
+                "r11",
+                "r10",
+                24,
+                8,
+                false,
+                vec![0x4d, 0x89, 0x9a, 24, 0, 0, 0],
+            ),
+            (
+                "r9",
+                "r12",
+                13,
+                1,
+                false,
+                vec![0x45, 0x88, 0x8c, 0x24, 13, 0, 0, 0],
+            ),
+            (
+                "xmm0",
+                "r12",
+                4,
+                8,
+                true,
+                vec![0xf2, 0x41, 0x0f, 0x10, 0x84, 0x24, 4, 0, 0, 0],
+            ),
+        ] {
+            let value = model.model().view_named(value).unwrap().id;
+            let base = model.model().view_named(base).unwrap().id;
+            assert_eq!(
+                super::encode_x86_64_pointer_memory(&model, value, base, offset, width, load)
+                    .unwrap(),
                 expected
             );
         }

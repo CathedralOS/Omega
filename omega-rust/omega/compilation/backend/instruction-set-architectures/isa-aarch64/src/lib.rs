@@ -56,6 +56,7 @@ pub use floating_control::{
 pub use frame_protocol::{
     Aarch64FrameProtocolError, Aarch64FrameSlot, Aarch64StackProbe, encode_aapcs64_frame_protocol,
     encode_aarch64_frame_address, encode_aarch64_frame_memory, encode_aarch64_integer_constant,
+    encode_aarch64_pointer_memory,
 };
 pub use machine_effects::{
     Aarch64MachineEffectCatalogValidationError, aarch64_machine_effect_catalog,
