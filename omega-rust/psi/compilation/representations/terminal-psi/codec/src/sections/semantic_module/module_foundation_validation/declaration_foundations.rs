@@ -263,9 +263,30 @@ fn validate_provider_scalar_contract(
     // compares conjunct sets: a published `A && B` is the established facts
     // `A` and `B`, never a weaker reading. `contract.requires` merges authored
     // clauses with generated runtime obligations (entry storage, view
-    // bounds), so provider-side requires agreement cannot be replayed against
-    // the declared roster until the authored roster survives into the
-    // contract.
+    // bounds), so requires agreement replays over the authored
+    // `source_checked_requires` subset: every requirement the candidate
+    // actually demands must occur in the declared roster after substitution
+    // — a candidate may drop obligations but never demand ones its callers
+    // do not owe.
+    let declared = boundary
+        .scalar_requires
+        .iter()
+        .map(|row| {
+            terminal_semantics::substitution::substitute_proposition_values(row, &substitutions)
+        })
+        .collect::<Vec<_>>();
+    let declared_conjuncts = declared.iter().flat_map(conjuncts).collect::<Vec<_>>();
+    if machine
+        .contract
+        .source_checked_requires
+        .iter()
+        .flat_map(conjuncts)
+        .any(|part| !declared_conjuncts.contains(&part))
+    {
+        return malformed(
+            "provider candidate requires beyond its boundary's declared obligations",
+        );
+    }
     // Every declared guarantee must occur in the candidate's own checked
     // ensures roster after substitution.
     let roster = machine

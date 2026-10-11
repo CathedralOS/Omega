@@ -17,6 +17,7 @@ pub(super) mod projected;
 pub(super) fn result(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
     entry_state: symbols::SymbolHandle,
     plan: &CheckedControlResultPlan,
     reference_sources: &[checked_trees::CheckedReferenceResultSourcePlan],
@@ -65,13 +66,31 @@ pub(super) fn result(
             place,
             structural_type,
             multiplicity: terminal_multiplicity(result.multiplicity),
-            qualifications: result
-                .qualifications
-                .iter()
-                .map(|domain| {
-                    lookup_domain_id_for_carrier(&catalogs.domain_ids, *domain, structural_type)
-                })
-                .collect::<Result<Vec<_>, _>>()?,
+            qualifications: {
+                let mut qualifications = result
+                    .qualifications
+                    .iter()
+                    .map(|domain| {
+                        lookup_domain_id_for_carrier(&catalogs.domain_ids, *domain, structural_type)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                // Authored `ensures result in Domain` clauses publish beside
+                // the constrained result type's roster identically to the
+                // ordinary machine path.
+                qualifications.extend(
+                    crate::unit::attached_unit::parameters::authored_result_qualification_domains(
+                        checked, machine,
+                    )
+                    .iter()
+                    .map(|domain| {
+                        lookup_domain_id_for_carrier(&catalogs.domain_ids, *domain, structural_type)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                );
+                qualifications.sort();
+                qualifications.dedup();
+                qualifications
+            },
             projected_qualifications:
                 crate::unit::attached_unit::parameters::lower_projected_qualifications(
                     identities,

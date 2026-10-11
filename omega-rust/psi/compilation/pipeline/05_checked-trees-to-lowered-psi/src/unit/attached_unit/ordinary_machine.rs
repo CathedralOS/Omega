@@ -1088,6 +1088,7 @@ pub(super) fn emit(
                     &signature.erased_proof_parameters,
                 ),
             requires: signature.requires.clone(),
+            source_checked_requires: signature.source_checked_requires.clone(),
             ensures: normal_guarantees,
             outcome_specific_ensures: Vec::new(),
         },
@@ -1177,13 +1178,25 @@ fn lower_structural_result_declaration(
     let return_type = state.return_type;
     // A byte view result's inside-borrow domains ride the same peeled
     // carrier identity the result spells, so the machine publishes them
-    // as its own qualifications.
-    let qualifications =
+    // as its own qualifications. An authored `ensures result in <domain>`
+    // clause transfers the same membership to the caller — a boundary
+    // signature already publishes it as the constrained result carrier's
+    // qualification roster, so the produced result declaration spells it
+    // identically rather than erasing the clause for a non-scalar fact.
+    let mut qualifications =
         validation::view_result_carrier_qualifications(&checked.typed, return_type)
             .map_err(LoweringError::Unsupported)?
             .iter()
             .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, structural_type))
             .collect::<Result<Vec<_>, _>>()?;
+    qualifications.extend(
+        parameters::authored_result_qualification_domains(checked, plan.machine)
+            .iter()
+            .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, structural_type))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    qualifications.sort();
+    qualifications.dedup();
     Ok(terminal_psi::StructuralResultDeclaration {
         place,
         structural_type,

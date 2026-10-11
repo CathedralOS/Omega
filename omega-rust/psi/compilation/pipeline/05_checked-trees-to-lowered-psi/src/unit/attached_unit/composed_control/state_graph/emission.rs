@@ -109,6 +109,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     let machine_result = returns::result(
         identities,
         checked,
+        plan.machine,
         plan.states[0].state,
         &plan.result,
         &plan.result_reference_sources,
@@ -783,6 +784,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         contract: MachineContract {
             id: contract_id(terminal_machine.get()),
             requires: Vec::new(),
+            source_checked_requires: Vec::new(),
             ensures: Vec::new(),
             crash_routes: Vec::new(),
             erased_scalar_formals: entry_erased_formals,

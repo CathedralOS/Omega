@@ -61,6 +61,13 @@ pub(crate) fn encode_contract(
     for proposition in &contract.requires {
         encode_proposition(writer, proposition, 0)?;
     }
+    writer.len(
+        "source-checked requires",
+        contract.source_checked_requires.len(),
+    )?;
+    for proposition in &contract.source_checked_requires {
+        encode_proposition(writer, proposition, 0)?;
+    }
     writer.len("ensures", contract.ensures.len())?;
     for clause in &contract.ensures {
         writer.id(clause.obligation);
@@ -155,6 +162,11 @@ pub(crate) fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract
     for _ in 0..requires_count {
         requires.push(decode_proposition(reader, 0)?);
     }
+    let source_checked_requires_count = reader.count()?;
+    let mut source_checked_requires = Vec::new();
+    for _ in 0..source_checked_requires_count {
+        source_checked_requires.push(decode_proposition(reader, 0)?);
+    }
     let ensures_count = reader.count()?;
     let mut ensures = Vec::new();
     for _ in 0..ensures_count {
@@ -191,6 +203,7 @@ pub(crate) fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract
         erased_scalar_formals,
         erased_proof_formals,
         requires,
+        source_checked_requires,
         ensures,
         outcome_specific_ensures,
     })

@@ -77,8 +77,19 @@ pub(crate) fn prepare(
         )
     } else {
         let (_, state) = crate::declarations::state_declaration(checked, call.target.state)?;
+        // The callee's authored `ensures result in Domain` clauses publish on
+        // its result declaration; the call's receiving result spells the same
+        // roster beside the checked custody qualifications.
+        let mut authored = super::parameters::authored_result_qualification_domains(
+            checked,
+            call.target.machine,
+        );
+        let mut domains = custody.result_qualifications.clone();
+        domains.append(&mut authored);
+        domains.sort_by_key(|domain| domain.0);
+        domains.dedup();
         (
-            custody.result_qualifications.clone(),
+            domains,
             validation::structural_result_projected_qualifications(
                 &checked.typed,
                 state.return_type,
@@ -126,6 +137,9 @@ impl Prepared {
             .iter()
             .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, value.structural_type))
             .collect::<Result<Vec<_>, _>>()?;
+        // Terminal domain identities order by catalog position, which need
+        // not match the checked roster's semantic-domain order.
+        value.qualifications.sort();
         value.projected_qualifications = super::parameters::lower_projected_qualifications(
             identities,
             &self.projected,

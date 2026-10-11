@@ -842,18 +842,30 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         ) {
             return Err(CodecError::NonCanonicalOrder("ensures by ObligationId"));
         }
-        let propositions = machine.contract.requires.iter().chain(
-            machine
-                .contract
-                .ensures
-                .iter()
-                .map(|clause| &clause.proposition),
-        );
+        let propositions = machine
+            .contract
+            .requires
+            .iter()
+            .chain(machine.contract.source_checked_requires.iter())
+            .chain(
+                machine
+                    .contract
+                    .ensures
+                    .iter()
+                    .map(|clause| &clause.proposition),
+            );
         for proposition in propositions {
             validate_canonical_proposition(proposition, 0)?;
         }
         if !canonical_propositions_strictly_increase(&machine.contract.requires)? {
             return Err(CodecError::NonCanonicalOrder("requires propositions"));
+        }
+        if !canonical_propositions_strictly_increase(
+            &machine.contract.source_checked_requires,
+        )? {
+            return Err(CodecError::NonCanonicalOrder(
+                "source-checked requires propositions",
+            ));
         }
     }
     Ok(())

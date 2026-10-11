@@ -18,7 +18,16 @@ pub struct MachineContract {
     /// layout, in dense authored order after the scalar erased roster. A call
     /// operation must supply one `ProofTerm` per roster row.
     pub erased_proof_formals: Vec<crate::ErasedProofFormal>,
+    /// Every caller-owed requirement in canonical contract order, combining
+    /// the authored clauses with generated runtime obligations (entry
+    /// storage, view bounds).
     pub requires: Vec<Proposition>,
+    /// The authored `requires` clauses alone, in canonical order — the
+    /// roster source checking decided at each ordinary call occurrence.
+    /// `requires` merges them with generated runtime obligations, so
+    /// agreement against a boundary's declared roster replays over this
+    /// subset.
+    pub source_checked_requires: Vec<Proposition>,
     pub ensures: Vec<ContractClause>,
     /// Outcome-specific guarantees remain disjoint from unconditional lanes.
     /// Canonical order is `(result_type, result_case, position)`.
@@ -34,6 +43,7 @@ impl MachineContract {
             erased_scalar_formals: Vec::new(),
             erased_proof_formals: Vec::new(),
             requires: Vec::new(),
+            source_checked_requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
         }

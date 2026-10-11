@@ -2898,8 +2898,8 @@ crash and native exit behavior.
     lookup. Callback facts carry source entry resources, not target ABI hashes.
     Product source now checks once before provider settlement; selected
     providers cannot rewrite its contracts or fold target constants into it.
-    Remaining frontier: execution_settlement's Omega-00 installation joins
-    and the authored provider-requires roster the ensures work exposes below.
+    Remaining frontier: converting execution_settlement's Omega-00
+    installation joins to Terminal Psi plus that target's Build rows.
   - `omega-rust/omega/compilation/driver/src/execution_settlement.rs` owns the
     Omega-00 joins outside the Psi facade: calling plans, program-entry
     selection, provider settlement, selected legacy generic-operator and
@@ -2929,21 +2929,17 @@ crash and native exit behavior.
     returning/external candidates: an unused external candidate currently makes
     a selected returning implementation fail closed. Keep no-role ordinary
     returning services and stale/foreign/unmatched binding controls.
-  - `BoundaryMachineDeclaration` `ensures` is landed: codec module admission
-    checks every declared scalar contract row over the declaration
-    telescope — input formals and structural-parameter places, plus the
-    scalar result for `ensures` — and every provider candidate's checked
-    `ensures` roster covers each substituted declared guarantee
-    conjunct-wise, without narrowing the public contract to the selected
-    body. Provider-side `requires` agreement stays unverifiable at the
-    module: `MachineContract.requires` merges the authored clauses with
-    generated runtime obligations (entry storage, view bounds), so
-    agreement cannot be replayed until an authored requires roster —
-    `source_checked_requires` at lowering — survives into the contract.
-    Current result-agreement checking also rejects the qualified-record
-    customer (`capabilities/runtime_qualified_record_return_exit`) with
-    `provider candidate result disagrees with its boundary`; repair that
-    representation agreement without weakening candidate contract admission.
+  - `BoundaryMachineDeclaration` scalar contract agreement is landed both
+    directions: codec module admission checks every declared row over the
+    declaration telescope, and each provider candidate covers the
+    substituted declared obligations conjunct-wise — the authored
+    `source_checked_requires` roster survives into `MachineContract` for
+    the requires direction, and authored `ensures result in Domain`
+    clauses publish the result qualifications that declaration and call
+    sites replay (`capabilities/runtime_qualified_record_return_exit`
+    runs clean). Conversion work must not weaken candidate contract
+    admission.
+>>>>>>> 8a5662b88c3 (psi: carry the authored requires roster into MachineContract and replay provider agreement)
 
   Acceptance (with **BUILD-EVALUATES-ONCE** and **OPERATOR-BOUNDARY-CALLS**):
   a two-target request runs Psi 00–07 once and produces one Terminal artifact;

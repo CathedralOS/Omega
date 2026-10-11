@@ -8,8 +8,8 @@ use super::super::{
 };
 use super::{
     CheckedBoundaryMachinePlan, CheckedTrees, LoweringError, Multiplicity, PlaceId, ScalarType,
-    ServiceReachSummary, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    ValueDeclaration, allocate_dense, lookup_service_id, lookup_type_id, place_id,
+    ServiceReachSummary, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeId, ValueDeclaration, allocate_dense, lookup_service_id, lookup_type_id, place_id,
     require_valid_service_row, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -747,6 +747,45 @@ fn structural_result_source<'results>(
         return unsupported("Unit structural result argument disagrees with its producer cleanup");
     }
     Ok(source)
+}
+
+/// Authored `ensures result in Domain` clauses publish the result's semantic
+/// qualifications beside the declared type's constrained rows: the checked
+/// contract keeps them as source-checked guarantees (no scalar consequence),
+/// and a boundary's declared qualification roster replays against them here.
+/// A membership over another value names a different carrier and is skipped;
+/// a machine without a canonical contract plan authors no result clauses.
+/// Domains stay in the checked namespace; each callsite remaps them to its
+/// carrier's Terminal domain identity.
+pub(crate) fn authored_result_qualification_domains(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Vec<language_semantics::SemanticDomainId> {
+    let mut qualifications = Vec::new();
+    let Some(contract) = checked.facts.contract_plans.for_machine(machine) else {
+        return qualifications;
+    };
+    for clause in contract.closed_scalar_values.ensures() {
+        let Some(checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee { facts }) = clause
+        else {
+            continue;
+        };
+        for fact in checked.typed.proof_facts.span_or_empty(*facts) {
+            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+                continue;
+            };
+            if checked
+                .typed
+                .expression_table
+                .names_reserved_result(membership.value)
+            {
+                qualifications.push(membership.semantic_domain);
+            }
+        }
+    }
+    qualifications.sort_by_key(|domain| domain.0);
+    qualifications.dedup();
+    qualifications
 }
 
 pub(crate) fn lower_projected_qualifications(
