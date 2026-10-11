@@ -67,6 +67,22 @@ pub fn children(
     }
 }
 
+/// Immediate executable value edges in source order. Atomic's result edge
+/// carries structural evidence; only its value is evaluated. Every other
+/// expression uses the complete structural roster, including record fields,
+/// range endpoints and value patterns. Callers retain origin and visitation.
+pub(crate) fn executable_children(
+    program: &dyn crate::CheckingInput,
+    node: &ExpressionNode,
+    mut child: impl FnMut(ExpressionHandle),
+) {
+    if let ExpressionNode::Atomic(atomic) = node {
+        child(atomic.value);
+    } else {
+        children(program, node, child);
+    }
+}
+
 /// Preserve occurrence identity for checks that consume selected declarations
 /// or result types. This is the same postorder as the node-only convenience API.
 pub fn visit_post_order(

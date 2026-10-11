@@ -70,8 +70,12 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     `omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs`
     (pressure decision; `split_domain_pressure` scores existing tied/edge
     domains but inserts no copies).
-  - Current: `runtime_split.rs` splits only a `CopyI64` right after a pinned
-    definition; recovery tries it before rematerialization and spill.
+  - Current: `runtime_split.rs` splits a `CopyI64` right after a pinned
+    definition; recovery tries it before rematerialization and spill. Empty
+    whole-range domains also get an untied nonaddress integer fixed-use copy
+    immediately before its consumer, preserving cyclic source parameters and
+    rebuilding current graph facts. Control:
+    `pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit`.
     `pass/arithmetic/saturating_signed_divide_min_by_neg_one` runs exit 70 on
     all three native hosts through it.
   - Remaining: arbitrary pressure-chosen split points; tied-register,

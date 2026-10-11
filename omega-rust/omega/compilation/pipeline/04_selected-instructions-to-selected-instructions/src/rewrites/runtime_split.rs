@@ -1,4 +1,4 @@
-//! Runtime live-range split at a fixed-view definition: the cheapest recovery
+//! Runtime live-range splits at fixed-view definitions and fixed uses: recovery
 //! the allocator orders before rematerialization and private storage.
 //!
 //! One virtual register receives one home for its whole live range. When an
@@ -44,7 +44,15 @@
 //! requires stripping those additions to restore the complete source by
 //! content.
 
+//! A separate fixed-use leg serves an empty whole-range domain: one untied
+//! integer read receives a copy immediately before its consumer. The source
+//! lifetime, other references and every incoming edge stay intact; the copy
+//! dominates its one read even in cyclic functions. Allocation rebuilds the
+//! current graph's analyses and homes after either leg. This is constraint
+//! refinement, not permission to reinterpret an empty domain as pressure.
+
 mod admission;
+mod before_use;
 mod rewrite;
 mod validation;
 

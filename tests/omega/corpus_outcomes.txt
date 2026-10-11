@@ -5203,3 +5203,7 @@ fail/borrows/fixed_array_slice_state_immutable_rejected rejected 634ms expected 
 	mutable argument `values` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 pass/slices/fixed_array_slice_state_arguments_exit checked 9720ms check-target:macos_arm64 @bfff43e67094+wt
 pass/register_allocation/fixed_uses_across_hosted_clobbers_exit checked 10808ms check-target:macos_arm64 @650ad856cea9+wt
+fail/float/requirement_record_field_trapping_requires_coverage rejected 28753ms expected @ddde64811628+wt
+	`multiply(value, 2.0)` in machine `packet` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+pass/float/requirement_nested_record_arithmetic_exit checked 110803ms check-target:macos_arm64 @ddde64811628+wt
+pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit checked 12468ms check-target:macos_arm64 @ddde64811628+wt

@@ -105,7 +105,9 @@ def verify(directory, names=None):
         assert code==case['exit'], (name,code,case)
         status=[s for s in actual if '=' not in s]
         assert status==[case['status']], (name,status)
-        fields=dict(line.split('=',1) for line in actual if '=' in line)
+        rows=[line.split('=',1) for line in actual if '=' in line]
+        fields=dict(rows)
+        assert len(rows)==len(fields), (name,'duplicate report field')
         assert set(fields)==set(case)-{'exit','status'}, (name,fields)
         for key,value in fields.items():
             tolerance=D(expected['tolerances'].get(key,'0'))

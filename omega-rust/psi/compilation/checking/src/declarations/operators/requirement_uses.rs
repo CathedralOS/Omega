@@ -82,10 +82,12 @@ fn collect(
     {
         uses.append(fact);
     }
-    // Selection discovery shares the canonical value edges with other checks.
-    // A local roster omitted structural initializers and match patterns, losing
-    // requirement occurrences even though their operand values were checked.
-    crate::expression_traversal::children(program, node, |child| {
+    // Every executable value edge keeps the enclosing statement origin.
+    // A private partial child roster omitted requirements in record fields,
+    // ranges and match patterns: lowering then had a call but no exact policy
+    // selection. Share the complete executable traversal; this collector owns
+    // only occurrence deduplication and the selected requirement's evidence.
+    crate::expression_traversal::executable_children(program, node, |child| {
         collect(program, child, origin, seen, uses);
     });
 }

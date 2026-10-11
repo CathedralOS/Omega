@@ -1173,3 +1173,5 @@ pass/borrows/runtime_mixed_static_dynamic_loan_header_exit built 6092ms exit:0 @
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit built 12077ms exit:0 stdout:match @a7846c335879
 pass/slices/fixed_array_slice_state_arguments_exit built 9847ms exit:70 stdout:match stderr:match @bfff43e67094+wt
 pass/register_allocation/fixed_uses_across_hosted_clobbers_exit built 10473ms exit:0 stdout:match stderr:match @650ad856cea9+wt
+pass/float/requirement_nested_record_arithmetic_exit built 128668ms exit:70 stdout:match @ddde64811628+wt
+pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit built 15446ms exit:70 stdout:match @ddde64811628+wt

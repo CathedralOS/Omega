@@ -101,6 +101,16 @@ return fuel/provenance. A zero-copy result is identity. Fixed-mismatch facts
 alone grant neither moves nor homes; all post-rewrite analyses bind the
 transformed identity and are independently reconstructed.
 
+An empty whole-range domain (`NoCommonCandidate`) follows a separate constraint
+refinement inside recovery: an ordinary untied nonaddress integer fixed use gets
+one copy immediately before its consumer. This keeps the original cyclic or
+edge-carried lifetime intact and gives the fresh one-use segment its own home.
+It creates no storage and does not choose a pressure victim. Unsupported origins,
+types and ties still reject. Fresh fixed-use segments do not join the pressure
+roster; every committed graph receives current liveness, ranges, legality and
+independently validated homes. A rejected call-crossing spill proposal that
+exposes such a conflict falls back to the bounded proposal before refinement.
+
 Without an optional recovery selection, genuine `NoCompatibleHome` pressure
 can enter [runtime spill recovery](src/assignment/runtime_spill/mod.rs). A
 declared fixed-view selection reaches the same recovery through two more

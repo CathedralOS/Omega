@@ -54,7 +54,7 @@ def main():
         command=[str(executables[0])]
         (output/'executable.sha256').write_text(hashlib.sha256(executables[0].read_bytes()).hexdigest()+'\n')
     else:
-        command=prefix+['run','--both','--keep','--target','linux_x86_64',source]
+        command=prefix+['run','--both','--keep',source]
     names = options.cases.split(',') if options.cases else list(expected['cases'])
     assert len(names)==len(set(names)) and all(name in expected['cases'] for name in names)
     for name in names:

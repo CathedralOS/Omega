@@ -62,7 +62,7 @@ PROJECT=samples/cli/independent/thermocouple_compensation
 # Resume only after those decisions are accepted; retain any denial as a blocker.
 "$OMEGA" update --resume --project "$PROJECT"
 "$OMEGA" --check --target linux_x86_64 "$PROJECT/main.omg"
-"$OMEGA" run --both --keep --target linux_x86_64 "$PROJECT/main.omg" < "$PROJECT/data/curved_hot.txt"
+"$OMEGA" run --both --keep "$PROJECT/main.omg" < "$PROJECT/data/curved_hot.txt"
 "$OMEGA" inspect-terminal --machine Application::main --target linux_x86_64 "$PROJECT/main.omg"
 "$OMEGA" --check --target linux_x86_64 "$PROJECT/controls/invalid_bounds/control.omg"
 ```
@@ -89,3 +89,8 @@ python3 "$PROJECT/validate.py" --omega "$OMEGA" --route terminal
 The `--both` comparison establishes Terminal/native process-exit agreement. The
 independent numeric/output oracle checks the captured native reports separately;
 exit agreement is not a proof of equivalent intermediate calculations.
+
+For `omega run`, an explicit `--target` selects artifact production without host
+execution, even when it names the host. The comparison route therefore omits that
+flag and uses the supported host target; explicit targets remain on check, native
+compilation and inspection commands.

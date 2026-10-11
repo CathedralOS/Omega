@@ -199,7 +199,7 @@ pub(super) fn admit(
 /// The target's copy row: one flexible use then one flexible def in the
 /// victim's class with no implicit traffic, so the move reads only the
 /// pinned victim and writes only the fresh register.
-fn copy_row<'environment>(
+pub(super) fn copy_row<'environment>(
     environment: &'environment ValidatedTargetRegisterEnvironment,
     victim: &VirtualRegister,
 ) -> Result<&'environment RegisterInstructionConstraint, RuntimeSplitError> {
@@ -226,7 +226,7 @@ fn copy_row<'environment>(
     Ok(row)
 }
 
-fn copy_instruction(
+pub(super) fn copy_instruction(
     row: &RegisterInstructionConstraint,
     id: SelectedInstructionId,
     victim: VirtualRegisterId,
@@ -300,7 +300,7 @@ pub(super) fn names_structurally(
     })
 }
 
-fn charge(
+pub(super) fn charge(
     plan: &selected_instructions::SelectedInstructionPlan,
     function: &SelectedFunction,
     uses: usize,
@@ -320,7 +320,7 @@ fn charge(
     Ok(())
 }
 
-fn next_instruction(function: &SelectedFunction) -> Result<u32, RuntimeSplitError> {
+pub(super) fn next_instruction(function: &SelectedFunction) -> Result<u32, RuntimeSplitError> {
     function
         .blocks
         .iter()
@@ -337,7 +337,7 @@ fn next_instruction(function: &SelectedFunction) -> Result<u32, RuntimeSplitErro
         .ok_or(RuntimeSplitError::IdentityOverflow)
 }
 
-fn next_register(function: &SelectedFunction) -> Result<u32, RuntimeSplitError> {
+pub(super) fn next_register(function: &SelectedFunction) -> Result<u32, RuntimeSplitError> {
     function
         .virtual_registers
         .iter()
