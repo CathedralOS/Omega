@@ -2686,10 +2686,13 @@ crash and native exit behavior.
     The elided consumer variant must still reject its two candidate inputs.
     Preserve the explicit/universal lifetime, captured
     operand, two-source result and elided-result callback fixtures through both
-    engines. Fresh/captured identity (including phantom and reference-descendant
-    regions), complete tuples and exact result sources remain independent
-    checking obligations; executable carrier sharing grants none. Preserve
-    `generics/contextual_static_machine_conformance_application_exit` and
+    engines. Fresh/captured identity (including unused lifetime operands,
+    phantom and reference-descendant regions), complete tuples and exact result
+    sources remain independent checking obligations; executable carrier sharing
+    grants none. Preserve
+    `traits/conformance_unused_lifetime_scope_exit` through both engines;
+    undeclared call/header regions and foreign-scope unused operands must reject.
+    Preserve `generics/contextual_static_machine_conformance_application_exit` and
     `generics/contextual_static_machine_evidence_scopes_exit` through both
     engines; forwarded evidence must guarantee the exact demanded application,
     independent selected maps must not share a symbol-only cache entry, and

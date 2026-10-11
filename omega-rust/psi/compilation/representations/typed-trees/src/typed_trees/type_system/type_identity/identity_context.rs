@@ -112,56 +112,26 @@ impl TypeIdentityContext<'_> {
             .application_scopes
             .last()
             .map_or(self.application_owner, |scope| scope.declaration);
-        let mut owner = program.lifetime_declaration_owner(owner);
         // Invocation signatures own regions even when they have no executable
         // Machine row. Captured regions retain their enclosing declaration's
         // identity rather than acquiring the child's parameter ordinal.
-        while owner.is_valid() {
-            let parameters = program
-                .machine_by_symbol(owner)
-                .map(|owner| &owner.lifetime_parameters)
-                .or_else(|| {
-                    program
-                        .conformance_by_symbol(owner)
-                        .map(|owner| &owner.lifetime_parameters)
-                })
-                .or_else(|| {
-                    program
-                        .trait_definition_by_symbol(owner)
-                        .map(|owner| &owner.lifetime_parameters)
-                })
-                .or_else(|| {
-                    program
-                        .data_definition_by_symbol(owner)
-                        .map(|owner| &owner.lifetime_parameters)
-                })
-                .or_else(|| {
-                    program
-                        .trait_machine_signature(owner)
-                        .map(|(_, signature)| &signature.lifetime_parameters)
-                })
-                .or_else(|| {
-                    program
-                        .retained_static_machine_contract(owner)
-                        .map(|contract| &contract.signature().lifetime_parameters)
-                });
-            if let Some(ordinal) = parameters.and_then(|parameters| {
-                parameters
-                    .iter()
-                    .position(|parameter| parameter.as_str() == name)
-            }) {
-                return compound(
-                    "region",
-                    [
-                        atom(
-                            "owner",
-                            &format!("{}:{}", owner.arena_index(), owner.generation()),
+        if let Some(region) =
+            super::lifetime_parameters::lifetime_parameter_identity(program, owner, name)
+        {
+            return compound(
+                "region",
+                [
+                    atom(
+                        "owner",
+                        &format!(
+                            "{}:{}",
+                            region.declaration.arena_index(),
+                            region.declaration.generation()
                         ),
-                        atom("ordinal", &ordinal.to_string()),
-                    ],
-                );
-            }
-            owner = program.lifetime_declaration_owner(program.symbols.get(owner).parent);
+                    ),
+                    atom("ordinal", &region.ordinal.to_string()),
+                ],
+            );
         }
         if let Some(invalid) = self.invalid_application {
             invalid.set(true);

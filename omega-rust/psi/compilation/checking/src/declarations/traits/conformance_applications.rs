@@ -3,6 +3,9 @@
 //! The call syntax carries a recursively delimited static application. This
 //! module classifies its declaration-owned telescope and publishes an
 //! argument-sensitive semantic identity.
+//! Call admission separately checks every selected region in its retained
+//! lexical owner, including unused conformance parameters. Region-erased type
+//! agreement cannot establish that those operands were declared by the caller.
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
@@ -67,6 +70,8 @@ fn validate_call_arguments(
     };
     validate_arguments(
         declarations,
+        program,
+        call.lexical_owner(program.typed_program()),
         call.arguments(program.typed_program()),
         diagnostics,
     );
@@ -74,6 +79,8 @@ fn validate_call_arguments(
 
 fn validate_arguments(
     program: &dyn crate::CheckingInput,
+    lexical_program: &dyn crate::CheckingInput,
+    lexical_owner: SymbolHandle,
     arguments: &[StaticMachineArgument],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -81,14 +88,55 @@ fn validate_arguments(
         if matches!(
             program.symbols.get(argument.symbol).kind,
             SymbolKind::Conformance
-        ) && let Err(diagnostic) = close_conformance_application(program, argument)
-        {
-            diagnostics.push(diagnostic);
+        ) {
+            if let Err(diagnostic) = close_conformance_application(program, argument) {
+                diagnostics.push(diagnostic);
+            }
+            if let Err(diagnostic) =
+                validate_conformance_lifetime_arguments(lexical_program, argument, lexical_owner)
+            {
+                diagnostics.push(diagnostic);
+            }
         }
         if let Some(application) = &argument.application {
-            validate_arguments(program, &application.arguments, diagnostics);
+            validate_arguments(
+                program,
+                lexical_program,
+                lexical_owner,
+                &application.arguments,
+                diagnostics,
+            );
         }
     }
+}
+
+/// Call operands and trait implementation slots use the same lexical region
+/// judgment. Closing the selected map alone cannot check unused regions: its
+/// declaration owns the binders being replaced, not their caller-side actuals.
+pub(crate) fn validate_conformance_lifetime_arguments(
+    program: &dyn crate::CheckingInput,
+    selected: &StaticMachineArgument,
+    lexical_owner: SymbolHandle,
+) -> Result<(), Diagnostic> {
+    let Some(application) = &selected.application else {
+        return Ok(());
+    };
+    for lifetime in &application.lifetime_arguments {
+        if typed_trees::type_identity::lifetime_parameter_identity(
+            program.typed_program(),
+            lexical_owner,
+            lifetime.as_str(),
+        )
+        .is_none()
+        {
+            return Err(Diagnostic::error(format!(
+                "conformance application `{}` supplies undeclared lifetime argument `'{}'; declare it in the lexical owner's lifetime telescope",
+                selected.display_name(),
+                lifetime.as_str(),
+            )));
+        }
+    }
+    Ok(())
 }
 
 pub fn close_conformance_application(

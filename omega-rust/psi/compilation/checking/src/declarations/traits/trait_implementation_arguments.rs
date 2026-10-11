@@ -15,6 +15,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 use super::conformance_applications::{
     applied_bound_argument_identities, close_conformance_application,
+    validate_conformance_lifetime_arguments,
 };
 
 pub(super) fn validate_trait_implementation_arguments(
@@ -239,6 +240,8 @@ fn validate_binding(
         );
     }
     let application = close_conformance_application(program, &selected)
+        .map_err(|diagnostic| diagnostic.message)?;
+    validate_conformance_lifetime_arguments(program, &selected, owner)
         .map_err(|diagnostic| diagnostic.message)?;
     let implementation = program
         .conformance_by_symbol(application.declaration)

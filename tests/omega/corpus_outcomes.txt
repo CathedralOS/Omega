@@ -5321,3 +5321,10 @@ fail/build/explicit_lifetime_entry_context_shared rejected 1272ms expected @d00c
 fail/build/explicit_lifetime_entry_context_unestablished_reference rejected 5162ms expected @d00cc8b447d+wt
 	native artifact ProgramEntry receiver provisioning failed: hosted receiver requires a checked ZII-valid value with no executable nominal cleanup
 pass/build/explicit_lifetime_entry_context_exit checked 2593ms check-target:macos_arm64 @d00cc8b447d+wt
+fail/traits/conformance_unused_lifetime_foreign_scope rejected 56ms expected @36591ba7905e+wt
+	conformance application `ReadingMap<'foreign>` supplies undeclared lifetime argument `'foreign'; declare it in the lexical owner's lifetime telescope
+fail/traits/conformance_unused_lifetime_header_undeclared rejected 50ms expected @36591ba7905e+wt
+	trait `Invalid` parent `Uses` cannot bind implementation `Reader`: conformance application `ReadingMap<'undeclared>` supplies undeclared lifetime argument `'undeclared'; declare it in the lexical owner's lifetime telescope
+fail/traits/conformance_unused_lifetime_undeclared rejected 51ms expected @36591ba7905e+wt
+	conformance application `ReadingMap<'undeclared>` supplies undeclared lifetime argument `'undeclared'; declare it in the lexical owner's lifetime telescope
+pass/traits/conformance_unused_lifetime_scope_exit checked 2609ms check-target:macos_arm64 @36591ba7905e+wt

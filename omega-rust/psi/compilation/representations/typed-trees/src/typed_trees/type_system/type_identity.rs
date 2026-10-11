@@ -20,6 +20,7 @@
 mod callable_identity;
 mod constraint_identity;
 mod identity_context;
+mod lifetime_parameters;
 mod normalized_identities;
 mod open_index_identity;
 mod result_dispatch_terms;
@@ -32,6 +33,7 @@ pub use callable_identity::{
 pub use language_semantics::type_identity::{
     TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
 };
+pub use lifetime_parameters::{LifetimeParameterIdentity, lifetime_parameter_identity};
 pub use normalized_identities::{
     NormalizedDomainExpression, NormalizedDomainTerm, NormalizedResultDispatchSet,
     NormalizedTypeIdentity, TypeIdentityId, TypeIdentityTable,
