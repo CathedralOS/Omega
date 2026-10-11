@@ -794,6 +794,7 @@ name = "ind11-terminal-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
+ "effects",
  "package-manager",
  "target",
  "terminal-interpreter",
