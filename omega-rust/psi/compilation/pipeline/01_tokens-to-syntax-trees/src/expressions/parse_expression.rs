@@ -231,6 +231,13 @@ fn parse_unary_expression_handle<'tokens, 'source>(
     Ok((expression, rest))
 }
 
+/// Transition targets share the expression grammar's prefix decision. In
+/// particular, contextual acknowledgement names followed by a call remain
+/// ordinary names, while a prefix must reach the expression parser intact.
+pub(crate) fn has_unary_expression_prefix(input: Input<'_, '_>) -> Result<bool, crate::ParseError> {
+    take_unary_prefix(input).map(|prefix| prefix.is_some())
+}
+
 fn take_unary_prefix<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Result<Option<(UnaryPrefix<'tokens, 'source>, Input<'tokens, 'source>)>, crate::ParseError> {

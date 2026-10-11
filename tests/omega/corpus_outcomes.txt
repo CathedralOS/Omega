@@ -5444,3 +5444,15 @@ fail/termination/quotient_result_rank_missing_precondition rejected 512ms expect
 fail/termination/quotient_result_rank_nondecreasing rejected 507ms expected @9412eb149c68
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 pass/termination/runtime_quotient_result_rank_arrivals_exit checked 2847ms check-target:macos_arm64 @9412eb149c68
+pass/calls/terminal_call_acknowledgements checked 6931ms check-target:linux_x86_64 @1ade44fe20d0+wt
+pass/calls/terminal_call_acknowledgements_declarations checked 1226ms @1ade44fe20d0+wt
+fail/calls/terminal_call_duplicate_block rejected 2ms expected @1ade44fe20d0+wt
+	tests/omega/fail/calls/terminal_call_duplicate_block/main.omg:3:29: duplicate `block` call acknowledgement; write it exactly once
+fail/calls/terminal_call_duplicate_suspend rejected 1ms expected @1ade44fe20d0+wt
+	tests/omega/fail/calls/terminal_call_duplicate_suspend/main.omg:3:31: duplicate `suspend` call acknowledgement; write it exactly once
+fail/calls/terminal_call_marked_state rejected 1620ms expected @1ade44fe20d0+wt
+	`next` is an internal state of this machine and cannot be called; ordinary calls invoke machines, not states: enter it with `transition { _ -> next(..) }`, or make it a machine if its result is used as a value
+fail/calls/terminal_call_redundant_block rejected 2829ms expected @1ade44fe20d0+wt
+	call to `ready` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
+fail/calls/terminal_call_reversed_markers rejected 1ms expected @1ade44fe20d0+wt
+	tests/omega/fail/calls/terminal_call_reversed_markers/main.omg:3:29: call acknowledgements use canonical order `suspend block`, never `block suspend`

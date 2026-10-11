@@ -201,3 +201,5 @@ pass/float/runtime_float_call_same_carrier_cast_exit built 72867ms exit:0 interp
 run/arithmetic/fixed_integer_operand_after_call built 5202ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @3c6fd126c67d
 run/arithmetic/fixed_integer_operand_after_pressure built 5695ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @3c6fd126c67d
 run/arithmetic/fixed_integer_operand_join built 5232ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @3c6fd126c67d
+pass/calls/terminal_call_acknowledgements built 7563ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @1ade44fe20d0+wt
+pass/calls/terminal_call_acknowledgements_declarations checked 1304ms @1ade44fe20d0+wt

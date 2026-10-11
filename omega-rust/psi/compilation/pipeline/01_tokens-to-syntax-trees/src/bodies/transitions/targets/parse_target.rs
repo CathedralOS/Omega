@@ -6,7 +6,7 @@ use crate::bodies::transitions::targets::copy::{
     copy_expression_identifier_path_to_statement_table,
 };
 use crate::diagnostics::parse_error::ParseError;
-use crate::expressions::parse_expression::parse_expression_handle;
+use crate::expressions::parse_expression::{has_unary_expression_prefix, parse_expression_handle};
 use crate::expressions::parse_postfix::{self, parse_argument_list_after_open_paren_handle};
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
@@ -44,7 +44,11 @@ pub(in crate::bodies::transitions) fn parse_transition_block_target_with_binding
     // `-> (burn(n) + 0)`). A parenthesized call that names a sibling state is
     // re-classified back into a state transition once states are known
     // (symbol assignment), so existing target spellings keep their meaning.
-    let target_shaped = !input.at_keyword(KeywordKind::True)
+    // Prefixes belong to the ordinary expression parser, which retains call
+    // acknowledgements and diagnoses their order. Parsing one as a target
+    // name would strand the actual call and discard its operational envelope.
+    let target_shaped = !has_unary_expression_prefix(input)?
+        && !input.at_keyword(KeywordKind::True)
         && !input.at_keyword(KeywordKind::False)
         && !input.at_keyword(KeywordKind::SelfValue)
         && input.at_name_like();
