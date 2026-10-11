@@ -53,7 +53,10 @@ variation plus an invalid ownership/evidence control through the real customer.
 
 Identify which facts change per request, partition, and element. Prepare reusable facts at the outer lifetime; specialize local choices where their inputs become known; keep the inner operation narrow. Borrow immutable context, own mutable working state, and transfer useful output storage to the consumer.
 
-Use coherent domain names and responsibility-focused modules with precise input modes. Reuse existing abstractions; allow a little duplication when it keeps invariant decisions outside a hot loop. Recover from errors at the boundary that owns recovery. Apply the [coding conventions](references/rust-conventions.md) when writing or reviewing Rust.
+Use coherent domain names and responsibility-focused modules with precise input modes. Reuse existing abstractions; allow a little duplication when it keeps invariant decisions outside a hot loop. Recover from errors at the boundary that owns recovery. A check that refuses
+must say why: `map_err(|_| ...)` or a bare `None` from a validator is a review
+trigger, because the next failure then costs a rebuild per instrumented exit
+to find. Carry the reason (a string or error variant) up to the diagnostic. Apply the [coding conventions](references/rust-conventions.md) when writing or reviewing Rust.
 
 ## Finish with evidence
 

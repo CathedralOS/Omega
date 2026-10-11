@@ -46,7 +46,10 @@ the outcome, missing dependencies and acceptance command.
 
 Keep that short assignment in the claim note or session handoff: outcome,
 acceptance, current failure, next necessary action and dependencies. Reread it
-after compaction and before changing direction. A new obstacle updates this
+after compaction and before changing direction. When resuming saved work after a
+crash, compaction or handoff, rebase first and check whether main already
+carries it (`git log origin/main -S '<distinctive line>'`) before reapplying a
+patch or rerunning its validation. A new obstacle updates this
 frontier; it does not automatically create a task. Split genuinely independent
 work only with an integration DRI. Do not mine tasks to keep a slot occupied.
 
@@ -129,9 +132,9 @@ changing compiler architecture.
 
 Keep the loop fast. Run samples and the corpus with an optimized compiler in its
 own target directory (`CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=<dir>
-mbx build -p omega`), and close stdin (`< /dev/null`) on every `omega` or gate
-command you run in the background: `omega run` forwards stdin and otherwise
-waits forever at zero CPU. A step that still takes minutes is a finding to
+mbx build -p omega`), and close stdin (`< /dev/null`) on every direct `omega`
+command you run in the background (the gates already do): `omega run` forwards
+stdin and otherwise waits forever at zero CPU. A step that still takes minutes is a finding to
 measure and remove, not a wait.
 
 Read the existing module entrance and decision-site explanations before tracing
@@ -180,8 +183,11 @@ Report which assumptions were challenged, the observed evidence, and any that
 remain unverified. If the change's correctness still depends on an unsupported
 assumption, resolve it or name the missing dependency before claiming completion.
 
-Attribute unexpected failures using a focused baseline comparison on the base
-commit. A failure that reproduces on the base is outside this change; record
+Attribute unexpected failures using a focused comparison on the base commit:
+`python3 tools/corpus_gate.py --compare <base> --filter <domain>` builds the base
+in its own worktree and lists every lost outcome, expected fragment and
+execution fact. Compare against the commit your series sits on, never a newer
+`main`. A failure that reproduces on the base is outside this change; record
 its command and revision. A failure introduced by this change blocks landing.
 For a failure already red on landed main, `tools/triage_advisor.py` (failure
 output plus command -> suspect commit and layer) and `tools/jev_attribute.py`
