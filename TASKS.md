@@ -84,9 +84,10 @@ Workflow is in [AGENTS.md](AGENTS.md), live assignments in the
   mathematical oracles; the integration owner implements all required
   interfaces without active-worker prerequisites. First acceptance is a real
   descriptor-backed consumer through check, native and Terminal execution,
-  with a separate intended-invalid source. Current frontier: library checking
-  succeeds, but complete provider preparation and consumer execution remain
-  unqualified. Continue on current main with the supported execution context;
+  with a separate intended-invalid source. Current frontier: the valid descriptor consumer fails call-contract proof
+  because current scalar transfer admits slice lengths but omits frozen
+  integer fields. Repair canonical shared-field observation and stable length
+  substitution, then qualify provider preparation and execution. Continue on current main with the supported execution context;
   preserve unrelated work and land coherent qualified chunks through the queue.
 
 ## Updating the boards

@@ -15,6 +15,7 @@
 //! mutable loan of a qualified fixed byte array is a bounded owner whose live
 //! length moves with its stores, and has no such value.
 use crate::checks::unsigned;
+use crate::values::scalar::structural_fields;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -353,7 +354,8 @@ impl<'program> CurrentScalarValues<'program> {
             0,
         ) {
             if let Some(proposition) = scoped(
-                state.symbol,
+                machine,
+                state,
                 expression,
                 &self.current,
                 &self.lengths,
@@ -383,7 +385,8 @@ impl<'program> CurrentScalarValues<'program> {
         )
         .then(|| {
             scoped(
-                state.symbol,
+                machine,
+                state,
                 expression,
                 &self.current,
                 &self.lengths,
@@ -423,7 +426,8 @@ impl<'program> CurrentScalarValues<'program> {
         )
         .then(|| {
             scoped(
-                self.state.symbol,
+                self.machine,
+                self.state,
                 expression,
                 &self.current,
                 &self.lengths,
@@ -448,8 +452,30 @@ impl<'program> CurrentScalarValues<'program> {
         }
         let mut bindings = Vec::with_capacity(parameters.len());
         let mut formals = Vec::with_capacity(parameters.len());
+        let mut lengths = Vec::new();
         for (parameter, argument) in parameters.iter().zip(arguments) {
-            let primitive = exact_integer(self.program, parameter.type_reference)?;
+            let Some(primitive) = exact_integer(self.program, parameter.type_reference) else {
+                if validation::state_reference_parameter_binding_is_stable(
+                    self.program,
+                    callee,
+                    state,
+                    parameter.symbol,
+                ) && let Some(name) = self.program.expression_table.name_path_node(*argument)
+                    && name.symbol == name.head_symbol
+                    && let Some(length) = self
+                        .lengths
+                        .iter()
+                        .find(|length| length.collection == name.symbol)
+                    && fixed_length(self.program, parameter.type_reference, String::new).is_some()
+                {
+                    lengths.push(Length {
+                        collection: parameter.symbol,
+                        type_reference: parameter.type_reference,
+                        value: length.value.clone(),
+                    });
+                }
+                continue;
+            };
             bindings.push(ScopedArithmeticBinding {
                 binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
                 value: ScopedArithmeticValue::Term(self.current(*argument)?),
@@ -463,13 +489,35 @@ impl<'program> CurrentScalarValues<'program> {
                 }),
             });
         }
-        admitted(self.program, callee, state, expression, &formals, &[], 0).then_some(
-            ScopedArithmeticExpression {
-                owner: state.symbol,
-                expression,
-                bindings,
-            },
-        )
+        if !admitted(
+            self.program,
+            callee,
+            state,
+            expression,
+            &formals,
+            &lengths,
+            0,
+        ) {
+            return None;
+        }
+        let mut goal = scoped(callee, state, expression, &formals, &lengths, self.program)?;
+        for binding in &mut goal.bindings {
+            // A callee field needs an actual-place substitution, including on
+            // recursion. Its entry atom is never the caller's current field
+            // merely because the declaration and formal symbol are equal.
+            if let ScopedArithmeticBinder::Occurrence(occurrence) = binding.binder
+                && length_occurrence(self.program, occurrence, &lengths).is_none()
+            {
+                return None;
+            }
+            if let Some(actual) = bindings
+                .iter()
+                .find(|actual| actual.binder == binding.binder)
+            {
+                binding.value = actual.value.clone();
+            }
+        }
+        Some(goal)
     }
 
     pub(crate) fn proves_values_relation(
@@ -585,6 +633,56 @@ fn length_occurrence<'lengths>(
     .then_some(length)
 }
 
+/// Frozen integer fields retain canonical root and complete declaration path.
+/// Only stable shared parameter loans participate; owned or exclusive storage
+/// needs an effect-sensitive value transfer before it can retain entry atoms.
+fn field_occurrence(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<ScopedArithmeticValue> {
+    let parameters = program.state_parameters(state);
+    let (index, path, selected_type) =
+        structural_fields::structural_parameter_place(program, parameters, expression)?;
+    if path.is_empty()
+        || path.iter().any(|segment| {
+            !matches!(
+                segment,
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(_)
+            )
+        })
+    {
+        return None;
+    }
+    let parameter = parameters.get(usize::try_from(index).ok()?)?;
+    let shell = validation::reference_shell(program, parameter.type_reference)?;
+    if shell.access != language_core::ReferenceAccess::Shared
+        || parameter.is_mutable
+        || !validation::state_reference_parameter_binding_is_stable(
+            program,
+            machine,
+            state,
+            parameter.symbol,
+        )
+    {
+        return None;
+    }
+    let (_, segments, _, frozen) =
+        structural_fields::resolve_structural_parameter_path(program, parameters, index, &path)?;
+    if !frozen {
+        return None;
+    }
+    let primitive = exact_integer(program, selected_type)?;
+    Some(ScopedArithmeticValue::Atom {
+        identity: format!(
+            "state:{:?}:parameter:{:?}:field:{segments:?}",
+            state.symbol, parameter.symbol
+        ),
+        unsigned: unsigned(primitive),
+    })
+}
+
 fn admitted(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -599,7 +697,10 @@ fn admitted(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
-        ExpressionNode::Member(_) => length_occurrence(program, expression, lengths).is_some(),
+        ExpressionNode::Member(_) => {
+            length_occurrence(program, expression, lengths).is_some()
+                || field_occurrence(program, machine, state, expression).is_some()
+        }
         ExpressionNode::Name(name) => {
             (name.symbol == name.head_symbol
                 && bindings
@@ -650,7 +751,8 @@ fn admitted(
 }
 
 fn scoped(
-    owner: SymbolHandle,
+    machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
     bindings: &[Binding],
     lengths: &[Length],
@@ -675,10 +777,12 @@ fn scoped(
             }
             ExpressionNode::Integer(_) => {}
             ExpressionNode::Member(_) => {
-                let length = length_occurrence(program, expression, lengths)?;
+                let value = length_occurrence(program, expression, lengths)
+                    .map(|length| length.value.clone())
+                    .or_else(|| field_occurrence(program, machine, state, expression))?;
                 projections.push(ScopedArithmeticBinding {
                     binder: ScopedArithmeticBinder::Occurrence(expression),
-                    value: length.value.clone(),
+                    value,
                 });
             }
             ExpressionNode::Binary(binary) => {
@@ -703,7 +807,7 @@ fn scoped(
     }
     selected.extend(projections);
     Some(ScopedArithmeticExpression {
-        owner,
+        owner: state.symbol,
         expression,
         bindings: selected,
     })
