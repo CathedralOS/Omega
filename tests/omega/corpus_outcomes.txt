@@ -999,6 +999,12 @@ fail/contracts/proof_fact_indexed_domain_application_unevidenced rejected 850ms 
 	declared instance `Resident<SlotPlacement, Slot>` has no establishment: the call establishes no instance of domain family `Resident` -- neither its declared return type nor its `ensures` names one -- and a domain family with no predicate body has no predicate the write could prove; the value must already carry the instance, through the callee's `ensures result in Resident<SlotPlacement, Slot>`, a declared place of that type, or the family's authorized establishment route (at exercise_placed::entry:statement-0)
 fail/contracts/saved_call_case_guarantee_replaced_by_call rejected 420ms expected @903765547ffe
 	cannot prove requires contract for call observe from main: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/shared_field_current_arithmetic_out_of_bounds rejected 907ms expected @f04eab4d149c+wt
+	cannot prove requires contract for call checked from last: offset < backing.len (needs fact `index < backing.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/shared_field_current_arithmetic_unrelated_root rejected 898ms expected @f04eab4d149c+wt
+	cannot prove requires contract for call checked from last: offset < backing.len (needs fact `index < backing.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/shared_field_recursive_actual rejected 1044ms expected @f04eab4d149c+wt
+	cannot prove requires contract for call walk from walk: right.origin == 0 (needs fact `left.origin == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/undischarged_contract_entailment rejected 77ms expected @43a77116e58+wt
 	checked machine `unchecked_claim` cannot establish proposition ensure `boolean:min(right, 0) >= 1` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
 fail/control_flow/arm_pattern_missing_field rejected 294ms expected @2d8ed253669f
@@ -2459,6 +2465,8 @@ fail/slices/call_requires_direct_view_extent rejected 254ms expected @45782ade0c
 	cannot prove requires contract for call read from wrong: 2 < values[1..2].len (needs fact `position < values.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/slices/captured_length_after_descriptor_replacement rejected 355ms expected @9cc6a58bcdc4+wt
 	cannot prove index `1` is within unknown slice length of `items` in observe::entry
+fail/slices/empty_fixed_array_slice_wrong_element rejected 630ms expected @f04eab4d149c+wt
+	argument `items` for state `empty::entry` expects element type `u64`, but the argument supplies `i32`
 fail/slices/inclusive_endpoint_equals_length rejected 344ms expected @dd31f301c60c+wt
 	cannot prove subslice range end bound `..4` is within slice length 4
 fail/slices/inclusive_endpoint_maximum rejected 336ms expected @ebf381240e20+wt
@@ -2491,6 +2499,8 @@ fail/slices/mutable_subslice_state_requires_nonempty rejected 1064ms expected @0
 fail/slices/mutable_subslice_state_uses_wrong_source_extent rejected 1089ms expected @0582eca912a4+wt
 	cannot prove requires contract for call forwarded from write: other[1..2].len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	cannot prove subslice range end bound `1..2` is within unknown slice length
+fail/slices/negated_mutable_array_call_overlap rejected 1169ms expected @f04eab4d149c+wt
+	state `collide` receives `items` as both mutable and read-only
 fail/slices/nonempty_subslice_empty_range rejected 369ms expected @a5ac65bf511d+wt
 	cannot prove requires contract for call inspect from relay: bytes[0..0] in [u8]::Nonempty
 fail/slices/overlapping_mut_subslice_windows_rejected rejected 525ms expected @89af21767c32+wt
@@ -3448,6 +3458,7 @@ pass/contracts/requires_narrow_ceiling_unproven checked 3054ms check-target:maco
 pass/contracts/requires_u8_ceiling_below_carrier checked 3035ms check-target:macos_arm64 @527c7c316c6f+wt
 pass/contracts/runtime_later_arm_call_requires_exit checked 2753ms check-target:macos_arm64 @53d5dde47ae5
 pass/contracts/saved_call_case_guarantee_requires_exit checked 2472ms check-target:macos_arm64 @903765547ffe
+pass/contracts/shared_field_current_arithmetic checked 1123ms @f04eab4d149c+wt
 pass/control_flow/affine_call_result_state_transfer_exit checked 1527ms check-target:macos_arm64 @e28fa01a1e73+wt
 pass/control_flow/affine_record_state_cycle_exit checked 704ms check-target:macos_arm64 @7f2bd2604102
 pass/control_flow/arm_pattern_rest_optout_exit checked 3464ms check-target:macos_arm64 @b5d8c6882a8
@@ -4366,6 +4377,7 @@ pass/slices/byte_sequence_literal_tail_return_compile checked 604ms check-target
 pass/slices/callee_non_byte_view_len_index_subslice checked 1744ms check-target:macos_arm64 @ed38350cbc69+wt
 pass/slices/disjoint_mut_subslice_windows_compile checked 307ms @2d8ed253669f
 pass/slices/domained_runtime_end_subslice_exit checked 1072ms check-target:macos_arm64 @a5ac65bf511d+wt
+pass/slices/empty_fixed_array_slice_call_exit checked 6795ms check-target:macos_arm64 @f04eab4d149c+wt
 pass/slices/guarded_match_slice_index_exit checked 2385ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/slices/guarded_slice_parameter_bounded_subslice_compile checked 293ms @2d8ed253669f
 pass/slices/guarded_slice_parameter_empty_false_index_compile checked 286ms @2d8ed253669f
@@ -4379,6 +4391,7 @@ pass/slices/mutable_byte_field_range_scalar_initializer_exit checked 693ms check
 pass/slices/mutable_field_range_call_state_exit checked 563ms check-target:macos_arm64 @69328a9275ae+wt
 pass/slices/mutable_field_range_local_initializer_exit checked 682ms check-target:macos_arm64 @c6377e1d529e+wt
 pass/slices/mutable_field_range_scalar_initializer_exit checked 848ms check-target:macos_arm64 @a76e06629649+wt
+pass/slices/negated_mutable_array_call_exit checked 6809ms check-target:macos_arm64 @f04eab4d149c+wt
 pass/slices/projected_array_call_exit checked 1035ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/slices/qualified_subslice_composition_exit checked 1090ms check-target:macos_arm64 @a5ac65bf511d+wt
 pass/slices/recursive_subslice_element_accumulator_exit checked 728ms check-target:macos_arm64 @de74b73e1452+wt

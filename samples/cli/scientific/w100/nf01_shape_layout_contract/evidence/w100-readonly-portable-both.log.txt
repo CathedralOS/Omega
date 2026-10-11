@@ -1,0 +1,2 @@
+native exit 41
+interp exit: 41

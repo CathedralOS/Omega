@@ -89,6 +89,8 @@ pass/recast/runtime_mutable_equivalent_domain_recast_exit built 5555ms exit:70 i
 pass/recast/runtime_mutable_equivalent_range_recast_exit built 7853ms exit:70 interpreter-exit:70 interpreter:agrees @f64782b89114+wt
 pass/recast/runtime_scalar_parameter_shared_views_exit built 2535ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
 pass/recast/runtime_shared_domain_weakening_recast_exit built 7058ms exit:70 interpreter-exit:70 interpreter:agrees @f64782b89114+wt
+pass/slices/empty_fixed_array_slice_call_exit built 5495ms exit:0 interpreter-exit:0 interpreter:agrees @f04eab4d149c+wt
+pass/slices/negated_mutable_array_call_exit built 5652ms exit:0 interpreter-exit:0 interpreter:agrees @f04eab4d149c+wt
 pass/slices/runtime_empty_qualified_scalar_array_exit built 11818ms exit:0 interpreter-exit:0 interpreter:agrees @72f9cbd4156c+wt
 pass/slices/runtime_erased_field_record_copy_exit built 11614ms exit:0 interpreter-exit:0 interpreter:agrees @72f9cbd4156c+wt
 pass/slices/runtime_mutable_record_slice_result_reborrow_exit built 7350ms exit:0 interpreter-exit:0 interpreter:agrees @3c4074822bef

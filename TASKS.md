@@ -82,15 +82,13 @@ Workflow is in [AGENTS.md](AGENTS.md), live assignments in the
   library in `source/library/numerics/` and its W100 API consumers in
   `samples/cli/scientific/w100/`. Reuse preserved candidate sources and frozen
   mathematical oracles; the integration owner implements all required
-  interfaces without active-worker prerequisites. First acceptance is a real
-  descriptor-backed consumer through check, native and Terminal execution,
-  with a separate intended-invalid source. Current frontier: qualify the
-  independent mutable consumer with the repaired computed fixed-array loan
-  presentation on current main, then qualify the descriptor-based static
-  out-of-bounds control,
-  then run the focused proof and empty-slice corpus/native source-reader gates.
-  Continue on current main with the supported execution context;
-  preserve unrelated work and land coherent qualified chunks through the queue.
+  interfaces without active-worker prerequisites. Current frontier: integrate
+  the preserved NF02 named additive accuracy policy, add actual nonfinite and
+  invalid-tolerance consumer controls, and qualify its floating provider imports
+  on current main. Then connect descriptor-backed moments and remaining kernels
+  to the shared layout and numeric policy. Preserve unrelated work and land
+  coherent qualified chunks through the normal queue. Candidate preservation in
+  IMPORTS.json is not capability acceptance.
 
 ## Updating the boards
 
