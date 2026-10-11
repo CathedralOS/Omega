@@ -18,14 +18,14 @@ use calling_conventions::{
     NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan, callback_requirement_id,
     nominal_callback_native_parameter_id,
 };
+use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use layout::{BoundaryTypeBinding, BoundaryValueLayout, substitute_boundary_type_reference};
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
-use typed_trees::TypedTrees;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) struct BoundarySignatureInstance<'a> {
-    pub(crate) signature: &'a typed_trees::signature::StateSignature,
+    pub(crate) signature: &'a checked_trees::typed_trees::signature::StateSignature,
     pub(crate) requirement_identity: String,
     pub(crate) bindings: Vec<BoundaryTypeBinding>,
 }
@@ -300,8 +300,8 @@ pub struct BoundaryCallbackBinder {
 /// signature rather than being erased as a provider receiver.
 pub(crate) fn call_signature_from_top_level_requirement(
     typed: &TypedTrees,
-    requirement: &typed_trees::machine::Machine,
-    entry: &typed_trees::state::State,
+    requirement: &checked_trees::typed_trees::machine::Machine,
+    entry: &checked_trees::typed_trees::state::State,
     owner_requirement_identity: &str,
     native_target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
@@ -439,7 +439,7 @@ pub(crate) fn compatibility_call_signature(
 
 pub(crate) fn collect_boundary_signatures<'a>(
     typed: &'a TypedTrees,
-    definition: &'a typed_trees::trait_definition::TraitDefinition,
+    definition: &'a checked_trees::typed_trees::trait_definition::TraitDefinition,
     arguments: &[TypeReferenceHandle],
     visited: &mut Vec<symbols::SymbolHandle>,
     signatures: &mut Vec<BoundarySignatureInstance<'a>>,
@@ -483,7 +483,7 @@ pub(crate) fn collect_boundary_signatures<'a>(
 
 pub(crate) fn trait_type_bindings(
     typed: &TypedTrees,
-    definition: &typed_trees::trait_definition::TraitDefinition,
+    definition: &checked_trees::typed_trees::trait_definition::TraitDefinition,
     arguments: &[TypeReferenceHandle],
 ) -> Vec<BoundaryTypeBinding> {
     typed
@@ -500,7 +500,7 @@ pub(crate) fn trait_type_bindings(
 
 pub(crate) fn call_signature_from_typed(
     typed: &TypedTrees,
-    signature: &typed_trees::signature::StateSignature,
+    signature: &checked_trees::typed_trees::signature::StateSignature,
     bindings: &[BoundaryTypeBinding],
     owner_requirement_identity: &str,
     native_target: NativeTarget,
@@ -516,14 +516,16 @@ pub(crate) fn call_signature_from_typed(
     let mut callback_binders = Vec::new();
     let mut static_machine_ordinal = 0u32;
     for parameter in typed.state_signature_type_parameters(signature) {
-        let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+        let checked_trees::typed_trees::data::TypeParameterKind::Machine { contract } =
+            &parameter.kind
+        else {
             continue;
         };
         let ordinal = static_machine_ordinal;
         static_machine_ordinal = static_machine_ordinal
             .checked_add(1)
             .ok_or_else(|| "boundary signature has too many static machine binders".to_owned())?;
-        let typed_trees::data::MachineParameterContract::Nominal {
+        let checked_trees::typed_trees::data::MachineParameterContract::Nominal {
             trait_definition,
             requirement,
             ..

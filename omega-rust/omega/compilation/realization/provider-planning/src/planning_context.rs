@@ -6,9 +6,9 @@
 //! Target selection remains an explicit operation coordinate, retained and
 //! validated by evaluated binding tables and provider-plan derivation requests.
 
+use checked_trees::typed_trees::TypedTrees;
 use source::DependencyScope;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 /// The typed program and dependency purpose whose declarations a planning
 /// operation may consume. Callers must select the purpose explicitly.

@@ -32,7 +32,7 @@ pub(crate) fn exact_satisfied_requirement_identity(
 
 fn exact_external_binding_identity<'typed>(
     typed: &'typed TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &checked_trees::typed_trees::machine::Machine,
     trait_name: &str,
     requirement_name: &str,
 ) -> Option<&'typed language_semantics::ExternalBindingIdentity> {
@@ -53,7 +53,7 @@ fn exact_external_binding_identity<'typed>(
 
 pub(crate) fn exact_installed_external_binding_identity<'typed>(
     typed: &'typed TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &checked_trees::typed_trees::machine::Machine,
     conformance_binding: language_semantics::ExternalBindingId,
     trait_name: &str,
     requirement_name: &str,
@@ -99,8 +99,8 @@ fn inferred_hosted_catalog_leaf(
 /// custody and the canonical target before granting a closed execution.
 pub(crate) fn inferred_hosted_console_compiler_intrinsic(
     typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    conformance: &typed_trees::machine::TraitConformance,
+    machine: &checked_trees::typed_trees::machine::Machine,
+    conformance: &checked_trees::typed_trees::machine::TraitConformance,
     selected_target: Option<&str>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
@@ -130,10 +130,14 @@ pub(crate) fn inferred_hosted_console_compiler_intrinsic(
                 None => supports_target(&origin.target),
             },
         )?;
-    let typed_trees::machine::SatisfiedDeclaration::Trait {
+    let checked_trees::typed_trees::machine::SatisfiedDeclaration::Trait {
         definition,
         requirement,
-    } = typed_trees::machine::resolve_satisfied_declaration(typed, machine, conformance)?
+    } = checked_trees::typed_trees::machine::resolve_satisfied_declaration(
+        typed,
+        machine,
+        conformance,
+    )?
     else {
         return None;
     };
@@ -183,8 +187,8 @@ pub(crate) fn inferred_hosted_console_compiler_intrinsic(
 /// and custody.
 pub(crate) fn inferred_selected_target_compiler_leaf(
     typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    conformance: &typed_trees::machine::TraitConformance,
+    machine: &checked_trees::typed_trees::machine::Machine,
+    conformance: &checked_trees::typed_trees::machine::TraitConformance,
     selected_target: Option<&str>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
@@ -206,10 +210,14 @@ pub(crate) fn inferred_selected_target_compiler_leaf(
     let origin = sole_machine_origin(target_machine_origins, machine.symbol, |origin| {
         selected_target == Some(origin.target.as_str())
     })?;
-    let typed_trees::machine::SatisfiedDeclaration::Trait {
+    let checked_trees::typed_trees::machine::SatisfiedDeclaration::Trait {
         definition,
         requirement,
-    } = typed_trees::machine::resolve_satisfied_declaration(typed, machine, conformance)?
+    } = checked_trees::typed_trees::machine::resolve_satisfied_declaration(
+        typed,
+        machine,
+        conformance,
+    )?
     else {
         return None;
     };
@@ -234,8 +242,8 @@ pub(crate) fn inferred_selected_target_compiler_leaf(
 /// target-machine origins claim.
 pub(crate) fn inferred_compiler_leaf_binding(
     typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    conformance: &typed_trees::machine::TraitConformance,
+    machine: &checked_trees::typed_trees::machine::Machine,
+    conformance: &checked_trees::typed_trees::machine::TraitConformance,
     selected_target: Option<&str>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
@@ -259,8 +267,8 @@ pub(crate) fn inferred_compiler_leaf_binding(
 
 fn exact_catalog_i32_to_unit_signature(
     typed: &TypedTrees,
-    parameters: &[typed_trees::signature::StateParameter],
-    return_type: typed_trees::types::TypeReferenceHandle,
+    parameters: &[checked_trees::typed_trees::signature::StateParameter],
+    return_type: checked_trees::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     let [parameter] = parameters else {
         return false;
@@ -268,10 +276,10 @@ fn exact_catalog_i32_to_unit_signature(
     !parameter.is_const
         && !parameter.is_mutable
         && typed.primitive_type_reference(parameter.type_reference)
-            == Some(typed_trees::types::PrimitiveType::I32)
+            == Some(checked_trees::typed_trees::types::PrimitiveType::I32)
         && matches!(
             typed.type_reference_table.type_reference(return_type),
-            typed_trees::types::TypeReferenceNode::Unit
+            checked_trees::typed_trees::types::TypeReferenceNode::Unit
         )
 }
 
@@ -307,7 +315,7 @@ pub(crate) fn external_provider_binding(
 
 pub(crate) fn realization_machine_identity(
     typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &checked_trees::typed_trees::machine::Machine,
 ) -> String {
     typed
         .machine_callable_identity_text(machine)
@@ -326,9 +334,9 @@ pub(crate) fn realization_machine_identity(
 pub(crate) fn satisfied_row_requirement<'typed>(
     typed: &'typed TypedTrees,
     top_level_symbols: &mut Option<validation::TopLevelSymbols<'typed>>,
-    provider: &'typed typed_trees::machine::Machine,
-    requirement: &'typed typed_trees::machine::Machine,
-) -> Option<&'typed typed_trees::machine::Machine> {
+    provider: &'typed checked_trees::typed_trees::machine::Machine,
+    requirement: &'typed checked_trees::typed_trees::machine::Machine,
+) -> Option<&'typed checked_trees::typed_trees::machine::Machine> {
     if typed.machine_type_parameters(requirement).is_empty() {
         return Some(requirement);
     }

@@ -173,7 +173,7 @@ pub(crate) fn exact_task_runtime_requirement<'program>(
     (
         &'program checked_trees::trait_definition::TraitDefinition,
         &'program checked_trees::signature::StateSignature,
-        typed_trees::type_identity::CallableIdentityId,
+        checked_trees::typed_trees::type_identity::CallableIdentityId,
     ),
     Vec<Diagnostic>,
 > {

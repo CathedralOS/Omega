@@ -7,10 +7,10 @@
 //! provider settlement behind Terminal Psi is separate work.
 
 use crate::SettledTargetMachineDeclarations;
+use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::typed_trees::inspection::callees::ExplicitStateCallees;
 use diagnostics::Diagnostic;
 use target::TargetProfile;
-use typed_trees::TypedTrees;
-use typed_trees::typed_trees::inspection::callees::ExplicitStateCallees;
 
 mod provider_publication;
 pub use provider_publication::{TargetProviderPublicationRequest, provider_selection_roots};
@@ -22,7 +22,7 @@ pub fn retain_provider_defaults(
 ) -> Result<Vec<crate::TargetProviderDefaults>, Vec<Diagnostic>> {
     let mut rows: Vec<crate::TargetProviderDefaults> = Vec::new();
     for machine in context.typed.machines().iter().filter(|machine| {
-        machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+        machine.purpose == checked_trees::typed_trees::machine::MachinePurpose::ProviderDefaults
             // A generated interface contributes no authored declarations.
             // Harvest the complete member bodies, not a spurious targetless
             // defaults row for their shared callable head.
@@ -196,7 +196,7 @@ pub fn reject_reached_inert_sibling_calls(
 fn called_machine(
     typed: &TypedTrees,
     called_symbol: symbols::SymbolHandle,
-) -> Option<&typed_trees::machine::Machine> {
+) -> Option<&checked_trees::typed_trees::machine::Machine> {
     typed
         .machine_by_symbol(called_symbol)
         .or_else(|| typed.machine_holding_state(called_symbol))
@@ -208,9 +208,9 @@ fn called_machine(
 /// instead keep their own target and never redirect into another sibling.
 fn realized_machine<'program>(
     typed: &'program TypedTrees,
-    machine: &'program typed_trees::machine::Machine,
+    machine: &'program checked_trees::typed_trees::machine::Machine,
     target: TargetProfile,
-) -> Option<&'program typed_trees::machine::Machine> {
+) -> Option<&'program checked_trees::typed_trees::machine::Machine> {
     if machine.target_family_interface {
         let family = typed
             .target_machine_families
@@ -236,7 +236,7 @@ fn realized_machine<'program>(
 /// is resolved during Build preparation, not from the product target.
 pub(crate) fn realizes_machine(
     context: crate::ProviderPlanningContext<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &checked_trees::typed_trees::machine::Machine,
     target: Option<&str>,
 ) -> bool {
     // A portable family interface has no implementation or satisfies edges.
@@ -262,9 +262,9 @@ pub(crate) fn realizes_machine(
 /// several other targets is not "declared only for" its canonical one.
 fn unrealized_call_message(
     typed: &TypedTrees,
-    caller: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    callee: &typed_trees::machine::Machine,
+    caller: &checked_trees::typed_trees::machine::Machine,
+    state: &checked_trees::typed_trees::state::State,
+    callee: &checked_trees::typed_trees::machine::Machine,
     realized: &str,
 ) -> String {
     let declared: Vec<&str> = typed

@@ -8,12 +8,12 @@
 //! ask that one chain. Package review asks only `closed_float_execution`.
 
 use super::IntrinsicRequirement;
+use checked_trees::typed_trees::types::PrimitiveType;
+use checked_trees::typed_trees::{TypedTrees, expression::BinaryOperator};
 use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };
-use typed_trees::types::PrimitiveType;
-use typed_trees::{TypedTrees, expression::BinaryOperator};
 
 impl IntrinsicRequirement<'_> {
     /// The sealed compiler execution child this requirement's token denotes:
@@ -40,7 +40,9 @@ impl IntrinsicRequirement<'_> {
     ) -> Option<CompilerIntrinsicExecutionIdentity> {
         let operator = self.as_operator()?;
         let (operation, format) =
-            typed_trees::operator::primitive_float_binary_semantics(typed, operator)?;
+            checked_trees::typed_trees::operator::primitive_float_binary_semantics(
+                typed, operator,
+            )?;
         let operation = match operation {
             BinaryOperator::Add => CompilerPrimitiveFloatBinaryOperation::Add,
             BinaryOperator::Subtract => CompilerPrimitiveFloatBinaryOperation::Subtract,
@@ -90,7 +92,7 @@ impl IntrinsicRequirement<'_> {
 /// format, or the address carrier) has no closed comparison identity.
 fn primitive_integer_comparison_semantics(
     typed: &TypedTrees,
-    operator: &typed_trees::operator::OperatorDefinition,
+    operator: &checked_trees::typed_trees::operator::OperatorDefinition,
 ) -> Option<(CompilerPrimitiveIntegerComparisonOperation, PrimitiveType)> {
     use CompilerPrimitiveIntegerComparisonOperation as Operation;
     use language_core::operator_spelling::OperatorSpelling;

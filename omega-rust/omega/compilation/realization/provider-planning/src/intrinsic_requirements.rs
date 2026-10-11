@@ -15,10 +15,10 @@
 //! fixed token spells, and `diagnostic_label.rs` names the compiler-known
 //! realization a requirement selects.
 
+use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::signature::StateParameter;
+use checked_trees::typed_trees::types::TypeReferenceHandle;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema};
-use typed_trees::TypedTrees;
-use typed_trees::signature::StateParameter;
-use typed_trees::types::TypeReferenceHandle;
 
 mod closed_execution;
 mod diagnostic_label;
@@ -50,13 +50,13 @@ pub struct IntrinsicRequirement<'typed> {
     /// The identity a provider-plan row binds: the canonical operator
     /// overload identity, or the requirement's normalized machine overload.
     pub requirement_identity: String,
-    operator: Option<&'typed typed_trees::operator::OperatorDefinition>,
+    operator: Option<&'typed checked_trees::typed_trees::operator::OperatorDefinition>,
 }
 
 impl<'typed> IntrinsicRequirement<'typed> {
     pub fn from_operator(
         typed: &'typed TypedTrees,
-        operator: &'typed typed_trees::operator::OperatorDefinition,
+        operator: &'typed checked_trees::typed_trees::operator::OperatorDefinition,
     ) -> Option<Self> {
         if !operator.is_boundary {
             return None;
@@ -70,7 +70,9 @@ impl<'typed> IntrinsicRequirement<'typed> {
             return None;
         };
         let requirement_identity =
-            typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
+            checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
+                typed, operator,
+            );
         if requirement_identity.is_empty() {
             return None;
         }
@@ -90,7 +92,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
 
     pub(crate) fn from_requirement(
         typed: &'typed TypedTrees,
-        requirement: &'typed typed_trees::machine::Machine,
+        requirement: &'typed checked_trees::typed_trees::machine::Machine,
     ) -> Option<Self> {
         if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
             || requirement.body_is_present
@@ -153,7 +155,9 @@ impl<'typed> IntrinsicRequirement<'typed> {
 
     /// The operator signature, including a boundary machine's same-symbol
     /// token view. Token meaning does not change the machine's provider slot.
-    pub fn as_operator(&self) -> Option<&'typed typed_trees::operator::OperatorDefinition> {
+    pub fn as_operator(
+        &self,
+    ) -> Option<&'typed checked_trees::typed_trees::operator::OperatorDefinition> {
         self.operator
     }
 
@@ -244,16 +248,16 @@ impl<'typed> IntrinsicRequirement<'typed> {
                     .iter()
                     .any(|conformance| match self.kind {
                         IntrinsicRequirementKind::Operator => {
-                            typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                            checked_trees::typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
                                 typed, machine, conformance,
                             )
                             .is_some_and(|resolved| resolved.symbol == self.symbol)
                         }
                         IntrinsicRequirementKind::TopLevelRequirement => matches!(
-                            typed_trees::machine::resolve_satisfied_declaration(
+                            checked_trees::typed_trees::machine::resolve_satisfied_declaration(
                                 typed, machine, conformance,
                             ),
-                            Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                            Some(checked_trees::typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
                                 requirement,
                             )) if requirement.symbol == self.symbol
                         ),

@@ -13,7 +13,7 @@ struct PendingInstallationReachRow<'a> {
     concrete_service_reach: Vec<String>,
     unresolved: Vec<flow_effects::InstallationReachRequirement>,
     plan: &'a ProviderPlan,
-    realization: &'a typed_trees::machine::Machine,
+    realization: &'a checked_trees::typed_trees::machine::Machine,
 }
 
 pub(super) fn derive_selected_installation_reach_resolutions(
@@ -210,7 +210,7 @@ fn append_top_level_installation_reach_resolution<'a>(
     checked: &'a checked_trees::CheckedTrees,
     plan: &'a ProviderPlan,
     row: &ProviderPlanRow,
-    requirement: &'a typed_trees::machine::Machine,
+    requirement: &'a checked_trees::typed_trees::machine::Machine,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     resolutions: &mut Vec<effects::InstallationReachResolution>,
     pending: &mut Vec<PendingInstallationReachRow<'a>>,
@@ -246,13 +246,13 @@ fn append_top_level_installation_reach_resolution<'a>(
                     conformance.symbol == requirement.symbol
                         && conformance.requirement_symbol == requirement.symbol
                         && matches!(
-                            typed_trees::machine::resolve_satisfied_declaration(
+                            checked_trees::typed_trees::machine::resolve_satisfied_declaration(
                                 checked,
                                 machine,
                                 conformance,
                             ),
                             Some(
-                                typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                                checked_trees::typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
                                     selected,
                                 ),
                             ) if selected.symbol == requirement.symbol
@@ -311,7 +311,7 @@ fn service_upper_bound_names(
 
 fn record_installation_reach_row<'a>(
     plan: &'a ProviderPlan,
-    realization: &'a typed_trees::machine::Machine,
+    realization: &'a checked_trees::typed_trees::machine::Machine,
     envelope: &'a checked_trees::RealizedMachineContractEnvelope,
     requirement_identity: String,
     upper_bound: Vec<String>,
@@ -348,7 +348,7 @@ fn record_installation_reach_row<'a>(
 /// selected resolution in the closure remains unresolved and rejects.
 fn substitute_nested_installation_reaches(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    typed: &typed_trees::TypedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
     resolutions: &mut Vec<effects::InstallationReachResolution>,
     mut pending: Vec<PendingInstallationReachRow<'_>>,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
@@ -467,7 +467,7 @@ fn plan_scoped_resolution<'a>(
 /// trait requirement resolves to its exact overload identity under the trait
 /// definition that declares it.
 fn nested_requirement_identity(
-    typed: &typed_trees::TypedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
     requirement: symbols::SymbolHandle,
 ) -> Option<String> {
     if let Some(machine) = typed.machines().iter().find(|machine| {
@@ -497,7 +497,7 @@ fn nested_requirement_identity(
 fn unresolved_realization_reach_diagnostic(
     plan: &ProviderPlan,
     requirement_identity: &str,
-    realization: &typed_trees::machine::Machine,
+    realization: &checked_trees::typed_trees::machine::Machine,
     unresolved: usize,
 ) -> diagnostics::Diagnostic {
     diagnostics::Diagnostic::error(format!(

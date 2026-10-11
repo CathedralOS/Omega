@@ -53,10 +53,10 @@ pub(crate) use selection_provenance::{
 };
 pub(crate) use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 
+use checked_trees::typed_trees::TypedTrees;
 use effects::provider_grants::AuthoredRootGrant;
 use effects::provider_grants::resolve_selected_provider_grants;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
-use typed_trees::TypedTrees;
 
 use crate::provider_planning::selection_provenance::select_provider_plan_indices;
 use installation_reach::derive_selected_installation_reach_resolutions;

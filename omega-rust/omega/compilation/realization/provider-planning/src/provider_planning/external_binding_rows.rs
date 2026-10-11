@@ -14,7 +14,7 @@ pub(crate) fn extract_native_external_binding_rows(
     boundary_calling_plan_realizations: &[
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
-    typed: &typed_trees::TypedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     use calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
@@ -106,7 +106,7 @@ pub(crate) fn extract_native_external_binding_rows(
 /// canonical fingerprint; the typed program retains the corresponding plan
 /// internally so lowering never has to rediscover or re-run policy source.
 fn selected_source_boundary_entry_plan(
-    typed: &typed_trees::TypedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
     boundary_calling_plan_realizations: &[
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
@@ -177,7 +177,9 @@ fn selected_source_boundary_entry_plan(
             )));
         };
         let operator_identity =
-            typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
+            checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
+                typed, operator,
+            );
         if method.name != "realize"
             || method.requirement_owner != operator_identity
             || plan.schema.identity_text(method.requirement_identity) != operator_identity

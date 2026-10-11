@@ -3,8 +3,8 @@
 use crate::provider_planning::provenance_replay::{
     exact_authored_invocations, exact_checked_adapter_invocations, exact_row_for_schema_method,
 };
+use checked_trees::typed_trees::TypedTrees;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
-use typed_trees::TypedTrees;
 
 /// Reject a cycle in the direct synchronous graph realized by the concrete
 /// provider selection. Reach closure is intentionally irrelevant: only a

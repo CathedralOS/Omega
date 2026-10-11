@@ -11,18 +11,18 @@ mod applied_receivers;
 
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::planning_context::ProviderPlanningContext;
+use checked_trees::typed_trees::trait_definition::{AppliedTraitScope, AppliedTypeReference};
 use effects::provider_plan::{
     ProviderIdentityTable, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
     ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
     ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
 };
-use typed_trees::trait_definition::{AppliedTraitScope, AppliedTypeReference};
 
 /// Whether retained declaration provenance belongs to the product frontier.
 /// Build copies cannot supply final product plans even when package and names
 /// match. Source-free declarations retain their explicitly unscoped behavior.
 pub fn is_product_declaration(
-    program: &typed_trees::TypedTrees,
+    program: &checked_trees::typed_trees::TypedTrees,
     symbol: symbols::SymbolHandle,
 ) -> bool {
     ProviderPlanningContext::new(program, source::DependencyScope::Product).contains(symbol)
@@ -36,7 +36,7 @@ pub fn is_product_declaration(
 pub fn from_typed(
     context: ProviderPlanningContext<'_>,
     calling_plans: &[BoundaryCallingPlanRealization],
-    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    trait_definition: &checked_trees::typed_trees::trait_definition::TraitDefinition,
 ) -> Option<ServiceSchema> {
     from_typed_instance(context, calling_plans, trait_definition, &[])
 }
@@ -47,8 +47,8 @@ pub fn from_typed(
 pub fn from_typed_instance(
     context: ProviderPlanningContext<'_>,
     calling_plans: &[BoundaryCallingPlanRealization],
-    trait_definition: &typed_trees::trait_definition::TraitDefinition,
-    boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
+    trait_definition: &checked_trees::typed_trees::trait_definition::TraitDefinition,
+    boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
 ) -> Option<ServiceSchema> {
     let program = context.typed;
     if !trait_definition.is_boundary || !context.contains(trait_definition.symbol) {
@@ -92,15 +92,18 @@ pub fn from_typed_instance(
 /// f32/f64 overloads can never collide or be selected as one another.
 pub fn from_typed_operator(
     context: ProviderPlanningContext<'_>,
-    operator: &typed_trees::operator::OperatorDefinition,
+    operator: &checked_trees::typed_trees::operator::OperatorDefinition,
 ) -> Option<ServiceSchema> {
     let program = context.typed;
     if !context.contains(operator.symbol) || !operator.is_boundary {
         return None;
     }
     let mut identities = ProviderIdentityTable::default();
-    let requirement_identity = identities
-        .intern(&typed_trees::operator::boundary_operator_requirement_identity(program, operator));
+    let requirement_identity = identities.intern(
+        &checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
+            program, operator,
+        ),
+    );
     Some(ServiceSchema {
         trait_name: requirement_identity,
         receiver_applications: Vec::new(),
@@ -108,9 +111,10 @@ pub fn from_typed_operator(
         methods: vec![ServiceMethod {
             completion: validation::boundary_requirement_completion(program, operator.symbol),
             name: "realize".to_owned(),
-            requirement_owner: typed_trees::operator::boundary_operator_requirement_identity(
-                program, operator,
-            ),
+            requirement_owner:
+                checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
+                    program, operator,
+                ),
             requirement_owner_package_identity: program
                 .symbols
                 .symbol_package_identity(operator.symbol),
@@ -149,7 +153,7 @@ pub fn from_typed_operator(
 
 /// Whether a service schema binds exactly this boundary-operator coordinate.
 ///
-/// [`typed_trees::operator::boundary_operator_requirement_identity`] is
+/// [`checked_trees::typed_trees::operator::boundary_operator_requirement_identity`] is
 /// deliberately package-blind: two packages may declare same-spelled,
 /// same-signature boundary operators whose canonical identities are equal.
 /// Every replay join must therefore compare the retained package identity
@@ -158,13 +162,14 @@ pub fn from_typed_operator(
 pub fn schema_binds_exact_boundary_operator(
     context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
-    operator: &typed_trees::operator::OperatorDefinition,
+    operator: &checked_trees::typed_trees::operator::OperatorDefinition,
 ) -> bool {
     let program = context.typed;
     context.contains(operator.symbol)
         && operator.is_boundary
-        && typed_trees::operator::boundary_operator_requirement_identity(program, operator)
-            == schema.identity_text(schema.trait_name)
+        && checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
+            program, operator,
+        ) == schema.identity_text(schema.trait_name)
         && program.symbols.symbol_package_identity(operator.symbol) == schema.trait_package_identity
 }
 
@@ -174,7 +179,7 @@ pub fn schema_binds_exact_boundary_operator(
 pub fn schema_binds_exact_boundary_trait(
     context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
-    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    trait_definition: &checked_trees::typed_trees::trait_definition::TraitDefinition,
 ) -> bool {
     let program = context.typed;
     context.contains(trait_definition.symbol)
@@ -192,7 +197,7 @@ pub fn schema_binds_exact_boundary_trait(
 pub fn schema_binds_exact_boundary_requirement(
     context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
-    requirement: &typed_trees::machine::Machine,
+    requirement: &checked_trees::typed_trees::machine::Machine,
 ) -> bool {
     let program = context.typed;
     context.contains(requirement.symbol)
@@ -219,7 +224,7 @@ pub fn schema_binds_exact_boundary_requirement(
 /// application identity Terminal Psi mints.
 pub fn from_typed_boundary_requirement(
     context: ProviderPlanningContext<'_>,
-    requirement: &typed_trees::machine::Machine,
+    requirement: &checked_trees::typed_trees::machine::Machine,
 ) -> Option<ServiceSchema> {
     let program = context.typed;
     if !context.contains(requirement.symbol)
@@ -299,11 +304,11 @@ pub fn from_typed_boundary_requirement(
 }
 
 fn collect_service_methods(
-    program: &typed_trees::TypedTrees,
+    program: &checked_trees::typed_trees::TypedTrees,
     calling_plans: &[BoundaryCallingPlanRealization],
     scope: &AppliedTraitScope<'_>,
     policy_owner: symbols::SymbolHandle,
-    boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
+    boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
     methods: &mut Vec<ServiceMethod>,
     identities: &mut ProviderIdentityTable,
 ) {
@@ -372,8 +377,8 @@ fn collect_service_methods(
 }
 
 fn service_progress_premises(
-    program: &typed_trees::TypedTrees,
-    signature: &typed_trees::signature::StateSignature,
+    program: &checked_trees::typed_trees::TypedTrees,
+    signature: &checked_trees::typed_trees::signature::StateSignature,
     identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceProgressPremise> {
     service_progress_premises_for_parameters(
@@ -385,9 +390,9 @@ fn service_progress_premises(
 }
 
 fn service_progress_premises_for_parameters(
-    program: &typed_trees::TypedTrees,
+    program: &checked_trees::typed_trees::TypedTrees,
     guarantee: &language_semantics::TerminationGuarantee,
-    parameters: &[typed_trees::signature::StateParameter],
+    parameters: &[checked_trees::typed_trees::signature::StateParameter],
     identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceProgressPremise> {
     let language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
@@ -396,9 +401,11 @@ fn service_progress_premises_for_parameters(
     premises
         .iter()
         .map(|premise| {
-            let position =
-                typed_trees::signature::state_parameter_position(parameters, premise.subject.root)
-                    .expect("normalized public progress premise must be parameter-rooted");
+            let position = checked_trees::typed_trees::signature::state_parameter_position(
+                parameters,
+                premise.subject.root,
+            )
+            .expect("normalized public progress premise must be parameter-rooted");
             let subject = ServiceProgressSubject::Parameter(position);
             let profile = program
                 .semantic_domains
@@ -425,7 +432,7 @@ fn service_progress_premises_for_parameters(
 }
 
 fn service_progress_establishment_routes(
-    program: &typed_trees::TypedTrees,
+    program: &checked_trees::typed_trees::TypedTrees,
     profile: language_semantics::SemanticDomainId,
     identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceProgressEstablishmentRoute> {
@@ -489,9 +496,9 @@ fn service_progress_establishment_routes(
 }
 
 fn service_entry_claims(
-    program: &typed_trees::TypedTrees,
+    program: &checked_trees::typed_trees::TypedTrees,
     scope: &AppliedTraitScope<'_>,
-    signature: &typed_trees::signature::StateSignature,
+    signature: &checked_trees::typed_trees::signature::StateSignature,
     identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceEntryClaim> {
     let mut claims = Vec::new();
@@ -533,9 +540,9 @@ fn service_entry_claims(
 }
 
 fn service_result_claims(
-    program: &typed_trees::TypedTrees,
+    program: &checked_trees::typed_trees::TypedTrees,
     scope: &AppliedTraitScope<'_>,
-    signature: &typed_trees::signature::StateSignature,
+    signature: &checked_trees::typed_trees::signature::StateSignature,
     identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceResultClaim> {
     let reference = scope.type_reference(program, signature.return_type);
@@ -559,14 +566,14 @@ fn service_result_claims(
 }
 
 fn append_bodyless_result_claims(
-    program: &typed_trees::TypedTrees,
+    program: &checked_trees::typed_trees::TypedTrees,
     reference: AppliedTypeReference<'_>,
     boundary_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
     identities: &mut ProviderIdentityTable,
     claims: &mut Vec<ServiceResultClaim>,
 ) {
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    use checked_trees::typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     match program
         .type_reference_table
@@ -628,7 +635,7 @@ fn append_bodyless_result_claims(
 }
 
 fn append_routed_entry_claims(
-    program: &typed_trees::TypedTrees,
+    program: &checked_trees::typed_trees::TypedTrees,
     reference: AppliedTypeReference<'_>,
     parameter_index: usize,
     boundary_trait: symbols::SymbolHandle,
@@ -636,7 +643,7 @@ fn append_routed_entry_claims(
     identities: &mut ProviderIdentityTable,
     claims: &mut Vec<ServiceEntryClaim>,
 ) {
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    use checked_trees::typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     match program
         .type_reference_table
@@ -709,9 +716,9 @@ fn append_routed_entry_claims(
 }
 
 fn service_reach_names(
-    program: &typed_trees::TypedTrees,
-    trait_definition: &typed_trees::trait_definition::TraitDefinition,
-    signature: &typed_trees::signature::StateSignature,
+    program: &checked_trees::typed_trees::TypedTrees,
+    trait_definition: &checked_trees::typed_trees::trait_definition::TraitDefinition,
+    signature: &checked_trees::typed_trees::signature::StateSignature,
 ) -> Vec<String> {
     let mut services = program
         .service_reach_rows
@@ -739,7 +746,7 @@ fn service_reach_names(
 }
 
 fn service_reach_row_names(
-    program: &typed_trees::TypedTrees,
+    program: &checked_trees::typed_trees::TypedTrees,
     row: language_semantics::ServiceReachRowId,
 ) -> Vec<String> {
     let mut names = program
@@ -755,8 +762,8 @@ fn service_reach_row_names(
 }
 
 fn synchronous_invocation_names(
-    program: &typed_trees::TypedTrees,
-    signature: &typed_trees::signature::StateSignature,
+    program: &checked_trees::typed_trees::TypedTrees,
+    signature: &checked_trees::typed_trees::signature::StateSignature,
 ) -> Vec<String> {
     let parameters = program
         .state_signature_parameters(signature)
@@ -770,8 +777,8 @@ fn synchronous_invocation_names(
 }
 
 fn machine_synchronous_invocation_names(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    program: &checked_trees::typed_trees::TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
 ) -> Vec<String> {
     let Some(entry) = program.machine_states(machine).first() else {
         return Vec::new();
@@ -785,8 +792,8 @@ fn machine_synchronous_invocation_names(
 }
 
 fn boundary_trait_name_for_type(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    program: &checked_trees::typed_trees::TypedTrees,
+    type_reference: checked_trees::typed_trees::types::TypeReferenceHandle,
 ) -> Option<String> {
     let symbol = program
         .type_reference_table
@@ -804,9 +811,9 @@ fn boundary_trait_name_for_type(
 /// own parameter roster to their boundary-trait type name, and service
 /// targets name the boundary trait directly.
 fn boundary_invocation_names(
-    program: &typed_trees::TypedTrees,
+    program: &checked_trees::typed_trees::TypedTrees,
     targets: Vec<flow_effects::InvocationTarget>,
-    parameters: &[&typed_trees::signature::StateParameter],
+    parameters: &[&checked_trees::typed_trees::signature::StateParameter],
 ) -> Vec<String> {
     let mut names = targets
         .into_iter()

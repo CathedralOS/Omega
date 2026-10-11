@@ -1,7 +1,7 @@
 //! Rejoin executed root-binding requests to the admitted build source.
 
+use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 use super::RootBinding;
 
@@ -163,7 +163,7 @@ pub fn collect_root_bindings(
     }
 }
 
-fn product_path(members: &[typed_trees::name::Identifier]) -> String {
+fn product_path(members: &[checked_trees::typed_trees::name::Identifier]) -> String {
     let mut path = String::new();
     for member in members {
         if !path.is_empty() {

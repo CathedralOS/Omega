@@ -8,8 +8,8 @@
 //! Unrelated same-leaf traits cannot redirect selection, including when Build and
 //! product retain separate package instances.
 
+use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 mod extent_layout;
 mod root_bindings;
@@ -304,8 +304,8 @@ fn validate_program_entry_source_compatibility(
 /// Borrowed source coordinates shared by entry selection and service discovery.
 pub struct ProvisionedEntryContext<'program> {
     pub source_position: u32,
-    pub parameter: &'program typed_trees::signature::StateParameter,
-    pub definition: &'program typed_trees::data::DataDefinition,
+    pub parameter: &'program checked_trees::typed_trees::signature::StateParameter,
+    pub definition: &'program checked_trees::typed_trees::data::DataDefinition,
 }
 
 /// The source occurrence provisioned by the entry bridge is not a physical
@@ -313,8 +313,8 @@ pub struct ProvisionedEntryContext<'program> {
 /// Placed views keep their own custody-input role.
 pub fn provisioned_entry_context<'program>(
     typed: &'program TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    entry: &typed_trees::state::State,
+    machine: &checked_trees::typed_trees::machine::Machine,
+    entry: &checked_trees::typed_trees::state::State,
 ) -> Result<Option<ProvisionedEntryContext<'program>>, Diagnostic> {
     provisioned_entry_context_from_parameters(
         typed,
@@ -326,9 +326,9 @@ pub fn provisioned_entry_context<'program>(
 fn provisioned_entry_context_from_parameters<'program>(
     typed: &'program TypedTrees,
     machine_name: &str,
-    parameters: &'program [typed_trees::signature::StateParameter],
+    parameters: &'program [checked_trees::typed_trees::signature::StateParameter],
 ) -> Result<Option<ProvisionedEntryContext<'program>>, Diagnostic> {
-    use typed_trees::types::TypeReferenceNode;
+    use checked_trees::typed_trees::types::TypeReferenceNode;
 
     let mut candidates = parameters.iter().enumerate().filter(|(_, parameter)| {
         !parameter.relevance.is_erased()
@@ -975,7 +975,7 @@ fn selected_entry_schema<'program>(
     slot: target::ProgramEntrySlotDeclaration,
     schema_name: &str,
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-) -> Result<&'program typed_trees::trait_definition::TraitDefinition, Diagnostic> {
+) -> Result<&'program checked_trees::typed_trees::trait_definition::TraitDefinition, Diagnostic> {
     let package = slot.physical_contract_package.ok_or_else(|| {
         Diagnostic::error("target entry slot has no physical contract package identity")
     })?;
@@ -1201,7 +1201,7 @@ fn physical_contract_package_source_report_fingerprint(identity: &[u8], source: 
 }
 
 struct ArrivalRequirementParameterType {
-    identity: typed_trees::type_identity::NormalizedTypeIdentity,
+    identity: checked_trees::typed_trees::type_identity::NormalizedTypeIdentity,
     display: String,
     is_const: bool,
     is_mutable: bool,
@@ -1211,7 +1211,7 @@ struct ArrivalRequirementContract {
     signature: symbols::SymbolHandle,
     requirement_identity: String,
     parameters: Vec<ArrivalRequirementParameterType>,
-    result_type_identity: Option<typed_trees::type_identity::NormalizedTypeIdentity>,
+    result_type_identity: Option<checked_trees::typed_trees::type_identity::NormalizedTypeIdentity>,
 }
 
 /// Source-shape queries run before package calling-plan selection. Their
@@ -1262,7 +1262,7 @@ fn core_arrival_requirement_contract(
 /// than reconstructed from display strings in the Omega orchestrator.
 fn arrival_requirement_contract(
     typed: &TypedTrees,
-    schema: &typed_trees::trait_definition::TraitDefinition,
+    schema: &checked_trees::typed_trees::trait_definition::TraitDefinition,
     requirement: &str,
 ) -> Result<ArrivalRequirementContract, Diagnostic> {
     let Some((owner, method)) = requirement.split_once("::") else {
@@ -1332,9 +1332,9 @@ fn arrival_requirement_contract(
 /// rather than arrive as parameters.
 fn visible_entry_parameters<'program>(
     typed: &TypedTrees,
-    parameters: &'program [typed_trees::signature::StateParameter],
+    parameters: &'program [checked_trees::typed_trees::signature::StateParameter],
     context: &Option<ProvisionedEntryContext<'program>>,
-) -> Vec<&'program typed_trees::signature::StateParameter> {
+) -> Vec<&'program checked_trees::typed_trees::signature::StateParameter> {
     parameters
         .iter()
         .filter(|parameter| {

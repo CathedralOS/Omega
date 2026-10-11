@@ -33,18 +33,18 @@ pub fn provider_selection_roots<'selection>(
                             "provider selection lost its exact trait declaration",
                         )]
                     })?;
-                typed_trees::trait_definition::AppliedTraitScope::abstract_scope(definition).visit(
-                    context.typed,
-                    &mut |scope| {
-                        roots.extend(
-                            context
-                                .typed
-                                .trait_machine_signatures(scope.declaration)
-                                .iter()
-                                .map(|row| row.symbol),
-                        );
-                    },
-                );
+                checked_trees::typed_trees::trait_definition::AppliedTraitScope::abstract_scope(
+                    definition,
+                )
+                .visit(context.typed, &mut |scope| {
+                    roots.extend(
+                        context
+                            .typed
+                            .trait_machine_signatures(scope.declaration)
+                            .iter()
+                            .map(|row| row.symbol),
+                    );
+                });
             }
             ProviderSelectionSubject::BoundaryRequirement(identity) => roots.push(identity.symbol),
             ProviderSelectionSubject::BoundaryOperatorFamily(family) => {

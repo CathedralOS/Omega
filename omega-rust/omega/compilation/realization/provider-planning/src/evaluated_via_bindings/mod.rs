@@ -93,7 +93,7 @@ pub struct EvaluatedViaBindingRow {
     realization_machine: SymbolHandle,
     satisfied_owner: SymbolHandle,
     requirement: SymbolHandle,
-    via_expression: typed_trees::expression::ExpressionHandle,
+    via_expression: checked_trees::typed_trees::expression::ExpressionHandle,
     producer_machine: SymbolHandle,
     producer_entry_state: SymbolHandle,
     via_source_span: SourceSpan,
@@ -110,7 +110,7 @@ impl EvaluatedViaBindingRow {
     pub const fn requirement(&self) -> SymbolHandle {
         self.requirement
     }
-    pub const fn via_expression(&self) -> typed_trees::expression::ExpressionHandle {
+    pub const fn via_expression(&self) -> checked_trees::typed_trees::expression::ExpressionHandle {
         self.via_expression
     }
     pub const fn producer_machine(&self) -> SymbolHandle {

@@ -12,6 +12,8 @@ use crate::evaluated_via_bindings::{
 use build_time_evaluation::{
     BuildTimeAdmissionPlan, BuildTimeInvocationCustody, CURRENT_EVALUATION_SEMANTICS,
 };
+use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::data::{DataDefinition, DataMember, TypeParameterKind};
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
     EvaluatedBindingReceipt, EvaluatedForeignImport, EvaluatedForeignSyscall,
@@ -20,18 +22,18 @@ use source::{SourceFile, SourceOrigin};
 use std::path::Path;
 use symbols::SymbolHandle;
 use target::{TargetProfile, normalize_foreign_locator};
-use typed_trees::TypedTrees;
-use typed_trees::data::{DataDefinition, DataMember, TypeParameterKind};
 
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use checked_trees::typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(crate) fn evaluate_one(
     typed: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
     vocabulary: &BindingVocabulary,
     target: TargetProfile,
-    machine: &typed_trees::machine::Machine,
-    conformance: &typed_trees::machine::TraitConformance,
+    machine: &checked_trees::typed_trees::machine::Machine,
+    conformance: &checked_trees::typed_trees::machine::TraitConformance,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<EvaluatedViaBindingRow, Diagnostic> {
     let expression = conformance.via_expression;

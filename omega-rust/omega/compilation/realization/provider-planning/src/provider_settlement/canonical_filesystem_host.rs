@@ -41,10 +41,10 @@
 //! because the realization is a toolchain settlement table entry, not an
 //! authored machine.
 
+use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
 use package_compilation::AcceptedSemanticBinding;
-use typed_trees::TypedTrees;
 
 /// Nominal provider identity for toolchain-settled canonical-host plans.
 ///

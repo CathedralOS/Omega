@@ -6,8 +6,8 @@
 //! dispatch both reject.
 
 use super::IntrinsicRequirement;
+use checked_trees::typed_trees::TypedTrees;
 use effects::CompilerIntrinsicExecutionIdentity;
-use typed_trees::TypedTrees;
 
 impl IntrinsicRequirement<'_> {
     /// Render the compiler-known realization this requirement selects. The
@@ -49,13 +49,13 @@ impl IntrinsicRequirement<'_> {
                     let (expected_source, expected_result, source_name) =
                         match (namespace, requirement_name) {
                             ("F32", "from_f64") => (
-                                typed_trees::types::PrimitiveType::F64,
-                                typed_trees::types::PrimitiveType::F32,
+                                checked_trees::typed_trees::types::PrimitiveType::F64,
+                                checked_trees::typed_trees::types::PrimitiveType::F32,
                                 "f64",
                             ),
                             ("F64", "from_f32") => (
-                                typed_trees::types::PrimitiveType::F32,
-                                typed_trees::types::PrimitiveType::F64,
+                                checked_trees::typed_trees::types::PrimitiveType::F32,
+                                checked_trees::typed_trees::types::PrimitiveType::F64,
                                 "f32",
                             ),
                             _ => return None,
@@ -72,20 +72,20 @@ impl IntrinsicRequirement<'_> {
                 }
                 if let Some(source_name) = requirement_name.strip_prefix("from_") {
                     let expected_source = match source_name {
-                        "i8" => typed_trees::types::PrimitiveType::I8,
-                        "i16" => typed_trees::types::PrimitiveType::I16,
-                        "i32" => typed_trees::types::PrimitiveType::I32,
-                        "i64" => typed_trees::types::PrimitiveType::I64,
-                        "u8" => typed_trees::types::PrimitiveType::U8,
-                        "u16" => typed_trees::types::PrimitiveType::U16,
-                        "u32" => typed_trees::types::PrimitiveType::U32,
-                        "u64" => typed_trees::types::PrimitiveType::U64,
+                        "i8" => checked_trees::typed_trees::types::PrimitiveType::I8,
+                        "i16" => checked_trees::typed_trees::types::PrimitiveType::I16,
+                        "i32" => checked_trees::typed_trees::types::PrimitiveType::I32,
+                        "i64" => checked_trees::typed_trees::types::PrimitiveType::I64,
+                        "u8" => checked_trees::typed_trees::types::PrimitiveType::U8,
+                        "u16" => checked_trees::typed_trees::types::PrimitiveType::U16,
+                        "u32" => checked_trees::typed_trees::types::PrimitiveType::U32,
+                        "u64" => checked_trees::typed_trees::types::PrimitiveType::U64,
                         _ => return None,
                     };
                     let expected_result = if namespace == "F32" {
-                        typed_trees::types::PrimitiveType::F32
+                        checked_trees::typed_trees::types::PrimitiveType::F32
                     } else {
-                        typed_trees::types::PrimitiveType::F64
+                        checked_trees::typed_trees::types::PrimitiveType::F64
                     };
                     let [value] = parameters else {
                         return None;
@@ -130,9 +130,9 @@ impl IntrinsicRequirement<'_> {
                     _ => return None,
                 };
                 let expected_primitive = if namespace == "F32" {
-                    typed_trees::types::PrimitiveType::F32
+                    checked_trees::typed_trees::types::PrimitiveType::F32
                 } else {
-                    typed_trees::types::PrimitiveType::F64
+                    checked_trees::typed_trees::types::PrimitiveType::F64
                 };
                 match parameters {
                     [value]
@@ -180,7 +180,9 @@ impl IntrinsicRequirement<'_> {
                     if typed.display_type_reference(return_type) != "FloatClass" {
                         return None;
                     }
-                    let format = if expected_primitive == typed_trees::types::PrimitiveType::F32 {
+                    let format = if expected_primitive
+                        == checked_trees::typed_trees::types::PrimitiveType::F32
+                    {
                         "f32"
                     } else {
                         "f64"
@@ -191,7 +193,7 @@ impl IntrinsicRequirement<'_> {
                     operation,
                     "is_nan" | "is_finite" | "is_infinite" | "is_normal" | "is_subnormal"
                 ) {
-                    typed_trees::types::PrimitiveType::Bool
+                    checked_trees::typed_trees::types::PrimitiveType::Bool
                 } else {
                     expected_primitive
                 };
@@ -199,19 +201,19 @@ impl IntrinsicRequirement<'_> {
             }
             "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64" => {
                 let expected_result = match namespace {
-                    "I8" => typed_trees::types::PrimitiveType::I8,
-                    "I16" => typed_trees::types::PrimitiveType::I16,
-                    "I32" => typed_trees::types::PrimitiveType::I32,
-                    "I64" => typed_trees::types::PrimitiveType::I64,
-                    "U8" => typed_trees::types::PrimitiveType::U8,
-                    "U16" => typed_trees::types::PrimitiveType::U16,
-                    "U32" => typed_trees::types::PrimitiveType::U32,
-                    "U64" => typed_trees::types::PrimitiveType::U64,
+                    "I8" => checked_trees::typed_trees::types::PrimitiveType::I8,
+                    "I16" => checked_trees::typed_trees::types::PrimitiveType::I16,
+                    "I32" => checked_trees::typed_trees::types::PrimitiveType::I32,
+                    "I64" => checked_trees::typed_trees::types::PrimitiveType::I64,
+                    "U8" => checked_trees::typed_trees::types::PrimitiveType::U8,
+                    "U16" => checked_trees::typed_trees::types::PrimitiveType::U16,
+                    "U32" => checked_trees::typed_trees::types::PrimitiveType::U32,
+                    "U64" => checked_trees::typed_trees::types::PrimitiveType::U64,
                     _ => unreachable!(),
                 };
                 let (expected_source, source_name) = match requirement_name {
-                    "from_f32" => (typed_trees::types::PrimitiveType::F32, "f32"),
-                    "from_f64" => (typed_trees::types::PrimitiveType::F64, "f64"),
+                    "from_f32" => (checked_trees::typed_trees::types::PrimitiveType::F32, "f32"),
+                    "from_f64" => (checked_trees::typed_trees::types::PrimitiveType::F64, "f64"),
                     _ => return None,
                 };
                 let [value] = parameters else {
@@ -239,8 +241,8 @@ impl IntrinsicRequirement<'_> {
             return None;
         }
         let format = match primitive {
-            typed_trees::types::PrimitiveType::F32 => "f32",
-            typed_trees::types::PrimitiveType::F64 => "f64",
+            checked_trees::typed_trees::types::PrimitiveType::F32 => "f32",
+            checked_trees::typed_trees::types::PrimitiveType::F64 => "f64",
             _ => return None,
         };
         Some(format!("{}::{operation}.{format}", namespace))

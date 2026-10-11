@@ -3,12 +3,12 @@
 //! from selected declaration custody; it grants no execution authority.
 
 use crate::{ProviderSchemaDeclaration, SelectedProviderPlanWithProvenance};
+use checked_trees::typed_trees::{BoundaryCompletionDeclaration, TypedTrees};
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 use package_compilation::{AcceptedSemanticBindingRole, PackageCompilationInputs};
 use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind, PackageKeyIdentity};
 use symbols::SymbolHandle;
-use typed_trees::{BoundaryCompletionDeclaration, TypedTrees};
 
 pub(super) fn attach_accepted(
     typed: &mut TypedTrees,

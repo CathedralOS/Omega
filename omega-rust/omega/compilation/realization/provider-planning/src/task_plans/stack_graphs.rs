@@ -390,13 +390,15 @@ fn frame_state_closure<'program>(
 fn push_transition_successor(
     program: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
-    target: typed_trees::statement::TransitionTargetHandle,
+    target: checked_trees::typed_trees::statement::TransitionTargetHandle,
     pending: &mut Vec<SymbolHandle>,
 ) {
     let symbol = match program.statement_table.transition_target(target) {
-        typed_trees::statement::TransitionTargetNode::Named { path, .. } => path.symbol,
-        typed_trees::statement::TransitionTargetNode::Value(_)
-        | typed_trees::statement::TransitionTargetNode::Terminal => return,
+        checked_trees::typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
+            path.symbol
+        }
+        checked_trees::typed_trees::statement::TransitionTargetNode::Value(_)
+        | checked_trees::typed_trees::statement::TransitionTargetNode::Terminal => return,
     };
     if symbol.is_valid()
         && program
@@ -464,7 +466,7 @@ fn frame_value_layout(
     program: &CheckedTrees,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: checked_trees::typed_trees::types::TypeReferenceHandle,
 ) -> Result<TypeLayout, Vec<Diagnostic>> {
     layout::layout_type_reference(
         program,

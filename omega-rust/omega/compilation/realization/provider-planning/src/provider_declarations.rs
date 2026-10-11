@@ -8,15 +8,15 @@
 
 use crate::{ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity};
 use build_time_evaluation::is_exact_toolchain_build_prelude_data;
+use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 
 /// Static target-default declarations have their own admission path. Authored
 /// Build overrides instead enter through executed call receipts below.
 pub(crate) fn harvest_provider_selections(
     context: ProviderPlanningContext<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &checked_trees::typed_trees::machine::Machine,
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
     let typed = context.typed;
     if !context.contains(machine.symbol) {
@@ -29,8 +29,8 @@ pub(crate) fn harvest_provider_selections(
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
             match statement {
-                typed_trees::statement::StatementNode::Expression(expression) => {
-                    if let typed_trees::expression::ExpressionNode::Call(call) =
+                checked_trees::typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let checked_trees::typed_trees::expression::ExpressionNode::Call(call) =
                         typed.expression_table.expression(*expression)
                         && !call.target_symbol.is_valid()
                     {
@@ -50,7 +50,7 @@ pub(crate) fn harvest_provider_selections(
                         });
                     }
                 }
-                typed_trees::statement::StatementNode::Call(call)
+                checked_trees::typed_trees::statement::StatementNode::Call(call)
                     if !call.target_symbol.is_valid() =>
                 {
                     requests.push(ProviderSelectionCall {
@@ -72,8 +72,8 @@ pub(crate) fn harvest_provider_selections(
 
 struct ProviderSelectionCall<'a> {
     target: &'a str,
-    arguments: &'a [typed_trees::expression::StaticMachineArgument],
-    value_arguments: &'a [typed_trees::expression::ExpressionHandle],
+    arguments: &'a [checked_trees::typed_trees::expression::StaticMachineArgument],
+    value_arguments: &'a [checked_trees::typed_trees::expression::ExpressionHandle],
     source_span: source::SourceSpan,
     machine: SymbolHandle,
     composition_case: Option<SymbolHandle>,
@@ -100,7 +100,7 @@ pub fn collect_executed_provider_selections(
             let request = match row.site {
                 checked_interpreter::ExecutedProviderSelectionSite::Statement(handle) => {
                     match typed.statement_table.statement(handle) {
-                        typed_trees::statement::StatementNode::Call(call)
+                        checked_trees::typed_trees::statement::StatementNode::Call(call)
                             if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
                                 call.target.as_str(),
                                 call.target_symbol,
@@ -123,7 +123,7 @@ pub fn collect_executed_provider_selections(
                 }
                 checked_interpreter::ExecutedProviderSelectionSite::Expression(handle) => {
                     match typed.expression_table.expression(handle) {
-                        typed_trees::expression::ExpressionNode::Call(call)
+                        checked_trees::typed_trees::expression::ExpressionNode::Call(call)
                             if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
                                 call.target.as_str(),
                                 call.target_symbol,
@@ -165,7 +165,7 @@ pub fn collect_executed_provider_selections(
 
 fn provider_selection_expression_source_span(
     typed: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: checked_trees::typed_trees::expression::ExpressionHandle,
 ) -> source::SourceSpan {
     // The declaration occurrence names the call itself. An expression's
     // enclosing span can be synthetic after receiver/statement lowering.
@@ -209,27 +209,28 @@ fn collect_provider_selections<'a>(
             ));
             return;
         };
-        let project_identity = |argument: &typed_trees::expression::StaticMachineArgument,
-                                is_provider: bool| {
-            let authored_path = argument.path.joined_path();
-            let symbol = if product_operands {
-                typed_trees::product_operand::resolve_product_operand(
-                    typed,
-                    argument,
-                    source_span,
-                    !is_provider,
-                )
-                .unwrap_or_else(SymbolHandle::invalid)
-            } else {
-                argument.symbol
+        let project_identity =
+            |argument: &checked_trees::typed_trees::expression::StaticMachineArgument,
+             is_provider: bool| {
+                let authored_path = argument.path.joined_path();
+                let symbol = if product_operands {
+                    checked_trees::typed_trees::product_operand::resolve_product_operand(
+                        typed,
+                        argument,
+                        source_span,
+                        !is_provider,
+                    )
+                    .unwrap_or_else(SymbolHandle::invalid)
+                } else {
+                    argument.symbol
+                };
+                ProviderSelectionIdentity {
+                    symbol,
+                    package: typed.symbols.symbol_package_identity(symbol),
+                    canonical_path: typed.symbols.display_path(symbol, "::"),
+                    authored_path,
+                }
             };
-            ProviderSelectionIdentity {
-                symbol,
-                package: typed.symbols.symbol_package_identity(symbol),
-                canonical_path: typed.symbols.display_path(symbol, "::"),
-                authored_path,
-            }
-        };
         let boundary_identity = project_identity(boundary_argument, false);
         let provider_type = project_identity(provider_argument, true);
         if !context.contains(boundary_identity.symbol) || !context.contains(provider_type.symbol) {
@@ -367,7 +368,7 @@ fn collect_provider_selections<'a>(
 
 fn provider_selection_composition_mode(
     typed: &TypedTrees,
-    arguments: &[typed_trees::expression::ExpressionHandle],
+    arguments: &[checked_trees::typed_trees::expression::ExpressionHandle],
 ) -> Result<crate::CompositionMode, Diagnostic> {
     let Some((_, arguments)) = arguments.split_first() else {
         return Err(Diagnostic::error(
@@ -413,7 +414,7 @@ fn provider_composition_case(
         .data_members(modes)
         .iter()
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Variant(variant)
+            checked_trees::typed_trees::data::DataMember::Variant(variant)
                 if variant.symbol == case_symbol
                     && typed.symbols.get(variant.symbol).parent == modes.symbol =>
             {
@@ -449,12 +450,14 @@ fn provider_composition_case(
 /// toolchain case at the caller; any other expression is not a case.
 fn exact_case_argument_symbol(
     typed: &TypedTrees,
-    argument: typed_trees::expression::ExpressionHandle,
+    argument: checked_trees::typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let symbol = match typed.expression_table.expression(argument) {
-        typed_trees::expression::ExpressionNode::Name(path) => Some(path.symbol),
-        typed_trees::expression::ExpressionNode::Member(member) => Some(member.member_symbol),
-        typed_trees::expression::ExpressionNode::StructLiteral(literal)
+        checked_trees::typed_trees::expression::ExpressionNode::Name(path) => Some(path.symbol),
+        checked_trees::typed_trees::expression::ExpressionNode::Member(member) => {
+            Some(member.member_symbol)
+        }
+        checked_trees::typed_trees::expression::ExpressionNode::StructLiteral(literal)
             if literal.fields.is_empty() =>
         {
             Some(literal.case_symbol.unwrap_or_else(SymbolHandle::invalid))

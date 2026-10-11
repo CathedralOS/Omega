@@ -257,7 +257,7 @@ pub fn reject_undischarged_build_bound_progress(
 fn owning_machine(
     program: &checked_trees::CheckedTrees,
     symbol: SymbolHandle,
-) -> Option<&typed_trees::machine::Machine> {
+) -> Option<&checked_trees::typed_trees::machine::Machine> {
     program
         .machines()
         .iter()

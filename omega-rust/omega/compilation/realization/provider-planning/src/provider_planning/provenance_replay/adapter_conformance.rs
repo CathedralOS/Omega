@@ -60,7 +60,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
     context: ProviderPlanningContext<'typed>,
     plan: &ProviderPlan,
     requirement: symbols::SymbolHandle,
-) -> Result<Option<&'typed typed_trees::machine::Machine>, diagnostics::Diagnostic> {
+) -> Result<Option<&'typed checked_trees::typed_trees::machine::Machine>, diagnostics::Diagnostic> {
     let typed = context.typed;
     if !context.contains(requirement) {
         return Err(diagnostics::Diagnostic::error(format!(
@@ -129,7 +129,7 @@ pub fn exact_checked_adapter<'typed>(
     context: ProviderPlanningContext<'typed>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
-) -> Result<&'typed typed_trees::machine::Machine, diagnostics::Diagnostic> {
+) -> Result<&'typed checked_trees::typed_trees::machine::Machine, diagnostics::Diagnostic> {
     let typed = context.typed;
     let ProviderBinding::CheckedAdapter {
         machine_identity,
@@ -256,15 +256,19 @@ fn validate_exact_requirement_lifetime_partition(
     context: ProviderPlanningContext<'_>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
-    realization: &typed_trees::machine::Machine,
+    realization: &checked_trees::typed_trees::machine::Machine,
 ) -> Result<(), diagnostics::Diagnostic> {
     let typed = context.typed;
     let mut matching = Vec::new();
     for conformance in typed.machine_trait_conformances(realization) {
-        let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+        let Some(checked_trees::typed_trees::machine::SatisfiedDeclaration::Trait {
             definition,
             requirement,
-        }) = typed_trees::machine::resolve_satisfied_declaration(typed, realization, conformance)
+        }) = checked_trees::typed_trees::machine::resolve_satisfied_declaration(
+            typed,
+            realization,
+            conformance,
+        )
         else {
             continue;
         };
@@ -313,7 +317,7 @@ fn validate_exact_requirement_lifetime_partition(
 
 fn exact_invocation_service_name(
     context: ProviderPlanningContext<'_>,
-    machine: &typed_trees::machine::Machine,
+    machine: &checked_trees::typed_trees::machine::Machine,
     target: flow_effects::InvocationTarget,
 ) -> Result<String, diagnostics::Diagnostic> {
     let typed = context.typed;
@@ -441,7 +445,7 @@ pub(crate) fn exact_checked_adapter_invocations(
                 .filter(|operator| {
                     operator.is_boundary
                         && context.contains(operator.symbol)
-                        && typed_trees::operator::boundary_operator_requirement_identity(
+                        && checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
                             typed, operator,
                         ) == method.requirement_owner
                         && typed.symbols.symbol_package_identity(operator.symbol)

@@ -1,9 +1,9 @@
 //! Translate a checked source primitive into the closed realization vocabulary.
 
 pub const fn primitive_numeric_type(
-    primitive: typed_trees::types::PrimitiveType,
+    primitive: checked_trees::typed_trees::types::PrimitiveType,
 ) -> Option<effects::CompilerNumericType> {
-    use typed_trees::types::PrimitiveType;
+    use checked_trees::typed_trees::types::PrimitiveType;
 
     match primitive {
         PrimitiveType::I8 => Some(effects::CompilerNumericType::I8),

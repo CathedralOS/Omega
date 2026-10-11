@@ -4,13 +4,13 @@
 //! payload; neither attached machine namespaces nor target defaults select code.
 
 use super::boundary_signatures::trait_type_bindings;
+use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use layout::BoundaryTypeBinding;
-use typed_trees::TypedTrees;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn boundary_policy_instances(
     typed: &TypedTrees,
-    boundary: &typed_trees::trait_definition::TraitDefinition,
+    boundary: &checked_trees::typed_trees::trait_definition::TraitDefinition,
     policy_argument: TypeReferenceHandle,
 ) -> Result<Vec<(Vec<TypeReferenceHandle>, TypeReferenceHandle)>, String> {
     let parameters = typed.trait_type_parameters(boundary);
@@ -54,7 +54,7 @@ pub(crate) fn boundary_policy_instances(
 fn named_parameter_index(
     typed: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
-    parameters: &[typed_trees::data::TypeParameter],
+    parameters: &[checked_trees::typed_trees::data::TypeParameter],
 ) -> Option<usize> {
     loop {
         match typed.type_reference_table.type_reference(type_reference) {
@@ -73,11 +73,11 @@ fn named_parameter_index(
 /// row. A same-named attached machine is never an implementation selection.
 pub(crate) fn selected_policy_machine<'program>(
     typed: &'program TypedTrees,
-    boundary: &typed_trees::trait_definition::TraitDefinition,
+    boundary: &checked_trees::typed_trees::trait_definition::TraitDefinition,
     boundary_arguments: &[TypeReferenceHandle],
     policy_argument: TypeReferenceHandle,
-    calling_policy: &typed_trees::trait_definition::TraitDefinition,
-) -> Result<&'program typed_trees::machine::Machine, String> {
+    calling_policy: &checked_trees::typed_trees::trait_definition::TraitDefinition,
+) -> Result<&'program checked_trees::typed_trees::machine::Machine, String> {
     let bindings = trait_type_bindings(typed, boundary, boundary_arguments);
     let selected = policy_static_argument(typed, policy_argument, &bindings)?;
     let application =
@@ -136,7 +136,7 @@ fn policy_static_argument(
     typed: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
     bindings: &[BoundaryTypeBinding],
-) -> Result<typed_trees::expression::StaticMachineArgument, String> {
+) -> Result<checked_trees::typed_trees::expression::StaticMachineArgument, String> {
     if let Some(symbol) = typed
         .type_reference_table
         .type_reference(type_reference)
@@ -186,10 +186,12 @@ fn policy_static_argument(
             (
                 *base_symbol,
                 base_name.clone(),
-                Some(Box::new(typed_trees::expression::StaticSymbolApplication {
-                    lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
-                    arguments: arguments.into_boxed_slice(),
-                })),
+                Some(Box::new(
+                    checked_trees::typed_trees::expression::StaticSymbolApplication {
+                        lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
+                        arguments: arguments.into_boxed_slice(),
+                    },
+                )),
             )
         }
         _ => {
@@ -212,21 +214,23 @@ fn policy_static_argument(
                 .to_owned(),
         );
     }
-    Ok(typed_trees::expression::StaticMachineArgument {
-        type_reference: if matches!(
-            typed.symbols.get(symbol).kind,
-            symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
-        ) {
-            TypeReferenceHandle::invalid()
-        } else {
-            type_reference
+    Ok(
+        checked_trees::typed_trees::expression::StaticMachineArgument {
+            type_reference: if matches!(
+                typed.symbols.get(symbol).kind,
+                symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
+            ) {
+                TypeReferenceHandle::invalid()
+            } else {
+                type_reference
+            },
+            path: Box::from([name]),
+            application,
+            const_literal: None,
+            evidence_projection: None,
+            symbol,
         },
-        path: Box::from([name]),
-        application,
-        const_literal: None,
-        evidence_projection: None,
-        symbol,
-    })
+    )
 }
 
 fn policy_argument_needs_substitution(

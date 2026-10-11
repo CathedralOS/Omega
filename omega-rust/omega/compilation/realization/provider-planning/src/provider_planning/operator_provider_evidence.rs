@@ -1,8 +1,8 @@
 //! Selected operator provider evidence and intrinsic realization checks.
 
 pub(crate) use crate::exact_checked_adapter;
+use checked_trees::typed_trees::TypedTrees;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
-use typed_trees::TypedTrees;
 
 /// Validate every selected boundary-operator plan and every checked use it
 /// serves. Uses carry no selection; each target's consumers join their plan
@@ -211,7 +211,9 @@ fn selected_operator_provider_evidence(
     let Some(operator) = checked.typed.operator_definition_by_symbol(operator_symbol) else {
         return Ok(());
     };
-    let slot = typed_trees::operator::boundary_operator_requirement_identity(checked, operator);
+    let slot = checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
+        checked, operator,
+    );
     let operator_package = checked
         .typed
         .symbols
@@ -350,13 +352,13 @@ fn selected_operator_provider_evidence(
                 .iter()
                 .any(|conformance| {
                     conformance.external_binding.is_none()
-                        && (typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+                        && (checked_trees::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
                             checked,
                             checked_provider,
                             conformance,
                         )
                         .is_some_and(|resolved| resolved.symbol == operator.symbol)
-                            || typed_trees::operator::resolve_specialized_checked_operator_application(
+                            || checked_trees::typed_trees::operator::resolve_specialized_checked_operator_application(
                                 checked,
                                 checked_provider,
                                 namespace.as_str(),
@@ -451,33 +453,35 @@ pub fn selected_requirement_plan<'a>(
         return None;
     }
     let typed = context.typed;
-    let mut matching: Vec<(usize, &'a ProviderPlan)> =
-        match typed.operator_definition_by_symbol(requirement) {
-            Some(operator) => {
-                let slot =
-                    typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
-                let package = typed.symbols.symbol_package_identity(operator.symbol);
-                plans
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, plan)| {
-                        plan.schema.identity_text(plan.schema.trait_name) == slot
-                            && plan.schema.trait_package_identity == package
-                    })
-                    .collect()
+    let mut matching: Vec<(usize, &'a ProviderPlan)> = match typed
+        .operator_definition_by_symbol(requirement)
+    {
+        Some(operator) => {
+            let slot = checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
+                typed, operator,
+            );
+            let package = typed.symbols.symbol_package_identity(operator.symbol);
+            plans
+                .iter()
+                .enumerate()
+                .filter(|(_, plan)| {
+                    plan.schema.identity_text(plan.schema.trait_name) == slot
+                        && plan.schema.trait_package_identity == package
+                })
+                .collect()
+        }
+        None => {
+            let requirement = crate::IntrinsicRequirement::by_symbol(typed, requirement)?;
+            if requirement.kind != crate::IntrinsicRequirementKind::TopLevelRequirement {
+                return None;
             }
-            None => {
-                let requirement = crate::IntrinsicRequirement::by_symbol(typed, requirement)?;
-                if requirement.kind != crate::IntrinsicRequirementKind::TopLevelRequirement {
-                    return None;
-                }
-                plans
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, plan)| requirement.schema_binds(context, &plan.schema))
-                    .collect()
-            }
-        };
+            plans
+                .iter()
+                .enumerate()
+                .filter(|(_, plan)| requirement.schema_binds(context, &plan.schema))
+                .collect()
+        }
+    };
     match matching.len() {
         1 => matching.pop(),
         _ => None,
@@ -499,7 +503,7 @@ fn use_site_is_generic_template(
 
 pub(crate) fn provider_type_package_identity(
     typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &checked_trees::typed_trees::machine::Machine,
 ) -> Option<semantic_vocabulary::PackageKeyIdentity> {
     provider_type_symbol(typed, machine)
         .and_then(|symbol| typed.symbols.symbol_package_identity(symbol))
@@ -507,7 +511,7 @@ pub(crate) fn provider_type_package_identity(
 
 pub(crate) fn provider_type_symbol(
     typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    machine: &checked_trees::typed_trees::machine::Machine,
 ) -> Option<symbols::SymbolHandle> {
     let attached_data = machine.attached_data.as_ref()?;
     let mut owners = typed.data_definitions().iter().filter(|definition| {
@@ -529,14 +533,16 @@ pub fn specialized_provider_machines<'checked>(
     machine_identity: &str,
     machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     requirement_symbol: symbols::SymbolHandle,
-    application_matches: impl Fn(&typed_trees::operator::ClosedOperatorRealizationApplication) -> bool,
-) -> Vec<&'checked typed_trees::machine::Machine> {
+    application_matches: impl Fn(
+        &checked_trees::typed_trees::operator::ClosedOperatorRealizationApplication,
+    ) -> bool,
+) -> Vec<&'checked checked_trees::typed_trees::machine::Machine> {
     checked
         .typed
         .machine_specializations
         .iter()
         .filter(|specialization| {
-            typed_trees::machine_specialization_matches_template_identity(
+            checked_trees::typed_trees::machine_specialization_matches_template_identity(
                 &checked.typed,
                 specialization,
                 machine_identity,

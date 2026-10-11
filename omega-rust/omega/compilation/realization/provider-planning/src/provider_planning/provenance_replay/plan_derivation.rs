@@ -42,7 +42,7 @@ pub(crate) fn derive_provider_plans(
         let provider_type_symbol = provider_type_symbol(typed, machine);
         for clause in typed.machine_trait_conformances(machine) {
             if clause.requirement.is_some()
-                && typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                && checked_trees::typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
                     typed, machine, clause,
                 )
                 .is_some()
@@ -570,7 +570,7 @@ fn derive_boundary_operator_plans(
                 continue;
             };
             let Some(operator) =
-                typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                checked_trees::typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
                     typed, machine, clause,
                 )
             else {
@@ -716,8 +716,8 @@ impl DraftRowBinding {
 /// The checked-adapter provider binding a machine supplies through its own
 /// checked body: the machine's callable identity plus its package identity.
 fn checked_adapter_draft(
-    typed: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
 ) -> DraftRowBinding {
     DraftRowBinding::CheckedAdapter {
         machine_identity: typed
@@ -732,8 +732,8 @@ fn checked_adapter_draft(
 /// binding when the row exists.
 fn evaluated_via_binding(
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
-    machine: &typed_trees::machine::Machine,
-    clause: &typed_trees::machine::TraitConformance,
+    machine: &checked_trees::typed_trees::machine::Machine,
+    clause: &checked_trees::typed_trees::machine::TraitConformance,
     selected_target: Option<&str>,
 ) -> Option<ProviderBinding> {
     let table = evaluated_bindings?;

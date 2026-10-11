@@ -18,11 +18,11 @@ use calling_conventions::{
     ValidatedBoundaryEntryPlan, ValueShape, callback_requirement_id,
     validate_boundary_entry_plan_with_callback_materializations,
 };
+use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::types::TypeReferenceHandle;
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
-use typed_trees::TypedTrees;
-use typed_trees::types::TypeReferenceHandle;
 
 /// Source selection is needed only to produce the callback's Terminal body.
 /// Its native placement carries no source handles or checked-tree receipts.

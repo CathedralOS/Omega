@@ -1,9 +1,9 @@
 //! Typed source projection of the target-owned program-storage Extent contract.
 
 use calling_conventions::{BoundaryValueClass, BoundaryValueField, ValueShape};
+use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use layout::BoundaryValueLayout;
-use typed_trees::TypedTrees;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// Derive the exact address-free `Extent` graph for the currently admitted
 /// UEFI/Microsoft program-storage source schema. A future SysV/AAPCS source
@@ -47,8 +47,8 @@ pub(super) fn capture(
         .data_definition_by_symbol(data_symbol)
         .ok_or_else(|| "selected program-storage Extent has no data definition".to_owned())?;
     let [
-        typed_trees::data::DataMember::Field(base),
-        typed_trees::data::DataMember::Field(length),
+        checked_trees::typed_trees::data::DataMember::Field(base),
+        checked_trees::typed_trees::data::DataMember::Field(length),
     ] = typed.data_members(definition)
     else {
         return Err("selected program-storage Extent must declare exactly two fields".into());

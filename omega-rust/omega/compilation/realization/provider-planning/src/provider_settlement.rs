@@ -33,6 +33,7 @@ use crate::SelectedProviderReviewProvenance;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::derive_satisfies_plans;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
+use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
@@ -41,7 +42,6 @@ use effects::provider_plan::{
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
 };
-use typed_trees::TypedTrees;
 
 /// Resolve the exact Product boundary and normalized schema for the canonical
 /// filesystem host binding.
@@ -51,7 +51,7 @@ fn resolve_canonical_host_binding<'trees>(
     binding: &AcceptedSemanticBinding,
 ) -> Result<
     (
-        &'trees typed_trees::trait_definition::TraitDefinition,
+        &'trees checked_trees::typed_trees::trait_definition::TraitDefinition,
         effects::provider_plan::ServiceSchema,
     ),
     Diagnostic,

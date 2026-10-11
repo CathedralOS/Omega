@@ -27,10 +27,10 @@ use calling_conventions::{
     ValidatedBoundaryEntryPlan, ValueShape, evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
+use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
-use typed_trees::TypedTrees;
 
 pub(crate) fn evaluate_compatibility_boundary_entry_plan(
     typed: &TypedTrees,
@@ -149,7 +149,8 @@ pub fn compute_boundary_calling_plans(
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
-    let vocabularies = typed_trees::calling_vocabulary::standard_calling_vocabularies(typed);
+    let vocabularies =
+        checked_trees::typed_trees::calling_vocabulary::standard_calling_vocabularies(typed);
     if vocabularies.is_empty() {
         // Programs that do not import std::calling cannot accidentally opt in
         // merely by having an unrelated local trait named Calling.

@@ -21,12 +21,12 @@
 //! already rejected at lowering, where the operand was admitted as a data
 //! type.
 
+use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::expression::ExpressionNode;
+use checked_trees::typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use diagnostics::Diagnostic;
 use language_core::data_layout_queries::DataLayoutQueryKind;
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
-use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 /// Fold every retained `size_of`/`align_of` query in the typed program to
 /// its `u64` literal under `target`. Also stamps the canonical `u64` encoding
@@ -49,10 +49,10 @@ pub fn fold_data_layout_queries(
     // The proof-only classification is computed over the typed program;
     // a `size_of<Nat>` over recursive data must name the
     // classification instead of reporting the layout builder's zero default.
-    let proof_only = typed_trees::proof_only::classify(program);
+    let proof_only = checked_trees::typed_trees::proof_only::classify(program);
     let queries: Vec<(
-        typed_trees::expression::ExpressionHandle,
-        typed_trees::expression::DataLayoutQueryRequest,
+        checked_trees::typed_trees::expression::ExpressionHandle,
+        checked_trees::typed_trees::expression::DataLayoutQueryRequest,
         source::SourceSpan,
     )> = program
         .expression_table
@@ -183,7 +183,7 @@ fn plan_laid_operand_pending_installation(
 /// an unbound `N` rejects as "no fixed size" instead of silently answering
 /// `size_of` on a phantom zero-extent carrier.
 fn reject_unresolved_layout_operands(
-    typed: &typed_trees::TypedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
     root: TypeReferenceHandle,
 ) -> Result<(), String> {
     let mut pending = vec![root];

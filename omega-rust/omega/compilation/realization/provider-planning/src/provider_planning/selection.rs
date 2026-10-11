@@ -1,6 +1,6 @@
 use crate::ProviderPlanningContext;
+use checked_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 /// Whether one build-owned provider edge is fused into its consumer or kept
 /// as an independently selected component boundary.
@@ -93,7 +93,7 @@ impl ProviderOperatorFamilySelection {
     ) -> Result<Self, String> {
         let typed = context.typed;
         let Some(representative) =
-            typed_trees::operator::declaration_by_symbol(typed, operator_symbol)
+            checked_trees::typed_trees::operator::declaration_by_symbol(typed, operator_symbol)
         else {
             return Err(format!(
                 "provider selection subject `{authored_path}` has no exact retained operator declaration"
@@ -134,11 +134,13 @@ impl ProviderOperatorFamilySelection {
                 .iter()
                 .find(|current| current.requirement_identity == coordinate.requirement_identity)
             else {
-                let reason =
-                    match typed_trees::operator::declaration_by_symbol(typed, coordinate.symbol) {
-                        None => "no longer resolves to a boundary operator declaration",
-                        Some(_) => "resolves to a declaration outside the family",
-                    };
+                let reason = match checked_trees::typed_trees::operator::declaration_by_symbol(
+                    typed,
+                    coordinate.symbol,
+                ) {
+                    None => "no longer resolves to a boundary operator declaration",
+                    Some(_) => "resolves to a declaration outside the family",
+                };
                 reasons.push(format!(
                     "boundary-operator family `{}` selection retains coordinate `{}`, which {reason}",
                     self.authored_path, coordinate.requirement_identity,
@@ -179,7 +181,7 @@ impl ProviderOperatorFamilySelection {
 
 fn operator_canonical_path(
     typed: &TypedTrees,
-    operator: &typed_trees::operator::OperatorDefinition,
+    operator: &checked_trees::typed_trees::operator::OperatorDefinition,
 ) -> String {
     typed.operator_path_string(operator.name)
 }
@@ -229,7 +231,7 @@ fn family_coordinates(
                         "boundary-operator family `{canonical_path}` has a token machine without requirement supply"
                     ));
                 }
-                None => typed_trees::operator::boundary_operator_requirement_identity(
+                None => checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
                     typed, operator,
                 ),
             };

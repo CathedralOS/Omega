@@ -6,6 +6,11 @@
 pub mod checked_trees;
 pub(crate) use optimization::digest_encoder;
 
+// Downstream realization reads typed vocabulary through checked custody:
+// `CheckedTrees` carries the typed program, so its contained tree surface is
+// reachable here rather than through a second direct representation edge.
+pub use typed_trees;
+
 #[cfg(test)]
 mod source_guards;
 
