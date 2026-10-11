@@ -6,9 +6,9 @@ use semantic_vocabulary::{BlockId, MachineId, Proposition, ScalarType, ValueId};
 use std::collections::BTreeMap;
 use terminal_semantics::scalar_ordering::{Binding, Edge, Effect, ScalarOrdering, Step};
 
-pub(super) struct RangeRelations(ScalarOrdering);
+pub(crate) struct RangeRelations(ScalarOrdering);
 impl RangeRelations {
-    pub(super) fn new(
+    pub(crate) fn new(
         function: &PsiOptimizationFunction,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     ) -> Self {
@@ -132,6 +132,42 @@ impl RangeRelations {
                         result: *result,
                         value: *value,
                     },
+                    O::EstablishPrimitiveLocal { result, value, .. } => Effect::EstablishStorage {
+                        place: result.place,
+                        value: value.value,
+                    },
+                    O::PrimitiveLocalStore {
+                        destination, value, ..
+                    } => Effect::StoreStorage {
+                        place: *destination,
+                        value: value.value,
+                    },
+                    O::WriteOnlyPrimitiveStore {
+                        destination,
+                        path,
+                        value,
+                        ..
+                    } if path.is_empty() => Effect::StoreStorage {
+                        place: destination.place(),
+                        value: value.value,
+                    },
+                    O::PrimitiveScalarRead {
+                        source,
+                        path,
+                        result,
+                        ..
+                    } if path.is_empty() => Effect::ReadStorage {
+                        place: *source,
+                        result: result.value,
+                    },
+                    // Forming an alias does not write its backing. A later
+                    // call or actual write invalidates potentially aliased
+                    // storage through the common mutation inventory below.
+                    O::EstablishReference { .. } | O::EstablishElementView { .. } => Effect::None,
+                    abstract_operations::call_or_call_structural_pattern!(..)
+                    | O::BoundaryCall { .. }
+                    | O::ExternalCompletion { .. } => Effect::ForgetStorage,
+                    _ if !operation.storage_mutations().is_empty() => Effect::ForgetStorage,
                     _ => Effect::None,
                 },
                 successors,
@@ -183,6 +219,10 @@ impl RangeRelations {
             normal_returns,
         ))
     }
+    pub(crate) fn into_ordering(self) -> ScalarOrdering {
+        self.0
+    }
+
     pub(super) fn ordering(&self) -> &ScalarOrdering {
         &self.0
     }

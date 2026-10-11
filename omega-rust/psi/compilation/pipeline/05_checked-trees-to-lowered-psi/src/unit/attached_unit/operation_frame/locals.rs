@@ -904,9 +904,19 @@ impl OperationFrame<'_, '_> {
                     .facts
                     .state_locals
                     .named(self.state, symbol)
-                    .is_some_and(|local| local.is_mutable)
+                    .is_some_and(|local| {
+                        local.statement_index < statement_index
+                            && validation::structural_type_identity(
+                                &self.checked.typed,
+                                local.declared_type,
+                                &[],
+                                &[],
+                            ) == type_identity
+                    })
                 {
-                    return unsupported("owned rebind names no mutable local declaration");
+                    return unsupported(
+                        "owned rebind names no matching dominating local declaration",
+                    );
                 }
                 symbol
             }
@@ -950,10 +960,33 @@ impl OperationFrame<'_, '_> {
             .iter()
             .filter(|local| local.root == facts::PlaceRoot::Symbol(symbol));
         let old = locals.next();
+        // A view's local argument exposes its borrowed contents, but the
+        // binding still owns the descriptor being replaced. Its observation
+        // roster must identify the same home before either namespace changes.
+        let mut views = self
+            .evaluation
+            .view_locals
+            .iter()
+            .filter(|view| view.symbol == symbol);
+        let previous_view = views.next().copied();
+        if views.next().is_some()
+            || previous_view.is_some_and(|view| view.structural_type != replacement.structural_type)
+        {
+            return unsupported("owned rebind has ambiguous or incompatible view observations");
+        }
+        let binding_access = old
+            .map(|local| local.argument.access)
+            .or_else(|| previous_view.map(|view| view.access))
+            .unwrap_or(StructuralAccess::Owned);
         if locals.next().is_some()
             || old.is_some_and(|local| {
                 local.structural_type != replacement.structural_type
-                    || local.argument.access != StructuralAccess::Owned
+                    || (local.argument.access != StructuralAccess::Owned
+                        && !previous_view.is_some_and(|view| {
+                            view.place == local.argument.place
+                                && view.structural_type == local.structural_type
+                                && view.access == local.argument.access
+                        }))
                     || !local.argument.path.is_empty()
             })
         {
@@ -973,10 +1006,20 @@ impl OperationFrame<'_, '_> {
                 argument: terminal_psi::StructuralArgument {
                     place: replacement.place,
                     path: Vec::new(),
-                    access: StructuralAccess::Owned,
+                    access: binding_access,
                 },
             },
         );
+        // Lengths and indexed reads use this same current descriptor. Earlier
+        // captured operands retain their own places and are not retargeted.
+        if let Some(view) = self
+            .evaluation
+            .view_locals
+            .iter_mut()
+            .find(|view| view.symbol == symbol)
+        {
+            view.place = replacement.place;
+        }
         self.evaluation
             .structural_value_owners
             .retain(|owner| owner.symbol != symbol || owner.value.place == replacement.place);

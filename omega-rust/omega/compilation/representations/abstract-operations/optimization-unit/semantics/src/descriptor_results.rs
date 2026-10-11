@@ -337,7 +337,9 @@ fn adapt(
                     {
                         // Retyped element coordinates cannot refine source
                         // geometry, including an already narrowed fixed window.
-                        projection.get_or_insert_with(|| Projection::new(&[])).exact = false;
+                        projection
+                            .get_or_insert_with(|| Projection::new(&[]))
+                            .forget_address();
                     }
                     if let Some(source) = location(source.place, path, None) {
                         step.derivations.push((source.clone(), destination.clone()));
@@ -866,4 +868,16 @@ pub(crate) fn element_coordinates_preserved<'a>(
         return false;
     };
     terminal_semantics::collection_view_preserves_coordinates(types, collection.id, element, region)
+}
+
+/// Reuse the current-graph scalar adapter for exact captured address queries.
+/// This returns analysis scratch, never a producer-provided coordinate fact.
+pub fn captured_scalar_ordering(
+    function: &PsiOptimizationFunction,
+    functions: &BTreeMap<semantic_vocabulary::MachineId, &PsiOptimizationFunction>,
+) -> terminal_semantics::scalar_ordering::ScalarOrdering {
+    crate::current_ownership::address_joins::range_relations::RangeRelations::new(
+        function, functions,
+    )
+    .into_ordering()
 }

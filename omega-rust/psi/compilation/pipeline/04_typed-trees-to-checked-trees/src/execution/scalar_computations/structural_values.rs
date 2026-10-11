@@ -294,10 +294,30 @@ impl Builder<'_, '_> {
                 expected,
                 expression,
             )?;
-            if argument.access != checked_trees::CheckedStructuralAccess::Owned {
-                return None;
+            match argument.access {
+                checked_trees::CheckedStructuralAccess::Owned => {
+                    CheckedStructuralValueKind::Place(argument)
+                }
+                checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                    // A shared literal produces an immutable image-backed
+                    // descriptor in every value position. Its destination's
+                    // domains must hold before that value is published.
+                    if !validation::field_domains::string_literal_grants_view_domains(
+                        self.program,
+                        expected,
+                        expression,
+                    ) {
+                        return None;
+                    }
+                    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
+                        bytes,
+                    } = argument.source else {
+                        return None;
+                    };
+                    CheckedStructuralValueKind::ByteLiteralView { bytes }
+                }
+                _ => return None,
             }
-            CheckedStructuralValueKind::Place(argument)
         } else if validation::reference_result_custody::stored_loan_parts(self.program, expected)
             .is_some()
             && match self.program.expression_table.expression(expression) {
@@ -323,16 +343,48 @@ impl Builder<'_, '_> {
                 .program
                 .machine_by_symbol(self.machine)
                 .and_then(|machine| self.program.state_in_machine(machine, self.state))?;
-            CheckedStructuralValueKind::Reference {
-                source: crate::values::reference_sources::plan(
+            let mut selectors = Vec::new();
+            if let Some(borrow) = self.program.expression_table.borrow_expression(expression) {
+                let place = validation::canonical_place_from_expression_in_state(
                     self.program,
-                    self.borrow,
-                    self.program.machine_by_symbol(self.machine)?,
-                    state,
+                    self.state,
                     self.statement_index,
-                    expression,
-                    expected,
-                )?,
+                    borrow.target,
+                )?;
+                for segment in place.segments {
+                    if let facts::PlaceSegment::Index { expression } = segment {
+                        selectors.push((expression, self.index_selector(expression)?));
+                    }
+                }
+            }
+            let source = crate::values::reference_sources::plan(
+                self.program,
+                self.program.machine_by_symbol(self.machine)?,
+                state,
+                self.statement_index,
+                expression,
+                expected,
+                &|expression| {
+                    selectors.iter().find_map(|(selector, value)| {
+                        (*selector == expression).then_some(
+                            checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
+                        )
+                    })
+                },
+            )?;
+            // The typed path can fold fixed selectors. Retain only the
+            // remaining executable operands, in their formation order.
+            for (ordinal, value) in source.computation_operands().enumerate() {
+                self.push_scalar_root(
+                    CheckedScalarExpressionRole::StructuralValueSelector {
+                        expression,
+                        selector_ordinal: u32::try_from(ordinal).ok()?,
+                    },
+                    value,
+                )?;
+            }
+            CheckedStructuralValueKind::Reference {
+                source,
                 source_value: CheckedStructuralValueHandle::invalid(),
             }
         } else if matches!(

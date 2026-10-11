@@ -73,9 +73,9 @@ pub(crate) fn sites(
     statement: &StatementNode,
 ) -> Vec<(ExpressionHandle, CheckedSubsliceSite)> {
     let mut result = Vec::new();
-    if let Some(local) = statement.as_local_data()
-        && !local.is_mutable
-    {
+    // Formation captures these operands once. Permission to replace the
+    // receiving binding later does not change the initializer's coordinates.
+    if let Some(local) = statement.as_local_data() {
         result.push((local.initial_value, CheckedSubsliceSite::LocalBinding));
     }
     for (call_ordinal, site) in

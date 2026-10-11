@@ -223,10 +223,10 @@ fn deferred_carrier_releases(
             carriers.push(place);
         }
     }
-    Ok(carriers
+    carriers
         .into_iter()
-        .map(TerminalAffineCleanupAction::DiscardRoot)
-        .collect())
+        .map(|place| evaluation.descriptor_retirement(place, operations))
+        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]

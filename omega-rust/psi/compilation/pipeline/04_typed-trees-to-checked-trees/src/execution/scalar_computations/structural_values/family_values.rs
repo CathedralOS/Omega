@@ -206,45 +206,6 @@ impl Builder<'_, '_> {
             {
                 return None;
             }
-            // A quoted literal for a shared byte view member lends immutable
-            // image storage. Retain its octets as an ordinary descriptor
-            // operand, completed before the enclosing record is established.
-            // The literal must grant every declared domain of the view.
-            if let ExpressionNode::String(bytes) =
-                self.program.expression_table.expression(initializer.value)
-                && matches!(
-                    crate::execution::terminal_unit::types::byte_sequence_carrier(
-                        self.program,
-                        field.type_reference,
-                        &[],
-                    ),
-                    Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
-                        access: Some(checked_trees::CheckedStructuralAccess::SharedBorrow),
-                    })
-                )
-            {
-                if !validation::field_domains::string_literal_grants_view_domains(
-                    self.program,
-                    field.type_reference,
-                    initializer.value,
-                ) {
-                    return None;
-                }
-                let node = self.publish_structural_value(
-                    initializer.value,
-                    field.type_reference,
-                    CheckedStructuralValueKind::ByteLiteralView {
-                        bytes: bytes.to_vec(),
-                    },
-                )?;
-                fields.push(checked_trees::CheckedStructuralRecordField {
-                    field: field.symbol,
-                    expression: initializer.value,
-                    type_reference: field.type_reference,
-                    value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
-                });
-                continue;
-            }
             let declared = field.type_reference;
             // A stored reference owns its descriptor, not the primitive
             // referent's value. The declared-storage query retains reference

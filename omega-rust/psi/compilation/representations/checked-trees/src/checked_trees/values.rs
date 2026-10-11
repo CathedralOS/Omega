@@ -281,6 +281,13 @@ pub enum CheckedScalarExpressionRole {
     RepresentationViewOffset {
         expression: ExpressionHandle,
     },
+    /// One evaluated index of an exact structural value formation. The
+    /// ordinal follows executable selectors in the retained projection path;
+    /// mutable storage is read here, never replayed when the loan is used.
+    StructuralValueSelector {
+        expression: ExpressionHandle,
+        selector_ordinal: u32,
+    },
     /// One scalar field of an exact case leaf, including inside a selected arm.
     StructuralValueField {
         expression: ExpressionHandle,

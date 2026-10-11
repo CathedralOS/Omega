@@ -6,7 +6,7 @@ impl Builder<'_, '_> {
     /// references: a binary result owns no declaration identity. Reuse the
     /// integer evaluator so computed selectors preserve signedness and policy;
     /// only an anonymous integer needs the ordinary u64 index context.
-    fn index_selector(
+    pub(super) fn index_selector(
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<checked_trees::CheckedScalarComputationHandle> {

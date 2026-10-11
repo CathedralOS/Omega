@@ -83,6 +83,14 @@ boundary; the latter requires state exit and an exact direct-root lifetime.
 Neither label alone establishes restored use, cleanup, transfer, or linear
 discharge.
 
+A retained dynamic place segment names an opaque selector formation occurrence,
+scoped to the handoff's state invocation. Parent segments retain their original
+capture identities when a child projects further; only the new suffix belongs
+to the child's formation. These identities preserve lineage correspondence,
+not scalar equality, disjointness, bounds or wildcard storage authority.
+Executable indexed projections retain their ordinary evaluated selectors and
+bounds obligations independently of this lifecycle publication.
+
 Lowering consumes the checked lifetime and restoration relationships. The
 implementation still carries containment and restored-use records joining a
 later operation to its exact source call, parent lifetime and child interval.

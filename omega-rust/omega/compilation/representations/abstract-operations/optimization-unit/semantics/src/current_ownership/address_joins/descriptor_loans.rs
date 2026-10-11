@@ -104,7 +104,7 @@ impl DescriptorLoans {
                             // This descriptor owns the narrowed loan itself, unlike
                             // the temporary exclusive whole-collection capability.
                             // Its child coordinates cannot refine differently typed backing.
-                            projection.exact = false;
+                            projection.forget_address();
                         }
                         Some((result.place, source.place, projection, source.access))
                     },

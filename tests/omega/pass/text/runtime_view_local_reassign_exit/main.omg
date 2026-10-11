@@ -1,7 +1,6 @@
-// Reassigning an initialized borrowed-view local replaces its whole
-// descriptor through the ordinary view store with an empty path. A read
-// before the replacement observes the first descriptor, a read after it the
-// second.
+// Reassigning an initialized borrowed-view local replaces its descriptor.
+// A read before the replacement observes the first value, and a read after
+// it observes the second.
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);

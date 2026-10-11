@@ -226,7 +226,7 @@ impl LoanChains {
                     .enumerate()
                 {
                     let destination = node(target, dense as u32);
-                    match loan_source(&transfer.source) {
+                    match loan_source(&transfer.source, &state.operations) {
                         LoanSource::Local(binding) => {
                             if let Some(destination) = destination {
                                 arrivals[destination].push(Arrival::Local {
@@ -284,7 +284,8 @@ impl LoanChains {
                             // A projected loan of an entry local retains its
                             // home exactly as a whole shared loan does.
                             if !block_owned(source)
-                                && let Some(binding) = projected_local(&transfer.source)
+                                && let Some(binding) =
+                                    projected_local(&transfer.source, &state.operations)
                             {
                                 entry_loans.entry(binding).or_default().push(None);
                             }
@@ -737,7 +738,10 @@ fn retain_unless_lent(
 }
 
 /// The successor argument's relation to a retained whole home.
-fn loan_source(source: &CheckedStructuralControlTransferSourcePlan) -> LoanSource {
+fn loan_source(
+    source: &CheckedStructuralControlTransferSourcePlan,
+    operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+) -> LoanSource {
     match source {
         CheckedStructuralControlTransferSourcePlan::EstablishedValue { establishment, .. } => {
             establishment
@@ -752,11 +756,12 @@ fn loan_source(source: &CheckedStructuralControlTransferSourcePlan) -> LoanSourc
             LoanSource::Parameter(*index)
         }
         CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. } => {
+            if subject.path.is_empty()
+                && let Some(binding) = subject.source.current_result_binding(operations)
+            {
+                return LoanSource::Local(binding);
+            }
             match (&subject.source, subject.path.is_empty()) {
-                (
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
-                    true,
-                ) => LoanSource::Local(*binding_ordinal),
                 (CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }, true) => {
                     LoanSource::Parameter(*parameter_index)
                 }
@@ -771,15 +776,13 @@ fn loan_source(source: &CheckedStructuralControlTransferSourcePlan) -> LoanSourc
 }
 
 /// The local a projected loan below a state-local result lends.
-fn projected_local(source: &CheckedStructuralControlTransferSourcePlan) -> Option<u32> {
+fn projected_local(
+    source: &CheckedStructuralControlTransferSourcePlan,
+    operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+) -> Option<u32> {
     match source {
         CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. } => {
-            match subject.source {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                    Some(binding_ordinal)
-                }
-                _ => None,
-            }
+            subject.source.current_result_binding(operations)
         }
         _ => None,
     }

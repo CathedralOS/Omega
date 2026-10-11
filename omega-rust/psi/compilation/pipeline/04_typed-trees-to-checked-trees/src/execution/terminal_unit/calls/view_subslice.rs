@@ -240,7 +240,7 @@ pub(crate) fn admit_resolved(
 }
 
 /// Whether checked borrow admission recorded the `let` at `statement_index`
-/// as the sole loan, with matching access, of the fixed-array range `expression`
+/// as one exact formation, with matching access, of the fixed-array range `expression`
 /// narrows. The view the range establishes is that loan: the ledger, not
 /// the authored spelling, is what keeps the array unwritten while it lives.
 #[allow(clippy::too_many_arguments)]
@@ -276,7 +276,11 @@ fn lends_collection(
         .loans
         .span_or_empty(borrow_state.loans)
         .iter()
-        .filter(|loan| loan.owner_symbol == local.symbol);
+        .filter(|loan| {
+            loan.owner_symbol == local.symbol
+                && loan.statement_index == statement_index
+                && loan.formation_expression == expression
+        });
     let (Some(loan), None) = (loans.next(), loans.next()) else {
         return false;
     };

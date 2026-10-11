@@ -718,20 +718,27 @@ pub(crate) fn validate_structural_root_operations(
 )
                         .is_some_and(|signature| {
                             signature.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
-                            // Whole byte copies transport exactly the source
-                            // contract; they establish no new predicate and
-                            // cannot silently drop a retained qualification.
-                            && if matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
-                                && structural_types.get(&result.structural_type).is_some_and(|declaration| {
-                                    declaration.shape.is_bounded_owned_byte_sequence()
-                                })
-                            {
-                                signature.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                                    && signature.has_exact_qualifications(&result.qualifications)
-                                    && !signature.has_result_evidence()
-                                    && result.qualification_establishments.is_empty()
-                            } else {
-                                result.qualifications.is_empty()
+                            // A whole same-type copy transports its exact value
+                            // contract regardless of carrier layout. Projection
+                            // may retain only memberships of the selected path;
+                            // a receiving result cannot establish new domains.
+                            && result.qualification_establishments.is_empty()
+                            && match path {
+                                abstract_operations::StructuralCopyPath::Ordinary(path)
+                                    if path.is_empty() && signature.structural_type == result.structural_type =>
+                                {
+                                    signature.multiplicity == result.multiplicity
+                                        && signature.has_exact_qualifications(&result.qualifications)
+                                        && !signature.has_result_evidence()
+                                }
+                                abstract_operations::StructuralCopyPath::Ordinary(path) => {
+                                    result.qualifications.iter().all(|domain| {
+                                        signature.carries_qualification(path, *domain)
+                                    })
+                                }
+                                abstract_operations::StructuralCopyPath::Case(_) => {
+                                    result.qualifications.is_empty()
+                                }
                             }
                             && match path {
                                 abstract_operations::StructuralCopyPath::Ordinary(path) => {

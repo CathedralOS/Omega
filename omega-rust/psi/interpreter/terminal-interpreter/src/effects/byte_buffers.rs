@@ -85,15 +85,21 @@ impl BoundaryArguments {
             let Some(view) = view else {
                 continue;
             };
-            if !matches!(
-                parameter.access,
-                terminal_psi::reading_borrow_pair_pattern!()
-            ) || parameter.access != view.access()
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-                || element_views.insert(parameter.place, view).is_some()
-            {
+            let admitted = if parameter.access == StructuralAccess::Owned {
+                view.owned_multiplicity() == Some(parameter.multiplicity)
+                    && view.matches_descriptor_home(
+                        values.get(&parameter.place).ok_or_else(malformed)?,
+                    )
+            } else {
+                matches!(
+                    parameter.access,
+                    terminal_psi::reading_borrow_pair_pattern!()
+                ) && parameter.access == view.access()
+                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+            };
+            if !admitted || element_views.insert(parameter.place, view).is_some() {
                 return Err(malformed());
             }
         }

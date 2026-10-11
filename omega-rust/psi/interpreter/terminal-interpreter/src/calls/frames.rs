@@ -189,9 +189,9 @@ impl TerminalExecution<'_> {
         Ok(values)
     }
 
-    /// Borrowed element views rebind to callee parameter places under the same
-    /// signature checks as borrowed byte views. The receiving loan can attenuate
-    /// access while preserving the descriptor window and its pinned backing.
+    /// Element-view arrivals retain the current descriptor and its pinned backing.
+    /// Borrowed arrivals may attenuate referent access; owned arrivals transfer
+    /// descriptor custody without changing the permission held by the view.
     pub(crate) fn bind_element_view_arguments(
         &self,
         parameters: &[StructuralParameterDeclaration],
@@ -213,18 +213,30 @@ impl TerminalExecution<'_> {
             if !matches!(declaration.shape, StructuralTypeShape::ElementView { .. }) {
                 continue;
             }
-            if !is_direct_borrowed_rebinding(
-                parameter,
-                argument,
-                resolved,
-                &self.program.structural_types(),
-            ) {
-                return Err(malformed());
-            }
             let view = self.element_view_argument(argument, resolved)?;
-            let presented = view
-                .subslice(0, view.len(), parameter.access)
-                .ok_or(malformed())?;
+            let access = if parameter.access == StructuralAccess::Owned {
+                // Argument preparation owns transfer authority and qualification
+                // implication. This companion carries the selected descriptor,
+                // including when its home is projected from another carrier.
+                if argument.access != StructuralAccess::Owned
+                    || parameter.structural_type != resolved.structural_type
+                    || view.owned_multiplicity() != Some(parameter.multiplicity)
+                {
+                    return Err(malformed());
+                }
+                view.access()
+            } else {
+                if !is_direct_borrowed_rebinding(
+                    parameter,
+                    argument,
+                    resolved,
+                    &self.program.structural_types(),
+                ) {
+                    return Err(malformed());
+                }
+                parameter.access
+            };
+            let presented = view.subslice(0, view.len(), access).ok_or(malformed())?;
             let presented = presented.with_descriptor_home(resolved.clone());
             if values.insert(parameter.place, presented).is_some() {
                 return Err(malformed());

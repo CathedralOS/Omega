@@ -14,11 +14,23 @@ pub type AliasSources = BTreeMap<PlaceId, Vec<(PlaceId, Projection)>>;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Projection {
+    // Exact captured composition is distinct from conservative overlap geometry.
+    address: Option<Vec<AddressStep>>,
     pub path: Vec<StructuralPathSegment>,
     pub exact: bool,
     pub indirect: bool,
     pub window: Option<(ValueId, ValueId)>,
     pub captured_at: Option<Position>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum AddressStep {
+    Path(Vec<StructuralPathSegment>, Option<Position>),
+    Window {
+        start: ValueId,
+        end: ValueId,
+        at: Position,
+    },
 }
 
 impl Projection {
@@ -43,6 +55,11 @@ impl Projection {
                 )
             ));
         Self {
+            address: Some(if path.is_empty() {
+                Vec::new()
+            } else {
+                vec![AddressStep::Path(path.to_vec(), None)]
+            }),
             path: path[..bounded_length].to_vec(),
             exact: length == path.len(),
             // `resolve` discharges a leading `Referent` from the place's own
@@ -54,6 +71,15 @@ impl Projection {
     }
 
     pub fn at(mut self, position: Position) -> Self {
+        if let Some(steps) = &mut self.address {
+            for step in steps {
+                if let AddressStep::Path(path, captured @ None) = step
+                    && path.iter().any(|segment| segment.runtime_index().is_some())
+                {
+                    *captured = Some(position);
+                }
+            }
+        }
         if self.window.is_some()
             || self
                 .path
@@ -73,6 +99,13 @@ impl Projection {
     /// path or unresolved reference crossings. Endpoints belong to this
     /// activation's scalar namespace; they never become live path selectors.
     pub fn with_window(mut self, start: ValueId, end: ValueId, position: Position) -> Self {
+        if let Some(steps) = &mut self.address {
+            steps.push(AddressStep::Window {
+                start,
+                end,
+                at: position,
+            });
+        }
         self.exact = false;
         self.window = Some((start, end));
         self.captured_at = Some(position);
@@ -83,6 +116,16 @@ impl Projection {
     /// enclosing storage, but never reinterpret a callee selector or capture
     /// coordinate as an identically numbered caller value.
     pub fn without_runtime_coordinates(mut self) -> Self {
+        if self.address.as_ref().is_some_and(|steps| {
+            steps.iter().any(|step| match step {
+                AddressStep::Window { .. } => true,
+                AddressStep::Path(path, _) => {
+                    path.iter().any(|segment| segment.runtime_index().is_some())
+                }
+            })
+        }) {
+            self.address = None;
+        }
         if let Some(position) = self
             .path
             .iter()
@@ -117,8 +160,136 @@ impl Projection {
         Some(Self::new(&self.path[..length]))
     }
 
+    /// Retain conservative geometry without claiming its erased address history.
+    pub fn without_captured_address(mut self) -> Self {
+        self.address = None;
+        self
+    }
+
+    /// A representation change preserves containing storage, not element
+    /// coordinates. Neither an exact address nor a refined suffix survives it.
+    pub fn forget_address(&mut self) {
+        self.exact = false;
+        self.address = None;
+    }
+
+    /// Resolve only a complete fixed address proved from each selector's own
+    /// captured scalar snapshot. This does not prove access, bounds or lifetime.
+    /// Unknown symbolic coordinates remain unknown; overlap is never equality.
+    pub fn fixed_address(
+        &self,
+        ordering: &crate::scalar_ordering::ScalarOrdering,
+    ) -> Option<Vec<StructuralPathSegment>> {
+        if self.indirect {
+            return None;
+        }
+        let mut result = Vec::new();
+        // Extent validity belongs to formation and access. Exact address
+        // identity needs only the captured start of each relative window.
+        let mut offset: Option<u64> = None;
+        let append_offset = |offset: &mut Option<u64>, start: u64| -> Option<()> {
+            *offset = Some(offset.unwrap_or(0).checked_add(start)?);
+            Some(())
+        };
+        for step in self.address.as_ref()? {
+            match step {
+                AddressStep::Window { start, at, .. } => {
+                    append_offset(&mut offset, ordering.known_unsigned(*at, *start)?)?
+                }
+                AddressStep::Path(path, at) => {
+                    for segment in path {
+                        match segment {
+                            StructuralPathSegment::FixedByteRange { start, .. } => {
+                                append_offset(&mut offset, *start)?
+                            }
+                            StructuralPathSegment::FixedIndex(_)
+                            | StructuralPathSegment::RuntimeIndex { .. } => {
+                                let index = match segment {
+                                    StructuralPathSegment::FixedIndex(index) => *index,
+                                    StructuralPathSegment::RuntimeIndex { index, .. } => {
+                                        ordering.known_unsigned((*at)?, *index)?
+                                    }
+                                    _ => unreachable!(),
+                                };
+                                let index = offset.take().unwrap_or(0).checked_add(index)?;
+                                result.push(StructuralPathSegment::FixedIndex(index));
+                            }
+                            StructuralPathSegment::Field(_) | StructuralPathSegment::Case(_)
+                                if offset.is_none() =>
+                            {
+                                result.push(segment.clone())
+                            }
+                            _ => return None,
+                        }
+                    }
+                }
+            }
+        }
+        offset.is_none().then_some(result)
+    }
+
     pub fn then(&self, suffix: &Self) -> Self {
         let mut composed = self.clone();
+        composed.address =
+            self.address
+                .as_ref()
+                .zip(suffix.address.as_ref())
+                .and_then(|(prefix, suffix)| {
+                    // Recurrent static producer coordinates do not identify one dynamic
+                    // capture instance. Stop exact refinement instead of growing an
+                    // unbounded address chain in the existing fixed-point replay.
+                    let work = prefix.iter().chain(suffix).try_fold(0usize, |used, step| {
+                        used.checked_add(match step {
+                            AddressStep::Path(path, _) => path.len(),
+                            AddressStep::Window { .. } => 1,
+                        })
+                    })?;
+                    if work > 4096
+                        || suffix.iter().any(|step| {
+                            prefix.iter().any(|prior| match (prior, step) {
+                                (
+                                    AddressStep::Window { at: before, .. },
+                                    AddressStep::Window { at, .. },
+                                ) => before == at,
+                                (
+                                    AddressStep::Path(previous, Some(before)),
+                                    AddressStep::Path(path, Some(at)),
+                                ) if before == at => path
+                                    .iter()
+                                    .filter_map(StructuralPathSegment::runtime_index)
+                                    .any(|selector| {
+                                        previous.iter().any(|segment| {
+                                            segment.runtime_index() == Some(selector)
+                                        })
+                                    }),
+                                _ => false,
+                            })
+                        })
+                    {
+                        return None;
+                    }
+                    let mut steps: Vec<AddressStep> = Vec::new();
+                    for step in prefix.iter().chain(suffix) {
+                        if let AddressStep::Path(path, at) = step
+                            && let Some(AddressStep::Path(previous, captured)) = steps.last_mut()
+                            && (captured == at
+                                || captured.is_none()
+                                    && !previous
+                                        .iter()
+                                        .any(|segment| segment.runtime_index().is_some())
+                                || at.is_none()
+                                    && !path
+                                        .iter()
+                                        .any(|segment| segment.runtime_index().is_some()))
+                        {
+                            previous.extend_from_slice(path);
+                            *captured = (*captured).or(*at);
+                        } else {
+                            steps.push(step.clone());
+                        }
+                    }
+                    Some(steps)
+                });
         composed.indirect |= suffix.indirect;
         if composed.exact {
             composed.path.extend_from_slice(&suffix.path);
@@ -215,14 +386,7 @@ pub fn resolve(aliases: &AliasSources, root: PlaceId, projection: Projection) ->
         if !visited.insert(place) {
             continue;
         }
-        let key = (
-            place,
-            projection.path.clone(),
-            projection.exact,
-            projection.indirect,
-            projection.window,
-            projection.captured_at,
-        );
+        let key = (place, projection.clone());
         if !expanded.insert(key) {
             continue;
         }

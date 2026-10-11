@@ -122,9 +122,20 @@ pub(super) fn admit_transfers(
             // The edge emitter lends an existing place: a parameter or a
             // retained result binding.
             Source::ProjectedLoan { subject, .. }
+                if matches!(subject.source, Subject::StructuralLocal { .. })
+                    && subject
+                        .source
+                        .current_result_binding(&state.operations)
+                        .is_none() =>
+            {
+                return unsupported("Unit graph named loan lost its producing carrier metadata");
+            }
+            Source::ProjectedLoan { subject, .. }
                 if !matches!(
                     subject.source,
-                    Subject::Parameter { .. } | Subject::StructuralResult { .. }
+                    Subject::Parameter { .. }
+                        | Subject::StructuralResult { .. }
+                        | Subject::StructuralLocal { .. }
                 ) =>
             {
                 return unsupported("Unit graph projected loan has no existing source place");

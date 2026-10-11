@@ -274,7 +274,8 @@ fn declared_window_projection(
 
 /// The declared signature a spelled structural place carries: machine
 /// parameter, block parameter resolved through its place row, then operation
-/// result — the same order the verifier's `source_signature` resolves.
+/// result, or an explicitly established literal carrier. Literal storage has a
+/// declaration and a Unit-producing establishment, not a structural result row.
 pub(super) struct SourceSignature<'declaration> {
     pub(super) structural_type: StructuralTypeId,
     qualifications: &'declaration [semantic_vocabulary::StructuralDomainId],
@@ -297,6 +298,29 @@ pub(super) fn source_signature(
             structural_type: parameter.structural_type,
             qualifications: &parameter.qualifications,
             projected_qualifications: &parameter.projected_qualifications,
+        });
+    }
+    if let StructuralPlaceKind::ByteSequenceLiteral {
+        structural_type, ..
+    } = machine.structural_place(place)?.kind
+    {
+        let mut establishments = machine.operations().filter_map(|operation| {
+            let OperationKind::EstablishByteSequenceLiteral {
+                destination,
+                qualifications,
+                ..
+            } = &operation.kind
+            else {
+                return None;
+            };
+            (*destination == place && matches!(operation.result, OperationResult::Unit))
+                .then_some(qualifications)
+        });
+        let qualifications = establishments.next()?;
+        return establishments.next().is_none().then_some(SourceSignature {
+            structural_type,
+            qualifications,
+            projected_qualifications: &[],
         });
     }
     machine.operations().find_map(|operation| {

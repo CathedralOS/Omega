@@ -543,7 +543,7 @@ impl OperationFrame<'_, '_> {
             | terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
             ) => {
-                // Slice descriptors retire through ordinary affine cleanup.
+                // Slice descriptors retire through ordinary carrier cleanup.
                 // Their captured loan boundary does not change their geometry
                 // into a stored reference or consume their borrowed backing.
                 self.evaluation.continue_cleanup_regions(
@@ -559,7 +559,8 @@ impl OperationFrame<'_, '_> {
                         }),
                         conditions: Vec::new(),
                         action: if path.is_empty() {
-                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(source)
+                            self.evaluation
+                                .descriptor_retirement(source, self.operations)?
                         } else {
                             terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
                                 terminal_psi::StructuralAffineDiscard {

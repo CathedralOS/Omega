@@ -35,6 +35,7 @@ use terminal_psi::{
 };
 
 mod borrowed_arrivals;
+mod descriptor_backing;
 mod occurrences;
 use occurrences::{CarrierContract, Formation, merge_arrivals, re_home_bound_leaves};
 
@@ -49,6 +50,8 @@ pub(in crate::legalization) struct Leaf {
     /// Referent root resolved through custody: a primitive place directly, or
     /// an owned ingress parameter's leaf path when custody entered owned.
     pub(in crate::legalization) root: Root,
+    // Captured lifetime geometry is separate from executable origin evidence.
+    backing: Vec<descriptor_backing::Backing>,
     /// All possible immediate parent identities; selection suspends each parent.
     pub(in crate::legalization) parents: Vec<(PlaceId, Vec<StructuralPathSegment>)>,
     /// The actual operation or parameter declaration of the current occurrence.
@@ -115,6 +118,7 @@ pub(in crate::legalization) struct Custody {
         BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
     )>,
     borrowed_sources: std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>>,
+    descriptor_backing: std::sync::Arc<descriptor_backing::Observations>,
 }
 
 impl Custody {
@@ -133,6 +137,7 @@ impl Custody {
             leaves: leaves.clone(),
             edge_exits: Vec::new(),
             borrowed_sources: self.borrowed_sources.clone(),
+            descriptor_backing: self.descriptor_backing.clone(),
         })
     }
 
@@ -900,13 +905,9 @@ fn storage_access_conflicts(
         {
             return false;
         }
-        match &reference.root {
-            Root::Place(root) => *root == place,
-            Root::Ingress(root, origin) => *root == place && origin_overlaps(origin),
-            Root::Alternatives(origins) => origins
-                .iter()
-                .any(|origin| origin.root == place && origin_overlaps(&origin.path)),
-        }
+        reference.backing.iter().any(|backing| {
+            descriptor_backing::overlaps(backing, function.machine, place, path, &origin_overlaps)
+        })
     })
 }
 
@@ -1221,14 +1222,27 @@ fn call_results(
                 leaf.clone()
             } else {
                 let (root, parents) = normalized_source(function, custody, types, &source)?;
-                Leaf::formed(
+                let (backing, backing_parents) = descriptor_backing::capture(
+                    function,
+                    custody,
+                    types,
+                    &source,
+                    psi_operation,
+                    &root,
+                )?;
+                let mut leaf = Leaf::formed(
                     (result.place, mapping.path.clone()),
                     root,
                     parents,
                     psi_operation,
                     result,
                     expected,
-                )
+                );
+                leaf.backing = backing;
+                leaf.parents.extend(backing_parents);
+                leaf.parents.sort();
+                leaf.parents.dedup();
+                leaf
             };
             candidates.push(leaf);
         }
@@ -1291,8 +1305,11 @@ fn combine_alternatives(candidates: Vec<Leaf>) -> Result<Leaf, LegalizationError
             return Err(invalid());
         }
         origins.push((candidate.root, candidate.parents));
+        leaf.backing.extend(candidate.backing);
         leaf.formations.extend(candidate.formations);
     }
+    leaf.backing.sort();
+    leaf.backing.dedup();
     occurrences::normalize_formations(&mut leaf.formations)?;
     (leaf.root, leaf.parents) = combine_candidate_origins(origins)?;
     Ok(leaf)
@@ -1724,14 +1741,27 @@ pub(in crate::legalization) fn apply(
                 custody.leaves.remove(&key).ok_or_else(|| invalid())?
             } else {
                 let (root, parents) = normalized_source(function, custody, types, source)?;
-                Leaf::formed(
+                let (backing, backing_parents) = descriptor_backing::capture(
+                    function,
+                    custody,
+                    types,
+                    source,
+                    *psi_operation,
+                    &root,
+                )?;
+                let mut leaf = Leaf::formed(
                     (result.place, Vec::new()),
                     root,
                     parents,
                     *psi_operation,
                     result,
                     referent,
-                )
+                );
+                leaf.backing = backing;
+                leaf.parents.extend(backing_parents);
+                leaf.parents.sort();
+                leaf.parents.dedup();
+                leaf
             };
             custody.leaves.insert((result.place, Vec::new()), leaf);
         }
@@ -2015,7 +2045,7 @@ pub(in crate::legalization) fn return_custody(
             }),
             root => declared(root),
         };
-        if !admitted
+        if !(admitted || descriptor_backing::matches_return(&leaf.backing, &declared))
             || !leaf.parents.is_empty()
             || custody
                 .leaves
@@ -2230,6 +2260,8 @@ pub(in crate::legalization) fn block_entry_states(
     let borrowed_sources = borrowed_sources(function, types);
     let mut initial = entry(function, types)?;
     initial.borrowed_sources = borrowed_sources;
+    initial.descriptor_backing =
+        std::sync::Arc::new(descriptor_backing::prepare(function, native, plan, unit)?);
     let mut entries = BTreeMap::from([(function.entry, initial)]);
     let mut pending = VecDeque::from([entry_position]);
     let mut queued = vec![false; blocks.len()];
@@ -2418,6 +2450,10 @@ fn entry(
                 Leaf {
                     identity: identity.clone(),
                     root: Root::Ingress(parameter.place, path.clone()),
+                    backing: vec![descriptor_backing::Backing::Source(Root::Ingress(
+                        parameter.place,
+                        path.clone(),
+                    ))],
                     parents: Vec::new(),
                     contract: CarrierContract::Parameter(parameter.clone()),
                     formations: vec![Formation {

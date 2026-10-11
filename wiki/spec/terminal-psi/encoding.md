@@ -609,7 +609,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 143 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 144 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -1083,6 +1083,7 @@ are not re-sorted by the canonical-order checker.
 | 2 | Case | case name string |
 | 3 | FixedIndex | `u64` index |
 | 4 | FixedRange | `u64` start + `u64` end |
+| 5 | CapturedSelector | `u32` interned selector-formation identity |
 
 <!-- restoration-class-tags -->
 
@@ -1807,7 +1808,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 143 | yes |
+| semantic module | `PSITERM\0` | 144 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

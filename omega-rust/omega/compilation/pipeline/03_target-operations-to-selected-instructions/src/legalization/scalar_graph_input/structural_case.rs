@@ -130,6 +130,11 @@ fn source_identity(
     if let Ok((_, result)) = source_result(function, source) {
         return Ok(result.structural_type);
     }
+    // Literal carriers have a declared home and Unit establishment. Reuse
+    // the same exact producer join as other descriptor geometry consumers.
+    if let Some((_, identity)) = super::literals::declaration_producer(function, source) {
+        return Ok(identity);
+    }
     let parameter = function
         .structural_parameters
         .iter()

@@ -13,7 +13,7 @@
 //! A second syntax-only state classifier would reject valid compositions and
 //! cannot authenticate those current origins.
 
-use checked_trees::{CheckedStructuralAccess, CheckedTrees};
+use checked_trees::CheckedTrees;
 use language_semantics::Multiplicity;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -22,14 +22,6 @@ fn custody(
     reference: TypeReferenceHandle,
 ) -> checked_trees::ReferenceCustodyRow {
     checked.facts.reference_custody.custody(reference)
-}
-
-/// The referent beneath any `&mut T` carrier, constraint shells peeled.
-pub(crate) fn mutable_borrow_parts(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-    custody(checked, reference).mutable_borrow_parts()
 }
 
 /// Whether closed aggregate construction of this type carries real reference

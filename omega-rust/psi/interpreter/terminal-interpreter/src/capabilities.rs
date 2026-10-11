@@ -656,6 +656,7 @@ mod tests {
         );
         let installation = TerminalRuntimeSupplies {
             terminal_psi: program.identity,
+            entry: None,
             supplies: BTreeMap::from([(
                 boundary,
                 AdmittedBoundarySupply::CheckedProvider(provider),
@@ -889,6 +890,7 @@ mod tests {
         set_machine(&mut program, target, machine(2, Vec::new()));
         let mut installation = TerminalRuntimeSupplies {
             terminal_psi: program.identity,
+            entry: None,
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),
             assumed_bindings: Vec::new(),
             target_machines: None,

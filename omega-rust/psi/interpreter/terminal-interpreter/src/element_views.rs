@@ -187,6 +187,16 @@ impl ElementView {
         self.access
     }
 
+    /// Custody of the descriptor is distinct from access to its backing.
+    /// Shared descriptors may be copied; exclusive descriptors must move.
+    pub(crate) fn owned_multiplicity(&self) -> Option<StructuralMultiplicity> {
+        match self.access {
+            StructuralAccess::SharedBorrow => Some(StructuralMultiplicity::Unrestricted),
+            StructuralAccess::MutableBorrow => Some(StructuralMultiplicity::Affine),
+            _ => None,
+        }
+    }
+
     /// Authenticate a captured element against this live view's original
     /// backing and window. The descriptor's opaque identity is not the backing
     /// identity, including when a view arrives from a caller's frame.

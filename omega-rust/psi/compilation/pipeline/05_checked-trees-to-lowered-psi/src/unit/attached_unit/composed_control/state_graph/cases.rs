@@ -374,8 +374,6 @@ pub(super) fn validate(
         _ => None,
     };
     let declared = checked.data_members(declaration);
-    let mutable_reference_result =
-        crate::reference_custody::mutable_borrow_parts(checked, source.return_type).is_some();
     for case in cases {
         let successor_plan = match &case.outcome {
             checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => Some(successor),
@@ -459,23 +457,9 @@ pub(super) fn validate(
             })
             .ok_or(LoweringError::Unsupported("Unit case names an absent case"))?;
         let Some(successor) = successor_plan else {
-            // A returned mutable reference keeps its structural producer; a
-            // call arm returns its callee's reference.
-            if mutable_reference_result
-                && let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm) = &case.outcome
-            {
-                match arm {
-                    checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
-                        super::guarded::validate_reference_return(checked, plan, state, operation)?
-                    }
-                    checked_trees::CheckedConditionalReturnArm::Call { .. } => {}
-                    _ => {
-                        return unsupported(
-                            "Unit case reference return lost its structural producer",
-                        );
-                    }
-                }
-            }
+            // Every returned value uses the ordinary producer checked above.
+            // Reference operand preparation resolves its current carrier and
+            // checked loan; case selection adds no ingress-only restriction.
             continue;
         };
         for payload in &case.payloads {

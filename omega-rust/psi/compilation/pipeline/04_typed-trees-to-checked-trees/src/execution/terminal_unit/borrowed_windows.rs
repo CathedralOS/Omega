@@ -90,21 +90,32 @@ fn assignment_path(
 
 /// Owned storage has no borrowed restoration debt. A formal and a
 /// local have different physical coordinates, but replacing either retires
-/// only the old custody selected by source checking. Reference carriers still
-/// route through the loan/window ledger below. Mutability is source admission,
-/// not storage identity: an immutable deferred local still owns its first
-/// initialization, with no old value to displace or borrowed hole to restore.
+/// only the old custody selected by source checking. A whole reference-valued
+/// replacement owns its carrier, not the borrowed contents. Its checked result
+/// type must equal that carrier's declaration; referent writes still use the
+/// loan/window ledger below. Mutability is source admission, not storage
+/// identity. A deferred local's first initialization has no old value to
+/// displace or borrowed hole to restore.
 fn owned_assignment_source(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: usize,
-    root: PlaceRoot,
+    place: &CanonicalPlace,
+    replacement_type: Option<typed_trees::type_identity::TypeIdentityId>,
 ) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
-    let symbol = root.as_symbol()?;
+    let symbol = place.root.as_symbol()?;
     if let Some((ordinal, local)) = program.state_local_declaration(state, symbol) {
         return (ordinal < statement_index
-            && !crate::checks::type_reference_is_reference(program, local.type_reference))
+            && (!crate::checks::type_reference_is_reference(program, local.type_reference)
+                || (place.segments.is_empty()
+                    && replacement_type
+                        == Some(validation::structural_type_identity(
+                            program,
+                            local.type_reference,
+                            &[],
+                            &[],
+                        )))))
         .then_some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
     }
     let position =
@@ -139,6 +150,30 @@ pub(super) fn capture_assignment_destination(
         ordinal,
         assignment.target,
     )?;
+    let owned_source = owned_assignment_source(
+        program,
+        state,
+        parameters,
+        ordinal,
+        &access,
+        facts
+            .values
+            .structural_values
+            .root_for_expression(state.symbol, statement_index, assignment.value)
+            .map(|value| {
+                validation::structural_type_identity(program, value.type_reference, &[], &[])
+            }),
+    );
+    if matches!(
+        owned_source,
+        Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. })
+    ) && access.segments.is_empty()
+    {
+        // Rebinding a variable evaluates no address or selector. Its prior
+        // occurrence may already be moved out; only projected or borrowed
+        // storage needs a pre-RHS physical destination capture.
+        return None;
+    }
     let root = access.root.as_symbol()?;
     let (root, segments) = resolve_storage_place(
         program,
@@ -149,17 +184,6 @@ pub(super) fn capture_assignment_destination(
         &access.segments,
     );
     let place = CanonicalPlace { root, segments };
-    let owned_source = owned_assignment_source(program, state, parameters, ordinal, access.root);
-    if matches!(
-        owned_source,
-        Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. })
-    ) && place.segments.is_empty()
-    {
-        // Rebinding a variable evaluates no address or selector. Its prior
-        // occurrence may already be moved out; only projected or borrowed
-        // storage needs a pre-RHS physical destination capture.
-        return None;
-    }
     let (source, path) = if let Some(source) = owned_source {
         (
             source,
@@ -665,28 +689,35 @@ impl OpenWindows {
             });
         }
         let access_place = destination_place.clone();
-        let (resolved_root, resolved_segments) = resolve_storage_place(
-            program,
-            state,
-            program.statement_table.statements(state.statement_nodes),
-            index,
-            match destination_place.root {
-                PlaceRoot::Symbol(symbol) => symbol,
-                _ => return None,
-            },
-            &destination_place.segments,
-        );
-        let destination_place = CanonicalPlace {
-            root: resolved_root,
-            segments: resolved_segments,
-        };
         let owned_source = owned_assignment_source(
             program,
             state,
             structural_parameters,
             index,
-            access_place.root,
+            &access_place,
+            Some(produced.type_identity),
         );
+        // Replacing a local's carrier does not write its prior referent. Keep
+        // that binding coordinate for both old-value disposition and install.
+        let (resolved_root, resolved_segments) = if owned_source.is_some() {
+            (access_place.root, access_place.segments.clone())
+        } else {
+            resolve_storage_place(
+                program,
+                state,
+                program.statement_table.statements(state.statement_nodes),
+                index,
+                match destination_place.root {
+                    PlaceRoot::Symbol(symbol) => symbol,
+                    _ => return None,
+                },
+                &destination_place.segments,
+            )
+        };
+        let destination_place = CanonicalPlace {
+            root: resolved_root,
+            segments: resolved_segments,
+        };
         let owned_rebind = owned_source.is_some();
         let (source, path, opening_binding, needs_displacement, needs_cleanup) =
             if let Some(source) = owned_source {

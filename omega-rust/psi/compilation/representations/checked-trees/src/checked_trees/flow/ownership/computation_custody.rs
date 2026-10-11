@@ -19,6 +19,48 @@ use crate::{
 };
 use symbols::SymbolHandle;
 
+impl CheckedUnitStructuralArgumentSourcePlan {
+    /// The producer associated with current storage, for result metadata only.
+    /// Named custody stays on the local; this does not retarget captured uses
+    /// or grant access to a producer consumed by the receiving assignment.
+    pub fn current_result_binding(
+        &self,
+        operations: &[CheckedUnitEffectOperationPlan],
+    ) -> Option<u32> {
+        let mut source = self.clone();
+        let mut prefix = operations;
+        loop {
+            let symbol = match source {
+                Self::StructuralResult { binding_ordinal } => return Some(binding_ordinal),
+                Self::StructuralLocal { symbol } => symbol,
+                _ => return None,
+            };
+            let mut previous = None;
+            for (index, operation) in prefix.iter().enumerate().rev() {
+                if operation.ends_local_occurrence(symbol) {
+                    let CheckedUnitEffectOperationPlan::Store(store) = operation else {
+                        return None;
+                    };
+                    let value = store.installed_value()?;
+                    if !store.destination.path.is_empty() || !value.path.is_empty() {
+                        return None;
+                    }
+                    previous = Some((index, value.source.clone()));
+                    break;
+                }
+                if let Some(result) = operation.statement_structural_result_binding()
+                    && result.local.symbol == symbol
+                {
+                    return Some(result.binding_ordinal);
+                }
+            }
+            let (end, prior) = previous?;
+            prefix = &prefix[..end];
+            source = prior;
+        }
+    }
+}
+
 impl CheckedUnitEffectOperationPlan {
     /// Rebinding starts a new occurrence at the same named local. Consumers
     /// through this operation can use its prior occurrence; later consumers

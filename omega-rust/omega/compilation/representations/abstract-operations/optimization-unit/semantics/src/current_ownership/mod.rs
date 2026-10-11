@@ -26,7 +26,7 @@ use terminal_psi::{
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::references::LiveReference;
 
-mod address_joins;
+pub(crate) mod address_joins;
 mod block_parameters;
 mod call_accesses;
 mod cleanup;

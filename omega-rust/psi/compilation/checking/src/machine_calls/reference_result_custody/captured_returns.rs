@@ -133,14 +133,16 @@ impl Captures<'_> {
                         return None;
                     }
                     captured = true;
-                    let source = CheckedReferenceResultSourcePlan {
-                        path: leaf.path.clone(),
-                        source: self.return_origin(state, loan, leaf)?,
-                    };
-                    if !output.contains(&source) {
-                        output.push(source);
-                        if output.len() > super::MAX_REFERENCE_ORIGIN_LEAVES {
-                            return None;
+                    for origin in self.return_origins(state, loan, leaf, expression, loans)? {
+                        let source = CheckedReferenceResultSourcePlan {
+                            path: leaf.path.clone(),
+                            source: origin,
+                        };
+                        if !output.contains(&source) {
+                            output.push(source);
+                            if output.len() > super::MAX_REFERENCE_ORIGIN_LEAVES {
+                                return None;
+                            }
                         }
                     }
                 }
@@ -184,11 +186,138 @@ impl Captures<'_> {
         completed.then_some(output)
     }
 
+    /// Loan rows own lifetime and access. The completed value owns evaluated
+    /// coordinates: a selector's later value cannot retarget its captured loan.
+    /// Both records must describe this exact return occurrence and result leaf.
+    fn return_origins(
+        &self,
+        state: &typed_trees::state::State,
+        loan: &checked_trees::BorrowReturnedLoanFact,
+        leaf: &CheckedReferenceResultSourcePlan,
+        expression: Option<ExpressionHandle>,
+        loans: &[checked_trees::BorrowReturnedLoanFact],
+    ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
+        let segments = self.facts.borrow.access_segments.span(loan.segments)?;
+        if let Some(source) = self.return_origin(state, loan, leaf, segments) {
+            return Some(vec![source]);
+        }
+        // Incoming stored descriptors have a separate opaque origin identity.
+        // A root address alone cannot replace their exact owner-path relation.
+        if loan.incoming_reference.is_valid() {
+            return None;
+        }
+        let operand =
+            self.completed_return_operand(state, loan.statement_index, expression?, &leaf.path)?;
+        if operand.expression != loan.formation_expression {
+            return None;
+        }
+        let referents = self
+            .facts
+            .flow
+            .control
+            .operand_referents
+            .span(operand.referents)?;
+        if referents.is_empty() {
+            return None;
+        }
+        let owner_path = self.facts.borrow.owner_segments.span(loan.owner_path)?;
+        let mut output = Vec::new();
+        for referent in referents {
+            let captured = self
+                .facts
+                .flow
+                .control
+                .operand_referent_segments
+                .span(referent.segments)?;
+            // Cover the complete evaluated origin set. A capture under another
+            // root must have its own lifetime row for the same result leaf;
+            // selecting just the convenient alternative would lose custody.
+            if !loans.iter().any(|candidate| {
+                candidate.statement_index == loan.statement_index
+                    && candidate.formation_expression == operand.expression
+                    && candidate.root == referent.root
+                    && candidate.kind == loan.kind
+                    && !candidate.incoming_reference.is_valid()
+                    && self.facts.borrow.owner_segments.span(candidate.owner_path)
+                        == Some(owner_path)
+                    && self
+                        .facts
+                        .borrow
+                        .access_segments
+                        .span(candidate.segments)
+                        .is_some_and(|segments| captured_address_refines(segments, captured))
+            }) {
+                return None;
+            }
+            if referent.root == loan.root && captured_address_refines(segments, captured) {
+                let origin = self.return_origin(state, loan, leaf, captured)?;
+                if !output.contains(&origin) {
+                    output.push(origin);
+                }
+            }
+        }
+        (!output.is_empty()).then_some(output)
+    }
+
+    fn completed_return_operand(
+        &self,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        expression: ExpressionHandle,
+        mut path: &[CheckedUnitStructuralPathSegment],
+    ) -> Option<&checked_trees::FlowOperandFact> {
+        let flow = self.flow(state.symbol)?;
+        let control = &self.facts.flow.control;
+        let mut exits = control.exits.span(flow.exits)?.iter().filter(|exit| {
+            exit.machine_symbol == flow.machine_symbol
+                && exit.state_symbol == state.symbol
+                && exit.statement_index == statement_index
+        });
+        let exit = exits.next()?;
+        if exits.next().is_some() || !control.operands.is_valid(exit.returned_value) {
+            return None;
+        }
+        let mut operand = control.operands.get(exit.returned_value);
+        if operand.state_symbol != state.symbol
+            || operand.statement_index != statement_index
+            || operand.expression != expression
+            || self
+                .program
+                .normalized_type_identity(operand.type_reference)
+                != self.program.normalized_type_identity(state.return_type)
+        {
+            return None;
+        }
+        while !path.is_empty() {
+            let mut selected = None;
+            for child in control.operand_children.span(operand.children)? {
+                let (destination, _) = self.structural_path(
+                    operand.type_reference,
+                    control.operand_child_paths.span(child.path)?,
+                )?;
+                if !destination.is_empty() && path.starts_with(&destination) {
+                    if selected.is_some() || !control.operands.is_valid(child.value) {
+                        return None;
+                    }
+                    selected = Some((control.operands.get(child.value), destination.len()));
+                }
+            }
+            let (child, length) = selected?;
+            if child.state_symbol != state.symbol || child.statement_index != statement_index {
+                return None;
+            }
+            operand = child;
+            path = &path[length..];
+        }
+        Some(operand)
+    }
+
     fn return_origin(
         &self,
         state: &typed_trees::state::State,
         loan: &checked_trees::BorrowReturnedLoanFact,
         leaf: &CheckedReferenceResultSourcePlan,
+        segments: &[facts::PlaceSegment],
     ) -> Option<CheckedUnitStructuralArgumentPlan> {
         let incoming = if loan.incoming_reference.is_valid() {
             if !self
@@ -267,12 +396,7 @@ impl Captures<'_> {
         // Returned loans retain address selections across each parent view.
         // Compose those frozen windows before turning the address into typed
         // structural projections; a window offset is not an array dimension.
-        let mut segments = self
-            .facts
-            .borrow
-            .access_segments
-            .span(loan.segments)?
-            .to_vec();
+        let mut segments = segments.to_vec();
         facts::compose_captured_view_segments(&mut segments)?;
         let (suffix, selected) = self.structural_path(selected, &segments)?;
         path.extend(suffix);
@@ -675,6 +799,37 @@ impl Captures<'_> {
         }
         Some((path, selected))
     }
+}
+
+/// Compare a completed address with the conservative coordinates of the same
+/// evaluated loan. Dynamic selectors admit a refinement, not reevaluation;
+/// every static field, case, window and later array dimension stays fixed.
+fn captured_address_refines(
+    segments: &[facts::PlaceSegment],
+    captured: &[facts::PlaceSegment],
+) -> bool {
+    use facts::PlaceSegment;
+    let mut segments = segments.to_vec();
+    if facts::compose_captured_view_segments(&mut segments).is_none() {
+        return false;
+    }
+    let mut remaining = segments.as_slice();
+    for &coordinate in captured {
+        remaining = match (remaining, coordinate) {
+            (
+                [
+                    PlaceSegment::FixedRange { start, end },
+                    PlaceSegment::Index { .. },
+                    suffix @ ..,
+                ],
+                PlaceSegment::FixedIndex { index },
+            ) if *start <= index && index < *end => suffix,
+            ([PlaceSegment::Index { .. }, suffix @ ..], PlaceSegment::FixedIndex { .. }) => suffix,
+            ([expected, suffix @ ..], actual) if *expected == actual => suffix,
+            _ => return false,
+        };
+    }
+    remaining.is_empty()
 }
 
 fn paths_overlap(left: &[facts::PlaceSegment], right: &[facts::PlaceSegment]) -> bool {

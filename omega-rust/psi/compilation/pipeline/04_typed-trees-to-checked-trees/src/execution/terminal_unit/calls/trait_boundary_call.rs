@@ -242,54 +242,66 @@ pub(super) fn build(
         }
         phase("call operation: boundary argument identity");
         let target_identity = base_type_identity(program, formal, &[], substitutions.as_slice())?;
-        if let Some(literal) = byte_sequence_literal_argument(program, formal, *argument) {
-            structural_arguments.push(literal);
-            continue;
-        }
-        if validation::subslice_expression(program, *argument).is_some() {
-            // The ordinary operand scheduler establishes a descriptor for a
-            // projected array before narrowing it. Boundary and checked-body
-            // calls consume the same range value, with its exact source path,
-            // endpoint occurrences and access; a range cannot fall back to a
-            // fixed projection when its own admission fails.
-            let subslice = view_subslice::admit(
-                program,
-                facts,
-                machine,
-                state,
-                caller_parameters,
-                formal,
-                *argument,
-                call.statement_index,
-                checked_trees::CheckedSubsliceSite::CallArgument {
-                    call_ordinal: u32::try_from(call.call_ordinal).ok()?,
-                    argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
-                },
-            )?;
-            // A boundary callee has no body for Terminal to inspect, so a
-            // descriptor it receives beside a structural result counts as
-            // retained and pins its backing for the descriptor's whole life:
-            // `read_line(&mut line[0..0])` would freeze `line` for every later
-            // state. An admitted window with fixed bounds over a projected
-            // collection is that collection's place projection, lending
-            // exactly the window with no descriptor; it takes the place route
-            // below. A runtime window, or one over a whole byte view, keeps
-            // its descriptor.
-            let fixed_projection = !(subslice.range.kind == view_subslice::ViewKind::Bytes
-                && subslice.range.collection.is_empty())
-                && matches!(
-                    validation::canonical_place_from_expression_in_state(
-                        program,
-                        state.symbol,
-                        call.statement_index,
-                        *argument,
-                    )
-                    .and_then(|place| place.segments.last().cloned()),
-                    Some(facts::PlaceSegment::FixedRange { .. })
-                );
-            if !fixed_projection {
-                structural_arguments.push(subslice.argument());
+        // A retained argument owns its evaluated value, including a literal
+        // descriptor. Boundary calls consume that result just as checked-body
+        // calls do; reconstructing its source would orphan the producer.
+        let produced_place = caller_structural_results
+            .iter()
+            .find(|(_, root)| *root == facts::PlaceRoot::Expression(*argument))
+            .map(|_| validation::CanonicalPlace {
+                root: facts::PlaceRoot::Expression(*argument),
+                segments: Vec::new(),
+            });
+        if produced_place.is_none() {
+            if let Some(literal) = byte_sequence_literal_argument(program, formal, *argument) {
+                structural_arguments.push(literal);
                 continue;
+            }
+            if validation::subslice_expression(program, *argument).is_some() {
+                // The ordinary operand scheduler establishes a descriptor for a
+                // projected array before narrowing it. Boundary and checked-body
+                // calls consume the same range value, with its exact source path,
+                // endpoint occurrences and access; a range cannot fall back to a
+                // fixed projection when its own admission fails.
+                let subslice = view_subslice::admit(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    caller_parameters,
+                    formal,
+                    *argument,
+                    call.statement_index,
+                    checked_trees::CheckedSubsliceSite::CallArgument {
+                        call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                        argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
+                    },
+                )?;
+                // A boundary callee has no body for Terminal to inspect, so a
+                // descriptor it receives beside a structural result counts as
+                // retained and pins its backing for the descriptor's whole life:
+                // `read_line(&mut line[0..0])` would freeze `line` for every later
+                // state. An admitted window with fixed bounds over a projected
+                // collection is that collection's place projection, lending
+                // exactly the window with no descriptor; it takes the place route
+                // below. A runtime window, or one over a whole byte view, keeps
+                // its descriptor.
+                let fixed_projection = !(subslice.range.kind == view_subslice::ViewKind::Bytes
+                    && subslice.range.collection.is_empty())
+                    && matches!(
+                        validation::canonical_place_from_expression_in_state(
+                            program,
+                            state.symbol,
+                            call.statement_index,
+                            *argument,
+                        )
+                        .and_then(|place| place.segments.last().cloned()),
+                        Some(facts::PlaceSegment::FixedRange { .. })
+                    );
+                if !fixed_projection {
+                    structural_arguments.push(subslice.argument());
+                    continue;
+                }
             }
         }
 
@@ -298,21 +310,14 @@ pub(super) fn build(
         // receiver path which supplied its contents. Ordinary calls make the
         // same distinction between evaluated operands and source storage.
         phase("call operation: boundary argument place");
-        let place = caller_structural_results
-            .iter()
-            .find(|(_, root)| *root == facts::PlaceRoot::Expression(*argument))
-            .map(|_| validation::CanonicalPlace {
-                root: facts::PlaceRoot::Expression(*argument),
-                segments: Vec::new(),
-            })
-            .or_else(|| {
-                validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    call.statement_index,
-                    *argument,
-                )
-            })?;
+        let place = produced_place.or_else(|| {
+            validation::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                call.statement_index,
+                *argument,
+            )
+        })?;
         if let Some((result, _)) = caller_structural_results
             .iter()
             .find(|(_, root)| *root == place.root)

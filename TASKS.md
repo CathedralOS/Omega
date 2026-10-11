@@ -1673,19 +1673,17 @@ defines the complete product bar.
   on macOS ARM64. A byte store preserves `Utf8` only with carrier/byte
   evidence: `ValidUtf8` does not imply `AsciiOnly`.
 
-  The unchanged Dungeon Crawler now runs natively on macOS ARM64 through
-  the public EOF and `help`/`exit` routes: both print the authored opening room
-  and goodbye, then exit 0. Completed operands retain exact borrowed addresses
-  through member, view and return transport; shared view-coordinate composition
-  preserves nested array dimensions. Native projection consumes each view
-  backing once, and fixed-operand allocation reuses its prepared occurrence
-  slots within the existing work cap. Plain views of qualified byte owners
-  preserve live contents across locals, calls and state arrivals in native and
-  Terminal execution. Keep qualified byte snapshots through state arrivals
-  and field replacement, including their live lengths and unchanged siblings.
-  Retain the invalid field-domain/owned-copy controls, complete the remaining
-  cases below, and qualify the other declared hosts. The whole application
-  remains the acceptance driver; see its README for the public commands.
+  The unchanged Dungeon Crawler runs natively on macOS ARM64 through the
+  public EOF and `help`/`exit` routes, printing the authored opening room and
+  goodbye before exit 0. Qualified byte snapshots retain live contents and
+  lengths through state arrivals and field replacement. Reassigned view locals
+  carry the current descriptor through calls, states and returns in native and
+  Terminal execution; an earlier child retains its captured selector and backing
+  when the parent view or selector local changes. Invalid replacement bounds,
+  local-backing escapes and overlapping child loans reject. Retain these controls,
+  close the remaining domain/proof compositions below, and qualify the other
+  declared hosts. The whole application remains the acceptance driver; its README
+  carries the public commands.
 
   Acceptance:
   - Paired qualified/free-machine corpus cases over the same established

@@ -1,12 +1,14 @@
 //! Reference establishments share their source join across expression positions.
-//! Slice descriptors lend existing collection storage: their checked loan names
-//! that backing, so resolving a static selection through the descriptor preserves
-//! the original array's geometry. Stored reference carriers are different: their
-//! runtime address must remain the source, never a replay of their initializer.
-//! This joins admitted custody; borrow checking still owns access and lifetime.
+//! A local reference or view names its current carrier. Its declaration's loan
+//! is provenance, not an executable replacement for that carrier: reassignment
+//! can change a view's backing and window without changing the local symbol.
+//! Keep the logical root and occurrence's captured selectors until publication
+//! joins the current home. View indexing consumes its retained descriptor;
+//! stored references cross their actual pointer. Neither route replays an
+//! initializer. Borrow checking still owns bounds, access and lifetime.
 
 use checked_trees::{
-    BorrowFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+    CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
 };
 use typed_trees::expression::ExpressionHandle;
@@ -14,12 +16,12 @@ use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn plan(
     program: &dyn validation::CheckingInput,
-    borrow_facts: &BorrowFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
+    selector: &dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let shell = validation::reference_shell(program, reference)?;
     let (referent, access) = (shell.referee, CheckedStructuralAccess::from(shell.access));
@@ -31,57 +33,12 @@ pub(crate) fn plan(
     if CheckedStructuralAccess::from(borrow.access) != access {
         return None;
     }
-    let mut place = validation::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,
         borrow.target,
     )?;
-    let mut visited = Vec::new();
-    loop {
-        let root = place.root.as_symbol()?;
-        let Some((declaration_index, local)) = program.state_local_declaration(state, root) else {
-            break;
-        };
-        if validation::slice_view_shell(program, local.type_reference, &[]).is_none() {
-            break;
-        }
-        // Only a loan with this declaration's exact formation may substitute
-        // a descriptor. A different occurrence or a cycle supplies no origin.
-        if declaration_index >= statement_index || visited.contains(&root) {
-            return None;
-        }
-        visited.push(root);
-        let borrowing =
-            borrow_facts.states.iter().map(|(_, row)| row).find(|row| {
-                row.machine_symbol == machine.symbol && row.state_symbol == state.symbol
-            })?;
-        let mut loans = borrow_facts.loans.iter().filter(|(handle, loan)| {
-            borrow_facts.state_owns_loan(borrowing, *handle)
-                && loan.owner_symbol == root
-                && loan.statement_index == declaration_index
-                && borrow_facts.loan_owner_path(loan).is_empty()
-        });
-        let (_, loan) = loans.next()?;
-        let supplied = match loan.kind {
-            checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
-            checked_trees::BorrowAccessKind::Mutable => CheckedStructuralAccess::MutableBorrow,
-            checked_trees::BorrowAccessKind::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
-        };
-        if loans.next().is_some() || !access_can_supply(supplied, access) {
-            return None;
-        }
-        // The descriptor's window and the first selected element share one
-        // dimension. Nested array projections after that boundary stay intact.
-        let segments = facts::project_captured_view_segments(
-            borrow_facts.loan_segments(loan),
-            &place.segments,
-        )?;
-        place = validation::CanonicalPlace {
-            root: loan.root,
-            segments,
-        };
-    }
     let root = place.root.as_symbol()?;
     let source = if let Some((position, parameter)) = program
         .state_parameters(state)
@@ -133,12 +90,13 @@ pub(crate) fn plan(
         }
     };
     let (mut projected, mut path) =
-        crate::execution::terminal_unit::calls::projected_borrowed_path(
+        crate::execution::terminal_unit::calls::projected_evaluated_path(
             program,
             machine.symbol,
             state.symbol,
             statement_index,
             &place,
+            Some(selector),
         )?;
     // A reference formal already names its referent. At a whole-formal
     // borrow the type query still returns that ingress shell; only a stored

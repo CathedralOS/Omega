@@ -32,6 +32,48 @@ pub(crate) struct CleanupEmission<'a> {
 }
 
 impl Evaluation {
+    /// Releasing a descriptor ends its own home, not its borrowed backing.
+    /// The emitted carrier decides whether that also disposes affine custody;
+    /// qualifications do not turn an unrestricted value into an affine owner.
+    pub(crate) fn descriptor_retirement(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+        operations: &OperationBuffer,
+    ) -> Result<TerminalAffineCleanupAction, LoweringError> {
+        let mut multiplicities = self
+            .structural_root_parameters()
+            .filter(|parameter| parameter.place == place)
+            .map(|parameter| parameter.multiplicity)
+            .chain(
+                operations
+                    .structural_values
+                    .iter()
+                    .filter_map(|(_, binding)| {
+                        (binding.place() == place && binding.path().is_empty())
+                            .then(|| binding.multiplicity())
+                    }),
+            );
+        let multiplicity = multiplicities.next().ok_or(LoweringError::Unsupported(
+            "descriptor retirement lost its emitted carrier declaration",
+        ))?;
+        if multiplicities.any(|other| other != multiplicity) {
+            return Err(LoweringError::Unsupported(
+                "descriptor retirement has inconsistent carrier declarations",
+            ));
+        }
+        match multiplicity {
+            terminal_psi::StructuralMultiplicity::Unrestricted => {
+                Ok(TerminalAffineCleanupAction::RetireHome(place))
+            }
+            terminal_psi::StructuralMultiplicity::Affine => {
+                Ok(TerminalAffineCleanupAction::DiscardRoot(place))
+            }
+            terminal_psi::StructuralMultiplicity::Linear => Err(LoweringError::Unsupported(
+                "descriptor retirement cannot discharge linear custody",
+            )),
+        }
+    }
+
     /// Computed backing retirement is a source-authorized candidate, not an
     /// unconditional use of every alternative's reserved home. The same
     /// continuation selection as affine cleanup keeps only births on this path.

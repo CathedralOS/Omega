@@ -1,9 +1,7 @@
 //! Shared view descriptor replacement keeps the RHS descriptor's actual origin.
 //!
-//! One store serves every descriptor slot: a record's shared view field below
-//! a carrier path, or a whole declared view local (an empty path and no
-//! field). Initialization and later reassignment of that local are the same
-//! store; the declaration only establishes the home.
+//! A record field retains its declared slot and byte-predicate obligation.
+//! Whole local descriptors use ordinary value establishment and rebinding.
 //!
 //! The common byte operand planner supplies the same completed operand used
 //! by comparisons and predicate scans. This operation retains the exact source
@@ -16,13 +14,11 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::terminal_field_identity;
 
 /// The descriptor slot one store replaces: the carrier path from the root,
-/// the slot's declared type, and the field naming it when the slot is a
-/// record member rather than the whole root.
-pub(in crate::execution::terminal_unit) struct DescriptorSlot<'a> {
-    pub(in crate::execution::terminal_unit) path:
-        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-    pub(in crate::execution::terminal_unit) type_reference: typed_trees::types::TypeReferenceHandle,
-    pub(in crate::execution::terminal_unit) field: Option<&'a typed_trees::data::DataField>,
+/// the slot's declared type, and the field naming it.
+pub(super) struct DescriptorSlot<'a> {
+    pub(super) path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    pub(super) type_reference: typed_trees::types::TypeReferenceHandle,
+    pub(super) field: &'a typed_trees::data::DataField,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -68,7 +64,7 @@ pub(super) fn store(
 /// `dense_parameter` names the lane's dense structural argument
 /// for an authored parameter position the source reads.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::execution::terminal_unit) fn descriptor_store(
+pub(super) fn descriptor_store(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
@@ -149,15 +145,10 @@ pub(in crate::execution::terminal_unit) fn descriptor_store(
             },
         )?,
     };
-    // A slot without a field is the whole root itself: an empty path.
     let mut path = slot.path;
-    match slot.field {
-        Some(field) => path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            terminal_field_identity(program, field.symbol)?,
-        )),
-        None if path.is_empty() => {}
-        None => return None,
-    }
+    path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+        terminal_field_identity(program, slot.field.symbol)?,
+    ));
     let mut value = checked_trees::CheckedByteSequenceValuePlan::default();
     value.root = value
         .nodes

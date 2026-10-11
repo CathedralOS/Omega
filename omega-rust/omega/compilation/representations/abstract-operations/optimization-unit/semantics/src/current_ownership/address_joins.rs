@@ -30,7 +30,7 @@
 pub(super) mod borrowed_regions;
 mod descriptor_loans;
 pub(crate) use descriptor_loans::validate_compatibility;
-mod range_relations;
+pub(crate) mod range_relations;
 
 use crate::OptimizationUnitValidationError;
 use crate::current_ownership::CurrentOwnership;

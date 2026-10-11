@@ -35,7 +35,12 @@ fn view_access_with_budget(
     let mut expected_type = None;
     let mut copied_whole = false;
     for remaining in (0..budget).rev() {
-        if let Some((_, result)) = super::completed_descriptor(function, place) {
+        // Geometry alone grants no backing permission. Calls and declared
+        // homes retain their admitted origins; other producers replay their
+        // exact source chain below, including every shared descriptor copy.
+        if let Some((_, result)) = super::descriptor_result(function, place)
+            .or_else(|| super::descriptor_home(function, place))
+        {
             let access = match result.multiplicity {
                 M::Unrestricted => A::SharedBorrow,
                 M::Affine => A::MutableBorrow,
@@ -139,7 +144,6 @@ fn view_access_with_budget(
         };
         if result.place != place
             || result.structural_type != structural_type
-            || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()

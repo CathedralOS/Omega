@@ -15,8 +15,7 @@ use super::{
     CheckedStructuralScalarArgumentPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
-    Multiplicity, StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
-    TypeReferenceNode,
+    Multiplicity, TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control;
@@ -430,11 +429,19 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                             ).is_some())))
             {
                 mark(SuccessorGuard::ResultTransfer);
-                if place.segments.is_empty() {
+                // Direct result forwarding is valid only while that result
+                // remains the named binding's current occurrence. A replaced
+                // home is evaluated below through the ordinary edge operand
+                // route; forwarding its initializer would revive an old value.
+                if place.segments.is_empty()
+                    && let Some(symbol) = place.root.as_symbol()
+                    && let Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }) =
+                        super::super::local_storage::source(program, source, operations, symbol)
+                {
                     let mut matches = operations.iter()
                         .filter(|operation| !operand_owned_construction(operation))
                         .filter_map(retained_structural_result)
-                        .filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));
+                        .filter(|result| result.binding_ordinal == binding_ordinal && result.statement_index < ordinal);
                     if let Some(result) = matches.next() {
                         if matches.next().is_some() { return None; }
                         if result.type_identity != target.type_identity
@@ -778,7 +785,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                             // edges retain the same authenticated crossing;
                             // failed reference admission cannot lend descriptor
                             // storage through the ordinary owner-loan route.
-                            let subject = calls::retained_reference_argument(
+                            let mut subject = calls::retained_reference_argument(
                                 program,
                                 machine.symbol,
                                 source,
@@ -789,6 +796,11 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 target_parameters.get(target.position as usize)?,
                                 target.type_identity,
                             )?;
+                            if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }) {
+                                subject.source = super::super::local_storage::source(
+                                    program, source, operations, root_symbol,
+                                )?;
+                            }
                             if subject.access != expected_access
                                 || !subject.path.iter().all(|segment| {
                                     matches!(
@@ -846,9 +858,9 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 ordinal,
                                 expression,
                                 &place,
-                                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                    binding_ordinal: result.binding_ordinal,
-                                },
+                                super::super::local_storage::source(
+                                    program, source, operations, root_symbol,
+                                )?,
                                 None,
                                 expected_access,
                                 target,

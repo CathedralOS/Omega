@@ -49,7 +49,15 @@ pub enum TerminalBorrowPlaceSegment {
     Field(TerminalIdentityIndex),
     Case(TerminalIdentityIndex),
     FixedIndex(u64),
-    FixedRange { start: u64, end: u64 },
+    FixedRange {
+        start: u64,
+        end: u64,
+    },
+    /// Opaque selector captured by one checked loan formation in a state
+    /// invocation. Equality preserves that occurrence through child lineage;
+    /// it proves neither scalar equality nor spatial compatibility. Runtime
+    /// indexing and its bounds obligation remain on the executable operation.
+    CapturedSelector(TerminalIdentityIndex),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

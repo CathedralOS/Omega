@@ -159,10 +159,7 @@ impl<'unit> CallAccesses<'unit> {
                     }
                     let projection = region.projection.without_runtime_coordinates();
                     if !writes.iter().any(|existing| {
-                        existing.position == position
-                            && existing.projection.path == projection.path
-                            && existing.projection.exact == projection.exact
-                            && existing.projection.indirect == projection.indirect
+                        existing.position == position && existing.projection == projection
                     }) {
                         writes.push(ParameterMutation {
                             position,

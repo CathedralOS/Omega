@@ -123,10 +123,52 @@ pub(crate) fn owner_path(
         .collect()
 }
 
+/// Static publication coordinate of one loan's evaluated selectors. The
+/// loan handle distinguishes formations even when prepared source expressions
+/// are shared. Runtime invocations remain scoped by the containing handoff.
+#[derive(Clone, Copy)]
+pub(crate) struct Capture {
+    pub state: symbols::SymbolHandle,
+    pub loan: arena::Handle<checked_trees::BorrowLoanFact>,
+}
+
+impl Capture {
+    fn selector_identity(
+        self,
+        checked: &CheckedTrees,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Result<String, LoweringError> {
+        let loan = checked.facts.borrow.loans.get(self.loan);
+        if !expression.is_valid() {
+            return unsupported("reborrow custody selector has no captured occurrence");
+        }
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+            b"omega-terminal-captured-borrow-selector-v1",
+        );
+        digest.raw(identity(checked, self.state)?.as_bytes());
+        digest.raw(&self.loan.arena_index().to_le_bytes());
+        digest.raw(&self.loan.generation().to_le_bytes());
+        digest.raw(&ordinal(loan.statement_index)?.to_le_bytes());
+        digest.raw(&loan.formation_expression.arena_index().to_le_bytes());
+        digest.raw(&loan.formation_expression.generation().to_le_bytes());
+        digest.raw(&expression.arena_index().to_le_bytes());
+        digest.raw(&expression.generation().to_le_bytes());
+        Ok(format!(
+            "terminal-borrow-selector:{}",
+            digest
+                .finish()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        ))
+    }
+}
+
 pub(crate) fn place_segments(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     segments: &[facts::PlaceSegment],
+    capture: Capture,
 ) -> Result<Vec<TerminalBorrowPlaceSegment>, LoweringError> {
     segments
         .iter()
@@ -147,8 +189,10 @@ pub(crate) fn place_segments(
                         end: ordinal(*end)?,
                     }
                 }
-                facts::PlaceSegment::Index { .. } => {
-                    return unsupported("dynamic projection cannot publish reborrow root custody");
+                facts::PlaceSegment::Index { expression } => {
+                    TerminalBorrowPlaceSegment::CapturedSelector(
+                        identities.intern(&capture.selector_identity(checked, *expression)?),
+                    )
                 }
             })
         })
@@ -159,11 +203,37 @@ pub(crate) fn place(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     place: &checked_trees::CapturedPlace,
+    capture: Capture,
 ) -> Result<TerminalBorrowPlace, LoweringError> {
     Ok(TerminalBorrowPlace {
         root_identity: identities.intern(&storage_root_identity(checked, place.root)?),
-        segments: place_segments(identities, checked, &place.segments)?,
+        segments: place_segments(identities, checked, &place.segments, capture)?,
     })
+}
+
+/// Inherited selector coordinates retain their parent's capture identity.
+/// Only the newly evaluated suffix belongs to the child's formation.
+pub(crate) fn projected_place(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    parent: &checked_trees::CapturedPlace,
+    published_parent: &TerminalBorrowPlace,
+    child: &checked_trees::CapturedPlace,
+    capture: Capture,
+) -> Result<(TerminalBorrowPlace, Vec<TerminalBorrowPlaceSegment>), LoweringError> {
+    if parent.root != child.root || parent.incoming_reference != child.incoming_reference {
+        return unsupported("reborrow custody child changes its captured root");
+    }
+    let remainder = child
+        .segments
+        .strip_prefix(parent.segments.as_slice())
+        .ok_or(LoweringError::Unsupported(
+            "reborrow custody child place is not under its parent",
+        ))?;
+    let projection = place_segments(identities, checked, remainder, capture)?;
+    let mut place = published_parent.clone();
+    place.segments.extend_from_slice(&projection);
+    Ok((place, projection))
 }
 
 pub(crate) fn access(kind: BorrowAccessKind) -> StructuralAccess {
@@ -260,6 +330,16 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
             return unsupported("reborrow root custody direct-root identity disagrees");
         }
 
+        let direct_root_place = place(
+            identities,
+            checked,
+            &parent.captured_place,
+            Capture {
+                state: parent.state_symbol,
+                loan: parent.loan,
+            },
+        )?;
+        let mut published_parent = direct_root_place.clone();
         let mut expected_parent = CheckedParentBorrowResource::DirectRoot {
             resource: parent_handle,
         };
@@ -317,13 +397,6 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
                 .contexts
                 .constraint_refs
                 .get(suspension.parent_entry_constraint);
-            let Some(projection_remainder) = child
-                .captured_place
-                .segments
-                .strip_prefix(expected_parent_place.segments.as_slice())
-            else {
-                return unsupported("reborrow root custody child place is not under its parent");
-            };
             let exact_resources = child.loan == child_activation.loan
                 && child.loan == child_weakening.loan
                 && child.parent_loan == parent_weakening.loan
@@ -347,11 +420,23 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
                 return unsupported("reborrow root custody checked replay disagrees");
             }
 
+            let (child_place, projection_remainder) = projected_place(
+                identities,
+                checked,
+                expected_parent_place,
+                &published_parent,
+                &child.captured_place,
+                Capture {
+                    state: child.state_symbol,
+                    loan: child.loan,
+                },
+            )?;
+            published_parent = child_place.clone();
             terminal_lineage.push(TerminalReborrowRootHandoffStep {
                 child_owner_identity: identities.intern(&identity(checked, child.owner_symbol)?),
                 child_owner_path: owner_path(identities, checked, &child.owner_path)?,
-                child_place: place(identities, checked, &child.captured_place)?,
-                projection_remainder: place_segments(identities, checked, projection_remainder)?,
+                child_place,
+                projection_remainder,
                 child_access: access(child.access.clone()),
                 child_activation: boundary(identities, checked, child_activation.source)?,
                 formation_boundary: boundary(identities, checked, suspension.source)?,
@@ -425,7 +510,7 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
             source_state_identity: identities.intern(&identity(checked, leaf.state_symbol)?),
             direct_root_owner_identity: identities.intern(&identity(checked, parent.owner_symbol)?),
             direct_root_owner_path: owner_path(identities, checked, &parent.owner_path)?,
-            direct_root_place: place(identities, checked, &parent.captured_place)?,
+            direct_root_place,
             direct_root_access: access(parent.access.clone()),
             direct_root_activation: boundary(identities, checked, parent.activation_source)?,
             direct_root_weakening: boundary(identities, checked, root_weakening.source)?,

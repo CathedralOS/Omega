@@ -460,6 +460,32 @@ pub(crate) fn emit(
     } else {
         let first_new_place = *emission.next_place;
         let source = emission.value(identities, *value, None)?;
+        // Image-backed descriptors are established storage, not operation
+        // results. Copy the selected unrestricted carrier without copying
+        // or taking ownership of its bytes, retaining the operand coordinate.
+        let source = if emission.temporary_places.iter().any(|declaration| {
+            declaration.id == source.place
+                && matches!(
+                    declaration.kind,
+                    StructuralPlaceKind::ByteSequenceLiteral { .. }
+                )
+        }) {
+            let place = emission.copied_leaf_place(
+                identities,
+                &StructuralArgument {
+                    access: StructuralAccess::SharedBorrow,
+                    ..source
+                },
+                structural_values(checked)
+                    .nodes
+                    .get(*value)
+                    .qualification_decisions,
+                None,
+            )?;
+            StructuralArgument::whole(place, StructuralAccess::Owned)
+        } else {
+            source
+        };
         // Existing storage needs an arrival owned by this binding; fresh
         // producers already published one. Use the same allocation frontier
         // as constructor capture, independent of the source expression shape.
@@ -1587,16 +1613,20 @@ impl Emission<'_, '_, '_> {
                 // Terminal replays its byte predicates against the octets.
                 let qualifications =
                     self.checked_membership_domains(node.qualification_decisions)?;
-                let place = crate::emission::structural_byte_sequence_store::emit_literal_view(
-                    identities,
-                    &bytes,
-                    qualifications,
-                    self.structural_types,
-                    self.temporary_places,
-                    self.next_place,
-                    self.operations,
-                )?;
-                self.completed(identities, place, continuation)
+                let declaration =
+                    crate::emission::structural_byte_sequence_store::emit_call_literal(
+                        identities,
+                        &bytes,
+                        self.structural_type,
+                        qualifications,
+                        self.structural_types,
+                        self.temporary_places,
+                        self.next_place,
+                        self.next_value,
+                        &mut self.calls.next_obligation_identity,
+                        self.operations,
+                    )?;
+                self.completed(identities, declaration.id, continuation)
             }
             CheckedStructuralValueKind::ZeroedStructural { .. } => {
                 let place = self.establish_zeroed()?;

@@ -62,6 +62,7 @@ pub(crate) fn build_checked_value_computation_plans(
 ) {
     let mut plans = CheckedScalarComputationPlans::default();
     let mut structural_values = checked_trees::CheckedStructuralValuePlans::default();
+    let call_frames = validation::CallFrameResolver::new(program);
     for machine in program.machines() {
         // Existing named-output emission joins statement binding positions.
         // It must not silently reinterpret computation-local call positions.
@@ -392,15 +393,34 @@ pub(crate) fn build_checked_value_computation_plans(
                     // `referent = Sum::Case` through `referent: &mut Sum`
                     // roots a value of the referee, which the sequence then
                     // stores through the loan's whole-referent window.
+                    // Reference-valued replacement owns the descriptor, while
+                    // value-shaped assignment writes through the reference.
+                    // Share the source mutation owner's classification: the
+                    // declared reference shell alone cannot choose the store.
+                    let replaces_reference = call_frames.as_ref().is_some_and(|frames| {
+                        frames.assignment_replaces_local_reference_binding(machine, statement)
+                            == Some(true)
+                    });
                     let written = validation::expression_type_reference_in_state(
                         program,
                         state.symbol,
                         statement_index,
                         assignment.target,
                     )
-                    .map(|destination| validation::assignment_value_type(program, destination));
+                    .map(|destination| {
+                        if replaces_reference {
+                            destination
+                        } else {
+                            validation::assignment_value_type(program, destination)
+                        }
+                    });
                     if let Some(expected) = written
-                        && (structural_values::is_record_value(program, assignment.value, expected)
+                        && (replaces_reference
+                            || structural_values::is_record_value(
+                                program,
+                                assignment.value,
+                                expected,
+                            )
                             || validation::is_scalar_case_value(
                                 program,
                                 assignment.value,

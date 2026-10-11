@@ -8,7 +8,12 @@
 
 use super::{Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinuation};
 use super::{lookup_type_id, unsupported};
-use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
+use crate::expression_preparation::bindings::structural_paths::{
+    PreparedStructuralPathSegment, emit_captured_argument_path, prepare_structural_argument_path,
+};
+use crate::expression_preparation::bindings::{
+    LoanAccess, ScalarBindings, StructuralScalarFieldBinding,
+};
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 
 impl Emission<'_, '_, '_> {
@@ -39,7 +44,7 @@ impl Emission<'_, '_, '_> {
         // Direct primitive storage needs its original mutable home. Existing
         // structural projections, parameters and immutable homes retain their
         // established join, including shared root qualification custody.
-        let argument = if source_value.is_valid() {
+        if source_value.is_valid() {
             let node = self.structural_value_node(source_value);
             let root_type = lookup_type_id(
                 self.type_ids,
@@ -73,22 +78,14 @@ impl Emission<'_, '_, '_> {
                     structural_type: root_type,
                 },
             );
-            let mut argument = completed.argument;
-            argument.path.extend(crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                identities, &source.path, root_type, self.structural_types,
-            )?);
-            argument.access =
-                crate::expression_preparation::bindings::structural_paths::terminal_access(
-                    source.access,
-                );
-            argument
-        } else {
-            let bindings = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
-                .with_structural_parameters(&self.evaluation.structural_parameters)
-                .with_structural_locals(&self.evaluation.structural_locals)
-                .with_structural_observations(self.structural_types)
-                .with_primitive_storage(&self.evaluation.primitive_storage);
-            match referent.shape {
+        }
+        let bindings = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
+            .with_structural_parameters(&self.evaluation.structural_parameters)
+            .with_structural_locals(&self.evaluation.structural_locals)
+            .with_view_locals(&self.evaluation.view_locals)
+            .with_structural_observations(self.structural_types)
+            .with_primitive_storage(&self.evaluation.primitive_storage);
+        let argument = match referent.shape {
             StructuralTypeShape::PrimitiveScalar(scalar_type)
                 if !has_primitive_home
                     && matches!(
@@ -104,14 +101,112 @@ impl Emission<'_, '_, '_> {
                     self.structural_types,
                 )?
             }
-            _ => bindings.borrowed_structural_argument(
-                identities,
-                self.checked,
-                source,
-                machine,
-                self.checked.state_parameters(state),
-            )?,
-        }
+            _ => {
+                let mut argument = bindings.borrowed_structural_home(
+                    source,
+                    machine,
+                    self.checked.state_parameters(state),
+                )?;
+                let root_type = bindings.structural_argument_type(&argument).ok_or(
+                    LoweringError::Unsupported("reference source lost its published selected type"),
+                )?;
+                let suffix = prepare_structural_argument_path(
+                    identities,
+                    self.checked,
+                    source,
+                    root_type,
+                    self.structural_types,
+                )?;
+                let prepared = argument
+                    .path
+                    .iter()
+                    .cloned()
+                    .map(PreparedStructuralPathSegment::Static)
+                    .chain(suffix)
+                    .collect::<Vec<_>>();
+                let fields = StructuralScalarFieldBinding::collect(
+                    &self.evaluation.structural_parameters,
+                    self.structural_types,
+                );
+                let source_count = self.values.len();
+                let mut computation_ordinal = 0u32;
+                for segment in &source.path {
+                    match segment {
+                        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(value) => {
+                            let selector = self.scalar(
+                                identities,
+                                checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
+                                    expression: formation.expression,
+                                    selector_ordinal: computation_ordinal,
+                                },
+                                *value,
+                                source_count,
+                            )?;
+                            computation_ordinal = computation_ordinal.checked_add(1).ok_or(
+                                LoweringError::Unsupported("reference selector ordinal overflow"),
+                            )?;
+                            self.values.push(selector);
+                        }
+                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                            checked_trees::CheckedRuntimeIndex::StructuralField(_),
+                        ) => {
+                            let selected =
+                                super::super::super::parameters::mint_runtime_index_selectors(
+                                    identities,
+                                    &[checked_trees::CheckedUnitStructuralArgumentPlan {
+                                        path: vec![segment.clone()],
+                                        ..source.clone()
+                                    }],
+                                    &fields,
+                                    self.values.as_slice(),
+                                    self.next_value,
+                                    self.operations,
+                                )?;
+                            for id in selected {
+                                let value = self
+                                    .operations
+                                    .iter()
+                                    .rev()
+                                    .filter_map(|operation| operation.result.scalar())
+                                    .find(|value| value.id == id)
+                                    .or_else(|| {
+                                        self.values.iter().find(|value| value.id == id).copied()
+                                    })
+                                    .ok_or(LoweringError::Unsupported(
+                                        "reference field selector lost its evaluated value",
+                                    ))?;
+                                self.values.push(value);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                // Private selector control flow transports the earlier saved
+                // values. Read their final identities after all evaluations.
+                let captured = self.values[source_count..]
+                    .iter()
+                    .map(|value| value.id)
+                    .collect::<Vec<_>>();
+                self.values.truncate(source_count);
+                let mut selectors = captured.into_iter();
+                argument.place = self.evaluation.current_structural_place(argument.place);
+                // A view lends from its current descriptor. Its live extent
+                // and captured selectors belong to this reference formation's
+                // operand frame, just as they do for an ordinary call operand.
+                argument.path = emit_captured_argument_path(
+                    &prepared,
+                    argument.place,
+                    Some(self.values.as_slice()),
+                    &mut selectors,
+                    Some(&mut *self.calls),
+                    Some((&mut *self.next_value, &mut *self.operations)),
+                )?;
+                argument.access =
+                    crate::expression_preparation::bindings::structural_paths::terminal_access(
+                        source.access,
+                    );
+                argument
+            }
         };
         // A borrowed join names the referent itself, even when that referent
         // happens to contain another reference. Test the relationship before

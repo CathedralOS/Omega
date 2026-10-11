@@ -20,9 +20,8 @@
 //!   type or a case literal;
 //! - a bounded-owned byte field or a whole borrowed byte view is a
 //!   `ByteElement` or `ByteContents` leaf (`byte_stores.rs`);
-//! - a shared view descriptor slot, whether a record's field or a whole
-//!   declared view local (an empty path), is the `ByteDescriptor` leaf of
-//!   `descriptor_store.rs`.
+//! - a shared view field is the `ByteDescriptor` leaf of `descriptor_store.rs`;
+//!   whole local descriptors use ordinary value establishment and rebinding.
 //!
 //! Whole record assignments stay with ordinary structural construction and
 //! replacement in `control::statement_sequence`: operands complete before
@@ -60,7 +59,6 @@ mod element_stores;
 mod primitive;
 mod selectors;
 mod value;
-pub(in crate::execution::terminal_unit) use descriptor_store::{DescriptorSlot, descriptor_store};
 mod view_stores;
 
 /// The ordered stores of one attached Unit body, from `statement_start` on.
@@ -446,32 +444,8 @@ fn plan_assignment(
         return Some(vec![store]);
     }
     trace.phase("structural field store: carrier path");
-    let Some((leaf, carriers)) = destination.place.segments.split_last() else {
-        // An empty path names the whole root. A whole descriptor local takes
-        // the same descriptor store its record-field slots do; any other
-        // whole structural replacement is owned by the statement sequencer.
-        if !is_shared_view_field(program, destination.root_type) {
-            return None;
-        }
-        return descriptor_store::store(
-            program,
-            facts,
-            machine,
-            state,
-            roots,
-            &destination,
-            descriptor_store::DescriptorSlot {
-                path: Vec::new(),
-                type_reference: destination.root_type,
-                field: None,
-            },
-            statement_index,
-            assignment,
-            source,
-            trace,
-        )
-        .map(|store| vec![store]);
-    };
+    // Whole bindings use the statement sequencer's ordinary value rebind.
+    let (leaf, carriers) = destination.place.segments.split_last()?;
     let facts::PlaceSegment::Field { symbol } = leaf else {
         return None;
     };
@@ -546,7 +520,7 @@ fn plan_assignment(
             descriptor_store::DescriptorSlot {
                 path: carrier.path,
                 type_reference: field.type_reference,
-                field: Some(field),
+                field,
             },
             statement_index,
             assignment,

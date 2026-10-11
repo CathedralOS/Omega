@@ -388,33 +388,16 @@ pub(super) fn readable_byte_type(
         .or_else(|| super::byte_concatenation_input::owner_layout_type(source, place))
 }
 
-/// A completed descriptor in an operation-result home: a structural call's
-/// captured descriptor, or the descriptor a declared descriptor local's
-/// whole-slot stores installed. Either lends that descriptor as a shared view;
-/// its backing is replayed independently of the home.
+/// Exact completed descriptor geometry, independent of the operation which
+/// filled the home. Access and backing lifetime remain separate source-chain
+/// judgments; finding this result does not establish either permission.
 pub(super) fn completed_descriptor(
-    source: &LegalizedScalarFunction,
-    place: PlaceId,
-) -> Option<(OperationId, &terminal_psi::StructuralOperationResult)> {
-    descriptor_result(source, place).or_else(|| descriptor_home(source, place))
-}
-
-/// A declared descriptor local's home: the exact unclaimed, unrestricted or
-/// affine `EstablishStructuralLocal` result of a shared descriptor type.
-pub(in crate::selection) fn descriptor_home(
     source: &LegalizedScalarFunction,
     place: PlaceId,
 ) -> Option<(OperationId, &terminal_psi::StructuralOperationResult)> {
     let (operation, result) = super::aggregate_result_input::operation_result(source, place)?;
     let signature = source.structural.as_ref()?;
-    let row = source
-        .instructions()
-        .find(|row| row.operation == operation)?;
     (matches!(
-        &row.kind,
-        LegalizedScalarInstructionKind::EstablishStructuralLocal { result: established, .. }
-            if established == result
-    ) && matches!(
         result.multiplicity,
         terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) && result.projected_qualifications.is_empty()
@@ -427,28 +410,31 @@ pub(in crate::selection) fn descriptor_home(
     .then_some((operation, result))
 }
 
+/// A declared descriptor local's home retains the permission supplied by its
+/// independently checked whole-slot stores.
+pub(in crate::selection) fn descriptor_home(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<(OperationId, &terminal_psi::StructuralOperationResult)> {
+    let (operation, result) = completed_descriptor(source, place)?;
+    let row = source
+        .instructions()
+        .find(|row| row.operation == operation)?;
+    matches!(
+        &row.kind,
+        LegalizedScalarInstructionKind::EstablishStructuralLocal { result: established, .. }
+            if established == result
+    )
+    .then_some((operation, result))
+}
+
 /// A completed descriptor call owns only its captured descriptor payload.
 /// Its original backing is the independently replayed nonempty call roster.
 pub(super) fn descriptor_result(
     source: &LegalizedScalarFunction,
     place: PlaceId,
 ) -> Option<(OperationId, &terminal_psi::StructuralOperationResult)> {
-    let (operation, result) = super::aggregate_result_input::operation_result(source, place)?;
-    let signature = source.structural.as_ref()?;
-    if !matches!(
-        result.multiplicity,
-        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.qualification_establishments.is_empty()
-        || !result.claims.is_empty()
-        || !terminal_semantics::descriptor_results::is_shared_descriptor(
-            signature.structural_types.iter(),
-            result.structural_type,
-        )
-    {
-        return None;
-    }
+    let (operation, result) = completed_descriptor(source, place)?;
     let row = source
         .instructions()
         .find(|row| row.operation == operation)?;

@@ -6105,3 +6105,12 @@ fail/targets/distinct_roots_exclusion_selected_body rejected 12971ms expected @a
 	behavior exclusion violated: crash cause Trap is reachable in machine `trapping` (Terminal machine 2) at crash terminator in block 2
 	the selected composition retains crash cause Trap through machine `trapping` (Terminal machine 2) declared here
 pass/targets/shared_program_distinct_roots_exit checked 6993ms check-target:macos_arm64 @ad0459650859+wt
+fail/borrows/reassigned_view_cannot_escape_local_backing rejected 625ms expected @eee96af606fc+wt
+	machine `reject` returns a view borrowing the local `items`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/reassigned_view_conflicts_with_captured_child rejected 662ms expected @eee96af606fc+wt
+	statement 2 creates local borrow `view` while local borrow `view` is still active (borrowed at statement 0)
+	statement 2 creates local borrow `view` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/reassigned_view_uses_new_extent rejected 636ms expected @eee96af606fc+wt
+	cannot prove index `1` is within length 1
+pass/borrows/runtime_reassigned_view_capture_exit checked 4224ms check-target:macos_arm64 @eee96af606fc+wt
+pass/borrows/runtime_reassigned_view_return_exit checked 4368ms check-target:macos_arm64 @eee96af606fc+wt

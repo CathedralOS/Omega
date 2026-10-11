@@ -327,7 +327,7 @@ impl BorrowedRegions {
                             region,
                             terminal_psi::ElementViewRegion::RepresentationBytes { .. }
                         ) {
-                            projection.exact = false;
+                            projection.forget_address();
                         }
                         Some((result.place, source.place, projection))
                     }
@@ -520,7 +520,11 @@ impl BorrowedRegions {
                 if let Some(origins) =
                     self.source_origins_at(position, root, &projection.path[..length])
                 {
-                    let mut suffix = Projection::new(&projection.path[length..]).at(position);
+                    // Conservative paths omit captured address steps. Rebuilding
+                    // overlap geometry cannot restore that missing exact history.
+                    let mut suffix = Projection::new(&projection.path[length..])
+                        .at(position)
+                        .without_captured_address();
                     suffix.window = projection.window;
                     if suffix.window.is_some() {
                         suffix.captured_at = projection.captured_at;

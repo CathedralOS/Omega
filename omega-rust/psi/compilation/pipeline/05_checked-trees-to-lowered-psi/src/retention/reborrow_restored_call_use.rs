@@ -15,7 +15,7 @@ use checked_trees::CheckedTrees;
 use lowered_psi::LoweredSourceCallOccurrence;
 
 use crate::retention::reborrow_root_handoff::{
-    access, boundary, identity, owner_path, place, place_segments,
+    Capture, access, boundary, identity, owner_path, place, projected_place,
 };
 
 pub(crate) fn retain_selected_reborrow_restored_call_uses(
@@ -99,6 +99,15 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             return unsupported("restored reborrow call use checked rows disagree");
         }
 
+        let direct_root_place = place(
+            identities,
+            checked,
+            &parent.captured_place,
+            Capture {
+                state: parent.state_symbol,
+                loan: parent.loan,
+            },
+        )?;
         let mut shared_cohort = Vec::new();
         if shared_freeze_cohort {
             for member_handle in &event.shared_cohort {
@@ -115,21 +124,24 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                     child_owner_identity: identities
                         .intern(&identity(checked, member.owner_symbol)?),
                     child_owner_path: owner_path(identities, checked, &member.owner_path)?,
-                    child_place: place(identities, checked, &member.captured_place)?,
+                    child_place: projected_place(
+                        identities,
+                        checked,
+                        &parent.captured_place,
+                        &direct_root_place,
+                        &member.captured_place,
+                        Capture {
+                            state: member.state_symbol,
+                            loan: member.loan,
+                        },
+                    )?
+                    .0,
                     child_access: access(member.access.clone()),
                     child_activation: boundary(identities, checked, member_activation.source)?,
                     child_weakening: boundary(identities, checked, member_weakening.source)?,
                 });
             }
         }
-
-        let projection_remainder = child
-            .captured_place
-            .segments
-            .strip_prefix(parent.captured_place.segments.as_slice())
-            .ok_or(LoweringError::Unsupported(
-                "restored reborrow call use child place is not under its parent",
-            ))?;
 
         let occurrences = source_calls
             .iter()
@@ -194,7 +206,17 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
         };
         let child_owner_identity = identity(checked, child.owner_symbol)?;
         let child_owner_path = owner_path(identities, checked, &child.owner_path)?;
-        let child_place = place(identities, checked, &child.captured_place)?;
+        let (child_place, projection_remainder) = projected_place(
+            identities,
+            checked,
+            &parent.captured_place,
+            &direct_root_place,
+            &child.captured_place,
+            Capture {
+                state: child.state_symbol,
+                loan: child.loan,
+            },
+        )?;
         let child_access = access(child.access.clone());
         let child_activation = boundary(identities, checked, child_activation.source)?;
         let child_weakening = boundary(identities, checked, child_weakening.source)?;
@@ -224,7 +246,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             source_state_identity: identities.intern(&identity(checked, event.state_symbol)?),
             direct_root_owner_identity: identities.intern(&identity(checked, parent.owner_symbol)?),
             direct_root_owner_path: owner_path(identities, checked, &parent.owner_path)?,
-            direct_root_place: place(identities, checked, &parent.captured_place)?,
+            direct_root_place,
             direct_root_activation: boundary(identities, checked, parent.activation_source)?,
             direct_root_weakening: boundary(identities, checked, parent_weakening.source)?,
             direct_root_lifetime_identity: identities.intern(
@@ -236,7 +258,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             child_owner_identity: identities.intern(&child_owner_identity),
             child_owner_path,
             child_place,
-            projection_remainder: place_segments(identities, checked, projection_remainder)?,
+            projection_remainder,
             child_access,
             child_activation,
             formation_boundary: boundary(identities, checked, child.parent_suspension.source)?,

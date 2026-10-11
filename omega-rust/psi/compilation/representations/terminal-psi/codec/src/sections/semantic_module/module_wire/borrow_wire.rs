@@ -115,6 +115,10 @@ fn encode_place_segments(
                 writer.u64(*start);
                 writer.u64(*end);
             }
+            TerminalBorrowPlaceSegment::CapturedSelector(identity) => {
+                writer.u8(5);
+                writer.u32(identity.0);
+            }
         }
     }
     Ok(())
@@ -135,6 +139,9 @@ fn decode_place_segments(
             start: reader.u64()?,
             end: reader.u64()?,
         }),
+        5 => Ok(TerminalBorrowPlaceSegment::CapturedSelector(
+            TerminalIdentityIndex(reader.u32()?),
+        )),
         tag => Err(CodecError::InvalidTag("TerminalBorrowPlaceSegment", tag)),
     })
 }

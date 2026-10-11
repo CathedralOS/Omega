@@ -274,23 +274,12 @@ impl StateGraphEmission<'_, '_> {
                             formation_expression,
                             carrier_type_identity,
                         } => {
-                            let (root, root_type) = match subject.source {
-                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-                                    let parameter = state_parameters.get(parameter_index as usize).ok_or(
-                                        LoweringError::Unsupported("Unit graph loan subject descriptor disappeared"),
-                                    )?;
-                                    (edge_evaluation.current_structural_place(parameter.place), parameter.structural_type)
-                                }
-                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                                    let produced = case_emission::result(state, binding_ordinal, operations)?;
-                                    (edge_evaluation.current_structural_place(produced.place()), produced.structural_type())
-                                }
-                                _ => {
-                                    return unsupported(
-                                        "Unit graph loan subject source unsupported",
-                                    );
-                                }
-                            };
+                            let (root, root_type) = edge_evaluation.cleanup_storage(
+                                &subject.source, state_parameters, |binding| {
+                                    let produced = case_emission::result(state, binding, operations)?;
+                                    Ok((produced.place(), produced.structural_type()))
+                                },
+                            )?;
                             // Resolve the projection against its actual source
                             // declaration, as for ordinary call arguments. A
                             // case step selects geometry, not authority: the
@@ -574,14 +563,12 @@ impl StateGraphEmission<'_, '_> {
                                 LoweringError::Unsupported("Unit graph completed loan lost its emitted home"),
                             )?))
                         }
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-                            subject: checked_trees::CheckedUnitStructuralArgumentPlan {
-                                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
-                                ..
-                            },
-                            ..
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. } => {
+                            subject.source.current_result_binding(&state.operations)
+                                .map(|binding| case_emission::result(state, binding, operations))
+                                .transpose()?
                         }
-                        | checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => {
                             Some(case_emission::result(state, *binding_ordinal, operations)?)
                         }
                         _ => None,
@@ -619,10 +606,7 @@ impl StateGraphEmission<'_, '_> {
                 {
                     let loaned_binding = match transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => Some(binding_ordinal),
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { ref subject, .. } => match subject.source {
-                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => Some(binding_ordinal),
-                            _ => None,
-                        },
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { ref subject, .. } => subject.source.current_result_binding(&state.operations),
                         _ => None,
                     };
                     if let Some(binding_ordinal) = loaned_binding {

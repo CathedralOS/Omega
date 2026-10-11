@@ -101,6 +101,7 @@ impl Leaf {
         };
         Self {
             identity: identity.clone(),
+            backing: vec![super::descriptor_backing::Backing::Source(root.clone())],
             root,
             parents,
             contract: contract.clone(),
@@ -220,6 +221,9 @@ pub(super) fn merge_arrivals(
             origins.dedup();
             existing.root = Root::Alternatives(origins);
         }
+        existing.backing.extend_from_slice(&incoming.backing);
+        existing.backing.sort();
+        existing.backing.dedup();
         existing.parents.extend_from_slice(&incoming.parents);
         existing.parents.sort();
         existing.parents.dedup();

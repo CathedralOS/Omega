@@ -153,7 +153,7 @@ pub(super) fn adapt(
                         // Viewed element paths cannot refine differently named backing paths.
                         backing_projection
                             .get_or_insert_with(|| Projection::new(&[]))
-                            .exact = false;
+                            .forget_address();
                     }
                     if let Some(projection) = backing_projection {
                         graph

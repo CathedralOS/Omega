@@ -2,7 +2,9 @@
 //! The solver owns only supplied analysis scratch: each IR adapter reconstructs
 //! its exact graph, definitions and effects. Cycles remain unknown, joins retain
 //! all-path facts, and captured selectors require unchanged formation values.
-use semantic_vocabulary::{BlockId, IntegerSign, IntegerType, Proposition, ScalarType, ValueId};
+use semantic_vocabulary::{
+    BlockId, IntegerSign, IntegerType, PlaceId, Proposition, ScalarType, ValueId,
+};
 
 mod contracts;
 pub use contracts::instantiate_contract_ordering;
@@ -30,6 +32,19 @@ pub enum Effect {
         result: ValueId,
         value: u128,
     },
+    EstablishStorage {
+        place: PlaceId,
+        value: ValueId,
+    },
+    StoreStorage {
+        place: PlaceId,
+        value: ValueId,
+    },
+    ReadStorage {
+        place: PlaceId,
+        result: ValueId,
+    },
+    ForgetStorage,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -91,9 +106,101 @@ struct State {
     comparisons: Vec<(ValueId, Relation)>,
     types: Vec<(ValueId, ScalarType)>,
     literals: Vec<(ValueId, u128)>,
+    // Only explicit primitive storage births enter this roster. Unknown writes
+    // erase values, while reads capture independent scalar observations.
+    storage: Vec<(PlaceId, Option<u64>)>,
 }
 
 impl State {
+    fn known_unsigned(&self, value: ValueId) -> Option<u64> {
+        if !self.is_index(value) {
+            return None;
+        }
+        let mut candidates = self
+            .literals
+            .iter()
+            .filter_map(|(_, literal)| u64::try_from(*literal).ok())
+            .chain(
+                self.relations
+                    .iter()
+                    .flat_map(|relation| [relation.left, relation.right])
+                    .filter_map(|term| match term {
+                        Term::Unsigned(value) => Some(value),
+                        _ => None,
+                    }),
+            )
+            .collect::<Vec<_>>();
+        candidates.sort_unstable();
+        candidates.dedup();
+        let mut matching = candidates.into_iter().filter(|literal| {
+            self.proves(Term::Value(value), Term::Unsigned(*literal), false)
+                && self.proves(Term::Unsigned(*literal), Term::Value(value), false)
+        });
+        let result = matching.next()?;
+        matching.next().is_none().then_some(result)
+    }
+
+    fn proves(&self, left: Term, right: Term, strict: bool) -> bool {
+        let valid = |term| match term {
+            Term::Value(value) => self.is_index(value),
+            Term::Unsigned(_) => true,
+        };
+        if !valid(left) || !valid(right) {
+            return false;
+        }
+        let mut relations = self.relations.clone();
+        for (value, literal) in &self.literals {
+            let Ok(literal) = u64::try_from(*literal) else {
+                continue;
+            };
+            for (left, right) in [
+                (Term::Value(*value), Term::Unsigned(literal)),
+                (Term::Unsigned(literal), Term::Value(*value)),
+            ] {
+                relations.push(Relation {
+                    left,
+                    right,
+                    strict: false,
+                });
+            }
+        }
+        let constants = relations
+            .iter()
+            .flat_map(|relation| [relation.left, relation.right])
+            .chain([left, right])
+            .filter_map(|term| match term {
+                Term::Unsigned(value) => Some(value),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let mut pending = vec![(left, false)];
+        let mut visited = Vec::new();
+        while let Some((term, already_strict)) = pending.pop() {
+            if term == right && (!strict || already_strict) {
+                return true;
+            }
+            if visited.contains(&(term, already_strict)) {
+                continue;
+            }
+            visited.push((term, already_strict));
+            if let Term::Unsigned(literal) = term {
+                pending.extend(
+                    constants
+                        .iter()
+                        .filter(|other| literal <= **other)
+                        .map(|other| (Term::Unsigned(*other), already_strict || literal < *other)),
+                );
+            }
+            pending.extend(
+                relations
+                    .iter()
+                    .filter(|relation| relation.left == term)
+                    .map(|relation| (relation.right, already_strict || relation.strict)),
+            );
+        }
+        false
+    }
+
     fn kill(&mut self, values: &[ValueId]) {
         self.relations
             .retain(|relation| !relation.left.mentions(values) && !relation.right.mentions(values));
@@ -113,6 +220,15 @@ impl State {
             .retain(|comparison| other.comparisons.contains(comparison));
         self.types.retain(|value| other.types.contains(value));
         self.literals.retain(|value| other.literals.contains(value));
+        self.storage.retain_mut(|(place, value)| {
+            let Some((_, incoming)) = other.storage.iter().find(|(other, _)| other == place) else {
+                return false;
+            };
+            if value != incoming {
+                *value = None;
+            }
+            true
+        });
     }
 
     fn is_index(&self, value: ValueId) -> bool {
@@ -206,6 +322,45 @@ impl State {
         {
             result.literals.push((value, literal));
         }
+        match step.effect {
+            Effect::EstablishStorage { place, value } => {
+                result.storage.retain(|(prior, _)| *prior != place);
+                result.storage.push((place, self.known_unsigned(value)));
+            }
+            Effect::StoreStorage { place, value } => {
+                if let Some((_, stored)) =
+                    result.storage.iter_mut().find(|(prior, _)| *prior == place)
+                {
+                    *stored = self.known_unsigned(value);
+                } else {
+                    for (_, stored) in &mut result.storage {
+                        *stored = None;
+                    }
+                }
+            }
+            Effect::ReadStorage {
+                place,
+                result: value,
+            } if result_is(
+                value,
+                ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"),
+                ),
+            ) =>
+            {
+                if let Some((_, Some(literal))) =
+                    self.storage.iter().find(|(prior, _)| *prior == place)
+                {
+                    result.literals.push((value, u128::from(*literal)));
+                }
+            }
+            Effect::ForgetStorage => {
+                for (_, stored) in &mut result.storage {
+                    *stored = None;
+                }
+            }
+            _ => {}
+        }
         result
     }
 
@@ -261,6 +416,9 @@ impl State {
             }))
             .collect::<Vec<_>>()
         };
+        // Structural arrivals can replace storage independently of scalar
+        // bindings. Without their storage transport, retain only captured
+        // scalar observations across an edge, never stale home contents.
         let mut result = Self::default();
         for (value, scalar_type) in &source.types {
             for alias in aliases(*value) {
@@ -421,73 +579,22 @@ impl ScalarOrdering {
         result
     }
 
+    /// An exact unsigned value at this executable snapshot, proved on every
+    /// incoming path. Equal numeric spellings at another position are not used.
+    pub fn known_unsigned(&self, position: Position, value: ValueId) -> Option<u64> {
+        self.steps
+            .iter()
+            .position(|step| step.position == position)
+            .and_then(|index| self.states[index].as_ref())?
+            .known_unsigned(value)
+    }
+
     pub(crate) fn proves(&self, position: Position, left: Term, right: Term, strict: bool) -> bool {
-        let Some(state) = self
-            .steps
+        self.steps
             .iter()
             .position(|step| step.position == position)
             .and_then(|index| self.states[index].as_ref())
-        else {
-            return false;
-        };
-        let valid = |term| match term {
-            Term::Value(value) => state.is_index(value),
-            Term::Unsigned(_) => true,
-        };
-        if !valid(left) || !valid(right) {
-            return false;
-        }
-        let mut relations = state.relations.clone();
-        for (value, literal) in &state.literals {
-            let Ok(literal) = u64::try_from(*literal) else {
-                continue;
-            };
-            for (left, right) in [
-                (Term::Value(*value), Term::Unsigned(literal)),
-                (Term::Unsigned(literal), Term::Value(*value)),
-            ] {
-                relations.push(Relation {
-                    left,
-                    right,
-                    strict: false,
-                });
-            }
-        }
-        let constants = relations
-            .iter()
-            .flat_map(|relation| [relation.left, relation.right])
-            .chain([left, right])
-            .filter_map(|term| match term {
-                Term::Unsigned(value) => Some(value),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let mut pending = vec![(left, false)];
-        let mut visited = Vec::new();
-        while let Some((term, already_strict)) = pending.pop() {
-            if term == right && (!strict || already_strict) {
-                return true;
-            }
-            if visited.contains(&(term, already_strict)) {
-                continue;
-            }
-            visited.push((term, already_strict));
-            if let Term::Unsigned(literal) = term {
-                pending.extend(
-                    constants
-                        .iter()
-                        .filter(|other| literal <= **other)
-                        .map(|other| (Term::Unsigned(*other), already_strict || literal < *other)),
-                );
-            }
-            pending.extend(
-                relations
-                    .iter()
-                    .filter(|relation| relation.left == term)
-                    .map(|relation| (relation.right, already_strict || relation.strict)),
-            );
-        }
-        false
+            .is_some_and(|state| state.proves(left, right, strict))
     }
 
     /// The formation precedes this access on every path, and each captured

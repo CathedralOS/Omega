@@ -835,3 +835,5 @@ pass/domains/runtime_selected_nested_field_domain_exit built 2939ms exit:0 inter
 pass/text/runtime_qualified_owner_view_open_exit built 3175ms exit:0 interpreter-exit:0 interpreter:agrees @b7075f98d14c+wt
 pass/traits/default_row_captured_invocation_regions_exit built 3078ms exit:0 interpreter-exit:0 interpreter:agrees @21c44dfab69b
 pass/dependent/runtime_state_dependent_index_forward_exit built 4297ms exit:0 interpreter-exit:0 interpreter:agrees @fd8672848bf+wt
+pass/borrows/runtime_reassigned_view_capture_exit built 4214ms exit:0 interpreter-exit:0 interpreter:agrees @eee96af606fc+wt
+pass/borrows/runtime_reassigned_view_return_exit built 4297ms exit:0 interpreter-exit:0 interpreter:agrees @eee96af606fc+wt

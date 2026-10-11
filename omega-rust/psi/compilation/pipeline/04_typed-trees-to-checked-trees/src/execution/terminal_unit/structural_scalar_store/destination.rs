@@ -142,10 +142,18 @@ pub(super) fn resolve<'a>(
         let Some((declared, local)) = program.state_local_declaration(state, symbol) else {
             return false;
         };
-        crate::execution::terminal_unit::control::reference_captures::plan(
-            program, facts, machine, state, declared, local,
-        )
-        .is_some()
+        let Ok(declared_index) = u32::try_from(declared) else {
+            return false;
+        };
+        facts
+            .values
+            .structural_values
+            .root_for_expression(state.symbol, declared_index, local.initial_value)
+            .is_some()
+            || crate::execution::terminal_unit::control::reference_captures::plan(
+                program, facts, machine, state, declared, local,
+            )
+            .is_some()
     };
     let aliases =
         super::super::receiver_aliases::aliases(program, facts, machine, state).unwrap_or_default();
@@ -207,7 +215,6 @@ pub(super) fn resolve<'a>(
         return borrowed_view_local_root(
             program,
             facts,
-            machine,
             state,
             root_symbol,
             ordinal,
@@ -334,23 +341,15 @@ fn owned_local_root<'a>(
     );
     let primitive_local =
         super::primitive::primitive_local_before(program, state, ordinal, root_symbol).is_some();
-    // A declared shared byte-view local is a descriptor home: the whole local
-    // is the slot the ordinary descriptor store replaces, exactly as a record's
-    // view field is. Its reference shell names the referent's shared access,
-    // not the home's own write authority.
-    let descriptor_home = place.segments.is_empty()
-        && dynamic_index.is_none()
-        && super::is_shared_view_field(program, local.type_reference);
     // Root establishment and projected-leaf validity are independent. A stored
     // reference does not make its carrier's own home unavailable for borrowing
     // or mutation; crossing it must retain explicit permission and geometry.
     if local_ordinal >= ordinal
         || (dynamic_index.is_some() && selectors.is_none() && !bounded_byte_local)
-        || !(bounded_byte_local || primitive_local || declared_home || descriptor_home)
+        || !(bounded_byte_local || primitive_local || declared_home)
         // Cleanup policy does not change the authority to establish fields.
         // A borrowed root must instead rejoin its exact loan.
-        || (validation::reference_shell(program, local.type_reference).is_some()
-            && !descriptor_home)
+        || validation::reference_shell(program, local.type_reference).is_some()
     {
         return None;
     }
@@ -880,17 +879,13 @@ fn record_view_leaf(
     Some((loaned, view))
 }
 
-/// An exclusive borrowed view is a root of its own: `let cell: &mut Cell =
-/// self.pick(bag)` binds one immutable `&mut` local whose referent storage is
-/// already established, so `cell.value = 7` is a field store through that
-/// view -- a `Local` destination whose home the structural-local roster
-/// resolves to the loaned place. The checked borrow ledger's single Mutable
-/// loan on the binding is the write authority this arm re-reads; formation,
-/// exclusivity and lifetime were all admitted by the loan itself.
+/// A reference local names its current materialized carrier. The declaration
+/// supplies its referent shape and access; source checking already admitted
+/// this assignment's loan compatibility. Replaying the initializer's loan here
+/// would confuse its old backing with the descriptor installed by a rebind.
 fn borrowed_view_local_root<'a>(
     program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
-    machine: &'a typed_trees::machine::Machine,
     state: &'a typed_trees::state::State,
     root_symbol: SymbolHandle,
     ordinal: usize,
@@ -911,7 +906,6 @@ fn borrowed_view_local_root<'a>(
     let (local_ordinal, local) = locals.next()?;
     if locals.next().is_some()
         || local_ordinal >= ordinal
-        || local.is_mutable
         || !program
             .expression_table
             .expression_is_valid(local.initial_value)
@@ -921,31 +915,6 @@ fn borrowed_view_local_root<'a>(
     let (referee, access) =
         super::super::reference_results::mutable_borrowed_parts(program, local.type_reference)?;
     if access != CheckedStructuralAccess::MutableBorrow {
-        return None;
-    }
-    let borrow_state = facts
-        .borrow
-        .states
-        .iter()
-        .map(|(_, borrow_state)| borrow_state)
-        .find(|borrow_state| {
-            borrow_state.machine_symbol == machine.symbol
-                && borrow_state.state_symbol == state.symbol
-        })?;
-    let mut loans = facts
-        .borrow
-        .loans
-        .span_or_empty(borrow_state.loans)
-        .iter()
-        .filter(|loan| loan.owner_symbol == root_symbol && loan.statement_index == local_ordinal);
-    let loan = loans.next()?;
-    // Runtime selection changes which captured source supplies this reference,
-    // not its declared referent shape. Every possible source must retain mutable
-    // access; a singular-loan requirement would reject ordinary joined values.
-    if !std::iter::once(loan)
-        .chain(loans)
-        .all(|loan| loan.kind == checked_trees::BorrowAccessKind::Mutable)
-    {
         return None;
     }
     Some(Destination {

@@ -65,6 +65,18 @@ pub(super) fn account(
         let Some((result, _)) = operation.discardable_structural_result() else {
             continue;
         };
+        let result_local = operation
+            .statement_structural_result_binding()
+            .and_then(|binding| statements.get(binding.statement_index as usize))
+            .and_then(|statement| match statement {
+                StatementNode::LocalData(local) => Some(local.symbol),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let consumers = &operations[producer_index + 1..];
+        let occurrence_end = consumers
+            .iter()
+            .position(|consumer| consumer.ends_local_occurrence(result_local));
         let occupies_result = |source: &CheckedUnitStructuralArgumentSourcePlan, before: usize| {
             let source = match source {
                 CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
@@ -265,11 +277,30 @@ pub(super) fn account(
                 _ => argument.source == view_source.source,
             }
         };
-        let exact_view_reborrow = |source: &checked_trees::CheckedUnitStructuralArgumentPlan| {
+        let exact_view_reborrow = |source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+                                   before: usize| {
             let Some(view_source) = view_source else {
                 return false;
             };
-            same_view_root(source)
+            let observed_source = match source.source {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
+                    symbol,
+                    root_type_identity,
+                } if root_type_identity == result.type_identity => {
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+                }
+                _ => source.source.clone(),
+            };
+            // A captured child names the view's current carrier, not the
+            // declaration's backing expression. Resolve that home at the
+            // observation so a later rebind cannot redirect an earlier child.
+            let through_carrier =
+                occupies_result(&observed_source, before) && !source.path.is_empty();
+            let through_backing = same_view_root(source)
+                && source.path.starts_with(&view_source.path)
+                && (source.path.len() > view_source.path.len()
+                    || source.type_identity == view_source.type_identity);
+            (through_carrier || through_backing)
                 && matches!(
                     (view_source.access, source.access),
                     (
@@ -280,9 +311,6 @@ pub(super) fn account(
                         CheckedStructuralAccess::SharedBorrow,
                     )
                 )
-                && source.path.starts_with(&view_source.path)
-                && (source.path.len() > view_source.path.len()
-                    || source.type_identity == view_source.type_identity)
         };
         // Closed-case return establishments are retained among the state's
         // operation dependencies as well as in the terminator roster. Count
@@ -291,12 +319,14 @@ pub(super) fn account(
         // only successor transfers has no such reborrow and keeps the
         // unrestricted value's ordinary dominance disposition instead.
         let reference_reborrows = if view_source.is_some() {
-            operations[producer_index + 1..]
+            operations
                 .iter()
-                .filter(|operation| {
+                .enumerate()
+                .skip(producer_index + 1)
+                .filter(|(index, operation)| {
                     operation
                         .established_reference_source(&facts.values.structural_values)
-                        .is_some_and(&exact_view_reborrow)
+                        .is_some_and(|source| exact_view_reborrow(source, *index))
                 })
                 .count()
         } else {
@@ -332,6 +362,18 @@ pub(super) fn account(
                     transfers == 1
                 }
         };
+        // A hole-restore stores a whole owned result into borrowed
+        // storage; custody moved into the field, which owns it after
+        // this state. Count it with the terminator exits: a disposable
+        // local stored into a hole is not a second consumption. A copy
+        // of an `Unrestricted` value moves into its field the same way.
+        let stored = operations[producer_index + 1..].iter().any(|operation| {
+            operation.installed_value().is_some_and(|value| {
+                value.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
+                    && value.access == CheckedStructuralAccess::Owned
+                    && value.path.is_empty()
+            })
+        });
         // A returning arm owns the result when its call or construction
         // consumes it, or when the return retires it. Abnormal completion
         // abandons custody; it must not invent a normal disposal obligation
@@ -425,14 +467,20 @@ pub(super) fn account(
                                     CheckedConditionalReturnArm::Structural(returned)
                                         if returned
                                             .established_reference_source(&facts.values.structural_values)
-                                            .is_some_and(&exact_view_reborrow));
+                                            .is_some_and(|source| exact_view_reborrow(source, operations.len())));
                                 return_uses.next().is_some_and(|uses| {
                                     exact_reborrow || return_arm_owns(arm, uses)
                                 })
                             }
                         });
                     if view_source.is_some() {
-                        if !complete_partition {
+                        // Rebinding ends this named occurrence before the
+                        // selected exit. Its checked loan release still owes
+                        // exactly one disposition below; returning the newer
+                        // occurrence cannot also be charged to this producer.
+                        // A stored RHS likewise transferred its custody into
+                        // the receiving home before the selected exit.
+                        if !complete_partition && occurrence_end.is_none() && !stored {
                             return None;
                         }
                         closed_sum_all_reference_returns = cases.iter().all(|case| {
@@ -444,9 +492,11 @@ pub(super) fn account(
                             };
                             returned
                                 .established_reference_source(&facts.values.structural_values)
-                                .is_some_and(&exact_view_reborrow)
+                                .is_some_and(|source| exact_view_reborrow(source, operations.len()))
                         });
                         has_normal_exit
+                            && occurrence_end.is_none()
+                            && !stored
                             && result.multiplicity == Multiplicity::Unrestricted
                             && reference_reborrows == 0
                     } else {
@@ -463,41 +513,16 @@ pub(super) fn account(
         // later use here instead of still demanding state-exit disposal.
         // The final sum rejects a second move, cleanup, or returned owner.
         // Unrestricted locals remain copies, not one-use ownership debt.
-        let result_local = operation
-            .statement_structural_result_binding()
-            .and_then(|binding| statements.get(binding.statement_index as usize))
-            .and_then(|statement| match statement {
-                StatementNode::LocalData(local) => Some(local.symbol),
-                _ => None,
-            })
-            .unwrap_or_default();
         let call_transfers = if result.multiplicity == Multiplicity::Unrestricted {
             0
         } else {
-            let consumers = &operations[producer_index + 1..];
-            let occurrence_end = consumers
-                .iter()
-                .position(|consumer| consumer.ends_local_occurrence(result_local))
-                .map_or(consumers.len(), |position| position + 1);
-            consumers[..occurrence_end]
+            consumers[..occurrence_end.map_or(consumers.len(), |position| position + 1)]
                 .iter()
                 .map(|consumer| {
                     consumer.definite_call_transfers(&facts.values, operation, result_local)
                 })
                 .sum()
         };
-        // A hole-restore stores a whole owned result into borrowed
-        // storage; custody moved into the field, which owns it after
-        // this state. Count it with the terminator exits: a disposable
-        // local stored into a hole is not a second consumption. A copy
-        // of an `Unrestricted` value moves into its field the same way.
-        let stored = operations[producer_index + 1..].iter().any(|operation| {
-            operation.installed_value().is_some_and(|value| {
-                value.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
-                    && value.access == CheckedStructuralAccess::Owned
-                    && value.path.is_empty()
-            })
-        });
         // A constructor takes its whole owned local operands just as a call
         // does. Statement sequencing already retires their disposal flags;
         // rejoin the exact value children here instead of requiring that the
@@ -562,6 +587,21 @@ pub(super) fn account(
         // A counted reborrow already owns the custody — the release the
         // permissions still record is the same loan's lexical end, not a
         // second owner, so it does not book twice beside the reborrow.
+        // An exact rebind ends the anonymous producer's residence. The
+        // receiving home keeps the same loan until its later weakening;
+        // that weakening cannot also dispose the transferred producer.
+        let installed_view_claim = release_owned_view
+            .then(|| {
+                installed_view_claim(
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    operation,
+                    result,
+                    &operations[producer_index + 1..],
+                )
+            })
+            .flatten();
         let view_releases = if release_owned_view {
             facts
                 .flow
@@ -570,6 +610,7 @@ pub(super) fn account(
                 .iter()
                 .filter(|(_, event)| {
                     event.kind == PermissionEventKind::Consume
+                        && Some(event.claim_identity) != installed_view_claim
                         && event.machine_symbol == machine.symbol
                         && event.state_symbol == state.symbol
                         && matches!(
@@ -674,6 +715,134 @@ pub(super) fn consumed_case_subject(
         }
         _ => None,
     }
+}
+
+/// Rejoin one carrier installation to its checked formation claim. Permission
+/// rows retain claim identity rather than the loan handle, so the formation's
+/// exact source and backing must identify one Establish row. Ambiguity, a
+/// duplicate installation or duplicate weakening supplies no handoff.
+fn installed_view_claim(
+    facts: &CheckFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    producer: &CheckedUnitEffectOperationPlan,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    following: &[CheckedUnitEffectOperationPlan],
+) -> Option<language_semantics::PermissionClaimIdentity> {
+    let CheckedUnitEffectOperationPlan::EstablishLocal(
+        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+    ) = producer
+    else {
+        return None;
+    };
+    let formation = facts.values.structural_values.nodes.get(*value).expression;
+    let mut installations = following.iter().filter_map(|operation| {
+        let CheckedUnitEffectOperationPlan::Store(store) = operation else {
+            return None;
+        };
+        let checked_trees::CheckedStoreLeaf::OwnedRebind { type_identity } =
+            &store.destination.leaf
+        else {
+            return None;
+        };
+        let checked_trees::CheckedStoreRoot::Local { symbol } = store.destination.root else {
+            return None;
+        };
+        let supplied = store.installed_value()?;
+        (store.destination.path.is_empty()
+            && *type_identity == result.type_identity
+            && supplied.type_identity == result.type_identity
+            && supplied.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
+            && supplied.access == CheckedStructuralAccess::Owned
+            && supplied.path.is_empty())
+        .then_some((symbol, store.statement_index))
+    });
+    let (owner, installation_statement) = installations.next()?;
+    if installations.next().is_some()
+        || installation_statement != result.statement_index
+        || !formation.is_valid()
+    {
+        return None;
+    }
+    let mut states = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, row)| row)
+        .filter(|row| row.machine_symbol == machine && row.state_symbol == state);
+    let borrowing = states.next()?;
+    if states.next().is_some() {
+        return None;
+    }
+    let mut loans = facts
+        .borrow
+        .loans
+        .span_or_empty(borrowing.loans)
+        .iter()
+        .filter(|loan| {
+            loan.owner_symbol == owner
+                && loan.statement_index == result.statement_index as usize
+                && loan.formation_expression == formation
+                && facts.borrow.loan_owner_path(loan).is_empty()
+                && loan.kind == checked_trees::BorrowAccessKind::Mutable
+        });
+    let loan = loans.next()?;
+    if loans.next().is_some() {
+        return None;
+    }
+    let source = PermissionEventSource::Statement {
+        statement_index: result.statement_index as usize,
+    };
+    let matches_loan = |event: &checked_trees::FlowPermissionEventFact| {
+        event.machine_symbol == machine
+            && event.state_symbol == state
+            && event.access == language_semantics::PermissionAccess::Exclusive
+            && event.multiplicity == Multiplicity::Affine
+            && event.root == loan.root
+            && facts.flow.ownership.segments.span_or_empty(event.segments)
+                == facts.borrow.loan_segments(loan)
+    };
+    let mut establishments = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| {
+            event.kind == PermissionEventKind::Establish
+                && event.source == source
+                && event.evaluation == checked_trees::FlowPermissionEvaluation::Statement
+                && matches_loan(event)
+                && matches!(event.claim_identity,
+                language_semantics::PermissionClaimIdentity::Established {
+                    machine_symbol, state_symbol, source: established_at, ..
+                } if machine_symbol == machine && state_symbol == state && established_at == source)
+        });
+    let establishment = establishments.next()?;
+    if establishments.next().is_some() {
+        return None;
+    }
+    let mut releases = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| {
+            event.kind == PermissionEventKind::Consume
+                && event.claim_identity == establishment.claim_identity
+        });
+    let release = releases.next()?;
+    let after_installation = match release.source {
+        PermissionEventSource::StateExit => true,
+        PermissionEventSource::Statement { statement_index }
+        | PermissionEventSource::Call {
+            statement_index, ..
+        } => statement_index >= result.statement_index as usize,
+        PermissionEventSource::StateEntry => false,
+    };
+    (releases.next().is_none() && matches_loan(release) && after_installation)
+        .then_some(establishment.claim_identity)
 }
 
 /// Borrow whole local operands once per supplied construction sequence. The

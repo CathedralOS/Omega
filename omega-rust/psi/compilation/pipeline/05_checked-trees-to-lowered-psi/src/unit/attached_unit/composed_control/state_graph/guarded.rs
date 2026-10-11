@@ -13,41 +13,9 @@ use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
-/// A selected reference producer names an ingress parameter its own state
-/// plan declares.
-pub(super) fn validate_reference_return(
-    checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
-    state: &CheckedComposedUnitControlStatePlan,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Result<(), LoweringError> {
-    let checked_trees::CheckedControlResultPlan::Structural(_) = &plan.result else {
-        return unsupported("reference return lost its structural producer or signature");
-    };
-    let source = operation
-        .established_reference_source(&checked.facts.values.structural_values)
-        .ok_or(LoweringError::Unsupported(
-            "reference return lost its structural producer or signature",
-        ))?;
-    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-        &source.source
-    else {
-        return unsupported("reference return lost its ingress parameter");
-    };
-    if state
-        .structural_parameters
-        .get(*parameter_index as usize)
-        .is_none()
-    {
-        return unsupported("reference return ingress parameter is absent");
-    }
-    Ok(())
-}
-
-/// Rebuild a selected reference from ordinary ingress reconstruction; mutable
-/// projections additionally follow the checked loan ledger. The candidate roster is only a correspondence
-/// receipt: admission must not let a producer and that receipt be forged to a
-/// different, same-typed ingress together.
+/// Emit the selected structural producer through ordinary operand preparation.
+/// Its captured local, parameter or returned carrier retains the checked loan;
+/// selecting an exit does not change the value's storage owner.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
