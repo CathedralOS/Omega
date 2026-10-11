@@ -5,14 +5,13 @@
 //! against the retained base, checks all source and seals its custody once.
 //! Each target then settles providers, dispatch, entry bindings and task
 //! activations without reopening checking. The `checking` folder holds the build
-//! continuation, direct calls into the Psi stages, execution
-//! settlement; `compilation_products` owns the sealed carrier and its projections.
+//! continuation, direct calls into the Psi stages; `compilation_products` owns the sealed carrier and its projections.
 //! The checked product settles trust through the realization trust owner;
 //! Build evaluation owns declaration admission before any Build effects.
 //! Checked-product selection executes in Psi stage 04. Exact-rule rollback
 //! settlement is owned by `optimization_core`.
 
-mod checking;
+pub(crate) mod checking;
 
 pub use artifacts::compile_timings::counters::{
     checked_compilation_call_count, preliminary_check_totals, settled_check_totals,
@@ -27,7 +26,7 @@ pub use checking::{
     compile_to_checked, prepare_package_build,
 };
 pub(crate) use checking::{
-    check_product_source, prepare_checked_source, prepare_product_source, settle_product_target,
+    check_product_source, prepare_checked_source, prepare_product_source,
 };
 pub use optimization_core::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,

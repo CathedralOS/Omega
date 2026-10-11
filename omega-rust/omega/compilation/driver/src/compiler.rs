@@ -7,8 +7,8 @@
 
 use crate::checked::{
     check_product_source, prepare_checked_source, prepare_product_source, run_on_compile_thread,
-    settle_product_target,
 };
+use crate::execution_settlement::settle_product_target;
 use crate::native::produce_native_product;
 use crate::terminal::{TerminalProductRequest, produce_retained_terminal_artifacts};
 use crate::{

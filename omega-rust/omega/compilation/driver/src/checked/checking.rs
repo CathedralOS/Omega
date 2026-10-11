@@ -2,7 +2,6 @@
 
 pub(crate) mod build_continuation;
 pub(crate) mod compile_thread;
-pub(crate) mod execution_settlement;
 mod source_checking;
 pub(crate) use source_checking::check_product_source;
 
@@ -14,10 +13,10 @@ pub use compilation_products::{
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 
 use artifacts::compile_timings::{
-    BUILD_AND_CHECKED_CONTINUATION, CompileTimings, EXECUTION_SETTLEMENT, StageMeta, counters,
+    BUILD_AND_CHECKED_CONTINUATION, CompileTimings, StageMeta, counters,
 };
 use compilation_products::{
-    CheckedExecutionRequest, CheckedProductSource, CompileFailure, PreparedBuild,
+    CheckedExecutionRequest, CompileFailure, PreparedBuild,
     PreparedProductSource, PreparedSourceFrontier, TypedCompilationFrontier,
 };
 use diagnostics::Diagnostic;
@@ -412,7 +411,7 @@ fn check_completed_build(
     match complete_prepared_build(prepared, package_inputs).and_then(|source| {
         check_product_source(source, package_inputs, rollback, settled_check_reuse)
     }) {
-        Ok(source) => settle_product_target(
+        Ok(source) => crate::execution_settlement::settle_product_target(
             &source,
             selected_target_profile,
             package_inputs,
@@ -423,44 +422,6 @@ fn check_completed_build(
             result: Err(CompileFailure::from(diagnostics)),
             independent_components,
         },
-    }
-}
-
-/// Bind one target to shared checked source, never a resumable frontend.
-pub(crate) fn settle_product_target(
-    source: &CheckedProductSource,
-    selected_target_profile: Option<target::TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
-    permit_unsettled_fused_service_fields: bool,
-) -> CheckedCompileOutcome {
-    let independent_components = source.computed_build_config.independent_components();
-    let mut timings = source.timings.clone();
-    let result = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
-        execution_settlement::settle_checked_execution(
-            source,
-            selected_target_profile,
-            package_inputs,
-            permit_unsettled_fused_service_fields,
-        )
-    });
-    let result = result.map(|execution| {
-        CheckedCompilation::from_settled_execution(
-            execution,
-            std::sync::Arc::clone(&source.sources),
-            timings,
-        )
-        .with_settled_checks(source.retained_checks.clone())
-    });
-    let result = result.map_err(|mut diagnostics| {
-        if let Some(sources) = source.program.typed.symbols.source_map().as_deref() {
-            attribute_diagnostics(&mut diagnostics, sources, package_inputs);
-        }
-        diagnostics
-    });
-    CheckedCompileOutcome {
-        prepared_source: None,
-        result: result.map_err(CompileFailure::from),
-        independent_components,
     }
 }
 
@@ -484,7 +445,7 @@ fn attribute_failure(
     }
 }
 
-fn attribute_diagnostics(
+pub(crate) fn attribute_diagnostics(
     diagnostics: &mut [Diagnostic],
     sources: &source::SourceMap,
     package_inputs: Option<&PackageCompilationInputs>,
@@ -517,7 +478,7 @@ fn attribute_diagnostics(
 }
 
 /// Record an inclusive stage whose subordinate operations also record timings.
-fn timed<T>(
+pub(crate) fn timed<T>(
     timings: &mut CompileTimings,
     stage: StageMeta,
     step: impl FnOnce(&mut CompileTimings) -> T,

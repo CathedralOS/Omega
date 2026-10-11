@@ -6,12 +6,15 @@
 //! per target through source preparation, checking, Terminal production and
 //! native realization. `package_compilation::source_assembly` assembles the physical
 //! and generated source set; the folders are the remaining work those steps
-//! call: `checked` evaluates the build and settles checked Psi, `terminal` produces and
+//! call: `checked` evaluates the build and checks the product once,
+//! `execution_settlement` joins each target's provider installation and
+//! selected dispatch against it, `terminal` produces and
 //! verifies the Terminal artifact, `native` realizes it for a target, and
 //! finished products and publication belong to the independent
 //! `compilation_products` owner; this crate only sequences their production.
 
 mod compiler;
+mod execution_settlement;
 mod identity;
 pub mod inspection;
 

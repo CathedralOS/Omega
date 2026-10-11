@@ -2895,17 +2895,18 @@ crash and native exit behavior.
     providers cannot rewrite its contracts or fold target constants into it.
     Remaining frontier: execution_settlement's Omega-00 installation joins
     and the authored provider-requires roster the ensures work exposes below.
-  - `omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
-    still joins frontend-dependent `provider-planning` and `selected-dispatch`
-    decisions: calling plans, program-entry
+  - `omega-rust/omega/compilation/driver/src/execution_settlement.rs` owns the
+    Omega-00 joins outside the Psi facade: calling plans, program-entry
     selection, provider settlement, selected legacy generic-operator and
     boundary-family requests, selected-dispatch execution, callback
     materialization, task activation, component progress, x86 FMA associations
     and fused entry establishments. Logical Binding shapes now remain independent
     of provider mode; entry establishment still joins source schema and selected
-    provenance here. Move their per-target realization to Omega,
-    keeping source-semantic contracts and all authored candidates in Psi. Every
-    family body and Build row is checked even when `--target` excludes it.
+    provenance there. The joins still consume `source.program.typed` through
+    checked custody and run before Terminal production: convert their inputs
+    to Terminal Psi plus that target's Build rows, keeping source-semantic
+    contracts and all authored candidates in Psi. Every family body and Build
+    row is checked even when `--target` excludes it.
   - Product constants requiring selected-provider evaluation now reject with
     `unimplemented: portable provider-dependent constant recipes`. Retain exact
     symbolic applications and their dependencies through the shared Psi program,

@@ -1,7 +1,15 @@
-//! Settle one realization against the invocation's immutable checked source.
-//! Provider selection owns target choices, never another Psi checking pass.
+//! Join each target's per-target realization against the invocation's
+//! immutable checked source: provider installation, program-entry selection
+//! and selected dispatch. This is the Omega-00 join — it consumes the Psi
+//! facade's sealed checked product and Build rows; provider selection owns
+//! target choices, never another Psi checking pass.
 
-use compilation_products::{CheckedCompilationInputs, CheckedProductSource};
+use crate::checked::CheckedCompilation;
+use crate::checked::checking::{attribute_diagnostics, timed};
+use artifacts::compile_timings::EXECUTION_SETTLEMENT;
+use compilation_products::{
+    CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource, CompileFailure,
+};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use selected_dispatch::{
@@ -104,3 +112,42 @@ pub(crate) fn settle_checked_execution(
         product_selection: source.product_selection.clone(),
     })
 }
+
+/// Bind one target to shared checked source, never a resumable frontend.
+pub(crate) fn settle_product_target(
+    source: &CheckedProductSource,
+    selected_target_profile: Option<target::TargetProfile>,
+    package_inputs: Option<&PackageCompilationInputs>,
+    permit_unsettled_fused_service_fields: bool,
+) -> CheckedCompileOutcome {
+    let independent_components = source.computed_build_config.independent_components();
+    let mut timings = source.timings.clone();
+    let result = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
+        settle_checked_execution(
+            source,
+            selected_target_profile,
+            package_inputs,
+            permit_unsettled_fused_service_fields,
+        )
+    });
+    let result = result.map(|execution| {
+        CheckedCompilation::from_settled_execution(
+            execution,
+            std::sync::Arc::clone(&source.sources),
+            timings,
+        )
+        .with_settled_checks(source.retained_checks.clone())
+    });
+    let result = result.map_err(|mut diagnostics| {
+        if let Some(sources) = source.program.typed.symbols.source_map().as_deref() {
+            attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+        }
+        diagnostics
+    });
+    CheckedCompileOutcome {
+        prepared_source: None,
+        result: result.map_err(CompileFailure::from),
+        independent_components,
+    }
+}
+
