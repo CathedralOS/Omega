@@ -1,0 +1,73 @@
+// Complete offline watershed workflow. Stdin: exactly 25 digits, whitespace
+// optional. EOF completes the raster; errors exit 2 without partial results.
+use omega_language_std::console;
+use omega::language::core::binding;
+use terrain::raster;
+use terrain::fill;
+use output::render;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let mut raster: Raster;
+    transition { _ -> read(main, &mut raster, 0) }
+    state read(main: &mut Main, raster: &mut Raster, count: i32 in Wrapping) {
+        let observed: ByteRead = block main.console.read_byte();
+        transition observed {
+            ByteRead::Eof -> finish_input(main, raster, count)
+            ByteRead::Byte { value } -> classify(main, raster, count, value)
+        }
+    }
+    state classify(main: &mut Main, raster: &mut Raster, count: i32 in Wrapping, value: i32) {
+        transition value == 32 || value == 9 || value == 10 || value == 13 {
+            true -> read(main, raster, count)
+            _ -> validate(main, raster, count, value)
+        }
+    }
+    state validate(main: &mut Main, raster: &mut Raster, count: i32 in Wrapping, value: i32) {
+        transition count >= 0 && count < 25 && value >= 48 && value <= 57 {
+            true -> store(main, raster, count, value)
+            _ -> invalid(main)
+        }
+    }
+    state store(main: &mut Main, raster: &mut Raster, count: i32 in Wrapping, value: i32) {
+        raster.heights[count] = (value as i32 in Wrapping) - 48;
+        transition { _ -> read(main, raster, count + 1) }
+    }
+    state finish_input(main: &mut Main, raster: &mut Raster, count: i32 in Wrapping) {
+        transition count == 25 {
+            true -> analyze(main, raster)
+            _ -> invalid(main)
+        }
+    }
+    state analyze(main: &mut Main, raster: &mut Raster) {
+        let filled: bool = fill(raster);
+        let summed: bool = sum_volumes(raster);
+        transition filled && summed {
+            true -> emit(main, raster)
+            _ -> internal_error(main)
+        }
+    }
+    state emit(main: &mut Main, raster: &Raster) {
+        main.console.write_line("filled");
+        grid(&mut main.console, &raster.filled);
+        main.console.write_line("outlets");
+        grid(&mut main.console, &raster.outlets);
+        main.console.write_line("parents");
+        grid(&mut main.console, &raster.parents);
+        main.console.write_line("volumes");
+        grid(&mut main.console, &raster.volumes);
+        main.console.write_line("total");
+        number(&mut main.console, raster.total);
+        main.console.write_byte(10);
+        main.console.exit_process(0);
+    }
+    state invalid(main: &mut Main) {
+        main.console.write_line("ERROR: expected exactly 25 elevation digits (0-9)");
+        main.console.exit_process(2);
+    }
+    state internal_error(main: &mut Main) {
+        main.console.write_line("ERROR: drainage invariant failed");
+        main.console.exit_process(3);
+    }
+}

@@ -1,0 +1,17 @@
+// Complete independent source control: unguarded runtime index must reject.
+use omega_language_std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let input: ByteRead = block main.console.read_byte();
+    transition input {
+        ByteRead::Eof -> finish(main)
+        ByteRead::Byte { value } -> unsafe_read(main, value)
+    }
+    state unsafe_read(main: &mut Main, index: i32) {
+        let elevations: [i32; 25];
+        let height: i32 = elevations[index];
+        main.console.exit_process(height);
+    }
+    state finish(main: &mut Main) { main.console.exit_process(0); }
+}
