@@ -3,13 +3,13 @@ use super::super::{
     behavior::synchronous_invocation,
     callable_policy::{crash_route, termination},
     contracts::callable_contract,
-    identity::{nominal, type_identity},
+    identity::{nominal, signature_parameter, type_identity},
     reader::Reader,
     signatures::data_properties,
 };
 use crate::record::{
     PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
-    PackagePolicyTypeParameter, PackagePolicyTypeParameterKind, PackageReviewSignatureParameter,
+    PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
 };
 
@@ -62,14 +62,7 @@ pub(in crate::encoding::recovery) fn machine_signature(
     Ok(PackagePolicyMachineParameterSignature {
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
-        parameters: reader.sequence(18, |reader| {
-            Ok(PackageReviewSignatureParameter {
-                name: reader.string()?,
-                type_identity: type_identity(reader)?,
-                is_const: reader.boolean()?,
-                is_mutable: reader.boolean()?,
-            })
-        })?,
+        parameters: reader.sequence(18, signature_parameter)?,
         return_type: reader.option(type_identity)?,
         contracts: reader.sequence(4, callable_contract)?,
         published_crash: reader.sequence(9, crash_route)?,

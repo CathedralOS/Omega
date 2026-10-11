@@ -1,7 +1,8 @@
 use super::{Error, reader::Reader};
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewOperatorCoordinate,
-    PackageReviewToolchainSourceIdentity, PackageReviewTypeIdentity,
+    PackageReviewSignatureParameter, PackageReviewToolchainSourceIdentity,
+    PackageReviewTypeIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -48,6 +49,19 @@ pub(in crate::encoding::recovery) fn operator_coordinate(
         identity: nominal(reader)?,
         parameter_dispatch: reader.string()?,
         result_dispatch: reader.string()?,
+    })
+}
+
+/// Every parameter list of a recovered signature decodes the same element
+/// record; the shape lives beside its `type_identity` field decoder.
+pub(in crate::encoding::recovery) fn signature_parameter(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewSignatureParameter, Error> {
+    Ok(PackageReviewSignatureParameter {
+        name: reader.string()?,
+        type_identity: type_identity(reader)?,
+        is_const: reader.boolean()?,
+        is_mutable: reader.boolean()?,
     })
 }
 

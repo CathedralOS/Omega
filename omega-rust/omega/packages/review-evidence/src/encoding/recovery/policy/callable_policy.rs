@@ -2,7 +2,7 @@
 
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableConformance, PackagePolicyCallableRole,
-    PackagePolicyCallables, PackagePolicyServiceReachDependency, PackageReviewSignatureParameter,
+    PackagePolicyCallables, PackagePolicyServiceReachDependency,
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewInstallationReach,
     PackageReviewOperatorRealization,
 };
@@ -14,7 +14,7 @@ use super::{
     behavior::synchronous_invocation,
     contracts::callable_contract,
     declarations::operator_spelling,
-    identity::{nominal, operator_coordinate, package, type_identity},
+    identity::{nominal, operator_coordinate, package, signature_parameter, type_identity},
     public_api::type_parameter,
     reader::Reader,
     signatures::conformance_bound,
@@ -58,14 +58,7 @@ pub(in crate::encoding::recovery) fn callable(
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
         conformance_bounds: reader.sequence(1, conformance_bound)?,
-        parameters: reader.sequence(18, |reader| {
-            Ok(PackageReviewSignatureParameter {
-                name: reader.string()?,
-                type_identity: type_identity(reader)?,
-                is_const: reader.boolean()?,
-                is_mutable: reader.boolean()?,
-            })
-        })?,
+        parameters: reader.sequence(18, signature_parameter)?,
         return_type: reader.option(type_identity)?,
         conformances: reader.sequence(1, callable_conformance)?,
         operator_realizations: reader.sequence(1, |reader| {

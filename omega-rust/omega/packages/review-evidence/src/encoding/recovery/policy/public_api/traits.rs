@@ -4,14 +4,14 @@ use super::super::{
     callable_policy::{crash_route, termination},
     contracts::{callable_contract, evidence_interface},
     declarations::{operator_spelling, trait_parent},
-    identity::{nominal, operator_coordinate, type_identity},
+    identity::{nominal, operator_coordinate, signature_parameter, type_identity},
     reader::Reader,
     signatures::conformance_bound,
 };
 use super::signatures::type_parameter;
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyOperatorShape, PackagePolicyTraitRequirement,
-    PackagePolicyTraitShape, PackageReviewSignatureParameter,
+    PackagePolicyTraitShape,
 };
 
 pub(in crate::encoding::recovery) fn trait_shape(
@@ -37,14 +37,7 @@ pub(in crate::encoding::recovery) fn trait_requirement(
         has_default_realization: reader.boolean()?,
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
-        parameters: reader.sequence(18, |reader| {
-            Ok(PackageReviewSignatureParameter {
-                name: reader.string()?,
-                type_identity: type_identity(reader)?,
-                is_const: reader.boolean()?,
-                is_mutable: reader.boolean()?,
-            })
-        })?,
+        parameters: reader.sequence(18, signature_parameter)?,
         return_type: reader.option(type_identity)?,
         contracts: reader.sequence(4, callable_contract)?,
         published_crash: reader.sequence(9, crash_route)?,
@@ -77,14 +70,7 @@ pub(in crate::encoding::recovery) fn operator_shape(
         spelling: reader.option(operator_spelling)?,
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
-        parameters: reader.sequence(18, |reader| {
-            Ok(PackageReviewSignatureParameter {
-                name: reader.string()?,
-                type_identity: type_identity(reader)?,
-                is_const: reader.boolean()?,
-                is_mutable: reader.boolean()?,
-            })
-        })?,
+        parameters: reader.sequence(18, signature_parameter)?,
         return_type: reader.option(type_identity)?,
         contracts: reader.sequence(4, callable_contract)?,
         published_crash: reader.sequence(9, crash_route)?,
