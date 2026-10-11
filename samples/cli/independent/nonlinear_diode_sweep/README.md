@@ -71,7 +71,8 @@ row accounts for every point.
 The scanner tests 64 equal cells including both interval endpoints. Exact-zero
 endpoints complete without bisection. Bisection stops when `|F| <= 1e-10 V` or
 the pre-step interval width is at most `1e-12 V`, subject to the input budget.
-Each emitted width is the interval from which that row's midpoint was selected.
+Each emitted width is the nominal interval from which that row's midpoint was
+selected, carried through binary halvings to avoid endpoint-subtraction cancellation.
 Evaluation counts include scan and bisection residual evaluations, excluding
 the extra endpoint current reporting call.
 
@@ -124,6 +125,24 @@ return codes under local `build/validation`, and invokes the frozen output check
 It does not accept packages. The same Python 3 entrypoint works on Linux, macOS,
 and Windows with the corresponding available target. The application binds four
 host targets; validation of this candidate is limited to the actual recorded host.
+
+The CLI `--both` route reports exit agreement and exposes native stdout. For full
+Terminal CSV validation on Linux, the private `validation/terminal-driver` uses
+the normal accepted-project API, retains its exact native report's Terminal
+artifact and provisions, and executes a fresh instance for each fixture. Its
+explicit `--review` and `--resume-review` modes run the ordinary package proposal
+workflow for that executable's compiler identity; neither mode edits decisions.
+The run mode requires an accepted lock and cannot bypass identity or custody.
+
+```sh
+cargo build --locked --manifest-path "$sample/validation/terminal-driver/Cargo.toml" -j 4
+observer="$sample/validation/terminal-driver/target/debug/new031-terminal-validation"
+"$observer" --review "$sample"
+# If the ordinary proposal requires decisions, review them before this command:
+"$observer" --resume-review "$sample"
+"$observer" "$sample" "$sample/build/validation/terminal-api"
+PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/check_terminal.py"
+```
 
 ## Existing sample comparison
 

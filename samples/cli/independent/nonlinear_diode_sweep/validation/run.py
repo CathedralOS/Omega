@@ -28,8 +28,8 @@ def run(binary, target, route, cases, native_executable=None):
             assert result.returncode == 0, result.stderr.decode(errors='replace')
         else:
             diagnostics = result.stderr.decode(errors='replace') + result.stdout.decode(errors='replace')
-            assert result.returncode == 1 and 'index' in diagnostics.lower(), diagnostics
-            assert 'cannot prove' in diagnostics.lower() or 'out of bounds' in diagnostics.lower(), diagnostics
+            assert result.returncode == 1, diagnostics
+            assert 'cannot prove index `2` is within length 2' in diagnostics, diagnostics
             assert 'package acceptance' not in diagnostics.lower()
     else:
         oracle = json.loads((ROOT / 'validation/oracle.json').read_text())
