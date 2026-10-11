@@ -7,7 +7,7 @@ mod protocol;
 mod tests;
 
 use super::PendingGitBatchRequest;
-use crate::error::SourceResolveError;
+use crate::error::{SourceResolveError, cache_invalid};
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
@@ -48,10 +48,7 @@ pub(in crate::git) fn probe_exact_git_object(
         repository
             .entry_root
             .parent()
-            .ok_or_else(|| SourceResolveError::GitCacheInvalid {
-                path: repository.entry_root.clone(),
-                message: "Git cache entry has no retained parent".to_owned(),
-            })?;
+            .ok_or_else(|| cache_invalid(&repository.entry_root, "Git cache entry has no retained parent"))?;
     let mut request = PendingGitBatchRequest::create(&repository.cache_parent, cache_root)?;
     let operation = (|| {
         let mut bytes = [0; 65];

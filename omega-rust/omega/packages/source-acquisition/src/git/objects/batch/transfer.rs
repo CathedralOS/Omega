@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering;
 
 use resolver_execution::ResolverExecutionPhase;
 
-use crate::error::SourceResolveError;
+use crate::error::{SourceResolveError, cache_invalid};
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
@@ -50,10 +50,7 @@ pub(in crate::git::objects) fn read_git_blobs_batch(
         repository
             .entry_root
             .parent()
-            .ok_or_else(|| SourceResolveError::GitCacheInvalid {
-                path: repository.entry_root.clone(),
-                message: "Git cache entry has no retained parent".to_owned(),
-            })?;
+            .ok_or_else(|| cache_invalid(&repository.entry_root, "Git cache entry has no retained parent"))?;
     // The verified cache entry is reopened as immutable custody. Keep the
     // transient cat-file request beside it in the retained mutable cache lane;
     // a Windows read-only directory handle cannot create children.
