@@ -413,9 +413,16 @@ pub(crate) fn primitive_store(
                 return None;
             }
         }
-        // Only the scalar field store writes an owned block home natively.
-        abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter { .. } => {
-            return None;
+        abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+            parameter,
+            ..
+        } => {
+            if parameter.access != terminal_psi::StructuralAccess::Owned
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return None;
+            }
         }
     }
     primitive_access_geometry(

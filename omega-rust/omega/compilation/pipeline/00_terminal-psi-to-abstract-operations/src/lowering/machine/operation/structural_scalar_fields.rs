@@ -52,23 +52,13 @@ pub(super) fn lower(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn lower_store(
-    operation: &Operation,
-    block: &Block,
+/// Preserve the exact owned or borrowed root for every scalar store form.
+/// Address presentation never turns an owned state home into an entry loan.
+pub(super) fn store_destination(
     machine: &TerminalMachine,
-    structural_types: &[StructuralTypeDeclaration],
     destination: PlaceId,
-    path: &[StructuralPathSegment],
-    field: StructuralFieldId,
-    value: semantic_vocabulary::ValueId,
-    range_obligation: Option<semantic_vocabulary::ObligationId>,
-) -> Result<AbstractOperation, LoweringError> {
-    let invalid = || LoweringError::InvalidStructuralScalarFieldStore(operation.id);
-    // A state arrival is a declared loan of the same backing storage, not an
-    // entry ABI parameter. Preserve its own declaration whether transport uses
-    // an address or a view descriptor; edge verification checked exclusivity.
-    let destination = exact_parameter(machine, destination)
+) -> Option<StructuralScalarStoreDestination> {
+    exact_parameter(machine, destination)
         .or_else(|| {
             let mut matches = machine.blocks.iter().flat_map(|block| {
                 block
@@ -118,7 +108,25 @@ fn lower_store(
                 }
             })
         })
-        .ok_or_else(invalid)?;
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_store(
+    operation: &Operation,
+    block: &Block,
+    machine: &TerminalMachine,
+    structural_types: &[StructuralTypeDeclaration],
+    destination: PlaceId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    value: semantic_vocabulary::ValueId,
+    range_obligation: Option<semantic_vocabulary::ObligationId>,
+) -> Result<AbstractOperation, LoweringError> {
+    let invalid = || LoweringError::InvalidStructuralScalarFieldStore(operation.id);
+    // A state arrival is a declared loan of the same backing storage, not an
+    // entry ABI parameter. Preserve its own declaration whether transport uses
+    // an address or a view descriptor; edge verification checked exclusivity.
+    let destination = store_destination(machine, destination).ok_or_else(invalid)?;
     let scalar_type =
         dominating_scalar_type(machine, block, operation.id, value).ok_or_else(invalid)?;
     // A returned reference is a permission carrier, not a new record home.

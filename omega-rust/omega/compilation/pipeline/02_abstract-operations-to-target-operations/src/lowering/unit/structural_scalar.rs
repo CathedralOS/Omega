@@ -141,24 +141,8 @@ pub(in crate::lowering) fn lower_field_store(
             block,
             parameter,
         } => {
-            let home = structural_homes
-                .get(&parameter.place)
-                .filter(|home| {
-                    matches!(
-                        &home.origin,
-                        target_operations::TargetStructuralHomeOrigin::BlockParameter {
-                            block: owner,
-                            declaration,
-                        } if owner == block && declaration == parameter
-                    )
-                })
-                .ok_or(unsupported())?;
-            if parameter.access != StructuralAccess::Owned
-                || !home.qualifications().is_empty()
-                || !home.projected_qualifications().is_empty()
-            {
-                return Err(unsupported());
-            }
+            super::owned_store_home::block_home(structural_homes, *block, parameter)
+                .ok_or_else(unsupported)?;
             (
                 destination.clone(),
                 path.clone(),

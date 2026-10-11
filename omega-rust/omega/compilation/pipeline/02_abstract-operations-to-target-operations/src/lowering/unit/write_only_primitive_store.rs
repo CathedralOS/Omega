@@ -127,9 +127,22 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                 psi_operation: *producer,
             }
         }
-        // Only the scalar field store writes an owned block home natively.
-        abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter { .. } => {
-            return Err(invalid());
+        abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+            block,
+            parameter,
+        } => {
+            let home = super::owned_store_home::block_home(structural_homes, *block, parameter)
+                .ok_or_else(invalid)?;
+            if home.has_claims()
+                || home.multiplicity() == StructuralMultiplicity::Linear
+                || (path.is_empty() && home.multiplicity() != StructuralMultiplicity::Unrestricted)
+            {
+                return Err(invalid());
+            }
+            target_operations::TargetStructuralArgumentSource::BlockParameter {
+                block: *block,
+                place: parameter.place,
+            }
         }
     };
     let destination_type = structural_types

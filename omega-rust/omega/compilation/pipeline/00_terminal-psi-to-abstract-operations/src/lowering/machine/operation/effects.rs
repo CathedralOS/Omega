@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use abstract_operations::{AbstractOperation, AbstractResult, StructuralScalarStoreDestination};
+use abstract_operations::{AbstractOperation, AbstractResult};
 use semantic_vocabulary::ScalarType;
 use terminal_psi::{Operation, OperationKind, StructuralTypeDeclaration, TerminalMachine};
 
@@ -34,13 +34,9 @@ pub(super) fn lower(
             // root and its receiving obligation. An owned primitive home is
             // the empty projection of that same root, not a second operation
             // that erases restricted-store evidence or invents an ABI formal.
-            let destination = super::primitive_storage::parameter(machine, destination)
-                .cloned()
-                .map(StructuralScalarStoreDestination::Parameter)
-                .or_else(|| {
-                    super::structural_scalar_fields::owned_store_destination(machine, destination)
-                })
-                .ok_or_else(invalid)?;
+            let destination =
+                super::structural_scalar_fields::store_destination(machine, destination)
+                    .ok_or_else(invalid)?;
             let Some(scalar_type) = value_types.get(&value).copied() else {
                 return Err(invalid());
             };

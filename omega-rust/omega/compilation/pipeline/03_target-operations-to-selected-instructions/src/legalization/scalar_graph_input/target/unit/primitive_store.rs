@@ -70,6 +70,22 @@ pub(super) fn validate(
                 && super::super::super::structural_case::source_result(optimized, result.place)
                     .is_ok_and(|(operation, declared)| operation == *producer && declared == result)
         }
+        (
+            abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+                block,
+                parameter,
+            },
+            target_operations::TargetStructuralArgumentSource::BlockParameter {
+                block: storage_block,
+                place,
+            },
+        ) => {
+            storage_block == block
+                && *place == parameter.place
+                && matches!(super::super::super::structural_case::source_owner(optimized, parameter.place),
+                    Ok(legalized_operations::LegalizedStructuralCaseSource::BlockParameter { block: owner, declaration })
+                        if owner == *block && declaration == *parameter)
+        }
         _ => false,
     };
     let declared_type = terminal_psi::find_structural_type(
