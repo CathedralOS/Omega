@@ -66,6 +66,7 @@ pass/borrows/branch_selected_record_composed_receiver_exit rejected 1143ms @8735
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`CommandSource::connect`), which was itself omitted at local construction at `outer calls: structural operands`
 pass/borrows/branch_selected_record_receiver_exit built 2553ms exit:70 @8735cafb4cf
 pass/borrows/case_payload_state_loan_exit built 4101ms exit:70 @c773c4ad3c34
+pass/borrows/local_fixed_array_shared_state_loan_exit built 6843ms exit:70 stdout:match @42528495d791
 pass/borrows/mut_loan_local_write_through_exit built 3170ms exit:9 @944fb1232f17
 pass/borrows/owned_byte_value_call_exit built 10173ms exit:70 @0df0a0c4183
 pass/borrows/projected_indexed_member_loan built 743ms @2d8ed253669f+wt
@@ -297,6 +298,7 @@ pass/collections/mutable_slice_view_establishment built 910ms exit:181 @2d8ed253
 pass/collections/nested_empty_record_array_borrow_exit built 563ms exit:0 @3e847a410959+wt
 pass/collections/nested_runtime_indexed_successor_argument_exit built 1130ms exit:70 @2d8ed253669f+wt
 pass/collections/owned_array_scalar_comparisons checked 315ms @2d8ed253669f+wt
+pass/collections/owned_state_array_leaf_store_exit built 6276ms exit:70 @42528495d791
 pass/collections/policy_array_literal_store_exit built 1127ms exit:52 @2d8ed253669f+wt
 pass/collections/record_array_field_access_exit built 4960ms exit:0 stdout:match @c773c4ad3c34
 pass/collections/record_array_literal_field_store_exit built 1391ms exit:25 @2d8ed253669f+wt
@@ -1164,3 +1166,4 @@ pass/arithmetic/reused_fixed_integer_operands_exit built 6623ms exit:0 @7223309e
 pass/arithmetic/reused_masked_shift_count_exit built 6668ms exit:0 @56b53faa47a8
 pass/text/runtime_decimal_scalar_across_output_alternate_exit built 19925ms exit:70 stdout:match stderr:match @767574d46ddd
 pass/text/runtime_decimal_scalar_across_output_exit built 15096ms exit:70 stdout:match stderr:match @767574d46ddd
+# context: {"cpus": 5, "jobs": "1", "load1_end": 1.91, "load1_start": 2.08, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}

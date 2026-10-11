@@ -2923,6 +2923,7 @@ pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms check-t
 pass/borrows/linear_call_result_shared_observation_exit checked 1778ms check-target:macos_arm64 @5889f8b8208f+wt
 pass/borrows/linear_owner_materialized_mutable_projection_exit checked 1687ms check-target:macos_arm64 @566fa91d7f0d+wt
 pass/borrows/linear_owner_materialized_shared_reference_exit checked 1686ms check-target:macos_arm64 @566fa91d7f0d+wt
+pass/borrows/local_fixed_array_shared_state_loan_exit checked 8329ms check-target:macos_arm64 @42528495d791
 pass/borrows/local_record_byte_field_snapshot_exit checked 1791ms check-target:macos_arm64 @fef76bc46fc7+wt
 pass/borrows/local_record_nested_sequence_extent_exit checked 1789ms check-target:macos_arm64 @fef76bc46fc7+wt
 pass/borrows/local_reference_record_transfer_exit checked 1259ms check-target:macos_arm64 @82ec69a91ceb+wt
@@ -3350,6 +3351,7 @@ pass/collections/named_transition_completion checked 1468ms check-target:macos_a
 pass/collections/nested_empty_record_array_borrow_exit checked 497ms check-target:macos_arm64 @3e847a410959+wt
 pass/collections/nested_runtime_indexed_successor_argument_exit checked 1506ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/owned_array_scalar_comparisons checked 307ms @2d8ed253669f
+pass/collections/owned_state_array_leaf_store_exit checked 6401ms check-target:macos_arm64 @42528495d791
 pass/collections/policy_array_enum_element_dispatch_exit checked 1247ms check-target:macos_arm64
 pass/collections/policy_array_literal_store_exit checked 1541ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/record_array_field_access_exit checked 1074ms check-target:macos_arm64 @3b6b4258b4af+wt
@@ -5178,3 +5180,4 @@ pass/collections/runtime_owned_descriptor_parameter_read_exit checked 3978ms che
 pass/collections/runtime_projected_element_descriptor_read_exit checked 3982ms check-target:macos_arm64 @f76abd8ea830+wt
 pass/text/runtime_decimal_scalar_across_output_alternate_exit checked 17418ms check-target:linux_x86_64 @767574d46ddd
 pass/text/runtime_decimal_scalar_across_output_exit checked 18174ms check-target:linux_x86_64 @767574d46ddd
+# context: {"cpus": 5, "jobs": "1", "load1_end": 2.08, "load1_start": 2.39, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
