@@ -1,9 +1,8 @@
 //! Exact Linux ARM64 replay owned beside the physical entry-plan carrier.
 
 use calling_conventions::{
-    BoundaryEntryPlan, CallPlan, CallSignature, EntryControl, EntryStack, MachineRegime,
-    MachineRegister, MachineState, MachineStateSet, Preemption, RegisterSet, StatePlan,
-    ValidatedBoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape,
+    BoundaryEntryPlan, CallPlan, CallSignature, EntryControl, MachineRegime, MachineRegister,
+    RegisterSet, ValidatedBoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape,
     validate_boundary_entry_plan,
 };
 
@@ -128,19 +127,7 @@ pub fn exact_linux_arm64_physical_boundary_entry_plan() -> ValidatedBoundaryEntr
                 immediate: 94,
             },
         },
-        state: StatePlan {
-            initial_regime: MachineRegime::Aarch64A64 { exception_level: 0 },
-            interrupted_state: MachineStateSet::default(),
-            saved_state: MachineStateSet::default(),
-            restored_state: MachineStateSet::default(),
-            permitted_transitive_use: MachineStateSet::new([
-                MachineState::GeneralRegisters,
-                MachineState::VectorRegisters,
-                MachineState::Flags,
-            ]),
-            stack: EntryStack::ProviderSelected,
-            preemption: Preemption::NotApplicable,
-        },
+        state: super::process_entry_state_plan(MachineRegime::Aarch64A64 { exception_level: 0 }),
     };
     validate_boundary_entry_plan(plan, &signature)
         .expect("the closed target-authored Linux ARM64 physical entry plan must remain valid")

@@ -4,7 +4,31 @@
 //! from `ProgramStorageEntry::enter`, which is the semantic installation edge
 //! used only after a target-authored bootstrap has established storage roots.
 
-use calling_conventions::BoundaryEntryPlan;
+use calling_conventions::{
+    BoundaryEntryPlan, EntryStack, MachineRegime, MachineState, MachineStateSet,
+    Preemption, StatePlan,
+};
+
+
+/// The shared state plan for closed target-authored entry replays: the
+/// provider selects the entry stack, nothing is interrupted, saved, or
+/// restored, and the transitive regime may use the full ordinary machine
+/// state.
+fn process_entry_state_plan(initial_regime: MachineRegime) -> StatePlan {
+    StatePlan {
+        initial_regime,
+        interrupted_state: MachineStateSet::default(),
+        saved_state: MachineStateSet::default(),
+        restored_state: MachineStateSet::default(),
+        permitted_transitive_use: MachineStateSet::new([
+            MachineState::GeneralRegisters,
+            MachineState::VectorRegisters,
+            MachineState::Flags,
+        ]),
+        stack: EntryStack::ProviderSelected,
+        preemption: Preemption::NotApplicable,
+    }
+}
 
 mod exact_linux_arm64;
 mod exact_linux_x86_64;
