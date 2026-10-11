@@ -1,3 +1,18 @@
+Scoped compiler reconciliation at30ea6e26e2a29a14dfc281ea531056137c23052d
+Basef3c3255420f4d0eedcf5279fc17d51e7577f1f51; clean execution.
+Product0/388.171s; runner0/27.568s. First classification check1/0.018s
+rejected stale accepted compiler identity at setup; retained separately.
+Fresh classification update0/75.055s/check0/29files/56.345s.
+Error budget update0/40.429s/check0/29files/59.647s.
+NF01mutable update0/181.230s/check0/26files/46.179s.
+Owned source gate0/93.565s:4fixtures,3checked/1intendedrejected.
+Effects fixture native0/Terminal0; gate0/6.463s.
+Invalid suffix source1/2.204s with the intended width diagnostic.
+Unchanged numerical executions remain attributed to6f181f0c513f below.
+Incoming package discovery and provider-roster changes require fresh package
+admission with the latest product. No numerical lowering algorithm changed.
+Exact commands, identities, resources and full diagnostics: evidence/*-f3c-*.
+
 Complete provider qualification at6f181f0c513fe7a44a8be86681396f17ed5fda90
 Actual base4b5eb415f13ec0ecc49c9a8f39dd990f4063553e; clean execution.
 Product rebuild0/383.330s; corpus runner0/35.200s.
