@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 10.66, "load1_start": 9.78, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 14.77, "load1_start": 10.31, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -254,13 +254,11 @@ pass/capabilities/boundary_trait_multiple_effects checked 357ms @2d8ed253669f+wt
 pass/capabilities/callback_direct_install_compile built 927ms @9baafc0ace88
 pass/capabilities/derives_through_helper built 455ms @2d8ed253669f+wt
 pass/capabilities/external_leaf_binding_forms built 639ms @2d8ed253669f+wt
-pass/capabilities/sysv_small_aggregate_import_compile rejected 1525ms @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary arguments`
+pass/capabilities/sysv_small_aggregate_import_compile built 6512ms @7666863376db+wt
 pass/capabilities/transitive_effect_inference checked 323ms @2d8ed253669f+wt
 pass/capabilities/uses_caller_folder checked 338ms @2d8ed253669f+wt
 pass/capabilities/win64_large_aggregate_result_import_compile built 1068ms @3284f31163c
-pass/capabilities/win64_pointer_length_vs_descriptor_compile rejected 1637ms @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary arguments`
+pass/capabilities/win64_pointer_length_vs_descriptor_compile built 6640ms @7666863376db+wt
 pass/capabilities/windows_provides_import_exit built 1337ms @9baafc0ace88
 pass/collections/array_local_control checked 413ms @2d8ed253669f+wt
 pass/collections/case_array_computed_index_match_exit built 1438ms exit:20 @2d8ed253669f+wt

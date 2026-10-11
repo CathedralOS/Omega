@@ -28,8 +28,8 @@ linux_x86_64 machine aggregate_binding() -> ForeignBinding<18, 32, 7> {
 
 linux_x86_64 machine aggregate_import(tag: u64, pair: Pair) -> Pair satisfies AggregateImport::call via aggregate_binding();
 
-data Main { foreign: Binding<AggregateImport>; pair: Pair; result: Pair; }
+data Main { foreign: Binding<AggregateImport>; result: Pair; }
 machine Main::main(main: &mut Main) reaches AggregateImport {
-    main.pair = Pair { first: 1, second: 2 };
-    main.result = main.foreign.call(7, main.pair);
+    let pair: Pair = Pair { first: 1, second: 2 };
+    main.result = main.foreign.call(7, pair);
 }

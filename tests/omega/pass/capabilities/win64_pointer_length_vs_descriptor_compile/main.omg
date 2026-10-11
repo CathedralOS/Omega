@@ -85,11 +85,11 @@ data Main {
     foreign: Binding<NativeByteShapes>;
     pointer: addr;
     length: u64;
-    descriptor: ByteDescriptor;
     status: i32;
 }
 
 machine Main::main(main: &mut Main) reaches NativeByteShapes {
     main.status = main.foreign.take_separate(main.pointer, main.length);
-    main.status = main.foreign.take_descriptor(main.descriptor);
+    let d: ByteDescriptor = ByteDescriptor { pointer: main.pointer, length: main.length };
+    main.status = main.foreign.take_descriptor(d);
 }
