@@ -20,6 +20,10 @@ not invoke it again. The PID result
 controls a branch so the callback-only import cannot disappear as unused work.
 Compilation alone does not establish invocation.
 
+The initializer promises to preserve X9 and V16, unlike its ordinary body.
+Even though void(void) needs no value conversion, this clobber difference
+requires an entry bridge; it cannot alias the ordinary body address.
+
 The public update is the calling-commitment regression: the unclosed calling
 recipe must not be captured in provider schemas and then changed afterward.
 Package review succeeds without relaxing exact identity checks. Native

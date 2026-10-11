@@ -9,6 +9,9 @@
 //! Owned indirect values copy their complete bytes into this frame; their ABI
 //! pointer never becomes a loan. The inbound caller's result pointer is saved
 //! before argument redistribution, separately from the internal result storage.
+//! A differing clobber promise saves the internal call's additional writes;
+//! vector saves retain all 128 bits, not just the scalar transport lane. Published
+//! direct result registers are outputs, not incoming state to restore over them.
 //!
 //! This is a physical adapter, not a Terminal machine or another semantic stage.
 //! Its one unresolved ordinary call targets the real body entry symbol. Body
@@ -17,8 +20,8 @@
 
 use arena::Arena;
 use calling_conventions::{
-    CallPlan, EntryControl, IndirectPointerLocation, MachineRegister, ValueClass, ValueLocation,
-    ValuePlacement, ValueShape,
+    CallPlan, EntryControl, IndirectPointerLocation, MachineRegister, RegisterSet, ValueClass,
+    ValueLocation, ValuePlacement, ValueShape,
 };
 use register_model::{
     RegisterViewId, ValidatedPhysicalRegisterModel, validate_physical_register_model,
@@ -130,6 +133,12 @@ struct ValueSnapshot {
     value_offset: u32,
     source_pointer_offset: Option<u32>,
     descriptor_offset: Option<u32>,
+}
+
+struct PreservedRegister {
+    register: MachineRegister,
+    offset: u32,
+    byte_size: u8,
 }
 
 fn pointer_piece(pointer: IndirectPointerLocation) -> ValuePiece {
@@ -353,7 +362,17 @@ impl Encoding {
         size: u8,
         load: bool,
     ) -> Result<(), Error> {
-        let view = self.view(register)?;
+        let view = if size == 16
+            && let MachineRegister::Aarch64V(number) = register
+        {
+            self.model
+                .model()
+                .view_named(&format!("q{number}"))
+                .map(|view| view.id)
+                .ok_or(Error::Encoding)?
+        } else {
+            self.view(register)?
+        };
         let encoded = match self.architecture {
             Architecture::Aarch64 => isa_aarch64::encode_aarch64_frame_memory(
                 &self.model,
@@ -631,13 +650,12 @@ pub fn emit_native_entry_bridge(
 ) -> Result<NativeEntryBridge, Error> {
     let internal = &request.internal;
     let inbound = &request.inbound;
-    if internal.policy != inbound.policy
-        || internal.policy.architecture() != request.target.architecture
+    if internal.policy.architecture() != request.target.architecture
+        || inbound.policy.architecture() != request.target.architecture
         || internal.entry_control != EntryControl::CallReturn
         || inbound.entry_control != EntryControl::CallReturn
         || internal.stack_alignment != 16
         || inbound.stack_alignment != 16
-        || internal.ordinary_clobbers != inbound.ordinary_clobbers
         || !internal.callback_materializations.is_empty()
         || !inbound.callback_materializations.is_empty()
         || internal.parameters.len() != inbound.parameters.len()
@@ -811,6 +829,63 @@ pub fn emit_native_entry_bridge(
     } else {
         None
     };
+    // Argument redistribution is a write too, even when a custom internal
+    // promise omits that register from its call clobbers. Hidden result pointers
+    // are inputs; only direct result registers (and x64's result-pointer echo)
+    // supersede the caller's old register value.
+    let internal_writes = RegisterSet::new(
+        internal.ordinary_clobbers.as_slice().iter().copied().chain(
+            transports
+                .iter()
+                .flat_map(|transport| transport.destination.pieces())
+                .chain(
+                    result
+                        .iter()
+                        .flat_map(|transport| transport.source.pieces()),
+                )
+                .filter_map(|piece| match piece.location {
+                    WordLocation::Register(register) => Some(register),
+                    WordLocation::Stack(_) => None,
+                }),
+        ),
+    );
+    let result_output = |register| match result.as_ref().map(|transport| &transport.destination) {
+        Some(ValueStorage::Direct(pieces)) => pieces.iter().any(
+            |piece| matches!(piece.location, WordLocation::Register(output) if output == register),
+        ),
+        Some(ValueStorage::Indirect { .. }) => {
+            request.target.architecture == Architecture::X86_64
+                && register == MachineRegister::X86Rax
+        }
+        None => false,
+    };
+    let mut preserved = Vec::new();
+    for register in internal_writes
+        .as_slice()
+        .iter()
+        .copied()
+        .filter(|register| {
+            !inbound.ordinary_clobbers.contains(*register) && !result_output(*register)
+        })
+    {
+        let byte_size = if matches!(
+            register,
+            MachineRegister::Aarch64V(_) | MachineRegister::X86Xmm(_)
+        ) {
+            cursor = cursor
+                .checked_add(15)
+                .map(|value| value & !15)
+                .ok_or(Error::FrameOverflow)?;
+            16
+        } else {
+            8
+        };
+        preserved.push(PreservedRegister {
+            register,
+            offset: allocate_value(&mut cursor, u32::from(byte_size))?,
+            byte_size,
+        });
+    }
     let frame_bytes = cursor
         .checked_add(15)
         .map(|value| value & !15)
@@ -855,6 +930,15 @@ pub fn emit_native_entry_bridge(
     };
     if let Some(offset) = continuation {
         encoding.memory(&mut bytes, MachineRegister::Aarch64X(30), offset, 8, false)?;
+    }
+    for saved in &preserved {
+        encoding.memory(
+            &mut bytes,
+            saved.register,
+            saved.offset,
+            saved.byte_size,
+            false,
+        )?;
     }
     // Capture registers before any scratch-based stack transfer.
     for (transport, snapshot) in transports.iter().zip(&snapshots) {
@@ -960,6 +1044,15 @@ pub fn emit_native_entry_bridge(
             }
         }
     }
+    for saved in preserved.iter().rev() {
+        encoding.memory(
+            &mut bytes,
+            saved.register,
+            saved.offset,
+            saved.byte_size,
+            true,
+        )?;
+    }
     if let Some(offset) = continuation {
         encoding.memory(&mut bytes, MachineRegister::Aarch64X(30), offset, 8, true)?;
     }
@@ -1026,6 +1119,168 @@ mod tests {
             internal,
             inbound,
             parameters,
+        }
+    }
+
+    #[test]
+    fn narrower_inbound_clobbers_save_integer_and_full_vector_state() {
+        let mut request = request(NativeTarget::macos_arm64(), vec![], vec![], &[], &[], None);
+        request.inbound.ordinary_clobbers = RegisterSet::new(
+            request
+                .internal
+                .ordinary_clobbers
+                .as_slice()
+                .iter()
+                .copied()
+                .filter(|register| {
+                    !matches!(
+                        register,
+                        MachineRegister::Aarch64X(9) | MachineRegister::Aarch64V(16)
+                    )
+                }),
+        );
+        let bridge = emit_native_entry_bridge(request).unwrap();
+        assert_eq!(bridge.frame_bytes(), 32);
+        let before_call = &bridge.bytes()[..bridge.call_field_offset()];
+        let after_call = &bridge.bytes()[bridge.call_field_offset() + 4..];
+        for (save, restore) in [
+            (0xf900_07e9_u32, 0xf940_07e9_u32),
+            (0x3d80_07f0, 0x3dc0_07f0),
+        ] {
+            assert!(
+                before_call
+                    .windows(4)
+                    .any(|bytes| bytes == save.to_le_bytes())
+            );
+            assert!(
+                after_call
+                    .windows(4)
+                    .any(|bytes| bytes == restore.to_le_bytes())
+            );
+        }
+        validate_native_entry_bridge(&bridge).unwrap();
+    }
+
+    #[test]
+    fn returned_register_is_not_restored_over_the_result() {
+        let mut request = request(
+            NativeTarget::macos_arm64(),
+            vec![],
+            vec![],
+            &[],
+            &[],
+            Some(ValueShape::integer(8, 8)),
+        );
+        request.inbound.ordinary_clobbers = RegisterSet::new(
+            request
+                .internal
+                .ordinary_clobbers
+                .as_slice()
+                .iter()
+                .copied()
+                .filter(|register| *register != MachineRegister::Aarch64X(0)),
+        );
+        // Only result scratch and LR: preserving old X0 would allocate another
+        // slot and, worse, overwrite the published result after distribution.
+        assert_eq!(emit_native_entry_bridge(request).unwrap().frame_bytes(), 16);
+    }
+
+    #[test]
+    fn hidden_result_pointer_remains_caller_state_not_a_direct_output() {
+        let mut request = request(
+            NativeTarget::macos_arm64(),
+            vec![],
+            vec![],
+            &[],
+            &[],
+            Some(ValueShape::integer(24, 8)),
+        );
+        request.inbound.ordinary_clobbers = RegisterSet::new(
+            request
+                .internal
+                .ordinary_clobbers
+                .as_slice()
+                .iter()
+                .copied()
+                .filter(|register| *register != MachineRegister::Aarch64X(8)),
+        );
+        let bridge = emit_native_entry_bridge(request).unwrap();
+        assert_eq!(bridge.frame_bytes(), 48);
+        for word in [0xf900_17e8_u32, 0xf940_17e8] {
+            assert!(
+                bridge
+                    .bytes()
+                    .windows(4)
+                    .any(|bytes| bytes == word.to_le_bytes())
+            );
+        }
+    }
+
+    #[test]
+    fn microsoft_entry_preserves_sysv_additional_clobbers() {
+        let target = NativeTarget::windows_x64();
+        let mut request = request(target, vec![], vec![], &[], &[], None);
+        request.internal =
+            evaluate_call_plan(CallingPolicy::SystemVAMD64, &CallSignature::default()).unwrap();
+        let bridge = emit_native_entry_bridge(request).unwrap();
+        assert_eq!(bridge.frame_bytes(), 184);
+        let before_call = &bridge.bytes()[..bridge.call_field_offset() - 1];
+        let after_call = &bridge.bytes()[bridge.call_field_offset() + 4..];
+        for (register_bits, offset) in [(0x34, 0), (0x7c, 8)] {
+            let save = if offset == 0 {
+                vec![0x48, 0x89, register_bits, 0x24]
+            } else {
+                vec![0x48, 0x89, register_bits, 0x24, offset]
+            };
+            let mut restore = save.clone();
+            restore[1] = 0x8b;
+            assert!(before_call.windows(save.len()).any(|bytes| bytes == save));
+            assert!(
+                after_call
+                    .windows(restore.len())
+                    .any(|bytes| bytes == restore)
+            );
+        }
+        // XMM6 through XMM15 preserve both halves, never scalar MOVSD.
+        assert!(
+            before_call
+                .windows(8)
+                .any(|bytes| bytes == [0x0f, 0x11, 0xb4, 0x24, 16, 0, 0, 0])
+        );
+        assert!(
+            after_call
+                .windows(9)
+                .any(|bytes| bytes == [0x44, 0x0f, 0x10, 0xbc, 0x24, 160, 0, 0, 0])
+        );
+        validate_native_entry_bridge(&bridge).unwrap();
+    }
+
+    #[test]
+    fn different_conventions_transport_arguments_results_and_shadow_space() {
+        let shapes = [
+            vec![ValueShape::integer(8, 8); 7],
+            vec![ValueShape::float(8); 7],
+        ]
+        .concat();
+        for (internal_policy, inbound_policy) in [
+            (CallingPolicy::SystemVAMD64, CallingPolicy::MicrosoftX64),
+            (CallingPolicy::MicrosoftX64, CallingPolicy::SystemVAMD64),
+        ] {
+            let mut request = request(
+                NativeTarget::windows_x64(),
+                shapes.clone(),
+                shapes.clone(),
+                &(0..14).collect::<Vec<_>>(),
+                &[0; 14],
+                Some(ValueShape::float(8)),
+            );
+            let signature = CallSignature {
+                parameters: shapes.clone(),
+                result: Some(ValueShape::float(8)),
+            };
+            request.internal = evaluate_call_plan(internal_policy, &signature).unwrap();
+            request.inbound = evaluate_call_plan(inbound_policy, &signature).unwrap();
+            validate_native_entry_bridge(&emit_native_entry_bridge(request).unwrap()).unwrap();
         }
     }
 

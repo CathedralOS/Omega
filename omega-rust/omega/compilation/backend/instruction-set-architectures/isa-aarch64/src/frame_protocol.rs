@@ -181,6 +181,7 @@ fn validate_slots(
 enum Register {
     X(u8),
     D(u8),
+    Q(u8),
 }
 
 fn register(
@@ -199,6 +200,7 @@ fn register(
     match (prefix, number) {
         ("x", 0..=30) => Ok(Register::X(number)),
         ("d", 0..=31) => Ok(Register::D(number)),
+        ("q", 0..=31) => Ok(Register::Q(number)),
         _ => Err(Aarch64FrameProtocolError::UnknownOrUnsupportedView(view)),
     }
 }
@@ -363,7 +365,9 @@ fn append_sized_memory(
     byte_size: u8,
     load: bool,
 ) -> Result<(), Aarch64FrameProtocolError> {
-    if !matches!(byte_size, 1 | 2 | 4 | 8) || !offset_bytes.is_multiple_of(u64::from(byte_size)) {
+    if !matches!(byte_size, 1 | 2 | 4 | 8 | 16)
+        || !offset_bytes.is_multiple_of(u64::from(byte_size))
+    {
         return Err(Aarch64FrameProtocolError::OffsetOutOfRange);
     }
     let (base_register, displacement) = if offset_bytes / u64::from(byte_size) <= 4095 {
@@ -395,6 +399,7 @@ fn append_sized_memory(
         (Register::X(number), 8) => (0xf900_0000, number),
         (Register::D(number), 4) => (0xbd00_0000, number),
         (Register::D(number), 8) => (0xfd00_0000, number),
+        (Register::Q(number), 16) => (0x3d80_0000, number),
         _ => return Err(Aarch64FrameProtocolError::OffsetOutOfRange),
     };
     let base = base | if load { 1 << 22 } else { 0 };
@@ -465,6 +470,22 @@ mod tests {
                 .collect::<Vec<_>>()
         );
         assert!(super::encode_aarch64_pointer_memory(&model, base, base, 0, 8, false).is_err());
+    }
+
+    #[test]
+    fn full_vector_frame_transfer_retains_both_lanes() {
+        let model =
+            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let vector = model.model().view_named("q16").unwrap().id;
+        let scratch = model.model().view_named("x17").unwrap().id;
+        for (load, expected) in [(false, 0x3d80_07f0_u32), (true, 0x3dc0_07f0)] {
+            assert_eq!(
+                super::encode_aarch64_frame_memory(&model, vector, 16, 16, load, scratch).unwrap(),
+                expected.to_le_bytes()
+            );
+        }
+        assert!(super::encode_aarch64_frame_memory(&model, vector, 8, 16, false, scratch).is_err());
+        assert!(super::encode_aarch64_frame_memory(&model, vector, 16, 8, false, scratch).is_err());
     }
 
     #[test]

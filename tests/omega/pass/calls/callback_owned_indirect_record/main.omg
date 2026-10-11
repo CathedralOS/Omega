@@ -25,7 +25,7 @@ satisfies CallingPolicy::plan
     plan.call.parameters[4] = Policies::word(8, 4);
     plan.call.has_result = true;
     plan.call.result = Policies::word(4, 0);
-    Policies::finish(plan)
+    BoundaryPlanResult::Accepted { plan: Policies::finish(plan) }
 }
 
 machine Policies::invoke(signature: BoundarySignature) -> BoundaryPlanResult
@@ -40,7 +40,7 @@ satisfies CallingPolicy::plan
     plan.call.callback_materialization_count = signature.callback_demand_count;
     plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
     plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
-    Policies::finish(plan)
+    BoundaryPlanResult::Accepted { plan: Policies::finish(plan) }
 }
 
 machine Policies::record(register: u64) -> ValuePlacement {
@@ -67,7 +67,13 @@ satisfies CallingPolicy::plan
     plan.call.parameters[0] = Policies::record(0);
     plan.call.has_result = true;
     plan.call.result = Policies::record(8);
-    Policies::finish(plan)
+    let mut callback: BoundaryEntryPlan = Policies::finish(plan);
+    // Remove X9 and V16 from the ordinary clobbers without changing placement.
+    // The ordinary helper still uses the complete internal clobber bank.
+    callback.call.ordinary_clobbers.registers[9] = callback.call.ordinary_clobbers.registers[40];
+    callback.call.ordinary_clobbers.registers[26] = callback.call.ordinary_clobbers.registers[41];
+    callback.call.ordinary_clobbers.register_count = 40;
+    BoundaryPlanResult::Accepted { plan: callback }
 }
 
 machine Policies::word(bytes: u64, register: u64) -> ValuePlacement {
@@ -84,7 +90,7 @@ machine Policies::word(bytes: u64, register: u64) -> ValuePlacement {
     value
 }
 
-machine Policies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
+machine Policies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
     let mut plan: BoundaryEntryPlan = output;
     plan.call.convention = CallingConvention::Aapcs64;
     plan.call.stack_alignment = 16;
@@ -138,7 +144,7 @@ machine Policies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
     plan.state.permitted_transitive_use.flags = true;
     plan.state.stack = EntryStack::ProviderSelected;
     plan.state.preemption = Preemption::NotApplicable;
-    BoundaryPlanResult::Accepted { plan: plan }
+    plan
 }
 
 

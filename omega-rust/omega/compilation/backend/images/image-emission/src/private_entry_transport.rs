@@ -109,6 +109,7 @@ pub fn create_private_function_object(
         && internal.callback_materializations == inbound.callback_materializations
         && internal.stack_alignment == inbound.stack_alignment
         && internal.shadow_bytes == inbound.shadow_bytes
+        && internal.ordinary_clobbers == inbound.ordinary_clobbers
         && internal
             .parameters
             .iter()

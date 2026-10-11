@@ -229,7 +229,7 @@ fn append_register_memory(
     Ok(())
 }
 
-/// Encode a physical SP-relative scalar transfer. Entry adapters own the
+/// Encode a physical SP-relative scalar or full-vector transfer. Entry adapters own the
 /// allocation; this operation supplies no semantic slot or storage authority.
 pub fn encode_x86_64_frame_memory(
     model: &ValidatedPhysicalRegisterModel,
@@ -286,11 +286,16 @@ fn encode_memory(
             .filter(|number| *number < 16)
             .ok_or(X86_64FrameProtocolError::UnknownOrUnsupportedView(view))?;
         let prefix = match byte_size {
-            4 => 0xf3,
-            8 => 0xf2,
+            4 => Some(0xf3),
+            8 => Some(0xf2),
+            // MOVUPS retains all 128 bits without assuming the frame's
+            // displacement is aligned, unlike a scalar MOVSS/MOVSD save.
+            16 => None,
             _ => return Err(X86_64FrameProtocolError::OffsetOutOfRange),
         };
-        bytes.push(prefix);
+        if let Some(prefix) = prefix {
+            bytes.push(prefix);
+        }
         let rex = 0x40 | ((number >> 3) << 2) | (base >> 3);
         if rex != 0x40 {
             bytes.push(rex);
@@ -395,6 +400,21 @@ mod tests {
         interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
         touches: 0,
     };
+
+    #[test]
+    fn full_vector_frame_transfer_uses_unaligned_128_bit_moves() {
+        let model =
+            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let vector = model.model().view_named("xmm15").unwrap().id;
+        for (load, opcode) in [(false, 0x11), (true, 0x10)] {
+            assert_eq!(
+                super::encode_x86_64_frame_memory(&model, vector, 8, 16, load).unwrap(),
+                vec![0x44, 0x0f, opcode, 0xbc, 0x24, 8, 0, 0, 0]
+            );
+        }
+        let integer = model.model().view_named("r15").unwrap().id;
+        assert!(super::encode_x86_64_frame_memory(&model, integer, 8, 16, false).is_err());
+    }
 
     #[test]
     fn physical_frame_transfers_keep_byte_and_float_store_extents() {

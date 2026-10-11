@@ -19,7 +19,7 @@ satisfies CallingPolicy::plan
     let mut plan: BoundaryEntryPlan;
     plan.call.has_result = true;
     plan.call.result = CallbackPolicies::word(4, 0);
-    CallbackPolicies::finish(plan)
+    BoundaryPlanResult::Accepted { plan: CallbackPolicies::finish(plan) }
 }
 
 machine CallbackPolicies::initializer(signature: BoundarySignature) -> BoundaryPlanResult
@@ -31,7 +31,13 @@ satisfies CallingPolicy::plan
     }
     state accept() -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
-        CallbackPolicies::finish(plan)
+        let mut callback: BoundaryEntryPlan = CallbackPolicies::finish(plan);
+        // Placement is identical to the ordinary void(void) body, but its
+        // clobber promise is not: the zero-work entry shortcut is inapplicable.
+        callback.call.ordinary_clobbers.registers[9] = callback.call.ordinary_clobbers.registers[40];
+        callback.call.ordinary_clobbers.registers[26] = callback.call.ordinary_clobbers.registers[41];
+        callback.call.ordinary_clobbers.register_count = 40;
+        BoundaryPlanResult::Accepted { plan: callback }
     }
     state reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
@@ -59,7 +65,7 @@ satisfies CallingPolicy::plan
         plan.call.callback_materialization_count = signature.callback_demand_count;
         plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
         plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
-        CallbackPolicies::finish(plan)
+        BoundaryPlanResult::Accepted { plan: CallbackPolicies::finish(plan) }
     }
     state reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
@@ -82,7 +88,7 @@ machine CallbackPolicies::word(bytes: u64, register: u64) -> ValuePlacement {
     value
 }
 
-machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
+machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
     let mut plan: BoundaryEntryPlan = output;
     plan.call.convention = CallingConvention::Aapcs64;
     plan.call.stack_alignment = 16;
@@ -136,7 +142,7 @@ machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResul
     plan.state.permitted_transitive_use.flags = true;
     plan.state.stack = EntryStack::ProviderSelected;
     plan.state.preemption = Preemption::NotApplicable;
-    BoundaryPlanResult::Accepted { plan: plan }
+    plan
 }
 
 pub boundary trait Initializer: Calling<InitializerCalling> {
