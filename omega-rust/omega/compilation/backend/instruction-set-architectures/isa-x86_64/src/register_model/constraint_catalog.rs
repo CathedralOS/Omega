@@ -117,6 +117,38 @@ pub fn x86_64_register_constraint_catalog(
 
     let sysv = convention("system-v-amd64");
     let microsoft = convention("microsoft-x64");
+    // Catalog rows share a handful of implicit-unit tails; these builders mint
+    // each recurring tail so a row states only its id, key and operands.
+    let instruction_row = |id: RegisterConstraintId,
+                           key: RegisterConstraintKey,
+                           operands: Vec<RegisterOperandConstraint>| {
+        RegisterInstructionConstraint {
+            id,
+            key,
+            operands,
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        }
+    };
+    let rflags_clobbering_row = |id, key, operands| RegisterInstructionConstraint {
+        clobbers: view("rflags").units.clone(),
+        ..instruction_row(id, key, operands)
+    };
+    let rflags_defining_row = |id, key, operands| RegisterInstructionConstraint {
+        implicit_defs: view("rflags").units.clone(),
+        ..instruction_row(id, key, operands)
+    };
+    let return_row = |id, key, operands| RegisterInstructionConstraint {
+        implicit_uses: rsp_units.clone(),
+        implicit_defs: control_defs.clone(),
+        ..instruction_row(id, key, operands)
+    };
+    let jump_row = |id, key, operands| RegisterInstructionConstraint {
+        implicit_uses: rip_units.clone(),
+        implicit_defs: rip_units.clone(),
+        ..instruction_row(id, key, operands)
+    };
     let all_units = physical
         .units
         .iter()
@@ -134,14 +166,7 @@ pub fn x86_64_register_constraint_catalog(
     );
 
     let mut constraints = vec![
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(0),
-            key: crate::X86_64_CRASH,
-            operands: Vec::new(),
-            implicit_uses: view("rip").units.clone(),
-            implicit_defs: view("rip").units.clone(),
-            clobbers: Vec::new(),
-        },
+        jump_row(RegisterConstraintId(0), crate::X86_64_CRASH, Vec::new()),
         RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
             key: X86_64_SYSTEM_V_CALL,
@@ -192,22 +217,8 @@ pub fn x86_64_register_constraint_catalog(
             implicit_defs: control_defs.clone(),
             clobbers: call_clobbers(sysv),
         },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(2),
-            key: X86_64_SYSTEM_V_RETURN,
-            operands: vec![fixed(0, RegisterOperandAccess::Use, "rax")],
-            implicit_uses: rsp_units.clone(),
-            implicit_defs: control_defs.clone(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(3),
-            key: X86_64_MICROSOFT_RETURN,
-            operands: vec![fixed(0, RegisterOperandAccess::Use, "rax")],
-            implicit_uses: rsp_units.clone(),
-            implicit_defs: control_defs.clone(),
-            clobbers: Vec::new(),
-        },
+        return_row(RegisterConstraintId(2), X86_64_SYSTEM_V_RETURN, vec![fixed(0, RegisterOperandAccess::Use, "rax")]),
+        return_row(RegisterConstraintId(3), X86_64_MICROSOFT_RETURN, vec![fixed(0, RegisterOperandAccess::Use, "rax")]),
         RegisterInstructionConstraint {
             id: RegisterConstraintId(4),
             key: X86_64_LINUX_SYSTEM_CALL,
@@ -238,14 +249,7 @@ pub fn x86_64_register_constraint_catalog(
             implicit_defs: Vec::new(),
             clobbers: complement(&all_units, &fixed_machine_state, &[]),
         },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(6),
-            key: X86_64_MATERIALIZE_I64,
-            operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
+        instruction_row(RegisterConstraintId(6), X86_64_MATERIALIZE_I64, vec![allocatable(0, RegisterOperandAccess::Def, GPR64)]),
         RegisterInstructionConstraint {
             id: RegisterConstraintId(6),
             key: X86_64_MATERIALIZE_BOOLEAN,
@@ -254,25 +258,11 @@ pub fn x86_64_register_constraint_catalog(
             implicit_defs: Vec::new(),
             clobbers: Vec::new(),
         },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(7),
-            key: X86_64_COPY_I64,
-            operands: vec![
+        instruction_row(RegisterConstraintId(7), X86_64_COPY_I64, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Def, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(8),
-            key: X86_64_COMPARE_I64_ZERO,
-            operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
-            implicit_uses: Vec::new(),
-            implicit_defs: view("rflags").units.clone(),
-            clobbers: Vec::new(),
-        },
+            ]),
+        rflags_defining_row(RegisterConstraintId(8), X86_64_COMPARE_I64_ZERO, vec![allocatable(0, RegisterOperandAccess::Use, GPR64)]),
         RegisterInstructionConstraint {
             id: RegisterConstraintId(9),
             key: X86_64_CONDITIONAL_BRANCH,
@@ -287,180 +277,79 @@ pub fn x86_64_register_constraint_catalog(
             implicit_defs: view("rip").units.clone(),
             clobbers: Vec::new(),
         },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(10),
-            key: X86_64_ADD_I64,
-            operands: vec![
+        instruction_row(RegisterConstraintId(10), X86_64_ADD_I64, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
                 allocatable(2, RegisterOperandAccess::Def, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(11),
-            key: X86_64_ADD_I64_IMMEDIATE,
-            operands: vec![
+            ]),
+        instruction_row(RegisterConstraintId(11), X86_64_ADD_I64_IMMEDIATE, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Def, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(12),
-            key: X86_64_SUBTRACT_I64,
-            operands: vec![
+            ]),
+        rflags_clobbering_row(RegisterConstraintId(12), X86_64_SUBTRACT_I64, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
                 allocatable(2, RegisterOperandAccess::Def, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: view("rflags").units.clone(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(13),
-            key: X86_64_SUBTRACT_I64_IMMEDIATE,
-            operands: vec![
+            ]),
+        instruction_row(RegisterConstraintId(13), X86_64_SUBTRACT_I64_IMMEDIATE, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Def, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(20),
-            key: X86_64_MULTIPLY_I64,
-            operands: vec![
+            ]),
+        rflags_clobbering_row(RegisterConstraintId(20), X86_64_MULTIPLY_I64, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
                 allocatable(2, RegisterOperandAccess::Def, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: view("rflags").units.clone(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(17),
-            key: X86_64_COMPARE_I64,
-            operands: vec![
+            ]),
+        rflags_defining_row(RegisterConstraintId(17), X86_64_COMPARE_I64, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: view("rflags").units.clone(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(19),
-            key: X86_64_COMPARE_I64_IMMEDIATE,
-            operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
-            implicit_uses: Vec::new(),
-            implicit_defs: view("rflags").units.clone(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(14),
-            key: X86_64_SYSTEM_V_RETURN_UNIT,
-            operands: Vec::new(),
-            implicit_uses: rsp_units.clone(),
-            implicit_defs: control_defs.clone(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(15),
-            key: X86_64_MICROSOFT_RETURN_UNIT,
-            operands: Vec::new(),
-            implicit_uses: rsp_units.clone(),
-            implicit_defs: control_defs.clone(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(0),
-            key: X86_64_JUMP,
-            operands: Vec::new(),
-            implicit_uses: view("rip").units.clone(),
-            implicit_defs: view("rip").units.clone(),
-            clobbers: Vec::new(),
-        },
+            ]),
+        rflags_defining_row(RegisterConstraintId(19), X86_64_COMPARE_I64_IMMEDIATE, vec![allocatable(0, RegisterOperandAccess::Use, GPR64)]),
+        return_row(RegisterConstraintId(14), X86_64_SYSTEM_V_RETURN_UNIT, Vec::new()),
+        return_row(RegisterConstraintId(15), X86_64_MICROSOFT_RETURN_UNIT, Vec::new()),
+        jump_row(RegisterConstraintId(0), X86_64_JUMP, Vec::new()),
     ];
 
     let mut saturation_output = allocatable(2, RegisterOperandAccess::Def, GPR64);
     saturation_output.early_clobber = true;
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_SATURATING_SUBTRACT_UNSIGNED,
-        operands: vec![
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_SATURATING_SUBTRACT_UNSIGNED, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             saturation_output,
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+        ]));
     // The realized form zeroes RDX before reading the divisor, so the divisor
     // is pinned to RCX — a fixed view that cannot overlap the scratch — rather
     // than left allocatable over an early-clobbered RDX. The RDX scratch is an
     // ordinary late definition: the row's two outputs both define at the
     // instruction's after-point, which the fixed precolored contract accepts.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_REMAINDER_I64,
-        operands: vec![
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_REMAINDER_I64, vec![
             fixed(0, RegisterOperandAccess::Use, "rax"),
             fixed(1, RegisterOperandAccess::Use, "rcx"),
             fixed(2, RegisterOperandAccess::Def, "rax"),
             fixed(3, RegisterOperandAccess::Def, "rdx"),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+        ]));
     // Signed wrapping division shares the signed remainder's fixed row: RAX
     // carries the dividend and result quotient, RCX owns the divisor so the
     // CQO clobber cannot consume it, and RDX is the sign-extension output.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_DIVIDE_I64,
-        operands: vec![
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_DIVIDE_I64, vec![
             fixed(0, RegisterOperandAccess::Use, "rax"),
             fixed(1, RegisterOperandAccess::Use, "rcx"),
             fixed(2, RegisterOperandAccess::Def, "rax"),
             fixed(3, RegisterOperandAccess::Def, "rdx"),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+        ]));
     // Unsigned remainder keeps the same fixed row: the realized form zeroes
     // RDX before DIV, then moves the RDX remainder into the RAX result home.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_REMAINDER_U64,
-        operands: vec![
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_REMAINDER_U64, vec![
             fixed(0, RegisterOperandAccess::Use, "rax"),
             fixed(1, RegisterOperandAccess::Use, "rcx"),
             fixed(2, RegisterOperandAccess::Def, "rax"),
             fixed(3, RegisterOperandAccess::Def, "rdx"),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+        ]));
     // Variable shifts read the count through CL, so the count operand is
     // pinned to RCX. The result is an early-clobber definition: it is written
     // by the value copy before the shift reads CL, so it can share neither
     // the live count home nor the value home it is initialized from.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_SHIFT_I64,
-        operands: vec![
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_SHIFT_I64, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             fixed(1, RegisterOperandAccess::Use, "rcx"),
             {
@@ -468,11 +357,7 @@ pub fn x86_64_register_constraint_catalog(
                 output.early_clobber = true;
                 output
             },
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+        ]));
     constraints.push(RegisterInstructionConstraint {
         id: RegisterConstraintId(0),
         key: X86_64_DIVIDE_U64,
@@ -489,10 +374,7 @@ pub fn x86_64_register_constraint_catalog(
             .flat_map(|name| view(name).units.iter().copied())
             .collect(),
     });
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_SATURATING_ADD_U64,
-        operands: vec![
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_SATURATING_ADD_U64, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             {
@@ -500,11 +382,7 @@ pub fn x86_64_register_constraint_catalog(
                 output.early_clobber = true;
                 output
             },
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+        ]));
     // The clamped saturating add and multiply (every carrier but u64) and
     // signed subtract accumulate in an early-clobber result and clamp through
     // an early-clobber bound scratch (operand 3); the carrier only changes the
@@ -542,42 +420,25 @@ pub fn x86_64_register_constraint_catalog(
     // Saturating u64 multiplication shares the unsigned remainder's fixed row:
     // MUL reads RAX and the RCX-pinned right operand and defines the RDX high
     // half, whose overflow borrow then saturates RAX.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_SATURATING_MULTIPLY_U64,
-        operands: vec![
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_SATURATING_MULTIPLY_U64, vec![
             fixed(0, RegisterOperandAccess::Use, "rax"),
             fixed(1, RegisterOperandAccess::Use, "rcx"),
             fixed(2, RegisterOperandAccess::Def, "rax"),
             fixed(3, RegisterOperandAccess::Def, "rdx"),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+        ]));
     // Trapping division, remainder, and u64 multiplication share the same
     // fixed row: the guards read the RCX-pinned divisor before RDX is
     // defined by the XOR, CQO, or MUL high half, and the result is RAX.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_TRAPPING_FIXED_PAIR,
-        operands: vec![
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_TRAPPING_FIXED_PAIR, vec![
             fixed(0, RegisterOperandAccess::Use, "rax"),
             fixed(1, RegisterOperandAccess::Use, "rcx"),
             fixed(2, RegisterOperandAccess::Def, "rax"),
             fixed(3, RegisterOperandAccess::Def, "rdx"),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+        ]));
     // Trapping shifts read the count through CL like the wrapping shifts, and
     // add an early-clobber scratch for the left shift's round-trip or range
     // check, which runs while the value and count are still live.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_TRAPPING_SHIFT,
-        operands: vec![
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_TRAPPING_SHIFT, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             fixed(1, RegisterOperandAccess::Use, "rcx"),
             {
@@ -590,17 +451,10 @@ pub fn x86_64_register_constraint_catalog(
                 scratch.early_clobber = true;
                 scratch
             },
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+        ]));
     // A trapping conversion checks its input through the scratch before the
     // result copy, so both outputs are early-clobber against the input.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_TRAPPING_CONVERT,
-        operands: vec![
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_TRAPPING_CONVERT, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             {
                 let mut output = allocatable(1, RegisterOperandAccess::Def, GPR64);
@@ -612,11 +466,7 @@ pub fn x86_64_register_constraint_catalog(
                 scratch.early_clobber = true;
                 scratch
             },
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+        ]));
     // Like unsigned division, the explicit RDX input keeps the divisor out of
     // RDX; CQO then redefines RDX and the signed carriers reuse it as the
     // bound scratch (narrow) or the MIN / -1 guard scratch (i64).
@@ -985,10 +835,7 @@ pub fn x86_64_register_constraint_catalog(
     float_scalar_calls::append_constraints(&mut constraints, model);
     indirect_results::append_constraints(&mut constraints, model);
     packed_memory::append_constraints(&mut constraints, model);
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_COPY_BYTES,
-        operands: (0..5)
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_COPY_BYTES, (0..5)
             .map(|operand| RegisterOperandConstraint {
                 operand,
                 access: if operand < 3 {
@@ -1001,17 +848,10 @@ pub fn x86_64_register_constraint_catalog(
                 tied_to: None,
                 early_clobber: operand >= 3,
             })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+            .collect()));
     // The zero fill reads its preserved destination/count inputs on every
     // iteration; the cursor is written before the count guard reads them.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_ZERO_BYTES,
-        operands: (0..3)
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_ZERO_BYTES, (0..3)
             .map(|operand| RegisterOperandConstraint {
                 operand,
                 access: if operand < 2 {
@@ -1024,11 +864,7 @@ pub fn x86_64_register_constraint_catalog(
                 tied_to: None,
                 early_clobber: operand >= 2,
             })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+            .collect()));
     // Scalar codecs carry the actual byte footprint. Every working home is
     // early-clobber, so neither input nor another scratch home can alias it.
     for (key, input_count) in [
@@ -1061,10 +897,7 @@ pub fn x86_64_register_constraint_catalog(
     // The scan reads its preserved base/count inputs while the loop cursors
     // are written before any input home is consumed; the verdict operand is
     // the only lasting definition. Flags fall to the compare/branch pair.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_SCAN_BYTE_SEQUENCE,
-        operands: (0..5)
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_SCAN_BYTE_SEQUENCE, (0..5)
             .map(|operand| RegisterOperandConstraint {
                 operand,
                 access: match operand {
@@ -1076,18 +909,11 @@ pub fn x86_64_register_constraint_catalog(
                 tied_to: None,
                 early_clobber: matches!(operand, 2 | 3 | 4),
             })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+            .collect()));
     // The compare reads its four preserved inputs while the cursors are
     // written before any input home is consumed; the verdict operand is the
     // only lasting definition. Flags fall to the compare/branch pairs.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_COMPARE_BYTE_SEQUENCES,
-        operands: (0..8)
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_COMPARE_BYTE_SEQUENCES, (0..8)
             .map(|operand| RegisterOperandConstraint {
                 operand,
                 access: match operand {
@@ -1099,11 +925,7 @@ pub fn x86_64_register_constraint_catalog(
                 tied_to: None,
                 early_clobber: operand >= 4,
             })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+            .collect()));
     mixed_aggregate_calls::append_constraints(&mut constraints, model);
     // Atomic rows carry the LOCK-capable vocabulary every x86-64 target has
     // had since the 486. The address is an ordinary base register; the cell
@@ -1113,37 +935,20 @@ pub fn x86_64_register_constraint_catalog(
     // its compare-exchange retry control and RAX interference are explicit. The
     // observed prior value is an early-clobber definition on every row it
     // appears in, the same shape every other target's atomic rows carry.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_ATOMIC_LOAD,
-        operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64), {
+    constraints.push(instruction_row(RegisterConstraintId(0), X86_64_ATOMIC_LOAD, vec![allocatable(0, RegisterOperandAccess::Use, GPR64), {
             let mut output = allocatable(1, RegisterOperandAccess::Def, GPR64);
             output.early_clobber = true;
             output
-        }],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_ATOMIC_STORE,
-        operands: vec![
+        }]));
+    constraints.push(instruction_row(RegisterConstraintId(0), X86_64_ATOMIC_STORE, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
+        ]));
     // The update family reads the address and the incoming value and
     // produces the observed prior cell. `LOCK XADD` and `XCHG` write the
     // observed value into the register they read, so the realization copies
     // the incoming value into the early-clobber output before the LOCK form.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_ATOMIC_UPDATE,
-        operands: vec![
+    constraints.push(rflags_clobbering_row(RegisterConstraintId(0), X86_64_ATOMIC_UPDATE, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             {
@@ -1151,11 +956,7 @@ pub fn x86_64_register_constraint_catalog(
                 output.early_clobber = true;
                 output
             },
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("rflags").units.clone(),
-    });
+        ]));
     // CMPXCHG's hidden accumulator must not overwrite either input while a
     // failed attempt prepares its next replacement. The current constraint
     // vocabulary has no allocatable-class exclusion for RAX, so fixed
