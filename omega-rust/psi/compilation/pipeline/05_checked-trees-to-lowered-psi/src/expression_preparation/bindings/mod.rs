@@ -271,19 +271,24 @@ impl ScalarBindings {
                 } => Some(facts::PlaceRoot::Symbol(symbol)),
                 _ => None,
             });
+        // A named initializer can still name the earlier result ordinal until
+        // a storage operation replaces its home. Both identities lend the
+        // already established local; neither establishes a new value.
+        let result_ordinal = argument.source_structural_result_binding_ordinal();
         let place = match argument.source {
-            _ if storage_root.is_some() => {
-                let root = storage_root.ok_or(LoweringError::Unsupported(
-                    "computed borrow lost its storage identity",
-                ))?;
-                let mut locals = self.structural_locals.iter().filter(|row| row.root == root);
+            _ if storage_root.is_some() || result_ordinal.is_some() => {
+                let mut locals = self.structural_locals.iter().filter(|row| {
+                    storage_root.is_some_and(|root| row.root == root)
+                        || result_ordinal
+                            .is_some_and(|ordinal| row.result_binding_ordinal == Some(ordinal))
+                });
                 match locals.next() {
                     Some(source) => {
                         // An owned local lends its whole place; a `&T` local
                         // is itself a shared-borrow join result, so borrowing
                         // through it reuses that same shared custody rather
                         // than fabricating ownership.
-                        if !valid_structural_root(root)
+                        if storage_root.is_some_and(|root| !valid_structural_root(root))
                             || locals.next().is_some()
                             || !supports_borrow(source.argument.access)
                             || self.structural_argument_type(&source.argument)
@@ -294,7 +299,7 @@ impl ScalarBindings {
                         source.argument.clone()
                     }
                     None => {
-                        let Some(symbol) = root.as_symbol() else {
+                        let Some(symbol) = storage_root.and_then(|root| root.as_symbol()) else {
                             return unsupported("computed borrow lost its established expression");
                         };
                         if self.view_locals.iter().any(|local| local.symbol == symbol) {
