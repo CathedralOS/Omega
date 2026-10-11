@@ -35,6 +35,8 @@ pub struct CheckedDynamicSlotPlan {
     /// position 0, and every implementation receives the rest.
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub result: CheckedBoundaryMachineResultPlan,
+    /// Public possible result claim frontier; implementation identities remain private.
+    pub result_claim_paths: Vec<Vec<crate::CheckedUnitStructuralPathSegment>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

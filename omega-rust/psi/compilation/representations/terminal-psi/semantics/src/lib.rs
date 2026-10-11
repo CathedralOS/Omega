@@ -179,5 +179,7 @@ pub use element_representation::{
 
 pub use collection_backing::{collection_view_backing, collection_view_preserves_coordinates};
 
-pub use structural_claims::result_claim_catalog_matches_returns;
+pub use structural_claims::{
+    result_claim_catalog_matches_returns, result_claim_paths_match_returns,
+};
 pub use structural_effect::{ElementViewLeaf, element_view_leaf, element_view_write_goal};

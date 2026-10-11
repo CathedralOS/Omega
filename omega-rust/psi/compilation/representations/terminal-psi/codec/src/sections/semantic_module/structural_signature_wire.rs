@@ -77,30 +77,7 @@ pub(crate) fn encode_boundary_machine(
     }
     encode_crash_routes(writer, &declaration.crash_routes)?;
     encode_structural_parameters(writer, &declaration.structural_parameters)?;
-    match &declaration.result {
-        BoundaryMachineResult::Unit => writer.u8(0),
-        BoundaryMachineResult::Scalar(result) => {
-            writer.u8(1);
-            encode_scalar_type(writer, *result);
-        }
-        BoundaryMachineResult::Structural(result) => {
-            writer.u8(2);
-            writer.id(result.structural_type);
-            writer.u8(match result.multiplicity {
-                StructuralMultiplicity::Unrestricted => 1,
-                StructuralMultiplicity::Affine => 2,
-                StructuralMultiplicity::Linear => 3,
-            });
-            writer.len(
-                "boundary result qualifications",
-                result.qualifications.len(),
-            )?;
-            for qualification in &result.qualifications {
-                writer.id(*qualification);
-            }
-            encode_projected_qualifications(writer, &result.projected_qualifications)?;
-        }
-    }
+    encode_call_result(writer, &declaration.result)?;
     writer.len(
         "boundary structural requirements",
         declaration.requires.len(),
@@ -297,22 +274,7 @@ pub(crate) fn decode_boundary_machine(
         scalar_parameters: decode_counted(reader, decode_scalar_type)?,
         crash_routes: decode_crash_routes(reader)?,
         structural_parameters: decode_structural_parameters(reader)?,
-        result: match reader.u8()? {
-            0 => BoundaryMachineResult::Unit,
-            1 => BoundaryMachineResult::Scalar(decode_scalar_type(reader)?),
-            2 => BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
-                structural_type: reader.id("StructuralTypeId")?,
-                multiplicity: match reader.u8()? {
-                    1 => StructuralMultiplicity::Unrestricted,
-                    2 => StructuralMultiplicity::Affine,
-                    3 => StructuralMultiplicity::Linear,
-                    tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
-                },
-                qualifications: decode_ids(reader, "boundary result qualifications")?,
-                projected_qualifications: decode_projected_qualifications(reader)?,
-            }),
-            tag => return Err(CodecError::InvalidTag("BoundaryMachineResult", tag)),
-        },
+        result: decode_call_result(reader)?,
         requires: decode_counted(reader, |reader| {
             Ok(StructuralDomainRequirement {
                 argument_index: reader.u32()?,
@@ -683,4 +645,57 @@ pub(crate) fn decode_structural_access(
         4 => Ok(StructuralAccess::WriteOnlyBorrow),
         tag => Err(CodecError::InvalidTag("StructuralAccess", tag)),
     }
+}
+
+/// Shared place-free result signature for boundary declarations and dynamic slots.
+pub(super) fn encode_call_result(
+    writer: &mut Writer,
+    result: &BoundaryMachineResult,
+) -> Result<(), CodecError> {
+    match result {
+        BoundaryMachineResult::Unit => writer.u8(0),
+        BoundaryMachineResult::Scalar(result) => {
+            writer.u8(1);
+            encode_scalar_type(writer, *result);
+        }
+        BoundaryMachineResult::Structural(result) => {
+            writer.u8(2);
+            writer.id(result.structural_type);
+            writer.u8(match result.multiplicity {
+                StructuralMultiplicity::Unrestricted => 1,
+                StructuralMultiplicity::Affine => 2,
+                StructuralMultiplicity::Linear => 3,
+            });
+            writer.len(
+                "boundary result qualifications",
+                result.qualifications.len(),
+            )?;
+            for qualification in &result.qualifications {
+                writer.id(*qualification);
+            }
+            encode_projected_qualifications(writer, &result.projected_qualifications)?;
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn decode_call_result(
+    reader: &mut Reader<'_>,
+) -> Result<BoundaryMachineResult, CodecError> {
+    Ok(match reader.u8()? {
+        0 => BoundaryMachineResult::Unit,
+        1 => BoundaryMachineResult::Scalar(decode_scalar_type(reader)?),
+        2 => BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+            structural_type: reader.id("StructuralTypeId")?,
+            multiplicity: match reader.u8()? {
+                1 => StructuralMultiplicity::Unrestricted,
+                2 => StructuralMultiplicity::Affine,
+                3 => StructuralMultiplicity::Linear,
+                tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
+            },
+            qualifications: decode_ids(reader, "boundary result qualifications")?,
+            projected_qualifications: decode_projected_qualifications(reader)?,
+        }),
+        tag => return Err(CodecError::InvalidTag("BoundaryMachineResult", tag)),
+    })
 }

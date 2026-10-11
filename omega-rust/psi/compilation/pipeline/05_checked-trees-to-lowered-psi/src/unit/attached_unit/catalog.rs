@@ -438,6 +438,14 @@ pub(super) fn lower_unit_structural_types_including(
             }
         }
     }
+    for slot in &checked.facts.flow.terminal_unit_effects.dynamic_slots {
+        roots.extend(slot.result.structural_identity());
+        roots.extend(
+            slot.structural_parameters
+                .iter()
+                .map(|parameter| parameter.type_identity),
+        );
+    }
     for (boundary, _) in boundaries {
         roots.extend(boundary.attachment_type_identity);
         roots.extend(
@@ -1013,6 +1021,35 @@ pub(super) fn lower_unit_structural_domains(
         {
             if !selected.contains(domain) {
                 selected.push(*domain);
+            }
+        }
+    }
+    for slot in &checked.facts.flow.terminal_unit_effects.dynamic_slots {
+        let mut domains = slot
+            .structural_parameters
+            .iter()
+            .flat_map(|parameter| {
+                parameter.qualifications.iter().chain(
+                    parameter
+                        .projected_qualifications
+                        .iter()
+                        .map(|row| &row.domain),
+                )
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        if let CheckedBoundaryMachineResultPlan::Structural {
+            qualifications,
+            projected_qualifications,
+            ..
+        } = &slot.result
+        {
+            domains.extend(qualifications);
+            domains.extend(projected_qualifications.iter().map(|row| row.domain));
+        }
+        for domain in domains {
+            if !selected.contains(&domain) {
+                selected.push(domain);
             }
         }
     }

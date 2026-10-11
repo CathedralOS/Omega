@@ -1875,22 +1875,46 @@ pub(in crate::legalization) fn apply(
             ..
         } => {
             let moved = call_arguments(function, types, custody, structural_arguments)?;
-            let callee_function = unit
-                .functions
-                .iter()
-                .find(|function| Some(function.machine) == callee.machine())
-                .ok_or_else(|| invalid())?;
+            let callee_function = match callee {
+                abstract_operations::AbstractCallTarget::Machine(machine) => Some(
+                    unit.functions
+                        .iter()
+                        .find(|function| function.machine == *machine)
+                        .ok_or_else(|| invalid())?,
+                ),
+                abstract_operations::AbstractCallTarget::Dynamic { .. } => {
+                    let abstract_operations::AbstractCallSignature::Requirement(requirement) =
+                        super::call_signature::signature(*callee, plan)?
+                    else {
+                        return Err(invalid());
+                    };
+                    // The slot owns the completed result contract. It supplies no
+                    // private returned-loan origins, so this route may consume input
+                    // reference custody but cannot establish borrowed result storage.
+                    if !requirement.matches_operation_result(
+                        &terminal_psi::OperationResult::Structural(result.clone()),
+                    ) || terminal_psi::structural_type_has_borrowed_storage_by(
+                        |id| find_structural_type(types, id),
+                        result.structural_type,
+                    ) {
+                        return Err(invalid());
+                    }
+                    None
+                }
+            };
             commit_argument_moves(custody, &moved);
-            call_results(
-                function,
-                callee_function,
-                types,
-                result,
-                *psi_operation,
-                structural_arguments,
-                custody,
-                &moved,
-            )?;
+            if let Some(callee_function) = callee_function {
+                call_results(
+                    function,
+                    callee_function,
+                    types,
+                    result,
+                    *psi_operation,
+                    structural_arguments,
+                    custody,
+                    &moved,
+                )?;
+            }
         }
         AbstractOperation::CallStructural {
             structural_arguments,

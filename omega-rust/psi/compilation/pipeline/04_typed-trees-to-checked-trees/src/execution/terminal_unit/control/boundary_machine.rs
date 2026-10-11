@@ -215,6 +215,15 @@ pub(crate) fn build_dynamic_slot_plans(
         let Some(entry_claim_paths) = entry_claim_paths else {
             continue;
         };
+        let Some(result_claim_paths) = validation::linear_claim_frontier(program, slot.return_type)
+            .iter()
+            .map(|claim| {
+                validation::structural_claim_path(program, slot.return_type, &claim.path).ok()
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            continue;
+        };
         plans.push(checked_trees::CheckedDynamicSlotPlan {
             slot: slot.symbol,
             interface_identity: slot.interface_identity.clone(),
@@ -226,6 +235,7 @@ pub(crate) fn build_dynamic_slot_plans(
             entry_claim_paths,
             scalar_parameters,
             result,
+            result_claim_paths,
         });
     }
     plans

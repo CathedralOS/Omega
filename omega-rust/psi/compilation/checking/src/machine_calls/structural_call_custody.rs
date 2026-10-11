@@ -1050,41 +1050,80 @@ pub fn structural_call_custody(
     let source_state = program
         .state_in_machine(caller, caller_state)
         .ok_or("structural call has no exact caller state")?;
-    let target = program
-        .machine(*target_machine)
-        .ok_or("structural call has no exact callee")?;
-    let destination =
-        typed_trees::state::state_by_symbol(program.machine_states(target), *target_state)
-            .ok_or("structural call has no exact callee state")?;
-    let expected_multiplicity = crate::machine_calls::reference_result_custody::result_multiplicity(
-        program,
-        destination.return_type,
-    );
-    if target.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || expected_multiplicity != result.multiplicity
-    {
+    // A runtime selector names an instantiated public slot, not one of its
+    // implementations. The same custody judgment consumes that signature.
+    let dynamic_slot = match call.route() {
+        checked_trees::CheckedUnitCallRoute::Dynamic {
+            interface_identity,
+            requirement,
+            ..
+        } => {
+            let slot = program
+                .dynamic_slot_by_symbol(*target_state)
+                .ok_or("structural selector call has no exact slot")?;
+            if slot.symbol != *target_machine
+                || slot.requirement != *requirement
+                || slot.interface_identity != *interface_identity
+            {
+                return Err("structural selector call differs from its public slot");
+            }
+            Some(slot)
+        }
+        _ => None,
+    };
+    let (return_type, parameters, entry_state) = if let Some(slot) = dynamic_slot {
+        // A public slot has no callee-private formal places. Returned loans
+        // require a slot-relative origin contract before they can cross it.
+        if crate::machine_calls::reference_result_custody::has_borrowed_parts(
+            program,
+            slot.return_type,
+        ) || crate::machine_calls::reference_result_custody::is_reference_record(
+            program,
+            slot.return_type,
+        ) {
+            return Err(
+                "dynamic structural result requires a public returned-loan origin contract",
+            );
+        }
+        (slot.return_type, slot.parameters.as_slice(), *target_state)
+    } else {
+        let target = program
+            .machine(*target_machine)
+            .ok_or("structural call has no exact callee")?;
+        let destination =
+            typed_trees::state::state_by_symbol(program.machine_states(target), *target_state)
+                .ok_or("structural call has no exact callee state")?;
+        if target.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+            return Err("structural call result differs from the callee contract");
+        }
+        (
+            destination.return_type,
+            program.state_parameters(destination),
+            program
+                .machine_states(target)
+                .first()
+                .map(|entry| entry.symbol)
+                .unwrap_or_default(),
+        )
+    };
+    let expected_multiplicity =
+        crate::machine_calls::reference_result_custody::result_multiplicity(program, return_type);
+    if expected_multiplicity != result.multiplicity {
         return Err("structural call result differs from the callee contract");
     }
-    let result_qualifications = if borrowed_slice_view_result(program, destination.return_type) {
+    let result_qualifications = if borrowed_slice_view_result(program, return_type) {
         // A slice view's result type is its referent's carrier: the
         // byte-predicate domains it declares ride the same structural
         // identity, so the callee's qualifications are the call result's own.
-        view_result_carrier_qualifications(program, destination.return_type)?
-    } else if crate::machine_calls::reference_result_custody::parts(
-        program,
-        destination.return_type,
-    )
-    .is_some()
-        || crate::machine_calls::reference_result_custody::has_borrowed_parts(
-            program,
-            destination.return_type,
-        )
+        view_result_carrier_qualifications(program, return_type)?
+    } else if crate::machine_calls::reference_result_custody::parts(program, return_type).is_some()
+        || crate::machine_calls::reference_result_custody::has_borrowed_parts(program, return_type)
     {
         // The reference carrier transports a loan, not owned referent claims.
         // Exact ingress substitution and its weakening are reconstructed below.
         Vec::new()
     } else {
-        structural_result_qualifications(program, destination.return_type)?
+        structural_result_qualifications(program, return_type)?
     };
     let mut states = facts
         .flow
@@ -1116,11 +1155,7 @@ pub fn structural_call_custody(
     // destination is that machine's entry, never an arbitrary state it owns.
     // Keep the authored symbol below when joining the ownership events.
     let targets_destination = call.target_symbol == *target_state
-        || (call.target_symbol == *target_machine
-            && program
-                .machine_states(target)
-                .first()
-                .is_some_and(|entry| entry.symbol == *target_state));
+        || (call.target_symbol == *target_machine && entry_state == *target_state);
     if calls.next().is_some() || !targets_destination {
         return Err("structural call target or occurrence differs from source");
     }
@@ -1145,7 +1180,7 @@ pub fn structural_call_custody(
                 && event.obligation_live
         })
         .collect::<Vec<_>>();
-    let result_frontier = crate::linear_claim_frontier(program, destination.return_type);
+    let result_frontier = crate::linear_claim_frontier(program, return_type);
     if result_frontier.is_empty() {
         // Primitive byte predicates describe an independently established
         // byte value, not resource claims — the carrier owns or views the
@@ -1154,7 +1189,7 @@ pub fn structural_call_custody(
         // carrier; arbitrary qualified or loan-bearing results keep the
         // fence.
         let byte_predicated = result.multiplicity == Multiplicity::Unrestricted
-            && crate::byte_sequence_carrier(program, destination.return_type, &[]).is_some()
+            && crate::byte_sequence_carrier(program, return_type, &[]).is_some()
             && result_qualifications.iter().all(|domain| {
                 program
                     .domain_definitions()
@@ -1183,7 +1218,7 @@ pub fn structural_call_custody(
         call,
         source_state,
         coordinate,
-        destination,
+        parameters,
         *target_state,
         structural_arguments,
         &transfers,
@@ -1193,10 +1228,8 @@ pub fn structural_call_custody(
     // record for custody, but it is no construction — its loan is the
     // shared-borrow join, not captured leaf loans. Only results that
     // actually owe record loans must name exact captured leaves.
-    if crate::machine_calls::reference_result_custody::local_owes_record_loans(
-        program,
-        destination.return_type,
-    ) {
+    if crate::machine_calls::reference_result_custody::local_owes_record_loans(program, return_type)
+    {
         use crate::machine_calls::reference_result_custody::record_call_reception;
         let reception = record_call_reception(
             program,
@@ -1239,7 +1272,7 @@ pub fn structural_call_custody(
         arena::HandleSpan::empty()
     } else if crate::machine_calls::reference_result_custody::has_borrowed_parts(
         program,
-        destination.return_type,
+        return_type,
     ) {
         crate::machine_calls::reference_result_custody::result_loans(
             program,
@@ -1267,7 +1300,7 @@ pub fn structural_call_custody(
         caller_machine,
         caller_state,
         call,
-        destination.return_type,
+        return_type,
     )?;
     Ok(CheckedStructuralCallCustodyPlan {
         reference_loans,
@@ -1386,7 +1419,7 @@ fn owned_argument_claim_transfers(
     call: &FlowCallFact,
     source_state: &typed_trees::state::State,
     coordinate: &CheckedUnitCallCoordinate,
-    destination: &typed_trees::state::State,
+    parameters: &[typed_trees::signature::StateParameter],
     target_state: SymbolHandle,
     structural_arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     transfers: &[&checked_trees::FlowPermissionEventFact],
@@ -1396,7 +1429,6 @@ fn owned_argument_claim_transfers(
     if transfers.is_empty() {
         return Ok(claim_transfers);
     }
-    let parameters = program.state_parameters(destination);
     let authored_arguments = structural_authored_arguments(
         program,
         call,

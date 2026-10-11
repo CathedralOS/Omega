@@ -579,7 +579,8 @@ mod tests {
                 scalar_parameters: Vec::new(),
                 structural_parameters: Vec::new(),
                 entry_claim_paths: Vec::new(),
-                result: None,
+                result: terminal_psi::BoundaryMachineResult::Unit,
+                result_claim_paths: Vec::new(),
             };
         catalogs.dynamic_dispatch.interfaces = (0..2)
             .map(|id| terminal_psi::TerminalDynamicInterface {

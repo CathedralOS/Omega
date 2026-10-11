@@ -1,0 +1,2 @@
+cannot prove ensures contract for exit from Wrong::make
+result.value == 7

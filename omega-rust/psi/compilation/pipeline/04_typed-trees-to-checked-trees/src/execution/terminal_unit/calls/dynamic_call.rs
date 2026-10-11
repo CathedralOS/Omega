@@ -9,10 +9,10 @@
 //! call's do, because every selectable implementation is a checked body; no
 //! implementation's body is inspected to plan them.
 //!
-//! Unit and scalar results are planned. A structural result, an erased or
-//! mutable owned scalar formal and a suspending requirement decline at the
-//! named phase: their dispatch obligations (result custody per row, proof
-//! lanes, a suspension frontier) are not yet carried by the dynamic route.
+//! Owned structural results use the ordinary result-custody judgment against
+//! the public slot signature. Returned loans still require a public origin
+//! contract; erased or mutable owned scalar formals and suspending requirements
+//! retain their existing proof-lane and suspension coverage boundaries.
 //! A requirement contract needs no route evidence: checking discharged its
 //! `requires` against these operands, and every selectable implementation
 //! refines it where its conformance is checked.
@@ -50,6 +50,7 @@ pub(super) fn build(
     trace: &LocalConstructionTrace,
     coordinate: CheckedUnitCallCoordinate,
     call_site: &validation::CallSite<'_>,
+    source_site: Option<checked_trees::NominalMachineUseSite>,
     slot: &typed_trees::dynamic_traits::DynamicSlotSignature,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let phase = |name: &'static str| {
@@ -59,10 +60,12 @@ pub(super) fn build(
     phase("call operation: dynamic result shape");
     let result_matches = match expected_call_result {
         None => is_unit(program, slot.return_type),
-        Some(super::ExpectedCallValueResult::Scalar(expected)) => {
-            program.primitive_type_reference(slot.return_type) == Some(*expected)
-        }
-        Some(super::ExpectedCallValueResult::Structural(_)) => false,
+        Some(expected) => super::call_operations::call_value_result_matches(
+            program,
+            slot.return_type,
+            expected,
+            &[],
+        ),
     };
     if !result_matches {
         return None;
@@ -122,21 +125,33 @@ pub(super) fn build(
         return None;
     }
     let selector = scalar_arguments.remove(0);
+    let structural_result = match expected_call_result {
+        Some(super::ExpectedCallValueResult::Structural(result)) => Some(*result),
+        _ => None,
+    };
+    // Structural calls use the common occurrence-bound custody judgment below,
+    // including its ingress transfers. Unit/scalar calls only need ingress.
     phase("call operation: dynamic claim transfers");
-    let transfers = call_claim_transfers(
-        program,
-        facts,
-        machine.symbol,
-        state.symbol,
-        call,
-        caller_parameters,
-        caller_structural_results,
-        &structural_arguments,
-    )?;
-    CheckedUnitCallPlan::new(CheckedUnitCallParts {
+    let transfers = if structural_result.is_none() {
+        call_claim_transfers(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            call,
+            caller_parameters,
+            caller_structural_results,
+            &structural_arguments,
+        )?
+    } else {
+        Vec::new()
+    };
+    let parts = CheckedUnitCallParts {
         coordinate,
         completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-        source_site: None,
+        // Structural completion retains the producer's exact authored
+        // occurrence when nested callers adopt its result namespace.
+        source_site: structural_result.and(source_site),
         // No single implementation's contract report describes the call;
         // the slot is the target identity.
         target: CheckedUnitCallTarget {
@@ -152,8 +167,30 @@ pub(super) fn build(
         },
         scalar_arguments,
         structural_arguments,
-        result: CheckedUnitCallResult::Unit,
-        transfers: CheckedUnitCallTransfers::Claims(transfers),
-    })
-    .map(CheckedUnitEffectOperationPlan::Call)
+        result: structural_result.map_or(CheckedUnitCallResult::Unit, |binding| {
+            CheckedUnitCallResult::Structural {
+                binding: binding.clone(),
+                discard_result_on_return: binding.multiplicity
+                    == language_semantics::Multiplicity::Affine,
+            }
+        }),
+        transfers: if structural_result.is_some() {
+            CheckedUnitCallTransfers::StructuralCustody(Default::default())
+        } else {
+            CheckedUnitCallTransfers::Claims(transfers)
+        },
+    };
+    if structural_result.is_some() {
+        phase("call operation: dynamic structural custody");
+        super::structural_result_call::with_structural_custody(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            trace,
+            parts,
+        )
+    } else {
+        CheckedUnitCallPlan::new(parts).map(CheckedUnitEffectOperationPlan::Call)
+    }
 }

@@ -544,6 +544,53 @@ pub fn structural_type_contains_reference_by<'types>(
     lookup: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
+    structural_type_contains_by(
+        lookup,
+        root,
+        |shape| matches!(shape, StructuralTypeShape::Reference { .. }),
+        |_| false,
+    )
+}
+
+/// Whether returned storage needs an origin contract for any reference or
+/// borrowed view. Inline byte-view fields participate even without a child
+/// type declaration; an owned byte array has no such external origin.
+pub fn structural_type_has_borrowed_storage_by<'types>(
+    lookup: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+) -> bool {
+    structural_type_contains_by(
+        lookup,
+        root,
+        |shape| {
+            matches!(
+                shape,
+                StructuralTypeShape::Reference { .. }
+                    | StructuralTypeShape::ElementView { .. }
+                    | StructuralTypeShape::ByteSequence(
+                        ByteSequenceCarrier::BorrowedView { .. }
+                            | ByteSequenceCarrier::BoundedView { .. }
+                    )
+            )
+        },
+        |field| {
+            matches!(
+                field.byte_sequence_carrier(),
+                Some(
+                    ByteSequenceCarrier::BorrowedView { .. }
+                        | ByteSequenceCarrier::BoundedView { .. }
+                )
+            )
+        },
+    )
+}
+
+fn structural_type_contains_by<'types>(
+    lookup: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    contains_shape: impl Fn(&StructuralTypeShape) -> bool,
+    contains_field: impl Fn(&StructuralFieldType) -> bool,
+) -> bool {
     let mut pending = vec![root];
     let mut visited = std::collections::BTreeSet::new();
     while let Some(current) = pending.pop() {
@@ -553,32 +600,40 @@ pub fn structural_type_contains_reference_by<'types>(
         let Some(declaration) = lookup(current) else {
             continue;
         };
+        if contains_shape(&declaration.shape) {
+            return true;
+        }
         let mut push_fields = |fields: &[StructuralFieldDeclaration]| {
             pending.extend(structural_children(fields));
+            fields
+                .iter()
+                .any(|field| !field.relevance.is_erased() && contains_field(&field.field_type))
         };
         match &declaration.shape {
-            StructuralTypeShape::Reference { .. } => return true,
-            StructuralTypeShape::Record { fields, .. } => push_fields(fields),
+            StructuralTypeShape::Record { fields, .. } => {
+                if push_fields(fields) {
+                    return true;
+                }
+            }
             StructuralTypeShape::Sum { cases } => {
-                for case in cases {
-                    push_fields(&case.fields);
+                if cases.iter().any(|case| push_fields(&case.fields)) {
+                    return true;
                 }
             }
             StructuralTypeShape::Mixed { fields, cases } => {
-                push_fields(fields);
-                for case in cases {
-                    push_fields(&case.fields);
+                if push_fields(fields) || cases.iter().any(|case| push_fields(&case.fields)) {
+                    return true;
                 }
             }
             StructuralTypeShape::FixedArray { element, length } => {
-                // An empty carrier stores no element payload, so it cannot
-                // contain a reference either.
+                // An empty carrier stores no element payload.
                 if *length != 0 {
                     pending.push(*element);
                 }
             }
             StructuralTypeShape::ElementView { element } => pending.push(*element),
-            StructuralTypeShape::BindingCarrier
+            StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::BindingCarrier
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_) => {}
         }

@@ -87,33 +87,15 @@ pub(super) fn prepare_function_signature(
         &scalar_parameter_shapes,
         &function.structural_parameters,
         match &function.result {
-            AbstractFunctionResult::Structural(result) => {
-                // Root and child memberships retain semantic identity but do
-                // not change the carrier's return registers or home layout.
-                // Claims are custody, not storage either: a linear result or
-                // an affine owner of linear members returns the same bytes.
-                if matches!(
-                    structural_types
-                        .get(&result.structural_type)
-                        .map(|declaration| &declaration.shape),
-                    Some(terminal_psi::StructuralTypeShape::FixedArray { .. })
-                ) {
-                    Some(
-                        super::control_flow::aggregate_results::result_home_layout(
-                            result,
-                            structural_types,
-                        )?
-                        .shape(),
-                    )
-                } else {
-                    Some(super::structural_layout::structural_shape(
-                        result.structural_type,
-                        structural_types,
-                        &mut shape_cache,
-                        &mut active,
-                    )?)
-                }
-            }
+            AbstractFunctionResult::Structural(result) => Some(
+                // The same complete value layout owns direct and dynamic result ABI.
+                // Qualifications and claims remain semantic custody, not extra bytes.
+                super::control_flow::aggregate_results::result_home_layout(
+                    result,
+                    structural_types,
+                )?
+                .shape(),
+            ),
             _ => function
                 .result
                 .scalar()

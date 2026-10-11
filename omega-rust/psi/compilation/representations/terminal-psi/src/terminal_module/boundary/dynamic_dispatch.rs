@@ -55,8 +55,32 @@ pub struct TerminalDynamicSlot {
     /// Requirement-owned disposal paths. Every realization receives this
     /// frontier under its private entry claim IDs; caller IDs stay local.
     pub entry_claim_paths: Vec<TerminalDynamicClaimPath>,
-    /// The scalar result; `None` for a Unit requirement.
-    pub result: Option<ScalarType>,
+    /// Place-free requirement result; private callee result homes stay local.
+    pub result: crate::BoundaryMachineResult,
+    /// Canonical possible result claims, by typed relative path. Every row
+    /// realizes this roster under its own private returning claim identities.
+    pub result_claim_paths: Vec<Vec<StructuralPathSegment>>,
+}
+
+impl TerminalDynamicSlot {
+    /// Match a caller's result occurrence without importing its private IDs.
+    pub fn matches_operation_result(&self, result: &crate::OperationResult) -> bool {
+        if !self.result.matches_operation_result(result) {
+            return false;
+        }
+        let mut paths = result.structural().map_or_else(Vec::new, |result| {
+            result
+                .claims
+                .iter()
+                .map(|claim| claim.path.as_slice())
+                .collect()
+        });
+        paths.sort();
+        paths
+            .iter()
+            .copied()
+            .eq(self.result_claim_paths.iter().map(Vec::as_slice))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

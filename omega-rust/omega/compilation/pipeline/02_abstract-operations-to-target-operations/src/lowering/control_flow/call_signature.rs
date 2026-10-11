@@ -77,13 +77,17 @@ pub(super) fn prepare(
             ),
         );
     }
-    let result = declaration
-        .scalar_result()
-        .map(|scalar_type| {
-            crate::lowering::scalar_abi::fixed_native_scalar_shape(scalar_type)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(machine))
-        })
-        .transpose()?;
+    let result = if let Some(result) = declaration.structural_result() {
+        Some(super::aggregate_results::value_home_layout(result.structural_type, types)?.shape())
+    } else {
+        declaration
+            .scalar_result()
+            .map(|scalar_type| {
+                crate::lowering::scalar_abi::fixed_native_scalar_shape(scalar_type)
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(machine))
+            })
+            .transpose()?
+    };
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {

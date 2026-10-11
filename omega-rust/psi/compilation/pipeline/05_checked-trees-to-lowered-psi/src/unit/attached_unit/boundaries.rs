@@ -362,7 +362,7 @@ fn lower_requirements(
     Ok(requires)
 }
 
-pub(super) fn lower_boundary_result(
+pub(crate) fn lower_boundary_result(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     result: &CheckedBoundaryMachineResultPlan,
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],

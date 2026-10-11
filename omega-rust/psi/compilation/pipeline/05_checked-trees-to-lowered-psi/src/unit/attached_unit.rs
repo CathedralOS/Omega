@@ -98,7 +98,7 @@ pub(crate) mod view_ranges;
 mod scalar_completion;
 
 use bodies::{UnitBody, UnitPlans};
-pub(crate) use boundaries::retain_unit_boundary;
+pub(crate) use boundaries::{lower_boundary_result, retain_unit_boundary};
 pub(crate) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
 use call_closure::{

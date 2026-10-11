@@ -115,7 +115,7 @@ impl OperationFrame<'_, '_> {
                     interface_identity, ..
                 },
                 _,
-            ) => self.dynamic_call(identities, call, interface_identity, &inputs),
+            ) => self.dynamic_call(identities, operation, call, interface_identity, &inputs),
         }?;
         self.publish_loan_completions(identities, call)
     }

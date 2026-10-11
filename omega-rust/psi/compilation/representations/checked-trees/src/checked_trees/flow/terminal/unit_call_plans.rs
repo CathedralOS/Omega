@@ -6,7 +6,7 @@
 //! scalar namespace, or a whole value in the structural namespace. Its
 //! completion distinguishes a normal return from a closed external outcome;
 //! transfers carry existing claims through normal completion or explicitly
-//! abandon them. `CheckedUnitCallPlan::new` admits these nine combinations:
+//! abandon them. `CheckedUnitCallPlan::new` admits these combinations:
 //!
 //! | route    | completion     | result     | transfers            | contract commitment | source site  |
 //! |----------|----------------|------------|----------------------|---------------------|--------------|
@@ -18,17 +18,19 @@
 //! | boundary | `NormalReturn` | structural | `StructuralCustody`  | absent              | retained     |
 //! | dynamic  | `NormalReturn` | Unit       | `Claims`             | absent              | not retained |
 //! | dynamic  | `NormalReturn` | scalar     | `Claims`             | absent              | not retained |
+//! | dynamic  | `NormalReturn` | structural | `StructuralCustody`  | absent              | retained     |
 //! | boundary | `External`     | Unit       | `Abandonment`        | absent              | retained     |
 //!
-//! These eight rows have `NormalReturn` completion. The ninth row has
+//! The normal call rows have `NormalReturn` completion. The final row has
 //! `External` completion, boundary route, source Unit omission, `Abandonment`
 //! transfers, no contract commitment, and a retained source site. Unit denotes
 //! omitted source result syntax here, never a normal external result. Actual
 //! domain-bound authority remains an unsatisfied entry/runtime demand.
 //!
 //! A dynamic call's target is its instantiated slot; no single machine's
-//! contract commitment describes every implementation it can reach, and a
-//! structural result through a selector is not yet planned.
+//! contract commitment describes every implementation it can reach. Structured
+//! results preserve the authored producer site and ordinary custody while the
+//! public slot owns their result signature.
 //!
 //! The route, completion, result, transfers and source site are private so that no later
 //! edit can separate them. Each has an accessor, and the parts a pass edits
@@ -151,7 +153,7 @@ pub struct CheckedUnitCallParts {
     pub transfers: CheckedUnitCallTransfers,
 }
 
-/// One call operation in one of the nine admitted shapes.
+/// One call operation in an admitted route, result and custody shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitCallPlan {
     pub coordinate: CheckedUnitCallCoordinate,
@@ -170,7 +172,7 @@ pub struct CheckedUnitCallPlan {
 }
 
 impl CheckedUnitCallPlan {
-    /// Admit one of the nine call shapes in the module table. Returns `None`
+    /// Admit one of the call shapes in the module table. Returns `None`
     /// for any other combination of route, result, transfers, contract
     /// commitment and source site.
     pub fn new(parts: CheckedUnitCallParts) -> Option<Self> {
@@ -236,6 +238,11 @@ impl CheckedUnitCallPlan {
                     Result::Unit | Result::Scalar(_),
                     Transfers::Claims(_),
                 ) => source_site.is_none(),
+                (
+                    CheckedUnitCallRoute::Dynamic { .. },
+                    Result::Structural { .. },
+                    Transfers::StructuralCustody(_),
+                ) => true,
                 _ => false,
             },
         };

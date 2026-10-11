@@ -192,7 +192,16 @@ impl TerminalExecution<'_> {
                 prepared_arguments,
                 claim_transfers,
             )?,
-            terminal_psi::OperationResult::Structural(_) => return Err(malformed()),
+            terminal_psi::OperationResult::Structural(ref result) => self
+                .begin_structural_result_call(
+                    callee,
+                    result.clone(),
+                    &scalar_arguments,
+                    structural_arguments,
+                    prepared_arguments,
+                    claim_transfers,
+                    crate::execution::ResultClaimOrigin::CalleeReturn,
+                )?,
         }
         Ok(OperationFlow::Redispatch)
     }

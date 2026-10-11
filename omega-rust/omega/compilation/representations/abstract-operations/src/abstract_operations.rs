@@ -81,7 +81,7 @@ pub mod calls;
 pub use calls::{
     AbstractBoundaryResult, AbstractCallSignature, AbstractCallTarget,
     AbstractOperationPlanWithPlacedViewInputs, AbstractStructuralCallResult, StructuralCallFormal,
-    call_source,
+    StructuralCallResult, call_source,
 };
 pub mod control_flow;
 pub use control_flow::{

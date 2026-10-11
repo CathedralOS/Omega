@@ -286,6 +286,7 @@ pub(in crate::execution) fn build_call_operation(
             trace,
             coordinate,
             &call_site,
+            source_site,
             slot,
         );
     }

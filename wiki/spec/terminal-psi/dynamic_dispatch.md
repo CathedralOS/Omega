@@ -212,6 +212,18 @@ Unit calls have `OperationResult::Unit`: no invented value ID or result home.
 Scalar results bind an exactly typed value through the ordinary caller;
 Boolean results do not become integer-shaped placeholders.
 
+Structured results retain the requirement's exact type, multiplicity and
+qualifications without naming an implementation's private result home. Each
+invocation publishes its own result storage and claim identities through the
+ordinary return operation. The slot catalogues possible result claims by typed
+relative path. Every successful return supplies each unguarded claim; guarded
+claims follow the returned case and its independently established custody.
+An implementation need not return every alternative of a public sum. A
+requirement's possible case frontier is therefore not a demand that every row
+exercise every possible result claim. Returned reference origins require the
+same public input-relative contract as the source result; a row's private
+formal places cannot stand in for that contract.
+
 ## Native tables and replay
 
 Native realization represents the selector by its implementation table

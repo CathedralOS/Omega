@@ -66,7 +66,10 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Boundary structural results retain declaration-owned descendant memberships.
 // Target layout applications retain invariant Schema inputs and guarded geometries.
 // Identities live in the module-owned interned table rather than per-row text.
-pub(crate) const FORMAT_MARKER: u16 = 141;
+// Dynamic slots retain structural result shapes and public result claim paths.
+// Boundary owner/role rows and dynamic results share this combined format;
+// earlier candidate format 142 did not yet encode the owner/role fields.
+pub(crate) const FORMAT_MARKER: u16 = 143;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

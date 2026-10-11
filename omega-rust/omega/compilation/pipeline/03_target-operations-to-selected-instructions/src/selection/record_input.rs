@@ -377,22 +377,17 @@ pub(super) fn projected_operand(
                 .flat_map(|block| &block.structural_parameters),
         )
         .filter(|parameter| parameter.place == argument.place);
+    // Claims and root/projected memberships stay on the exact checked operand
+    // and result. This query resolves its physical type and displacement; none
+    // of that semantic custody adds bytes or grants another transfer.
     let root = if let Some(parameter) = parameters.next() {
-        if parameters.next().is_some()
-            || parameter.access != terminal_psi::StructuralAccess::Owned
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
+        if parameters.next().is_some() || parameter.access != terminal_psi::StructuralAccess::Owned
         {
             return None;
         }
         parameter.structural_type
     } else {
         let (_, result) = super::aggregate_result_input::home(source, argument.place)?;
-        // Live claims travel through the checked ownership transfer. They add
-        // no bytes and do not restrict this exact source geometry projection.
-        if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
-            return None;
-        }
         result.structural_type
     };
     crate::structural_inputs::structural_reference_input::project(

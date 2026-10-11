@@ -17,12 +17,34 @@ pub fn result_claim_catalog_matches_returns<'returns>(
     catalogue: &[StructuralResultClaimBinding],
     returns: impl IntoIterator<Item = &'returns [StructuralResultClaimBinding]>,
 ) -> bool {
-    let catalogue_paths = catalogue
-        .iter()
-        .map(|binding| &binding.path)
-        .collect::<BTreeSet<_>>();
-    if catalogue_paths.len() != catalogue.len() {
-        return false;
+    matches_paths(
+        catalogue.iter().map(|binding| binding.path.as_slice()),
+        returns,
+        true,
+    )
+}
+
+/// A public result signature permits each realization to return any admitted
+/// case. Every unguarded claim is required on each exit; a realization need
+/// not produce every possible guarded payload in the requirement's catalogue.
+/// Actual case activity and claim completeness remain owned by return custody.
+pub fn result_claim_paths_match_returns<'returns>(
+    catalogue: &[Vec<StructuralPathSegment>],
+    returns: impl IntoIterator<Item = &'returns [StructuralResultClaimBinding]>,
+) -> bool {
+    matches_paths(catalogue.iter().map(Vec::as_slice), returns, false)
+}
+
+fn matches_paths<'catalogue, 'returns>(
+    catalogue: impl IntoIterator<Item = &'catalogue [StructuralPathSegment]>,
+    returns: impl IntoIterator<Item = &'returns [StructuralResultClaimBinding]>,
+    require_complete_catalogue: bool,
+) -> bool {
+    let mut catalogue_paths = BTreeSet::new();
+    for path in catalogue {
+        if !catalogue_paths.insert(path) {
+            return false;
+        }
     }
     let mut returned_paths = BTreeSet::new();
     let mut has_return = false;
@@ -30,7 +52,7 @@ pub fn result_claim_catalog_matches_returns<'returns>(
         has_return = true;
         let paths = bindings
             .iter()
-            .map(|binding| &binding.path)
+            .map(|binding| binding.path.as_slice())
             .collect::<BTreeSet<_>>();
         if paths.len() != bindings.len()
             || bindings
@@ -48,5 +70,5 @@ pub fn result_claim_catalog_matches_returns<'returns>(
         }
         returned_paths.extend(paths);
     }
-    !has_return || returned_paths == catalogue_paths
+    !require_complete_catalogue || !has_return || returned_paths == catalogue_paths
 }

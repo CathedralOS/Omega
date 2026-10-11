@@ -95,9 +95,36 @@ pub(crate) fn operation_structural_call_contract_matches(
             let policy = match result {
                 AbstractStructuralCallResult::Unit => StructuralProjectionPolicy::Unit,
                 AbstractStructuralCallResult::Scalar(_) => StructuralProjectionPolicy::Projected,
-                AbstractStructuralCallResult::Structural { .. } => return false,
+                AbstractStructuralCallResult::Structural { .. } => {
+                    StructuralProjectionPolicy::Projected
+                }
             };
-            super::validate_slot_claim_transfers(signature, structural_arguments, claim_transfers)
+            let result_matches = match result {
+                AbstractStructuralCallResult::Unit => signature.result.is_unit(),
+                AbstractStructuralCallResult::Scalar(result) => {
+                    signature.result.scalar() == Some(result.scalar_type)
+                }
+                AbstractStructuralCallResult::Structural {
+                    result,
+                    selected_evidence,
+                } => {
+                    selected_evidence.is_empty()
+                        && result.qualification_establishments.is_empty()
+                        && !terminal_psi::structural_type_has_borrowed_storage_by(
+                            |id| types.get(&id).copied(),
+                            result.structural_type,
+                        )
+                        && signature.matches_operation_result(
+                            &terminal_psi::OperationResult::Structural(result.clone()),
+                        )
+                }
+            };
+            result_matches
+                && super::validate_slot_claim_transfers(
+                    signature,
+                    structural_arguments,
+                    claim_transfers,
+                )
                 && structural_arguments_match(
                     caller,
                     operation.psi_operation(),

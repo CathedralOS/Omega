@@ -573,6 +573,8 @@ fn claim_structural_operand_calls<'a>(
 ) -> Option<()> {
     while let Some(call) = structural.get(*claimed).copied() {
         *claimed += 1;
+        trace.phase("outer calls: structural operand expansion");
+        trace.statement(u32::try_from(call.statement_index).ok());
         if expands(call) {
             for nested in structural_operands::for_call(program, facts, owner, state, call)? {
                 if !structural.iter().any(|prior| std::ptr::eq(*prior, nested)) {
@@ -580,7 +582,7 @@ fn claim_structural_operand_calls<'a>(
                 }
             }
         }
-        trace.phase("outer calls: structural argument calls");
+        trace.phase("outer calls: structural argument site");
         trace.statement(u32::try_from(call.statement_index).ok());
         let site = validation::find_call_site(
             program,
@@ -590,6 +592,7 @@ fn claim_structural_operand_calls<'a>(
             call.call_ordinal,
         )?;
         let arguments = validation::call_site_argument_expressions(program, &site);
+        trace.phase("outer calls: structural argument calls");
         collect_argument_calls(
             program,
             facts,

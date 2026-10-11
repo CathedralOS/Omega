@@ -141,21 +141,55 @@ impl OperationFrame<'_, '_> {
         discard_result_on_return: bool,
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
+        let target = unique_unit_boundary(self.callees.plans, call.target.machine)?;
+        let shape = target.result.clone();
+        let operands = self.boundary_operands(identities, call, inputs)?;
+        let id = self.operations.allocate();
+        let (returned, result_declaration) =
+            self.prepare_structural_call_result(identities, call, &shape, id)?;
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result: OperationResult::Structural(returned.clone()),
+            kind: operands.into_kind(),
+        });
+        // The dense route registers the completed value here; a composed
+        // state registers it, with its local, when publishing.
+        if matches!(self.results, StructuralResults::Dense(_)) {
+            self.operations
+                .structural_values
+                .push((result.binding_ordinal, returned.into()));
+        }
+        self.publish_result(
+            operation,
+            result,
+            result_declaration,
+            discard_result_on_return,
+        )
+    }
+
+    /// Receive the exact public structural result contract into the caller's
+    /// ordinary claim and qualification namespace, independently of dispatch.
+    pub(super) fn prepare_structural_call_result(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        call: &checked_trees::CheckedUnitCallPlan,
+        shape: &CheckedBoundaryMachineResultPlan,
+        id: semantic_vocabulary::OperationId,
+    ) -> Result<(StructuralOperationResult, StructuralPlaceDeclaration), LoweringError> {
         let checked = self.checked;
         let coordinate = &call.coordinate;
         let target_machine = &call.target.machine;
-        let target = unique_unit_boundary(self.callees.plans, *target_machine)?;
         let CheckedBoundaryMachineResultPlan::Structural {
             type_identity,
             multiplicity,
             qualifications,
             projected_qualifications,
-        } = &target.result
+        } = shape
         else {
-            return unsupported("Unit structural result target is not a structural boundary");
+            return unsupported("call result signature is not structural");
         };
-        let operands = self.boundary_operands(identities, call, inputs)?;
-        let id = self.operations.allocate();
         let structural_type = lookup_type_id(self.type_ids, type_identity)?;
         let result_place = place_id(allocate_dense(self.next_place)?);
         let result_declaration = StructuralPlaceDeclaration {
@@ -169,7 +203,7 @@ impl OperationFrame<'_, '_> {
         // not root multiplicity or a local's spelling. Selected family members
         // return their real claims through this same ordinary reception route.
         let custody = call.structural_custody().ok_or(LoweringError::Unsupported(
-            "boundary structural result has no checked receiving custody",
+            "structural result has no checked receiving custody",
         ))?;
         let result_claims = crate::emission::claim_bindings::emit_call_result_claims(
             &crate::emission::claim_bindings::prepare_call_result_claims(
@@ -223,26 +257,7 @@ impl OperationFrame<'_, '_> {
             )?,
             claims: result_claims,
         };
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Structural(returned.clone()),
-            kind: operands.into_kind(),
-        });
-        // The dense route registers the completed value here; a composed
-        // state registers it, with its local, when publishing.
-        if matches!(self.results, StructuralResults::Dense(_)) {
-            self.operations
-                .structural_values
-                .push((result.binding_ordinal, returned.into()));
-        }
-        self.publish_result(
-            operation,
-            result,
-            result_declaration,
-            discard_result_on_return,
-        )
+        Ok((returned, result_declaration))
     }
 
     /// Validate one boundary call's transfer shape against the checked

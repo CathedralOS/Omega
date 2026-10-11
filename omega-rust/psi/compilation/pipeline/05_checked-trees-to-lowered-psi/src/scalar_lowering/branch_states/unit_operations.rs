@@ -195,23 +195,13 @@ pub(super) fn prepare(
             .state_parameters(callee_state)
             .iter()
             .any(|parameter| {
-                let reference = checked
-                    .type_reference_table
-                    .type_reference(parameter.type_reference);
-                if checked
+                checked
                     .primitive_type_reference(parameter.type_reference)
                     .is_some()
-                {
-                    !matches!(
-                        reference,
-                        checked_trees::types::TypeReferenceNode::Named { .. }
-                    ) && !validation::is_arithmetic_policy_only_integer(
+                    && !validation::is_plain_scalar_storage(
                         &checked.typed,
                         parameter.type_reference,
                     )
-                } else {
-                    false
-                }
             })
     {
         return unsupported("scalar Unit calls require an empty authored value and crash contract");

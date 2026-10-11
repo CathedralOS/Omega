@@ -199,12 +199,11 @@ fn retired_in_body(
                     ..
                 },
             ) => Some(result),
-            CheckedUnitEffectOperationPlan::Call(call)
-                if call.is_module() && call.coordinate.call_ordinal != 0 =>
-            {
-                call.structural_result()
-                    .filter(|result| result.multiplicity == Multiplicity::Unrestricted)
-            }
+            // Completion custody is independent of static, boundary, or
+            // selector dispatch. The exact whole consumer is joined below.
+            CheckedUnitEffectOperationPlan::Call(call) if call.coordinate.call_ordinal != 0 => call
+                .structural_result()
+                .filter(|result| result.multiplicity == Multiplicity::Unrestricted),
             _ => None,
         })
         .filter(|result| {

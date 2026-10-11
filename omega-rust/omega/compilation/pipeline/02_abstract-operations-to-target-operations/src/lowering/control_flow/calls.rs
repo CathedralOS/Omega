@@ -169,9 +169,7 @@ pub(super) fn lower_call(
             .into(),
             None,
         ),
-        CallContract::Ordinary => {
-            ordinary_contract(&call, declaration, callee_function, function, target, types)?
-        }
+        CallContract::Ordinary => ordinary_contract(&call, declaration, function, target, types)?,
     };
     // Retain descriptor origins before preparing operands. Psi has checked
     // their ownership; commit the native metadata move only after every
@@ -219,7 +217,7 @@ pub(super) fn lower_call(
     let result = land_result(
         contract,
         &call,
-        callee_function,
+        declaration,
         structural_home,
         &moved,
         function,
@@ -263,7 +261,7 @@ pub(super) fn lower_call(
 fn land_result(
     contract: CallContract,
     call: &Invocation<'_>,
-    callee_function: Option<&AbstractFunction>,
+    declaration: AbstractCallSignature<'_>,
     structural_home: Option<TargetStructuralHomeRequirement>,
     moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), super::references::ReferenceStorage>,
     function: &AbstractFunction,
@@ -287,25 +285,52 @@ fn land_result(
             )?)
         }
         AbstractStructuralCallResult::Structural { result, .. } => {
-            let callee_function =
-                callee_function.ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             let result_home =
                 structural_home.ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-            let callee_result = callee_function
-                .result
-                .structural()
-                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-            // Arguments committed: the declared result roster lands as live
-            // custody.
-            let reference_results = super::references::call_results(
-                function,
-                callee_function,
-                types,
-                result,
-                call.structural_arguments,
-                live,
-                moved,
-            )?;
+            let (callee_result, reference_results) = match declaration {
+                AbstractCallSignature::Machine(callee) => {
+                    let result_declaration = callee
+                        .result
+                        .structural()
+                        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+                    let references = super::references::call_results(
+                        function,
+                        callee,
+                        types,
+                        result,
+                        call.structural_arguments,
+                        live,
+                        moved,
+                    )?;
+                    (
+                        target_operations::TargetStructuralResultContract::Machine(
+                            result_declaration.clone(),
+                        ),
+                        references,
+                    )
+                }
+                AbstractCallSignature::Requirement(requirement) => {
+                    let terminal_psi::BoundaryMachineResult::Structural(result_declaration) =
+                        &requirement.result
+                    else {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    };
+                    // Public reference-origin coordinates are not yet part of the
+                    // dynamic contract. No private implementation can supply them.
+                    if terminal_psi::structural_type_has_borrowed_storage_by(
+                        |id| types.get(&id).copied(),
+                        result.structural_type,
+                    ) {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    (
+                        target_operations::TargetStructuralResultContract::Requirement(
+                            result_declaration.clone(),
+                        ),
+                        Vec::new(),
+                    )
+                }
+            };
             // Reference results own an address payload home, not referent
             // storage. The separate roster above retains possible origins;
             // ordinary result transport captures the actually selected address.
@@ -330,7 +355,7 @@ fn land_result(
             }
             TargetCallResult::Structural {
                 result: result.clone(),
-                callee_result: callee_result.clone(),
+                callee_result,
                 result_home: Some(result_home),
                 reference_results,
             }
@@ -447,7 +472,6 @@ fn require_exact_target_abi(
 fn ordinary_contract(
     call: &Invocation<'_>,
     declaration: AbstractCallSignature<'_>,
-    callee_function: Option<&AbstractFunction>,
     function: &AbstractFunction,
     target: NativeTarget,
     types: &StructuralTypeLookup<'_>,
@@ -474,10 +498,7 @@ fn ordinary_contract(
     }
     let home = match call.result {
         AbstractStructuralCallResult::Unit => {
-            if declaration.scalar_result().is_some()
-                || callee_function
-                    .is_some_and(|callee| callee.result != AbstractFunctionResult::Unit)
-            {
+            if !declaration.is_unit_result() {
                 return Err(LoweringError::UnitCallTargetKindMismatch(call.callee));
             }
             None
@@ -492,25 +513,10 @@ fn ordinary_contract(
             None
         }
         AbstractStructuralCallResult::Structural { .. } => {
-            // Structural result origins are declaration-owned. The current
-            // interface vocabulary does not publish those origins yet; never
-            // infer them from one implementation row.
-            let callee = callee_function
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            Some(structural_result_home(call, callee, function, types)?)
+            Some(structural_result_home(call, declaration, function, types)?)
         }
     };
-    let signature = if matches!(call.result, AbstractStructuralCallResult::Structural { .. }) {
-        prepare_function_signature(
-            callee_function
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
-            target,
-            types,
-        )?
-        .into()
-    } else {
-        super::call_signature::prepare(function.machine, declaration, target, types)?
-    };
+    let signature = super::call_signature::prepare(function.machine, declaration, target, types)?;
     Ok((signature, home))
 }
 
@@ -521,7 +527,7 @@ fn ordinary_contract(
 /// add only domains this call's own establishment rows mint.
 fn structural_result_home(
     call: &Invocation<'_>,
-    callee_function: &AbstractFunction,
+    declaration: AbstractCallSignature<'_>,
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeRequirement, LoweringError> {
@@ -532,14 +538,13 @@ fn structural_result_home(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let callee_result = callee_function
-        .result
-        .structural()
+    let callee_result = declaration
+        .structural_result()
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let result_home = super::aggregate_results::home(call.psi_operation, result, types)?;
     if callee_result.structural_type != result.structural_type
         || callee_result.multiplicity != result.multiplicity
-        || !result_qualifications_match(callee_result, result)
+        || !result_qualifications_match(callee_result.qualifications, result)
         || callee_result.projected_qualifications != result.projected_qualifications
         || !selected_evidence.is_empty()
     {
@@ -556,15 +561,14 @@ fn structural_result_home(
 /// callee's declared result. Any other caller domain is a qualification the
 /// callee never returned and still refuses.
 fn result_qualifications_match(
-    callee_result: &terminal_psi::StructuralResultDeclaration,
+    qualifications: &[semantic_vocabulary::StructuralDomainId],
     result: &terminal_psi::StructuralOperationResult,
 ) -> bool {
     let minted = result
         .qualification_establishments
         .iter()
         .map(|establishment| establishment.domain);
-    let expected = callee_result
-        .qualifications
+    let expected = qualifications
         .iter()
         .copied()
         .chain(minted)

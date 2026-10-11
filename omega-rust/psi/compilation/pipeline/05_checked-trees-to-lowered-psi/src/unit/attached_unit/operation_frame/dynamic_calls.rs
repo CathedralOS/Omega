@@ -7,8 +7,8 @@
 //! exactly as an ordinary call's do: every selectable implementation is a
 //! checked body that receives them under checked-body custody.
 
-use super::OperationFrame;
 use super::calls::CallInputs;
+use super::{OperationFrame, StructuralResults};
 use crate::unit::{
     LoweringError, Operation, OperationKind, OperationResult, ValueDeclaration, allocate_dense,
     terminal_scalar_type, unsupported, value_id,
@@ -20,6 +20,7 @@ impl OperationFrame<'_, '_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
+        operation: &checked_trees::CheckedUnitEffectOperationPlan,
         call: &CheckedUnitCallPlan,
         interface_identity: &typed_trees::type_identity::TypeIdentityId,
         inputs: &CallInputs<'_>,
@@ -92,24 +93,32 @@ impl OperationFrame<'_, '_> {
             &prepared_claims,
             self.calls.claims.bindings(),
         )?;
-        let result = match call.result() {
-            CheckedUnitCallResult::Unit => None,
-            CheckedUnitCallResult::Scalar(result) => Some(ValueDeclaration {
-                qualifications: Default::default(),
-                id: value_id(allocate_dense(self.next_value)?),
-                scalar_type: terminal_scalar_type(result.primitive_type)?,
-            }),
+        let shape = slot_plan.result.clone();
+        let id = self.operations.allocate();
+        let (result, declaration) = match call.result() {
+            CheckedUnitCallResult::Unit => (OperationResult::Unit, None),
+            CheckedUnitCallResult::Scalar(result) => (
+                OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: value_id(allocate_dense(self.next_value)?),
+                    scalar_type: terminal_scalar_type(result.primitive_type)?,
+                }),
+                None,
+            ),
             CheckedUnitCallResult::Structural { .. } => {
-                return unsupported("a selector call's structural result is not yet planned");
+                let (returned, declaration) =
+                    self.prepare_structural_call_result(identities, call, &shape, id)?;
+                (OperationResult::Structural(returned), Some(declaration))
             }
         };
-        let id = self.operations.allocate();
-        self.record_source_call(call.coordinate, None, id, call.target.machine)?;
+        if declaration.is_none() {
+            self.record_source_call(call.coordinate, None, id, call.target.machine)?;
+        }
         self.operations.push(Operation {
             static_reach_binding: None,
             suspension_crossing: None,
             id,
-            result: result.map_or(OperationResult::Unit, OperationResult::Scalar),
+            result: result.clone(),
             kind: OperationKind::CallDynamic {
                 selector: selector.id,
                 interface,
@@ -123,9 +132,27 @@ impl OperationFrame<'_, '_> {
                 crash_continuations: Vec::new(),
             },
         });
-        match result {
-            Some(value) => self.bind_scalar_result(identities, call.coordinate, value),
-            None => Ok(()),
+        match (result, call.result(), declaration) {
+            (OperationResult::Scalar(value), _, _) => {
+                self.bind_scalar_result(identities, call.coordinate, value)
+            }
+            (
+                OperationResult::Structural(returned),
+                CheckedUnitCallResult::Structural {
+                    binding,
+                    discard_result_on_return,
+                },
+                Some(declaration),
+            ) => {
+                if matches!(self.results, StructuralResults::Dense(_)) {
+                    self.operations
+                        .structural_values
+                        .push((binding.binding_ordinal, returned.into()));
+                }
+                self.publish_result(operation, binding, declaration, *discard_result_on_return)
+            }
+            (OperationResult::Unit, _, _) => Ok(()),
+            _ => unsupported("dynamic result lost its checked publication shape"),
         }
     }
 }

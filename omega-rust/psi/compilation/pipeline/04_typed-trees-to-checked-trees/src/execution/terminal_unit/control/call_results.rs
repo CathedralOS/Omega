@@ -66,9 +66,10 @@ pub(crate) fn bind_structural_call_result(
         return None;
     };
     match (call.route(), call.result()) {
-        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Structural { .. }) => {
-            Some(CheckedUnitEffectOperationPlan::Call(call))
-        }
+        (
+            CheckedUnitCallRoute::Module { .. } | CheckedUnitCallRoute::Dynamic { .. },
+            CheckedUnitCallResult::Structural { .. },
+        ) => Some(CheckedUnitEffectOperationPlan::Call(call)),
         (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
             let mut parts = call.into_parts();
             let occurrence = facts.flow.control.call_at(

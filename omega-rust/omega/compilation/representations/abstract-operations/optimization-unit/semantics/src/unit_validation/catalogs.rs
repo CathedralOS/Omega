@@ -169,6 +169,64 @@ fn validate_dynamic_catalog(
                 return Err(invalid());
             }
             if slot
+                .result_claim_paths
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            {
+                return Err(invalid());
+            }
+            match &slot.result {
+                terminal_psi::BoundaryMachineResult::Unit
+                | terminal_psi::BoundaryMachineResult::Scalar(_) => {
+                    if !slot.result_claim_paths.is_empty() {
+                        return Err(invalid());
+                    }
+                }
+                terminal_psi::BoundaryMachineResult::Structural(result) => {
+                    if !types.contains_key(&result.structural_type)
+                        || terminal_psi::structural_type_has_borrowed_storage_by(
+                            |id| types.get(&id).copied(),
+                            result.structural_type,
+                        )
+                        || match result.multiplicity {
+                            terminal_psi::StructuralMultiplicity::Unrestricted => {
+                                !slot.result_claim_paths.is_empty()
+                            }
+                            terminal_psi::StructuralMultiplicity::Linear => {
+                                !matches!(slot.result_claim_paths.as_slice(), [path] if path.is_empty())
+                            }
+                            terminal_psi::StructuralMultiplicity::Affine => {
+                                slot.result_claim_paths.iter().any(Vec::is_empty)
+                            }
+                        }
+                    {
+                        return Err(invalid());
+                    }
+                    for (position, path) in slot.result_claim_paths.iter().enumerate() {
+                        if path.iter().any(|segment| {
+                            !matches!(
+                                segment,
+                                terminal_psi::StructuralPathSegment::Field(_)
+                                    | terminal_psi::StructuralPathSegment::Case(_)
+                                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                            )
+                        })
+                            || crate::unit_validation::structural_catalog::resolve_structural_path(
+                                types,
+                                result.structural_type,
+                                path,
+                            )
+                            .is_none()
+                            || slot.result_claim_paths[..position].iter().any(|previous| {
+                                path.starts_with(previous) || previous.starts_with(path)
+                            })
+                        {
+                            return Err(invalid());
+                        }
+                    }
+                }
+            }
+            if slot
                 .entry_claim_paths
                 .windows(2)
                 .any(|pair| pair[0] >= pair[1])
@@ -247,12 +305,28 @@ fn validate_dynamic_catalog(
             };
             let function = machines.get(machine).ok_or_else(invalid)?;
             let result_matches = match &function.result {
-                abstract_operations::AbstractFunctionResult::Unit => slot.result.is_none(),
+                abstract_operations::AbstractFunctionResult::Unit => slot.result.is_unit(),
                 abstract_operations::AbstractFunctionResult::Scalar(result) => {
-                    slot.result == Some(result.scalar_type)
+                    slot.result.scalar() == Some(result.scalar_type)
                 }
-                abstract_operations::AbstractFunctionResult::Structural(_) => false,
-            };
+                abstract_operations::AbstractFunctionResult::Structural(result) => {
+                    result.reference_sources.is_empty()
+                        && slot.result.matches_machine_result(
+                            &terminal_psi::TerminalMachineResult::Structural(result.clone()),
+                        )
+                }
+            } && terminal_semantics::result_claim_paths_match_returns(
+                &slot.result_claim_paths,
+                function
+                    .block_nodes()
+                    .filter_map(|node| match &node.operation {
+                        abstract_operations::AbstractOperation::ReturnStructural {
+                            returned_claims,
+                            ..
+                        } => Some(returned_claims.as_slice()),
+                        _ => None,
+                    }),
+            );
             if !result_matches
                 || crate::unit_validation::operation_contracts::function_entry_claim_paths(function)
                     .as_ref()

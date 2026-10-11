@@ -14,6 +14,6 @@ pub use arguments::{
     TargetBoundaryResult, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
 };
 mod results;
-pub use results::TargetCallResult;
+pub use results::{TargetCallResult, TargetStructuralResultContract};
 mod targets;
 pub use targets::{NativeCallTarget, selector_carrier_type};

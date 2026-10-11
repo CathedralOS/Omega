@@ -335,7 +335,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     && instruction.provenance.operations.contains(psi_operation)).count()==1,
                 AbstractOperation::CallStructural {psi_operation,callee:abstract_operations::AbstractCallTarget::Dynamic {selector,interface,slot},result:AbstractStructuralCallResult::Scalar(result),..} => {
                     let catalog=&current.optimized_target().optimized().plan().dynamic_dispatch;
-                    catalog.interface(*interface).and_then(|interface|interface.slots.get(*slot as usize)).is_some_and(|shape|shape.result==Some(result.scalar_type))
+                    catalog.interface(*interface).and_then(|interface|interface.slots.get(*slot as usize)).is_some_and(|shape|shape.result.scalar()==Some(result.scalar_type))
                         && selected.calls.iter().filter(|row|row.owner.operation()==Some(*psi_operation)
                             && row.call.target==target_operations::NativeCallTarget::Dynamic {selector:*selector,interface:*interface,slot:*slot}
                             && row.call.result_placement.is_some() && row.call.result_placement==row.call.call_plan.result).count()==1

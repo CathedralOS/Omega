@@ -16,10 +16,10 @@ use crate::optimization_unit::identity::carrier_encoding::{
 };
 use crate::optimization_unit::identity::operation_encoding::encode_operation;
 use crate::optimization_unit::identity::structural_encoding::{
-    encode_boundary_machine, encode_cleanup, encode_content_entry_claim, encode_entry_claim,
-    encode_evidence_contract_lane, encode_machine_contract, encode_place_declaration,
-    encode_projected_qualification_roster, encode_provider_candidate, encode_structural_domain,
-    encode_structural_type,
+    encode_boundary_machine, encode_boundary_result, encode_cleanup, encode_content_entry_claim,
+    encode_entry_claim, encode_evidence_contract_lane, encode_machine_contract,
+    encode_place_declaration, encode_projected_qualification_roster, encode_provider_candidate,
+    encode_structural_domain, encode_structural_type,
 };
 
 const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v42\0";
@@ -65,7 +65,7 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
     // Preserve direct-only identities. The extension binds the complete row
     // roster, including trap slots and implementations not selected locally.
     if !unit.dynamic_dispatch.interfaces.is_empty() || !unit.dynamic_dispatch.tables.is_empty() {
-        bytes.bytes(b"omega.psi-optimization-dynamic-dispatch.v1\0");
+        bytes.bytes(b"omega.psi-optimization-dynamic-dispatch.v2\0");
         bytes.slice(&unit.dynamic_dispatch.interfaces, |bytes, interface| {
             bytes.u32(interface.id);
             bytes.u32(interface.identity.0);
@@ -87,8 +87,9 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
                     bytes.u32(claim.argument_index);
                     bytes.slice(&claim.path, encode_structural_path_segment);
                 });
-                encode_optional(bytes, slot.result.as_ref(), |bytes, scalar_type| {
-                    encode_scalar_type(bytes, *scalar_type);
+                encode_boundary_result(bytes, &slot.result);
+                bytes.slice(&slot.result_claim_paths, |bytes, path| {
+                    bytes.slice(path, encode_structural_path_segment);
                 });
             });
         });

@@ -74,8 +74,9 @@ pub(in crate::legalization) fn validate_boundary_origins(
                             && input
                                 .target_family_realization_identities()
                                 .text(row.selected_requirement_identity)
-                                == binding
-                                    .requirement_identity(input.target_family_realization_identities())
+                                == binding.requirement_identity(
+                                    input.target_family_realization_identities(),
+                                )
                             && row.provider_plan_report_identity
                                 == binding.provider_plan_report_identity()
                             && row.provider_plan_report_identity
@@ -406,7 +407,7 @@ pub(in crate::legalization) fn selected_boundary_operation(
                 ..
             },
         ) if actual == result
-            && callee_result == candidate_result
+            && matches!(callee_result, target_operations::TargetStructuralResultContract::Machine(retained) if retained == candidate_result)
             && result.structural_type == boundary_result.structural_type
             && candidate_result.structural_type == boundary_result.structural_type
             && result.multiplicity == boundary_result.multiplicity

@@ -8,7 +8,17 @@
 use crate::{
     TargetReferenceResult, TargetStructuralHomeRequirement, TargetUnitScalarHomeRequirement,
 };
-use terminal_psi::{StructuralOperationResult, StructuralResultDeclaration};
+use terminal_psi::{
+    BoundaryStructuralResultDeclaration, StructuralOperationResult, StructuralResultDeclaration,
+};
+
+/// The exact declared result owner. A dynamic requirement has no private
+/// result place; its caller result home remains on TargetCallResult.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetStructuralResultContract {
+    Machine(StructuralResultDeclaration),
+    Requirement(BoundaryStructuralResultDeclaration),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetCallResult {
@@ -16,7 +26,7 @@ pub enum TargetCallResult {
     Scalar(TargetUnitScalarHomeRequirement),
     Structural {
         result: StructuralOperationResult,
-        callee_result: StructuralResultDeclaration,
+        callee_result: TargetStructuralResultContract,
         result_home: Option<TargetStructuralHomeRequirement>,
         reference_results: Vec<TargetReferenceResult>,
     },

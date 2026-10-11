@@ -67,9 +67,9 @@ pub(crate) fn operation_scalar_types_match(
                 && arguments.iter().zip(&signature.scalar_parameters)
                     .all(|(argument, expected)| scalar(*argument) == Some(*expected))
                 && match result {
-                    AbstractStructuralCallResult::Unit => signature.result.is_none(),
-                    AbstractStructuralCallResult::Scalar(result) => signature.result == Some(result.scalar_type),
-                    AbstractStructuralCallResult::Structural { .. } => false,
+                    AbstractStructuralCallResult::Unit => signature.result.is_unit(),
+                    AbstractStructuralCallResult::Scalar(result) => signature.result.scalar() == Some(result.scalar_type),
+                    AbstractStructuralCallResult::Structural { .. } => matches!(signature.result, terminal_psi::BoundaryMachineResult::Structural(_)),
                 }
         }
         O::EstablishByteSequenceConcatenation { .. }

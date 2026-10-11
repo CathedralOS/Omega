@@ -3,7 +3,9 @@
 
 use super::super::CodecError;
 use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
-use super::super::structural_signature_wire::{decode_structural_access, encode_structural_access};
+use super::super::structural_signature_wire::{
+    decode_call_result, decode_structural_access, encode_call_result, encode_structural_access,
+};
 use super::super::wire::{Reader, Writer, decode_counted};
 use crate::sections::semantic_module::structural_place_wire::{
     decode_structural_path, encode_structural_path,
@@ -57,12 +59,10 @@ pub(super) fn encode_dynamic_dispatch(
                 writer.u32(claim.argument_index);
                 encode_structural_path(writer, "dynamic slot claim path", &claim.path)?;
             }
-            match slot.result {
-                None => writer.u8(0),
-                Some(result) => {
-                    writer.u8(1);
-                    encode_scalar_type(writer, result);
-                }
+            encode_call_result(writer, &slot.result)?;
+            writer.len("dynamic result claim paths", slot.result_claim_paths.len())?;
+            for path in &slot.result_claim_paths {
+                encode_structural_path(writer, "dynamic result claim path", path)?;
             }
         }
     }
@@ -123,13 +123,8 @@ pub(super) fn decode_dynamic_dispatch(
                             path: decode_structural_path(reader)?,
                         })
                     })?,
-                    result: match reader.u8()? {
-                        0 => None,
-                        1 => Some(decode_scalar_type(reader)?),
-                        tag => {
-                            return Err(CodecError::InvalidTag("TerminalDynamicSlot result", tag));
-                        }
-                    },
+                    result: decode_call_result(reader)?,
+                    result_claim_paths: decode_counted(reader, decode_structural_path)?,
                 })
             })?,
         })

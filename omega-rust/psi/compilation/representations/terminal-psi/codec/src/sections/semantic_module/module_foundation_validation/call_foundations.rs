@@ -4,7 +4,7 @@
 use super::{
     StructuralArgumentPresentation, callee_exact_payloadless_return, has_service,
     has_structural_type, is_claim_free_structural_call, validate_claim_actions,
-    validate_structural_arguments, validate_structural_path,
+    validate_structural_arguments, validate_structural_path, validate_structural_qualifications,
 };
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
@@ -111,16 +111,28 @@ pub(super) fn validate_call_dynamic(
     else {
         return malformed("dynamic call names an unknown interface slot");
     };
-    let result_matches = match (&operation.result, shape.result) {
-        (OperationResult::Unit, None) => true,
-        (OperationResult::Scalar(result), Some(expected)) => result.scalar_type == expected,
-        _ => false,
-    };
-    if !result_matches
+    if !shape.matches_operation_result(&operation.result)
         || arguments.len() != shape.scalar_parameters.len()
         || structural_arguments.len() != shape.structural_parameters.len()
     {
         return malformed("dynamic call disagrees with its slot's call shape");
+    }
+    if shape
+        .result_claim_paths
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        return malformed("dynamic result claim paths are not canonical");
+    }
+    if let Some(result) = operation.result.structural() {
+        if terminal_psi::structural_type_has_borrowed_storage_by(
+            |identity| module.structural_type(identity),
+            result.structural_type,
+        ) {
+            return malformed("dynamic result requires normalized public reference origins");
+        }
+        validate_structural_call_result_declaration(module, machine, operation, result)?;
+        validate_result_claim_shape(module, result)?;
     }
     if shape
         .entry_claim_paths
@@ -188,6 +200,28 @@ pub(super) fn validate_call_dynamic(
         let Some(callee) = module.machine(row) else {
             return malformed("dynamic table row references an unknown machine");
         };
+        if !shape.result.matches_machine_result(&callee.result) {
+            return malformed("dynamic row result disagrees with its slot");
+        }
+        if let Some(result) = callee.result.structural() {
+            if !result.reference_sources.is_empty() {
+                return malformed("dynamic result requires normalized public reference origins");
+            }
+            if !terminal_semantics::result_claim_paths_match_returns(
+                &shape.result_claim_paths,
+                callee
+                    .blocks
+                    .iter()
+                    .filter_map(|block| match &block.terminator {
+                        Terminator::ReturnStructural {
+                            returned_claims, ..
+                        } => Some(returned_claims.as_slice()),
+                        _ => None,
+                    }),
+            ) {
+                return malformed("dynamic row return claims disagree with its slot");
+            }
+        }
         let mut entry_claim_paths = callee
             .entry_claims
             .iter()
@@ -335,28 +369,7 @@ pub(super) fn validate_call_structural(
     {
         return malformed("structural call has the wrong callee signature or structural arity");
     }
-    let Some(StructuralPlaceDeclaration {
-        kind:
-            StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type,
-            },
-        ..
-    }) = machine.structural_place(actual_result.place)
-    else {
-        return malformed("structural call result has no operation-result place declaration");
-    };
-    if *producer != operation.id || *structural_type != actual_result.structural_type {
-        return malformed("structural call result place disagrees with its producer");
-    }
-    if !has_structural_type(module, actual_result.structural_type) {
-        return malformed("structural call result has an unknown structural type");
-    }
-    for qualification in &actual_result.qualifications {
-        if !module.structural_domain(*qualification).is_some() {
-            return malformed("structural call result has an unknown structural domain");
-        }
-    }
+    validate_structural_call_result_declaration(module, machine, operation, actual_result)?;
     if exact_payloadless {
         return Ok(());
     }
@@ -399,6 +412,39 @@ pub(super) fn validate_call_structural(
         &callee.structural_parameters,
         claim_transfers,
     )
+}
+
+/// Every structural call occurrence names its own declared producer home.
+fn validate_structural_call_result_declaration(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    actual_result: &terminal_psi::StructuralOperationResult,
+) -> Result<(), CodecError> {
+    let Some(StructuralPlaceDeclaration {
+        kind:
+            StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            },
+        ..
+    }) = machine.structural_place(actual_result.place)
+    else {
+        return malformed("structural call result has no operation-result place declaration");
+    };
+    if *producer != operation.id || *structural_type != actual_result.structural_type {
+        return malformed("structural call result place disagrees with its producer");
+    }
+    if !has_structural_type(module, actual_result.structural_type) {
+        return malformed("structural call result has an unknown structural type");
+    }
+    validate_structural_qualifications(
+        module,
+        actual_result.structural_type,
+        &actual_result.qualifications,
+        &actual_result.projected_qualifications,
+    )?;
+    Ok(())
 }
 
 /// Ordinary and boundary results carry the same occurrence-relative claim

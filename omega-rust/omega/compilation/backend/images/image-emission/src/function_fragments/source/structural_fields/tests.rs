@@ -789,14 +789,16 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
             call_plan: target.graph.call_plan.clone(),
             result: TargetCallResult::Structural {
                 result: owner.clone(),
-                callee_result: StructuralResultDeclaration {
-                    place: PlaceId::new(20).unwrap(),
-                    structural_type: owner.structural_type,
-                    multiplicity: owner.multiplicity,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    reference_sources: Vec::new(),
-                },
+                callee_result: target_operations::TargetStructuralResultContract::Machine(
+                    StructuralResultDeclaration {
+                        place: PlaceId::new(20).unwrap(),
+                        structural_type: owner.structural_type,
+                        multiplicity: owner.multiplicity,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        reference_sources: Vec::new(),
+                    },
+                ),
                 result_home: Some(TargetStructuralHomeRequirement {
                     origin: TargetStructuralHomeOrigin::OperationResult {
                         operation: producer,
@@ -1450,7 +1452,9 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             call_plan,
             result: TargetCallResult::Structural {
                 result: result.clone(),
-                callee_result: declaration,
+                callee_result: target_operations::TargetStructuralResultContract::Machine(
+                    declaration,
+                ),
                 result_home: Some(TargetStructuralHomeRequirement {
                     origin: TargetStructuralHomeOrigin::OperationResult {
                         operation: call_operation,

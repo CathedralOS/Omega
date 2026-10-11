@@ -18,12 +18,11 @@
 //! closure keeps absent rows: no selector naming it can be produced here.
 
 use crate::LoweringError;
-use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedDynamicSlotPlan, CheckedTrees};
+use checked_trees::{CheckedDynamicSlotPlan, CheckedTrees};
 use symbols::SymbolHandle;
 use terminal_psi::{
     TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
-    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
-    TerminalMachineResult, TerminalModule,
+    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable, TerminalModule,
 };
 
 /// Identity-to-id maps for one program's interfaces and tables.
@@ -173,6 +172,35 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
             )
         })
         .collect::<Vec<_>>();
+    // The emitted domain catalog retains the exact source semantic identity
+    // and storage carrier; no implementation or diagnostic spelling selects it.
+    let domain_ids = module
+        .structural_domains
+        .iter()
+        .map(|domain| {
+            let semantic_domain = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .structural_domains
+                .iter()
+                .find(|plan| {
+                    u64::from(plan.domain.0) == domain.semantic_domain.get()
+                        && type_ids.iter().any(|(identity, carrier)| {
+                            *identity == plan.carrier_type_identity && *carrier == domain.carrier
+                        })
+                })
+                .map(|plan| plan.domain)
+                .ok_or(LoweringError::Unsupported(
+                    "dynamic domain lost its exact source carrier",
+                ))?;
+            Ok(crate::terminal_identities::StructuralDomainBinding {
+                semantic_domain,
+                carrier: domain.carrier,
+                domain: domain.id,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let slot_plans = &checked.facts.flow.terminal_unit_effects.dynamic_slots;
     let mut catalog = TerminalDynamicDispatchCatalog::default();
     for (interface_id, interface_identity) in index.interfaces.iter().enumerate() {
@@ -194,6 +222,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                     .map_err(|_| LoweringError::Unsupported("dynamic slot id overflows"))?,
                 &type_ids,
                 &module.structural_types,
+                &domain_ids,
             )?);
         }
         catalog.interfaces.push(TerminalDynamicInterface {
@@ -287,6 +316,7 @@ fn lower_slot(
         semantic_vocabulary::StructuralTypeId,
     )],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
 ) -> Result<TerminalDynamicSlot, LoweringError> {
     let Some((selector, scalars)) = plan.scalar_parameters.split_first() else {
         return unsupported("dynamic slot lost its selector operand");
@@ -337,13 +367,22 @@ fn lower_slot(
         })
     }).collect::<Result<Vec<_>, LoweringError>>()?;
     entry_claim_paths.sort();
-    let result = match plan.result {
-        CheckedBoundaryMachineResultPlan::Unit => None,
-        CheckedBoundaryMachineResultPlan::Scalar(primitive) => Some(
-            crate::emission::scalar_types::terminal_scalar_type(primitive)?,
-        ),
-        _ => return unsupported("a selector call's structural result is not yet planned"),
+    let result = super::attached_unit::lower_boundary_result(
+        identities,
+        &plan.result,
+        type_ids,
+        structural_types,
+        domain_ids,
+    )?;
+    let mut result_claim_paths = match &result {
+        terminal_psi::BoundaryMachineResult::Structural(result) => plan.result_claim_paths.iter()
+            .map(|path| crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                identities, path, result.structural_type, structural_types,
+            )).collect::<Result<Vec<_>, _>>()?,
+        _ if plan.result_claim_paths.is_empty() => Vec::new(),
+        _ => return unsupported("nonstructural dynamic result carries claims"),
     };
+    result_claim_paths.sort();
     Ok(TerminalDynamicSlot {
         slot,
         declaring_trait_identity: identities
@@ -358,6 +397,7 @@ fn lower_slot(
         structural_parameters,
         entry_claim_paths,
         result,
+        result_claim_paths,
     })
 }
 
@@ -381,11 +421,23 @@ fn realizes_slot(machine: &terminal_psi::TerminalMachine, slot: &TerminalDynamic
                     && parameter.access == expected.access
                     && parameter.multiplicity == expected.multiplicity
             });
-    let result_matches = match (&machine.result, slot.result) {
-        (TerminalMachineResult::Unit, None) => true,
-        (TerminalMachineResult::Scalar(result), Some(expected)) => result.scalar_type == expected,
-        _ => false,
-    };
+    let result_matches = slot.result.matches_machine_result(&machine.result)
+        && machine
+            .result
+            .structural()
+            .is_none_or(|result| result.reference_sources.is_empty())
+        && terminal_semantics::result_claim_paths_match_returns(
+            &slot.result_claim_paths,
+            machine
+                .blocks
+                .iter()
+                .filter_map(|block| match &block.terminator {
+                    terminal_psi::Terminator::ReturnStructural {
+                        returned_claims, ..
+                    } => Some(returned_claims.as_slice()),
+                    _ => None,
+                }),
+        );
     let Some(mut entry_claim_paths) = machine
         .entry_claims
         .iter()

@@ -354,10 +354,13 @@ helper that passes does not close an item.
     closed-row member must restate each non-law conclusion and add no premise
     (`contract_entailment/contract_refinement.rs`). That correspondence is
     exact spelling, not entailment, and does not unfold proposition premises.
-  - Next: a suspending requirement, a structural result through a selector and a
-    finite-family selector
-    call (which keeps its requirement target, unslotted) each decline at
-    planning; a requirement with published crash routes keeps no
+  - Next: suspending requirements, returned borrows and finite-family selector
+    calls (which keep their requirement targets, unslotted) decline at planning.
+    Returned borrows need public input-relative origin contracts; private
+    implementation places cannot supply them. Preserve owned result shapes,
+    qualifications and exact active claims through the common call/return path
+    (`pass/traits/runtime_dyn_{structural,nested,array,guarded,linear}_result_exit`).
+    A requirement with published crash routes keeps no
     crash-refinement row because its operands lead with the selector.
     Termination treats a selector call as an edge to every implementation
     selected for its slot, so a recursion cycle through runtime selection
@@ -5774,10 +5777,10 @@ wait for Cathedral's instruction coverage. The interpreter is
     Extend retained entry/provider/import provisions through the common runtime,
     not a selector-specific interpretation path.
   - Preserve complete 8-byte tables, zero trap slots, exact private callable
-    identities and patched image targets. Public slot metadata does not yet
-    express structural result origins, qualification preconditions or ingress
-    claim schemas; extensions from the Psi migration must carry those facts
-    before native consumers accept them. Do not infer them from a private row.
+    identities and patched image targets. Extend public slot metadata with
+    returned-borrow origins and parameter qualification preconditions before
+    accepting those contracts. Preserve the shared result shape and typed
+    ingress/return claim paths; never infer public facts from a private row.
   Acceptance: `runtime_dyn_rebound_selector_forwarded_exit`,
   `runtime_dyn_two_impl_dispatch_exit` and the other `pass/traits/runtime_dyn_*`
   fixtures run on matching supported hosts, including

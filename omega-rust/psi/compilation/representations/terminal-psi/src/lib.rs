@@ -121,7 +121,8 @@ pub use terminal_module::{
     structural_case_by_identity, structural_case_initializer_path, structural_case_position,
     structural_children, structural_parameter_position, structural_type_by_identity,
     structural_type_contains_reference, structural_type_contains_reference_by,
-    suspension_frontier_commitment, types, unique_structural_declaration, values,
+    structural_type_has_borrowed_storage_by, suspension_frontier_commitment, types,
+    unique_structural_declaration, values,
 };
 
 mod target_layouts;

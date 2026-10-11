@@ -128,24 +128,7 @@ pub(super) fn encode_boundary_machine(
         &declaration.structural_parameters,
         encode_structural_parameter,
     );
-    match &declaration.result {
-        BoundaryMachineResult::Unit => bytes.u8(0),
-        BoundaryMachineResult::Scalar(result) => {
-            bytes.u8(1);
-            encode_scalar_type(bytes, *result);
-        }
-        BoundaryMachineResult::Structural(result) => {
-            bytes.u8(2);
-            bytes.id(result.structural_type);
-            bytes.u8(match result.multiplicity {
-                StructuralMultiplicity::Unrestricted => 1,
-                StructuralMultiplicity::Affine => 2,
-                StructuralMultiplicity::Linear => 3,
-            });
-            encode_ids(bytes, &result.qualifications);
-            encode_projected_qualification_roster(bytes, &result.projected_qualifications);
-        }
-    }
+    encode_boundary_result(bytes, &declaration.result);
     bytes.slice(&declaration.requires, encode_domain_requirement);
     bytes.slice(
         &declaration.program_local_root_introductions,
@@ -806,6 +789,27 @@ pub(super) fn encode_scalar_restriction(
         StructuralFieldType::Erased { type_identity } => {
             bytes.u8(5);
             bytes.u32(type_identity.0);
+        }
+    }
+}
+
+pub(super) fn encode_boundary_result(bytes: &mut CanonicalBytes, result: &BoundaryMachineResult) {
+    match result {
+        BoundaryMachineResult::Unit => bytes.u8(0),
+        BoundaryMachineResult::Scalar(result) => {
+            bytes.u8(1);
+            encode_scalar_type(bytes, *result);
+        }
+        BoundaryMachineResult::Structural(result) => {
+            bytes.u8(2);
+            bytes.id(result.structural_type);
+            bytes.u8(match result.multiplicity {
+                StructuralMultiplicity::Unrestricted => 1,
+                StructuralMultiplicity::Affine => 2,
+                StructuralMultiplicity::Linear => 3,
+            });
+            encode_ids(bytes, &result.qualifications);
+            encode_projected_qualification_roster(bytes, &result.projected_qualifications);
         }
     }
 }

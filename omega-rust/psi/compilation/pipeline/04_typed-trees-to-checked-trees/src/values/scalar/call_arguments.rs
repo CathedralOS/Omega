@@ -309,7 +309,20 @@ pub(crate) fn nested_structural_call_return_type(
         let target = program.machine_states(owner).first()?;
         (target.symbol == call.target_symbol).then_some((owner, target))
     });
-    let return_type = if let Some((owner, target)) = targets.next() {
+    let return_type = if let Some(slot) = program.dynamic_slot_by_symbol(call.target_symbol) {
+        // The instantiated requirement owns this completed value's signature;
+        // runtime selection never picks a representative implementation here.
+        // Returned loans still need a public slot-relative origin contract.
+        if !validation::has_contents(
+            program,
+            slot.return_type,
+            &[],
+            validation::ContentsRequirement::BorrowFree,
+        ) {
+            return None;
+        }
+        slot.return_type
+    } else if let Some((owner, target)) = targets.next() {
         if targets.next().is_some()
             || !(owner.supplies_checked_body() || owner.has_bodyless_signature())
             || !program.call_has_no_runtime_receiver(call, owner, target)

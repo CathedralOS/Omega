@@ -6,8 +6,10 @@
 
 use semantic_vocabulary::{ScalarType, StructuralDomainId, StructuralTypeId};
 use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathQualification, TerminalDynamicSlot, TerminalDynamicStructuralFormal,
+    BoundaryMachineResult, BoundaryStructuralResultDeclaration, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathQualification, StructuralResultDeclaration, TerminalDynamicSlot,
+    TerminalDynamicStructuralFormal,
 };
 
 use crate::AbstractFunction;
@@ -60,6 +62,42 @@ impl<'declaration> From<&StructuralCallFormal<'declaration>>
     }
 }
 
+/// Place-free result contract shared by an ordinary machine and a dynamic slot.
+/// Result homes and invocation-local claims remain owned by each actual call.
+#[derive(Debug, Clone, Copy)]
+pub struct StructuralCallResult<'declaration> {
+    pub structural_type: StructuralTypeId,
+    pub multiplicity: StructuralMultiplicity,
+    pub qualifications: &'declaration [StructuralDomainId],
+    pub projected_qualifications: &'declaration [StructuralPathQualification],
+}
+
+impl<'declaration> From<&'declaration StructuralResultDeclaration>
+    for StructuralCallResult<'declaration>
+{
+    fn from(result: &'declaration StructuralResultDeclaration) -> Self {
+        Self {
+            structural_type: result.structural_type,
+            multiplicity: result.multiplicity,
+            qualifications: &result.qualifications,
+            projected_qualifications: &result.projected_qualifications,
+        }
+    }
+}
+
+impl<'declaration> From<&'declaration BoundaryStructuralResultDeclaration>
+    for StructuralCallResult<'declaration>
+{
+    fn from(result: &'declaration BoundaryStructuralResultDeclaration) -> Self {
+        Self {
+            structural_type: result.structural_type,
+            multiplicity: result.multiplicity,
+            qualifications: &result.qualifications,
+            projected_qualifications: &result.projected_qualifications,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum AbstractCallSignature<'declaration> {
     Machine(&'declaration AbstractFunction),
@@ -104,10 +142,27 @@ impl<'declaration> AbstractCallSignature<'declaration> {
         }
     }
 
+    pub fn is_unit_result(self) -> bool {
+        match self {
+            Self::Machine(machine) => matches!(machine.result, crate::AbstractFunctionResult::Unit),
+            Self::Requirement(requirement) => requirement.result.is_unit(),
+        }
+    }
+
+    pub fn structural_result(self) -> Option<StructuralCallResult<'declaration>> {
+        match self {
+            Self::Machine(machine) => machine.result.structural().map(Into::into),
+            Self::Requirement(requirement) => match &requirement.result {
+                BoundaryMachineResult::Structural(result) => Some(result.into()),
+                BoundaryMachineResult::Unit | BoundaryMachineResult::Scalar(_) => None,
+            },
+        }
+    }
+
     pub fn scalar_result(self) -> Option<ScalarType> {
         match self {
             Self::Machine(machine) => machine.result.scalar().map(|result| result.scalar_type),
-            Self::Requirement(requirement) => requirement.result,
+            Self::Requirement(requirement) => requirement.result.scalar(),
         }
     }
 }

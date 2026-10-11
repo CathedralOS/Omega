@@ -67,6 +67,7 @@ pub(super) fn validate(
             },
             AbstractOperation::CallStructural {
                 psi_operation,
+                callee: target,
                 result:
                     AbstractStructuralCallResult::Structural {
                         result: expected_result,
@@ -77,26 +78,64 @@ pub(super) fn validate(
                 ..
             },
         ) => {
-            let callee = callee.ok_or(LegalizationError::custody())?;
             let expected_home = Some(aggregate_results::result_home(
                 caller,
                 expected_result.place,
                 plan,
             )?);
-            let expected_references = reference_custody::reference_results(
-                caller,
-                callee,
-                structural_arguments,
-                expected_result,
-                *psi_operation,
-                custody,
-                &plan.structural_types,
-            )
-            .map_err(|error| error.attributed(caller.machine, Some(*psi_operation)))?;
+            let expected_references = match (callee_result, callee, target) {
+                (
+                    target_operations::TargetStructuralResultContract::Machine(declaration),
+                    Some(callee),
+                    abstract_operations::AbstractCallTarget::Machine(machine),
+                ) => {
+                    if callee.machine != *machine
+                        || callee.result.structural() != Some(declaration)
+                        || result.structural_type != declaration.structural_type
+                        || result.multiplicity != declaration.multiplicity
+                    {
+                        return Err(LegalizationError::custody());
+                    }
+                    reference_custody::reference_results(
+                        caller,
+                        callee,
+                        structural_arguments,
+                        expected_result,
+                        *psi_operation,
+                        custody,
+                        &plan.structural_types,
+                    )
+                    .map_err(|error| error.attributed(caller.machine, Some(*psi_operation)))?
+                }
+                (
+                    target_operations::TargetStructuralResultContract::Requirement(declaration),
+                    None,
+                    abstract_operations::AbstractCallTarget::Dynamic {
+                        interface, slot, ..
+                    },
+                ) => {
+                    let requirement = plan
+                        .dynamic_dispatch
+                        .interface(*interface)
+                        .and_then(|interface| interface.slots.get(*slot as usize))
+                        .ok_or(LegalizationError::custody())?;
+                    if requirement.result
+                        != terminal_psi::BoundaryMachineResult::Structural(declaration.clone())
+                        || !requirement.matches_operation_result(
+                            &terminal_psi::OperationResult::Structural(expected_result.clone()),
+                        )
+                        || terminal_psi::structural_type_has_borrowed_storage_by(
+                            |id| plan.structural_type(id),
+                            expected_result.structural_type,
+                        )
+                    {
+                        return Err(LegalizationError::custody());
+                    }
+                    Vec::new()
+                }
+                _ => return Err(LegalizationError::custody()),
+            };
             if result != expected_result
-                || callee.result.structural() != Some(callee_result)
-                || result.structural_type != callee_result.structural_type
-                || result.multiplicity != callee_result.multiplicity
                 || *result_home != expected_home
                 || *reference_results != expected_references
                 // Claims cross as custody, not bytes: the enclosing call check

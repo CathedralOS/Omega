@@ -255,42 +255,9 @@ pub(super) fn header(
         AbstractFunctionResult::Scalar(result) => {
             Some(scalar_shape(result.scalar_type).ok_or(LegalizationError::custody())?)
         }
-        AbstractFunctionResult::Structural(result) => Some(
-            if plan.structural_types.iter().any(|declaration| {
-                declaration.id == result.structural_type
-                    && matches!(
-                        declaration.shape,
-                        StructuralTypeShape::Sum { .. }
-                            | StructuralTypeShape::FixedArray { .. }
-                            | StructuralTypeShape::Mixed { .. }
-                            | StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                    )
-            }) {
-                home_layout(
-                    &StructuralOperationResult {
-                        qualification_establishments: Vec::new(),
-                        place: result.place,
-                        structural_type: result.structural_type,
-                        multiplicity: result.multiplicity,
-                        qualifications: result.qualifications.clone(),
-                        projected_qualifications: result.projected_qualifications.clone(),
-                        claims: Vec::new(),
-                    },
-                    plan,
-                )?
-                .shape()
-            } else {
-                // Claims and qualifications are semantic custody, not
-                // storage: they do not change this carrier's return bytes.
-                crate::structural_inputs::structural_reference_input::shape(
-                    result.structural_type,
-                    &plan.structural_types,
-                )
-                .ok_or(LegalizationError::custody())?
-            },
-        ),
+        AbstractFunctionResult::Structural(result) => {
+            Some(type_home_layout(result.structural_type, plan)?.shape())
+        }
     };
     let mut shapes = abstracted
         .parameters

@@ -18,7 +18,7 @@ pub struct StructuralDomainRequirement {
     pub domain: StructuralDomainId,
 }
 
-/// Exact structural signature returned by one bodyless boundary declaration.
+/// Place-free structural result shared by boundary and dynamic call signatures.
 /// Unlike a machine result declaration this has no proof-visible place: the
 /// successful call operation creates the caller-local result place.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -31,7 +31,7 @@ pub struct BoundaryStructuralResultDeclaration {
     pub projected_qualifications: Vec<crate::StructuralPathQualification>,
 }
 
-/// Closed result role of one bodyless boundary declaration.
+/// Closed place-free result role of a boundary or dynamic call signature.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BoundaryMachineResult {
     Unit,
@@ -40,6 +40,41 @@ pub enum BoundaryMachineResult {
 }
 
 impl BoundaryMachineResult {
+    /// Compare representation and qualifications without exposing a private
+    /// home. Reference origins belong to the caller's separate custody contract.
+    pub fn matches_machine_result(&self, result: &crate::TerminalMachineResult) -> bool {
+        match (self, result) {
+            (Self::Unit, crate::TerminalMachineResult::Unit) => true,
+            (Self::Scalar(expected), crate::TerminalMachineResult::Scalar(result)) => {
+                *expected == result.scalar_type
+            }
+            (Self::Structural(expected), crate::TerminalMachineResult::Structural(result)) => {
+                expected.structural_type == result.structural_type
+                    && expected.multiplicity == result.multiplicity
+                    && expected.qualifications == result.qualifications
+                    && expected.projected_qualifications == result.projected_qualifications
+            }
+            _ => false,
+        }
+    }
+
+    /// Compare the caller-local result against the public return signature.
+    pub fn matches_operation_result(&self, result: &crate::OperationResult) -> bool {
+        match (self, result) {
+            (Self::Unit, crate::OperationResult::Unit) => true,
+            (Self::Scalar(expected), crate::OperationResult::Scalar(result)) => {
+                *expected == result.scalar_type
+            }
+            (Self::Structural(expected), crate::OperationResult::Structural(result)) => {
+                expected.structural_type == result.structural_type
+                    && expected.multiplicity == result.multiplicity
+                    && expected.qualifications == result.qualifications
+                    && expected.projected_qualifications == result.projected_qualifications
+            }
+            _ => false,
+        }
+    }
+
     pub const fn scalar(&self) -> Option<ScalarType> {
         match self {
             Self::Scalar(scalar) => Some(*scalar),

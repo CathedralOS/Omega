@@ -527,9 +527,13 @@ pub(super) fn callee_plan(
                 .ok_or(LegalizationError::custody())?,
             );
         }
-        let result = match signature.scalar_result() {
-            Some(result) => Some(scalar_shape(result).ok_or(LegalizationError::custody())?),
-            None => None,
+        let result = if let Some(result) = signature.structural_result() {
+            Some(aggregate_results::type_home_layout(result.structural_type, plan)?.shape())
+        } else {
+            signature
+                .scalar_result()
+                .map(|result| scalar_shape(result).ok_or(LegalizationError::custody()))
+                .transpose()?
         };
         return evaluate_call_plan(
             CallingPolicy::native_for_target(native.target),
