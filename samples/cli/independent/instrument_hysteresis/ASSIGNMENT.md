@@ -53,3 +53,11 @@ There is no application execution blocker. The claims service remains unavailabl
 so registration/release of the uncertain ticket cannot be confirmed.
 Original base binary SHA256:
 `5e2f7bc3d73b18207ebbce5547ddc375de9c63db5a8ffe53a1b2614da99a31a1`.
+
+Final main integration acquired the same value-local interval recovery on main
+(`2a2cbe75bf25d0f5f1b9c269dc46c5b888426167`). The candidate therefore retains
+main allocator files verbatim, including its unrelated-failure controls, rather
+than maintaining duplicate recovery code. Earlier independent repair/repro
+evidence remains archived. This is a stable main facility, with no active-worker
+algorithm or library dependency. Final qualification checks all18 frozen cases
+in native and Terminal execution plus the complete intended-invalid control.

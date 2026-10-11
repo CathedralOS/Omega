@@ -82,10 +82,12 @@ not merely for missing package review or another infrastructure failure.
 All source remains under this namespace. Generated products and accepted local
 package locks belong in ignored `build/`/local state, never source inputs.
 
-This main-based candidate also contains two bounded compiler repairs required
-by the unchanged application: retained storage roots through dynamic view cuts
-(stage 03) and validated interval recovery when call-survival and a fixed-use
-view have no common home (stage 05). No source pattern, function identity or
+The unchanged application required retained storage roots through dynamic view
+cuts (stage 03) and validated interval recovery when call-survival and a fixed-use
+view have no common home (stage 05). During final integration, main acquired the
+value-local interval recovery, so this candidate uses that stable facility and
+retains no competing allocator implementation. Its compiler delta retains the
+dynamic-root and state-local handoff repairs. No source pattern, function identity or
 weakened custody/legality check is introduced. The focused regressions are
 `runtime_cut_byte_view_cycle_exit` and `call_surviving_return_exit`; their
 observations and the original refusal logs belong in the review bundle.
