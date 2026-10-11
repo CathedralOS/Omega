@@ -143,7 +143,10 @@ pub fn validate_callback_thunk_joins(
             caller.identity(),
             occurrence.placement_index(),
         );
-        if declaration != &application.body
+        // Each artifact interns its declaration identities independently.
+        // Equal table indices can name different declarations, and the same
+        // declaration can occupy different indices in caller and thunk.
+        if !declaration.same_identity_as(&body.identities, &application.body, &module.identities)
             || application.registrar != occurrence.terminal_operation()
             || expected_function != Some(occurrence.callback_thunk_identity())
         {

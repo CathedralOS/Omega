@@ -4387,16 +4387,16 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   callback body recognizers. Preserve custody through optimization and
   integrate product publication and the hosted private stack.
   Owners: `callback_settlement`,
-  `omega-rust/omega/compilation/driver/src/native/native_realization/callback_thunks.rs`,
+  `omega-rust/omega/compilation/native-production/src/realization/callback_thunks.rs`,
   `omega-rust/omega/compilation/backend/machine-emission/src/private_callback.rs`,
   and selected-call ABI transport.
 
-  The scalar compile control `pass/capabilities/callback_direct_install_compile`
-  reaches Terminal artifact production but rejects at
-  `backend-plan/src/callback_artifacts.rs` with "callback thunk body or
-  function identity drifted from its retained placement". Resolve the exact
-  body-declaration, registrar and caller-scoped function-identity join before
-  treating scalar materialization as established; retain all three checks.
+  `pass/calls/callback_private_materialization` currently reaches native
+  provider closure review but has no selected `WindowRegistrar::register`
+  provider (macOS Arm64, checked compile). Supply a genuine host provider;
+  the scalar control `pass/capabilities/callback_direct_install_compile`
+  uses a nonexistent import and is not execution acceptance. Preserve the
+  exact body-declaration, registrar and caller-scoped function-identity joins.
 
   Resultless entries currently cannot be represented:
   `ScalarFunctionAbi` in

@@ -5,6 +5,9 @@
 //! authority dispositions and service permissions; `executable_scopes` the
 //! executable bytes, services and behavior exclusions admitted into a scope;
 //! `component_eras` the era ledger and progress manifests.
+//! Selected requirement identities are interned when plans enter the closure,
+//! before optional specialization or family relations are attached. Execution
+//! receipts use this closure-local table, not a plan's unrelated coordinates.
 
 pub(crate) mod authority;
 pub(crate) mod component_eras;
@@ -164,6 +167,12 @@ impl SelectedProviderPlanFacts {
         }
 
         let report_fingerprint = selected_plans_report_fingerprint(&plans);
+        let mut requirement_identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        for plan in &plans {
+            for row in &plan.rows {
+                requirement_identities.intern(plan.identities.text(row.requirement_identity));
+            }
+        }
         Ok(Self {
             plans,
             report_fingerprint,
@@ -173,7 +182,7 @@ impl SelectedProviderPlanFacts {
             specialized_requirement_rows: Vec::new(),
             family_realization_rows: Vec::new(),
             toolchain_settled_identities: BTreeSet::new(),
-            identities: terminal_psi::TerminalIdentityTable::default(),
+            identities: requirement_identities.build(),
         })
     }
 
@@ -237,6 +246,11 @@ impl SelectedProviderPlanFacts {
                 plan.schema.identity_text(plan.schema.trait_name)
             ));
         }
+        let mut requirement_identities = self.identities.clone().into_builder();
+        for row in &plan.rows {
+            requirement_identities.intern(plan.identities.text(row.requirement_identity));
+        }
+        self.identities = requirement_identities.build();
         self.plans.push(plan);
         self.plans.sort_by(ProviderPlan::selection_order);
         self.toolchain_settled_identities.insert(identity);
