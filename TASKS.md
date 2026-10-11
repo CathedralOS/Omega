@@ -454,8 +454,8 @@ helper that passes does not close an item.
     reject (`fail/borrows/boundary_returned_view_keeps_backing_loan`). On macOS,
     `omega run --both tests/omega/pending/slices/runtime_imported_range_views_exit/main.omg`
     stops at `call operation: structural arguments: parameter path`. Preserve
-    the selected requirement, returned loan custody and bounds; do not substitute builtin
-    slicing. Keep `pass/borrows/runtime_computed_shared_view_reborrow_exit`
+    the selected requirement, returned loan custody and bounds; do not
+    substitute builtin slicing. Keep `pass/borrows/runtime_computed_shared_view_reborrow_exit`
     at exit 0: reborrowing a produced or stored descriptor must retain its
     actual extent through guarded calls and value joins; backing mutation
     must reject (`fail/borrows/reborrowed_call_view_keeps_backing_loan`).

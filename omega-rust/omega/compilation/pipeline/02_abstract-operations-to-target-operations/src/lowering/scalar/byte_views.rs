@@ -675,7 +675,8 @@ pub(in crate::lowering) fn descriptor_result<'a>(
     });
     let (operation, result) = producers.next()?;
     // A descriptor home's declared byte qualifications describe the contents
-    // its stores proved; a call result's qualifications stay excluded here.
+    // its stores proved; other produced descriptors' qualifications stay
+    // excluded here.
     let home = function.operations.iter().any(|candidate| {
         matches!(candidate, AbstractOperation::EstablishStructuralLocal { psi_operation, .. }
             if *psi_operation == operation)
