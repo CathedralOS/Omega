@@ -16,9 +16,12 @@ Two source/coverage findings were resolved by the primary:
 Final finding: no remaining blocking source issue after these corrections.
 The reviewer independently reconstructed all nine exact regions and interval
 oracles, enumerated output coverage/audits and verified the frozen hashes.
-Native/Terminal execution was pending at source review and remains the primary's
-responsibility. CLI `--both` compares termination; the validator checks native
-stdout independently. No claim of Terminal stdout equivalence is made.
+Native/Terminal execution was pending at initial source review. Primary execution
+has since verified all 19 exact native cases, all 19 Terminal exits before
+integration and three representative integrated Terminal cases. The bounds control
+rejected with exactly its intended diagnostic. CLI `--both` compares termination;
+the validator checks native stdout independently. No claim of Terminal stdout
+equivalence is made.
 
 Reviewed exact sources (SHA-256):
 
@@ -33,3 +36,15 @@ be5c18a306ee065429bd17fa4d2fdd7df1e83b247eade9568123dc00add2d808  domain/input.o
 e1517eaee4e8f5b86ec4a5ea957079f118d20dcc2ff64911793dd0e54d8b223c  controls/out_of_bounds/main.omg
 a39d9f07282e7533163dcadfa2a35e8e70e67385025df8c5e9e6658ff2edec27  controls/out_of_bounds/build.omg
 ```
+
+The same reviewer separately approved the row-driven stage03 input transport
+repair, SHA-256 `428714a51e0597fdd203923ff0a5aa081357c181e1b9967f70d911b5134ed487`,
+after tracing fixed-use custody, source lineage, early-clobber separation and
+preservation of arithmetic obligations/fuel. The corrected complete runtime
+regression `tests/omega/pass/arithmetic/reused_fixed_integer_operands_exit/main.omg`
+has SHA-256 `57ae00fe41f401db2de04c0f4d6066a638086871925ff025538668f38ba59f36`.
+Reviewer corrected the initial ByteRead/scalar API assumption; the primary added
+an explicit EOF conversion while preserving all five frozen arithmetic values.
+Nine focused native/Terminal controls and the separate divide-by-zero rejection
+passed. Full retained-evidence and Library transfer review is recorded in the
+final bundle, independently of these source-review findings.

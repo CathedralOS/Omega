@@ -86,5 +86,10 @@ the frozen oracle separately because CLI comparison itself compares termination.
 Review and custody denials must be reported without bypass or acceptance retries.
 
 See `VALIDATION.md` for actual routes, identities and any remaining blockers.
+Linux x86_64 validation passed all 19 native inputs with exact output checks,
+Terminal termination comparisons, and the separate intended bounds rejection.
+The witnessed native allocator gap required a bounded, independently reviewed
+fixed-use operand transport repair; its complete runtime regression and focused
+compiler controls are described in that record.
 After independent review and integrated validation, publication uses `tools/landing.py`
 and the shared main-only queue. There are no remote worker branches.

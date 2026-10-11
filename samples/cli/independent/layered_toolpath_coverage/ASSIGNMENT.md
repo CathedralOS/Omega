@@ -12,8 +12,15 @@ Claim attempt timed out with uncertain publication; retained ticket
 `a1818e3aac00451999359a88ffee522d`, pending record
 `build/claims-pending/a1818e3aac00451999359a88ffee522d.json`. Inspect before any retry.
 
-Current frontier: exact reviewed .omg sources; invalid control passed; preparation
-invalidated by concurrent doc writes, now fixed by freezing all sample files during
-runs. Integrate fetched main, build matching optimized dev compiler, prepare/read
-exact review, validate native and Terminal, then normal landing. Claim retry failed
-Git (-9); successful registry read had shown the retained ticket absent.
+Current frontier: source/native/Terminal validation and independent source review
+complete. All 19 native inputs satisfy the unchanged frozen oracle; all 19 Terminal
+exits agreed before integration and three representative cases agreed afterward.
+Separate bounds and arithmetic intended-invalid controls rejected for the expected
+reasons. A witnessed current-main native allocator failure required the bounded
+stage03 fixed-use input transport repair, owned and reviewed with its complete
+runtime-derived corpus regression. Nine focused native/Terminal controls passed;
+new successful observations were recorded without weakening an oracle. Next:
+final evidence review, exact clean-candidate verification, normal main-only queue
+publication and supported Library transfer confirmation. Claim mutations failed
+Git (-9); successful registry reads showed the retained ticket absent. No remote
+worker branch or implementation dependency was introduced.
