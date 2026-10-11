@@ -114,6 +114,59 @@ pub(super) fn plan(
     ) {
         operations.push(capture);
     }
+    // Establish every primitive array element before the replacement. Reading
+    // the receiver itself is therefore safe: no element can observe an earlier
+    // element store from this assignment. The same window repair retains the
+    // receiving place and its source-check custody as structural replacements.
+    if let Some(expected) =
+        super::super::scalar_arrays::assignment_type(program, machine, state, assignment)
+    {
+        let elements = super::super::scalar_arrays::elements(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            checked_trees::CheckedArrayConstructionSource::Statement,
+            assignment.value,
+            expected,
+        )?;
+        let produced = CheckedUnitStructuralResultBindingPlan {
+            statement_index,
+            binding_ordinal: u32::try_from(*structural_count).ok()?,
+            type_identity: shapes.add_type(expected, binders, &[])?,
+            multiplicity: Multiplicity::Unrestricted,
+            local: Default::default(),
+        };
+        let replacement = windows.replace(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            statement_index,
+            assignment,
+            &produced,
+            produced.binding_ordinal.checked_add(1)?,
+            CheckedUnitStructuralArgumentPlan::structural_result(
+                produced.binding_ordinal,
+                produced.type_identity.clone(),
+                CheckedStructuralAccess::Owned,
+            ),
+        )?;
+        *structural_count =
+            structural_count.checked_add(1 + usize::from(replacement.move_out.is_some()))?;
+        operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                source: checked_trees::CheckedArrayConstructionSource::Statement,
+                result: produced,
+                elements,
+            },
+        ));
+        consume_results(&mut *operations, &replacement.store)?;
+        operations.extend(replacement.into_operations());
+        return Some(AssignmentPlan::Planned);
+    }
     // Guard-group markers beneath the statement phase keep the
     // statement position that `phase` resets.
     let assignment_phase = |phase: &'static str| {

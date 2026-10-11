@@ -14,8 +14,8 @@
 //! - a primitive field is a `ScalarField` leaf carrying its receiving range;
 //! - a scalar leaf below an element-view root is a `ViewElement` leaf,
 //!   independent of whether that leaf is a field, array element, or whole element;
-//! - a primitive-array place takes a closed array literal as one `Primitive`
-//!   store per element (`primitive.rs`);
+//! - a primitive-array literal completes as one owned array before whole-place
+//!   replacement in `control::statement_sequence`;
 //! - a sum field is a `SumField` leaf receiving a whole owned parameter of its
 //!   type or a case literal;
 //! - a bounded-owned byte field or a whole borrowed byte view is a
@@ -97,6 +97,14 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         // An atomic carrier is one atomic event, planned by the sequence
         // (`atomic_operations.rs`), never a store of its arithmetic model.
         if validation::atomic_assignment_carrier(program, assignment).is_some() {
+            continue;
+        }
+        // Array construction must finish before its receiving storage changes,
+        // including when an element reads that same storage. The statement
+        // sequence establishes the whole value and performs the checked repair.
+        if super::control::scalar_arrays::assignment_type(program, machine, state, assignment)
+            .is_some()
+        {
             continue;
         }
         let statement_index = u32::try_from(statement_index).ok()?;
@@ -434,17 +442,6 @@ fn plan_assignment(
         assignment,
     ) {
         return Some(vec![store]);
-    }
-    if let Some(stores) = primitive::array_literal_stores(
-        program,
-        facts,
-        machine,
-        state,
-        &destination,
-        statement_index,
-        assignment,
-    ) {
-        return Some(stores);
     }
     trace.phase("structural field store: carrier path");
     let Some((leaf, carriers)) = destination.place.segments.split_last() else {

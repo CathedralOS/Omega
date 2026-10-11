@@ -881,15 +881,24 @@ impl TerminalExecution<'_> {
         self.restore_store_frontier(&mut frontier, destination, path, &hole, field_type)?;
         let claims =
             self.stage_window_store_claims(destination, path, &hole, value.place, &mut frontier)?;
-        let child = crate::custody::verified_structural_place(&self.structural_values, value.place)
-            .cloned()?;
-        if child.structural_type != field_type
+        // Completed primitive arrays keep their payload outside the opaque
+        // structural-place map. Resolve both representations, and stage their
+        // exact typed leaves before publishing the same window transaction.
+        let child = ConstructorValue::resolve(self, value)?;
+        let (qualifications, projected_qualifications) = match &child {
+            ConstructorValue::Placed(child) => (
+                child.qualifications.as_slice(),
+                child.projected_qualifications.as_slice(),
+            ),
+            ConstructorValue::ScalarArray(_) => (&[][..], &[][..]),
+        };
+        if child.structural_type() != field_type
             || required
                 .iter()
-                .any(|domain| !child.qualifications.contains(domain))
+                .any(|domain| !qualifications.contains(domain))
             || projected_required
                 .iter()
-                .any(|row| !child.projected_qualifications.contains(row))
+                .any(|row| !projected_qualifications.contains(row))
         {
             return Err(malformed());
         }
@@ -915,15 +924,15 @@ impl TerminalExecution<'_> {
             }
             let mut repaired = owner.clone();
             if relative.is_empty() {
-                repaired.qualifications = child.qualifications.clone();
-                repaired.projected_qualifications = child.projected_qualifications.clone();
+                repaired.qualifications = qualifications.to_vec();
+                repaired.projected_qualifications = projected_qualifications.to_vec();
             } else {
                 repaired
                     .projected_qualifications
                     .retain(|row| !row.path.starts_with(relative));
                 terminal_psi::StructuralPathQualification::append_under(
-                    &child.qualifications,
-                    &child.projected_qualifications,
+                    qualifications,
+                    projected_qualifications,
                     relative,
                     &mut repaired.projected_qualifications,
                 );
@@ -932,9 +941,22 @@ impl TerminalExecution<'_> {
             }
             memberships.push((*place, repaired));
         }
-        self.relocate_subtree(&StructuralRuntimePlace::from(&child), &hole);
+        let mut storage = ConstructorStorage::default();
+        let placed = match child {
+            ConstructorValue::Placed(child) => Some(child.clone()),
+            child @ ConstructorValue::ScalarArray(_) => {
+                storage.stage(self, value, &child, &hole, false)?;
+                None
+            }
+        };
+        if let Some(child) = placed {
+            self.relocate_subtree(&StructuralRuntimePlace::from(&child), &hole);
+        } else {
+            storage.publish(self);
+        }
         self.structural_values.extend(memberships);
         self.structural_values.remove(&value.place);
+        self.scalar_array_values.remove(&value.place);
         self.live_affine_frontier = frontier;
         self.live_claims = claims;
         Ok(OperationFlow::Advance)

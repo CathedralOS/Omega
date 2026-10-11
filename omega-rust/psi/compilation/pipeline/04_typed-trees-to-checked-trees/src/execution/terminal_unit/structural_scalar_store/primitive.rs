@@ -19,11 +19,9 @@
 //! `AssignmentIndex { depth }` scalar and its separate bounds obligation.
 //! The planner creates no bound from the selector's syntactic shape.
 //!
-//! A closed array literal stored into a primitive-array field uses the same
-//! store once per element, over the field's path plus its literal indices
-//! (`array_literal_stores`). An indexed row destination (`self.grid[i] =
-//! [1, 2, 3]`) uses the same leaf roster with the runtime element already
-//! in the path; it retains the corresponding selector obligation.
+//! Whole primitive array construction and replacement are sequenced by the
+//! statement owner: its complete value is established before receiving storage
+//! changes, so stored reads cannot observe a partial replacement.
 use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, DataMember, Multiplicity,
@@ -234,121 +232,6 @@ fn primitive_store_value(
         return None;
     }
     Some(checked_trees::CheckedScalarStoreValue::Pure(value.clone()))
-}
-
-/// The stores of a closed array literal written whole into a primitive-array
-/// field of exclusive borrowed or owned local storage: one primitive store per
-/// row-major element, over the field's path plus that element's literal
-/// indices. Every element must be a closed value -- literals, parameters,
-/// locals and their compositions -- so no element observes a store the
-/// literal has already made; one that reads storage keeps declining.
-pub(super) fn array_literal_stores(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    destination: &super::destination::Destination<'_>,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-    let expected = validation::closed_array_store_type(
-        program,
-        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?,
-    )?;
-    let extents = closed_array_extents(program, expected)?;
-    let projection = destination.storage_projection(program)?;
-    if projection.path.is_empty()
-        || !validation::place_has_builtin_coordinates(
-            program,
-            machine,
-            Some(state),
-            assignment.target,
-        )
-    {
-        return None;
-    }
-    let path = projection.path;
-    let destination = destination.root.destination();
-    let elements = super::super::control::scalar_arrays::elements(
-        program,
-        facts,
-        machine.symbol,
-        state.symbol,
-        statement_index,
-        checked_trees::CheckedArrayConstructionSource::Statement,
-        assignment.value,
-        expected,
-    )?;
-    elements
-        .into_iter()
-        .enumerate()
-        .map(|(ordinal, value)| {
-            let checked_trees::CheckedCallScalarArgument::Pure(expression) = value else {
-                return None;
-            };
-            if !scalar_expression_needs_no_bindings(&expression) {
-                return None;
-            }
-            let mut element_path = path.clone();
-            element_path.extend(
-                row_major_indices(u64::try_from(ordinal).ok()?, &extents)?
-                    .into_iter()
-                    .map(CheckedUnitStructuralPathSegment::FixedIndex),
-            );
-            Some(CheckedUnitEffectOperationPlan::new_store(
-                statement_index,
-                destination,
-                element_path,
-                checked_trees::CheckedStoreLeaf::Primitive {
-                    receiving_range: None,
-                },
-                checked_trees::CheckedStoreValue::Scalar {
-                    role: CheckedScalarExpressionRole::ArrayElement {
-                        source: checked_trees::CheckedArrayConstructionSource::Statement,
-                        element_ordinal: u32::try_from(ordinal).ok()?,
-                    },
-                    value: checked_trees::CheckedScalarStoreValue::Pure(expression),
-                },
-            ))
-        })
-        .collect()
-}
-
-/// The literal extents of a closed primitive array type, outermost first.
-fn closed_array_extents(
-    program: &dyn ::validation::CheckingInput,
-    mut reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<Vec<u64>> {
-    if !validation::is_closed_primitive_array_type(program, reference) {
-        return None;
-    }
-    let mut extents = Vec::new();
-    loop {
-        match program
-            .type_reference_table
-            .type_reference(validation::peel_arithmetic_policy(program, reference))
-        {
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length: typed_trees::types::FixedArrayLength::Literal(length),
-            } => {
-                extents.push(u64::try_from(*length).ok()?);
-                reference = *element_type;
-            }
-            _ => break,
-        }
-    }
-    (!extents.is_empty()).then_some(extents)
-}
-
-/// The per-dimension indices of the `ordinal`th row-major element.
-fn row_major_indices(mut ordinal: u64, extents: &[u64]) -> Option<Vec<u64>> {
-    let mut indices = vec![0; extents.len()];
-    for (index, extent) in indices.iter_mut().zip(extents).rev() {
-        *index = ordinal.checked_rem(*extent)?;
-        ordinal /= extent;
-    }
-    (ordinal == 0).then_some(indices)
 }
 
 /// The type of the primitive leaf an assignment through `expression` writes.

@@ -80,3 +80,29 @@ pub(in crate::execution::terminal_unit) fn elements(
         })
         .collect()
 }
+
+/// A whole closed primitive array assignment is one value establishment before
+/// any receiving storage changes. Keep selected operators and qualifications
+/// at their existing owners; only builtin literal array construction lands here.
+pub(in crate::execution::terminal_unit) fn assignment_type(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> Option<TypeReferenceHandle> {
+    if !matches!(
+        program.expression_table.expression(assignment.value),
+        typed_trees::expression::ExpressionNode::ArrayLiteral(_)
+    ) || !validation::place_has_builtin_coordinates(
+        program,
+        machine,
+        Some(state),
+        assignment.target,
+    ) {
+        return None;
+    }
+    validation::closed_array_store_type(
+        program,
+        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?,
+    )
+}
