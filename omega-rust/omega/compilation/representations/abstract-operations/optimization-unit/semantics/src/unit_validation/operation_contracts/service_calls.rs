@@ -418,6 +418,7 @@ fn descriptor_call_origins_match(
         functions.values().copied(),
         boundaries.values().copied(),
         &types,
+        |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
     ) else {
         return false;
     };

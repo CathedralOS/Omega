@@ -434,8 +434,12 @@ pub(super) fn byte_argument(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (identity, source) = if let Some((producer, result)) =
-        crate::lowering::scalar::byte_views::descriptor_result(function, argument.place, types)
-    {
+        crate::lowering::scalar::byte_views::descriptor_result(
+            function,
+            argument.place,
+            types,
+            &live.structural_homes,
+        ) {
         let access = match result.multiplicity {
             terminal_psi::StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
             terminal_psi::StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,

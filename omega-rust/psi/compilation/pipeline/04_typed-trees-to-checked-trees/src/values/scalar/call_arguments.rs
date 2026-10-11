@@ -14,7 +14,6 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::statement::TransitionGuardNode;
 use typed_trees::types::TypeReferenceHandle;
-use typed_trees::types::TypeReferenceNode;
 
 pub(crate) fn is_scalar_return_call(
     program: &dyn ::validation::CheckingInput,
@@ -310,55 +309,14 @@ pub(crate) fn nested_structural_call_return_type(
         let target = program.machine_states(owner).first()?;
         (target.symbol == call.target_symbol).then_some((owner, target))
     });
-    let (return_type, ordinary) = if let Some((owner, target)) = targets.next() {
-        // `self.suffix(..)` inside an `&self`/`&mut self` caller reborrows the
-        // caller's own `self` parameter with the callee's declared access — the
-        // same runtime receiver the top-level call machinery mints through
-        // `receiver_symbol`, not a free value the operand walk cannot name.
-        // `self` resolves to the calling machine's own symbol, so the
-        // admission is: receiver names the enclosing machine, caller and
-        // callee attach to the same data, and both carry the receiver.
-        // This is operand eligibility, not a purity judgment: the ordinary
-        // call still checks the receiver loan and executes before its consumer.
-        let own_self_receiver = || {
-            let caller_machine = program.machine(caller)?;
-            let Some(name) = program.expression_table.name_path_node(call.receiver) else {
-                return None;
-            };
-            (name.symbol == caller_machine.symbol
-                && caller_machine.attached_data_symbol == owner.attached_data_symbol
-                && program
-                    .machine_states(caller_machine)
-                    .first()
-                    .into_iter()
-                    .flat_map(|state| program.state_parameters(state).iter())
-                    .any(|_parameter| false)
-                && program.state_parameters(target).iter().any(|parameter| {
-                    false
-                        && (!parameter.is_mutable
-                            || (owner.supply_mode
-                                == language_semantics::MachineSupplyMode::CheckedBody
-                                && target.return_type.is_valid()
-                                && validation::has_contents(
-                                    program,
-                                    target.return_type,
-                                    &[],
-                                    validation::ContentsRequirement::RepresentedOwned,
-                                )))
-                }))
-            .then_some(())
-        };
+    let return_type = if let Some((owner, target)) = targets.next() {
         if targets.next().is_some()
             || !(owner.supplies_checked_body() || owner.has_bodyless_signature())
-            || (!program.call_has_no_runtime_receiver(call, owner, target)
-                && own_self_receiver().is_none())
+            || !program.call_has_no_runtime_receiver(call, owner, target)
         {
             return None;
         }
-        (
-            target.return_type,
-            owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody,
-        )
+        target.return_type
     } else {
         let selected = program.machine_parameter_signature(call.target_symbol);
         let requirement = match selected {
@@ -379,10 +337,6 @@ pub(crate) fn nested_structural_call_return_type(
             });
         let (definition, signature) = signatures.next()?;
         if signatures.next().is_some()
-            || program
-                .state_signature_parameters(signature)
-                .iter()
-                .any(|_parameter| false)
             || if selected.is_some() {
                 call.receiver.is_valid()
             } else {
@@ -393,57 +347,16 @@ pub(crate) fn nested_structural_call_return_type(
         {
             return None;
         }
-        (signature.return_type, false)
+        signature.return_type
     };
-    (return_type.is_valid()
-        && program.primitive_type_reference(return_type).is_none()
-        && !matches!(
-            program.type_reference_table.type_reference(return_type),
-            TypeReferenceNode::Unit
-        )
-        // A checked body's linear result is an anonymous owner like an
-        // affine one: its call binds the claims the returning edge holds,
-        // and the consuming call transfers them whole.
-        && ((ordinary && crate::execution::terminal_unit::types::borrowed_slice_result(program, return_type))
-            || (match program.type_multiplicity(return_type) {
-            language_semantics::Multiplicity::Affine => true,
-            language_semantics::Multiplicity::Linear => ordinary,
-            language_semantics::Multiplicity::Unrestricted => false,
-        } && (validation::has_contents(
+    // A completed operand uses the same carrier judgment as a named result.
+    // Body ownership selects execution and admission later, not whether the
+    // signature's descriptor can participate in an enclosing expression.
+    crate::execution::terminal_unit::control::checked_structural_result_type(
         program,
+        &mut crate::execution::terminal_unit::types::ShapeCollector::new(program),
         return_type,
         &[],
-        validation::ContentsRequirement::BorrowFree)
-                // A checked-body record carrying borrowed referents is affine
-                // through its captured leaf loans; the caller's own operand
-                // scheduling still has to replay that custody exactly.
-                || (ordinary
-                    && validation::reference_result_custody::is_reference_record(
-                        program,
-                        return_type,
-                    ))))
-            || (ordinary
-                && program.type_multiplicity(return_type)
-                    == language_semantics::Multiplicity::Unrestricted
-                // Fresh and returned values use the same owned storage
-                // classification. Qualifications remain separate checked
-                // obligations, not a byte-only exception to result discovery.
-                && (validation::has_contents(
-        program,
-        return_type,
-        &[],
-        validation::ContentsRequirement::StructuralConstruction)
-                    // A checked-body `&[u8]`/`&'a V` borrowed-view result
-                    // lends caller-frame storage through a shared loan;
-                    // the caller's operand scheduling replays that custody
-                    // exactly as it does for reference-record results.
-                    || crate::execution::terminal_unit::types::borrowed_slice_view(
-                        program,
-                        return_type,
-                    )
-                    || crate::execution::terminal_unit::types::borrowed_named_view(
-                        program,
-                        return_type,
-                    )))))
-    .then_some(return_type)
+    )?;
+    Some(return_type)
 }

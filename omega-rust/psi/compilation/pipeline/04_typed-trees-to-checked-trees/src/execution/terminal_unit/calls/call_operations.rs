@@ -7,7 +7,6 @@ use crate::execution::terminal_unit::calls::argument_paths::{
     checked_call_erased_proof_arguments, checked_call_erased_scalar_arguments,
     checked_call_scalar_arguments, projected_call_contracts_are_represented,
 };
-use crate::execution::terminal_unit::calls::boundary_admission::boundary_value_result_matches;
 use crate::execution::terminal_unit::calls::service_forward;
 use crate::execution::terminal_unit::calls::structural_arguments::{
     call_claim_transfers, exact_integer_at, structural_call_arguments,
@@ -30,6 +29,111 @@ use validation::exact_external_leaf_boundary_requirement;
 pub(in crate::execution) enum ExpectedCallValueResult<'result> {
     Scalar(PrimitiveType),
     Structural(&'result CheckedUnitStructuralResultBindingPlan),
+}
+
+/// Match a completed result carrier independently of whether its selected
+/// implementation is an ordinary body or a boundary supply. This classifies
+/// storage and access only: source checking owns the captured input-to-result
+/// loan relation, and realization must still install an admitted provider.
+/// A shared slice descriptor is unrestricted; a reference permission carrier
+/// is affine. Neither result extends the lifetime of its backing storage.
+pub(crate) fn call_value_result_matches(
+    program: &dyn ::validation::CheckingInput,
+    return_type: typed_trees::types::TypeReferenceHandle,
+    expected: &ExpectedCallValueResult<'_>,
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+) -> bool {
+    let return_type = crate::execution::terminal_unit::types::substituted_formal_type(
+        program,
+        return_type,
+        substitutions,
+    );
+    match expected {
+        ExpectedCallValueResult::Scalar(expected) => {
+            program.primitive_type_reference(return_type) == Some(*expected)
+        }
+        ExpectedCallValueResult::Structural(expected)
+            if crate::execution::terminal_unit::types::borrowed_slice_result(
+                program,
+                return_type,
+            ) || crate::execution::terminal_unit::types::borrowed_named_view(
+                program,
+                return_type,
+            ) =>
+        {
+            // A slice result transports descriptor custody: unrestricted
+            // for shared access and affine for mutable access. Named
+            // references retain their separate affine permission carrier.
+            // Neither carrier owns or extends the lifetime of its backing.
+            let multiplicity = if crate::execution::terminal_unit::types::borrowed_slice_result(
+                program,
+                return_type,
+            ) {
+                validation::reference_result_custody::binding_multiplicity(program, return_type)
+            } else {
+                Multiplicity::Affine
+            };
+            let peeled =
+                validation::structural_type_identity(program, return_type, &[], substitutions);
+            let shelled = program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+                substitutions,
+                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(return_type)
+            });
+            expected.multiplicity == multiplicity
+                && (peeled == expected.type_identity || shelled == expected.type_identity)
+        }
+        ExpectedCallValueResult::Structural(expected)
+            if crate::execution::terminal_unit::reference_results::mutable_borrowed_parts(
+                program,
+                return_type,
+            )
+            .is_some() =>
+        {
+            expected.multiplicity == Multiplicity::Affine
+                && program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+                    substitutions,
+                    ..typed_trees::type_identity::TypeIdentityRequest::ordinary(return_type)
+                }) == expected.type_identity
+        }
+        ExpectedCallValueResult::Structural(expected)
+            if let Some(referee) =
+                crate::execution::terminal_unit::types::borrowed_view_referent(
+                    program,
+                    return_type,
+                    language_semantics::ReferenceAccess::Mutable,
+                ) =>
+        {
+            // A named `&mut R` result is the exclusive loan the
+            // shared-view arm above names for shared borrows: affine
+            // custody against the callee's storage. Like the named
+            // views, the bound side keeps its `ref-mut` shell — the
+            // `Reference` shape is the custody it loans; the peeled
+            // referent spelling stays accepted for anonymous results.
+            let peeled = program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+                substitutions,
+                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(referee)
+            });
+            let shelled = program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+                substitutions,
+                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(return_type)
+            });
+            expected.multiplicity == Multiplicity::Affine
+                && (peeled == expected.type_identity || shelled == expected.type_identity)
+        }
+        ExpectedCallValueResult::Structural(expected) => {
+            program.primitive_type_reference(return_type).is_none()
+                && !is_unit(program, return_type)
+                && !crate::execution::terminal_unit::is_reference(program, return_type)
+                && validation::reference_result_custody::result_multiplicity(program, return_type)
+                    == expected.multiplicity
+                && crate::execution::terminal_unit::types::base_type_identity(
+                    program,
+                    return_type,
+                    &[],
+                    substitutions,
+                ) == Some(expected.type_identity)
+        }
+    }
 }
 
 /// A resolved call through an ordinary or bodyless-boundary target: the
@@ -206,86 +310,10 @@ pub(in crate::execution) fn build_call_operation(
     // Installation supplies the checked provider body and its exact return
     // custody; a boundary declaration does not authorize fabricated payloads.
     phase("call operation: result shape");
-    if if boundary {
-        match expected_call_result {
-            None => !is_unit(program, target_state.return_type),
-            Some(ref expected) => {
-                !boundary_value_result_matches(program, target_state.return_type, expected, &[])
-            }
-        }
-    } else {
-        match &expected_call_result {
-            None => !is_unit(program, target_state.return_type),
-            Some(ExpectedCallValueResult::Scalar(expected)) => {
-                program.primitive_type_reference(target_state.return_type) != Some(*expected)
-            }
-            Some(ExpectedCallValueResult::Structural(expected))
-                if crate::execution::terminal_unit::types::borrowed_slice_result(
-                    program,
-                    target_state.return_type,
-                ) || crate::execution::terminal_unit::types::borrowed_named_view(
-                    program,
-                    target_state.return_type,
-                ) =>
-            {
-                // A slice result transports descriptor custody: unrestricted
-                // for shared access and affine for mutable access. Named
-                // references retain their separate affine permission carrier.
-                // Neither carrier owns or extends the lifetime of its backing.
-                let multiplicity = if crate::execution::terminal_unit::types::borrowed_slice_result(
-                    program,
-                    target_state.return_type,
-                ) {
-                    validation::reference_result_custody::binding_multiplicity(
-                        program,
-                        target_state.return_type,
-                    )
-                } else {
-                    Multiplicity::Affine
-                };
-                let peeled = crate::execution::terminal_unit::types::borrowed_view_result_identity(
-                    program,
-                    target_state.return_type,
-                );
-                let shelled = program.normalized_type_identity(target_state.return_type);
-                expected.multiplicity != multiplicity
-                    || (peeled != Some(expected.type_identity) && shelled != expected.type_identity)
-            }
-            Some(ExpectedCallValueResult::Structural(expected))
-                if crate::execution::terminal_unit::reference_results::mutable_borrowed_parts(
-                    program,
-                    target_state.return_type,
-                )
-                .is_some() =>
-            {
-                expected.multiplicity != Multiplicity::Affine
-                    || program.normalized_type_identity(target_state.return_type)
-                        != expected.type_identity
-            }
-            Some(ExpectedCallValueResult::Structural(expected))
-                if let Some(referee) =
-                    crate::execution::terminal_unit::types::borrowed_view_referent(
-                        program,
-                        target_state.return_type,
-                        language_semantics::ReferenceAccess::Mutable,
-                    ) =>
-            {
-                // A named `&mut R` result is the exclusive loan the
-                // shared-view arm above names for shared borrows: affine
-                // custody against the callee's storage. Like the named
-                // views, the bound side keeps its `ref-mut` shell — the
-                // `Reference` shape is the custody it loans; the peeled
-                // referent spelling stays accepted for anonymous results.
-                let peeled = Some(program.type_identity(
-                    typed_trees::type_identity::TypeIdentityRequest::ordinary(referee),
-                ));
-                let shelled = program.normalized_type_identity(target_state.return_type);
-                expected.multiplicity != Multiplicity::Affine
-                    || (peeled != Some(expected.type_identity) && shelled != expected.type_identity)
-            }
-            Some(expected @ ExpectedCallValueResult::Structural(_)) => {
-                !boundary_value_result_matches(program, target_state.return_type, expected, &[])
-            }
+    if match &expected_call_result {
+        None => !is_unit(program, target_state.return_type),
+        Some(expected) => {
+            !call_value_result_matches(program, target_state.return_type, expected, &[])
         }
     } {
         return None;

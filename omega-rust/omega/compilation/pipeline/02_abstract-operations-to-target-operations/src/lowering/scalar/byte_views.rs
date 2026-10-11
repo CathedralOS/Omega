@@ -372,7 +372,8 @@ pub(in crate::lowering) fn resolve_byte_view(
     if active.contains(&place) {
         return Err(invalid());
     }
-    if let Some((psi_operation, result)) = descriptor_result(function, place, structural_types)
+    if let Some((psi_operation, result)) =
+        descriptor_result(function, place, structural_types, backings.homes)
         && structural_types
             .get(&result.structural_type)
             .is_some_and(|row| row.shape.is_borrowed_byte_view())
@@ -654,9 +655,9 @@ fn observes_length(
     }
 }
 
-/// Authenticate the completed descriptor's storage identity: a structural
-/// call's readable descriptor result, or a declared descriptor local's home,
-/// whose descriptor its whole-slot stores install. Backing provenance is
+/// Authenticate a completed descriptor through its allocated result home and
+/// exact producer declaration, independent of the producer's call origin.
+/// Descriptors held only in SSA keep their separate geometry route. Backing provenance is
 /// retained separately by call and descriptor custody; a result home never
 /// becomes a new independent allocation merely because it has a descriptor
 /// layout.
@@ -664,22 +665,14 @@ pub(in crate::lowering) fn descriptor_result<'a>(
     function: &'a AbstractFunction,
     place: PlaceId,
     types: &StructuralTypeLookup<'_>,
+    homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
 ) -> Option<(OperationId, &'a terminal_psi::StructuralOperationResult)> {
-    let mut producers = function
-        .operations
-        .iter()
-        .filter_map(|operation| match operation {
-            AbstractOperation::CallStructural {
-                psi_operation,
-                result: AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            }
-            | AbstractOperation::EstablishStructuralLocal {
-                psi_operation,
-                result,
-            } if result.place == place => Some((*psi_operation, result)),
-            _ => None,
-        });
+    let (producer, stored) = homes.get(&place)?.operation_result()?;
+    let mut producers = function.operations.iter().filter_map(|operation| {
+        operation
+            .structural_result()
+            .filter(|(_, result)| result.place == place)
+    });
     let (operation, result) = producers.next()?;
     // A descriptor home's declared byte qualifications describe the contents
     // its stores proved; a call result's qualifications stay excluded here.
@@ -688,6 +681,8 @@ pub(in crate::lowering) fn descriptor_result<'a>(
             if *psi_operation == operation)
     });
     (producers.next().is_none()
+        && operation == producer
+        && result == stored
         && matches!(
             result.multiplicity,
             terminal_psi::nonlinear_multiplicity_pair_pattern!()

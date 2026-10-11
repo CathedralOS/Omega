@@ -1,7 +1,7 @@
 //! Exact borrowed structural headers for observations, writes and calls.
 use super::{
-    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, CallPlan,
-    CallingPolicy, PsiOptimizationFunction, TargetFunction, ValueDefinitionSite, scalar_shape,
+    AbstractFunction, AbstractFunctionResult, AbstractOperationPlan, CallPlan, CallingPolicy,
+    PsiOptimizationFunction, TargetFunction, ValueDefinitionSite, scalar_shape,
 };
 use crate::LegalizationError;
 
@@ -344,18 +344,20 @@ pub(in crate::legalization) fn descriptor_result(
     semantic_vocabulary::StructuralTypeId,
 )> {
     let (producer, result) = super::structural_case::source_result(function, place).ok()?;
-    (matches!(result.multiplicity, terminal_psi::nonlinear_multiplicity_pair_pattern!())
-        && result.projected_qualifications.is_empty()
+    (matches!(
+        result.multiplicity,
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
+    ) && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
-        && terminal_semantics::descriptor_results::is_shared_descriptor(types.iter(), result.structural_type)
-        && function.block_nodes().any(|node| matches!(&node.operation,
-            AbstractOperation::CallStructural { psi_operation, result: abstract_operations::AbstractStructuralCallResult::Structural { result: actual, .. }, .. }
-            // A declared descriptor local's home holds the descriptor its
-            // whole-slot stores install.
-            | AbstractOperation::EstablishStructuralLocal { psi_operation, result: actual }
-                if *psi_operation == producer && actual == result)))
-        .then_some((producer, result.structural_type))
+        && terminal_semantics::descriptor_results::is_shared_descriptor(
+            types.iter(),
+            result.structural_type,
+        )
+        && function
+            .block_nodes()
+            .any(|node| node.operation.structural_result() == Some((producer, result))))
+    .then_some((producer, result.structural_type))
 }
 
 /// Derive the current call's complete backing roster, rather than trusting the
@@ -364,6 +366,8 @@ pub(in crate::legalization) fn call_descriptor_origins(
     unit: &optimization_unit::PsiOptimizationUnit,
     caller: semantic_vocabulary::MachineId,
     result: &terminal_psi::StructuralOperationResult,
+    native: &target_operations::TargetOperationPlan,
+    plan: &abstract_operations::AbstractOperationPlan,
 ) -> Result<Vec<legalized_operations::LegalizedDescriptorOrigin>, LegalizationError> {
     if !matches!(
         result.multiplicity,
@@ -374,32 +378,54 @@ pub(in crate::legalization) fn call_descriptor_origins(
     ) {
         return Ok(Vec::new());
     }
-    optimization_unit_semantics::descriptor_results::call_origins(unit, caller, result.place)
-        .ok_or(LegalizationError::custody())?
-        .into_iter()
-        .map(|origin| match origin {
-            terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty => {
-                Ok(legalized_operations::LegalizedDescriptorOrigin::Empty)
-            }
-            terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
-                source,
-                projection,
-            } => {
-                let projection = projection.without_runtime_coordinates();
-                Ok(legalized_operations::LegalizedDescriptorOrigin::Argument {
-                    source: terminal_psi::StructuralArgument {
-                        place: source,
-                        path: projection.path,
-                        access: terminal_psi::StructuralAccess::SharedBorrow,
-                    },
-                    exact: projection.exact,
-                    indirect: projection.indirect,
+    // Source and installed calls share one origin replay over current bodies.
+    // Authenticate selection with the existing call-origin join before exposing
+    // its callee; unresolved foreign calls retain their boundary semantics.
+    let graph = optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
+        unit.functions.iter(),
+        &unit.boundary_machines,
+        &unit.structural_types,
+        |function, node| {
+            super::call_origin::selected_boundary_operation(node, function, native, plan)
+                .ok()
+                .map(|selected| match selected {
+                    Some((operation, _)) => std::borrow::Cow::Owned(operation),
+                    None => std::borrow::Cow::Borrowed(&node.operation),
                 })
-            }
-            terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal {
-                machine,
-                place,
-            } => Ok(legalized_operations::LegalizedDescriptorOrigin::Literal { machine, place }),
-        })
-        .collect()
+        },
+    )
+    .ok_or(LegalizationError::custody())?;
+    terminal_semantics::descriptor_results::reconstruct_call_origins(
+        &unit.structural_types,
+        &graph,
+        caller,
+        result.place,
+    )
+    .ok_or(LegalizationError::custody())?
+    .into_iter()
+    .map(|origin| match origin {
+        terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty => {
+            Ok(legalized_operations::LegalizedDescriptorOrigin::Empty)
+        }
+        terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
+            source,
+            projection,
+        } => {
+            let projection = projection.without_runtime_coordinates();
+            Ok(legalized_operations::LegalizedDescriptorOrigin::Argument {
+                source: terminal_psi::StructuralArgument {
+                    place: source,
+                    path: projection.path,
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                },
+                exact: projection.exact,
+                indirect: projection.indirect,
+            })
+        }
+        terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal {
+            machine,
+            place,
+        } => Ok(legalized_operations::LegalizedDescriptorOrigin::Literal { machine, place }),
+    })
+    .collect()
 }

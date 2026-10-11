@@ -17,6 +17,8 @@ pub(super) fn project_call(
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     targeted: &target_operations::TargetUnitOperation,
+    native: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let target_operations::TargetUnitOperation::Call {
         psi_operation,
@@ -68,6 +70,8 @@ pub(super) fn project_call(
             unit,
             optimized.machine,
             result,
+            native,
+            plan,
         )?,
         None => Vec::new(),
     };

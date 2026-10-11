@@ -31,7 +31,7 @@ pub(super) fn project(
         targeted,
         target_operations::TargetUnitOperation::Call { .. }
     ) {
-        call_instructions::project_call(optimized, unit, targeted)?
+        call_instructions::project_call(optimized, unit, targeted, native, plan)?
     } else {
         match &node.operation {
             AbstractOperation::SelectImplementation { table, .. } => {

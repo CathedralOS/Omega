@@ -431,7 +431,7 @@ pub(in crate::lowering) fn resolve_element_view(
         return Err(invalid());
     }
     if let Some((psi_operation, result)) =
-        super::byte_views::descriptor_result(function, place, structural_types)
+        super::byte_views::descriptor_result(function, place, structural_types, backings.homes)
         && matches!(
             structural_types
                 .get(&result.structural_type)

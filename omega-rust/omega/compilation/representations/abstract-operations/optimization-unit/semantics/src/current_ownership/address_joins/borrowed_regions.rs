@@ -116,6 +116,7 @@ impl BorrowedRegions {
             catalog,
             boundaries.iter().copied(),
             &declarations,
+            |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
         );
         let mut reference_sources = BorrowedReferenceSources::new();
         for parameter in function.block_structural_parameters() {

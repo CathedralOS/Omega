@@ -787,13 +787,33 @@ pub(crate) fn boundary_result_plan(
     if let Some(scalar) = program.primitive_type_reference(type_reference) {
         return Some(CheckedBoundaryMachineResultPlan::Scalar(scalar));
     }
+    // A reference result publishes the same descriptor or permission carrier
+    // as a checked-body result. The source call's captured lifetime relation
+    // supplies loan custody; this signature neither creates backing storage
+    // nor authorizes a provider. Keep carrier classification independent of
+    // which admitted implementation will satisfy the requirement.
+    if is_reference(program, type_reference) {
+        let carrier = super::call_results::checked_structural_result_type(
+            program,
+            shapes,
+            type_reference,
+            binders,
+        )?;
+        return Some(CheckedBoundaryMachineResultPlan::Structural {
+            type_identity: carrier.type_identity,
+            multiplicity: carrier.multiplicity,
+            qualifications: parameter_qualifications(program, shapes, type_reference, binders)?,
+            projected_qualifications: projected_parameter_qualifications(
+                program,
+                shapes,
+                type_reference,
+                binders,
+            )?,
+        });
+    }
     // Owned result storage is independent of its cleanup obligation. The
     // successful call transports the producer's actual claims; the receiving
-    // body still owes their separately checked settlement. Reference results
-    // need their distinct returned-loan custody and are not owned storage.
-    if is_reference(program, type_reference) {
-        return None;
-    }
+    // body still owes their separately checked settlement.
     Some(CheckedBoundaryMachineResultPlan::Structural {
         type_identity: shapes.add_type(type_reference, binders, substitutions)?,
         multiplicity: crate::checks::type_multiplicity(program, type_reference),

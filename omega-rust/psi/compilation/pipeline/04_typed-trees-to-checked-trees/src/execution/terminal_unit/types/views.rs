@@ -134,21 +134,4 @@ pub(crate) fn borrowed_view_referent(
     lends_view.then_some(shell.referee)
 }
 
-/// The `type_identity` an anonymous-result plan mints for a borrowed-view
-/// result: the structural identity of the storage the view lends, exactly as
-/// `ShapeCollector::add_type` registers it.
-pub(crate) fn borrowed_view_result_identity(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<typed_trees::type_identity::TypeIdentityId> {
-    (borrowed_view_referent(
-        program,
-        type_reference,
-        language_semantics::ReferenceAccess::Shared,
-    )
-    .is_some()
-        || borrowed_slice_result(program, type_reference))
-    .then(|| validation::structural_type_identity(program, type_reference, &[], &[]))
-}
-
 pub(crate) use validation::byte_sequence_carrier;

@@ -58,8 +58,6 @@ pub(crate) fn lower_declarations(
             .map(|parameter| terminal_scalar_type(parameter.primitive_type))
             .collect::<Result<Vec<_>, _>>()?;
         let requires = lower_requirements(plan, &parameters, domain_ids)?;
-        let scalar_requires = lower_scalar_requires(identities, plan, &scalar_parameters)?;
-        let scalar_ensures = lower_scalar_ensures(identities, plan, &scalar_parameters)?;
         // Terminal call operands use packed structural positions; checked
         // predicates retain authored positions across interleaved scalar lanes.
         // Reuse the allocated places and types, changing only predicate lookup.
@@ -74,6 +72,23 @@ pub(crate) fn lower_declarations(
                 },
             )
             .collect::<Vec<_>>();
+        // A scalar predicate may observe a structural formal's extent or
+        // member. Boundary contracts use the same declared-input namespace
+        // as ordinary bodies, not an empty roster or a provider's body locals.
+        let view_roster = predicate_parameters
+            .iter()
+            .map(|parameter| (parameter.position, parameter.clone()))
+            .collect::<Vec<_>>();
+        let element_views =
+            crate::expression_preparation::bindings::element_views(&view_roster, structural_types);
+        let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+            parameters: &view_roster,
+            result: None,
+            structural_types,
+            element_views: &element_views,
+        };
+        let scalar_requires = lower_scalar_requires(identities, plan, &scalar_parameters, &views)?;
+        let scalar_ensures = lower_scalar_ensures(identities, plan, &scalar_parameters, &views)?;
         let crash_routes = lower_boundary_crash_routes(
             identities,
             checked,
@@ -205,14 +220,16 @@ fn lower_scalar_requires(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     plan: &CheckedBoundaryMachinePlan,
     scalar_types: &[ScalarType],
+    views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
 ) -> Result<Vec<Proposition>, LoweringError> {
-    lower_scalar_contract(identities, &plan.scalar_requires, scalar_types)
+    lower_scalar_contract(identities, &plan.scalar_requires, scalar_types, views)
 }
 
 fn lower_scalar_ensures(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     plan: &CheckedBoundaryMachinePlan,
     scalar_types: &[ScalarType],
+    views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
 ) -> Result<Vec<Proposition>, LoweringError> {
     let mut namespace = scalar_types.to_vec();
     if let Some(result) = plan.result.scalar() {
@@ -220,13 +237,7 @@ fn lower_scalar_ensures(
     }
     let formals = scalar_contract_formals(&namespace)?;
     let mut predicate = |value| {
-        crate::scalar_lowering::contracts::proposition(
-            identities,
-            value,
-            &formals,
-            &[],
-            &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
-        )
+        crate::scalar_lowering::contracts::proposition(identities, value, &formals, &[], views)
     };
     let rows = plan
         .scalar_ensures
@@ -252,6 +263,7 @@ fn lower_scalar_contract(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     clauses: &[checked_trees::ClosedScalarContractValue],
     scalar_types: &[ScalarType],
+    views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
 ) -> Result<Vec<Proposition>, LoweringError> {
     if clauses.is_empty() {
         return Ok(Vec::new());
@@ -265,7 +277,7 @@ fn lower_scalar_contract(
                 std::slice::from_ref(&Some(row.clone())),
                 &formals,
                 &[],
-                &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
+                views,
             )
         })
         .collect::<Result<Vec<_>, _>>()?

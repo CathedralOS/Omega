@@ -1,11 +1,8 @@
-//! Which boundary scalar targets, result values, argument presentations and
+//! Which boundary scalar targets, argument presentations and
 //! mutable byte-array views a structural call may admit.
 
-use crate::execution::terminal_unit::calls::call_operations::ExpectedCallValueResult;
-use crate::execution::terminal_unit::types::is_unit;
-use crate::execution::terminal_unit::types::{base_type_identity, substituted_formal_type};
 use crate::execution::terminal_unit::{
-    Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode, is_reference,
+    Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
 };
 
 /// The source of boundary authority is independent of operand scheduling.
@@ -92,36 +89,6 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
         .flatten()
         .filter(|carrier| carrier.carrier.requirement == requirement)
         .map(|_| (source, place))
-}
-
-/// `substitutions` carries the call edge's admitted specialization: a
-/// generic requirement's `Type` result formal resolves to its derived actual
-/// before shape evidence is replayed, and a compound result such as
-/// `Task<T>` substitutes inside the identity comparison itself.
-/// This joins the returned carrier, not its eventual disposal: completion
-/// transfers nominal cleanup obligations and stored loan custody with the
-/// whole value. Source copyability does not erase either carried obligation.
-pub(crate) fn boundary_value_result_matches(
-    program: &dyn ::validation::CheckingInput,
-    return_type: typed_trees::types::TypeReferenceHandle,
-    expected: &ExpectedCallValueResult<'_>,
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-) -> bool {
-    let return_type = substituted_formal_type(program, return_type, substitutions);
-    match expected {
-        ExpectedCallValueResult::Scalar(expected) => {
-            program.primitive_type_reference(return_type) == Some(*expected)
-        }
-        ExpectedCallValueResult::Structural(expected) => {
-            program.primitive_type_reference(return_type).is_none()
-                && !is_unit(program, return_type)
-                && !is_reference(program, return_type)
-                && validation::reference_result_custody::result_multiplicity(program, return_type)
-                    == expected.multiplicity
-                && base_type_identity(program, return_type, &[], substitutions)
-                    .is_some_and(|identity| identity == expected.type_identity)
-        }
-    }
 }
 
 /// A fixed array lends its initialized extent as the borrowed element view a

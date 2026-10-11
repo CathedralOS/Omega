@@ -15,8 +15,9 @@ use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, checked_call_scalar_arguments,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
-    BoundaryTraitReceiver, boundary_trait_receiver_source, boundary_value_result_matches,
+    BoundaryTraitReceiver, boundary_trait_receiver_source,
 };
+use crate::execution::terminal_unit::calls::call_operations::call_value_result_matches;
 use crate::execution::terminal_unit::calls::parameter_argument_paths::{
     ParameterArgument, SourceParameter, boundary_parameter_path,
 };
@@ -498,7 +499,7 @@ pub(super) fn build(
     if match expected_call_result {
         None => !is_unit(program, signature_return),
         Some(expected) => {
-            !boundary_value_result_matches(program, return_type, expected, substitutions.as_slice())
+            !call_value_result_matches(program, return_type, expected, substitutions.as_slice())
         }
     } {
         return None;

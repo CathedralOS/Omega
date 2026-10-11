@@ -4,6 +4,7 @@
 use abstract_operations::{AbstractOperation as O, StructuralCopyPath};
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     BoundaryMachineDeclaration, StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
@@ -30,7 +31,9 @@ pub fn abstract_catalog_graph<'function, 'boundary>(
         .map(optimization_unit::reconstruct_psi_optimization_function_seed)
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
-    optimized_catalog_graph(functions.iter(), boundaries, types)
+    optimized_catalog_graph(functions.iter(), boundaries, types, |_, node| {
+        Some(Cow::Borrowed(&node.operation))
+    })
 }
 
 pub(crate) fn optimized_graph(unit: &PsiOptimizationUnit) -> Option<Vec<DescriptorMachine>> {
@@ -38,16 +41,24 @@ pub(crate) fn optimized_graph(unit: &PsiOptimizationUnit) -> Option<Vec<Descript
         unit.functions.iter(),
         &unit.boundary_machines,
         &unit.structural_types,
+        |_, node| Some(Cow::Borrowed(&node.operation)),
     )
 }
 
 /// Prepare current executable bodies once, without retained producer summaries.
-/// Boundary declarations decide whether a completed host call can retain a
-/// lent descriptor; their bodies are not part of this catalog.
+/// `operation` chooses the execution relation available to this consumer.
+/// Portable consumers retain boundary declarations; realization consumers can
+/// supply an independently admitted callee using the same call-flow adapter.
+/// Selection cannot change operands or result custody. No body is cloned and
+/// no signature-only loan claim substitutes for an executable return origin.
 pub fn optimized_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
+    operation: impl for<'node> Fn(
+        &PsiOptimizationFunction,
+        &'node optimization_unit::OptimizationNode,
+    ) -> Option<Cow<'node, O>>,
 ) -> Option<Vec<DescriptorMachine>> {
     let functions = functions.into_iter().collect::<Vec<_>>();
     let boundaries = boundaries.into_iter().collect::<Vec<_>>();
@@ -58,7 +69,7 @@ pub fn optimized_catalog_graph<'function, 'boundary>(
             if !identities.insert(function.machine) {
                 return None;
             }
-            adapt(types, &boundaries, &functions, function)
+            adapt(types, &boundaries, &functions, function, &operation)
         })
         .collect()
 }
@@ -86,7 +97,9 @@ pub(crate) fn owned_aggregate_descriptor_returns<'function, 'boundary>(
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
 ) -> bool {
-    let Some(graph) = optimized_catalog_graph(functions, boundaries, types) else {
+    let Some(graph) = optimized_catalog_graph(functions, boundaries, types, |_, node| {
+        Some(Cow::Borrowed(&node.operation))
+    }) else {
         return false;
     };
     let Some(returns) = kernel::descriptor_machine(&graph, function.machine)
@@ -117,6 +130,10 @@ fn adapt(
     boundaries: &[&BoundaryMachineDeclaration],
     functions: &[&PsiOptimizationFunction],
     function: &PsiOptimizationFunction,
+    operation: &impl for<'node> Fn(
+        &PsiOptimizationFunction,
+        &'node optimization_unit::OptimizationNode,
+    ) -> Option<Cow<'node, O>>,
 ) -> Option<DescriptorMachine> {
     let mut graph = DescriptorMachine {
         id: function.machine,
@@ -241,7 +258,8 @@ fn adapt(
     for block in &function.blocks {
         for (index, node) in block.nodes.iter().enumerate() {
             let position = (block.id, u32::try_from(index).ok()?);
-            let operation = &node.operation;
+            let selected = operation(function, node)?;
+            let operation = selected.as_ref();
             let result = operation.structural_result().map(|(_, result)| result);
             let mut step = DescriptorFlowStep {
                 inputs: crate::unit_validation::function_structure::operation_place_inputs(
