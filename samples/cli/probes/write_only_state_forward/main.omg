@@ -14,5 +14,5 @@ machine Main::main(main: &mut Main) {
     forward(&write main.value, 70);
     forward(&write main.neighbor, 4);
     transition { _ -> read(main) }
-    state read(main: &mut Main) -> i32 { main.value }
+    state read(main: &mut Main) { let value: i32 = main.value; }
 }

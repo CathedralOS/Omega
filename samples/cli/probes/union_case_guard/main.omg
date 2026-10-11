@@ -6,13 +6,13 @@ machine Main::main(main: &mut Main) {
         (true) -> moving(main)
         _ -> silent(main)
     }
-    state moving(main: &mut Main) -> i32 {
+    state moving(main: &mut Main) {
         main.hits = main.hits + 1;
         transition (main.cmd in Command::None | Command::Say) {
             (true) -> silent(main)
             _ -> checked(main)
         }
     }
-    state checked(main: &mut Main) -> i32 { (main.hits + 11) as i32 }
-    state silent(main: &mut Main) -> i32 { 0 }
+    state checked(main: &mut Main) { let value: i32 = (main.hits + 11) as i32; }
+    state silent(main: &mut Main) { let value: i32 = 0; }
 }

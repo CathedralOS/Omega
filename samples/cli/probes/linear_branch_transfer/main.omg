@@ -25,13 +25,13 @@ machine Main::main(main: &mut Main) {
         _ -> consume_second(receipt)
     }
 
-    state consume_first(receipt: Receipt) -> i32 {
+    state consume_first(receipt: Receipt) {
         Receipt::ack(receipt);
-        0
+        let value: i32 = 0;
     }
 
-    state consume_second(receipt: Receipt) -> i32 {
+    state consume_second(receipt: Receipt) {
         Receipt::ack(receipt);
-        0
+        let value: i32 = 0;
     }
 }
