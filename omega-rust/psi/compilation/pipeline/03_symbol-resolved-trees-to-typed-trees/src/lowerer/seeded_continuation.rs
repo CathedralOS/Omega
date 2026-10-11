@@ -139,8 +139,10 @@ pub fn lower_symbol_resolved_trees_to_seeded_base(
     resolved: impl Into<Arc<SymbolResolvedTrees>>,
 ) -> Result<SeededTypingBase, Diagnostic> {
     let resolved = resolved.into();
-    let mut typed = lower_symbol_resolved_trees(&resolved)?;
-    typed.symbols = resolved.symbols.clone();
+    // Complete typing freshens callable binders. Their signatures retain the
+    // generated symbols, so keep that suffix with the typed arenas; the next
+    // resolver extension admits it through resolved_base_for_extension.
+    let typed = lower_symbol_resolved_trees(&resolved)?;
     Ok(SeededTypingBase { resolved, typed })
 }
 

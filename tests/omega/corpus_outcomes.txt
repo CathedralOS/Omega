@@ -3092,8 +3092,8 @@ fail/traits/member_requires_beyond_requirement rejected 684ms expected @e83cb166
 	machine `Strict::shrink` realizes `Shrink::shrink` but requires `value <= 50`, which the requirement does not require; callers of the requirement prove only its own `requires`
 fail/traits/nested_trait_callback_unknown_type_rejected rejected 201ms expected @e93a32508581+wt
 	machine-parameter requirement `Callback` state `Callback` parameter `value` references unknown data type `Missing`
-fail/traits/nominal_invocation_type_argument_not_reselected rejected 187ms expected @f08249213499
-	machine argument `wrong_context` for `Routine` does not refine `Callback`: parameter 1 expects `Context`, got `bool`
+fail/traits/nominal_invocation_type_argument_not_reselected rejected 181ms expected @4146666641c6+wt
+	machine argument `wrong_context` for `Routine` does not refine `Callback`: parameter 1 expects `u64`, got `bool`
 fail/traits/ordinary_trait_inherits_boundary rejected 275ms expected @2d8ed253669f
 	ordinary trait `HiddenDevice` cannot inherit boundary service `Device`; declare the child as `boundary trait`
 fail/traits/self_type_retired rejected 192ms expected @c9e4c60b2906+wt
