@@ -359,6 +359,9 @@ fn selected_component_descriptions(
     occurrence_retained: &mut [Option<compilation_products::RetainedCompilationChecks>],
 ) -> Result<Vec<IndependentComponentDescription>, Error> {
     let mut descriptions = Vec::new();
+    // Components share the invocation's product judgments: the request pool
+    // (earlier targets) plus every component checked so far this pass.
+    let mut sibling_product_checks = settled_check_reuse.prior.sibling_product_checks.clone();
     for selection in selections {
         let Some(component) = selection.component else {
             continue;
@@ -407,6 +410,11 @@ fn selected_component_descriptions(
                             .get(position * 2 + purpose_slot(purpose))
                             .and_then(|slot| slot.as_ref())
                             .and_then(|prior| prior.product.clone()),
+                        // Sibling component checks from this same invocation
+                        // plus the request's earlier product judgments: an
+                        // exact-input match takes that judgment instead of
+                        // repeating the whole-program check.
+                        sibling_product_checks: sibling_product_checks.clone(),
                         ..compilation_products::RetainedCompilationChecks::default()
                     },
                     retain: settled_check_reuse.retain,
@@ -418,7 +426,11 @@ fn selected_component_descriptions(
                 diagnostics: failure.into_diagnostics(),
             })?;
             // The checked component's own retained judgments replace whatever
-            // its earlier Build custody captured.
+            // its earlier Build custody captured, and join the sibling pool
+            // for components whose settled programs arrive equal later.
+            if let Some(product) = checked.settled_checks().product.clone() {
+                sibling_product_checks.push(product);
+            }
             occurrence_retained[position * 2 + purpose_slot(purpose)] =
                 Some(checked.settled_checks().clone());
             products.description =
