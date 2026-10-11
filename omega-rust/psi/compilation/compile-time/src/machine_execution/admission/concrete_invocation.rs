@@ -17,7 +17,7 @@
 //! Every other premise — on a callee, a later state, or a callable target —
 //! sits at a source call or transition site whose proof reads only that
 //! caller's own facts. When the entry carries no premise, a clean checked
-//! lowering of the program proves the whole closure for any arguments, so an
+//! lowering of the demanded checking closure proves it for any arguments, so an
 //! argument-carrying policy or layout invocation needs no synthesized call.
 //!
 //! Every other floor axis — service reach, suspension, blocking,
@@ -114,7 +114,7 @@ pub(super) fn zero_argument_invocation_discharges(
 /// Whether ordinary checking alone discharges every authored `requires`
 /// premise in `machine`'s call closure, whatever the invocation's arguments.
 /// Holds only when neither the machine nor its entry state carries an
-/// authored premise and the program survives ordinary checked lowering;
+/// authored premise and its demanded closure survives ordinary checked lowering;
 /// an entry premise keeps its concrete routes or the conservative fence.
 pub(super) fn argument_independent_closure_discharges(
     program: &TypedTrees,
@@ -126,7 +126,17 @@ pub(super) fn argument_independent_closure_discharges(
     if !entry_is_unconditional {
         return false;
     }
-    let mut probe = program.clone();
+    // A layout policy may be admitted before unrelated runtime declarations
+    // have their authoritative layout/accessor plans. Those declarations are
+    // not premises of this invocation. Close the root's real type, proof,
+    // operator and body dependencies through the shared evaluation projection;
+    // retain their contracts unchanged and check that exact demanded program.
+    let domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
+        program,
+        &[machine.symbol],
+        &[],
+    );
+    let mut probe = domain.execution_program(program);
     // Same preliminary-package window as the zero-argument probe above.
     probe.pending_const_range_endpoints.clear();
     let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();

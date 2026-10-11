@@ -47,9 +47,8 @@ endpoint static and does not authorize maximum-sized storage.
    establishment route has an independent customer. Equal predicates do not
    justify keeping a named domain.
 4. Re-check the package: `mbx run -p omega -- --check <root.omg>`. For corpus
-   fixtures, the scoped canary filter is
-   `OMEGA_PASS_CANARY_FILTER=<group>/<name> mbx nextest run -p compiler
-   --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`.
+   fixtures, run `python3 tools/corpus_gate.py --filter <group>/<name>` and
+   the matching-host execution leg for authored runtime oracles.
 5. The compiler-side deletion (parse path, `TypeConstraintNode::Range`,
    range-shell generic matching, range-recommending diagnostics) is the last
    step — do not pre-delete it while source still spells the suffix.

@@ -1633,18 +1633,6 @@ defines the complete product bar.
     mutation controls). Keep `pass/dependent/runtime_state_dependent_index_forward_exit`
     and `fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`
     as controls for captured state arguments and invalidated bound observations.
-  - Library: migrate `AccessPlan::with_bounded`'s
-    `fuel`/`index`/`field_count` parameters (`source/library/core/layout.omg`,
-    9) and `field_range`'s `first_field` (`std/entry_shapes.omg`,
-    `std/targets/macos_x86_64/entry.omg`): build-time admission
-    (`omega-rust/psi/compilation/compile-time/src/machine_execution/admission/closure_validation.rs`)
-    treats an authored `requires` anywhere in a policy's call closure as an
-    undischarged premise. In `requires` form a placement policy calling
-    `AccessPlan::with` is refused even in a program that otherwise checks, and
-    every hosted entry calling policy pays the whole-program discharge probe
-    (`argument_independent_closure_discharges`): `pass/filesystem/native_crud`
-    checks in 34 s instead of 4.5 s. Migrate these once admission discharges
-    premises the checker already proved.
   - Migrate `fail/wire/wire_policy_plan_disagrees` keeping its plan/schema
     disagreement rejection.
   Canonical controls to keep: `pass/collections/runtime_argmax_index_exit`,
@@ -1653,6 +1641,10 @@ defines the complete product bar.
   `fail/constants/unused_*_predicate_constant`, `unused_*_default_domain_constant`
   and `predicate_constant_*` controls (ordinary materialization never grants
   const-index eligibility),
+  `pass/layouts/placed_view_source_access_compile`,
+  `fail/layouts/placement_policy_unproved_callee_premise` and
+  `pass/filesystem/native_crud` (policy admission keeps each concrete callee
+  premise without checking unrelated unfinished runtime layouts),
   `pass/collections/runtime_nested_const_row_indexed_read_exit`,
   `pass/arithmetic/runtime_guard_narrowed_transition_arg_exit`,
   `pass/arithmetic/runtime_exact_guarded_shift_count_exit`,

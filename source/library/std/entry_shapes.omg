@@ -34,7 +34,9 @@ machine HostedEntryShapes::extent_shape(shape: ValueShape, signature: &BoundaryS
             _ -> no()
         }
     }
-    state field_range(signature: &BoundarySignature, first_field: u64 [0..=254]) -> bool {
+    state field_range(signature: &BoundarySignature, first_field: u64) -> bool
+    requires first_field <= 254
+    {
         let second_field: u64 = first_field + 1;
         transition second_field < signature.field_count {
             true -> fields(signature, &signature.fields[first_field], &signature.fields[second_field])
