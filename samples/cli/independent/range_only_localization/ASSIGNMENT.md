@@ -27,8 +27,8 @@ bounded ranges, intersects Euclidean annuli or emits every feasible position
 and residual tuple. This workflow uses runtime synthetic geometry without
 traverse state, temporal filtering, neighbor selection or averaging.
 
-Independent review belongs to the parent/coordinator, as explicitly requested.
-No additional worker is launched. A review-ready Library bundle must contain the
+Implementation is owned entirely by ADD09. Independent review follows the
+user-authorized reviewer process; no implementation worker is delegated. A review-ready Library bundle must contain the
 candidate/base identities, source hashes, patch, git bundle, frozen oracles,
 actual output artifacts and precise validation commands. Only after that review
 should the candidate use the documented main-only landing queue.
