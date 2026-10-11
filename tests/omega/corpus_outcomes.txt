@@ -5202,3 +5202,4 @@ pass/structural/computed_enum_equality_guard_exit checked 5285ms check-target:ma
 fail/borrows/fixed_array_slice_state_immutable_rejected rejected 634ms expected @bfff43e67094+wt
 	mutable argument `values` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 pass/slices/fixed_array_slice_state_arguments_exit checked 9720ms check-target:macos_arm64 @bfff43e67094+wt
+pass/register_allocation/fixed_uses_across_hosted_clobbers_exit checked 10808ms check-target:macos_arm64 @650ad856cea9+wt
