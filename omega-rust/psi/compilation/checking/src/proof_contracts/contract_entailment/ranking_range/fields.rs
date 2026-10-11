@@ -82,14 +82,7 @@ pub(super) fn endpoint_lands_under(
     let Some(primitive) = exact_integer_parameter(program, carrier) else {
         return false;
     };
-    let Some((minimum, maximum)) = super::integer_carrier_bounds(primitive) else {
-        return false;
-    };
-    let prove = |difference: &Polynomial| {
-        engine.prove_at_least(&engine.substituted(difference), &BigInt::zero())
-    };
-    prove(&polynomial.sub(&Polynomial::constant(minimum)))
-        && prove(&Polynomial::constant(maximum).sub(polynomial))
+    integer_value_lands(engine, primitive, polynomial)
 }
 
 /// Arrival equality of a normalized endpoint does not preserve formation:
@@ -474,7 +467,7 @@ pub(super) fn completed_scalar_actual(
     path: &[facts::PlaceSegment],
 ) -> Option<Polynomial> {
     use super::super::completed_values::{
-        CompletedValueSource, completed_value_observations, expression_statement_index,
+        completed_value_observations, expression_statement_index,
     };
     let statement_index = expression_statement_index(program, state, expression)?;
     let reference = crate::expression_result_type_reference(program, machine, state, expression)?;
@@ -517,56 +510,99 @@ pub(super) fn completed_scalar_actual(
             continue;
         };
         for source in projection.sources {
-            match source {
-                CompletedValueSource::Parameter { symbol, mut path } => {
-                    // Equality of the completed descriptor conserves this
-                    // declared suffix, not a scalar snapshot of its contents.
-                    path.extend_from_slice(suffix);
-                    if path.is_empty() {
-                        if let Some(value) = engine.strict_symbol_value(symbol) {
-                            return Some(value);
-                        }
-                        continue;
-                    }
-                    let location = super::RankSubjectCoordinate {
-                        parameter: symbol,
-                        path,
-                    };
-                    let Some(coordinate) = FieldCoordinate::at_coordinate(
-                        program,
-                        state,
-                        &location,
-                        CoordinateKind::Field,
-                    ) else {
-                        continue;
-                    };
-                    if engine.install_hypotheses(coordinate.field_comparisons(program)) {
-                        return Some(coordinate.value());
-                    }
-                }
-                CompletedValueSource::Expression(source) => {
-                    if !suffix.is_empty() {
-                        continue;
-                    }
-                    if super::meanings::install_nonpolynomial_terms(
-                        program, machine, state, engine, source, 0,
-                    )
-                    .is_none()
-                        || super::meanings::builtin(program, machine, state, source, 0).is_none()
-                    {
-                        continue;
-                    }
-                    let Some(value) = engine.normalize(source) else {
-                        continue;
-                    };
-                    if endpoint_lands_under(engine, program, machine, state, source, &value) {
-                        return Some(value);
-                    }
-                }
+            if let Some(value) =
+                completed_source_value(program, machine, state, engine, &source, suffix)
+            {
+                return Some(value);
             }
         }
     }
     None
+}
+
+/// Normalize the value described by completion, preserving each selected
+/// operation's formation before algebra can erase an overflowing intermediate.
+/// Descriptor suffixes belong only to direct parameter identity transport.
+fn completed_source_value(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    engine: &mut Engine<'_>,
+    source: &super::super::completed_values::CompletedValueSource,
+    suffix: &[facts::PlaceSegment],
+) -> Option<Polynomial> {
+    use super::super::completed_values::CompletedValueSource;
+    use numerics::arithmetic::ArithmeticDomain;
+    match source {
+        CompletedValueSource::Parameter { symbol, path } => {
+            let mut path = path.clone();
+            path.extend_from_slice(suffix);
+            if path.is_empty() {
+                return engine.strict_symbol_value(*symbol);
+            }
+            let location = super::RankSubjectCoordinate {
+                parameter: *symbol,
+                path,
+            };
+            let coordinate =
+                FieldCoordinate::at_coordinate(program, state, &location, CoordinateKind::Field)?;
+            engine
+                .install_hypotheses(coordinate.field_comparisons(program))
+                .then(|| coordinate.value())
+        }
+        CompletedValueSource::Expression(source) if suffix.is_empty() => {
+            super::meanings::install_nonpolynomial_terms(
+                program, machine, state, engine, *source, 0,
+            )?;
+            super::meanings::builtin(program, machine, state, *source, 0)?;
+            let value = engine.normalize(*source)?;
+            endpoint_lands_under(engine, program, machine, state, *source, &value).then_some(value)
+        }
+        CompletedValueSource::Integer(integer) if suffix.is_empty() => {
+            Some(Polynomial::constant(integer.clone()))
+        }
+        CompletedValueSource::ScalarBinary {
+            operator,
+            meaning,
+            operands,
+        } if suffix.is_empty() => {
+            let [(primitive, policy), (right_primitive, right_policy)] = *meaning;
+            if primitive != right_primitive
+                || !primitive.accepts_integer_literal()
+                || policy != ArithmeticDomain::Exact
+                || right_policy != ArithmeticDomain::Exact
+            {
+                return None;
+            }
+            let [left, right] = operands.as_ref();
+            let left = completed_source_value(program, machine, state, engine, left, &[])?;
+            let right = completed_source_value(program, machine, state, engine, right, &[])?;
+            if !integer_value_lands(engine, primitive, &left)
+                || !integer_value_lands(engine, primitive, &right)
+            {
+                return None;
+            }
+            let value = match operator {
+                BinaryOperator::Add => left.add(&right),
+                BinaryOperator::Subtract => left.sub(&right),
+                BinaryOperator::Multiply => left.checked_mul(&right)?,
+                _ => return None,
+            };
+            integer_value_lands(engine, primitive, &value).then_some(value)
+        }
+        _ => None,
+    }
+}
+
+fn integer_value_lands(engine: &Engine<'_>, primitive: PrimitiveType, value: &Polynomial) -> bool {
+    let Some((minimum, maximum)) = super::integer_carrier_bounds(primitive) else {
+        return false;
+    };
+    let prove = |difference: Polynomial| {
+        engine.prove_at_least(&engine.substituted(&difference), &BigInt::zero())
+    };
+    prove(value.sub(&Polynomial::constant(minimum)))
+        && prove(Polynomial::constant(maximum).sub(value))
 }
 
 /// The declared type of an exact member chain rooted at a state formal:

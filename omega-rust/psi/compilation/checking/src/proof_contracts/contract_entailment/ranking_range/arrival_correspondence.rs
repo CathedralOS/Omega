@@ -704,9 +704,7 @@ fn completed_projected_coordinates(
     source: &StateEntryCorrespondence,
     depth: usize,
 ) -> Option<CompletedCoordinateInventory> {
-    use super::super::completed_values::{
-        CompletedValueSource, completed_value_observations, expression_statement_index,
-    };
+    use super::super::completed_values::completed_value_observations;
     let reference = crate::expression_result_type_reference(program, machine, state, expression)?;
     let projections = completed_value_observations(
         program,
@@ -721,20 +719,15 @@ fn completed_projected_coordinates(
     for projection in projections {
         let mut complete_projection = false;
         for observation in projection.sources {
-            let observed = match observation {
-                CompletedValueSource::Parameter { symbol, path } => Some(
-                    completed_parameter_coordinates(source, symbol, &path, expression),
-                ),
-                CompletedValueSource::Expression(operand) => completed_coordinates(
-                    program,
-                    machine,
-                    state,
-                    expression_statement_index(program, state, operand)?,
-                    operand,
-                    source,
-                    depth + 1,
-                ),
-            };
+            let observed = completed_source_coordinates(
+                program,
+                machine,
+                state,
+                &observation,
+                expression,
+                source,
+                depth + 1,
+            );
             let Some(observed) = observed else {
                 continue;
             };
@@ -754,6 +747,68 @@ fn completed_projected_coordinates(
         }
     }
     Some(completed)
+}
+
+/// Public result equations describe dependencies of a produced scalar, not
+/// identity with any operand. Traverse their captured leaves through the same
+/// source/capture owner, retaining every dependency and incomplete child.
+fn completed_source_coordinates(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    observation: &super::super::completed_values::CompletedValueSource,
+    expression: ExpressionHandle,
+    source: &StateEntryCorrespondence,
+    depth: usize,
+) -> Option<CompletedCoordinateInventory> {
+    use super::super::completed_values::{CompletedValueSource, expression_statement_index};
+    if depth >= 64 {
+        return None;
+    }
+    match observation {
+        CompletedValueSource::Parameter { symbol, path } => Some(completed_parameter_coordinates(
+            source, *symbol, path, expression,
+        )),
+        CompletedValueSource::Expression(operand) => completed_coordinates(
+            program,
+            machine,
+            state,
+            expression_statement_index(program, state, *operand)?,
+            *operand,
+            source,
+            depth + 1,
+        ),
+        CompletedValueSource::Integer(_) => {
+            Some(CompletedCoordinateInventory::complete(Vec::new()))
+        }
+        CompletedValueSource::ScalarBinary { operands, .. } => {
+            let mut completed = CompletedCoordinateInventory::complete(Vec::new());
+            for operand in operands.iter() {
+                let child = completed_source_coordinates(
+                    program,
+                    machine,
+                    state,
+                    operand,
+                    expression,
+                    source,
+                    depth + 1,
+                )
+                .unwrap_or_default();
+                completed.complete &= child.complete;
+                for mut value in child.coordinates {
+                    if !value.relative_path.is_empty() {
+                        return None;
+                    }
+                    value.producer = expression;
+                    value.derivation = RankValueDerivation::ComputedDependency;
+                    if !completed.coordinates.contains(&value) {
+                        completed.coordinates.push(value);
+                    }
+                }
+            }
+            Some(completed)
+        }
+    }
 }
 
 fn select_completed(

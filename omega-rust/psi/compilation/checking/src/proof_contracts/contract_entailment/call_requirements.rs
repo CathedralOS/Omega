@@ -121,7 +121,12 @@ pub fn selected_value_call_requirement_entailed(
         machine,
         state.symbol,
         statement_index,
-        false,
+        super::structural_prefix::expression_is_transition_target(
+            program,
+            state,
+            statement_index,
+            call_expression,
+        ),
         super::specification_calls::owner_symbol(&owner),
         parameter_scope.as_ref(),
         callee_machine,
@@ -350,29 +355,15 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             return;
         };
         let entries = if self.call_expression.is_valid() {
-            let Some(statement) = program
-                .statement_table
-                .statements(caller_state.statement_nodes)
-                .get(self.statement_index)
-            else {
+            let Some(entries) = site_judge.normal_call_entries(
+                self.statement_index,
+                self.call_expression,
+                environment,
+                (machine, caller_state, caller_state.return_type),
+            ) else {
                 self.proven = false;
                 return;
             };
-            let roots =
-                crate::machine_calls::calls::statement_value_expression_roots(program, statement);
-            let mut entries = Vec::new();
-            for root in roots.into_iter().filter(|root| {
-                crate::expression_owners::expression_contains(program, *root, self.call_expression)
-            }) {
-                let scope = (machine, caller_state, caller_state.return_type);
-                let Some(mut observed) =
-                    site_judge.normal_call_entries(root, self.call_expression, environment, scope)
-                else {
-                    self.proven = false;
-                    return;
-                };
-                entries.append(&mut observed);
-            }
             entries
         } else {
             let Some(entries) = site_judge.normal_argument_entries(

@@ -5399,3 +5399,21 @@ fail/providers/module_operator_hidden_signature_rejected rejected 607ms expected
 run/arithmetic/fixed_integer_operand_after_call checked 5954ms check-target:linux_x86_64 @3c6fd126c67d
 run/arithmetic/fixed_integer_operand_after_pressure checked 5535ms check-target:linux_x86_64 @3c6fd126c67d
 run/arithmetic/fixed_integer_operand_join checked 5346ms check-target:linux_x86_64 @3c6fd126c67d
+pass/termination/runtime_computed_result_rank_arrivals_exit checked 3780ms check-target:macos_arm64 @64934ccf0dd+wt
+fail/contracts/runtime_requirement_after_transition_argument_write rejected 447ms expected @64934ccf0dd+wt
+	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call needs_one from statement: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/termination/computed_result_rank_alternative_results rejected 445ms expected @64934ccf0dd+wt
+	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+fail/termination/computed_result_rank_arithmetic_policies rejected 449ms expected @64934ccf0dd+wt
+	terminating machine wrapping_countdown: cannot prove rank range `0..=255` for the rank produced by the selected view
+	terminating machine saturating_countdown: cannot prove rank range `0..=255` for the rank produced by the selected view
+fail/termination/computed_result_rank_intermediate_overflow rejected 233ms expected @64934ccf0dd+wt
+	exact arithmetic in machine `CheckedReader::observe` ensures contract may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `CheckedReader::observe` state `observe` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/termination/computed_result_rank_missing_precondition rejected 454ms expected @64934ccf0dd+wt
+	cannot prove requires contract for call observe from countdown: remaining > 0 && remaining <= 9 (needs fact `value > 0 && value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call countdown from countdown: reader.observe(remaining) >= 0 && reader.observe(remaining) <= 9 (needs fact `remaining >= 0 && remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+fail/termination/computed_result_rank_nondecreasing rejected 451ms expected @64934ccf0dd+wt
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step

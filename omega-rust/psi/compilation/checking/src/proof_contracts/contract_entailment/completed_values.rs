@@ -1,9 +1,10 @@
 //! Source observations of demanded completed-value projections.
 //!
 //! Execute the shared normal-return path owner at the actual statement prefix,
-//! then join a declared projection with already captured operands or exact
-//! current-state formal projections. Only identities proved on every normal
-//! path survive. Published equations can describe a produced value; private
+//! then describe a declared projection using already captured operands, exact
+//! current-state formal projections, or their selected scalar operations.
+//! Only descriptions proved on every normal path survive. Published equations
+//! can describe a produced value without a matching caller expression; private
 //! callee bodies and a matching carrier cannot donate a source observation.
 
 use super::citations::CitationFacts;
@@ -23,6 +24,105 @@ pub(super) enum CompletedValueSource {
         symbol: SymbolHandle,
         path: Vec<PlaceSegment>,
     },
+    Integer(numerics::bignum::BigInt),
+    /// Query-local computation over authenticated completed observations.
+    /// These operands are values, never newly manufactured source expressions.
+    /// Meaning survives transport; consumers still owe formation and bounds.
+    ScalarBinary {
+        operator: typed_trees::expression::BinaryOperator,
+        meaning: [(
+            typed_trees::types::PrimitiveType,
+            numerics::arithmetic::ArithmeticDomain,
+        ); 2],
+        operands: Box<[Self; 2]>,
+    },
+}
+
+/// Resolve leaves through the same observation roster as direct identities.
+/// Authenticate scalar operands before using term equality, which deliberately
+/// ignores raw reference shells. A missing leaf does not become an anonymous
+/// atom: its source epoch and coordinate custody would have been lost.
+struct CompletedSources<'query, 'program> {
+    program: &'program dyn crate::CheckingInput,
+    judge: &'query StructuralJudge<'program>,
+    candidates: &'query [(CompletedValueSource, StructuralTerm)],
+    formals: &'query [(
+        &'program typed_trees::signature::StateParameter,
+        StructuralTerm,
+    )],
+}
+
+impl CompletedSources<'_, '_> {
+    fn sources(&self, value: &StructuralTerm, depth: usize) -> Vec<CompletedValueSource> {
+        if depth >= 64 {
+            return Vec::new();
+        }
+        let computation = match value.semantic_value() {
+            StructuralTerm::Integer(integer) => {
+                Some(CompletedValueSource::Integer(integer.clone()))
+            }
+            StructuralTerm::ScalarBinary {
+                references,
+                operator,
+                meaning,
+                left,
+                right,
+            } => {
+                if ![left, right]
+                    .into_iter()
+                    .zip(references)
+                    .all(|(operand, reference)| {
+                        super::structural_terms::scalar_operand_is_observed(
+                            self.program,
+                            *reference,
+                            operand,
+                        )
+                    })
+                {
+                    return Vec::new();
+                }
+                let operands = [left, right]
+                    .map(|operand| self.sources(operand, depth + 1).into_iter().next());
+                match operands {
+                    [Some(left), Some(right)] => Some(CompletedValueSource::ScalarBinary {
+                        operator: *operator,
+                        meaning: *meaning,
+                        operands: Box::new([left, right]),
+                    }),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        let mut sources = self
+            .candidates
+            .iter()
+            .filter_map(|(source, candidate)| (value == candidate).then_some(source.clone()))
+            .collect::<Vec<_>>();
+        for (parameter, formal) in self.formals {
+            for path in parameter_projection_paths(
+                self.program,
+                self.judge,
+                parameter.type_reference,
+                formal,
+                value,
+            ) {
+                let source = CompletedValueSource::Parameter {
+                    symbol: parameter.symbol,
+                    path,
+                };
+                if !sources.contains(&source) {
+                    sources.push(source);
+                }
+            }
+        }
+        if let Some(computation) = computation {
+            // Prefer the captured operation over replaying a same-valued
+            // nested call expression when this description becomes an operand.
+            sources.insert(0, computation);
+        }
+        sources
+    }
 }
 
 #[derive(Clone)]
@@ -303,22 +403,12 @@ pub(super) fn completed_value_observations(
     reference: TypeReferenceHandle,
     demands: &[Vec<PlaceSegment>],
 ) -> Option<Vec<CompletedValueProjection>> {
-    let in_transition_target = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)
-        .is_some_and(|statement| {
-            let typed_trees::statement::StatementNode::Transition(transition) = statement else {
-                return false;
-            };
-            let mut expressions = Vec::new();
-            crate::expression_traversal::collect_transition_target_expression_trees(
-                program,
-                transition.target,
-                &mut expressions,
-            );
-            expressions.contains(&expression)
-        });
+    let in_transition_target = super::structural_prefix::expression_is_transition_target(
+        program,
+        state,
+        statement_index,
+        expression,
+    );
     let mut visitor = CompletedProjectionVisitor {
         state: state.symbol,
         statement_index,
@@ -375,7 +465,8 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
             self.recognized = false;
             return;
         };
-        let Some(outcomes) = judge.normal_return_paths(
+        let Some(outcomes) = judge.completed_statement_paths(
+            self.statement_index,
             self.expression,
             environment,
             (machine, state, self.reference),
@@ -469,28 +560,13 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
                     continue;
                 };
                 let projected = outcome.judge.completed_value_identity(projected);
-                projection.sources.extend(
-                    candidates.iter().filter_map(|(source, value)| {
-                        (projected == *value).then_some(source.clone())
-                    }),
-                );
-                for (parameter, value) in &formals {
-                    for path in parameter_projection_paths(
-                        program,
-                        &outcome.judge,
-                        parameter.type_reference,
-                        value,
-                        &projected,
-                    ) {
-                        let source = CompletedValueSource::Parameter {
-                            symbol: parameter.symbol,
-                            path,
-                        };
-                        if !projection.sources.contains(&source) {
-                            projection.sources.push(source);
-                        }
-                    }
+                projection.sources = CompletedSources {
+                    program,
+                    judge: &outcome.judge,
+                    candidates: &candidates,
+                    formals: &formals,
                 }
+                .sources(&projected, 0);
             }
             if let Some(retained) = &mut self.observations {
                 for previous in retained.iter_mut() {

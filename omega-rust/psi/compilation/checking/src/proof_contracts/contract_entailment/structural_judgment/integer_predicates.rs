@@ -139,7 +139,10 @@ impl StructuralJudge<'_> {
         if depth >= 64 {
             return None;
         }
-        let value = self.resolve(value.clone());
+        // A completed operand may be described by a public computed-result
+        // equation. Preserve its captured leaves before normal arithmetic
+        // resolution; no caller expression or private body supplies this value.
+        let value = self.resolve(self.completed_value_identity(value.clone()));
         let value = value.semantic_value();
         if let StructuralTerm::Integer(integer) = value {
             return Some(Polynomial::constant(integer.clone()));

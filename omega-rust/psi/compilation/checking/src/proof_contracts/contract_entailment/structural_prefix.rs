@@ -18,6 +18,107 @@ pub(super) struct StructuralPrefixSite {
     pub in_transition_target: bool,
 }
 
+/// A primary transition operand executes under that transition's own guard.
+/// Guard expressions and continuation targets must not inherit that premise.
+/// All expression observers use this same occurrence-based classification.
+pub(super) fn expression_is_transition_target(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)
+        .is_some_and(|statement| {
+            let typed_trees::statement::StatementNode::Transition(transition) = statement else {
+                return false;
+            };
+            let mut expressions = Vec::new();
+            crate::expression_traversal::collect_transition_target_expression_trees(
+                program,
+                transition.target,
+                &mut expressions,
+            );
+            expressions.contains(&expression)
+        })
+}
+
+/// The ordered expression roots through this observation's enclosing root.
+/// A call in the second named argument must see the first argument's effects.
+/// The root inventory includes control-flow alternatives, so it is not itself
+/// an execution schedule: an established primary guard is not evaluated again,
+/// and continuation observations remain with the transition control owner.
+pub(super) fn expression_prefix_roots(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
+    use typed_trees::statement::{StatementNode, StatementRootRole};
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?;
+    if matches!(statement, StatementNode::Assignment(_)) {
+        // The inventory is not authority for store operand timing (owner
+        // question store-evaluation-order). Both operand subtrees must preserve
+        // values regardless of which executes first. The eventual destination
+        // write is not an operand.
+        let machine = program.machine_holding_state(state.symbol)?;
+        let frames = crate::machine_calls::calls::CallFrameResolver::new(program)?;
+        if !frames
+            .statement_value_write_frame(machine, statement)
+            .into_complete_paths()?
+            .is_empty()
+        {
+            return None;
+        }
+    }
+    if let StatementNode::Transition(transition) = statement
+        && program
+            .statement_table
+            .transition_target_is_valid(transition.continuation)
+    {
+        let mut continuation = Vec::new();
+        crate::expression_traversal::collect_transition_target_expression_trees(
+            program,
+            transition.continuation,
+            &mut continuation,
+        );
+        if continuation.contains(&expression) {
+            return None;
+        }
+    }
+    let guarded = expression_is_transition_target(program, state, statement_index, expression);
+    let mut roots = program
+        .statement_table
+        .expression_roots(statement)
+        .into_iter()
+        .filter(|(role, root)| {
+            root.is_valid() && !(guarded && *role == StatementRootRole::TransitionGuard)
+        })
+        .map(|(_, root)| root)
+        .collect::<Vec<_>>();
+    let mut owners = roots.iter().enumerate().filter(|(_, root)| {
+        crate::expression_owners::expression_contains(program, **root, expression)
+    });
+    let (position, _) = owners.next()?;
+    if owners.next().is_some() {
+        return None;
+    }
+    if matches!(statement, StatementNode::Assignment(_)) {
+        // Even a value-preserving call may establish a new normal-return fact.
+        // Until store operand order is settled, neither operand may consume
+        // guarantees from the other: prove it from its own executed root and
+        // the incoming statement facts.
+        return Some(vec![roots[position]]);
+    }
+    roots.truncate(position + 1);
+    Some(roots)
+}
+
 pub(super) trait StructuralPrefixVisitor {
     fn site(&self) -> StructuralPrefixSite;
 

@@ -1492,15 +1492,19 @@ defines the complete product bar.
   equation controls reject; private helper bodies supply no caller evidence.
 
   Remaining:
-  - Normalize computed public result equations into ranked arrivals. A selected
-    `observe(value: i32)` requiring `0 < value && value <= 9` and ensuring
-    `result == value - 1` still leaves `countdown(reader.observe(remaining))`
-    unable to prove rank range `0..=9` under `remaining > 0`. Captured operand
-    identities already reach ranking; a new result equation must describe its
-    value without requiring an identical caller expression to have executed.
-    Preserve `runtime_selected_result_ranked_arrival_exit` and
+  - Carry non-polynomial public result equations through completed arrivals.
+    A selected `observe(value: i32)` requiring `0 < value && value <= 9`
+    and ensuring `result == value / 2` leaves
+    `countdown(reader.observe(remaining))` unable to prove the receiving bounds
+    or rank range `0..=9` under `remaining > 0` on macOS ARM64. Reuse the
+    admitted integer-operation owner over captured operands, preserving
+    totality, policy and intermediate carrier bounds. Keep
+    `runtime_computed_result_rank_arrivals_exit` for direct, nested, saved and
+    projected polynomial results, plus its overflow, policy, alternative-result,
+    missing-premise and nondecreasing controls. Preserve
+    `runtime_selected_result_ranked_arrival_exit` and
     `external_result_ranked_arrival_compile`, with missing-guarantee,
-    nondecreasing, unguarded and stale-prefix controls. External execution also
+    unguarded and stale-prefix controls. External execution also
     needs **ASSUMED-BINDING-CONTRACTS**' Build/root trust-to-installation join;
     source acceptance and provider selection supply no admission receipt.
 

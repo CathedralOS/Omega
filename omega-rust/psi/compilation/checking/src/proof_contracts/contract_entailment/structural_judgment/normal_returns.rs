@@ -179,19 +179,20 @@ impl<'program> StructuralJudge<'program> {
         )
     }
 
-    /// Observe one exact call entry while executing its enclosing expression
-    /// through the same path scheduler. The snapshot precedes the callee's
-    /// guarantee intake; only already completed operands contribute facts.
+    /// Observe one exact call entry after its enclosing statement's preceding
+    /// operands, including separate roots such as named-transition arguments.
+    /// The snapshot precedes the selected call's guarantee intake.
     pub(in crate::proof_contracts::contract_entailment) fn normal_call_entries(
         &self,
-        expression: ExpressionHandle,
+        statement_index: usize,
         call: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalCallEntry<'program>>> {
+        let operands = self.statement_observation_operands(statement_index, call, scope)?;
         let mut entries = Vec::new();
-        self.clone().evaluate_normal_paths(
-            expression,
+        self.clone().evaluate_normal_operands(
+            &operands,
             environment,
             scope,
             0,
@@ -199,6 +200,69 @@ impl<'program> StructuralJudge<'program> {
             &mut entries,
         )?;
         (!entries.is_empty()).then_some(entries)
+    }
+
+    /// Completed value observers use the same ordered statement operands as
+    /// call-premise observers. Select the recorded occurrence after evaluation;
+    /// no standalone replay can omit an earlier sibling's effects.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_statement_paths(
+        &self,
+        statement_index: usize,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> Option<Vec<NormalReturnPath<'program>>> {
+        let operands = self.statement_observation_operands(statement_index, expression, scope)?;
+        let contexts = self.clone().evaluate_normal_operands(
+            &operands,
+            environment,
+            scope,
+            0,
+            ExpressionHandle::invalid(),
+            &mut Vec::new(),
+        )?;
+        let paths = contexts
+            .into_iter()
+            .filter_map(|(judge, _)| {
+                let value = judge
+                    .normal_results
+                    .iter()
+                    .find(|(source, _)| *source == expression)?
+                    .1
+                    .clone();
+                Some(NormalReturnPath { value, judge })
+            })
+            .collect::<Vec<_>>();
+        (!paths.is_empty()).then_some(paths)
+    }
+
+    fn statement_observation_operands(
+        &self,
+        statement_index: usize,
+        expression: ExpressionHandle,
+        scope: ValueScope<'_>,
+    ) -> Option<Vec<(ExpressionHandle, TypeReferenceHandle)>> {
+        let roots = super::super::structural_prefix::expression_prefix_roots(
+            self.program,
+            scope.1,
+            statement_index,
+            expression,
+        )?;
+        Some(
+            roots
+                .into_iter()
+                .map(|root| {
+                    let reference = crate::expression_result_type_reference(
+                        self.program,
+                        scope.0,
+                        scope.1,
+                        root,
+                    )
+                    .unwrap_or(scope.2);
+                    (root, reference)
+                })
+                .collect(),
+        )
     }
 
     /// Complete a declaration's actuals in source order before checking its
