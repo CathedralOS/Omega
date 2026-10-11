@@ -283,9 +283,7 @@ fn validate_provider_scalar_contract(
         .flat_map(conjuncts)
         .any(|part| !declared_conjuncts.contains(&part))
     {
-        return malformed(
-            "provider candidate requires beyond its boundary's declared obligations",
-        );
+        return malformed("provider candidate requires beyond its boundary's declared obligations");
     }
     // Every declared guarantee must occur in the candidate's own checked
     // ensures roster after substitution.

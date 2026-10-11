@@ -53,6 +53,47 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     }
     if !strictly_increasing(
         module
+            .task_activation_demands
+            .demands
+            .iter()
+            .map(|demand| (demand.report_fingerprint, demand.machine, demand.entry)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "task activation demands by report fingerprint, machine, and entry",
+        ));
+    }
+    for demand in &module.task_activation_demands.demands {
+        if !strictly_increasing(demand.frames.iter().map(|frame| frame.identity)) {
+            return Err(CodecError::NonCanonicalOrder("task activation frames"));
+        }
+        if !strictly_increasing(demand.crossings.iter().map(|crossing| crossing.identity)) {
+            return Err(CodecError::NonCanonicalOrder("task activation crossings"));
+        }
+        for crossing in &demand.crossings {
+            if crossing
+                .live_carry
+                .iter()
+                .any(|live| !strictly_increasing(live.claims.iter().copied()))
+            {
+                return Err(CodecError::NonCanonicalOrder(
+                    "task activation live carry claims",
+                ));
+            }
+        }
+    }
+    if !strictly_increasing(
+        module
+            .task_activation_demands
+            .structural_types
+            .iter()
+            .map(|declaration| declaration.id),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "task activation structural types by StructuralTypeId",
+        ));
+    }
+    if !strictly_increasing(
+        module
             .boundary_application_demands
             .iter()
             .map(|demand| demand.terminal_operation()),
@@ -860,9 +901,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         if !canonical_propositions_strictly_increase(&machine.contract.requires)? {
             return Err(CodecError::NonCanonicalOrder("requires propositions"));
         }
-        if !canonical_propositions_strictly_increase(
-            &machine.contract.source_checked_requires,
-        )? {
+        if !canonical_propositions_strictly_increase(&machine.contract.source_checked_requires)? {
             return Err(CodecError::NonCanonicalOrder(
                 "source-checked requires propositions",
             ));

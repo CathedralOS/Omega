@@ -21,7 +21,7 @@ use terminal_psi::{
     TerminalSuspensionValueType,
 };
 
-fn encode_carry_policy(writer: &mut Writer, policy: CarryPolicy) {
+pub(super) fn encode_carry_policy(writer: &mut Writer, policy: CarryPolicy) {
     writer.u8(match policy.suspension {
         CarrySuspension::Forbidden => 1,
         CarrySuspension::Allowed => 2,
@@ -40,7 +40,7 @@ fn encode_carry_policy(writer: &mut Writer, policy: CarryPolicy) {
     });
 }
 
-fn decode_carry_policy(reader: &mut Reader<'_>) -> Result<CarryPolicy, CodecError> {
+pub(super) fn decode_carry_policy(reader: &mut Reader<'_>) -> Result<CarryPolicy, CodecError> {
     Ok(CarryPolicy {
         suspension: match reader.u8()? {
             1 => CarrySuspension::Forbidden,

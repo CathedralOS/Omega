@@ -608,6 +608,7 @@ pub(crate) fn lower_unit_closure(
             machines,
             target_machine_families,
             target_layout_applications,
+            task_activation_demands: Default::default(),
         },
         debug_map: None,
         retained_roots,

@@ -12,6 +12,7 @@ pub mod identity;
 pub mod observation;
 pub mod ownership;
 pub mod proof;
+mod task_activation;
 pub mod types;
 pub mod values;
 
@@ -97,6 +98,13 @@ pub use proof::{
     TerminalProofRecursiveEdge, TerminalProofRecursiveField, TerminalProofRecursiveMember,
     TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType,
     float_meaning_equality_proposition_id,
+};
+pub use task_activation::{
+    TerminalTaskActivationDemand, TerminalTaskActivationDemands, TerminalTaskCarryObligations,
+    TerminalTaskCarryStorage, TerminalTaskFrame, TerminalTaskFrameCall, TerminalTaskLiveCarry,
+    TerminalTaskResidentValue, TerminalTaskSignatureValue, TerminalTaskStartOperation,
+    TerminalTaskSuspensionCrossing, TerminalTaskUnresolvedCall, TerminalTaskUnresolvedCallKind,
+    TerminalTaskValueType,
 };
 pub use types::{
     ByteSequenceCarrier, ResultQualificationEstablishment, ScalarDomainDeclaration,
@@ -228,6 +236,10 @@ pub struct TerminalModule {
     /// Exact source-free operator requirements and closed applications for
     /// surviving operations. Provider choices belong to Omega, not this roster.
     pub boundary_application_demands: Vec<TerminalBoundaryApplicationDemand>,
+    /// Provider-independent task activation evidence: one demand row per
+    /// checked `TaskRuntime` start specialization, with the bundle-local
+    /// structural and target-layout tables its value types reference.
+    pub task_activation_demands: TerminalTaskActivationDemands,
 }
 
 impl TerminalModule {
@@ -323,6 +335,7 @@ impl TerminalModule {
             target_machine_families: Vec::new(),
             target_layout_applications: Vec::new(),
             boundary_application_demands: Vec::new(),
+            task_activation_demands: TerminalTaskActivationDemands::default(),
         }
     }
 }

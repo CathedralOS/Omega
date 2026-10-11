@@ -29,6 +29,7 @@ mod proof_output_wire;
 mod scalar_block_invariant_wire;
 mod target_family_wire;
 mod target_layout_wire;
+mod task_activation_wire;
 
 use terminal_psi::{
     TerminalIdentityIndex, TerminalIdentityTable, TerminalModule, TerminalRootServiceReach,
@@ -54,6 +55,9 @@ use crate::sections::semantic_module::module_wire::carry_and_suspension_wire::{
 };
 use crate::sections::semantic_module::module_wire::recursive_component_wire::{
     decode_proof_recursive_component, encode_proof_recursive_component,
+};
+use crate::sections::semantic_module::module_wire::task_activation_wire::{
+    decode_demands, encode_demands,
 };
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
 
@@ -242,6 +246,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     for candidate in &module.boundary_application_candidates {
         boundary_application_wire::encode_candidate(&mut writer, candidate)?;
     }
+    encode_demands(&mut writer, &module.task_activation_demands)?;
     Ok(writer.finish())
 }
 
@@ -338,6 +343,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let callback_applications = decode_counted(reader, callback_application_wire::decode)?;
     let boundary_application_candidates =
         decode_counted(reader, boundary_application_wire::decode_candidate)?;
+    let task_activation_demands = decode_demands(reader)?;
     Ok(TerminalModule {
         scalar_qualifications,
         scalar_block_invariants,
@@ -377,5 +383,6 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         boundary_application_demands,
         boundary_application_candidates,
         callback_applications,
+        task_activation_demands,
     })
 }
