@@ -17,8 +17,12 @@ Later fc4a398 changes only pure Build store lifetime across review rounds;
 independent review confirmed exact admitted-input guards remain in place.
 NF01 Build declarations generate no sources/outputs and are unchanged. This
 patch caches neither checked consumer products nor execution outputs. Reuse
-78ef execution evidence; take a fresh exact-candidate scoped package-manager
-and omega check after rebase. No publication is claimed before queue confirmation.
+78ef execution evidence. Fresh scoped check on candidate
+714ac517c12464ad9c2f769d7bfae043df30844f / base1f467fff exited0 in17.76s:
+mbx check -p package-manager -p omega
+The subsequent evidence-only commit does not change compiler/source inputs.
+Exact final-candidate landing verification is performed before queue entry.
+This is a pre-publication receipt; remote publication is recorded separately.
 Initial queue metadata push rejected GH007 (author-email privacy); retry using
 the candidate's accepted noreply identity succeeded. Cancelled own waiting ticket
 4f65e0ef661148bf90ae070a028d9f46 before requalifying changed descriptor inputs.
