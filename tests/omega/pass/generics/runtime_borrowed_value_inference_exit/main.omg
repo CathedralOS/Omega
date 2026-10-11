@@ -1,6 +1,7 @@
 use omega::language::core::drop;
 
 data Token<Payload> [linear] { payload: Payload; }
+data Envelope<Payload> { payload: Payload; }
 machine Token::drop(token: &mut Token<Payload>) {}
 
 machine make<Payload>(payload: Payload) -> Token<Payload> {
@@ -8,6 +9,8 @@ machine make<Payload>(payload: Payload) -> Token<Payload> {
 }
 
 machine accept<Payload>(payload: &Payload) -> bool { true }
+
+machine read(envelope: &Envelope<i32>) -> i32 { envelope.payload }
 
 machine identity<'storage, Payload>(payload: &'storage Payload) -> &'storage Payload {
     payload
@@ -24,8 +27,13 @@ machine main() crashes Trap {
     let accepted: bool = accept(&backing);
     let observed: i32 = token.payload;
     let forwarded: i32 = reborrow(&backing);
+    // Each completed child supplies the borrow's type before generic call
+    // inference: constructed records, nested borrows and fixed arrays agree.
+    let constructed: i32 = read(&Envelope { payload: 91i32 });
+    let nested: bool = accept(&Envelope { payload: &Envelope { payload: 37i32 } });
+    let array: bool = accept(&[Envelope { payload: 19i32 }]);
     drop(token);
-    transition observed == 73 && forwarded == 73 && accepted {
+    transition observed == 73 && forwarded == 73 && accepted && constructed == 91 && nested && array {
         true -> done()
         false -> bad()
     }

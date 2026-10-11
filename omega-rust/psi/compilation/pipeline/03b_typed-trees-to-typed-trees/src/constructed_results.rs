@@ -7,8 +7,11 @@
 //! same-shaped declaration or the consumer's formal type. Child-before-parent
 //! preparation gives nested constructors the same ordinary result-type route.
 //! No ownership, membership or loan permission is established by this derivation.
-//! Reference formation also needs a value type before static call inference:
-//! its referent is a declared place, but its value retains authored access.
+//! Reference formation also needs a value type before static call inference.
+//! Its target may be storage or another completed value, so borrows belong in
+//! the same postorder as arrays and records, not a preceding place-only sweep.
+//! A declared place query loses constructed targets and silently leaves their
+//! borrowers unprepared. Result types grant no storage or loan permission.
 //! Reborrowing lends the existing referent, not the reference carrier itself.
 
 use typed_trees::TypedTrees;
@@ -59,65 +62,69 @@ fn occurrences(
 /// borrow. Derive each formation in its own owner after substitution; this
 /// records type vocabulary only. Loan admission still checks storage, access,
 /// lifetime correspondence and parent lineage independently.
-pub(crate) fn retain_borrow_result_types(program: &mut TypedTrees) {
-    for (machine_symbol, state_symbol, expression) in
-        occurrences(program, |node| matches!(node, ExpressionNode::Borrow(_)))
-    {
-        let derived = (|| {
-            let machine = program.machine_by_symbol(machine_symbol)?;
-            let state = program.state_by_symbol(state_symbol)?;
-            let borrow = program.expression_table.borrow_expression(expression)?;
-            let target =
-                validation::declared_place_type_raw(program, machine, Some(state), borrow.target)?;
-            let carrier = program
-                .type_reference_table
-                .unconstrained_type_reference(target);
-            let (referee, lifetime) = match program.type_reference_table.type_reference(carrier) {
-                TypeReferenceNode::Reference {
-                    referee, lifetime, ..
-                } => (*referee, lifetime.clone()),
-                _ => (target, None),
-            };
-            Some(TypeReferenceNode::Reference {
-                referee,
-                access: borrow.access,
-                lifetime,
-            })
-        })();
-        let reference = derived
-            .map(|node| {
-                // Preparation repeats as calls specialize. Reuse exact vocabulary
-                // rather than adding another shell on every fixed-point round.
-                let retained = program
-                    .expression_table
-                    .constructed_value_type_reference(expression);
-                let existing = if retained.is_valid()
-                    && program.type_reference_table.type_reference(retained) == &node
-                {
-                    Some(retained)
-                } else {
-                    program.type_reference_table.type_reference_rows().find_map(
-                        |(reference, candidate)| (candidate == &node).then_some(reference),
-                    )
-                };
-                existing.unwrap_or_else(|| program.type_reference_table.insert(node))
-            })
-            .unwrap_or_else(TypeReferenceHandle::invalid);
-        program
+fn retain_borrow_result_type(
+    program: &mut TypedTrees,
+    machine_symbol: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let derived = (|| {
+        let machine = program.machine_by_symbol(machine_symbol)?;
+        let state = program.state_by_symbol(state_symbol)?;
+        let borrow = program.expression_table.borrow_expression(expression)?;
+        let target =
+            validation::expression_result_type_reference(program, machine, state, borrow.target)?;
+        let carrier = program
+            .type_reference_table
+            .unconstrained_type_reference(target);
+        let (referee, lifetime) = match program.type_reference_table.type_reference(carrier) {
+            TypeReferenceNode::Reference {
+                referee, lifetime, ..
+            } => (*referee, lifetime.clone()),
+            _ => (target, None),
+        };
+        Some(TypeReferenceNode::Reference {
+            referee,
+            access: borrow.access,
+            lifetime,
+        })
+    })();
+    derived.map(|node| {
+        // Preparation repeats as calls specialize. Reuse exact vocabulary
+        // rather than adding another shell on every fixed-point round.
+        let retained = program
             .expression_table
-            .set_constructed_value_type_reference(expression, reference);
-    }
+            .constructed_value_type_reference(expression);
+        let existing = if retained.is_valid()
+            && program.type_reference_table.type_reference(retained) == &node
+        {
+            Some(retained)
+        } else {
+            program
+                .type_reference_table
+                .type_reference_rows()
+                .find_map(|(reference, candidate)| (candidate == &node).then_some(reference))
+        };
+        existing.unwrap_or_else(|| program.type_reference_table.insert(node))
+    })
 }
 
 pub(crate) fn retain_constructed_result_types(program: &mut TypedTrees) {
-    retain_borrow_result_types(program);
     for (machine_symbol, state_symbol, expression) in occurrences(program, |node| {
         matches!(
             node,
-            ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_)
+            ExpressionNode::ArrayLiteral(_)
+                | ExpressionNode::StructLiteral(_)
+                | ExpressionNode::Borrow(_)
         )
     }) {
         let reference = if program
+            .expression_table
+            .borrow_expression(expression)
+            .is_some()
+        {
+            retain_borrow_result_type(program, machine_symbol, state_symbol, expression)
+        } else if program
             .expression_table
             .struct_literal_node(expression)
             .is_some()
@@ -145,12 +152,20 @@ pub(crate) fn retain_constructed_result_types(program: &mut TypedTrees) {
                 Some((element_type, elements.len()))
             })();
             derived.map(|(element_type, length)| {
-                program
-                    .type_reference_table
-                    .insert(TypeReferenceNode::FixedArray {
-                        element_type,
-                        length: FixedArrayLength::Literal(length),
-                    })
+                let node = TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Literal(length),
+                };
+                let retained = program
+                    .expression_table
+                    .constructed_value_type_reference(expression);
+                if retained.is_valid()
+                    && program.type_reference_table.type_reference(retained) == &node
+                {
+                    retained
+                } else {
+                    program.type_reference_table.insert(node)
+                }
             })
         };
         let Some(reference) = reference else {
@@ -313,6 +328,27 @@ fn retain_constructor_result_type(
     }
     let base_symbol = owner.symbol;
     let base_name = owner.name.clone();
+    // Static inference revisits this same postorder as calls specialize. Keep
+    // an unchanged application rather than growing type vocabulary each round.
+    let retained = program
+        .expression_table
+        .constructed_value_type_reference(expression);
+    if retained.is_valid()
+        && let TypeReferenceNode::Generic {
+            base_symbol: previous_base,
+            lifetime_arguments: previous_lifetimes,
+            arguments: previous_arguments,
+            ..
+        } = program.type_reference_table.type_reference(retained)
+        && *previous_base == base_symbol
+        && *previous_lifetimes == lifetime_arguments
+        && program
+            .type_reference_table
+            .type_reference_handles(*previous_arguments)
+            == arguments.as_slice()
+    {
+        return Some(retained);
+    }
     let arguments = program
         .type_reference_table
         .insert_type_reference_handles(arguments);
