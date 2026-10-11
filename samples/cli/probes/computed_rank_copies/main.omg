@@ -1,0 +1,21 @@
+// Copies of the ranked subject stay rank-equal through computed state
+// arrivals: `prepare(remaining, remaining)` doubles the coordinate, and
+// `finish(left + (right - right))` folds it back — every state's
+// requires band re-proves the produced rank.
+machine walk(remaining: u32)
+    requires 0 <= remaining && remaining <= 5
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> prepare(remaining, remaining) }
+    state prepare(left: u32, right: u32)
+        requires 0 <= left && left <= 5 && 0 <= right && right <= 5
+    {
+        transition { _ -> finish(left + (right - right)) }
+    }
+    state finish(result: u32)
+        requires 0 <= result && result <= 5
+    { result }
+}
+
+data Main {}
+machine Main::main(main: &mut Main) { }
