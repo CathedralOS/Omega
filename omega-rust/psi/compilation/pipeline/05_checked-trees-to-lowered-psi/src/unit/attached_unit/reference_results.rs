@@ -75,7 +75,9 @@ pub(crate) fn emit_carrier(
             let element = declarations
                 .iter()
                 .find(|declaration| {
-                    declaration.shape == terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar)
+                    declaration.scalar_restriction.is_none()
+                        && declaration.shape
+                            == terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar)
                 })
                 .ok_or(LoweringError::Unsupported(
                     "byte loan carrier has no u8 declaration",

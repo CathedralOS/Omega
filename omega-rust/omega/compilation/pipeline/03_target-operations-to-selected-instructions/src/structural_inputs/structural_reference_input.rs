@@ -937,10 +937,11 @@ pub(crate) fn collection_view_region_geometry(
         })?;
     let element = view_element.or_else(|| {
         declarations.iter().find_map(|declaration| {
-            matches!(declaration.shape,
+            (declaration.scalar_restriction.is_none()
+                && matches!(declaration.shape,
             StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
             if Ok(integer) == semantic_vocabulary::IntegerType::new(
-                semantic_vocabulary::IntegerSign::Unsigned, 8))
+                semantic_vocabulary::IntegerSign::Unsigned, 8)))
             .then_some(declaration.id)
             .filter(|element| {
                 terminal_semantics::collection_backing(declarations.iter(), tip, *element).is_some()
