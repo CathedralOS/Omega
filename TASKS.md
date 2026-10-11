@@ -4445,9 +4445,17 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   frame demand; codecs derive from the exact retained Terminal referents.
   Word-sized scalar/reference transport has register/stack and float encoding
   coverage on AArch64 and x86-64, not matching-host execution on every target.
-  Complete differing owned aggregate/result transports and entry conventions;
-  they remain explicit unsupported ABI forms, not inferred copies or pointer
-  equivalence. Preserve `pass/calls/callback_future_registration_cycle`:
+  Direct owned records use declared byte-offset pieces for both inbound values
+  and results, rather than word-only moves. Preserve
+  `pass/calls/callback_owned_float_record` and
+  `pass/calls/callback_owned_float_record_packing`: real system `libffi` invokes
+  two-double and packed two-float records through ordinary helpers, returns
+  both transformed members and retains the unchanged input at exit 0.
+  Shared observation of already-shared reference-bearing carrier storage stays
+  valid in the independent audit; moves, writes and disposal remain conflicting.
+  Complete owned-indirect and caller-area result transport plus differing entry
+  conventions; they retain explicit implementation fences, not inferred copies
+  or pointer equivalence. Preserve `pass/calls/callback_future_registration_cycle`:
   genuine macOS Arm64 `pthread_key_create` registers a destructor whose body
   can register itself; native `_exit` must exit 0 without invoking it.
   Same-stack composition follows the registrar's declared synchronous reach,
