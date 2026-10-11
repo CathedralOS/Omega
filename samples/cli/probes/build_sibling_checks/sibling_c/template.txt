@@ -1,0 +1,1 @@
+pub machine c_generated() -> i32 { 30 }
