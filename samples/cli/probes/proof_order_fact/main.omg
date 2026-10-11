@@ -1,13 +1,7 @@
-// Proof-artifact machine: `requires i < j ensures i != j`
-// with an empty body — the guarantee discharges from the
-// requirement alone using built-in order rules, so the
-// machine emits no runtime code at all.
-//
-//   * `machine Main::main()` — parameterless bound entry.
-//
-// Compile-checked only: no standard-library dependency, no
-// ProcessExit provider.
-
+// "Machines as proofs": a machine used only to establish a fact emits
+// no runtime code. `distinct_indices` proves `i != j` follows from the
+// precondition `i < j` via built-in order rules — the empty body is
+// valid because the guarantee is discharged from the requirement.
 machine distinct_indices(i: u64, j: u64)
 requires
     i < j
@@ -15,9 +9,14 @@ ensures
     i != j
 {
 }
-
-data Main {
+machine caller(i: u64)
+requires
+    i < 10
+{
+    let smaller: u64 = i;
+    let larger: u64 = i + 1;
+    distinct_indices(smaller, larger);
 }
 
-machine Main::main() {
-}
+data Main {}
+machine Main::main(main: &mut Main) { }
