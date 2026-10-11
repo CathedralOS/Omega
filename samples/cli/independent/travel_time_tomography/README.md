@@ -71,10 +71,10 @@ From the repository root, with a matching compiler/library:
 
 ```sh
 python3 samples/cli/independent/travel_time_tomography/validation/verify.py --oracle-only
-omega --check samples/cli/independent/travel_time_tomography/main.omg
 omega update --project samples/cli/independent/travel_time_tomography --target linux_x86_64
 # Inspect the generated review and accept only decisions authorized for this
 # local std dependency, then use the documented update --resume workflow.
+omega --check samples/cli/independent/travel_time_tomography/main.omg
 omega run samples/cli/independent/travel_time_tomography/main.omg < samples/cli/independent/travel_time_tomography/data/exact.txt
 python3 samples/cli/independent/travel_time_tomography/validation/verify.py --compiler /absolute/path/to/omega --both
 # Run an already published executable through all fixtures without recompilation:
