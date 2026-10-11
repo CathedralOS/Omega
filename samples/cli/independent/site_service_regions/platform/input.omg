@@ -67,18 +67,20 @@ invokes Console;
 blocks;
 crashes Trap
 {
-    let observed: ByteRead = block Console::read_byte();
-    transition observed {
-        ByteRead::Eof -> done()
-        ByteRead::Byte { value } -> check(reader, value)
+    transition { _ -> read(reader) }
+    state read(reader: &mut Reader) {
+        let observed: ByteRead = block Console::read_byte();
+        transition observed {
+            ByteRead::Eof -> done()
+            ByteRead::Byte { value } -> check(reader, value)
+        }
     }
     state check(reader: &mut Reader, value: i32) {
         transition value == 32 || value == 10 || value == 13 || value == 9 {
-            true -> again(reader)
+            true -> read(reader)
             false -> bad(reader)
         }
     }
-    state again(reader: &mut Reader) { block end_input(reader); }
     state bad(reader: &mut Reader) { reader.valid = false; }
     state done() { }
 }

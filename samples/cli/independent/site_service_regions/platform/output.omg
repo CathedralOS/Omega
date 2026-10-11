@@ -1,22 +1,55 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use domain::model;
+// Runtime recursion is tail-only. Keep pending decimal digits in private
+// fixed storage: every i64 needs at most 19 digits, including i64::MIN.
+data Digits { bytes: [i32; 20]; count: u64; }
 pub machine integer(value: i64 in Saturating) reaches Console
 invokes Console;
 {
-    transition value < 0 { true -> negative(value) false -> positive(value) }
-    state negative(value: i64 in Saturating) {
+    let mut output: Digits;
+    transition value < 0 { true -> negative(value, &mut output) false -> collect(value, &mut output) }
+    state negative(value: i64 in Saturating, output: &mut Digits) {
         Console::write("-");
-        integer(0 - value);
+        transition { _ -> collect(value, output) }
     }
-    state positive(value: i64 in Saturating) {
-        transition value >= 10 { true -> prefix(value) false -> digit(value) }
+    state collect(value: i64 in Saturating, output: &mut Digits) {
+        transition output.count < 20 {
+            true -> remainder(value, output, value % 10)
+            false -> done()
+        }
     }
-    state prefix(value: i64 in Saturating) {
-        integer(value / 10);
-        transition { _ -> digit(value) }
+    state remainder(value: i64 in Saturating, output: &mut Digits, digit: i64 in Saturating)
+    requires output.count < 20 && digit >= -9 && digit <= 9
+    {
+        transition digit < 0 {
+            true -> store(value, output, 0 - digit)
+            false -> store(value, output, digit)
+        }
     }
-    state digit(value: i64 in Saturating) { Console::write_byte((value % 10 + 48) as i32); }
+    state store(value: i64 in Saturating, output: &mut Digits, digit: i64 in Saturating)
+    requires output.count < 20 && digit >= 0 && digit <= 9
+    {
+        output.bytes[output.count] = (digit + 48) as i32;
+        output.count = output.count + 1;
+        transition value / 10 == 0 {
+            true -> emit_digits(output, output.count)
+            false -> collect(value / 10, output)
+        }
+    }
+    state emit_digits(output: &Digits, count: u64) {
+        transition count > 0 && count <= 20 {
+            true -> write_digit(output, count - 1)
+            false -> done()
+        }
+    }
+    state write_digit(output: &Digits, index: u64)
+    requires index < 20
+    {
+        Console::write_byte(output.bytes[index]);
+        transition { _ -> emit_digits(output, index) }
+    }
+    state done() { }
 }
 // Emit nearest integer micro-units, with ties away from zero. All geometry
 // remains f64; quantization happens only at this presentation boundary.
