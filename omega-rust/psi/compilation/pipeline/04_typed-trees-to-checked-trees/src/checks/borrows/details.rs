@@ -13,15 +13,16 @@ pub(super) fn binding_reference_access(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    root_symbol: SymbolHandle,
+    root: facts::PlaceRoot,
 ) -> Option<checked_trees::BorrowAccessKind> {
+    let root = root.as_symbol()?;
     let state = validation::find_state_in_machine(program, machine_symbol, state_symbol)?;
     let type_reference = program
-        .state_parameter_by_symbol(state, root_symbol)
+        .state_parameter_by_symbol(state, root)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program
-                .state_local_declaration(state, root_symbol)
+                .state_local_declaration(state, root)
                 .filter(|&(ordinal, _)| ordinal < statement_index)
                 .map(|(_, local)| local.type_reference)
         })?;

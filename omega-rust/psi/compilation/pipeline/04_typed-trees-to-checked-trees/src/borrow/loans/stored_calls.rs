@@ -31,11 +31,12 @@ pub(super) fn loans(
                 .map(move |source| StatementBorrowLoan {
                     formation_expression: Default::default(),
                     owner_symbol: owner,
+                    storage_owner: facts::PlaceRoot::Symbol(owner),
                     owner_name: program.symbols.name(owner).into(),
                     owner_path: owner_path.clone(),
                     place: checked_trees::CapturedPlace {
                         incoming_reference: Default::default(),
-                        root_symbol: source.root,
+                        root: facts::PlaceRoot::Symbol(source.root),
                         segments: source.segments,
                     },
                     source_owner_symbol: source.root,

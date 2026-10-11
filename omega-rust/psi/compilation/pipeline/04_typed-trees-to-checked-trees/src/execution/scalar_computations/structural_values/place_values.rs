@@ -195,14 +195,34 @@ impl Builder<'_, '_> {
         // the computation's scalar namespace, including captured immutable
         // locals, rather than replaying the selector's original storage read.
         // The retained coordinate grants no bounds or copy permission.
-        let (projected, path) = crate::execution::terminal_unit::calls::projected_selected_path(
-            self.program,
-            self.machine,
-            self.state,
-            self.statement_index,
-            &place,
-            &|selector| self.local_selector(selector),
-        )?;
+        let (projected, mut path) =
+            crate::execution::terminal_unit::calls::projected_selected_path(
+                self.program,
+                self.machine,
+                self.state,
+                self.statement_index,
+                &place,
+                &|selector| self.local_selector(selector),
+            )?;
+        // A local owns its descriptor, whereas a borrowed formal already
+        // denotes its referent. Selecting below the local crosses that stored
+        // address; copying the whole descriptor does not cross it.
+        if !place.segments.is_empty()
+            && let Some(state) = self.program.state_by_symbol(self.state)
+            && let Some((_, local)) = self.program.state_local_declaration(state, symbol)
+        {
+            let mut reference = local.type_reference;
+            let mut crossings = Vec::new();
+            while let Some(shell) = validation::reference_shell(self.program, reference) {
+                if shell.access == language_semantics::ReferenceAccess::WriteOnly {
+                    return None;
+                }
+                crossings.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                reference = shell.referee;
+            }
+            crossings.append(&mut path);
+            path = crossings;
+        }
         if !validation::declared_carriers_match(self.program, projected, expected) {
             return None;
         }

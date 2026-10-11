@@ -1,7 +1,7 @@
 //! Lifetimes: declaration-level check that a view-returning machine has an
-//! unambiguous source for the returned borrow, and that reconstructed body
-//! origins belong to that declaration's lifetime relation. Unknown body
-//! reconstruction is not confused with a known contradictory source.
+//! unambiguous source for the returned borrow, and that captured body origins
+//! belong to that declaration's lifetime relation. Formation owns current
+//! descriptor contents; source spelling cannot waive this relation.
 //!
 //! Explicit output lifetimes name matching input leaves; elided outputs need
 //! one unambiguous input. Type-dependent declarations are templates, not closed
@@ -21,7 +21,7 @@ mod templates;
 
 pub(super) fn check_view_return_elision(
     program: &dyn ::validation::CheckingInput,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    facts: &checked_trees::CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut deferred = Vec::new();
@@ -35,9 +35,7 @@ pub(super) fn check_view_return_elision(
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();
         for state in program.machine_states(machine) {
-            if let Some(parameter_index) =
-                returned_body_source_mismatch(program, state, call_frames)
-            {
+            if let Some(parameter_index) = returned_body_source_mismatch(program, facts, state) {
                 let parameter = &program.state_parameters(state)[parameter_index];
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` returns a view borrowing input `{}`, which is not permitted by the declared result lifetime relation",

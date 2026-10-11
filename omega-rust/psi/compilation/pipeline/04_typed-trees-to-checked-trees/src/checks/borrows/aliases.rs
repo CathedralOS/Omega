@@ -42,7 +42,7 @@ pub(in crate::checks::borrows) fn resolve_places(
         .iter()
         .any(|statement| {
             matches!(statement, StatementNode::LocalData(local)
-                if local.symbol == place.root_symbol
+                if facts::PlaceRoot::Symbol(local.symbol) == place.root
                     && matches!(program.type_reference_table.type_reference(local.type_reference),
                         TypeReferenceNode::Reference { .. }))
         });
@@ -64,12 +64,12 @@ pub(in crate::checks::borrows) fn resolve_places(
         .borrow_loan_constraints(entry_constraints)
         .filter(|handle| {
             borrow.state_owns_loan(state_borrow, *handle)
-                && borrow.loans.get(*handle).owner_symbol == place.root_symbol
+                && borrow.loans.get(*handle).storage_owner == place.root
         });
     let places: Vec<_> = candidates
         .map(|handle| {
             let loan = borrow.loans.get(handle);
-            if !loan.owner_path.is_empty() || !loan.root_symbol.is_valid() {
+            if !loan.owner_path.is_empty() || !loan.root.is_valid() {
                 return None;
             }
             let mut segments = borrow.loan_segments(loan).to_vec();
@@ -79,7 +79,7 @@ pub(in crate::checks::borrows) fn resolve_places(
             Some(ResolvedPlace {
                 place: CapturedPlace {
                     incoming_reference: loan.incoming_reference,
-                    root_symbol: loan.root_symbol,
+                    root: loan.root,
                     segments,
                 },
                 local_loan: handle,

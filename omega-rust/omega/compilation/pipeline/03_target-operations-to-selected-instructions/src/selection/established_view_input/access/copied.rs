@@ -39,12 +39,19 @@ pub(super) fn shared_projection(
     };
     let (selected, offset, elements, shared_field) = match path {
         abstract_operations::StructuralCopyPath::Ordinary(path) => {
-            let (selected, offset, elements) =
-                geometry::runtime_leaf_copy_projection(root, path, types)?;
+            let geometry = geometry::leaf_copy_geometry(root, path, types)?;
+            if !geometry.readable {
+                return None;
+            }
             let shared_field =
                 terminal_semantics::shared_byte_field_copy_predicates(types.iter(), root, path)
                     .is_some();
-            (selected, offset, elements, shared_field)
+            (
+                geometry.selected,
+                geometry.byte_offset,
+                geometry.elements,
+                shared_field,
+            )
         }
         abstract_operations::StructuralCopyPath::Case(path) => {
             let (selected, offset) = geometry::case_projection(root, path, types)?;

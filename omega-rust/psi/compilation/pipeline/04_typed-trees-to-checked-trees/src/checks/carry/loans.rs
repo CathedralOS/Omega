@@ -217,15 +217,10 @@ pub(super) fn retain_call_frontier(
                 identity: loan.incoming_reference,
             }
         } else {
-            owned_backing_origin(
-                program,
-                source_values,
-                loan.root_symbol,
-                call.statement_index,
-            )
-            .map_or(SuspensionCrossingLoanBacking::Unresolved, |origin| {
-                SuspensionCrossingLoanBacking::StateValue { origin }
-            })
+            owned_backing_origin(program, source_values, loan.root, call.statement_index)
+                .map_or(SuspensionCrossingLoanBacking::Unresolved, |origin| {
+                    SuspensionCrossingLoanBacking::StateValue { origin }
+                })
         };
         SuspensionCrossingLoanFact {
             source: checked_trees::SuspensionCrossingLoanSource::Stored {
@@ -250,7 +245,7 @@ pub(super) fn retain_call_frontier(
             backing: owned_backing_origin(
                 program,
                 source_values,
-                row.parent_lifetime.root_symbol,
+                row.parent_lifetime.root,
                 call.statement_index,
             )
             .map_or(SuspensionCrossingLoanBacking::Unresolved, |origin| {
@@ -270,9 +265,10 @@ pub(super) fn retain_call_frontier(
 fn owned_backing_origin(
     program: &dyn ::validation::CheckingInput,
     source_values: &[StateCarryValue<'_>],
-    root: symbols::SymbolHandle,
+    root: facts::PlaceRoot,
     statement_index: usize,
 ) -> Option<checked_trees::SuspensionCrossingValueOrigin> {
+    let root = root.as_symbol()?;
     source_values
         .iter()
         .find(|value| value.symbol == root && value.available_before(statement_index))
@@ -384,7 +380,7 @@ pub(super) fn retained_lifetime_demand(
                     || resource.state_symbol != state.state_symbol
                     || resource.parent_lifetime.machine_symbol != state.machine_symbol
                     || resource.parent_lifetime.state_symbol != state.state_symbol
-                    || resource.parent_lifetime.root_symbol != root
+                    || resource.parent_lifetime.root != facts::PlaceRoot::Symbol(root)
                     || !frontier
                         .operands
                         .handles()
@@ -424,7 +420,7 @@ pub(super) fn retained_lifetime_demand(
                 if resource.loan != loan_handle
                     || resource.parent_lifetime.machine_symbol != state.machine_symbol
                     || resource.parent_lifetime.state_symbol != state.state_symbol
-                    || resource.parent_lifetime.root_symbol != loan.root_symbol
+                    || resource.parent_lifetime.root != loan.root
                 {
                     return Err("the root loan has no exact enclosing-invocation lifetime");
                 }

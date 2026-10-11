@@ -49,11 +49,11 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
     for argument in retained_arguments {
         let operand = CapturedPlace {
             incoming_reference: Default::default(),
-            root_symbol: argument.root_symbol,
+            root: argument.root,
             segments: facts.borrow.access_segments(argument).to_vec(),
         };
         let loan = CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(operand.root_symbol),
+            root: operand.root,
             segments: operand.segments.clone(),
         };
         // Each loan has its own state-exit boundary. A shared footprint for
@@ -183,7 +183,7 @@ fn retained_subject_access(
         &site,
         call.statement_index,
     )?;
-    let root_symbol = parent.root.as_symbol()?;
+    let root = parent.root.as_symbol()?;
     let mut matching = facts
         .borrow
         .argument_accesses
@@ -193,7 +193,7 @@ fn retained_subject_access(
         .filter(|(_, access)| {
             access.kind == BorrowAccessKind::Mutable
                 && access.end_before_access.is_none()
-                && access.root_symbol == root_symbol
+                && access.root == facts::PlaceRoot::Symbol(root)
                 && facts.borrow.access_segments(access) == parent.segments
         });
     let (ordinal, _) = matching.next()?;
@@ -248,25 +248,21 @@ fn whole_mutable_jump_machine<'p>(
     segments.is_empty().then_some(machine)
 }
 
-/// Summaries already use the caller's explicit storage coordinates.
+/// Summaries already use the caller's explicit storage coordinates, including
+/// computed backing. Projection does not require a named declaration root.
 fn captured_places(places: Vec<CanonicalPlace>) -> Vec<CapturedPlace> {
     places
         .into_iter()
-        .filter_map(|place| match place.root {
-            facts::PlaceRoot::Symbol(root_symbol) => Some(CapturedPlace {
+        .filter_map(|place| {
+            place.root.is_valid().then_some(CapturedPlace {
                 incoming_reference: Default::default(),
-                root_symbol,
+                root: place.root,
                 segments: place.segments,
-            }),
-            _ => None,
+            })
         })
         .collect()
 }
 
 fn place_label(program: &dyn ::validation::CheckingInput, place: &CapturedPlace) -> String {
-    facts::canonical_place_label_from_parts(
-        program,
-        facts::PlaceRoot::Symbol(place.root_symbol),
-        &place.segments,
-    )
+    facts::canonical_place_label_from_parts(program, place.root, &place.segments)
 }

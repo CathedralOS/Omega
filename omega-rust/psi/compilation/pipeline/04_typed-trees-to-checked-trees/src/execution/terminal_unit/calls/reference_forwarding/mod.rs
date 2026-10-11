@@ -118,7 +118,7 @@ fn exact_mutable_referent(
         .argument_accesses
         .span_or_empty(borrow_call.accesses)
         .iter()
-        .filter(|access| access.root_symbol == source_symbol);
+        .filter(|access| access.root == facts::PlaceRoot::Symbol(source_symbol));
     let Some(access) = accesses.next() else {
         return None;
     };
@@ -152,7 +152,7 @@ fn exact_mutable_referent(
             !returned_loans.contains(&handle)
                 && loan.statement_index <= call.statement_index
                 && loan.last_use_statement_index >= call.statement_index
-                && (loan.root_symbol == source_symbol
+                && (loan.root == facts::PlaceRoot::Symbol(source_symbol)
                     || loan.owner_symbol == source_symbol
                     || loan.source_owner_symbol == source_symbol)
                 && !(loan.statement_index == call.statement_index
@@ -350,7 +350,7 @@ fn preceding_reborrow_preserves_carrier(
         .argument_accesses
         .span_or_empty(call.accesses)
         .iter()
-        .filter(|access| access.root_symbol == source_symbol);
+        .filter(|access| access.root == facts::PlaceRoot::Symbol(source_symbol));
     let Some(access) = accesses.next() else {
         return false;
     };

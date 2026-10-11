@@ -10,6 +10,7 @@ pub(crate) use checked_trees::BorrowLoanOwnerSegment as BorrowOwnerSegment;
 pub(super) struct StateLoanTracker {
     pub(super) handle: Handle<checked_trees::BorrowLoanFact>,
     pub(super) owner_symbol: SymbolHandle,
+    pub(super) storage_owner: facts::PlaceRoot,
     pub(super) owner_name: Identifier,
     pub(super) kind: checked_trees::BorrowAccessKind,
     pub(super) lineage: checked_trees::BorrowLoanLineage,

@@ -367,6 +367,61 @@ pub fn runtime_structural_path_tip<'a>(
     }
 }
 
+/// A finite inline storage selection, independent of which descriptors are
+/// resident. Keep declared coverage separate from residence: inactive case
+/// payloads may have no cells, but missing unconditional cells are not coverage.
+pub struct StructuralStorageSelection<'path> {
+    path: &'path [StructuralPathSegment],
+    pub place_count: usize,
+}
+
+impl<'path> StructuralStorageSelection<'path> {
+    pub fn new<'types>(
+        declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &'path [StructuralPathSegment],
+    ) -> Option<Self> {
+        runtime_structural_path_tip(declarations.clone(), root, path)?;
+        let mut place_count = 1usize;
+        for (position, segment) in path.iter().enumerate() {
+            if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
+                let current =
+                    runtime_structural_path_tip(declarations.clone(), root, &path[..position])?;
+                let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = current.shape
+                else {
+                    return None;
+                };
+                place_count = place_count.checked_mul(usize::try_from(length).ok()?)?;
+            }
+        }
+        Some(Self { path, place_count })
+    }
+
+    /// Match actual storage without expanding every possible array slot.
+    /// The consuming type query checks each resident coordinate's bounds;
+    /// this selection does not authenticate custody or a case discriminator.
+    pub fn relative_path<'stored>(
+        &self,
+        stored: &'stored [StructuralPathSegment],
+    ) -> Option<&'stored [StructuralPathSegment]> {
+        let prefix = stored.get(..self.path.len())?;
+        prefix
+            .iter()
+            .zip(self.path)
+            .all(|(resident, selected)| {
+                resident == selected
+                    || matches!(
+                        (selected, resident),
+                        (
+                            StructuralPathSegment::RuntimeIndex { .. },
+                            StructuralPathSegment::FixedIndex(_)
+                        )
+                    )
+            })
+            .then(|| &stored[self.path.len()..])
+    }
+}
+
 /// Enumerate the stored descriptor paths required by a runtime projection.
 /// Declared fixed extents determine coverage; missing live custody rows cannot
 /// shrink it. The caller's finite roster bounds expansion before allocation.

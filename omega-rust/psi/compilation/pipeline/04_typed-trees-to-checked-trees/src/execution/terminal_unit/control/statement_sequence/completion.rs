@@ -323,18 +323,8 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 state.return_type,
             ))
     {
-        result.reference_sources = if super::super::super::reference_results::stored_loan_parts(
-            program,
-            state.return_type,
-        )
-        .is_some()
-        {
-            super::super::super::reference_results::returned_reference_sources(
-                program, state, None,
-            )?
-        } else {
-            validation::reference_result_custody::captured_return_sources(program, facts, state)?
-        };
+        result.reference_sources =
+            validation::reference_result_custody::captured_return_sources(program, facts, state)?;
     }
     // Release each returned carrier at its actual checked weakening boundary,
     // before any scalar completion or following statement can reuse the parent.

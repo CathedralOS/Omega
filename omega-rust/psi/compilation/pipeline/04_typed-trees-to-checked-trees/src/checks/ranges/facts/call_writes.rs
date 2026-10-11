@@ -172,7 +172,7 @@ impl<'program> RangeCallContext<'program> {
             .span_or_empty(call.accesses)
             .iter()
             .map(|access| CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(access.root_symbol),
+                root: access.root,
                 segments: self
                     .borrows
                     .access_segments

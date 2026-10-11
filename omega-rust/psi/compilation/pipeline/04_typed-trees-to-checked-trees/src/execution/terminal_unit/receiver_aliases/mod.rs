@@ -314,7 +314,7 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
             }
             let parent = facts.borrow.direct_loan_resources.get(parent_resource);
             if parent.owner_symbol != parent_local.symbol
-                || parent_source.root != facts::PlaceRoot::Symbol(parent.captured_place.root_symbol)
+                || parent_source.root != parent.captured_place.root
                 || parent_source.segments != parent.captured_place.segments
             {
                 return false;

@@ -38,27 +38,100 @@ pub(in super::super) fn copied_leaves(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    for ((carrier, selected), original) in &live.references {
-        if *carrier != source {
+    // Follow descriptor associations to the actual selected storage before
+    // rebasing resident leaves. The logical path can cross several carriers;
+    // no leaf lives at a synthetic `root/Referent/...` metadata key.
+    let mut cursors = vec![(source, Vec::new())];
+    let mut segment_start = 0;
+    let budget = live
+        .references
+        .len()
+        .max(1)
+        .checked_mul(path.len().max(1))
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    for (position, segment) in path.iter().enumerate() {
+        if *segment != StructuralPathSegment::Referent {
             continue;
         }
-        let Some(relative) = selected.strip_prefix(path.as_ref()) else {
-            continue;
-        };
-        let carrier_type = leaf_type(types, result.structural_type, relative)
+        let mut next = Vec::new();
+        for (carrier, mut prefix) in cursors {
+            prefix.extend_from_slice(&path[segment_start..position]);
+            let root = source_contract(function, live, carrier)
+                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+            let selected = terminal_semantics::stored_descriptor_paths(
+                types.values().copied(),
+                root,
+                &prefix,
+                budget,
+            )
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        if carrier_type != original.carrier_type
-            || leaf_referent(types, result.structural_type, relative) != Some(original.referent)
-        {
+            for selected in selected {
+                let leaf = live
+                    .references
+                    .get(&(carrier, selected.clone()))
+                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+                if leaf_type(types, root, &selected) != Some(leaf.carrier_type) {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                for origin in leaf.root.origins() {
+                    if source_contract(function, live, origin.root)
+                        .and_then(|root| leaf_type(types, root, &origin.path))
+                        != Some(leaf.referent)
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    let cursor = (origin.root, origin.path);
+                    if !next.contains(&cursor) {
+                        if next.len() >= budget {
+                            return Err(LoweringError::unsupported_control_flow(function.machine));
+                        }
+                        next.push(cursor);
+                    }
+                }
+            }
+        }
+        cursors = next;
+        segment_start = position + 1;
+    }
+    let mut candidates: BTreeMap<Vec<StructuralPathSegment>, Vec<ReferenceStorage>> =
+        BTreeMap::new();
+    for (carrier, mut prefix) in cursors {
+        prefix.extend_from_slice(&path[segment_start..]);
+        let root = source_contract(function, live, carrier)
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+        let selected = terminal_semantics::StructuralStorageSelection::new(
+            types.values().copied(),
+            root,
+            &prefix,
+        )
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+        if leaf_type(types, root, &prefix) != Some(result.structural_type) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
+        for ((resident, path), original) in &live.references {
+            if *resident != carrier {
+                continue;
+            }
+            let Some(relative) = selected.relative_path(path) else {
+                continue;
+            };
+            let carrier_type = leaf_type(types, result.structural_type, relative)
+                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+            if carrier_type != original.carrier_type
+                || leaf_referent(types, result.structural_type, relative) != Some(original.referent)
+            {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            candidates
+                .entry(relative.to_vec())
+                .or_default()
+                .push(original.clone());
+        }
+    }
+    for (relative, alternatives) in candidates {
         copied.insert(
-            (result.place, relative.to_vec()),
-            ReferenceStorage {
-                root: original.root.clone(),
-                carrier_type,
-                referent: original.referent,
-            },
+            (result.place, relative),
+            combine_alternatives(function, alternatives)?,
         );
     }
     Ok(copied)

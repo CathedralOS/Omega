@@ -11,3 +11,7 @@ machine invalid<'first, 'second>(selected: bool, first: &'first Cell, second: &'
 machine invalid_direct<'first, 'second>(selected: bool, first: &'first Cell, second: &'second Cell) -> &'first Cell {
     match selected { true -> first, false -> second }
 }
+
+machine invalid_projected<'first, 'second>(first: &'first Cell, second: &'second Cell) -> &'first Cell {
+    &Held { target: second }.target
+}

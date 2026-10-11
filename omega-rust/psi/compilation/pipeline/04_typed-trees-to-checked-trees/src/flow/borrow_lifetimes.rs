@@ -142,7 +142,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
 
     let target = checked_trees::CapturedPlace {
         incoming_reference: Default::default(),
-        root_symbol: reassigned_symbol,
+        root: facts::PlaceRoot::Symbol(reassigned_symbol),
         segments: reassigned_segments,
     };
     let destinations =
@@ -162,10 +162,10 @@ pub(crate) fn filter_reassigned_borrow_loans(
                         .filter(|loan| loan.statement_index < statement_index)
                         .map(|loan| {
                             (
-                                loan.owner_symbol,
+                                loan.storage_owner,
                                 borrow.loan_owner_path(loan),
                                 loan.incoming_reference,
-                                loan.root_symbol,
+                                loan.root,
                                 borrow.loan_segments(loan),
                             )
                         }),
@@ -184,7 +184,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                 // Loans established by this assignment describe the replacement
                 // value and must survive it. Older loans carried by the
                 // overwritten whole/place are invalidated precisely.
-                let keep = active.owner_symbol != destination.root_symbol
+                let keep = active.storage_owner != destination.root
                     || active.statement_index == statement_index
                     || !borrow_owner_path_overlaps_place(
                         program,

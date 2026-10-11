@@ -122,6 +122,10 @@ fn resolve_copyable_path(
         let declaration = terminal_psi::find_structural_type(structural_types, structural_type)?;
         structural_type = match (segment, &declaration.shape) {
             (
+                StructuralPathSegment::Referent,
+                StructuralTypeShape::Reference { referent, access },
+            ) if *access != StructuralAccess::WriteOnlyBorrow => *referent,
+            (
                 StructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields, .. },
             ) => {

@@ -10,6 +10,9 @@ type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>
 /// Identity is the storage namespace plus resolved root and ordered semantic
 /// path. An incoming descriptor has an opaque referent namespace, distinct
 /// from the parameter storage that holds it.
+/// Named storage and computed backing retain the same canonical root vocabulary
+/// as flow places. Dropping an expression root would erase a temporary's loan
+/// before the ordinary transfer and escape judgments can inspect it.
 /// Source labels are deliberately absent. Runtime or otherwise unresolved
 /// selectors may remain as expression handles, but cannot establish a positive
 /// spatial result until a checked tactic understands them.
@@ -18,7 +21,7 @@ pub struct CapturedPlace {
     /// A parameter supplies this opaque referent occurrence. Zero denotes
     /// ordinary storage; an incoming descriptor's referent is not its slot.
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
-    pub root_symbol: SymbolHandle,
+    pub root: facts::PlaceRoot,
     pub segments: Vec<facts::PlaceSegment>,
 }
 
@@ -92,7 +95,7 @@ pub struct BorrowReturnedLoanFact {
     pub statement_index: usize,
     pub formation_expression: ExpressionHandle,
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
-    pub root_symbol: SymbolHandle,
+    pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
     pub kind: BorrowAccessKind,
@@ -154,7 +157,7 @@ pub struct BorrowArgumentAccessFact {
     /// The evaluated operand that produced this access in its owning call's
     /// ordered roster. Equal places do not identify equal evaluations.
     pub expression: ExpressionHandle,
-    pub root_symbol: SymbolHandle,
+    pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
     pub kind: BorrowAccessKind,
     /// First subsequent access in this call's roster after this observation
@@ -185,6 +188,10 @@ pub struct BorrowLoanFact {
     pub formation_expression: ExpressionHandle,
     pub last_use_statement_index: usize,
     pub owner_symbol: SymbolHandle,
+    /// Storage holding the descriptor, distinct from the lexical binding that
+    /// keeps it live. A reference to computed aggregate backing can keep its
+    /// nested descriptors live without storing them in the reference variable.
+    pub storage_owner: facts::PlaceRoot,
     /// Projection within the owner that carries this loan. An empty path means
     /// the whole owner; dynamic indexes conservatively overlap every element.
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
@@ -199,7 +206,7 @@ pub struct BorrowLoanFact {
     /// parent regardless of the descriptor's storage shape. Transports and
     /// ambiguous source aliases do not manufacture a reborrow relationship.
     pub lineage: BorrowLoanLineage,
-    pub root_symbol: SymbolHandle,
+    pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
     pub kind: BorrowAccessKind,
 }
@@ -228,7 +235,7 @@ pub enum BorrowLoanLineage {
 pub struct CheckedDirectBorrowParentLifetime {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
-    pub root_symbol: SymbolHandle,
+    pub root: facts::PlaceRoot,
 }
 
 /// A borrowed leaf of one completed call operand. Its owning evaluation and
@@ -643,9 +650,20 @@ impl BorrowFacts {
         owner: SymbolHandle,
         statement_index: usize,
     ) -> Option<HandleSpan<BorrowLoanFact>> {
+        self.storage_loans(state, facts::PlaceRoot::Symbol(owner), statement_index)
+    }
+
+    /// One storage occurrence owns its descriptor roster independently of the
+    /// lexical binding that keeps it live. Computed backing uses the same join.
+    pub fn storage_loans(
+        &self,
+        state: &StateBorrowFact,
+        owner: facts::PlaceRoot,
+        statement_index: usize,
+    ) -> Option<HandleSpan<BorrowLoanFact>> {
         let mut group = HandleSpan::empty();
         for (handle, loan) in self.loan_group(state.loans)? {
-            if loan.owner_symbol != owner || loan.statement_index != statement_index {
+            if loan.storage_owner != owner || loan.statement_index != statement_index {
                 continue;
             }
             if !group.is_empty() && !group.is_followed_by(handle) {

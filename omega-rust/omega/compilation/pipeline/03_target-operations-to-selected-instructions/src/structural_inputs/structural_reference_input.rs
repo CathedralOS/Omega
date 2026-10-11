@@ -200,6 +200,21 @@ pub(crate) fn reference_source_geometry(
     )
 }
 
+/// Snapshot endpoint geometry retains byte-field copy shapes while sharing
+/// the ordered pointer regions used by ordinary reference observations.
+pub(crate) fn leaf_copy_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ReferenceSourceGeometry> {
+    reference_source_geometry_with_leaf_shape(
+        root,
+        path,
+        declarations,
+        StructuralFieldType::leaf_copy_shape,
+    )
+}
+
 fn reference_source_geometry_with_leaf_shape(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],

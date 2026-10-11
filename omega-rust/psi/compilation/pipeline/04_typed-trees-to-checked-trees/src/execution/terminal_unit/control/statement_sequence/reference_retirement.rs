@@ -47,6 +47,115 @@ pub(super) struct Retirement<'a> {
 }
 
 impl Retirement<'_> {
+    /// Computed homes have no independent statement-result binding. Their
+    /// stored descriptors nevertheless own the same captured formation and
+    /// weakening as named storage. End those leaves only after every holder
+    /// borrowing the home has actually retired. This does not dispose the
+    /// backing's owned contents or authorize a nominal cleanup.
+    /// The state-wide loan roster includes unevaluated alternatives. These are
+    /// candidate storage deaths: the existing ownership continuation graph
+    /// selects actual births before emitting exact descriptor releases.
+    pub(super) fn backing_releases(&self) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+        let mut states = self.facts.borrow.states.iter().filter_map(|(_, state)| {
+            (state.machine_symbol == self.machine && state.state_symbol == self.state.symbol)
+                .then_some(state)
+        });
+        let Some(state) = states.next() else {
+            return Some(Vec::new());
+        };
+        if states.next().is_some() {
+            return None;
+        }
+        let mut owners = Vec::new();
+        for (handle, loan) in self.facts.borrow.loans.iter() {
+            if self.facts.borrow.state_owns_loan(state, handle)
+                && matches!(loan.storage_owner, facts::PlaceRoot::Expression(_))
+                && loan.statement_index < self.statement_index as usize
+                && !owners.contains(&(loan.storage_owner, loan.statement_index))
+            {
+                owners.push((loan.storage_owner, loan.statement_index));
+            }
+        }
+        let mut releases = Vec::new();
+        for (owner, formation) in owners.into_iter().rev() {
+            if self.facts.borrow.loans.iter().any(|(handle, loan)| {
+                self.facts.borrow.state_owns_loan(state, handle)
+                    && loan.root == owner
+                    && loan.statement_index < self.statement_index as usize
+                    && !self.holder_retired(handle)
+            }) {
+                continue;
+            }
+            let reference = validation::canonical_place_type_reference(
+                self.program,
+                self.state.symbol,
+                formation,
+                &validation::CanonicalPlace {
+                    root: owner,
+                    segments: Vec::new(),
+                },
+            )?;
+            for (source, loans) in validation::reference_result_custody::storage_place_loans(
+                self.program,
+                self.facts,
+                self.machine,
+                self.state,
+                owner,
+                reference,
+                u32::try_from(formation).ok()?,
+                &[],
+            )? {
+                let transfers = transfers::from_storage(
+                    self.program,
+                    self.facts,
+                    self.results,
+                    source.source.source.clone(),
+                    u32::try_from(formation).ok()?,
+                    &source.path,
+                    self.operations,
+                )?;
+                // Custody moved to a receiving value is no longer held by
+                // this backing leaf, even when its lexical loan has expired.
+                // Shared descriptor copies keep their independent original.
+                if transfers.possible.iter().any(|transfer| {
+                    source.path.starts_with(&transfer.source)
+                        || transfer.source.starts_with(&source.path)
+                }) {
+                    continue;
+                }
+                let mut ready = true;
+                for (handle, _) in self.facts.borrow.loan_group(loans)? {
+                    if self.disposed(handle)
+                        || !self.children_retired(handle)
+                        || !validation::reference_result_custody::release_boundary(
+                            self.program,
+                            self.facts,
+                            self.machine,
+                            self.state.symbol,
+                            handle,
+                        )
+                        .is_some_and(|boundary| boundary <= self.statement_index)
+                    {
+                        ready = false;
+                        break;
+                    }
+                }
+                if ready {
+                    releases.push(CheckedUnitEffectOperationPlan::ReleaseReference {
+                        statement_index: self.statement_index,
+                        source: source.source.source,
+                        path: source.path,
+                        select_evaluated_storage: true,
+                        defer_to_exit: false,
+                        loans,
+                        selection_complements: Vec::new(),
+                    });
+                }
+            }
+        }
+        Some(releases)
+    }
+
     /// An immediate child must have ended its actual carrier, not merely
     /// reached its parent's lexical last use. Each child's own schedule obeys
     /// this same rule, so reverse production closes a chain deepest first.
@@ -608,6 +717,33 @@ impl Retirement<'_> {
     /// evaluation. A release instead names the exact retained loan group.
     pub(super) fn disposed(&self, handle: arena::Handle<BorrowLoanFact>) -> bool {
         let loan = self.facts.borrow.loans.get(handle);
+        // Ownership already selected each temporary owner's normal call
+        // death. Statement and scalar emission consume those same contextual
+        // dispositions. A whole-owner death at formation settles every stored
+        // descriptor, including a child lending another backing home; counting
+        // only explicit statement releases would dispose those leaves twice.
+        // The occurrence and coordinate join also preserve selected evaluation:
+        // this owner is established while evaluating that call's operand.
+        // Projected deaths and excluded subtrees remain with exact path cleanup.
+        if loan.statement_index < self.statement_index as usize
+            && self
+                .facts
+                .contextual_cleanup
+                .dispositions
+                .iter()
+                .any(|(_, disposition)| {
+                    disposition.machine == self.machine
+                        && disposition.state == self.state.symbol
+                        && disposition.root == loan.storage_owner
+                        && disposition.path.is_empty()
+                        && disposition.exclusions.is_empty()
+                        && matches!(disposition.source,
+                        language_semantics::PermissionEventSource::Call { statement_index, .. }
+                            if statement_index == loan.statement_index)
+                })
+        {
+            return true;
+        }
         self.operations
             .iter()
             .chain(self.pending)

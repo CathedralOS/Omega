@@ -1199,22 +1199,9 @@ pub(crate) fn project_shared_structural_observation(
     )
 }
 
-/// A copy materializes an inline leaf's value carrier, while ordinary
-/// projections keep the storage presentation and its authority unchanged.
-pub(crate) fn project_structural_leaf_copy(
-    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    root: &TerminalStructuralValue,
-    path: &[StructuralPathSegment],
-) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-    project_structural_value_with_leaf(
-        structural_types,
-        root,
-        path,
-        terminal_psi::StructuralFieldType::leaf_copy_shape,
-    )
-}
-
-fn project_structural_value_with_leaf(
+/// Select an inline endpoint's presentation after the live address walker has
+/// resolved descriptor crossings. This geometry operation grants no access.
+pub(crate) fn project_structural_value_with_leaf(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: &TerminalStructuralValue,
     path: &[StructuralPathSegment],

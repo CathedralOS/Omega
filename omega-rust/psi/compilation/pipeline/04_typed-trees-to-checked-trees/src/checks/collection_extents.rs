@@ -126,7 +126,7 @@ pub(crate) fn from_live_loans(
                 .collect::<Vec<_>>()
         } else {
             vec![CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(loan.root_symbol),
+                root: loan.root,
                 segments: borrow.loan_segments(loan).to_vec(),
             }]
         };

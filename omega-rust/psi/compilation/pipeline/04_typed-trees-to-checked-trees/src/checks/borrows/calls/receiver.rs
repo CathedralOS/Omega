@@ -101,7 +101,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
         for access in accesses.span_or_empty(span) {
             let place = CapturedPlace {
                 incoming_reference: Default::default(),
-                root_symbol: access.root_symbol,
+                root: access.root,
                 segments: segments.span_or_empty(access.segments).to_vec(),
             };
             let Some(access) = aliases::resolve_place(
@@ -145,14 +145,14 @@ fn receiver_is_writable(
     let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
         return false;
     };
-    if receiver.root_symbol == state_flow.machine_symbol {
+    if receiver.root == facts::PlaceRoot::Symbol(state_flow.machine_symbol) {
         return false;
     }
     // Writable-root facts retain local bindings; the declared reference access
     // still decides whether the referent can be exclusively borrowed.
     for statement in program.statement_table.statements(state.statement_nodes) {
         if let Some(local) = statement.as_local_data()
-            && local.symbol == receiver.root_symbol
+            && facts::PlaceRoot::Symbol(local.symbol) == receiver.root
         {
             return match program
                 .type_reference_table
@@ -166,5 +166,7 @@ fn receiver_is_writable(
     facts
         .flow
         .borrow_writable_root_constraints(entry_constraints)
-        .any(|root| facts.borrow.writable_roots.get(root).symbol == receiver.root_symbol)
+        .any(|root| {
+            facts::PlaceRoot::Symbol(facts.borrow.writable_roots.get(root).symbol) == receiver.root
+        })
 }

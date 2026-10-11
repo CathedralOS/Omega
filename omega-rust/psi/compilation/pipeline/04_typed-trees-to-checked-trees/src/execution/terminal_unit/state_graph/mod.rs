@@ -806,20 +806,13 @@ pub(super) fn build_traced(
             }),
         _ => false,
     };
-    if whole_reference {
-        trace.phase("state graph: reference result origins");
-        plan.result_reference_sources =
-            validation::reference_result_custody::returned_reference_sources(
-                program, &states[0], None,
-            )?;
-    } else if matches!(
-        result,
-        checked_trees::CheckedControlResultPlan::Structural(_)
-    ) && super::reference_results::is_reference_record(program, states[0].return_type)
+    if whole_reference
+        || (matches!(
+            result,
+            checked_trees::CheckedControlResultPlan::Structural(_)
+        ) && super::reference_results::is_reference_record(program, states[0].return_type))
     {
-        // Stored leaves and whole references use the same invocation-relative
-        // origin relation. Comparing returning states' parameter ordinals loses
-        // edge substitution; a one-state record gate loses ordinary control.
+        trace.phase("state graph: reference result origins");
         plan.result_reference_sources =
             validation::reference_result_custody::captured_return_sources(
                 program, facts, &states[0],

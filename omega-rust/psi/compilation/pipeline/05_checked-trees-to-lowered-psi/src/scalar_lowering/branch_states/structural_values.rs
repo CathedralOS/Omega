@@ -86,6 +86,7 @@ pub(crate) struct PreparedValue {
     pub(crate) structural_type: StructuralTypeId,
     /// Source homes moved whole into the value's members.
     pub(crate) consumed: Vec<PlaceId>,
+    storage: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
     statement: u32,
     steps: Vec<Step>,
 }
@@ -219,6 +220,7 @@ pub(crate) fn prepare_value(
         prefix: value_types.to_vec(),
         steps: Vec::new(),
         consumed: Vec::new(),
+        storage: Vec::new(),
         claims,
     };
     let argument = preparation.operand(identities, value, reference, &[])?;
@@ -240,12 +242,21 @@ pub(crate) fn prepare_value(
             terminal_multiplicity(checked.type_multiplicity(reference)),
         )?;
     }
+    preparation.storage.push(
+        crate::expression_preparation::bindings::StructuralLocalBinding {
+            result_binding_ordinal: None,
+            root: owner,
+            argument: whole_argument(place),
+            structural_type,
+        },
+    );
     Ok(PreparedValue {
         place,
         structural_type,
         statement,
         steps: preparation.steps,
         consumed: preparation.consumed,
+        storage: preparation.storage,
     })
 }
 
@@ -298,6 +309,7 @@ struct Preparation<'a> {
     prefix: Vec<QualifiedScalarType>,
     steps: Vec<Step>,
     consumed: Vec<PlaceId>,
+    storage: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
     claims: Vec<PreparedClaim>,
 }
 
@@ -361,11 +373,7 @@ impl Preparation<'_> {
                     .structural_values
                     .nodes
                     .get(*source);
-                let source_reference = self
-                    .checked
-                    .facts
-                    .resolved_types
-                    .result(source_node.expression);
+                let source_reference = source_node.type_reference;
                 let source_type =
                     carrier_declaration(identities, self.checked, self.types, source_reference)?.id;
                 let selected_path = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
@@ -483,6 +491,18 @@ impl Preparation<'_> {
                     carrier_declaration(identities, self.checked, self.types, child_reference)?.id;
                 let mut argument =
                     self.source(identities, *source_value, child_reference, claim_path)?;
+                self.storage.push(
+                    crate::expression_preparation::bindings::StructuralLocalBinding {
+                        result_binding_ordinal: None,
+                        root: source.structural_storage_root().ok_or(
+                            LoweringError::Unsupported(
+                                "computed reference backing has no storage identity",
+                            ),
+                        )?,
+                        argument: argument.clone(),
+                        structural_type: root_type,
+                    },
+                );
                 argument.path.extend(crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
                     identities, &source.path, root_type, self.types,
                 )?);
@@ -1096,6 +1116,7 @@ impl PreparedValue {
         target: usize,
         computations: &mut computations::Expansion<'_>,
     ) -> Result<usize, LoweringError> {
+        computations.storage.extend(self.storage);
         let completed_types = self
             .steps
             .last()

@@ -7,7 +7,6 @@
 
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
 
 pub(super) fn check_view_return_escape(
     program: &dyn ::validation::CheckingInput,
@@ -22,33 +21,65 @@ pub(super) fn check_view_return_escape(
         ) else {
             continue;
         };
-        let mut reported: Vec<SymbolHandle> = Vec::new();
+        let mut reported: Vec<facts::PlaceRoot> = Vec::new();
         for loan in facts
             .borrow
             .returned_loans
             .span_or_empty(borrow_state.returned_loans)
         {
-            if loan.incoming_reference.is_valid() || reported.contains(&loan.root_symbol) {
+            if loan.incoming_reference.is_valid() || reported.contains(&loan.root) {
                 continue;
             }
-            let root = loan.root_symbol;
-            let storage = if let Some((_, local)) = program.state_local_declaration(state, root) {
-                format!("the local `{}`", local.name)
-            } else if let Some(parameter) =
-                program.state_parameters(state).iter().find(|parameter| {
-                    parameter.symbol == root
-                        && !parameter.is_const
-                        && validation::reference_shell(program, parameter.type_reference).is_none()
-                })
-            {
-                format!("the owned input `{}`", parameter.name)
-            } else {
-                continue;
+            let storage = match loan.root {
+                facts::PlaceRoot::Symbol(root) => {
+                    if let Some((_, local)) = program.state_local_declaration(state, root) {
+                        format!("the local `{}`", local.name)
+                    } else if let Some(parameter) =
+                        program.state_parameters(state).iter().find(|parameter| {
+                            parameter.symbol == root
+                                && !parameter.is_const
+                                && validation::reference_shell(program, parameter.type_reference)
+                                    .is_none()
+                        })
+                    {
+                        format!("the owned input `{}`", parameter.name)
+                    } else {
+                        continue;
+                    }
+                }
+                facts::PlaceRoot::Expression(expression) => {
+                    let is_view = validation::expression_type_reference_in_state(
+                        program,
+                        state.symbol,
+                        loan.statement_index,
+                        expression,
+                    )
+                    .is_some_and(|reference| {
+                        validation::reference_shell(program, reference).is_some()
+                    });
+                    if is_view
+                        && super::persistent::is_state_independent_borrow_source(
+                            program,
+                            state,
+                            expression,
+                            &mut Vec::new(),
+                        )
+                    {
+                        continue;
+                    }
+                    "temporary storage".to_owned()
+                }
+                facts::PlaceRoot::Unknown | facts::PlaceRoot::TypeReference(_) => {
+                    diagnostics.push(Diagnostic::error(
+                        "returned view has no captured storage origin",
+                    ));
+                    continue;
+                }
             };
-            reported.push(root);
+            reported.push(loan.root);
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` returns a view borrowing {storage}, which does not outlive \
-                 the call; return a borrow of an input parameter or `self` instead",
+                 the call; return a view of storage that outlives the invocation instead",
                 state_subject(machine, state),
             )));
         }

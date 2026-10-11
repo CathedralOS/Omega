@@ -282,7 +282,7 @@ fn append_borrow_permission_event(
                 statement_index: loan.statement_index,
             },
         ),
-        root: facts::PlaceRoot::Symbol(loan.root_symbol),
+        root: loan.root,
         segments,
         obligation_live: false,
     });

@@ -95,6 +95,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                 .map(|source| StatementBorrowLoan {
                     formation_expression: initializer.expression,
                     owner_symbol: local_data.symbol,
+                    storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
                     owner_name: local_data.name.clone(),
                     owner_path: initializer.owner_path.clone(),
                     place: source.place.clone(),
@@ -167,6 +168,7 @@ pub(super) fn aggregate_expression_borrow_loans(
                 .map(|source| StatementBorrowLoan {
                     formation_expression: expression,
                     owner_symbol: local_data.symbol,
+                    storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
                     owner_name: local_data.name.clone(),
                     owner_path: owner_path_prefix.to_vec(),
                     place: source.place.clone(),
@@ -353,6 +355,7 @@ pub(super) fn result_source_loans(
                     StatementBorrowLoan {
                         formation_expression: argument,
                         owner_symbol: local_data.symbol,
+                        storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
                         owner_name: local_data.name.clone(),
                         owner_path: owner_path.clone(),
                         place,
@@ -380,7 +383,7 @@ pub(super) fn transferred_aggregate_loans(
         .iter()
         .rev()
         .filter_map(|loan| {
-            if loan.owner_symbol != source.root_symbol {
+            if loan.storage_owner != source.root {
                 return None;
             }
 
@@ -400,6 +403,7 @@ pub(super) fn transferred_aggregate_loans(
             Some(StatementBorrowLoan {
                 formation_expression: expression,
                 owner_symbol: local_data.symbol,
+                storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
                 owner_name: local_data.name.clone(),
                 owner_path: prefixed_owner_path,
                 place: loan.place.clone(),

@@ -283,13 +283,13 @@ pub(super) fn check_statement_borrows<'p>(
             frames.assignment_replaces_reference_binding(machine, statement_node) == Some(true)
         });
         let destinations = if binding_replacement {
-            let Some(root_symbol) = mutated_place.root.as_symbol() else {
+            let Some(root) = mutated_place.root.as_symbol() else {
                 continue;
             };
             Some(vec![super::aliases::ResolvedAlias {
                 place: checked_trees::CapturedPlace {
                     incoming_reference: Default::default(),
-                    root_symbol,
+                    root: facts::PlaceRoot::Symbol(root),
                     segments: mutated_place.segments.clone(),
                 },
                 lineage: Vec::new(),
@@ -464,7 +464,7 @@ fn check_call_mutation_borrows<'p>(
                 })
                 .map(|_| {
                     let captured = validation::CanonicalPlace {
-                        root: facts::PlaceRoot::Symbol(loan.root_symbol),
+                        root: loan.root,
                         segments: facts.borrow.loan_segments(loan).to_vec(),
                     };
 
@@ -621,7 +621,7 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
         let incoming = program
             .state_parameters(source)
             .iter()
-            .find(|candidate| candidate.symbol == place.root_symbol)?;
+            .find(|candidate| facts::PlaceRoot::Symbol(candidate.symbol) == place.root)?;
         for reference in [incoming.type_reference, parameter.type_reference, actual] {
             let typed_trees::types::TypeReferenceNode::Reference { .. } =
                 program.type_reference_table.type_reference(reference)
@@ -676,8 +676,8 @@ pub(super) fn carried_authority(
             parent_loan == active_loan_handle
                 && forming_loan.source_owner_symbol == active_loan.owner_symbol
                 && (proven_containment
-                    || (compatibility.right.root_symbol.is_valid()
-                        && compatibility.left.root_symbol == compatibility.right.root_symbol
+                    || (compatibility.right.root.is_valid()
+                        && compatibility.left.root == compatibility.right.root
                         && compatibility
                             .left
                             .segments

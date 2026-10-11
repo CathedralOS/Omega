@@ -76,6 +76,27 @@ impl<'a> UnitPlans<'a> {
         &self.checked.boundary_machines
     }
 
+    /// Operand preparation consumes a callable's signature, not its body.
+    /// Dispatch remains the checked call's decision; a boundary must never
+    /// fall through to a module body or acquire a selected provider here.
+    pub(crate) fn call_entry(
+        self,
+        call: &checked_trees::CheckedUnitCallPlan,
+    ) -> Result<UnitEntry<'a>, LoweringError> {
+        match call.route() {
+            checked_trees::CheckedUnitCallRoute::Module { .. } => {
+                UnitBody::find(self, call.target.machine)?.entry()
+            }
+            checked_trees::CheckedUnitCallRoute::Boundary => Ok(
+                super::call_closure::unique_unit_boundary(self, call.target.machine)?
+                    .callable_entry(),
+            ),
+            checked_trees::CheckedUnitCallRoute::Dynamic { .. } => {
+                unsupported("structural expression calls require selector dispatch lowering")
+            }
+        }
+    }
+
     pub(crate) fn structural_domains(self) -> &'a [checked_trees::CheckedUnitStructuralDomainPlan] {
         &self.checked.structural_domains
     }

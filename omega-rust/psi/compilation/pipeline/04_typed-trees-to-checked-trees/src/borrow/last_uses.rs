@@ -50,7 +50,7 @@ pub(super) fn update_state_loan_last_uses(
                 if !loans.is_valid(tracker.handle) {
                     continue;
                 }
-                if tracker.owner_symbol == access.root_symbol
+                if tracker.storage_owner == access.root
                     && owner_path_overlaps_place_segments(
                         program,
                         &tracker.owner_path,
@@ -125,7 +125,7 @@ pub(super) fn update_state_loan_last_uses(
             }
             for alias in loan_trackers {
                 if !loans.is_valid(alias.handle)
-                    || alias.place.root_symbol != carrier.owner_symbol
+                    || alias.place.root != carrier.storage_owner
                     || !owner_path_overlaps_place_segments(
                         program,
                         &carrier.owner_path,

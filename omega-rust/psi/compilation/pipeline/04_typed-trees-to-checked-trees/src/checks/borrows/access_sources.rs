@@ -73,7 +73,7 @@ pub(in crate::checks::borrows) fn resolve_all(
     )?;
     let place = CapturedPlace {
         incoming_reference: Default::default(),
-        root_symbol: source.root.as_symbol()?,
+        root: source.root,
         segments: source.segments,
     };
     resolve_captured_all(
@@ -97,7 +97,7 @@ pub(in crate::checks::borrows) fn resolve_captured_all(
     entry_constraints: HandleSpan<FlowConstraintRef>,
     place: CapturedPlace,
 ) -> Option<Vec<ResolvedAlias>> {
-    let root_symbol = place.root_symbol;
+    let root = place.root;
     let borrow_state = facts.borrow.states.iter().find_map(|(_, candidate)| {
         (candidate.machine_symbol == state.machine_symbol
             && candidate.state_symbol == state.state_symbol)
@@ -139,7 +139,7 @@ pub(in crate::checks::borrows) fn resolve_captured_all(
                 .statement_table
                 .statement_at(source_state, loan.statement_index)?
                 .as_local_data()?;
-            if local.symbol != root_symbol {
+            if facts::PlaceRoot::Symbol(local.symbol) != root {
                 return None;
             }
             let formation = facts

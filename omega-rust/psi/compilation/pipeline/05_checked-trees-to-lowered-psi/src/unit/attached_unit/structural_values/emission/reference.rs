@@ -57,6 +57,22 @@ impl Emission<'_, '_, '_> {
                 node.type_reference,
                 &[],
             )?;
+            // The loan and its later retirement name this exact home. Keep
+            // its expression identity at establishment, not a reconstructed
+            // initializer or a second evaluation during cleanup.
+            let root = source
+                .structural_storage_root()
+                .ok_or(LoweringError::Unsupported(
+                    "computed reference backing has no storage identity",
+                ))?;
+            self.evaluation.structural_locals.push(
+                crate::expression_preparation::bindings::StructuralLocalBinding {
+                    result_binding_ordinal: None,
+                    root,
+                    argument: completed.argument.clone(),
+                    structural_type: root_type,
+                },
+            );
             let mut argument = completed.argument;
             argument.path.extend(crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
                 identities, &source.path, root_type, self.structural_types,

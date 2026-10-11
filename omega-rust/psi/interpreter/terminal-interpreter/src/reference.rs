@@ -57,6 +57,15 @@ pub(crate) enum AggregateViewTip {
     },
 }
 
+/// One resolved endpoint in its actual backing declaration. A byte snapshot
+/// also needs the final field's storage identity, not its rendered name or an
+/// identity looked up against the original (possibly reference-valued) root.
+struct ResolvedStructuralProjection {
+    value: TerminalStructuralValue,
+    view_tip: Option<AggregateViewTip>,
+    endpoint_field: Option<semantic_vocabulary::StructuralFieldId>,
+}
+
 /// The backing field at the same relevant position as the view field
 /// `selects` names. Identical geometry pairs relevant fields one to one.
 fn paired_field<'fields>(
@@ -800,6 +809,49 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         access: StructuralAccess,
     ) -> Result<(TerminalStructuralValue, Option<AggregateViewTip>), TerminalInterpretError> {
+        self.resolve_live_projection_with_leaf_shape(
+            place,
+            path,
+            access,
+            if access == StructuralAccess::SharedBorrow {
+                terminal_psi::StructuralFieldType::shared_observation_shape
+            } else {
+                terminal_psi::StructuralFieldType::canonical_leaf_shape
+            },
+        )
+        .map(|projection| (projection.value, projection.view_tip))
+    }
+
+    /// A snapshot observes the same live backing and reference authority as
+    /// other reads. Only its final inline field uses the copy presentation;
+    /// intermediate descriptors retain their original storage contracts.
+    pub(crate) fn resolve_live_leaf_copy(
+        &self,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Result<
+        (
+            TerminalStructuralValue,
+            Option<semantic_vocabulary::StructuralFieldId>,
+        ),
+        TerminalInterpretError,
+    > {
+        self.resolve_live_projection_with_leaf_shape(
+            place,
+            path,
+            StructuralAccess::SharedBorrow,
+            terminal_psi::StructuralFieldType::leaf_copy_shape,
+        )
+        .map(|projection| (projection.value, projection.endpoint_field))
+    }
+
+    fn resolve_live_projection_with_leaf_shape(
+        &self,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
+        access: StructuralAccess,
+        leaf_shape: fn(&terminal_psi::StructuralFieldType) -> Option<StructuralTypeShape>,
+    ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
         let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
         if path.contains(&StructuralPathSegment::Referent) {
             let authority = self.reference_carrier_access(place, owner, path)?;
@@ -807,7 +859,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
-        self.resolve_reference_view_path(owner, path, access)?
+        self.resolve_reference_view_path_with_leaf_shape(owner, path, access, leaf_shape)?
             .ok_or_else(malformed)
     }
 
@@ -834,6 +886,26 @@ impl TerminalExecution<'_> {
         access: StructuralAccess,
     ) -> Result<Option<(TerminalStructuralValue, Option<AggregateViewTip>)>, TerminalInterpretError>
     {
+        self.resolve_reference_view_path_with_leaf_shape(
+            owner,
+            path,
+            access,
+            if access == StructuralAccess::SharedBorrow {
+                terminal_psi::StructuralFieldType::shared_observation_shape
+            } else {
+                terminal_psi::StructuralFieldType::canonical_leaf_shape
+            },
+        )
+        .map(|selected| selected.map(|projection| (projection.value, projection.view_tip)))
+    }
+
+    fn resolve_reference_view_path_with_leaf_shape(
+        &self,
+        owner: &TerminalStructuralValue,
+        path: &[StructuralPathSegment],
+        access: StructuralAccess,
+        leaf_shape: fn(&terminal_psi::StructuralFieldType) -> Option<StructuralTypeShape>,
+    ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.program.structural_types();
         let mut value = owner.clone();
         let mut remaining = path;
@@ -887,7 +959,18 @@ impl TerminalExecution<'_> {
             )? {
                 return Ok(None);
             }
-            value = if access == StructuralAccess::SharedBorrow {
+            let endpoint_field = boundary
+                .is_none()
+                .then(|| {
+                    crate::custody::inline_structural_field(&types, value.structural_type, prefix)
+                        .map(|field| field.id)
+                })
+                .flatten();
+            value = if boundary.is_none() {
+                crate::custody::project_structural_value_with_leaf(
+                    &types, &value, prefix, leaf_shape,
+                )?
+            } else if access == StructuralAccess::SharedBorrow {
                 crate::custody::project_shared_structural_observation(&types, &value, prefix)?
             } else {
                 project_structural_value(&types, &value, prefix)?
@@ -975,7 +1058,11 @@ impl TerminalExecution<'_> {
                         backing: value.structural_type,
                     })
                 });
-                return Ok(Some((value, tip)));
+                return Ok(Some(ResolvedStructuralProjection {
+                    value,
+                    view_tip: tip,
+                    endpoint_field,
+                }));
             }
         }
     }

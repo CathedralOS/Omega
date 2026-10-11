@@ -44,17 +44,6 @@ pub(super) fn validate_reference_return(
     Ok(())
 }
 
-/// The machine interface's entry-relative reference origins must resolve.
-pub(super) fn validate_reference_roster(
-    checked: &CheckedTrees,
-    entry: &checked_trees::state::State,
-) -> Result<(), LoweringError> {
-    if !crate::reference_custody::returns_complete_reference_origins(checked, entry) {
-        return unsupported("reference result has no complete entry-relative origins");
-    }
-    Ok(())
-}
-
 /// Rebuild a selected reference from ordinary ingress reconstruction; mutable
 /// projections additionally follow the checked loan ledger. The candidate roster is only a correspondence
 /// receipt: admission must not let a producer and that receipt be forged to a

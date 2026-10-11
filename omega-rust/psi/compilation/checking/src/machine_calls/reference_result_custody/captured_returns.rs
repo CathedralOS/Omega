@@ -205,7 +205,7 @@ impl Captures<'_> {
                 .incoming_references
                 .get(loan.incoming_reference);
             if incoming.state_symbol != state.symbol
-                || incoming.parameter_symbol != loan.root_symbol
+                || loan.root != facts::PlaceRoot::Symbol(incoming.parameter_symbol)
             {
                 return None;
             }
@@ -219,7 +219,7 @@ impl Captures<'_> {
             .iter()
             .filter(|parameter| is_mutable_structural_parameter(self.program, parameter))
             .enumerate()
-            .find(|(_, parameter)| parameter.symbol == loan.root_symbol)?;
+            .find(|(_, parameter)| loan.root == facts::PlaceRoot::Symbol(parameter.symbol))?;
         let mut path = Vec::new();
         let mut selected = parameter.type_reference;
         if let Some(incoming) = incoming {

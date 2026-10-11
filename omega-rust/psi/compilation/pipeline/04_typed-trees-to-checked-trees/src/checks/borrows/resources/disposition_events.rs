@@ -368,7 +368,7 @@ fn exact_shared_cohort_observation(
     matches!(cohort.len(), 2 | 3)
         && accesses.len() == cohort.len()
         && accesses.iter().zip(cohort).all(|(access, (_, member))| {
-            access.root_symbol == member.owner_symbol
+            access.root == facts::PlaceRoot::Symbol(member.owner_symbol)
                 && borrow.access_segments(access).is_empty()
                 && access.kind == checked_trees::BorrowAccessKind::Read
         })
@@ -585,7 +585,7 @@ pub(crate) fn bind_restored_call_uses(
         let Some(access_handle) = span_handle(call.accesses, 0) else {
             continue;
         };
-        if access.root_symbol != parent.owner_symbol
+        if access.root != facts::PlaceRoot::Symbol(parent.owner_symbol)
             || !borrow.access_segments(access).is_empty()
             || access.kind != checked_trees::BorrowAccessKind::Mutable
             || access.end_before_access.is_some()

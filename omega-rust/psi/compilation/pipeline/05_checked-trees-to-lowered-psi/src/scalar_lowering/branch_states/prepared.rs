@@ -312,20 +312,27 @@ pub(crate) enum LoweredScalarEffect {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LoweredEffectCall {
-    pub(crate) result: Option<terminal_psi::StructuralOperationResult>,
-    pub(crate) result_claims: Vec<crate::emission::claim_bindings::PreparedResultClaim>,
+    pub(crate) result: Option<crate::unit::attached_unit::call_results::Prepared>,
+    pub(crate) endpoint: EffectCallTarget,
     pub(crate) claim_transfers: Vec<crate::emission::claim_bindings::PreparedClaimTransfer>,
     pub(crate) checked_coordinate: checked_trees::CheckedUnitCallCoordinate,
     pub(crate) source_coordinate: SourceCallCoordinate,
+    pub(crate) source_site: Option<checked_trees::NominalMachineUseSite>,
+    pub(crate) loan_completions: Vec<crate::emission::loan_completions::PreparedLoanCompletion>,
     pub(crate) target_machine: symbols::SymbolHandle,
     pub(crate) target_state: symbols::SymbolHandle,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
-    /// Erased proof-only actuals in the callee's erased-proof roster order.
-    /// `Formal` positions index the caller state's erased-proof roster;
-    /// scalar leaves resolve at emission against the caller value namespace.
-    pub(crate) erased_proof_arguments: Vec<LoweredProofTerm>,
-    pub(crate) structural_arguments: Vec<StructuralArgument>,
-    pub(crate) crash_routes: Vec<checked_trees::CrashRouteBucket>,
+    pub(crate) structural_arguments:
+        Vec<crate::emission::operation_emission::calls::PreparedStructuralArgument>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum EffectCallTarget {
+    Module {
+        erased_proof_arguments: Vec<LoweredProofTerm>,
+        crash_routes: Vec<checked_trees::CrashRouteBucket>,
+    },
+    Boundary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

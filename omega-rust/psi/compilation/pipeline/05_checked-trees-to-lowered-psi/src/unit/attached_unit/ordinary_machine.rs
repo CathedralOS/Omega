@@ -1172,15 +1172,8 @@ fn lower_structural_result_declaration(
     .ok_or(LoweringError::Unsupported(
         "structural result has no exact state",
     ))?;
-    // A stored loan or a reference record publishes the origins of the
-    // leaves it returns; a body whose exits do not all establish them has no
-    // completion this route can emit.
-    if (crate::reference_custody::stored_loan_parts(checked, state.return_type).is_some()
-        || crate::reference_custody::is_reference_record(checked, state.return_type))
-        && !crate::reference_custody::returns_complete_reference_origins(checked, state)
-    {
-        return unsupported("reference completion has no exact returned leaf origins");
-    }
+    // Completion already captured the complete normal-result origin relation.
+    // Lowering publishes that plan, never reconstructs it from old initializers.
     let return_type = state.return_type;
     // A byte view result's inside-borrow domains ride the same peeled
     // carrier identity the result spells, so the machine publishes them

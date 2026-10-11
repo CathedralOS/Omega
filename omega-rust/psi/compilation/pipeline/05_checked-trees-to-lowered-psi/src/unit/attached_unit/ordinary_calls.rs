@@ -7,17 +7,16 @@ use super::super::{
 use super::parameters::call_index_selectors;
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, OperationResult,
-    PlaceId, StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeId, ValueDeclaration, allocate_dense, argument_evaluation, lookup_type_id,
-    lower_checked_crash_route_buckets, lower_structural_arguments,
-    lower_structural_crash_route_buckets, place_id, primitive_locals, unsupported,
+    PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
+    allocate_dense, argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
+    lower_structural_arguments, lower_structural_crash_route_buckets, place_id, primitive_locals,
+    unsupported,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
-use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
+use crate::terminal_identities::StructuralDomainBinding;
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
 pub(crate) struct Target<'a> {
@@ -377,66 +376,34 @@ pub(super) fn emit_structural(
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let Some((call, result, custody)) = operation
+    let Some((call, result)) = operation
         .call()
         .filter(|call| call.is_module())
-        .and_then(|call| Some((call, call.structural_result()?, call.structural_custody()?)))
+        .and_then(|call| Some((call, call.structural_result()?)))
     else {
         return unsupported("structural call emission requires an owned result call");
     };
     let coordinate = &call.coordinate;
     let target_state = &call.target.state;
-    let target_machine = &call.target.machine;
     let place = place_id(allocate_dense(next_place)?);
     let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
-    let mut returned = StructuralOperationResult {
-        qualification_establishments: Vec::new(),
+    let returned = super::call_results::prepare(
+        identities,
+        checked,
+        call,
         place,
         structural_type,
-        multiplicity: terminal_multiplicity(result.multiplicity),
-        qualifications: custody
-            .result_qualifications
-            .iter()
-            .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, structural_type))
-            .collect::<Result<Vec<_>, _>>()?,
-        projected_qualifications: super::parameters::lower_projected_qualifications(
-            identities,
-            validation::structural_result_projected_qualifications(
-                &checked.typed,
-                checked
-                    .typed
-                    .machine_states(checked.machine(*target_machine).ok_or(
-                        LoweringError::Unsupported("structural result has no exact target machine"),
-                    )?)
-                    .iter()
-                    .find(|candidate| candidate.symbol == *target_state)
-                    .ok_or(LoweringError::Unsupported(
-                        "structural call target state is absent",
-                    ))?
-                    .return_type,
-            )
-            .map_err(LoweringError::Unsupported)?
-            .as_slice(),
-            domain_ids,
-            structural_type,
-            structural_types,
-        )?,
-        claims: crate::emission::claim_bindings::emit_call_result_claims(
-            &crate::emission::claim_bindings::prepare_call_result_claims(
-                identities,
-                &custody.result_claims,
-                structural_type,
-                structural_types,
-            )?,
-            state,
-            *coordinate,
-            claim_bindings,
-        )?,
-    };
-    // Path order describes the type's frontier; wire order describes this
-    // caller's claim namespace. Conserved and newly bound identities can
-    // interleave, so canonicalize only after all bindings have resolved.
-    returned.claims.sort();
+        structural_types,
+    )?
+    .emit(
+        identities,
+        checked,
+        state,
+        *coordinate,
+        domain_ids,
+        structural_types,
+        claim_bindings,
+    )?;
     // Scalar values and structural custody are separate operand namespaces,
     // not different ownership rules: a mixed call retains the same checked
     // claim and content correspondence as the scalar-free encoding.

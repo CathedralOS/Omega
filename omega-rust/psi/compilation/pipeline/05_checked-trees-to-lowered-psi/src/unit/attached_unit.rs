@@ -40,14 +40,13 @@ use super::{
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
     ProviderSignature, ProviderSignatureParameter, ScalarType, SemanticDomainId,
     ServiceReachSummary, StructuralDomainRequirement, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    StructuralTypeShape, TERMINAL_UNIT_CALL_OBLIGATION_BASE, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
-    allocate_dense, boundary_machine_id, content_conservation, contract_id, dense_identity,
-    direct_expression_contains_short_circuit, edge_id, emit_direct_expression, lookup_claim_id,
-    lookup_domain_id, lookup_machine_id, lookup_service_id, lookup_type_id,
-    lower_boundary_content_guarantees, lower_boundary_crash_routes,
-    lower_checked_crash_route_buckets, lower_placed_view_input,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    TERMINAL_UNIT_CALL_OBLIGATION_BASE, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, boundary_machine_id,
+    content_conservation, contract_id, dense_identity, direct_expression_contains_short_circuit,
+    edge_id, emit_direct_expression, lookup_claim_id, lookup_domain_id, lookup_machine_id,
+    lookup_service_id, lookup_type_id, lower_boundary_content_guarantees,
+    lower_boundary_crash_routes, lower_checked_crash_route_buckets, lower_placed_view_input,
     lower_structural_crash_route_buckets, machine_id, obligation_id, place_id,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
@@ -62,6 +61,7 @@ mod boundaries;
 mod call_catalog;
 mod call_closure;
 pub(crate) mod call_parameters;
+pub(crate) mod call_results;
 pub(crate) mod catalog;
 mod claims;
 mod entry_requirements;

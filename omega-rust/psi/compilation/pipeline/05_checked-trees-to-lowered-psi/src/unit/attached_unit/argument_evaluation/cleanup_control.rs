@@ -32,6 +32,55 @@ pub(crate) struct CleanupEmission<'a> {
 }
 
 impl Evaluation {
+    /// Computed backing retirement is a source-authorized candidate, not an
+    /// unconditional use of every alternative's reserved home. The same
+    /// continuation selection as affine cleanup keeps only births on this path.
+    /// The selected branch still emits the exact descriptor release operation.
+    pub(crate) fn continue_selected_reference_release(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        checked: &checked_trees::CheckedTrees,
+        region: terminal_psi::StructuralArgument,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        let mut erased_scalar_formals = Vec::new();
+        let mut emission = CleanupEmission {
+            checked,
+            current: &mut self.current,
+            parameters: &mut self.parameters,
+            structural_parameters: &mut self.block_structural_parameters,
+            block_erased_scalar_formals: &mut erased_scalar_formals,
+            erased_proof_formals: &self.erased_proof_formals,
+            operation_start: &mut self.operation_start,
+            blocks: &mut self.blocks,
+        };
+        let (bypass, parameters) = emission.select_storage(
+            identities, &region, values, next_value, next_block, next_edge, operations,
+        )?;
+        operations.push_leaf(
+            OperationResult::Unit,
+            OperationKind::ReleaseReference {
+                source: region.place,
+                path: region.path,
+            },
+        );
+        emission.cleanup_jump(
+            identities,
+            bypass,
+            &parameters,
+            Vec::new(),
+            Vec::new(),
+            values,
+            next_edge,
+            operations,
+        )?;
+        Ok(())
+    }
+
     /// Normal death disposes only the remaining partition of a selected
     /// complement. Early descriptor retirement does not retire its home or
     /// authorize a second whole-root disposal of the absent leaf.
@@ -299,35 +348,9 @@ impl CleanupEmission<'_> {
                 .count();
             let group = &remaining[..count];
             if let Some(region) = &first.selected_region {
-                // This is an internal static continuation choice. Both destinations
-                // receive the same already captured scalar/proof frame; no runtime
-                // ownership flag or source condition is introduced. Specialization
-                // removes the unused route before Terminal publication.
-                let types = values
-                    .iter()
-                    .map(|value| value.value_type())
-                    .collect::<Vec<_>>();
-                let entry = block_id(allocate_dense(next_block)?);
-                let entry_parameters = declarations(&types, next_value)?;
-                let bypass = block_id(allocate_dense(next_block)?);
-                let bypass_parameters = declarations(&types, next_value)?;
-                let edge = self.cleanup_jump(
-                    identities,
-                    entry,
-                    &entry_parameters,
-                    Vec::new(),
-                    Vec::new(),
-                    values,
-                    next_edge,
-                    operations,
+                let (bypass, bypass_parameters) = self.select_storage(
+                    identities, region, values, next_value, next_block, next_edge, operations,
                 )?;
-                operations.selected_cleanup_groups.push(
-                    crate::emission::selected_continuations::SelectedCleanupGroup {
-                        edge,
-                        region: region.clone(),
-                        bypass,
-                    },
-                );
                 self.cleanup_scope(
                     identities, group, 0, values, next_value, next_block, next_edge, operations,
                 )?;
@@ -349,6 +372,48 @@ impl CleanupEmission<'_> {
             remaining = &remaining[count..];
         }
         Ok(())
+    }
+
+    /// Start one static candidate-death scope, capturing its scalar/proof frame
+    /// once. Continuation specialization bypasses the complete scope when that
+    /// exact storage was not established; no runtime flag or source replay is
+    /// introduced. Both nominal cleanup and descriptor release use this owner.
+    fn select_storage(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        region: &terminal_psi::StructuralArgument,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+    ) -> Result<(BlockId, Vec<ValueDeclaration>), LoweringError> {
+        let types = values
+            .iter()
+            .map(|value| value.value_type())
+            .collect::<Vec<_>>();
+        let entry = block_id(allocate_dense(next_block)?);
+        let entry_parameters = declarations(&types, next_value)?;
+        let bypass = block_id(allocate_dense(next_block)?);
+        let bypass_parameters = declarations(&types, next_value)?;
+        let edge = self.cleanup_jump(
+            identities,
+            entry,
+            &entry_parameters,
+            Vec::new(),
+            Vec::new(),
+            values,
+            next_edge,
+            operations,
+        )?;
+        operations.selected_cleanup_groups.push(
+            crate::emission::selected_continuations::SelectedCleanupGroup {
+                edge,
+                region: region.clone(),
+                bypass,
+            },
+        );
+        Ok((bypass, bypass_parameters))
     }
 
     fn proof_arguments(&self) -> Result<Vec<ProofTerm>, LoweringError> {

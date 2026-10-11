@@ -58,7 +58,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
         let (_, local) = program.state_local_declaration(state, owner)?;
         for (receiver, loan) in facts.borrow.loans.iter().filter(|(handle, loan)| {
             facts.borrow.state_owns_loan(borrowing, *handle)
-                && loan.owner_symbol == owner
+                && loan.storage_owner == facts::PlaceRoot::Symbol(owner)
                 && loan.statement_index == formation as usize
         }) {
             // Borrow attribution already knows the exact supplying occurrence
@@ -131,7 +131,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 for (handle, candidate) in
                     facts.borrow.loans.iter().filter(|(handle, candidate)| {
                         facts.borrow.state_owns_loan(borrowing, *handle)
-                            && candidate.owner_symbol == source_owner
+                            && candidate.storage_owner == facts::PlaceRoot::Symbol(source_owner)
                             && candidate.statement_index < loan.statement_index
                             && source_formation
                                 .is_none_or(|formation| candidate.statement_index == formation)

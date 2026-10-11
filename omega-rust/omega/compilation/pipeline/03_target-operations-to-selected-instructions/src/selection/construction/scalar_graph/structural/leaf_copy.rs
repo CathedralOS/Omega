@@ -56,29 +56,43 @@ pub(super) fn copy(
         shape.alignment,
     );
     let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;
-    // A projected view copy reads elements, not its pointer/length descriptor.
-    // Whole-view copies still copy the descriptor itself. Derived views keep
-    // their backing offset before the selected element's own displacement.
-    let input = if matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if !path.is_empty())
-    {
-        super::runtime_address::projection_base(function, builder, row, *source, *byte_offset)?
-    } else {
-        input
+    let geometry = match path {
+        abstract_operations::StructuralCopyPath::Ordinary(path) if !path.is_empty() => {
+            let signature = function.structural.as_ref().ok_or(invalid())?;
+            let root =
+                crate::selection::reference_input::root_type(function, *source).ok_or(invalid())?;
+            Some(
+                crate::structural_inputs::structural_reference_input::leaf_copy_geometry(
+                    root,
+                    path,
+                    &signature.structural_types,
+                )
+                .filter(|geometry| geometry.readable)
+                .ok_or(invalid())?,
+            )
+        }
+        _ => None,
     };
-    // Owned parameters without addressable storage retain their ABI fragments.
-    let input = if let abstract_operations::StructuralCopyPath::Ordinary(path) = path
-        && matches!(
-            path.first(),
-            Some(terminal_psi::StructuralPathSegment::Referent)
-        ) {
-        crate::selection::reference_input::mutable_projection(function, *source, path)
-            .ok_or(invalid())?;
-        Some(super::reference::load(
-            builder,
-            row,
-            *source,
-            input.ok_or(invalid())?,
-        )?)
+    let mut pointer_slots = geometry
+        .as_ref()
+        .map_or(&[][..], |geometry| geometry.pointer_slots.as_slice());
+    // A root view may be carried as backing/offset SSA rather than an inline
+    // descriptor. Its ordinary transport owner performs the first crossing;
+    // all nested descriptors remain ordered loads from the resulting storage.
+    // Whole-view copies still copy descriptor bytes, not backing elements.
+    let root_view = crate::selection::established_view_input::view_type(function, *source)
+        .is_some()
+        || crate::selection::established_view_input::element_view_type(function, *source).is_some();
+    let input = if geometry.is_some() && root_view {
+        if let Some(first) = pointer_slots.first() {
+            if first.byte_offset != 0 || !first.indices.is_empty() || first.scalar_descriptor {
+                return Err(invalid());
+            }
+            pointer_slots = &pointer_slots[1..];
+        }
+        super::runtime_address::projection_base(function, builder, row, *source, *byte_offset)?
+    } else if !pointer_slots.is_empty() {
+        Some(super::place_pointer(builder, row, *source, 0)?)
     } else {
         input
     };
@@ -105,6 +119,15 @@ pub(super) fn copy(
     // joins the accumulating pointer in path order ahead of the first load
     // (`runtime_address`), the address model every runtime-projected access
     // shares.
+    let (input, leaf_index) = super::runtime_address::cross_references(
+        builder,
+        row,
+        *source,
+        input,
+        indices,
+        pointer_slots,
+    )?;
+    let indices = indices.get(leaf_index..).ok_or(invalid())?;
     let input = super::runtime_address::scale(builder, row, *source, *byte_offset, input, indices)?;
     copy_bytes(
         builder,

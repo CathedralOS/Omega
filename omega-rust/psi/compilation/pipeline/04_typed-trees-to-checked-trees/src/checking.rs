@@ -346,8 +346,6 @@ fn check_program(
     // with the facts — so neither table can grow past this point.
     facts.reference_custody =
         validation::reference_result_custody::classify_program_reference_custody(&finalized);
-    facts.state_reference_custody =
-        validation::reference_result_custody::classify_program_state_reference_custody(&finalized);
     // Content classification rides the same placement, and for the same
     // reason. Both memos it leans on -- the data-definition index and the
     // attached-`::drop` index -- are owned by `program` and keyed by table

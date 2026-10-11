@@ -488,11 +488,12 @@ pub(super) fn lower_operation(
             let reference_destination = match operation {
                 AbstractOperation::StructuralScalarFieldStore {
                     destination, path, ..
-                } => super::references::writable_referent_destination(
+                } => super::references::referent_projection(
                     live,
                     structural_types,
                     destination.place(),
                     path,
+                    terminal_psi::StructuralAccess::MutableBorrow,
                 ),
                 _ => None,
             };

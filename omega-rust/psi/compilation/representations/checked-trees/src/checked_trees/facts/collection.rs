@@ -60,13 +60,8 @@ pub struct CheckFacts {
     /// frozen type table. Lowering reads these rows instead of re-entering
     /// checking to reclassify a carrier at each of its call sites.
     pub reference_custody: crate::ReferenceCustodyFacts,
-    /// Every declared state's reference-result custody, classified once over
-    /// the frozen typed program. Lowering reads these rows instead of
-    /// re-entering checking to reclassify a state's completion at each of
-    /// its call sites.
-    pub state_reference_custody: crate::StateReferenceCustodyFacts,
-    /// Every declared state's `let` locals, recorded beside its reference
-    /// custody so lowering never scans a state's statements for them.
+    /// Every declared state's `let` locals, so lowering never scans a
+    /// state's statements for them.
     pub state_locals: crate::StateLocalFacts,
     /// The closed boundary requirement each concrete provider refines through
     /// a conformance naming a generic top-level requirement template.

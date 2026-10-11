@@ -1,4 +1,3 @@
-use super::contextual::{contextual_effective_member_symbol, contextual_name_root_symbol};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -72,153 +71,17 @@ pub(crate) fn borrow_access_place(
             );
         }
     }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(_) => None,
-        ExpressionNode::Indexed(indexed) => {
-            let mut place = borrow_access_place(
-                program,
-                state_symbol,
-                statement_index,
-                indexed.collection,
-                machine_symbol,
-            )?;
-            // Storage facts and loan provenance use the same address algebra.
-            // A whole builtin window retains the collection dimension rather
-            // than adding a range coordinate before a later element selection.
-            let machine = program.machine_by_symbol(machine_symbol)?;
-            let state = program.state_by_symbol(state_symbol)?;
-            if validation::whole_collection_view_source(program, machine, Some(state), expression)
-                .is_some()
-            {
-                return Some(place);
-            }
-            place
-                .segments
-                .push(validation::index_place_segment(program, indexed.index));
-            Some(place)
-        }
-        ExpressionNode::Range(_) => None,
-        ExpressionNode::Borrow(inner) => borrow_access_place(
-            program,
-            state_symbol,
-            statement_index,
-            inner.target,
-            machine_symbol,
-        ),
-        ExpressionNode::Member(member) => {
-            match program.expression_table.expression(member.receiver) {
-                ExpressionNode::Name(path)
-                    if path.members.count() == 1
-                        && contextual_name_root_symbol(
-                            program,
-                            state_symbol,
-                            statement_index,
-                            member.receiver,
-                            path,
-                        )
-                        .is_some_and(|symbol| symbol == machine_symbol) =>
-                {
-                    let member_symbol = contextual_effective_member_symbol(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        member.receiver,
-                        member,
-                        machine_symbol,
-                    );
-                    Some(BorrowAccessPlace {
-                        incoming_reference: Default::default(),
-                        root_symbol: member_symbol,
-                        segments: Vec::new(),
-                    })
-                }
-                _ => {
-                    let mut place = borrow_access_place(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        member.receiver,
-                        machine_symbol,
-                    )?;
-                    let symbol = contextual_effective_member_symbol(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        member.receiver,
-                        member,
-                        machine_symbol,
-                    );
-                    validation::push_field_place_segments(program, &mut place.segments, symbol);
-                    Some(place)
-                }
-            }
-        }
-        ExpressionNode::Name(path) => {
-            // A declared case name constructs a value; it does not read storage
-            // rooted at the type or variant declaration. Payload computations
-            // have their own ordinary accesses before establishment.
-            if validation::exact_case_reference_owner(program, expression).is_some() {
-                return None;
-            }
-            let root_symbol = contextual_name_root_symbol(
-                program,
-                state_symbol,
-                statement_index,
-                expression,
-                path,
-            )?;
-            let member_symbols = program
-                .expression_table
-                .name_path_member_symbols(path.member_symbols);
-            let skip = member_symbols
-                .iter()
-                .position(|member_symbol| *member_symbol == root_symbol)
-                .map(|index| index + 1)
-                .unwrap_or(1);
-            let mut segments = Vec::new();
-            for symbol in member_symbols.iter().skip(skip).copied() {
-                validation::push_field_place_segments(program, &mut segments, symbol);
-            }
-            Some(BorrowAccessPlace {
-                incoming_reference: Default::default(),
-                root_symbol,
-                segments,
-            })
-        }
-        // A recast re-views the SAME backing storage under another stated
-        // shape (§5b): its access place is the source place, so `&x as &T`
-        // conflicts exactly where `&x` would. Indexed footprints were
-        // independently validated above; this arm retains whole-place identity.
-        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
-            let mut source = cast.value;
-            source = program.expression_table.peeled_expression_handle(source);
-            if matches!(
-                program.expression_table.expression(source),
-                ExpressionNode::Name(_) | ExpressionNode::Member(_)
-            ) {
-                borrow_access_place(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    source,
-                    machine_symbol,
-                )
-            } else {
-                None
-            }
-        }
-        ExpressionNode::ArrayLiteral(_)
-        | ExpressionNode::Match(_)
-        | ExpressionNode::Binary(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Call(_)
-        | ExpressionNode::Cast(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::StructLiteral(_)
-        | ExpressionNode::Unary(_)
-        | ExpressionNode::ZeroValue(_) => None,
-    }
+    // Formation, flow and returned-value capture share one address algebra.
+    // In particular, a computed backing root is not absence of a loan.
+    let place = validation::canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+    )?;
+    Some(BorrowAccessPlace {
+        incoming_reference: Default::default(),
+        root: place.root,
+        segments: place.segments,
+    })
 }

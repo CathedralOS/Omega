@@ -139,6 +139,7 @@ pub(super) struct ReferenceProjectionRegions<'path> {
     pub(super) root: StructuralTypeId,
     pub(super) path: &'path [StructuralPathSegment],
     pub(super) pointer_slots: Vec<StorageProjection>,
+    pub(super) readable: bool,
 }
 
 pub(super) fn reference_projection_regions<'path>(
@@ -147,6 +148,7 @@ pub(super) fn reference_projection_regions<'path>(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<ReferenceProjectionRegions<'path>> {
     let mut pointer_slots = Vec::new();
+    let mut readable = true;
     let mut segment_start = 0;
     for (position, segment) in path.iter().enumerate() {
         if !matches!(
@@ -174,7 +176,14 @@ pub(super) fn reference_projection_regions<'path>(
             continue;
         };
         let (next_root, next_start) = match (segment, &declarations.get(&carrier)?.shape) {
-            (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
+            (
+                StructuralPathSegment::Referent,
+                StructuralTypeShape::Reference { referent, access },
+            ) => {
+                readable &= matches!(
+                    access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                );
                 if !matches!(shape.byte_size, 8 | 16) || shape.alignment != 8 {
                     return None;
                 }
@@ -191,6 +200,10 @@ pub(super) fn reference_projection_regions<'path>(
                 }
                 (carrier, position)
             }
+            (
+                StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. },
+                borrowed,
+            ) if borrowed.is_borrowed_byte_carrier() => (carrier, position),
             (StructuralPathSegment::Referent, _) => return None,
             _ => continue,
         };
@@ -205,6 +218,7 @@ pub(super) fn reference_projection_regions<'path>(
         root,
         path: &path[segment_start..],
         pointer_slots,
+        readable,
     })
 }
 
@@ -1302,14 +1316,29 @@ pub(super) fn runtime_leaf_copy_projection(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<RuntimeProjection, LoweringError> {
-    runtime_projection_with_leaf_shape(
-        structural_type,
-        path,
+    // A snapshot follows the same ordered descriptor crossings as other
+    // observations. Flatten only the selector roster for operand custody;
+    // selection reconstructs each region from the retained path.
+    let regions = reference_projection_regions(structural_type, path, declarations)
+        .filter(|regions| regions.readable)
+        .ok_or(LoweringError::UnsupportedStructuralReference(
+            structural_type,
+        ))?;
+    let (selected, shape, byte_offset, leaf_indices) = runtime_projection_with_leaf_shape(
+        regions.root,
+        regions.path,
         declarations,
         cache,
         active,
         StructuralFieldType::leaf_copy_shape,
-    )
+    )?;
+    let indices = regions
+        .pointer_slots
+        .into_iter()
+        .flat_map(|slot| slot.indices)
+        .chain(leaf_indices)
+        .collect();
+    Ok((selected, shape, byte_offset, indices))
 }
 
 /// Borrowed call geometry retains the original field's physical storage.
@@ -1354,14 +1383,14 @@ fn runtime_projection_with_leaf_shape(
             Some(StructuralTypeShape::ByteSequence(_))
         )
     {
-        let projection = primitive_leaf_projection(structural_type, path, declarations).ok_or(
-            LoweringError::UnsupportedStructuralReference(structural_type),
-        )?;
-        if !projection.pointer_slots.is_empty() {
-            return Err(LoweringError::UnsupportedStructuralReference(
-                structural_type,
-            ));
-        }
+        // This query describes one contiguous backing region. The enclosing
+        // reference/view walk owns pointer loads; asking that full walk for
+        // this endpoint would reject its legitimate descriptor crossing (and
+        // couple ordinary and foreign byte-element loans to snapshot geometry).
+        let (_, byte_offset, indices) =
+            contiguous_primitive_projection(structural_type, path, declarations).ok_or(
+                LoweringError::UnsupportedStructuralReference(structural_type),
+            )?;
         let endpoint = terminal_semantics::primitive_projection_declaration(
             declarations.values().copied(),
             structural_type,
@@ -1371,12 +1400,7 @@ fn runtime_projection_with_leaf_shape(
             structural_type,
         ))?;
         let shape = structural_shape(endpoint, declarations, cache, active)?;
-        return Ok((
-            endpoint,
-            shape,
-            projection.leaf.byte_offset,
-            projection.leaf.indices,
-        ));
+        return Ok((endpoint, shape, byte_offset, indices));
     }
     storage_projection_path(
         structural_type,

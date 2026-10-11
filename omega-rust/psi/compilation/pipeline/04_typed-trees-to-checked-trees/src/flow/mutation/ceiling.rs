@@ -15,7 +15,6 @@
 use validation::CanonicalPlace;
 
 use checked_trees::{BorrowCallFact, BorrowFacts, BorrowLoanOwnerSegment};
-use facts::PlaceRoot;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceNode;
 
@@ -161,11 +160,11 @@ fn carried_exclusive_referents(
         }
         // An exclusive loan whose referent root cannot be named leaves the
         // ceiling unrepresentable: the caller cannot bound what it writes.
-        if !loan.root_symbol.is_valid() {
+        if !loan.root.is_valid() {
             return None;
         }
         let referent = CanonicalPlace {
-            root: PlaceRoot::Symbol(loan.root_symbol),
+            root: loan.root,
             segments: borrow.loan_segments(loan).to_vec(),
         };
         if !referents.contains(&referent) {

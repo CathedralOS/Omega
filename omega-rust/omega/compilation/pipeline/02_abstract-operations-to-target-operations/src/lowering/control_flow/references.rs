@@ -148,32 +148,35 @@ impl ReferenceRoot {
 /// A live reference's payload producer and geometry after dereferencing it.
 /// Custody retains every possible origin; physical addressing loads the one
 /// address stored in the carrier, never a selected entry from that origin set.
-pub(in crate::lowering) struct WritableReferentDestination {
+pub(in crate::lowering) struct ReferentProjection {
     pub(in crate::lowering) carrier_type: StructuralTypeId,
     pub(in crate::lowering) referent: StructuralTypeId,
     /// Relative to the referent, excluding the explicit crossing.
     pub(in crate::lowering) path: Vec<StructuralPathSegment>,
 }
 
-fn materialized_mutable_record_projection(
+pub(super) fn referent_projection(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     carrier: PlaceId,
     path: &[StructuralPathSegment],
-) -> Option<WritableReferentDestination> {
+    required_access: StructuralAccess,
+) -> Option<ReferentProjection> {
     let (StructuralPathSegment::Referent, tail) = path.split_first()? else {
         return None;
     };
     let leaf = live.references.get(&(carrier, Vec::new()))?;
     let home = live.structural_homes.get(&carrier)?;
     let declaration = types.get(&home.structural_type())?;
-    let StructuralTypeShape::Reference {
-        referent,
-        access: StructuralAccess::MutableBorrow,
-    } = &declaration.shape
-    else {
+    let StructuralTypeShape::Reference { referent, access } = &declaration.shape else {
         return None;
     };
+    if *access != required_access
+        && !(*access == StructuralAccess::MutableBorrow
+            && required_access == StructuralAccess::SharedBorrow)
+    {
+        return None;
+    }
     // A whole `Referent` path is also the established primitive-reference
     // spelling. Only a record referent may enter this aggregate-origin route.
     if !matches!(
@@ -185,8 +188,9 @@ fn materialized_mutable_record_projection(
     if *referent != leaf.referent {
         return None;
     }
-    // Formation authenticated backing and view interpretation. A store uses
-    // this live carrier's authority; backing need not have its semantic type.
+    // Formation authenticated backing and view interpretation. Reads and
+    // writes use this live carrier's access independently of owning its
+    // descriptor; backing need not have its semantic type.
     if home.access() != StructuralAccess::Owned
         || home.multiplicity() != StructuralMultiplicity::Affine
         || !home.qualifications().is_empty()
@@ -197,20 +201,11 @@ fn materialized_mutable_record_projection(
     {
         return None;
     }
-    Some(WritableReferentDestination {
+    Some(ReferentProjection {
         carrier_type: home.structural_type(),
         referent: *referent,
         path: tail.to_vec(),
     })
-}
-
-pub(super) fn writable_referent_destination(
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    carrier: PlaceId,
-    path: &[StructuralPathSegment],
-) -> Option<WritableReferentDestination> {
-    materialized_mutable_record_projection(live, types, carrier, path)
 }
 
 /// Borrow through the live carrier's address word, regardless of which

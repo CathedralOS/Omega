@@ -115,7 +115,7 @@ impl Builder<'_, '_> {
             _ => return None,
         };
         let place = validation::CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(loan.root_symbol),
+            root: loan.root,
             segments: self
                 .borrow
                 .access_segments
@@ -202,7 +202,7 @@ impl Builder<'_, '_> {
             expression,
         )?;
         let place = validation::CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(captured.root_symbol),
+            root: captured.root,
             segments: captured.segments,
         };
 

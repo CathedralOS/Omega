@@ -36,7 +36,7 @@ struct FormedLeaf<'a> {
     owner_symbol: SymbolHandle,
     formation: ExpressionHandle,
     position: &'a [BorrowLoanOwnerSegment],
-    root_symbol: SymbolHandle,
+    root: facts::PlaceRoot,
     segments: &'a [facts::PlaceSegment],
     kind: &'a BorrowAccessKind,
 }
@@ -51,17 +51,13 @@ impl FormedLeaf<'_> {
     fn place(&self) -> CapturedPlace {
         CapturedPlace {
             incoming_reference: self.incoming_reference,
-            root_symbol: self.root_symbol,
+            root: self.root,
             segments: self.segments.to_vec(),
         }
     }
 
     fn label(&self, program: &dyn ::validation::CheckingInput) -> String {
-        facts::canonical_place_label_from_parts(
-            program,
-            facts::PlaceRoot::Symbol(self.root_symbol),
-            self.segments,
-        )
+        facts::canonical_place_label_from_parts(program, self.root, self.segments)
     }
 }
 
@@ -93,7 +89,7 @@ pub(super) fn check_formed_aggregates<'p>(
                 owner_symbol: loan.owner_symbol,
                 formation: loan.formation_expression,
                 position: facts.borrow.loan_owner_path(loan),
-                root_symbol: loan.root_symbol,
+                root: loan.root,
                 segments: facts.borrow.loan_segments(loan),
                 kind: &loan.kind,
             })
@@ -135,7 +131,7 @@ pub(super) fn check_formed_aggregates<'p>(
                 owner_symbol: state.symbol,
                 formation: loan.formation_expression,
                 position: facts.borrow.owner_segments.span_or_empty(loan.owner_path),
-                root_symbol: loan.root_symbol,
+                root: loan.root,
                 segments: facts.borrow.access_segments.span_or_empty(loan.segments),
                 kind: &loan.kind,
             })

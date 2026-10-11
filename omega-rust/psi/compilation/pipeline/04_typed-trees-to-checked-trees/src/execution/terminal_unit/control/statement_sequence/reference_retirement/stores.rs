@@ -131,6 +131,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
             statement_index: retirement.statement_index,
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: owner },
             path: source.path,
+            select_evaluated_storage: false,
             defer_to_exit: false,
             loans: group,
             selection_complements: Vec::new(),

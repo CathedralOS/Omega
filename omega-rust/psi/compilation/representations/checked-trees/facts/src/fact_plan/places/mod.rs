@@ -17,6 +17,17 @@ pub enum PlaceRoot {
 }
 
 impl PlaceRoot {
+    /// Whether the root retains a nonzero identity. The owning arena still
+    /// establishes validity; absence cannot establish storage compatibility.
+    pub fn is_valid(&self) -> bool {
+        match self {
+            Self::Unknown => false,
+            Self::Symbol(symbol) => symbol.is_valid(),
+            Self::Expression(expression) => expression.is_valid(),
+            Self::TypeReference(reference) => reference.is_valid(),
+        }
+    }
+
     /// The symbol root, if this place is rooted at one.
     pub fn as_symbol(&self) -> Option<SymbolHandle> {
         let PlaceRoot::Symbol(symbol) = self else {

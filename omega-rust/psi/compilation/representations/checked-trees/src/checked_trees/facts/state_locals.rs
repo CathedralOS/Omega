@@ -9,8 +9,7 @@
 //! scanning the state's statements again.
 //!
 //! The table is dense by the state symbol's `Handle::arena_index`, the key
-//! every reader already resolves a state through, like
-//! `StateReferenceCustodyFacts`. Index 0 is the invalid symbol, which, like
+//! every reader already resolves a state through. Index 0 is the invalid symbol, which, like
 //! every symbol the walk did not name, declares no locals.
 
 use symbols::SymbolHandle;

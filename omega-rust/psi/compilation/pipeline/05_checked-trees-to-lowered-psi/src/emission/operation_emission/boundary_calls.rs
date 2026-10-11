@@ -20,6 +20,65 @@ use result_policy::BoundaryResultPolicy;
 use semantic_vocabulary::{QualifiedScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
+/// Completed operands are shared by statement calls and expression calls of
+/// every result shape. A boundary transfer is a completion receipt, not an
+/// ordinary body's claim transfer; each declared requirement retains its slot.
+pub(crate) struct BoundaryOperands {
+    pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
+    pub(crate) arguments: Vec<ValueId>,
+    pub(crate) structural_arguments: Vec<terminal_psi::StructuralArgument>,
+    pub(crate) completion_receipts: Vec<terminal_psi::CompletionReceipt>,
+    pub(crate) requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+}
+
+pub(crate) fn complete_operands(
+    target: &crate::unit::attached_unit::BoundaryParameters,
+    arguments: &[ValueDeclaration],
+    structural_arguments: Vec<terminal_psi::StructuralArgument>,
+    receipts: &[crate::emission::claim_bindings::PreparedClaimTransfer],
+    calls: &mut CallEmissionContext<'_>,
+) -> Result<BoundaryOperands, LoweringError> {
+    if structural_arguments.len() != target.structural.len() {
+        return unsupported("boundary arguments disagree with their declared structural roster");
+    }
+    let expected = target
+        .scalar
+        .iter()
+        .map(|scalar| (*scalar).into())
+        .collect::<Vec<_>>();
+    let arguments = crate::unit::attached_unit::argument_evaluation::validated_values(
+        Some(arguments),
+        &expected,
+    )?
+    .iter()
+    .map(|value| value.id)
+    .collect();
+    Ok(BoundaryOperands {
+        boundary: target.id,
+        arguments,
+        structural_arguments,
+        completion_receipts: crate::emission::claim_bindings::emit_completion_receipts(
+            receipts,
+            calls.claims.bindings(),
+        )?,
+        requirement_obligations: (0..target.requirement_count)
+            .map(|_| calls.allocate_requirement())
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+impl BoundaryOperands {
+    pub(crate) fn into_kind(self) -> OperationKind {
+        OperationKind::BoundaryCall {
+            boundary: self.boundary,
+            arguments: self.arguments,
+            structural_arguments: self.structural_arguments,
+            completion_receipts: self.completion_receipts,
+            requirement_obligations: self.requirement_obligations,
+        }
+    }
+}
+
 /// A completed nested boundary application: its operands are parameters of
 /// the emitting block in authored order, and its result is one bare scalar.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,8 +112,6 @@ pub(super) fn emit_boundary_call_binding(
     if call.structural_arguments.len() != target.structural.len() {
         return unsupported("computed boundary arguments disagree with their call shape");
     }
-    let boundary = target.id;
-    let requirement_count = target.requirement_count;
     if !call.result_type.qualifications.is_empty() {
         return unsupported("nested boundary application result carries qualifications");
     }
@@ -71,27 +128,24 @@ pub(super) fn emit_boundary_call_binding(
         if value_type.scalar_type != *expected || !value_type.qualifications.is_empty() {
             return unsupported("nested boundary application operand disagrees with its formal");
         }
-        arguments.push(emit_direct_expression(
-            argument,
-            parameters,
-            next_value_identity,
-            operations,
-        ));
+        arguments.push(ValueDeclaration {
+            id: emit_direct_expression(argument, parameters, next_value_identity, operations),
+            scalar_type: value_type.scalar_type,
+            qualifications: value_type.qualifications,
+        });
     }
     let structural_arguments = call
         .structural_arguments
         .iter()
         .map(|argument| argument.emit(parameters, call_emission, next_value_identity, operations))
         .collect::<Result<Vec<_>, _>>()?;
-    let completion_receipts = crate::emission::claim_bindings::emit_completion_receipts(
+    let operands = complete_operands(
+        target,
+        &arguments,
+        structural_arguments,
         &call.completion_receipts,
-        call_emission.claims.bindings(),
+        call_emission,
     )?;
-    // Match the statement call's declared requirement rows. Proof finalization
-    // discharges these obligations at this exact operation and completed actuals.
-    let requirement_obligations = (0..requirement_count)
-        .map(|_| call_emission.allocate_requirement())
-        .collect::<Result<Vec<_>, _>>()?;
     let result = value_id(*next_value_identity);
     *next_value_identity = next_value_identity
         .checked_add(1)
@@ -105,7 +159,7 @@ pub(super) fn emit_boundary_call_binding(
     };
     let policy = call.result_policy.bind(
         raw,
-        &arguments,
+        &operands.arguments,
         &target.scalar,
         next_value_identity,
         operations,
@@ -125,13 +179,7 @@ pub(super) fn emit_boundary_call_binding(
         suspension_crossing: None,
         id: operation,
         result: OperationResult::Scalar(raw),
-        kind: OperationKind::BoundaryCall {
-            boundary,
-            arguments,
-            structural_arguments,
-            completion_receipts,
-            requirement_obligations,
-        },
+        kind: operands.into_kind(),
     });
     Ok(result_policy::emit(policy, raw, next_value_identity, operations)?.id)
 }

@@ -246,16 +246,21 @@ pub(super) fn window_referent(
     types: &StructuralTypeLookup<'_>,
     root: &abstract_operations::StructuralWindowRoot,
     path: &[StructuralPathSegment],
-) -> Result<Option<super::references::WritableReferentDestination>, LoweringError> {
+) -> Result<Option<super::references::ReferentProjection>, LoweringError> {
     if !matches!(path.first(), Some(StructuralPathSegment::Referent)) {
         return Ok(None);
     }
     if root.parameter().is_some() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let referent =
-        super::references::writable_referent_destination(live, types, root.place(), path)
-            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let referent = super::references::referent_projection(
+        live,
+        types,
+        root.place(),
+        path,
+        terminal_psi::StructuralAccess::MutableBorrow,
+    )
+    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if referent.carrier_type != root.structural_type() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

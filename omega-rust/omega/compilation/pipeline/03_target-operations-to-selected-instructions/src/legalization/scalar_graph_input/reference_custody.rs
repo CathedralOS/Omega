@@ -1607,23 +1607,11 @@ pub(in crate::legalization) fn apply(
             for relative in &paths {
                 let mut selected = path.to_vec();
                 selected.extend_from_slice(relative);
-                let Some(source_leaf) = custody.leaves.get(&(*source, selected.clone())) else {
-                    // Case namespaces describe conditional residences. A copy
-                    // transports only present descriptors, but may not omit
-                    // an unconditional leaf from the independently read type.
-                    if relative
-                        .iter()
-                        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
-                    {
-                        continue;
-                    }
-                    return Err(invalid());
-                };
                 let mut observation = selected.clone();
                 observation.push(StructuralPathSegment::Referent);
                 // Observation authenticates current permission and descriptor
                 // storage without minting a reborrow of the source identity.
-                call_paths::call_reference_custody(
+                let observed = call_paths::observe_reference_custody(
                     function,
                     custody,
                     types,
@@ -1633,15 +1621,29 @@ pub(in crate::legalization) fn apply(
                         access: StructuralAccess::SharedBorrow,
                     },
                 )?;
+                if observed.descriptors.is_empty() {
+                    // Only a declaration's conditional case leaves can be
+                    // absent; the observation rejects every missing ordinary
+                    // slot and every permission mismatch independently.
+                    continue;
+                }
                 let expected =
                     leaf_referent(types, result.structural_type, relative).ok_or(invalid())?;
-                if source_leaf.referent != expected {
-                    return Err(invalid());
+                let mut alternatives = Vec::with_capacity(observed.descriptors.len());
+                for descriptor in observed.descriptors {
+                    let source_leaf = custody.leaves.get(&descriptor).ok_or(invalid())?;
+                    if source_leaf.referent != expected {
+                        return Err(invalid());
+                    }
+                    let mut leaf = source_leaf.clone();
+                    leaf.identity = (result.place, relative.clone());
+                    leaf.reform(*psi_operation, result);
+                    alternatives.push(leaf);
                 }
-                let mut leaf = source_leaf.clone();
-                leaf.identity = (result.place, relative.clone());
-                leaf.reform(*psi_operation, result);
-                copied.push(((result.place, relative.clone()), leaf));
+                copied.push((
+                    (result.place, relative.clone()),
+                    combine_alternatives(alternatives)?,
+                ));
             }
             if custody.leaves.keys().any(|(carrier, selected)| {
                 *carrier == *source

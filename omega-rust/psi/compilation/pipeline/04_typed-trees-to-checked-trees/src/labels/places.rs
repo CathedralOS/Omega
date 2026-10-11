@@ -7,11 +7,7 @@ pub(crate) fn borrow_access_label(
     borrow: &checked_trees::BorrowFacts,
     access: &checked_trees::BorrowArgumentAccessFact,
 ) -> String {
-    facts::canonical_place_label_from_parts(
-        program,
-        facts::PlaceRoot::Symbol(access.root_symbol),
-        borrow.access_segments(access),
-    )
+    facts::canonical_place_label_from_parts(program, access.root, borrow.access_segments(access))
 }
 
 pub(crate) fn semantic_fact_requirement_label(

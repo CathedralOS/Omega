@@ -211,9 +211,11 @@ fn call_write_places(
 
     if use_mutable_argument_fallback {
         for access in borrow.argument_accesses.span_or_empty(borrow_call.accesses) {
-            if access.kind.is_exclusive()
-                && let Some(mut place) = canonical_place_from_symbol(access.root_symbol)
-            {
+            if access.kind.is_exclusive() && access.root.is_valid() {
+                let mut place = CanonicalPlace {
+                    root: access.root,
+                    segments: Vec::new(),
+                };
                 place.extend_segments(borrow.access_segments.span_or_empty(access.segments));
                 if !places.contains(&place) {
                     places.push(place);
@@ -425,9 +427,13 @@ fn boundary_frame_access_places(
         if !access.kind.is_exclusive() {
             continue;
         }
-        let Some(mut place) = canonical_place_from_symbol(access.root_symbol) else {
+        if !access.root.is_valid() {
             refinable = false;
             break;
+        }
+        let mut place = CanonicalPlace {
+            root: access.root,
+            segments: Vec::new(),
         };
         place.extend_segments(borrow.access_segments.span_or_empty(access.segments));
         let Some(rebased) = local_origins::rebase_local_write_places(

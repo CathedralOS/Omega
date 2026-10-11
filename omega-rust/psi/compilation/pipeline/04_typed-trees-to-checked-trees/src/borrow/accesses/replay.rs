@@ -85,7 +85,7 @@ pub(crate) fn rejoin_call_accesses<'program>(
     }
     for (expected, actual) in expected.iter().zip(actual) {
         if expected.expression != actual.expression
-            || expected.root_symbol != actual.root_symbol
+            || expected.root != actual.root
             || expected.kind != actual.kind
             || expected.end_before_access != actual.end_before_access
             || expected_segments.span(expected.segments)?

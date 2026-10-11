@@ -113,6 +113,14 @@ pub fn canonical_place_from_expression(
             canonical_place_from_expression(program, cast.value)
         }
         ExpressionNode::Name(path) => {
+            // A case name produces a value, not storage owned by its type or
+            // variant declaration. A borrow captures that value occurrence.
+            if crate::exact_case_reference_owner(program, expression).is_some() {
+                return Some(CanonicalPlace {
+                    root: facts::PlaceRoot::Expression(expression),
+                    segments: Vec::new(),
+                });
+            }
             let root_symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
             let mut place = CanonicalPlace {
                 root: facts::PlaceRoot::Symbol(root_symbol),

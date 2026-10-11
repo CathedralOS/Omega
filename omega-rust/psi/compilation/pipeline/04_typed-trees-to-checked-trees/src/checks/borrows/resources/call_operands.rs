@@ -124,7 +124,7 @@ fn collect(
             let access_row = facts.borrow.argument_accesses.get(access);
             let source = CapturedPlace {
                 incoming_reference: Handle::invalid(),
-                root_symbol: access_row.root_symbol,
+                root: access_row.root,
                 segments: facts.borrow.access_segments(access_row).to_vec(),
             };
             let Some(backings) = crate::checks::borrows::access_sources::resolve_captured_all(
@@ -155,7 +155,7 @@ fn collect(
                         parent_lifetime: CheckedDirectBorrowParentLifetime {
                             machine_symbol: state.machine_symbol,
                             state_symbol: state.state_symbol,
-                            root_symbol: backing.place.root_symbol,
+                            root: backing.place.root,
                         },
                     },
                     path: path.to_vec(),
@@ -174,9 +174,6 @@ fn collect(
     ) else {
         return;
     };
-    let Some(root) = source.root.as_symbol() else {
-        return;
-    };
     let source_prefix = crate::borrow::owner_path_from_place_segments(program, &source.segments);
     for leaf in paths {
         let mut source_path = source_prefix.clone();
@@ -186,7 +183,8 @@ fn collect(
             .borrow_loan_constraints(capture.constraints)
             .filter(|loan| {
                 let loan = facts.borrow.loans.get(*loan);
-                loan.owner_symbol == root && facts.borrow.loan_owner_path(loan) == source_path
+                loan.storage_owner == source.root
+                    && facts.borrow.loan_owner_path(loan) == source_path
             })
         {
             let row = facts.borrow.loans.get(loan);
@@ -206,7 +204,7 @@ fn collect(
                     parent_lifetime: CheckedDirectBorrowParentLifetime {
                         machine_symbol: state.machine_symbol,
                         state_symbol: state.state_symbol,
-                        root_symbol: row.root_symbol,
+                        root: row.root,
                     },
                 },
                 path: owner_path,

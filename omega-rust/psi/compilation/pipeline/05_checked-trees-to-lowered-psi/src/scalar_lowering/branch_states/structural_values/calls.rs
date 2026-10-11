@@ -5,7 +5,6 @@ use super::*;
 use crate::emission::operation_emission::buffer::StructuralBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::unit::attached_unit::argument_schedule;
-use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 
 impl Storage {
     pub(super) fn reserve_value(
@@ -156,6 +155,10 @@ impl Preparation<'_> {
             .collect::<Vec<_>>();
         let mut positions = vec![Vec::new(); operations.len()];
         let mut results: Vec<(u32, StructuralBinding)> = Vec::new();
+        // Each completed producer enters the namespace used by subsequent
+        // actuals. A side list of result ordinals alone loses expression-backed
+        // storage when the next argument borrows that producer's descriptor.
+        let mut bindings = self.bindings.clone();
         for step in steps {
             match step {
                 argument_schedule::Step::Argument { operation, ordinal } => {
@@ -164,18 +167,6 @@ impl Preparation<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "argument schedule lost its call",
                         ))?;
-                    let target = UnitBody::find(
-                        UnitPlans::published(&self.checked.facts.flow.terminal_unit_effects),
-                        call.target.machine,
-                    )?
-                    .entry()?;
-                    let parameter =
-                        target
-                            .scalar_parameters
-                            .get(ordinal)
-                            .ok_or(LoweringError::Unsupported(
-                                "argument schedule lost its scalar formal",
-                            ))?;
                     let argument =
                         call.scalar_arguments
                             .get(ordinal)
@@ -185,6 +176,25 @@ impl Preparation<'_> {
                     if positions[operation].len() != ordinal {
                         return unsupported("argument schedule reordered scalar operands");
                     }
+                    let value_type = match argument {
+                        checked_trees::CheckedCallScalarArgument::Pure(expression) => bindings
+                            .expression(
+                                identities,
+                                &self.checked.facts.proven_scalar_indexes,
+                                expression,
+                            )?
+                            .value_type(&self.prefix)?,
+                        checked_trees::CheckedCallScalarArgument::Computation(root) => {
+                            computations::computation_value_type(
+                                identities,
+                                self.checked,
+                                self.qualifications,
+                                *root,
+                                &bindings,
+                                &self.prefix,
+                            )?
+                        }
+                    };
                     positions[operation].push(self.prefix.len());
                     self.steps.push(Step::Argument {
                         coordinate: call.coordinate,
@@ -192,8 +202,7 @@ impl Preparation<'_> {
                         argument: argument.clone(),
                         prefix: self.prefix.clone(),
                     });
-                    self.prefix
-                        .push(super::super::terminal_scalar_type(parameter.primitive_type)?.into());
+                    self.prefix.push(value_type);
                 }
                 argument_schedule::Step::Call(operation) => {
                     let call = operations[operation]
@@ -208,27 +217,24 @@ impl Preparation<'_> {
                         return unsupported("structural call has incomplete scalar preparation");
                     }
                     let result = self.result(identities, binding)?;
-                    let mut prepared = super::super::unit_operations::prepare(
+                    let arguments = positions[operation]
+                        .iter()
+                        .map(|position| LoweredDirectExpression::Parameter {
+                            position: *position,
+                            scalar_type: self.prefix[*position].scalar_type,
+                        })
+                        .collect();
+                    let prepared = super::super::unit_operations::prepare(
                         identities,
                         self.checked,
                         &caller,
                         operations[operation],
-                        self.bindings,
-                        &self.prefix,
+                        &bindings,
+                        arguments,
                         self.types,
                         Some(result.clone()),
                         &results,
                     )?;
-                    prepared.call.arguments = positions[operation]
-                        .iter()
-                        .zip(&prepared.argument_types)
-                        .map(
-                            |(position, scalar_type)| LoweredDirectExpression::Parameter {
-                                position: *position,
-                                scalar_type: scalar_type.scalar_type,
-                            },
-                        )
-                        .collect();
                     self.steps.push(Step::Call {
                         prepared,
                         prefix: self.prefix.clone(),
@@ -255,19 +261,21 @@ impl Preparation<'_> {
                             "scalar expression constructor requires structural value custody",
                         );
                     };
-                    let expression = self
+                    let node = self
                         .checked
                         .facts
                         .values
                         .structural_values
                         .nodes
-                        .get(*value)
-                        .expression;
-                    let reference = self.checked.facts.resolved_types.result(expression);
+                        .get(*value);
+                    let expression = node.expression;
+                    // The producer includes contextual coercion. The authored
+                    // expression's type may still describe its input carrier.
+                    let reference = node.type_reference;
                     if !reference.is_valid() {
                         return unsupported("structural operand construction lost its type");
                     }
-                    let prepared = prepare_value(
+                    let mut prepared = prepare_value(
                         identities,
                         self.checked,
                         self.qualifications,
@@ -277,12 +285,18 @@ impl Preparation<'_> {
                         *value,
                         calls,
                         reference,
-                        self.bindings,
+                        &bindings,
                         &self.prefix,
                         self.types,
                         self.reserved,
                     )?;
                     self.reserved.result_place(result.binding_ordinal)?;
+                    for home in &mut prepared.storage {
+                        if home.root == facts::PlaceRoot::Expression(expression) {
+                            home.result_binding_ordinal = Some(result.binding_ordinal);
+                        }
+                    }
+                    bindings.retain_completed_homes(&prepared.storage)?;
                     self.consumed.extend(prepared.consumed.iter().copied());
                     self.steps.push(Step::Value {
                         prepared,

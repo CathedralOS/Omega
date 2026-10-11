@@ -241,6 +241,7 @@ pub(super) fn reference_local_borrow_loans(
         .map(|source| StatementBorrowLoan {
             formation_expression: local_data.initial_value,
             owner_symbol: local_data.symbol,
+            storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
             owner_name: local_data.name.clone(),
             owner_path: Vec::new(),
             place: source.place.clone(),

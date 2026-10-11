@@ -2,15 +2,14 @@
 //! adding value slots.
 use super::{
     LoweringError, OperationKind, OperationResult, ValueDeclaration, emit_direct_expression,
-    lookup_machine_id, lower_checked_crash_route_buckets, unsupported,
-    validate_direct_parameter_types,
+    lookup_machine_id, unsupported, validate_direct_parameter_types,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::view_subslice;
-use crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect;
+use crate::scalar_lowering::branch_states::prepared::{EffectCallTarget, LoweredScalarEffect};
 
 pub(crate) fn emit(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -204,6 +203,10 @@ pub(crate) fn emit(
                     .iter()
                     .map(|value| value.scalar_type)
                     .collect::<Vec<_>>();
+                let value_types = values
+                    .iter()
+                    .map(|value| value.value_type())
+                    .collect::<Vec<_>>();
                 let arguments = call
                     .arguments
                     .iter()
@@ -213,66 +216,164 @@ pub(crate) fn emit(
                             return unsupported("effect call requires completed scalar operands");
                         }
                         let id = emit_direct_expression(argument, values, next_value, operations);
+                        let value_type = argument.value_type(&value_types)?;
                         Ok(ValueDeclaration {
-                            qualifications: Default::default(),
+                            qualifications: value_type.qualifications,
                             id,
-                            scalar_type: argument.scalar_type(),
+                            scalar_type: value_type.scalar_type,
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
-                let erased_proof_arguments = call
-                    .erased_proof_arguments
+                let structural_arguments = call
+                    .structural_arguments
                     .iter()
-                    .map(|term| {
-                        crate::scalar_lowering::contracts::lowered_proof_term(
-                            checked, term, values, erased,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, LoweringError>>()?;
-                let claim_transfers =
-                    crate::emission::claim_bindings::emit_prepared_claim_transfers(
-                        &call.claim_transfers,
-                        calls.claims.bindings(),
-                    )?;
-                let mut result = call.result.clone();
-                if let Some(result) = &mut result {
-                    result.claims = crate::emission::claim_bindings::emit_call_result_claims(
-                        &call.result_claims,
-                        call.source_coordinate.state,
-                        call.checked_coordinate,
-                        &mut calls.claims,
-                    )?;
-                }
-                crate::direct_calls::emit_direct_call(
-                    operations,
-                    call.source_coordinate,
-                    None,
-                    call.target_state,
-                    crate::direct_calls::CallRecord::Values(values),
-                    result
-                        .map(OperationResult::Structural)
-                        .unwrap_or(OperationResult::Unit),
-                    DirectCall::new(
-                        lookup_machine_id(calls.machine_ids, call.target_machine)?,
-                        arguments.iter().map(|argument| argument.id).collect(),
-                        Vec::new(),
-                        erased_proof_arguments,
-                        call.structural_arguments.clone(),
-                        claim_transfers,
-                        Vec::new(),
-                        lower_checked_crash_route_buckets(
-                            identities,
-                            &call.crash_routes,
+                    .map(|argument| argument.emit(values, calls, next_value, operations))
+                    .collect::<Result<Vec<_>, _>>()?;
+                // Only dispatch changes the operation kind. The common result
+                // receiver below binds declared qualifications and actual claims.
+                let kind = match &call.endpoint {
+                    EffectCallTarget::Boundary => {
+                        let target = calls
+                            .boundaries
+                            .iter()
+                            .find(|target| target.source == call.target_machine)
+                            .ok_or(LoweringError::Unsupported(
+                                "expression boundary call has no allocated declaration",
+                            ))?;
+                        crate::emission::operation_emission::boundary_calls::complete_operands(
+                            target,
                             &arguments,
-                        )?,
-                        call.result
+                            structural_arguments,
+                            &call.claim_transfers,
+                            calls,
+                        )?
+                        .into_kind()
+                    }
+                    EffectCallTarget::Module {
+                        erased_proof_arguments,
+                        crash_routes,
+                    } => {
+                        let signature = crate::unit::attached_unit::signatures::find(
+                            calls.signatures,
+                            call.target_machine,
+                        )?;
+                        let requirement_obligations = crate::unit::attached_unit::ordinary_calls::prepare_requirement_obligations(
+                            &signature.call_target(), calls, operations,
+                        )?;
+                        let crash_continuations = crate::unit::attached_unit::ordinary_calls::prepare_crash_continuations(
+                            identities, signature.call_target(), crash_routes, &arguments,
+                            &structural_arguments, calls.structural_types,
+                            |identities, argument, ordinal| {
+                                if argument.path.is_empty() { return Ok(Vec::new()); }
+                                let root_type = call.structural_arguments[ordinal].root_type.ok_or(
+                                    LoweringError::Unsupported("expression call crash argument lost its root carrier"),
+                                )?;
+                                crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
+                                    identities, argument, root_type, calls.structural_types,
+                                )
+                            },
+                        )?;
+                        let claim_transfers =
+                            crate::emission::claim_bindings::emit_prepared_claim_transfers(
+                                &call.claim_transfers,
+                                calls.claims.bindings(),
+                            )?;
+                        let erased_proof_arguments = erased_proof_arguments
+                            .iter()
+                            .map(|term| {
+                                crate::scalar_lowering::contracts::lowered_proof_term(
+                                    checked, term, values, erased,
+                                )
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let result = call
+                            .result
                             .as_ref()
-                            .map_or(DirectCallResult::Unit, |result| {
+                            .map(|result| {
+                                result.emit(
+                                    identities,
+                                    checked,
+                                    call.source_coordinate.state,
+                                    call.checked_coordinate,
+                                    calls.domain_ids,
+                                    calls.structural_types,
+                                    &mut calls.claims,
+                                )
+                            })
+                            .transpose()?;
+                        let result_kind =
+                            result.as_ref().map_or(DirectCallResult::Unit, |result| {
                                 DirectCallResult::Structural {
                                     multiplicity: result.multiplicity,
                                 }
-                            }),
-                    ),
+                            });
+                        crate::direct_calls::emit_direct_call(
+                            operations,
+                            call.source_coordinate,
+                            call.source_site,
+                            call.target_state,
+                            crate::direct_calls::CallRecord::Values(values),
+                            result
+                                .map(OperationResult::Structural)
+                                .unwrap_or(OperationResult::Unit),
+                            DirectCall::new(
+                                lookup_machine_id(calls.machine_ids, call.target_machine)?,
+                                arguments.iter().map(|argument| argument.id).collect(),
+                                Vec::new(),
+                                erased_proof_arguments,
+                                structural_arguments,
+                                claim_transfers,
+                                requirement_obligations,
+                                crash_continuations,
+                                result_kind,
+                            ),
+                        )?;
+                        crate::emission::loan_completions::emit(
+                            &call.loan_completions,
+                            call.source_coordinate,
+                            operations,
+                            calls,
+                        )?;
+                        continue;
+                    }
+                };
+                let result = call
+                    .result
+                    .as_ref()
+                    .map(|result| {
+                        result.emit(
+                            identities,
+                            checked,
+                            call.source_coordinate.state,
+                            call.checked_coordinate,
+                            calls.domain_ids,
+                            calls.structural_types,
+                            &mut calls.claims,
+                        )
+                    })
+                    .transpose()?;
+                let operation = operations.allocate();
+                operations.record_source_call_with_values(
+                    call.source_coordinate,
+                    call.source_site,
+                    operation,
+                    call.target_machine,
+                    values,
+                )?;
+                operations.push(terminal_psi::Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: operation,
+                    result: result
+                        .map(OperationResult::Structural)
+                        .unwrap_or(OperationResult::Unit),
+                    kind,
+                });
+                crate::emission::loan_completions::emit(
+                    &call.loan_completions,
+                    call.source_coordinate,
+                    operations,
+                    calls,
                 )?;
             }
         }

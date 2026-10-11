@@ -3219,7 +3219,11 @@ of a check the same flow already performed, not the check itself.
 
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
-  corpus and focused native cohort. Stored references retain finite closed
+  corpus and focused native cohort. Include
+  `runtime_computed_backing_reference_copy_exit`, `runtime_boundary_range_view_exit`
+  and their escape/conflicting-write controls; unchosen backing homes must not
+  acquire custody and nested requirements must not select a provider in Psi.
+  Stored references retain finite closed
   identity edges through Terminal and native catalogs. Identity-only references
   no longer grow the pre-resolution declaration catalog. Closed case operands
   consume prepared member types without

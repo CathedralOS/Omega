@@ -46,6 +46,37 @@ fn ordinal(value: usize) -> Result<u64, LoweringError> {
         .map_err(|_| LoweringError::Unsupported("reborrow custody coordinate is too large"))
 }
 
+/// Name the exact storage occurrence in this artifact. Equal computed values
+/// need not share backing, so denotation or display text cannot identify a root.
+/// The occurrence key is opaque custody vocabulary, not permission evidence;
+/// source checking has already judged its formation and lifetime.
+pub(crate) fn storage_root_identity(
+    checked: &CheckedTrees,
+    root: facts::PlaceRoot,
+) -> Result<String, LoweringError> {
+    match root {
+        facts::PlaceRoot::Symbol(symbol) => identity(checked, symbol),
+        facts::PlaceRoot::Expression(expression) if expression.is_valid() => {
+            // Checking owns arena validity. This retained occurrence names
+            // custody; encoding it must not reopen or revalidate source nodes.
+            let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+                b"omega-terminal-computed-backing-v1",
+            );
+            digest.raw(&expression.arena_index().to_le_bytes());
+            digest.raw(&expression.generation().to_le_bytes());
+            Ok(format!(
+                "terminal-borrow-storage:{}",
+                digest
+                    .finish()
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>()
+            ))
+        }
+        _ => unsupported("reborrow custody contains an unresolved storage root"),
+    }
+}
+
 pub(crate) fn boundary(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
@@ -130,7 +161,7 @@ pub(crate) fn place(
     place: &checked_trees::CapturedPlace,
 ) -> Result<TerminalBorrowPlace, LoweringError> {
     Ok(TerminalBorrowPlace {
-        root_identity: identities.intern(&identity(checked, place.root_symbol)?),
+        root_identity: identities.intern(&storage_root_identity(checked, place.root)?),
         segments: place_segments(identities, checked, &place.segments)?,
     })
 }
@@ -224,7 +255,7 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
             )
             || parent.parent_lifetime.machine_symbol != source_machine
             || parent.parent_lifetime.state_symbol != event.state_symbol
-            || parent.parent_lifetime.root_symbol != parent.captured_place.root_symbol
+            || parent.parent_lifetime.root != parent.captured_place.root
         {
             return unsupported("reborrow root custody direct-root identity disagrees");
         }
@@ -398,8 +429,10 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
             direct_root_access: access(parent.access.clone()),
             direct_root_activation: boundary(identities, checked, parent.activation_source)?,
             direct_root_weakening: boundary(identities, checked, root_weakening.source)?,
-            direct_root_lifetime_identity: identities
-                .intern(&identity(checked, parent.parent_lifetime.root_symbol)?),
+            direct_root_lifetime_identity: identities.intern(&storage_root_identity(
+                checked,
+                parent.parent_lifetime.root,
+            )?),
             lineage: terminal_lineage,
         });
     }

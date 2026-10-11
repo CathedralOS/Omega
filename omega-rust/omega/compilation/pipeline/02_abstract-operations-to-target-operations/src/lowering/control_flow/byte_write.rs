@@ -254,8 +254,13 @@ fn writable_byte_field(
     field: semantic_vocabulary::StructuralFieldId,
     carrier_admitted: impl Fn(terminal_psi::ByteSequenceCarrier) -> bool,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
-    let reference_destination =
-        super::references::writable_referent_destination(live, structural_types, destination, path);
+    let reference_destination = super::references::referent_projection(
+        live,
+        structural_types,
+        destination,
+        path,
+        StructuralAccess::MutableBorrow,
+    );
     let (root_type, access) = if let Some(reference) = &reference_destination {
         (reference.carrier_type, StructuralAccess::MutableBorrow)
     } else {

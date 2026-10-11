@@ -21,9 +21,7 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_lowering::branch_states::prepared::{
-    LoweredScalarBranchState, scalar_state_emission_order,
-};
+use crate::scalar_lowering::branch_states::prepared::scalar_state_emission_order;
 use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 use checked_trees::CheckedCallScalarArgument;
 use state_emission::emit_state;
@@ -251,10 +249,20 @@ impl Evaluation {
                     .ok_or(LoweringError::Unsupported("cleanup parameter is absent"))?;
                 (parameter.place, parameter.structural_type)
             }
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. } => {
+                let root = match *source {
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                        facts::PlaceRoot::Symbol(symbol)
+                    }
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        expression,
+                    } => facts::PlaceRoot::Expression(expression),
+                    _ => return unsupported("cleanup source has no storage identity"),
+                };
                 let local = crate::expression_preparation::bindings::structural_local_by_root(
                     &self.structural_locals,
-                    facts::PlaceRoot::Symbol(symbol),
+                    root,
                 )
                 .ok_or(LoweringError::Unsupported(
                     "cleanup local is not established",
@@ -1303,7 +1311,7 @@ impl Evaluation {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
-        states: &[LoweredScalarBranchState],
+        expansion: &crate::scalar_lowering::computations::PreparedExpansion,
         entry: usize,
         result_type: QualifiedScalarType,
         values: &mut Vec<ValueDeclaration>,
@@ -1317,7 +1325,7 @@ impl Evaluation {
         let result = self.complete_expansion(
             identities,
             checked,
-            states,
+            expansion,
             entry,
             &[result_type],
             values,
@@ -1339,7 +1347,7 @@ impl Evaluation {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
         checked: &CheckedTrees,
-        states: &[LoweredScalarBranchState],
+        expansion: &crate::scalar_lowering::computations::PreparedExpansion,
         entry_index: usize,
         result_types: &[QualifiedScalarType],
         values: &mut Vec<ValueDeclaration>,
@@ -1349,6 +1357,16 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<Vec<ValueDeclaration>, LoweringError> {
+        // Scalar completion must not discard the storage identities produced
+        // while evaluating its operands. Retirement uses the same namespace
+        // as construction, without repeating the producer or treating reserved
+        // but unevaluated slots as established values. These associations grant
+        // no liveness: emitted control/ownership frontiers remain authoritative.
+        crate::expression_preparation::bindings::retain_completed_structural_homes(
+            &mut self.structural_locals,
+            &expansion.storage,
+        )?;
+        let states = &expansion.states;
         if let Some(completed) = self.complete_straight_line(
             identities,
             checked,

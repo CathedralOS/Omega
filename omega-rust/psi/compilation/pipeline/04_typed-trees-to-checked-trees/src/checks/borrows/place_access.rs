@@ -34,7 +34,7 @@ pub(in crate::checks::borrows) fn place_backings(
     mut live_loans: impl Iterator<Item = Handle<BorrowLoanFact>>,
     place: CapturedPlace,
 ) -> Option<Vec<ResolvedAlias>> {
-    if !live_loans.any(|loan| facts.borrow.loans.get(loan).owner_symbol == place.root_symbol) {
+    if !live_loans.any(|loan| facts.borrow.loans.get(loan).storage_owner == place.root) {
         return Some(vec![ResolvedAlias {
             place,
             lineage: Vec::new(),
@@ -64,7 +64,7 @@ pub(in crate::checks::borrows) fn access_interferes<'p>(
     let loan = borrow.loans.get(loan_handle);
     let loan_place = CapturedPlace {
         incoming_reference: loan.incoming_reference,
-        root_symbol: loan.root_symbol,
+        root: loan.root,
         segments: borrow.loan_segments(loan).to_vec(),
     };
     !backings.iter().all(|backing| {

@@ -101,7 +101,7 @@ fn source_needs_loan_closure(
         .borrow
         .loans
         .iter()
-        .any(|(_, loan)| loan.root_symbol == symbol);
+        .any(|(_, loan)| loan.root == facts::PlaceRoot::Symbol(symbol));
     if borrowed && !recorded {
         return true;
     }
@@ -122,11 +122,12 @@ fn source_needs_loan_closure(
         Some(statement_fact) => facts
             .flow
             .borrow_loan_constraints(statement_fact.entry_constraints)
-            .any(|loan| facts.borrow.loans.get(loan).root_symbol == symbol),
+            .any(|loan| facts.borrow.loans.get(loan).root == facts::PlaceRoot::Symbol(symbol)),
         // Without the statement's entry constraint set, fall back to the
         // loan's recorded last use, the same boundary the expiry filter uses.
         None => facts.borrow.loans.iter().any(|(_, loan)| {
-            loan.root_symbol == symbol && loan.last_use_statement_index >= statement_index
+            loan.root == facts::PlaceRoot::Symbol(symbol)
+                && loan.last_use_statement_index >= statement_index
         }),
     }
 }

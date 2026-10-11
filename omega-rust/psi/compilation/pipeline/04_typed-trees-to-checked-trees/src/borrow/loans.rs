@@ -81,6 +81,7 @@ mod call_views;
 pub(super) struct StatementBorrowLoan {
     pub(super) formation_expression: ExpressionHandle,
     pub(super) owner_symbol: SymbolHandle,
+    pub(super) storage_owner: facts::PlaceRoot,
     pub(super) owner_name: Identifier,
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) place: accesses::BorrowAccessPlace,
@@ -95,11 +96,96 @@ pub(super) struct StatementBorrowLoan {
     pub(super) call_result: bool,
 }
 
+#[derive(Clone)]
 struct RebasedBorrowPlace {
     place: accesses::BorrowAccessPlace,
     source_owner_symbol: SymbolHandle,
     parent_loan: Handle<checked_trees::BorrowLoanFact>,
     parent_lineage_is_retained: bool,
+}
+
+/// A reference keeps its computed backing's stored descriptors live, but those
+/// descriptors are not fields of the reference variable. Capture them once
+/// under the backing's storage identity. Aliases retain that identity and the
+/// ordinary lifetime closure extends its contents without replaying formation.
+pub(super) fn retain_backing_contents(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    statement: &StatementNode,
+    pending: &mut Vec<StatementBorrowLoan>,
+    current: &[StateLoanTracker],
+) {
+    let (owner, name) = statement
+        .as_local_data()
+        .map_or((state.symbol, &state.name), |local| {
+            (local.symbol, &local.name)
+        });
+    let mut backings = Vec::new();
+    validation::visit_statement_value_occurrences(
+        program,
+        machine_symbol,
+        state.symbol,
+        statement_index,
+        statement,
+        &mut |expression, _, _| {
+            let Some(borrow) = program.expression_table.borrow_expression(expression) else {
+                return;
+            };
+            let Some(place) = validation::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                borrow.target,
+            ) else {
+                return;
+            };
+            if let facts::PlaceRoot::Expression(expression) = place.root
+                && !backings.contains(&expression)
+                && !current.iter().any(|loan| loan.storage_owner == place.root)
+            {
+                backings.push(expression);
+            }
+        },
+    );
+    for expression in backings {
+        let Some(type_reference) = validation::expression_type_reference_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            expression,
+        ) else {
+            continue;
+        };
+        if validation::reference_shell(program, type_reference).is_some()
+            || !is_borrow_carrying_data(program, type_reference)
+        {
+            continue;
+        }
+        let backing = checked_trees::statement::TableLocalData {
+            role: language_core::LocalBindingRole::Value,
+            symbol: owner,
+            name: name.clone(),
+            type_reference,
+            initial_value: expression,
+            is_mutable: false,
+            type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
+        };
+        let contents = borrow_carrying_data_loans(
+            program,
+            state,
+            statement_index,
+            machine_symbol,
+            &backing,
+            current,
+        );
+        pending.extend(contents.into_iter().map(|mut loan| {
+            loan.storage_owner = facts::PlaceRoot::Expression(expression);
+            loan
+        }));
+    }
 }
 
 /// The initializer expressions that supply the references structurally carried
@@ -315,17 +401,11 @@ fn assignment_borrow_loans(
     ) else {
         return Vec::new();
     };
-    let local = program
-        .state_local_declaration(state, target.root_symbol)
-        .filter(|&(ordinal, _)| ordinal < statement_index)
-        .map(|(_, local)| local);
-    let parameter = program.state_parameter_by_symbol(state, target.root_symbol);
-    let Some(owner_name) = local
-        .map(|local| &local.name)
-        .or_else(|| parameter.map(|parameter| &parameter.name))
-    else {
-        return Vec::new();
-    };
+    // The lexical event owner is not necessarily the storage owner. A direct
+    // computed destination has only this statement's namespace; a named
+    // reference keeps the installed descriptors live through its backing.
+    let target_symbol = target.root.as_symbol().unwrap_or(state.symbol);
+    let owner_name: Identifier = program.symbols.name(target_symbol).into();
     let Some(target_type) = validation::expression_type_reference_in_state(
         program,
         state.symbol,
@@ -339,8 +419,8 @@ fn assignment_borrow_loans(
     }
     let synthetic_local = checked_trees::statement::TableLocalData {
         role: language_core::LocalBindingRole::Value,
-        symbol: target.root_symbol,
-        name: owner_name.clone(),
+        symbol: target_symbol,
+        name: owner_name,
         type_reference: target_type,
         initial_value: assignment.value,
         is_mutable: true,
@@ -373,10 +453,10 @@ fn assignment_borrow_loans(
         target,
         loan_trackers.iter().map(|loan| {
             (
-                loan.owner_symbol,
+                loan.storage_owner,
                 loan.owner_path.as_slice(),
                 loan.place.incoming_reference,
-                loan.place.root_symbol,
+                loan.place.root,
                 loan.place.segments.as_slice(),
             )
         }),
@@ -384,10 +464,12 @@ fn assignment_borrow_loans(
     destinations
         .iter()
         .flat_map(|destination| {
+            let destination_symbol = destination.root.as_symbol().unwrap_or(target_symbol);
             let owner_path = owner_path_from_place_segments(program, &destination.segments);
             loans.iter().cloned().map(move |mut loan| {
-                loan.owner_symbol = destination.root_symbol;
-                loan.owner_name = program.symbols.name(destination.root_symbol).into();
+                loan.owner_symbol = destination_symbol;
+                loan.storage_owner = destination.root;
+                loan.owner_name = program.symbols.name(destination_symbol).into();
                 let mut path = owner_path.clone();
                 path.append(&mut loan.owner_path);
                 loan.owner_path = path;

@@ -88,6 +88,25 @@ pub fn collect_executable_value_origins(
     facts
 }
 
+/// Visit one statement through the same executable inventory used by typed
+/// preparation. Borrow formation needs evaluated computed homes, not assembly
+/// evidence or a second traversal with different statement-root semantics.
+pub fn visit_statement_value_occurrences(
+    program: &dyn crate::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    statement: &typed_trees::statement::StatementNode,
+    visit: &mut dyn FnMut(ExpressionHandle, CheckedValueOrigin, Option<PrimitiveType>),
+) {
+    ValueOccurrenceVisitor { program, visit }.collect_statement(
+        machine,
+        state,
+        statement_index,
+        statement,
+    );
+}
+
 struct ValueOccurrenceVisitor<'program, 'visitor> {
     program: &'program dyn crate::CheckingInput,
     visit: &'visitor mut dyn FnMut(ExpressionHandle, CheckedValueOrigin, Option<PrimitiveType>),

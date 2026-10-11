@@ -14,8 +14,7 @@
 use crate::type_applications::DeclarationScopes;
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralResultBindingPlan,
-    ReferenceCustodyFacts, ReferenceCustodyRow, StateReferenceCustodyFacts,
-    StateReferenceCustodyRow,
+    ReferenceCustodyFacts, ReferenceCustodyRow,
 };
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
@@ -1445,15 +1444,10 @@ pub fn record_carrier_sources(
         }
         Some(())
     }
-    if !reference_origin_expansion_is_bounded(program, reference)
-        || (!is_reference_record(program, reference)
-            && !crate::has_contents(
-                program,
-                reference,
-                &[],
-                crate::value_custody::storage_contents::ContentsRequirement::OwnedOrSharedView,
-            ))
-    {
+    // The leaf walk owns the stored carrier family, including a whole
+    // exclusive reference. The record classifier intentionally excludes that
+    // root family and must not act as a second eligibility gate here.
+    if !reference_origin_expansion_is_bounded(program, reference) {
         return None;
     }
     let mut output = Vec::new();
@@ -1731,7 +1725,31 @@ pub fn local_place_loans(
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<RecordLeafLoans>> {
     let (_, local) = program.state_local_declaration(state, owner)?;
-    let selected_owner_path = loan_owner_path(program, local.type_reference, selection)?;
+    storage_place_loans(
+        program,
+        facts,
+        machine,
+        state,
+        facts::PlaceRoot::Symbol(owner),
+        local.type_reference,
+        statement_index,
+        selection,
+    )
+}
+
+/// Join descriptors to the home that actually stores them. A named local and
+/// computed backing differ in identity, not leaf geometry or formation proof.
+pub fn storage_place_loans(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    owner: facts::PlaceRoot,
+    reference: TypeReferenceHandle,
+    statement_index: u32,
+    selection: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<Vec<RecordLeafLoans>> {
+    let selected_owner_path = loan_owner_path(program, reference, selection)?;
     let mut states = facts.borrow.states.iter().filter_map(|(_, borrowing)| {
         (borrowing.machine_symbol == machine && borrowing.state_symbol == state.symbol)
             .then_some(borrowing)
@@ -1742,7 +1760,7 @@ pub fn local_place_loans(
     }
     let loans = facts
         .borrow
-        .local_loans(borrowing, local.symbol, statement_index as usize)?;
+        .storage_loans(borrowing, owner, statement_index as usize)?;
     let flow = state_flow(facts, machine, state.symbol)?;
     let activations = facts
         .flow
@@ -1771,14 +1789,7 @@ pub fn local_place_loans(
         }
         captured.push(handle);
     }
-    record_leaf_loan_groups(
-        program,
-        facts,
-        local.type_reference,
-        local.symbol,
-        &captured,
-        selection,
-    )
+    record_leaf_loan_groups(program, facts, reference, owner, &captured, selection)
 }
 
 /// Loan rows for one descriptor are contiguous in the producer's arena, even
@@ -1790,15 +1801,22 @@ fn record_leaf_loan_groups(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     reference: TypeReferenceHandle,
-    owner: SymbolHandle,
+    owner: facts::PlaceRoot,
     loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<RecordLeafLoans>> {
-    let sources = record_carrier_sources(
-        program,
-        reference,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: owner },
-    )?;
+    let source = match owner {
+        facts::PlaceRoot::Symbol(symbol) => {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+        }
+        facts::PlaceRoot::Expression(expression) => {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression,
+            }
+        }
+        _ => return None,
+    };
+    let sources = record_carrier_sources(program, reference, source)?;
     let mut grouped_count = 0usize;
     let mut output = Vec::with_capacity(sources.len());
     for source in sources
@@ -1814,7 +1832,7 @@ fn record_leaf_loan_groups(
             if facts.borrow.loan_owner_path(loan) != owner_path {
                 continue;
             }
-            if loan.owner_symbol != owner
+            if loan.storage_owner != owner
                 || loan.kind != access
                 || formation.is_some_and(|statement| statement != loan.statement_index)
                 || (!group.is_empty() && !group.is_followed_by(handle))
@@ -2020,7 +2038,7 @@ fn active_record_loans(
                 return None;
             };
             let captured = facts.borrow.loans.get(loan);
-            (captured.owner_symbol == local.symbol).then_some(loan)
+            (captured.storage_owner == facts::PlaceRoot::Symbol(local.symbol)).then_some(loan)
         })
         .collect::<Vec<_>>();
     // Flow contexts preserve their own constraint order. Arena order owns the
@@ -2037,7 +2055,7 @@ fn active_record_loans(
         program,
         facts,
         local.type_reference,
-        local.symbol,
+        facts::PlaceRoot::Symbol(local.symbol),
         &loans,
         &[],
     )
@@ -2233,58 +2251,6 @@ pub fn classify_program_reference_custody(
     program: &dyn crate::CheckingInput,
 ) -> ReferenceCustodyFacts {
     crate::classify_type_references(program, reference_custody, ReferenceCustodyFacts::with_rows)
-}
-
-/// Classify every declared machine state's reference-result custody over the
-/// frozen typed program.
-///
-/// The tail-expression, returned-origin and ingress-shape questions below
-/// are pure functions of the typed program: they read only the state's own
-/// statements, parameters and return type, no checked fact. Walking the
-/// declared states once records them for the whole program, so the
-/// classifier's admitted completion shapes stay behind this one entry point
-/// instead of being reachable from a later stage.
-///
-/// The walk is `machines()` by `machine_states()` — the declaration
-/// structure every reader resolves a state symbol through, rather than the
-/// states checking's own traversal happened to visit — so which completions
-/// checking validated cannot leave a hole. The row vector is positional by
-/// the state symbol's arena index, and index 0 keeps the invalid symbol's
-/// absence row: a state carrying an invalid symbol names no declaration to
-/// look up, so it must not take the row every unnamed symbol reads.
-pub fn classify_program_state_reference_custody(
-    program: &dyn crate::CheckingInput,
-) -> StateReferenceCustodyFacts {
-    let declared_states = || {
-        program
-            .machines()
-            .iter()
-            .flat_map(|machine| program.machine_states(machine).iter())
-            .filter(|state| state.symbol.is_valid())
-    };
-    let highest = declared_states()
-        .map(|state| state.symbol.arena_index())
-        .max()
-        .unwrap_or(0);
-    let mut rows = vec![StateReferenceCustodyRow::default(); highest as usize + 1];
-    for state in declared_states() {
-        rows[state.symbol.arena_index() as usize] = state_reference_custody(program, state);
-    }
-    StateReferenceCustodyFacts::with_rows(rows)
-}
-
-/// One state's reference-result custody row.
-fn state_reference_custody(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-) -> StateReferenceCustodyRow {
-    StateReferenceCustodyRow {
-        tail_return_expression: tail_return_expression(program, state).unwrap_or_default(),
-        returns_complete_reference_origins: returned_reference_sources(program, state, None)
-            .is_some(),
-        tail_names_source_parameter: source_parameter(program, state).is_some(),
-        tail_selects_source_leaf: source_leaf(program, state).is_some(),
-    }
 }
 
 /// One type reference's custody row.
@@ -2712,8 +2678,9 @@ pub fn local_storage_loans(
             .loans
             .iter()
             .filter_map(|(handle, loan)| {
-                (facts.borrow.state_owns_loan(borrowing, handle) && loan.root_symbol == root)
-                    .then_some(handle)
+                (facts.borrow.state_owns_loan(borrowing, handle)
+                    && loan.root == facts::PlaceRoot::Symbol(root))
+                .then_some(handle)
             })
             .collect(),
     )

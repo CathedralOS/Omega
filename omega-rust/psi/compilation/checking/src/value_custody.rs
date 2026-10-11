@@ -17,6 +17,7 @@ pub(crate) mod expression_types;
 pub mod field_domains;
 pub use executable_value_occurrences::{
     collect_executable_value_origins, visit_executable_value_occurrences,
+    visit_statement_value_occurrences,
 };
 pub(crate) mod intrinsic_boundaries;
 pub(crate) mod literals;

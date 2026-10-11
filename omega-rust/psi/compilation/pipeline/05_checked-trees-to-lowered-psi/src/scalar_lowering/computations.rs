@@ -72,6 +72,14 @@ enum EstablishedValue {
     },
 }
 
+/// Prepared control and its established storage identities form one result.
+/// Storage bindings locate homes; operation and control frontiers still prove
+/// that a particular consumer can use those homes on its execution path.
+pub(crate) struct PreparedExpansion {
+    pub(crate) states: Vec<LoweredScalarBranchState>,
+    pub(crate) storage: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
+}
+
 pub(crate) struct Expansion<'a> {
     checked: &'a CheckedTrees,
     structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
@@ -85,6 +93,7 @@ pub(crate) struct Expansion<'a> {
     /// edge terms stay in scope on the emitted block.
     erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     states: Vec<LoweredScalarBranchState>,
+    pub(crate) storage: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
     calls: Vec<SourceCallCoordinate>,
     produced_values: Vec<produced_values::Slot>,
     subslices: Vec<subslices::Slot>,
@@ -115,6 +124,7 @@ impl<'a> Expansion<'a> {
             base,
             erased_proof_formals: Vec::new(),
             states: Vec::new(),
+            storage: Vec::new(),
             calls: Vec::new(),
             produced_values: Vec::new(),
             subslices: Vec::new(),
@@ -151,8 +161,11 @@ impl<'a> Expansion<'a> {
         self
     }
 
-    pub(crate) fn finish(self) -> Vec<LoweredScalarBranchState> {
-        self.states
+    pub(crate) fn finish(self) -> PreparedExpansion {
+        PreparedExpansion {
+            states: self.states,
+            storage: self.storage,
+        }
     }
 
     pub(crate) fn with_fields(mut self, fields: &'a [fields::Binding]) -> Self {
@@ -538,14 +551,14 @@ impl<'a> Expansion<'a> {
                 active,
             )?,
             CheckedScalarComputationKind::StructuralField {
-                source_expression,
+                receiver_expression,
                 receiver_value,
                 subject,
                 field,
                 ..
             } => self.structural_field(
                 identities,
-                source_expression,
+                receiver_expression,
                 receiver_value,
                 &subject,
                 field,
@@ -554,17 +567,21 @@ impl<'a> Expansion<'a> {
                 target,
                 site,
             )?,
-            CheckedScalarComputationKind::CaseMembership { subject, case, receiver_value, .. } => self
-                .case_membership(
-                    identities,
-                    &subject,
-                    receiver_value,
-                    case,
-                    input_types,
-                    target,
-                    site,
-                    active,
-                )?,
+            CheckedScalarComputationKind::CaseMembership {
+                subject,
+                case,
+                receiver_value,
+                ..
+            } => self.case_membership(
+                identities,
+                &subject,
+                receiver_value,
+                case,
+                input_types,
+                target,
+                site,
+                active,
+            )?,
             CheckedScalarComputationKind::SelectedComparison {
                 operator_use,
                 left,

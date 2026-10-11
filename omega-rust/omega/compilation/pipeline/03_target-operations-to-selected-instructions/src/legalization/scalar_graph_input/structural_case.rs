@@ -289,12 +289,15 @@ pub(in crate::legalization) fn leaf_copy_layout(
             (identity, 0, Vec::new())
         }
         abstract_operations::StructuralCopyPath::Ordinary(path) => {
-            crate::structural_inputs::structural_reference_input::runtime_leaf_copy_projection(
-                identity,
-                path,
-                &plan.structural_types,
-            )
-            .ok_or(LegalizationError::custody())?
+            let geometry =
+                crate::structural_inputs::structural_reference_input::leaf_copy_geometry(
+                    identity,
+                    path,
+                    &plan.structural_types,
+                )
+                .filter(|geometry| geometry.readable)
+                .ok_or(LegalizationError::custody())?;
+            (geometry.selected, geometry.byte_offset, geometry.elements)
         }
     };
     // A case-qualified path also carries the verifier's owned-copy shape: an

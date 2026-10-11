@@ -61,7 +61,7 @@ impl super::Expansion<'_> {
     pub(super) fn structural_field(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        source_expression: typed_trees::expression::ExpressionHandle,
+        receiver_expression: typed_trees::expression::ExpressionHandle,
         receiver: checked_trees::CheckedStructuralValueHandle,
         subject: &CheckedUnitStructuralArgumentPlan,
         field: symbols::SymbolHandle,
@@ -73,11 +73,6 @@ impl super::Expansion<'_> {
         let (machine, state) = crate::declarations::state_declaration(self.checked, site.state)?;
         let mut completed = None;
         let mut discards = Vec::new();
-        let receiver_expression = self
-            .checked
-            .expression_table
-            .member_node(source_expression)
-            .map(|member| member.receiver);
         let established = self
             .established_values
             .iter()
@@ -85,19 +80,19 @@ impl super::Expansion<'_> {
             .find(|value| match value {
                 super::EstablishedValue::Produced { root, .. } => {
                     receiver.is_valid() && *root == receiver
-                        || receiver_expression
-                            == Some(
-                                self.checked
+                        || receiver_expression.is_valid()
+                            && receiver_expression
+                                == self
+                                    .checked
                                     .facts
                                     .values
                                     .structural_values
                                     .nodes
                                     .get(*root)
-                                    .expression,
-                            )
+                                    .expression
                 }
                 super::EstablishedValue::Copied { expression, .. } => {
-                    receiver_expression == Some(*expression)
+                    receiver_expression.is_valid() && receiver_expression == *expression
                 }
             })
             .cloned();

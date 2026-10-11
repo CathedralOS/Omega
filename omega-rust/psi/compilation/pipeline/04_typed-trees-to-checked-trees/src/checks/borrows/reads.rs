@@ -147,7 +147,7 @@ pub(super) fn check_storage_read<'p>(
         return;
     }
     // A completed rvalue has no preexisting storage to observe.
-    let Some(root_symbol) = read.place.root.as_symbol() else {
+    let Some(root) = read.place.root.as_symbol() else {
         return;
     };
     let statement_index = read.statement.statement_index;
@@ -174,7 +174,7 @@ pub(super) fn check_storage_read<'p>(
         read.active_loans.iter().copied(),
         CapturedPlace {
             incoming_reference: Default::default(),
-            root_symbol,
+            root: facts::PlaceRoot::Symbol(root),
             segments: read.place.segments.clone(),
         },
     );

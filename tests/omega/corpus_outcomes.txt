@@ -567,9 +567,10 @@ fail/borrows/selected_reference_record_helper_live_source_write rejected 694ms e
 	statement 12 mutates `third.value` while local borrow `held` is still active (borrowed at statement 8; its last use is at statement 13 and it is released at state exit)
 fail/borrows/selected_reference_record_helper_local_escape rejected 359ms expected @fcce6043b0fd+wt
 	machine `invalid` returns a view borrowing the local `local`, which does not outlive the call; return a borrow of an input parameter or `self` instead
-fail/borrows/selected_reference_record_helper_wrong_lifetime rejected 348ms expected @fcce6043b0fd+wt
+fail/borrows/selected_reference_record_helper_wrong_lifetime rejected 484ms expected @c01ece463989+wt
 	machine `invalid` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
 	machine `invalid_direct` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
+	machine `invalid_projected` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
 fail/borrows/shared_entry_jump_into_mutable_receiver_state rejected 799ms expected @c5d32a00863
 	argument `main` for state `next` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 	argument `main` for state `write` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
@@ -5266,3 +5267,9 @@ pass/arithmetic/fixed_unsigned_multiply_values_survive_calls_exit checked 4051ms
 pass/ownership/runtime_owned_parameter_restoration_exit checked 2733ms check-target:macos_arm64 @b296be94ff95
 fail/ownership/owned_parameter_strict_child_restoration rejected 300ms expected @b296be94ff95
 	cannot store into `holder.value` in machine `invalid` state `entry` (statement 1) after `holder` was transferred or consumed at statement 0: assign a whole value to `holder` to re-establish it
+# context: {"cpus": 10, "jobs": "2", "load1_end": 3.39, "load1_start": 3.39, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+fail/borrows/copied_computed_backing_retains_nested_loan rejected 906ms expected @c01ece463989+wt
+	statement 3 mutates `original.payload` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/borrows/returned_view_temporary_backing rejected 551ms expected @c01ece463989+wt
+	machine `escape` returns a view borrowing temporary storage, which does not outlive the call; return a view of storage that outlives the invocation instead
+pass/borrows/runtime_computed_backing_reference_copy_exit checked 3509ms check-target:macos_arm64 @c01ece463989+wt

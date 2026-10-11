@@ -8,27 +8,18 @@ use super::super::argument_evaluation;
 use super::super::call_closure::unique_unit_boundary;
 
 use super::calls::CallInputs;
-use super::{BoundaryParameters, OperationFrame, StructuralResults};
+use super::{OperationFrame, StructuralResults};
 use crate::emission::operation_emission::boundary_calls::result_policy::{
     self, BoundaryResultPolicy,
 };
+use crate::emission::operation_emission::boundary_calls::{BoundaryOperands, complete_operands};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
-use crate::terminal_identities::lookup_domain_id_for_carrier;
 use crate::unit::{
-    CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, CompletionReceipt,
-    LoweringError, Operation, OperationKind, OperationResult, StructuralOperationResult,
-    StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
-    lookup_type_id, place_id, terminal_scalar_type, unsupported, value_id,
+    CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, LoweringError, Operation,
+    OperationResult, StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
+    ValueDeclaration, allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported,
+    value_id,
 };
-
-/// The operands every boundary call shape lowers identically.
-struct BoundaryOperands {
-    boundary: crate::unit::BoundaryMachineId,
-    arguments: Vec<semantic_vocabulary::ValueId>,
-    structural_arguments: Vec<terminal_psi::StructuralArgument>,
-    completion_receipts: Vec<CompletionReceipt>,
-    requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-}
 
 impl OperationFrame<'_, '_> {
     pub(super) fn boundary_call(
@@ -181,13 +172,7 @@ impl OperationFrame<'_, '_> {
         let checked = self.checked;
         let coordinate = &call.coordinate;
         let target_machine = &call.target.machine;
-        let CheckedBoundaryMachineResultPlan::Structural {
-            type_identity,
-            multiplicity,
-            qualifications,
-            projected_qualifications,
-        } = shape
-        else {
+        let CheckedBoundaryMachineResultPlan::Structural { type_identity, .. } = shape else {
             return unsupported("call result signature is not structural");
         };
         let structural_type = lookup_type_id(self.type_ids, type_identity)?;
@@ -199,21 +184,21 @@ impl OperationFrame<'_, '_> {
                 structural_type,
             },
         };
-        // The checked receiving frontier follows result-relative claim paths,
-        // not root multiplicity or a local's spelling. Selected family members
-        // return their real claims through this same ordinary reception route.
-        let custody = call.structural_custody().ok_or(LoweringError::Unsupported(
-            "structural result has no checked receiving custody",
-        ))?;
-        let result_claims = crate::emission::claim_bindings::emit_call_result_claims(
-            &crate::emission::claim_bindings::prepare_call_result_claims(
-                identities,
-                &custody.result_claims,
-                structural_type,
-                self.structural_types.declarations(),
-            )?,
+        let returned = super::super::call_results::prepare(
+            identities,
+            checked,
+            call,
+            result_place,
+            structural_type,
+            self.structural_types.declarations(),
+        )?
+        .emit(
+            identities,
+            checked,
             self.state,
             *coordinate,
+            self.callees.domain_ids,
+            self.structural_types.declarations(),
             &mut self.calls.claims,
         )?;
         self.record_source_call(
@@ -222,41 +207,6 @@ impl OperationFrame<'_, '_> {
             id,
             *target_machine,
         )?;
-        // The declared result domains mint their caller-side establishment
-        // through this call's CallEnsures evidence.
-        let qualification_establishments =
-            super::super::catalog::call_result_qualification_establishments(
-                identities,
-                checked,
-                self.state,
-                *coordinate,
-                *target_machine,
-                qualifications,
-                self.callees.domain_ids,
-            )?;
-        let returned = StructuralOperationResult {
-            qualification_establishments,
-            place: result_place,
-            structural_type,
-            multiplicity: crate::terminal_identities::structural_multiplicity(*multiplicity),
-            qualifications: qualifications
-                .iter()
-                .map(|domain| {
-                    lookup_domain_id_for_carrier(self.callees.domain_ids, *domain, structural_type)
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-            // The call publishes only the head's declared rows. Selected
-            // members cover them through ordinary return transport; this does
-            // not issue membership or import member-private result facts.
-            projected_qualifications: super::super::parameters::lower_projected_qualifications(
-                identities,
-                projected_qualifications,
-                self.callees.domain_ids,
-                structural_type,
-                self.structural_types.declarations(),
-            )?,
-            claims: result_claims,
-        };
         Ok((returned, result_declaration))
     }
 
@@ -278,13 +228,7 @@ impl OperationFrame<'_, '_> {
             .earlier(structural_arguments, self.operations, self.evaluation)?
             .into_owned();
 
-        let BoundaryParameters {
-            id: boundary,
-            scalar: target_scalar_parameters,
-            structural: target_structural_parameters,
-            requirement_count,
-            ..
-        } = self
+        let target = self
             .callees
             .boundaries
             .iter()
@@ -292,21 +236,20 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "boundary call target is absent from the lowered closure",
             ))?;
-        if scalar_arguments.len() != target_scalar_parameters.len() {
+        if scalar_arguments.len() != target.scalar.len() {
             return unsupported(
                 "boundary call scalar argument count disagrees with its declaration",
             );
         }
         let arguments = argument_evaluation::validated_values(
             inputs.evaluated_scalar_arguments,
-            &target_scalar_parameters
+            &target
+                .scalar
                 .iter()
                 .map(|scalar_type| (*scalar_type).into())
                 .collect::<Vec<_>>(),
         )?
-        .iter()
-        .map(|value| value.id)
-        .collect();
+        .to_vec();
         let structural_arguments = self.lower_runtime_structural_arguments(
             identities,
             structural_arguments,
@@ -319,7 +262,8 @@ impl OperationFrame<'_, '_> {
             completion_receipts,
             self.structural_types.declarations(),
             |_identities, position| {
-                target_structural_parameters
+                target
+                    .structural
                     .get(position as usize)
                     .map(|parameter| parameter.structural_type)
                     .ok_or(LoweringError::Unsupported(
@@ -327,33 +271,12 @@ impl OperationFrame<'_, '_> {
                     ))
             },
         )?;
-        let completion_receipts = crate::emission::claim_bindings::emit_completion_receipts(
-            &prepared,
-            self.calls.claims.bindings(),
-        )?;
-        // One obligation per declared scalar `requires` row, in row order;
-        // proof finalization discharges each at this call's actuals.
-        let requirement_obligations = (0..*requirement_count)
-            .map(|_| self.calls.allocate_requirement())
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(BoundaryOperands {
-            boundary: *boundary,
-            arguments,
+        complete_operands(
+            target,
+            &arguments,
             structural_arguments,
-            completion_receipts,
-            requirement_obligations,
-        })
-    }
-}
-
-impl BoundaryOperands {
-    fn into_kind(self) -> OperationKind {
-        OperationKind::BoundaryCall {
-            boundary: self.boundary,
-            arguments: self.arguments,
-            structural_arguments: self.structural_arguments,
-            completion_receipts: self.completion_receipts,
-            requirement_obligations: self.requirement_obligations,
-        }
+            &prepared,
+            self.calls,
+        )
     }
 }

@@ -1,4 +1,4 @@
-//! Follow nonescaping borrowed call paths through their current live descriptors.
+//! Follow borrowed observations through their current live descriptors.
 //! Every inner coordinate must rejoin concrete typed storage, while intermediate
 //! descriptor dependencies remain separate from the final borrowed origins.
 
@@ -12,9 +12,11 @@ use super::{
 /// Intermediate origins become concrete cursors only after their current
 /// storage contract matches the declared referent. Opaque ingress permissions
 /// remain valid final origins, but cannot invent another stored descriptor.
-pub(super) struct CallReferenceCustody {
+pub(super) struct ReferenceObservation {
     pub(super) origins: Vec<Root>,
     pub(super) dependencies: Vec<Root>,
+    pub(super) descriptors: Vec<(semantic_vocabulary::PlaceId, Vec<StructuralPathSegment>)>,
+    absent_case_descriptors: bool,
 }
 
 pub(super) fn call_reference_custody(
@@ -22,7 +24,24 @@ pub(super) fn call_reference_custody(
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     argument: &StructuralArgument,
-) -> Result<CallReferenceCustody, LegalizationError> {
+) -> Result<ReferenceObservation, LegalizationError> {
+    let observed = observe_reference_custody(function, custody, types, argument)?;
+    if observed.absent_case_descriptors || observed.origins.is_empty() {
+        return Err(invalid());
+    }
+    Ok(observed)
+}
+
+/// Observe actual descriptor storage without manufacturing inactive case
+/// payloads. A call requires every selected descriptor; a subtree snapshot
+/// copies only resident case leaves. Missing unconditional storage and invalid
+/// access still fail here, before either consumer can use the observation.
+pub(super) fn observe_reference_custody(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    argument: &StructuralArgument,
+) -> Result<ReferenceObservation, LegalizationError> {
     if argument.access == StructuralAccess::Owned {
         return Err(invalid());
     }
@@ -44,6 +63,7 @@ pub(super) fn call_reference_custody(
     let cursor_budget = custody
         .leaves
         .len()
+        .max(1)
         .checked_mul(argument.path.len())
         .ok_or(invalid())?;
     let mut dependencies = Vec::new();
@@ -75,16 +95,36 @@ pub(super) fn call_reference_custody(
         }
         let mut origins = Vec::new();
         let mut next_cursors = Vec::new();
+        let mut descriptors = Vec::new();
+        let mut absent_case_descriptors = false;
         for (place, mut path, ancestors) in cursors {
             path.extend_from_slice(prefix);
             let root = source_contract(function, custody, place).ok_or(invalid())?;
-            let candidates = terminal_semantics::stored_descriptor_paths(
-                types.iter(),
-                root,
-                &path,
-                custody.leaves.len(),
-            )
-            .ok_or(invalid())?;
+            let selected =
+                terminal_semantics::StructuralStorageSelection::new(types.iter(), root, &path)
+                    .ok_or(invalid())?;
+            let candidates = custody
+                .leaves
+                .keys()
+                .filter(|(carrier, resident)| {
+                    *carrier == place
+                        && selected
+                            .relative_path(resident)
+                            .is_some_and(|relative| relative.is_empty())
+                })
+                .map(|(_, resident)| resident.clone())
+                .collect::<Vec<_>>();
+            if candidates.len() != selected.place_count {
+                if candidates.len() > selected.place_count
+                    || further_crossing
+                    || !path
+                        .iter()
+                        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+                {
+                    return Err(invalid());
+                }
+                absent_case_descriptors = true;
+            }
             for path in candidates {
                 if source_contract(function, custody, place)
                     .and_then(|contract| leaf_type(types, contract, &path))
@@ -143,6 +183,7 @@ pub(super) fn call_reference_custody(
                 {
                     return Err(invalid());
                 }
+                descriptors.push((place, path.clone()));
                 dependencies.push(Root::Ingress(place, path));
                 origins.push(leaf.root.clone());
                 if further_crossing {
@@ -170,7 +211,7 @@ pub(super) fn call_reference_custody(
             }
         }
         if !further_crossing {
-            if origins.is_empty()
+            if origins.is_empty() && !absent_case_descriptors
                 || crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
                     referent,
                     &argument.path[position + 1..],
@@ -181,9 +222,11 @@ pub(super) fn call_reference_custody(
             {
                 return Err(invalid());
             }
-            return Ok(CallReferenceCustody {
+            return Ok(ReferenceObservation {
                 origins,
                 dependencies,
+                descriptors,
+                absent_case_descriptors,
             });
         }
         cursors = next_cursors;

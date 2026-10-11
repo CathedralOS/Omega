@@ -78,31 +78,10 @@ pub(super) fn copy_extent(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    // A window retains the carrier path, but its extent is relative to the
-    // loaded referent. Rejoin the live producer before peeling that boundary.
-    let referent = match path {
-        abstract_operations::StructuralCopyPath::Ordinary(path)
-            if matches!(path.first(), Some(StructuralPathSegment::Referent)) =>
-        {
-            Some(
-                super::references::writable_referent_destination(live, types, source, path)
-                    .filter(|referent| referent.carrier_type == root_type)
-                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
-            )
-        }
-        _ => None,
-    };
-    let geometry_path = referent
-        .as_ref()
-        .map(|referent| abstract_operations::StructuralCopyPath::Ordinary(referent.path.clone()));
-    let geometry_path = geometry_path.as_ref().unwrap_or(path);
-    let geometry_type = referent
-        .as_ref()
-        .map_or(root_type, |referent| referent.referent);
-    let (endpoint, shape, byte_offset, indices) = match geometry_path {
+    let (endpoint, shape, byte_offset, indices) = match path {
         abstract_operations::StructuralCopyPath::Case(path) => {
             let (endpoint, shape, offset) = crate::lowering::structural_layout::case_projection(
-                geometry_type,
+                root_type,
                 path,
                 types,
                 &mut BTreeMap::new(),
@@ -111,9 +90,9 @@ pub(super) fn copy_extent(
             (endpoint, shape, offset, Vec::new())
         }
         abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => (
-            geometry_type,
+            root_type,
             crate::lowering::structural_layout::structural_shape(
-                geometry_type,
+                root_type,
                 types,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
@@ -123,7 +102,7 @@ pub(super) fn copy_extent(
         ),
         abstract_operations::StructuralCopyPath::Ordinary(path) => {
             crate::lowering::structural_layout::runtime_leaf_copy_projection(
-                geometry_type,
+                root_type,
                 path,
                 types,
                 &mut BTreeMap::new(),
@@ -135,7 +114,7 @@ pub(super) fn copy_extent(
     // record the verifier's recast window admitted; its copied extent is the
     // record's own layout, not the element's scalar shape.
     let byte_carrier = endpoint != result.structural_type
-        && byte_carrier_leaf_copy(types, geometry_type, geometry_path, result.structural_type);
+        && byte_carrier_leaf_copy(types, root_type, path, result.structural_type);
     let shape = if byte_carrier {
         crate::lowering::structural_layout::structural_shape(
             result.structural_type,

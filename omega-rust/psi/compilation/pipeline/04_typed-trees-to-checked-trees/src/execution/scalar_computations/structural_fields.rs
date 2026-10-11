@@ -125,26 +125,34 @@ impl Builder<'_, '_> {
             }
             _ => return None,
         };
-        Some(self.insert(
-            field.primitive_type,
-            CheckedScalarComputationKind::StructuralField {
-                source_expression: expression,
-                source_type: field.type_reference,
-                receiver_value,
-                subject: CheckedUnitStructuralArgumentPlan {
-                    source,
-                    path: field.path,
-                    type_identity: validation::structural_type_identity(
-                        self.program,
-                        field.carrier_type_reference,
-                        &[],
-                        &[],
-                    ),
-                    access: CheckedStructuralAccess::SharedBorrow,
+        Some(
+            self.insert(
+                field.primitive_type,
+                CheckedScalarComputationKind::StructuralField {
+                    source_expression: expression,
+                    receiver_expression: self
+                        .program
+                        .expression_table
+                        .member_node(expression)
+                        .map(|member| member.receiver)
+                        .unwrap_or_default(),
+                    source_type: field.type_reference,
+                    receiver_value,
+                    subject: CheckedUnitStructuralArgumentPlan {
+                        source,
+                        path: field.path,
+                        type_identity: validation::structural_type_identity(
+                            self.program,
+                            field.carrier_type_reference,
+                            &[],
+                            &[],
+                        ),
+                        access: CheckedStructuralAccess::SharedBorrow,
+                    },
+                    field: field.field,
+                    field_identity: field.field_identity,
                 },
-                field: field.field,
-                field_identity: field.field_identity,
-            },
-        ))
+            ),
+        )
     }
 }

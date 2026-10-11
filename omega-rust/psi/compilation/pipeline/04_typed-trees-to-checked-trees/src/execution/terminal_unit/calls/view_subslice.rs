@@ -281,7 +281,7 @@ fn lends_collection(
         return false;
     };
     let lent = validation::CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(loan.root_symbol),
+        root: loan.root,
         segments: borrow.access_segments.span_or_empty(loan.segments).to_vec(),
     };
 

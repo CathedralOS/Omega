@@ -34,7 +34,7 @@ pub(super) fn check_storage_move<'program>(
     ) {
         return;
     }
-    let Some(root_symbol) = event.root.as_symbol() else {
+    let Some(root) = event.root.as_symbol() else {
         // A completed rvalue has no preexisting source storage to detach.
         return;
     };
@@ -56,7 +56,7 @@ pub(super) fn check_storage_move<'program>(
         Some(ResolvedAlias {
             place: checked_trees::CapturedPlace {
                 incoming_reference: Default::default(),
-                root_symbol,
+                root: facts::PlaceRoot::Symbol(root),
                 segments: Vec::new(),
             },
             lineage: Vec::new(),
@@ -77,7 +77,7 @@ pub(super) fn check_storage_move<'program>(
         return;
     };
     let place = CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(resolved.place.root_symbol),
+        root: resolved.place.root,
         segments: resolved.place.segments,
     };
     for loan_handle in active_loans {

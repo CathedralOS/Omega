@@ -74,7 +74,7 @@ pub(crate) fn plan(
         let mut segments = borrow_facts.loan_segments(loan).to_vec();
         segments.extend(place.segments);
         place = validation::CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(loan.root_symbol),
+            root: loan.root,
             segments,
         };
     }

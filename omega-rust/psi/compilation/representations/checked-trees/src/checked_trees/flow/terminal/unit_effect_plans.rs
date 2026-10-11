@@ -253,6 +253,11 @@ pub enum CheckedUnitEffectOperationPlan {
         source: CheckedUnitStructuralArgumentSourcePlan,
         /// Exact stored descriptor; an empty path releases the result itself.
         path: Vec<CheckedUnitStructuralPathSegment>,
+        /// A candidate death for computed backing whose producer can belong to
+        /// an unevaluated alternative. Select its actual storage occurrence in
+        /// the existing ownership continuation graph before Terminal publication.
+        /// Ordinary carrier retirement remains unconditional and exact.
+        select_evaluated_storage: bool,
         /// A transition observes its operands before its selected edge closes
         /// their custody. Lowering consumes this checked timing directly.
         defer_to_exit: bool,

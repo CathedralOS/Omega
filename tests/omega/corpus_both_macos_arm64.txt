@@ -805,3 +805,5 @@ pass/traits/runtime_dyn_linear_result_exit built 2736ms exit:0 interpreter-exit:
 pass/traits/runtime_dyn_nested_result_exit built 2701ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
 pass/traits/runtime_dyn_structural_result_exit built 2661ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
 pass/ownership/runtime_owned_parameter_restoration_exit built 2843ms exit:0 interpreter-exit:0 interpreter:agrees @b296be94ff95
+# context: {"cpus": 10, "jobs": "2", "load1_end": 4.0, "load1_start": 3.39, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/borrows/runtime_computed_backing_reference_copy_exit built 3045ms exit:0 interpreter-exit:0 interpreter:agrees @c01ece463989+wt

@@ -58,6 +58,37 @@ pub(crate) struct StructuralLocalBinding {
     pub(crate) structural_type: StructuralTypeId,
 }
 
+/// Rejoin completed producer homes without treating a reserved place as live.
+/// Result ordinals are aliases of the same source root, not additional locals.
+/// Control-flow and ownership frontiers, rather than this catalogue, decide
+/// whether an operation may use the home on a particular execution path.
+pub(crate) fn retain_completed_structural_homes(
+    locals: &mut Vec<StructuralLocalBinding>,
+    homes: &[StructuralLocalBinding],
+) -> Result<(), LoweringError> {
+    for home in homes {
+        if let Some(existing) = locals.iter_mut().find(|local| local.root == home.root) {
+            if existing.argument != home.argument
+                || existing.structural_type != home.structural_type
+            {
+                return unsupported("computed storage has conflicting established homes");
+            }
+            if let Some(ordinal) = home.result_binding_ordinal {
+                if existing
+                    .result_binding_ordinal
+                    .is_some_and(|existing| existing != ordinal)
+                {
+                    return unsupported("computed storage has conflicting result aliases");
+                }
+                existing.result_binding_ordinal = Some(ordinal);
+            }
+        } else {
+            locals.push(home.clone());
+        }
+    }
+    Ok(())
+}
+
 /// The structural local binding rooted at `root`.
 pub(crate) fn structural_local_by_root(
     locals: &[StructuralLocalBinding],
@@ -909,6 +940,13 @@ impl ScalarBindings {
     pub(crate) fn with_structural_locals(mut self, locals: &[StructuralLocalBinding]) -> Self {
         self.structural_locals = locals.to_vec();
         self
+    }
+
+    pub(crate) fn retain_completed_homes(
+        &mut self,
+        homes: &[StructuralLocalBinding],
+    ) -> Result<(), LoweringError> {
+        retain_completed_structural_homes(&mut self.structural_locals, homes)
     }
 
     /// Resolve the exact primitive endpoint of an already source-validated loan.

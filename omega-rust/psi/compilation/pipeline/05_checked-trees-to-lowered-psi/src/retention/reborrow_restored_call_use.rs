@@ -227,8 +227,12 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             direct_root_place: place(identities, checked, &parent.captured_place)?,
             direct_root_activation: boundary(identities, checked, parent.activation_source)?,
             direct_root_weakening: boundary(identities, checked, parent_weakening.source)?,
-            direct_root_lifetime_identity: identities
-                .intern(&identity(checked, parent.parent_lifetime.root_symbol)?),
+            direct_root_lifetime_identity: identities.intern(
+                &super::reborrow_root_handoff::storage_root_identity(
+                    checked,
+                    parent.parent_lifetime.root,
+                )?,
+            ),
             child_owner_identity: identities.intern(&child_owner_identity),
             child_owner_path,
             child_place,

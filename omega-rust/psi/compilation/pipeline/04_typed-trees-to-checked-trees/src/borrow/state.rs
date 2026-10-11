@@ -52,6 +52,27 @@ pub(super) fn append_state_borrow_facts(
         .statement_table
         .indexed_statements(state.statement_nodes)
     {
+        // Establish computed storage before any descriptor consumes its
+        // contents, including the state's normal result. Child homes belong
+        // to this same current roster, not a second return-source analysis.
+        let mut backing_loans = Vec::new();
+        super::loans::retain_backing_contents(
+            program,
+            state,
+            statement_index,
+            machine.symbol,
+            statement,
+            &mut backing_loans,
+            &current_loans,
+        );
+        append_carrier_loans(
+            arenas,
+            &mut loans_span,
+            &mut current_loans,
+            state_loan_trackers,
+            backing_loans,
+            statement_index,
+        );
         // Capture result leaves against the same current roster as a local or
         // store. Reconstructing them later from historical loans loses entry
         // referents and revives overwritten carrier contents.
@@ -72,7 +93,7 @@ pub(super) fn append_state_borrow_facts(
                     statement_index,
                     formation_expression: returned.formation_expression,
                     incoming_reference: returned.place.incoming_reference,
-                    root_symbol: returned.place.root_symbol,
+                    root: returned.place.root,
                     segments,
                     owner_path,
                     kind: returned.kind,
@@ -97,43 +118,14 @@ pub(super) fn append_state_borrow_facts(
             call_frames,
             &mut current_loans,
         );
-        for pending in grouped_carrier_loans(pending_loans) {
-            let loan_segments = arenas
-                .access_segments
-                .insert_many(pending.place.segments.clone());
-            let owner_path = arenas
-                .owner_segments
-                .insert_many(pending.owner_path.iter().copied());
-            let handle = arenas.loans.append_to_span(
-                &mut loans_span,
-                BorrowLoanFact {
-                    incoming_reference: pending.place.incoming_reference,
-                    statement_index,
-                    formation_expression: pending.formation_expression,
-                    last_use_statement_index: statement_index,
-                    owner_symbol: pending.owner_symbol,
-                    owner_path,
-                    source_owner_symbol: pending.source_owner_symbol,
-                    supplying_loan: pending.supplying_loan,
-                    lineage: pending.lineage.clone(),
-                    root_symbol: pending.place.root_symbol,
-                    segments: loan_segments,
-                    kind: pending.kind.clone(),
-                },
-            );
-            let tracker = StateLoanTracker {
-                handle,
-                owner_symbol: pending.owner_symbol,
-                owner_name: pending.owner_name,
-                kind: pending.kind,
-                lineage: pending.lineage,
-                call_result: pending.call_result,
-                owner_path: pending.owner_path,
-                place: pending.place,
-            };
-            current_loans.push(tracker.clone());
-            state_loan_trackers.push(tracker);
-        }
+        append_carrier_loans(
+            arenas,
+            &mut loans_span,
+            &mut current_loans,
+            state_loan_trackers,
+            pending_loans,
+            statement_index,
+        );
         let mut call_ordinal = 0usize;
         collect_statement_borrow_calls(
             program,
@@ -171,6 +163,55 @@ pub(super) fn append_state_borrow_facts(
     });
 }
 
+fn append_carrier_loans(
+    arenas: &mut BorrowFactArenas<'_>,
+    loans_span: &mut arena::HandleSpan<BorrowLoanFact>,
+    current: &mut Vec<StateLoanTracker>,
+    history: &mut Vec<StateLoanTracker>,
+    pending: Vec<StatementBorrowLoan>,
+    statement_index: usize,
+) {
+    for pending in grouped_carrier_loans(pending) {
+        let segments = arenas
+            .access_segments
+            .insert_many(pending.place.segments.clone());
+        let owner_path = arenas
+            .owner_segments
+            .insert_many(pending.owner_path.iter().copied());
+        let handle = arenas.loans.append_to_span(
+            loans_span,
+            BorrowLoanFact {
+                incoming_reference: pending.place.incoming_reference,
+                statement_index,
+                formation_expression: pending.formation_expression,
+                last_use_statement_index: statement_index,
+                owner_symbol: pending.owner_symbol,
+                storage_owner: pending.storage_owner,
+                owner_path,
+                source_owner_symbol: pending.source_owner_symbol,
+                supplying_loan: pending.supplying_loan,
+                lineage: pending.lineage.clone(),
+                root: pending.place.root,
+                segments,
+                kind: pending.kind.clone(),
+            },
+        );
+        let tracker = StateLoanTracker {
+            handle,
+            owner_symbol: pending.owner_symbol,
+            storage_owner: pending.storage_owner,
+            owner_name: pending.owner_name,
+            kind: pending.kind,
+            lineage: pending.lineage,
+            call_result: pending.call_result,
+            owner_path: pending.owner_path,
+            place: pending.place,
+        };
+        current.push(tracker.clone());
+        history.push(tracker);
+    }
+}
+
 /// Arena layout groups one descriptor's alternative origins contiguously.
 /// This is allocation order, not execution order: formation expressions and
 /// statement boundaries still name each event. Repeated declared candidates
@@ -180,6 +221,18 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
         (
             loan.owner_symbol.arena_index(),
             loan.owner_symbol.generation(),
+            match loan.storage_owner {
+                facts::PlaceRoot::Symbol(symbol) => {
+                    (0u8, symbol.arena_index(), symbol.generation())
+                }
+                facts::PlaceRoot::Expression(expression) => {
+                    (1u8, expression.arena_index(), expression.generation())
+                }
+                facts::PlaceRoot::TypeReference(reference) => {
+                    (2u8, reference.arena_index(), reference.generation())
+                }
+                facts::PlaceRoot::Unknown => (3u8, 0, 0),
+            },
             loan.owner_path
                 .iter()
                 .map(|segment| match segment {
@@ -207,6 +260,7 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
             })
             .any(|previous| {
                 previous.formation_expression == loan.formation_expression
+                    && previous.storage_owner == loan.storage_owner
                     && previous.source_owner_symbol == loan.source_owner_symbol
                     && previous.supplying_loan == loan.supplying_loan
                     && previous.place == loan.place
@@ -259,10 +313,10 @@ fn retire_replaced_carrier_loans(
         target,
         current.iter().map(|loan| {
             (
-                loan.owner_symbol,
+                loan.storage_owner,
                 loan.owner_path.as_slice(),
                 loan.place.incoming_reference,
-                loan.place.root_symbol,
+                loan.place.root,
                 loan.place.segments.as_slice(),
             )
         }),
@@ -272,7 +326,7 @@ fn retire_replaced_carrier_loans(
         return;
     };
     current.retain(|loan| {
-        loan.owner_symbol != destination.root_symbol
+        loan.storage_owner != destination.root
             || !super::loans::place_path_matches_owner_prefix(
                 program,
                 &destination.segments,
@@ -340,6 +394,7 @@ fn append_incoming_reference_trackers(
             trackers.push(StateLoanTracker {
                 handle: arena::Handle::invalid(),
                 owner_symbol: parameter.symbol,
+                storage_owner: facts::PlaceRoot::Symbol(parameter.symbol),
                 owner_name: parameter.name.clone(),
                 kind,
                 lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
@@ -347,7 +402,7 @@ fn append_incoming_reference_trackers(
                 owner_path,
                 place: checked_trees::CapturedPlace {
                     incoming_reference,
-                    root_symbol: parameter.symbol,
+                    root: facts::PlaceRoot::Symbol(parameter.symbol),
                     segments: Vec::new(),
                 },
             });

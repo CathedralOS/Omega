@@ -202,7 +202,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     },
-                    path: Vec::new(), defer_to_exit: false, loans,
+                    path: Vec::new(), select_evaluated_storage: false, defer_to_exit: false, loans,
                     selection_complements: Vec::new(),
                 });
                 // Explicit retirement consumes the descriptor now. Its
@@ -351,6 +351,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                         binding_ordinal: result.binding_ordinal,
                     },
                     path: source.path,
+                    select_evaluated_storage: false,
                     defer_to_exit: false,
                     loans: group,
                     selection_complements: Vec::new(),
@@ -374,6 +375,27 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 },
             )],
         });
+    }
+    // A descriptor inside backing can itself lend another computed home.
+    // Each emitted release closes an actual holder; repeat until this finite
+    // storage dependency frontier stops changing, without re-evaluating values.
+    loop {
+        let releases = super::reference_retirement::Retirement {
+            program,
+            facts,
+            machine,
+            state: authored_state,
+            statement_index,
+            results,
+            operations,
+            pending: &pending,
+            transported_loans: &transported_loans,
+        }
+        .backing_releases()?;
+        if releases.is_empty() {
+            break;
+        }
+        pending.extend(releases);
     }
     for binding in retired {
         let (_, discard_on_return) = operations.iter_mut().find_map(|operation| {
@@ -454,6 +476,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                         binding_ordinal: result.binding_ordinal,
                     },
                     path: Vec::new(),
+                    select_evaluated_storage: false,
                     defer_to_exit: matches!(
                         program.statement_table.statements(
                             program.state_by_symbol(state)?.statement_nodes,
@@ -485,6 +508,34 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         }
     }
     operations.extend(pending.into_iter().map(|(_, operation)| operation));
+    let authored_state = program.state_by_symbol(state)?;
+    let statement_index = authored_state.statement_nodes.count();
+    let transported_loans = super::reference_retirement::transport::collect(
+        program,
+        facts,
+        machine,
+        authored_state,
+        results,
+        operations,
+    )?;
+    loop {
+        let releases = super::reference_retirement::Retirement {
+            program,
+            facts,
+            machine,
+            state: authored_state,
+            statement_index,
+            results,
+            operations,
+            pending: &[],
+            transported_loans: &transported_loans,
+        }
+        .backing_releases()?;
+        if releases.is_empty() {
+            break;
+        }
+        operations.extend(releases);
+    }
     Some(())
 }
 

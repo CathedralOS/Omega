@@ -6,8 +6,9 @@
 //! `prepared.rs` holds the state, terminator and effect types; `guards.rs`
 //! lowers and evaluates a state's guarded exits once before dispatch;
 //! `call_lowering.rs` lowers a direct scalar call binding against its
-//! callee's Unit body; `unit_operations.rs` lowers an ordinary call retained
-//! by scalar evaluation; `structural_values.rs` places structural
+//! callee's Unit body; `unit_operations.rs` prepares a checked callable retained
+//! by scalar evaluation, preserving body versus boundary dispatch;
+//! `structural_values.rs` places structural
 //! construction in the state's evaluation order. Shared primitive types and
 //! lowered-expression checks belong to emission.
 

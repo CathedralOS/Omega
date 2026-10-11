@@ -196,8 +196,12 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
 ) -> Option<CallViewReturnContract<'program>> {
     let (caller, state) = validation::find_state(program, state_symbol)?;
     let (parameters, return_type, substitutions, substitution_scope_starts, requirement_signature) =
-        if let Ok(Some(requirement)) =
-            validation::named_conformance_target_requirement(program, caller, call.target_symbol)
+        if !call.static_machine_parameter.is_valid()
+            && let Ok(Some(requirement)) = validation::named_conformance_target_requirement(
+                program,
+                caller,
+                call.target_symbol,
+            )
         {
             (
                 program.state_signature_parameters(requirement.signature),
@@ -207,8 +211,22 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
                 Some(requirement.signature),
             )
         } else {
-            let (parameters, return_type, signature) =
-                call_view_signature(program, call.target_symbol)?;
+            // Specialization selects an executable body, not a different
+            // public lifetime relation. Keep invocation-local lifetime binders
+            // fresh relative to captured operands by using the retained
+            // requirement, whose selection join is checked independently.
+            let (parameters, return_type, signature) = if call.static_machine_parameter.is_valid() {
+                let signature = program
+                    .retained_static_machine_contract(call.static_machine_parameter)?
+                    .signature();
+                (
+                    program.state_signature_parameters(signature),
+                    signature.return_type,
+                    Some(signature),
+                )
+            } else {
+                call_view_signature(program, call.target_symbol)?
+            };
             let substitutions = signature
                 .and_then(|signature| {
                     validation::closed_static_call_type_bindings(
@@ -345,15 +363,24 @@ pub(super) fn rebase_borrow_places_through_local_loans(
     place: accesses::BorrowAccessPlace,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<RebasedBorrowPlace> {
+    rebase_borrow_places_following(program, place, loan_trackers, &mut Vec::new())
+}
+
+fn rebase_borrow_places_following(
+    program: &dyn ::validation::CheckingInput,
+    place: accesses::BorrowAccessPlace,
+    loan_trackers: &[StateLoanTracker],
+    active: &mut Vec<accesses::BorrowAccessPlace>,
+) -> Vec<RebasedBorrowPlace> {
     let source_loans: Vec<&StateLoanTracker> = loan_trackers
         .iter()
         .rev()
         .filter(|loan| {
-            loan.owner_symbol == place.root_symbol
+            loan.storage_owner == place.root
                 && owner_path_matches(program, &loan.owner_path, &place.segments)
         })
         .collect();
-    if source_loans.is_empty() {
+    if source_loans.is_empty() || place.incoming_reference.is_valid() || active.contains(&place) {
         return vec![RebasedBorrowPlace {
             place,
             source_owner_symbol: SymbolHandle::invalid(),
@@ -362,7 +389,8 @@ pub(super) fn rebase_borrow_places_through_local_loans(
         }];
     }
 
-    source_loans
+    active.push(place.clone());
+    let rebased = source_loans
         .into_iter()
         .map(|source_loan| {
             let remainder = &place.segments[source_loan.owner_path.len()..];
@@ -379,7 +407,7 @@ pub(super) fn rebase_borrow_places_through_local_loans(
             RebasedBorrowPlace {
                 place: accesses::BorrowAccessPlace {
                     incoming_reference: source_loan.place.incoming_reference,
-                    root_symbol: source_loan.place.root_symbol,
+                    root: source_loan.place.root,
                     segments: rebased_segments,
                 },
                 source_owner_symbol: source_loan.owner_symbol,
@@ -393,7 +421,29 @@ pub(super) fn rebase_borrow_places_through_local_loans(
                     && !source_loan.call_result,
             }
         })
-        .collect()
+        .flat_map(|source| {
+            // A selected descriptor can live inside computed backing. Cross
+            // each current storage boundary, not only the outer named holder.
+            let nested = rebase_borrow_places_following(
+                program,
+                source.place.clone(),
+                loan_trackers,
+                active,
+            );
+            nested.into_iter().map(move |nested| {
+                if nested.source_owner_symbol.is_valid() {
+                    nested
+                } else {
+                    RebasedBorrowPlace {
+                        place: nested.place,
+                        ..source.clone()
+                    }
+                }
+            })
+        })
+        .collect();
+    active.pop();
+    rebased
 }
 
 pub(super) fn retained_reference_lineage(

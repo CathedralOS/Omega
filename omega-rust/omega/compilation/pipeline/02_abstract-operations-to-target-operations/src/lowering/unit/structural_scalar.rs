@@ -23,9 +23,7 @@ pub(in crate::lowering) fn lower_field_store(
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     structural_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
-    reference_destination: Option<
-        crate::lowering::control_flow::references::WritableReferentDestination,
-    >,
+    reference_destination: Option<crate::lowering::control_flow::references::ReferentProjection>,
     scalar_sources: &crate::lowering::control_flow::scalar_sources::ScalarSources<'_>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,

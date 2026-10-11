@@ -36,6 +36,11 @@ pub fn contextual_canonical_place_from_expression(
             )
         }
         ExpressionNode::Name(path) => {
+            if crate::exact_case_reference_owner(program, expression).is_some() {
+                return super::canonical_projection::canonical_place_from_expression(
+                    program, expression,
+                );
+            }
             let root_symbol = resolve_contextual_name_path_root(
                 program,
                 state_symbol,
@@ -130,7 +135,9 @@ pub fn contextual_canonical_place_from_expression(
                 .push(index_place_segment(program, indexed.index));
             Some(place)
         }
-        _ => None,
+        // Computed backing participates in the same contextual projection
+        // walk as named storage. A member or index cannot erase its origin.
+        _ => super::canonical_projection::canonical_place_from_expression(program, expression),
     }
 }
 

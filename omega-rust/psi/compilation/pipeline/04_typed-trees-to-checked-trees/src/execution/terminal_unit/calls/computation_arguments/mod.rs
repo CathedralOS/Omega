@@ -861,7 +861,7 @@ fn rejoin_computation_accesses(
                 .span_or_empty(source.accesses)
                 .iter()
                 .filter(|candidate| {
-                    candidate.root_symbol == actual.root_symbol
+                    candidate.root == actual.root
                         && !candidate
                             .end_before_access
                             .is_some_and(|end| end <= access_ordinal)

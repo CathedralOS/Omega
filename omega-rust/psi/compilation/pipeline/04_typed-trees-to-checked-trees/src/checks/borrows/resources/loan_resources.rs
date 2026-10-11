@@ -135,7 +135,7 @@ pub(crate) fn reconstruct_direct_borrow_resources(
                 state.machine_symbol,
                 state.state_symbol,
                 loan.statement_index,
-                loan.root_symbol,
+                loan.root,
             ) && parent_access.direct_reborrow_effect(&loan.kind).is_none()
             {
                 diagnostics.push(invalid_reborrow_attenuation_diagnostic(
@@ -180,7 +180,7 @@ pub(crate) fn reconstruct_direct_borrow_resources(
             let parent_lifetime = CheckedDirectBorrowParentLifetime {
                 machine_symbol: state.machine_symbol,
                 state_symbol: state.state_symbol,
-                root_symbol: loan.root_symbol,
+                root: loan.root,
             };
             let restoration = CheckedDirectBorrowRestorationObligation {
                 parent: parent_lifetime.clone(),
@@ -195,7 +195,7 @@ pub(crate) fn reconstruct_direct_borrow_resources(
                 owner_path: borrow.loan_owner_path(loan).to_vec(),
                 captured_place: checked_trees::CapturedPlace {
                     incoming_reference: loan.incoming_reference,
-                    root_symbol: loan.root_symbol,
+                    root: loan.root,
                     segments: borrow.loan_segments(loan).to_vec(),
                 },
                 access: loan.kind.clone(),
@@ -361,7 +361,7 @@ pub(crate) fn reconstruct_reborrow_resource_drafts(
                 owner_path: borrow.loan_owner_path(loan).to_vec(),
                 captured_place: checked_trees::CapturedPlace {
                     incoming_reference: loan.incoming_reference,
-                    root_symbol: loan.root_symbol,
+                    root: loan.root,
                     segments: borrow.loan_segments(loan).to_vec(),
                 },
                 access: loan.kind.clone(),

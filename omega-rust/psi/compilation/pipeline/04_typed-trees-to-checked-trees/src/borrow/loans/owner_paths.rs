@@ -9,25 +9,26 @@ pub(crate) fn store_destination_places<'loan>(
     target: checked_trees::CapturedPlace,
     loans: impl Iterator<
         Item = (
-            symbols::SymbolHandle,
+            facts::PlaceRoot,
             &'loan [BorrowOwnerSegment],
             arena::Handle<checked_trees::IncomingReferenceIdentity>,
-            symbols::SymbolHandle,
+            facts::PlaceRoot,
             &'loan [facts::PlaceSegment],
         ),
     >,
 ) -> Vec<checked_trees::CapturedPlace> {
-    let owner_type = program
-        .state_local_declaration(state, target.root_symbol)
-        .map(|(_, local)| local.type_reference)
-        .or_else(|| {
-            program
-                .state_parameter_by_symbol(state, target.root_symbol)
-                .map(|parameter| parameter.type_reference)
-        });
+    let owner_type = validation::canonical_place_type_reference(
+        program,
+        state.symbol,
+        state.statement_nodes.count() as usize,
+        &validation::CanonicalPlace {
+            root: target.root,
+            segments: Vec::new(),
+        },
+    );
     let mut destinations = Vec::new();
     for (owner, owner_path, incoming_reference, source, source_path) in loans {
-        if owner != target.root_symbol
+        if owner != target.root
             || owner_path.len() >= target.segments.len()
             || !owner_path_matches(program, owner_path, &target.segments)
             || !owner_type
@@ -46,7 +47,7 @@ pub(crate) fn store_destination_places<'loan>(
         segments.extend_from_slice(&target.segments[owner_path.len()..]);
         let destination = checked_trees::CapturedPlace {
             incoming_reference,
-            root_symbol: source,
+            root: source,
             segments,
         };
         if !destinations.contains(&destination) {
@@ -94,7 +95,19 @@ pub(crate) fn owner_segment_matches_place_segment(
             facts::PlaceSegment::Field {
                 symbol: place_symbol,
             },
-        ) => Some(!place_symbol.is_valid() || owner_symbol == place_symbol),
+        ) => Some(
+            !place_symbol.is_valid() || owner_symbol == place_symbol || {
+                // This join already has one exact storage root. Prepared generic
+                // members may use different symbols for that root's same schema
+                // slot; compare declaration identities, never field spelling.
+                program
+                    .any_field_owner(*owner_symbol)
+                    .zip(program.any_field_owner(*place_symbol))
+                    .is_some_and(|(owner, selected)| {
+                        owner.1.path_identity() == selected.1.path_identity()
+                    })
+            },
+        ),
         (
             BorrowOwnerSegment::Case(owner_variant),
             facts::PlaceSegment::Case {

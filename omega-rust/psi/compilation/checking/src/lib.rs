@@ -116,7 +116,10 @@ pub use value_custody::type_shapes::{
     exact_constrained_shells, exact_shells_symbolic_range_maximum,
 };
 pub use value_custody::wire::validate_wire_protocol;
-pub use value_custody::{collect_executable_value_origins, visit_executable_value_occurrences};
+pub use value_custody::{
+    collect_executable_value_origins, visit_executable_value_occurrences,
+    visit_statement_value_occurrences,
+};
 
 /// The sealed operation an [`AtomicCarrierAccess`] names.
 pub use access_plans::AtomicAccessOperation;

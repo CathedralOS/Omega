@@ -1,21 +1,17 @@
-//! Reading the checked borrow custody of a carrier type, and of a state's
-//! reference result.
+//! Reading the checked borrow custody of a carrier type.
 //!
 //! Which loan leaf a reference carrier stores, which referent that leaf
 //! names, and whether the carrier's lifetime obligation ends exactly once are
 //! answers checking already recorded, one row per type reference, in
-//! `CheckFacts::reference_custody`. Which expression produces a state's
-//! returned value, and whether that state's completion carries complete
-//! reference origins or names an ingress parameter or leaf, are recorded the
-//! same way, one row per declared state, in
-//! `CheckFacts::state_reference_custody`. Lowering reads the row; it does not
+//! `CheckFacts::reference_custody`. Lowering reads the row; it does not
 //! re-enter checking's classifier, which would put the admitted carrier and
 //! completion shapes behind a second caller that could drift from the rows
 //! the checked program was validated against.
 //!
-//! A type reference's row is keyed by its handle; a state's row is keyed by
-//! its symbol, which is the key lowering's own `state_declaration` resolves
-//! a state through.
+//! A type reference's row is keyed by its handle. Normal-result origins come
+//! from the checked execution plan, captured against current carrier contents.
+//! A second syntax-only state classifier would reject valid compositions and
+//! cannot authenticate those current origins.
 
 use checked_trees::{CheckedStructuralAccess, CheckedTrees};
 use language_semantics::Multiplicity;
@@ -26,14 +22,6 @@ fn custody(
     reference: TypeReferenceHandle,
 ) -> checked_trees::ReferenceCustodyRow {
     checked.facts.reference_custody.custody(reference)
-}
-
-/// The one stored carrier leaf this type holds, exclusive or shared.
-pub(crate) fn stored_loan_parts(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-    custody(checked, reference).stored_loan_parts()
 }
 
 /// The referent beneath any `&mut T` carrier, constraint shells peeled.
@@ -56,20 +44,4 @@ pub(crate) fn result_multiplicity(
     reference: TypeReferenceHandle,
 ) -> Multiplicity {
     custody(checked, reference).result_multiplicity
-}
-
-fn state_custody(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-) -> checked_trees::StateReferenceCustodyRow {
-    checked.facts.state_reference_custody.custody(state.symbol)
-}
-
-/// Whether every normal completion of this state contributes an exact
-/// caller-relative reference origin, so its returned-leaf roster is complete.
-pub(crate) fn returns_complete_reference_origins(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-) -> bool {
-    state_custody(checked, state).returns_complete_reference_origins
 }

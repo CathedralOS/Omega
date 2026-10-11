@@ -1021,7 +1021,7 @@ fn immutable_local_index_symbol(
 /// the state the expression is written in, which an immutable local's name
 /// needs to reach its initializer; `resolving` stops a chain of locals from
 /// revisiting one.
-fn is_state_independent_borrow_source(
+pub(super) fn is_state_independent_borrow_source(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
@@ -1032,6 +1032,16 @@ fn is_state_independent_borrow_source(
         typed_trees::expression::ExpressionNode::Cast(cast) => {
             is_state_independent_borrow_source(program, state, cast.value, resolving)
         }
+        typed_trees::expression::ExpressionNode::Borrow(borrow) => {
+            validation::expression_type_reference_in_state(
+                program,
+                state.symbol,
+                state.statement_nodes.count() as usize,
+                borrow.target,
+            )
+            .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
+                && is_state_independent_borrow_source(program, state, borrow.target, resolving)
+        }
         typed_trees::expression::ExpressionNode::Binary(binary) => {
             is_state_independent_borrow_source(program, state, binary.left, resolving)
                 && is_state_independent_borrow_source(program, state, binary.right, resolving)
@@ -1040,7 +1050,7 @@ fn is_state_independent_borrow_source(
             let Some(callee) = program.state_by_symbol(call.target_symbol) else {
                 return false;
             };
-            state_returns_only_static_borrows(program, callee, &mut Vec::new())
+            state_returns_only_static_borrows(program, callee, resolving)
         }
         // An immutable local names the value its `let` bound, so its loans are
         // that initializer's loans. `let picked: &[u8] in Utf8 = self.pick(f);
@@ -1074,7 +1084,6 @@ fn is_state_independent_borrow_source(
         | typed_trees::expression::ExpressionNode::Indexed(_)
         | typed_trees::expression::ExpressionNode::Integer(_)
         | typed_trees::expression::ExpressionNode::Member(_)
-        | typed_trees::expression::ExpressionNode::Borrow(_)
         | typed_trees::expression::ExpressionNode::Range(_)
         | typed_trees::expression::ExpressionNode::StructLiteral(_)
         | typed_trees::expression::ExpressionNode::Unary(_)
@@ -1093,6 +1102,15 @@ fn state_returns_only_static_borrows(
     visiting.push(state.symbol);
 
     let mut found_value_exit = false;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let expression_exit = statements.last().and_then(|statement| match statement {
+        typed_trees::statement::StatementNode::Expression(expression) => Some(*expression),
+        _ => None,
+    });
+    let expression_is_static = expression_exit.is_none_or(|expression| {
+        found_value_exit = true;
+        is_state_independent_borrow_source(program, state, expression, visiting)
+    });
     let all_static = program
         .statement_table
         .statements(state.statement_nodes)
@@ -1107,7 +1125,7 @@ fn state_returns_only_static_borrows(
             |target| match program.statement_table.transition_target(target) {
                 typed_trees::statement::TransitionTargetNode::Value(expression) => {
                     found_value_exit = true;
-                    is_state_independent_borrow_source(program, state, *expression, &mut Vec::new())
+                    is_state_independent_borrow_source(program, state, *expression, visiting)
                 }
                 typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
                     let Some(target_state) = program.state_by_symbol(path.symbol) else {
@@ -1123,7 +1141,7 @@ fn state_returns_only_static_borrows(
         );
 
     visiting.pop();
-    all_static && found_value_exit
+    expression_is_static && all_static && found_value_exit
 }
 
 fn persistent_target_type<'program>(

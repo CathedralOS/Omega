@@ -100,3 +100,23 @@ pub struct CheckedBoundaryMachinePlan {
     pub contract_service_reach: ServiceReachPlan,
     pub service_reach: ServiceReachSummary,
 }
+
+impl CheckedBoundaryMachinePlan {
+    /// Borrow the declared callable without inventing an executable body or
+    /// selecting the provider that will eventually realize this requirement.
+    pub fn callable_entry(&self) -> super::CheckedUnitCallableEntry<'_> {
+        super::CheckedUnitCallableEntry {
+            machine: self.machine,
+            state: self.state,
+            returns_unit: self.result.is_unit(),
+            attachment_type_identity: self.attachment_type_identity,
+            structural_parameters: &self.structural_parameters,
+            scalar_parameters: &self.scalar_parameters,
+            erased_scalar_parameters: &[],
+            erased_proof_parameters: &[],
+            entry_claims: &[],
+            contract_report_fingerprint: self.contract_report_fingerprint,
+            contract_service_reach: self.contract_service_reach,
+        }
+    }
+}

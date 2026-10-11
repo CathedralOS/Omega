@@ -77,7 +77,7 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
         .iter()
         .map(|state| crate::declarations::state_declaration(checked, state.state))
         .collect::<Result<Vec<_>, _>>()?;
-    let entry = checked
+    checked
         .machine_states(machine)
         .first()
         .ok_or(LoweringError::Unsupported(
@@ -91,20 +91,11 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
             .structural_types
             .iter()
             .filter(|declaration| declaration.identity == identity);
-        let declaration = declarations.next().ok_or(LoweringError::Unsupported(
+        declarations.next().ok_or(LoweringError::Unsupported(
             "Unit graph result carrier declaration is absent",
         ))?;
         if declarations.next().is_some() {
             return unsupported("Unit graph result carrier declaration is ambiguous");
-        }
-        // References publish a referent-origin interface. Element views and
-        // byte sequences retain their own descriptor custody even when their
-        // authored type also has a borrow shell.
-        if matches!(
-            declaration.shape,
-            checked_trees::CheckedUnitStructuralTypeShape::Reference { .. }
-        ) {
-            super::guarded::validate_reference_roster(checked, entry)?;
         }
     }
     // Reachability is pure topology on the checked plan. States outside the

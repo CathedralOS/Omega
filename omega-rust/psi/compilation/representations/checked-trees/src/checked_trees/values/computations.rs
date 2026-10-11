@@ -221,6 +221,10 @@ pub enum CheckedScalarComputationKind {
     /// the containing owner or assigning it a scalar parameter position.
     StructuralField {
         source_expression: typed_trees::expression::ExpressionHandle,
+        /// Exact receiver occurrence before place normalization. Zero for a
+        /// synthesized formal coordinate; lowering never reopens the member AST
+        /// to associate this observation with an already completed operand.
+        receiver_expression: typed_trees::expression::ExpressionHandle,
         /// Root storage carrier after borrowed ingress has been resolved.
         source_type: typed_trees::types::TypeReferenceHandle,
         /// The checked path retains stored-reference crossings and ends at the

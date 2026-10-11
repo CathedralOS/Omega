@@ -89,7 +89,7 @@ pub(super) fn check_call_access_conflicts<'p>(
     for access in &accesses {
         let place = CapturedPlace {
             incoming_reference: Default::default(),
-            root_symbol: access.root_symbol,
+            root: access.root,
             segments: facts.borrow.access_segments(access).to_vec(),
         };
         let Some(backings) = place_access::place_backings(
@@ -139,13 +139,13 @@ pub(super) fn check_call_access_conflicts<'p>(
                 program,
                 &CapturedPlace {
                     incoming_reference: Default::default(),
-                    root_symbol: access.root_symbol,
+                    root: access.root,
                     segments: facts.borrow.access_segments(access).to_vec(),
                 },
                 &access.kind,
                 &CapturedPlace {
                     incoming_reference: Default::default(),
-                    root_symbol: other_access.root_symbol,
+                    root: other_access.root,
                     segments: facts.borrow.access_segments(other_access).to_vec(),
                 },
                 &other_access.kind,
@@ -177,14 +177,15 @@ pub(super) fn check_call_access_conflicts<'p>(
             // and a later establishment of the still-borrowed local home.
             if super::super::statements::local_jump(program, state_flow, borrow_call).is_some()
                 && access.end_before_access.is_none()
-                && access.root_symbol == loan.owner_symbol
+                && access.root == facts::PlaceRoot::Symbol(loan.owner_symbol)
                 && crate::borrow::owner_path_overlaps_place_segments(
                     program,
                     facts.borrow.loan_owner_path(loan),
                     facts.borrow.access_segments.span_or_empty(access.segments),
                 )
-                && program.symbols.get(loan.root_symbol).kind == symbols::SymbolKind::Local
-                && program.symbols.get(loan.root_symbol).parent == state_flow.state_symbol
+                && let Some(local_root) = loan.root.as_symbol()
+                && program.symbols.get(local_root).kind == symbols::SymbolKind::Local
+                && program.symbols.get(local_root).parent == state_flow.state_symbol
                 && !validation::loan_carrier_has_owned_storage(
                     program,
                     state_flow.state_symbol,
@@ -211,13 +212,13 @@ pub(super) fn check_call_access_conflicts<'p>(
                         borrow_call.statement_index,
                         jump.target,
                         validation::call_site_argument_expressions(program, &jump.site),
-                        loan.root_symbol,
+                        local_root,
                     )
                 })
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "state `{target_name}` receives a carried loan of local `{}`, whose storage ends at the source state exit without a complete retained-home relation",
-                    symbol_name(program, loan.root_symbol),
+                    symbol_name(program, local_root),
                 )));
                 continue;
             }

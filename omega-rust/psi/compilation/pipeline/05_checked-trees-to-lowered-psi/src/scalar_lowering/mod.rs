@@ -37,7 +37,6 @@ use crate::emission::operation_emission::emit_direct_expression;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::proofs::crash_routes::lower_checked_crash_route_buckets;
 use crate::terminal_identities::{allocate_dense, lookup_machine_id, place_id};
 
 pub(crate) mod branch_states;

@@ -496,6 +496,7 @@ impl OperationFrame<'_, '_> {
         let CheckedUnitEffectOperationPlan::ReleaseReference {
             source,
             path,
+            select_evaluated_storage,
             selection_complements,
             ..
         } = operation
@@ -516,10 +517,27 @@ impl OperationFrame<'_, '_> {
             ))?;
         match &leaf.shape {
             terminal_psi::StructuralTypeShape::Reference { .. } => {
-                self.push_unit(OperationKind::ReleaseReference {
-                    source: self.evaluation.current_structural_place(source),
-                    path: path.clone(),
-                });
+                if *select_evaluated_storage {
+                    self.evaluation.continue_selected_reference_release(
+                        identities,
+                        self.checked,
+                        terminal_psi::StructuralArgument {
+                            place: source,
+                            path: path.clone(),
+                            access: StructuralAccess::Owned,
+                        },
+                        self.values,
+                        self.next_value,
+                        self.next_block,
+                        self.next_edge,
+                        self.operations,
+                    )?;
+                } else {
+                    self.push_unit(OperationKind::ReleaseReference {
+                        source: self.evaluation.current_structural_place(source),
+                        path: path.clone(),
+                    });
+                }
             }
             terminal_psi::StructuralTypeShape::ElementView { .. }
             | terminal_psi::StructuralTypeShape::ByteSequence(
@@ -532,7 +550,13 @@ impl OperationFrame<'_, '_> {
                     identities,
                     self.checked,
                     vec![crate::unit::unit_cleanup::CleanupRegion {
-                        selected_region: None,
+                        selected_region: select_evaluated_storage.then(|| {
+                            terminal_psi::StructuralArgument {
+                                place: source,
+                                path: path.clone(),
+                                access: StructuralAccess::Owned,
+                            }
+                        }),
                         conditions: Vec::new(),
                         action: if path.is_empty() {
                             terminal_psi::TerminalAffineCleanupAction::DiscardRoot(source)

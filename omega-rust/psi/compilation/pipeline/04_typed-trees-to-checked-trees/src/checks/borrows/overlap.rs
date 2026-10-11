@@ -53,9 +53,9 @@ pub(super) fn captured_place_compatibility<'p>(
     let (left_place, right_place) = receiver_namespace
         .as_ref()
         .map_or((left, right), |(left, right)| (left, right));
-    let roots_valid = left_place.root_symbol.is_valid() && right_place.root_symbol.is_valid();
+    let roots_valid = left_place.root.is_valid() && right_place.root.is_valid();
     let same_root = roots_valid
-        && left_place.root_symbol == right_place.root_symbol
+        && left_place.root == right_place.root
         && left_place.incoming_reference == right_place.incoming_reference;
     let (segments_may_overlap, containment) = if same_root {
         place_segments_compatibility(
@@ -107,11 +107,11 @@ fn receiver_namespace_places(
     left: &checked_trees::CapturedPlace,
     right: &checked_trees::CapturedPlace,
 ) -> Option<(checked_trees::CapturedPlace, checked_trees::CapturedPlace)> {
-    if !left.root_symbol.is_valid()
-        || !right.root_symbol.is_valid()
+    if !left.root.is_valid()
+        || !right.root.is_valid()
         || left.incoming_reference.is_valid()
         || right.incoming_reference.is_valid()
-        || left.root_symbol == right.root_symbol
+        || left.root == right.root
     {
         return None;
     }
@@ -126,12 +126,13 @@ fn attached_field_place_under_receiver(
     receiver: &checked_trees::CapturedPlace,
     field_place: &checked_trees::CapturedPlace,
 ) -> Option<checked_trees::CapturedPlace> {
-    let machine = program.machine_by_symbol(receiver.root_symbol)?;
+    let machine = program.machine_by_symbol(receiver.root.as_symbol()?)?;
+    let field_symbol = field_place.root.as_symbol()?;
     let field = validation::exact_attached_field(
         program,
         machine,
-        field_place.root_symbol,
-        program.symbols.name(field_place.root_symbol),
+        field_symbol,
+        program.symbols.name(field_symbol),
     )?;
     let mut segments = Vec::with_capacity(field_place.segments.len() + 1);
     segments.push(facts::PlaceSegment::Field {
@@ -140,24 +141,24 @@ fn attached_field_place_under_receiver(
     segments.extend_from_slice(&field_place.segments);
     Some(checked_trees::CapturedPlace {
         incoming_reference: Default::default(),
-        root_symbol: receiver.root_symbol,
+        root: receiver.root,
         segments,
     })
 }
 
 /// Re-roots a canonical write/access place against the loan's root exactly as
 /// `canonical_place_loan_compatibility` judges the pair. Returns `None` for
-/// roots that cannot name a symbol place at all.
+/// roots that cannot identify storage at all.
 pub(super) fn canonical_place_for_loan(
     place: &validation::CanonicalPlace,
     loan: &checked_trees::BorrowLoanFact,
 ) -> Option<checked_trees::CapturedPlace> {
     match place.root {
         facts::PlaceRoot::Symbol(symbol) => {
-            if symbol == loan.root_symbol {
+            if facts::PlaceRoot::Symbol(symbol) == loan.root {
                 Some(checked_trees::CapturedPlace {
                     incoming_reference: Default::default(),
-                    root_symbol: symbol,
+                    root: place.root,
                     segments: place.segments.clone(),
                 })
             } else {
@@ -167,11 +168,13 @@ pub(super) fn canonical_place_for_loan(
                             symbol: field_symbol,
                         },
                         remaining,
-                    )) if *field_symbol == loan.root_symbol => Some(checked_trees::CapturedPlace {
-                        incoming_reference: Default::default(),
-                        root_symbol: loan.root_symbol,
-                        segments: remaining.to_vec(),
-                    }),
+                    )) if facts::PlaceRoot::Symbol(*field_symbol) == loan.root => {
+                        Some(checked_trees::CapturedPlace {
+                            incoming_reference: Default::default(),
+                            root: loan.root,
+                            segments: remaining.to_vec(),
+                        })
+                    }
                     Some((
                         facts::PlaceSegment::Case { .. },
                         [
@@ -180,22 +183,27 @@ pub(super) fn canonical_place_for_loan(
                             },
                             remaining @ ..,
                         ],
-                    )) if *field_symbol == loan.root_symbol => Some(checked_trees::CapturedPlace {
-                        incoming_reference: Default::default(),
-                        root_symbol: loan.root_symbol,
-                        segments: remaining.to_vec(),
-                    }),
+                    )) if facts::PlaceRoot::Symbol(*field_symbol) == loan.root => {
+                        Some(checked_trees::CapturedPlace {
+                            incoming_reference: Default::default(),
+                            root: loan.root,
+                            segments: remaining.to_vec(),
+                        })
+                    }
                     _ => Some(checked_trees::CapturedPlace {
                         incoming_reference: Default::default(),
-                        root_symbol: symbol,
+                        root: place.root,
                         segments: place.segments.clone(),
                     }),
                 }
             }
         }
-        facts::PlaceRoot::Unknown
-        | facts::PlaceRoot::Expression(_)
-        | facts::PlaceRoot::TypeReference(_) => None,
+        facts::PlaceRoot::Expression(_) => Some(checked_trees::CapturedPlace {
+            incoming_reference: Default::default(),
+            root: place.root,
+            segments: place.segments.clone(),
+        }),
+        facts::PlaceRoot::Unknown | facts::PlaceRoot::TypeReference(_) => None,
     }
 }
 
@@ -231,7 +239,7 @@ fn captured_loan_place(
 ) -> checked_trees::CapturedPlace {
     checked_trees::CapturedPlace {
         incoming_reference: loan.incoming_reference,
-        root_symbol: loan.root_symbol,
+        root: loan.root,
         segments: borrow.loan_segments(loan).to_vec(),
     }
 }

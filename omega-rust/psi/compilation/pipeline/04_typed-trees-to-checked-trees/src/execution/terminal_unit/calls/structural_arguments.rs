@@ -555,7 +555,7 @@ fn reborrow_restored_call_alias_target(
                 && certified_call.has_receiver == call.has_receiver
                 && certified_call.accesses == call.accesses)
                 .then_some(validation::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(parent.captured_place.root_symbol),
+                    root: parent.captured_place.root,
                     segments: parent.captured_place.segments.clone(),
                 })
         })
@@ -683,7 +683,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
                 return None;
             }
             Some(validation::CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(parent.captured_place.root_symbol),
+                root: parent.captured_place.root,
                 segments: parent.captured_place.segments.clone(),
             })
         })
@@ -832,7 +832,7 @@ pub(crate) fn exact_structural_borrow_access(
             // roster; it must not change this invocation's access classification.
             access.end_before_access.is_none()
                 && borrow.access_segments(access) == segments
-                && access.root_symbol == root_symbol
+                && access.root == facts::PlaceRoot::Symbol(root_symbol)
         })
         .map(|access| &access.kind)
         .collect::<Vec<_>>();

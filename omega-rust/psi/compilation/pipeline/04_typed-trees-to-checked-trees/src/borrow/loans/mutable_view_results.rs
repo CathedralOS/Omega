@@ -128,8 +128,9 @@ fn mutable_view_caller_root(
 ) -> Option<SymbolHandle> {
     let mut place = borrow_access_place(program, state.symbol, ordinal, target, machine)?;
     for _ in 0..8 {
-        if view_source_root_is_caller_storage(program, state, place.root_symbol) {
-            return Some(place.root_symbol);
+        let root = place.root.as_symbol()?;
+        if view_source_root_is_caller_storage(program, state, root) {
+            return Some(root);
         }
         let (index, local) =
             statements
@@ -137,9 +138,7 @@ fn mutable_view_caller_root(
                 .take(ordinal)
                 .enumerate()
                 .find_map(|(index, statement)| match statement {
-                    StatementNode::LocalData(local) if local.symbol == place.root_symbol => {
-                        Some((index, local))
-                    }
+                    StatementNode::LocalData(local) if local.symbol == root => Some((index, local)),
                     _ => None,
                 })?;
         let next =
@@ -148,7 +147,7 @@ fn mutable_view_caller_root(
         segments.extend(place.segments);
         place = BorrowAccessPlace {
             incoming_reference: Default::default(),
-            root_symbol: next.root_symbol,
+            root: next.root,
             segments,
         };
     }
