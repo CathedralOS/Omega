@@ -12,6 +12,7 @@ path = "src/lib.rs"
 access-plans = { path = "../../../foundation/access-plans" }
 arena = { path = "../../../foundation/arena" }
 diagnostics = { path = "../../../foundation/diagnostics" }
+flow-effects = { path = "../../../foundation/flow-effects" }
 language-core = { path = "../../../foundation/language-core" }
 language-semantics = { path = "../../../foundation/language-semantics" }
 layout-plans = { path = "../../../foundation/layout-plans" }

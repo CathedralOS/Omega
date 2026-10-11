@@ -2280,6 +2280,7 @@ dependencies = [
  "access-plans",
  "arena",
  "diagnostics",
+ "flow-effects",
  "language-core",
  "language-semantics",
  "layout-plans",

@@ -771,7 +771,7 @@ fn synchronous_invocation_names(
         .collect::<Vec<_>>();
     boundary_invocation_names(
         program,
-        validation::declared_signature_invocations(program, signature),
+        checked_trees::typed_trees::invocations::declared_signature_invocations(program, signature),
         &parameters,
     )
 }
@@ -786,7 +786,7 @@ fn machine_synchronous_invocation_names(
     let parameters = program.state_parameters(entry).iter().collect::<Vec<_>>();
     boundary_invocation_names(
         program,
-        validation::declared_machine_invocations(program, machine),
+        checked_trees::typed_trees::invocations::declared_machine_invocations(program, machine),
         &parameters,
     )
 }

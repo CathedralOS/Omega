@@ -272,16 +272,7 @@ pub(crate) fn boundary_requirement_symbol(
     program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> symbols::SymbolHandle {
-    typed_trees::service::classify_exact_service_parameter_carrier(program, type_reference)
-        .ok()
-        .flatten()
-        .map(|parameter| parameter.carrier.requirement)
-        .unwrap_or_else(|| {
-            program
-                .type_reference_table
-                .type_reference(type_reference)
-                .type_symbol(&program.type_reference_table)
-        })
+    typed_trees::invocations::boundary_requirement_symbol(program.typed_program(), type_reference)
 }
 
 fn boundary_trait_for_type(

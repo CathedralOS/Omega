@@ -720,12 +720,12 @@ pub(crate) fn synchronous_callback_binders(
         let requirement = typed
             .trait_machine_signature_by_symbol(definition, requirement_machine)
             .ok_or("callback registrar lost its exact requirement declaration")?;
-        validation::declared_signature_invocations(typed, requirement)
+        checked_trees::typed_trees::invocations::declared_signature_invocations(typed, requirement)
     } else {
         let requirement = typed
             .machine_by_symbol(requirement_machine)
             .ok_or("callback registrar lost its exact top-level declaration")?;
-        validation::declared_machine_invocations(typed, requirement)
+        checked_trees::typed_trees::invocations::declared_machine_invocations(typed, requirement)
     };
     Ok(binders
         .iter()

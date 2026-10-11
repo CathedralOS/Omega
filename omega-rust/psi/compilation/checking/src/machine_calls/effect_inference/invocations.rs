@@ -97,7 +97,7 @@ pub fn infer_synchronous_invocations(
                 };
                 for target in effective {
                     if let Some(target) = substitute_target(*target, &call.arguments) {
-                        insert_target(&mut transitive, target);
+                        typed_trees::invocations::insert_target(&mut transitive, target);
                     }
                 }
             }
@@ -146,15 +146,7 @@ pub fn declared_signature_invocations(
     program: &dyn crate::CheckingInput,
     signature: &StateSignature,
 ) -> Vec<InvocationTarget> {
-    let parameters = program
-        .state_signature_parameters(signature)
-        .iter()
-        .collect::<Vec<_>>();
-    declared_targets(
-        program,
-        program.state_signature_invokes(signature),
-        &parameters,
-    )
+    typed_trees::invocations::declared_signature_invocations(program.typed_program(), signature)
 }
 
 /// Rejoin the inference vocabulary's non-receiver ordinal to the full
@@ -195,11 +187,7 @@ pub fn declared_machine_invocations(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Vec<InvocationTarget> {
-    declared_targets(
-        program,
-        program.machine_invokes(machine),
-        &machine_entry_parameters(program, machine),
-    )
+    typed_trees::invocations::declared_machine_invocations(program.typed_program(), machine)
 }
 
 pub fn invocation_target_label(
@@ -208,10 +196,12 @@ pub fn invocation_target_label(
     target: InvocationTarget,
 ) -> String {
     match target {
-        InvocationTarget::Parameter(index) => machine_entry_parameters(program, machine)
-            .get(index as usize)
-            .map(|parameter| parameter.name.as_str().to_owned())
-            .unwrap_or_else(|| format!("parameter#{index}")),
+        InvocationTarget::Parameter(index) => {
+            typed_trees::invocations::machine_entry_parameters(program.typed_program(), machine)
+                .get(index as usize)
+                .map(|parameter| parameter.name.as_str().to_owned())
+                .unwrap_or_else(|| format!("parameter#{index}"))
+        }
         InvocationTarget::Service(symbol) => program
             .trait_definition_by_symbol(symbol)
             .map(|definition| definition.name.as_str().to_owned())
@@ -672,7 +662,7 @@ fn boundary_service_for_receiver_path(
         })?;
         type_reference = field.type_reference;
     }
-    boundary_service_for_type(program, type_reference)
+    typed_trees::invocations::boundary_service_for_type(program.typed_program(), type_reference)
 }
 
 fn type_reference_for_symbol(
@@ -739,9 +729,9 @@ fn push_call(
     let boundary_signature = boundary_trait_for_signature(program, target);
     let crosses_boundary = receiver.is_some() || boundary_signature.is_some();
     if let Some(receiver) = receiver {
-        insert_target(direct, receiver);
+        typed_trees::invocations::insert_target(direct, receiver);
     } else if let Some(service) = boundary_signature {
-        insert_target(direct, InvocationTarget::Service(service));
+        typed_trees::invocations::insert_target(direct, InvocationTarget::Service(service));
     }
 
     // A component-boundary call contributes only its direct edge. The
@@ -815,48 +805,6 @@ fn boundary_trait_for_signature(
         .map(|definition| definition.symbol)
 }
 
-fn declared_targets(
-    program: &dyn crate::CheckingInput,
-    declarations: &[typed_trees::signature::AuthoredInvocation],
-    parameters: &[&typed_trees::signature::StateParameter],
-) -> Vec<InvocationTarget> {
-    let mut targets = Vec::new();
-    for declaration in declarations {
-        let target = match declaration.target {
-            typed_trees::signature::AuthoredInvocationTarget::Unresolved => None,
-            typed_trees::signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
-                parameters
-                    .get(ordinal as usize)
-                    .filter(|parameter| parameter.symbol == symbol)
-                    .and_then(|parameter| {
-                        boundary_service_for_type(program, parameter.type_reference)
-                            .map(|_| InvocationTarget::Parameter(ordinal))
-                    })
-            }
-            typed_trees::signature::AuthoredInvocationTarget::Service(symbol) => program
-                .traits()
-                .iter()
-                .any(|definition| definition.symbol == symbol && definition.is_boundary)
-                .then_some(InvocationTarget::Service(symbol)),
-        };
-        if let Some(target) = target {
-            insert_target(&mut targets, target);
-        }
-    }
-    targets
-}
-
-fn machine_entry_parameters<'a>(
-    program: &'a dyn crate::CheckingInput,
-    machine: &Machine,
-) -> Vec<&'a typed_trees::signature::StateParameter> {
-    program
-        .machine_states(machine)
-        .first()
-        .map(|state| program.state_parameters(state).iter().collect())
-        .unwrap_or_default()
-}
-
 fn origin_for_expression(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -889,20 +837,28 @@ fn origin_for_symbol(
         return None;
     }
     if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
-        let service = boundary_service_for_type(program, parameter.type_reference)?;
-        if let Some(index) = machine_entry_parameters(program, machine)
-            .iter()
-            .position(|entry| {
-                entry.symbol == parameter.symbol || entry.name.as_str() == parameter.name.as_str()
-            })
+        let service = typed_trees::invocations::boundary_service_for_type(
+            program.typed_program(),
+            parameter.type_reference,
+        )?;
+        if let Some(index) =
+            typed_trees::invocations::machine_entry_parameters(program.typed_program(), machine)
+                .iter()
+                .position(|entry| {
+                    entry.symbol == parameter.symbol
+                        || entry.name.as_str() == parameter.name.as_str()
+                })
         {
             return Some(InvocationTarget::Parameter(index as u32));
         }
         return Some(InvocationTarget::Service(service));
     }
     if let Some(owned) = program.machine_owned_data_by_symbol(machine, symbol) {
-        return boundary_service_for_type(program, owned.type_reference)
-            .map(InvocationTarget::Service);
+        return typed_trees::invocations::boundary_service_for_type(
+            program.typed_program(),
+            owned.type_reference,
+        )
+        .map(InvocationTarget::Service);
     }
     let attached = crate::declarations::data_queries::data_definition_by_symbol(
         program,
@@ -920,21 +876,13 @@ fn origin_for_symbol(
                     _ => None,
                 })
         })
-        .and_then(|member| boundary_service_for_type(program, member.type_reference))
+        .and_then(|member| {
+            typed_trees::invocations::boundary_service_for_type(
+                program.typed_program(),
+                member.type_reference,
+            )
+        })
         .map(InvocationTarget::Service)
-}
-
-fn boundary_service_for_type(
-    program: &dyn crate::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    let symbol =
-        crate::machine_calls::invocations::boundary_requirement_symbol(program, type_reference);
-    program
-        .traits()
-        .iter()
-        .any(|definition| definition.is_boundary && definition.symbol == symbol)
-        .then_some(symbol)
 }
 
 fn substitute_target(
@@ -947,18 +895,8 @@ fn substitute_target(
     }
 }
 
-fn insert_target(targets: &mut Vec<InvocationTarget>, target: InvocationTarget) {
-    if !targets.contains(&target) {
-        targets.push(target);
-        targets.sort_by_key(|target| match target {
-            InvocationTarget::Parameter(index) => (0u8, *index),
-            InvocationTarget::Service(symbol) => (1u8, symbol.arena_index()),
-        });
-    }
-}
-
 fn extend_targets(targets: &mut Vec<InvocationTarget>, source: &[InvocationTarget]) {
     for target in source {
-        insert_target(targets, *target);
+        typed_trees::invocations::insert_target(targets, *target);
     }
 }

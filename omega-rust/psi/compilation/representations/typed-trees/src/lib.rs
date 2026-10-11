@@ -20,7 +20,7 @@ pub use typed_trees::calls::{
 pub use typed_trees::control_flow::{machine, state, statement};
 pub use typed_trees::declaration_index;
 pub use typed_trees::declarations::{
-    calling_vocabulary, constant, data, domain, measure, operator, product_operand,
+    calling_vocabulary, constant, data, domain, invocations, measure, operator, product_operand,
     trait_definition, visibility, wire,
 };
 pub use typed_trees::evidence::{
