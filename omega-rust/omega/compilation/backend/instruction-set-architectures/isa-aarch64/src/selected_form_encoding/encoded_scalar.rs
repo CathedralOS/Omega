@@ -3,15 +3,11 @@
 //! Codec words are admitted by the descriptor producer; byte counts are 1..8.
 
 use super::selected_forms::resolve_registers;
-use super::{
-    Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint,
-    ValidatedAarch64SelectedFormEncoding,
-};
+use super::{Aarch64SelectedFormEncodingError as Error, ValidatedAarch64SelectedFormEncoding};
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedInstructionKind,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
+    SelectedInstructionKind,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -256,25 +252,12 @@ pub(super) fn validate(
         return Err(Error::EncodedFormMismatch);
     }
     let inputs = if load { 2 } else { 3 };
-    let flags = physical
-        .model()
-        .view_named("nzcv")
-        .ok_or(Error::NonCanonicalPhysicalModel)?
-        .units
-        .clone();
-    Ok(ValidatedAarch64SelectedFormEncoding {
-        bytes: bytes.to_vec(),
-        footprint: Aarch64SelectedFormFootprint {
-            register_reads: operands[..inputs].to_vec(),
-            register_writes: operands[inputs..].to_vec(),
-            writes_nzcv: true,
-            encoded: MachineEncodedEffects {
-                external_operand_reads: (0..inputs as u16).collect(),
-                external_operand_writes: (inputs as u16..6).collect(),
-                implicit_unit_uses: vec![],
-                implicit_unit_defs: vec![],
-                implicit_unit_clobbers: flags,
-                memory: if load {
+    super::nzcv_effects_encoding(
+        physical,
+        operands,
+        bytes,
+        inputs,
+        if load {
                     MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
                         pointer_operand: 0,
                         codec_operand: 1,
@@ -285,12 +268,7 @@ pub(super) fn validate(
                         codec_operand: 1,
                     }
                 },
-                stack: MachineEncodedStackEffect::UnchangedV1,
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: MachineEncodedControlEffect::FallThroughV1,
-            },
-        },
-    })
+    )
 }
 
 #[cfg(test)]

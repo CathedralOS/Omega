@@ -4,20 +4,13 @@
 //! the two loaded bytes); operand 7 is the defined 0/1 verdict. Mismatched
 //! counts produce 0 and read no bytes; equal zero counts produce 1 likewise.
 
-use super::{
-    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-    ValidatedAarch64SelectedFormEncoding, decode_all,
-};
+use super::{Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding, decode_all};
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::MachineAlternativeFamily;
 use selected_instructions::MachineAlternativeKey;
-use selected_instructions::MachineEncodedControlEffect;
-use selected_instructions::MachineEncodedEffects;
 use selected_instructions::MachineEncodedMemoryEffect;
-use selected_instructions::MachineEncodedStackEffect;
-use selected_instructions::MachineEncodedTrapBehavior;
 
 const COND_NE: u8 = 0x1;
 
@@ -356,31 +349,18 @@ pub(super) fn validate(
     if decode_all(bytes, decode_word)? != expected_stream(registers)? {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    let flags = super::nzcv_flag_units(physical)?;
-    Ok(ValidatedAarch64SelectedFormEncoding {
-        bytes: bytes.to_vec(),
-        footprint: Aarch64SelectedFormFootprint {
-            register_reads: operands[..4].to_vec(),
-            register_writes: operands[4..].to_vec(),
-            writes_nzcv: true,
-            encoded: MachineEncodedEffects {
-                external_operand_reads: vec![0, 1, 2, 3],
-                external_operand_writes: vec![4, 5, 6, 7],
-                implicit_unit_uses: vec![],
-                implicit_unit_defs: vec![],
-                implicit_unit_clobbers: flags,
-                memory: MachineEncodedMemoryEffect::CompareByteSequencesV1 {
+    super::nzcv_effects_encoding(
+        physical,
+        operands,
+        bytes,
+        4,
+        MachineEncodedMemoryEffect::CompareByteSequencesV1 {
                     left_base_operand: 0,
                     left_count_operand: 1,
                     right_base_operand: 2,
                     right_count_operand: 3,
                 },
-                stack: MachineEncodedStackEffect::UnchangedV1,
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: MachineEncodedControlEffect::FallThroughV1,
-            },
-        },
-    })
+    )
 }
 
 #[cfg(test)]

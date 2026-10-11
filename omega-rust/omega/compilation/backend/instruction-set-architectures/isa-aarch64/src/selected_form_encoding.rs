@@ -100,6 +100,40 @@ fn nzcv_flag_units(
         .clone())
 }
 
+/// The canonical nzcv-clobbering footprint for memory-form encoders whose
+/// operands split contiguously: the first `read_count` operands are the
+/// register reads (external reads `0..read_count`), the rest the register
+/// writes (external writes `read_count..len`), under the unchanged-stack,
+/// architectural-fault, fall-through effects every byte-sequence encoder
+/// declares.
+fn nzcv_effects_encoding(
+    physical: &register_model::ValidatedPhysicalRegisterModel,
+    operands: &[register_model::RegisterViewId],
+    bytes: &[u8],
+    read_count: usize,
+    memory: selected_instructions::MachineEncodedMemoryEffect,
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    Ok(ValidatedAarch64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: Aarch64SelectedFormFootprint {
+            register_reads: operands[..read_count].to_vec(),
+            register_writes: operands[read_count..].to_vec(),
+            writes_nzcv: true,
+            encoded: selected_instructions::MachineEncodedEffects {
+                external_operand_reads: (0..read_count as u16).collect(),
+                external_operand_writes: (read_count as u16..operands.len() as u16).collect(),
+                implicit_unit_uses: Vec::new(),
+                implicit_unit_defs: Vec::new(),
+                implicit_unit_clobbers: nzcv_flag_units(physical)?,
+                memory,
+                stack: selected_instructions::MachineEncodedStackEffect::UnchangedV1,
+                trap: selected_instructions::MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                control: selected_instructions::MachineEncodedControlEffect::FallThroughV1,
+            },
+        },
+    })
+}
+
 fn decode_all<D>(
     bytes: &[u8],
     decode_word: impl Fn(u32, usize) -> Result<D, Aarch64SelectedFormEncodingError>,

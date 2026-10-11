@@ -8,21 +8,14 @@
 //! mismatches the plan. All branches are AArch64 `B.cond`/`B`/TBNZ/CBZ forms
 //! with word-granularity immediates far inside their encodable ranges.
 
-use super::{
-    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-    ValidatedAarch64SelectedFormEncoding, decode_all,
-};
+use super::{Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding, decode_all};
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::ByteSequencePredicate;
 use selected_instructions::MachineAlternativeFamily;
 use selected_instructions::MachineAlternativeKey;
-use selected_instructions::MachineEncodedControlEffect;
-use selected_instructions::MachineEncodedEffects;
 use selected_instructions::MachineEncodedMemoryEffect;
-use selected_instructions::MachineEncodedStackEffect;
-use selected_instructions::MachineEncodedTrapBehavior;
 
 /// AArch64 condition codes used by the class dispatch.
 const COND_EQ: u8 = 0x0;
@@ -674,29 +667,16 @@ pub(super) fn validate(
     if decode_all(bytes, decode_word)? != expected_stream(predicate, registers)? {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    let flags = super::nzcv_flag_units(physical)?;
-    Ok(ValidatedAarch64SelectedFormEncoding {
-        bytes: bytes.to_vec(),
-        footprint: Aarch64SelectedFormFootprint {
-            register_reads: operands[..2].to_vec(),
-            register_writes: operands[2..].to_vec(),
-            writes_nzcv: true,
-            encoded: MachineEncodedEffects {
-                external_operand_reads: vec![0, 1],
-                external_operand_writes: vec![2, 3, 4],
-                implicit_unit_uses: vec![],
-                implicit_unit_defs: vec![],
-                implicit_unit_clobbers: flags,
-                memory: MachineEncodedMemoryEffect::ScanByteSequenceV1 {
+    super::nzcv_effects_encoding(
+        physical,
+        operands,
+        bytes,
+        2,
+        MachineEncodedMemoryEffect::ScanByteSequenceV1 {
                     base_pointer_operand: 0,
                     count_operand: 1,
                 },
-                stack: MachineEncodedStackEffect::UnchangedV1,
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: MachineEncodedControlEffect::FallThroughV1,
-            },
-        },
-    })
+    )
 }
 
 #[cfg(test)]

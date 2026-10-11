@@ -1,20 +1,13 @@
 //! A fixed local loop implements a runtime span without source CFG edges.
 //! Inputs survive; early-clobber cursor and byte temporaries own every write.
 
-use super::{
-    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-    ValidatedAarch64SelectedFormEncoding,
-};
+use super::{Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding};
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::MachineAlternativeFamily;
 use selected_instructions::MachineAlternativeKey;
-use selected_instructions::MachineEncodedControlEffect;
-use selected_instructions::MachineEncodedEffects;
 use selected_instructions::MachineEncodedMemoryEffect;
-use selected_instructions::MachineEncodedStackEffect;
-use selected_instructions::MachineEncodedTrapBehavior;
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -106,30 +99,17 @@ pub(super) fn validate(
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    let flags = super::nzcv_flag_units(physical)?;
-    Ok(ValidatedAarch64SelectedFormEncoding {
-        bytes: bytes.to_vec(),
-        footprint: Aarch64SelectedFormFootprint {
-            register_reads: operands[..3].to_vec(),
-            register_writes: operands[3..].to_vec(),
-            writes_nzcv: true,
-            encoded: MachineEncodedEffects {
-                external_operand_reads: vec![0, 1, 2],
-                external_operand_writes: vec![3, 4],
-                implicit_unit_uses: vec![],
-                implicit_unit_defs: vec![],
-                implicit_unit_clobbers: flags,
-                memory: MachineEncodedMemoryEffect::CopyBytesV1 {
+    super::nzcv_effects_encoding(
+        physical,
+        operands,
+        bytes,
+        3,
+        MachineEncodedMemoryEffect::CopyBytesV1 {
                     source_pointer_operand: 0,
                     destination_pointer_operand: 1,
                     count_operand: 2,
                 },
-                stack: MachineEncodedStackEffect::UnchangedV1,
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: MachineEncodedControlEffect::FallThroughV1,
-            },
-        },
-    })
+    )
 }
 
 #[cfg(test)]
