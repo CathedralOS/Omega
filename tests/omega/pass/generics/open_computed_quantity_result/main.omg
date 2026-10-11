@@ -8,7 +8,10 @@ use omega::language::core::numeric_conversion;
 domain<T, const I: u64> T::Indexed<I>;
 
 trait IndexAdd<Operand> {
-    operator + add(a: Operand, b: Operand) -> Operand;
+    // The laws call this requirement in specifications; a selected body's
+    // private termination summary cannot supply the abstract promise.
+    operator + add(a: Operand, b: Operand) -> Operand
+    terminates;
     machine add_comm(a: Operand, b: Operand)
     ensures add(a, b) == add(b, a);
     machine add_assoc(a: Operand, b: Operand, c: Operand)

@@ -1268,7 +1268,7 @@ fn carrier_field(
             if fields.next().is_some() || !field.symbol.is_valid() {
                 return None;
             }
-            return Some(field.clone());
+            Some(field.clone())
         }
         _ => None,
     }

@@ -186,6 +186,8 @@ impl TypedTrees {
     /// domain, extent and expression payloads. Arguments keep their caller
     /// scope: substitution is simultaneous, not a sequence of textual rewrites.
     /// This produces a view for inference; it admits no callable or bound.
+    /// With no type substitutions, valid carrier and expression nodes are copied,
+    /// so callers may remap lexical binders without reopening the declaration.
     pub fn apply_callable_type(
         &mut self,
         original: types::TypeReferenceHandle,

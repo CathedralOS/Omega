@@ -90,11 +90,10 @@ pub(super) fn refresh_generic_call_results(
                 continue;
             }
             if let Some(binding) = binding
-                && let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-                    program.type_reference_table.type_reference(*binding)
-                && symbol.is_valid()
+                && let Ok(argument) = program.static_operand_from_type_reference(*binding)
+                && argument.symbol.is_valid()
             {
-                forwarded_symbols.push((*parameter, *symbol));
+                forwarded_symbols.push((*parameter, argument.symbol));
             }
         }
         let substitutions = candidate
@@ -141,10 +140,13 @@ pub(super) fn refresh_generic_call_results(
         let selected_return = program
             .apply_callable_type(return_type, &[], &lifetimes, selection.callee_symbol)
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
-        let selected_return = crate::monomorphization::body_cloning::copy_type_reference(
-            None,
-            program,
+        // Application already owns a fresh graph. Remap that graph in place:
+        // copying it again leaves an unused open graph inside the substitution
+        // interval, where its callee binders would be mistaken for value uses.
+        let tables = &mut program.tables;
+        tables.type_reference_table.remap_symbols_in(
             selected_return,
+            &mut tables.expression_table,
             &forwarded_symbols,
         );
         let evidence_rewrites =
