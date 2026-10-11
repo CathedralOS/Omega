@@ -62,10 +62,11 @@ pub(super) fn replace(
         _ => return Err(invalid()),
     };
     let reference = if field.is_some() && destination.access == StructuralAccess::MutableBorrow {
-        crate::selection::reference_input::mutable_projection(
+        crate::selection::reference_input::referent_projection(
             function,
             destination.place,
             &destination.path,
+            StructuralAccess::MutableBorrow,
         )
     } else {
         None

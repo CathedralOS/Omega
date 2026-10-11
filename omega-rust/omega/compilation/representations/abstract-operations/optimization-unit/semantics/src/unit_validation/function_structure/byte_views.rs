@@ -175,11 +175,12 @@ fn writable_byte_field_carrier(
         path.first(),
         Some(terminal_psi::StructuralPathSegment::Referent)
     ) {
-        super::super::references::mutable_record_field_destination(
+        super::super::references::record_field_destination(
             function,
             structural_types,
             destination,
             path,
+            terminal_psi::StructuralAccess::MutableBorrow,
         )?
     } else {
         let (root_type, access) =

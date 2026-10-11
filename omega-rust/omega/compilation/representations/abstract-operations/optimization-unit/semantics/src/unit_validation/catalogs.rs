@@ -843,11 +843,12 @@ fn validate_structural_field_range_authority(
                     path.first(),
                     Some(terminal_psi::StructuralPathSegment::Referent)
                 ) {
-                    super::references::mutable_record_field_destination(
+                    super::references::record_field_destination(
                         function,
                         types,
                         destination.place(),
                         path,
+                        terminal_psi::StructuralAccess::WriteOnlyBorrow,
                     )
                     .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?
                 } else {

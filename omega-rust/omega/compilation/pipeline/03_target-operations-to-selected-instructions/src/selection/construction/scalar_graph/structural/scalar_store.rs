@@ -28,8 +28,12 @@ pub(super) fn emit(
                 indices,
             } => {
                 let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
-                let reference =
-                    crate::selection::reference_input::store_destination(source, destination, path);
+                let reference = crate::selection::reference_input::store_destination(
+                    source,
+                    destination,
+                    path,
+                    terminal_psi::StructuralAccess::WriteOnlyBorrow,
+                );
                 let (root, suffix) =
                     reference.unwrap_or((destination.structural_type(), path.as_slice()));
                 let (offset, size, elements) =
@@ -191,6 +195,14 @@ pub(super) fn emit(
             if matches!(&destination,
                 abstract_operations::StructuralScalarStoreDestination::Parameter(parameter)
                     if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow)
+                || reference_destination
+                    && crate::selection::reference_input::referent_projection(
+                        source,
+                        destination.place(),
+                        path,
+                        terminal_psi::StructuralAccess::MutableBorrow,
+                    )
+                    .is_none()
             {
                 return Err(invalid());
             }

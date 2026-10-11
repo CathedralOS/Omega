@@ -2,35 +2,39 @@
 
 use super::super::{
     TypeReferenceHandle, direct_write_only_root, fixed_unrestricted_write_only_array_shape,
-    is_admitted_checked_referee,
 };
 use super::{ExpressionHandle, ExpressionNode, WriteOnlyRoot, bare_field, write_only_record};
 
-/// Local formation freezes only literal coordinates. Runtime receiver dispatch
-/// retains its existing separate selector-evaluation and range checks.
-pub(in crate::value_custody::write_only_borrows) fn captured_type(
+/// Resolve a borrowed place while checking every selector for observation.
+/// Calls and persistent captures evaluate the same content-independent address.
+/// Bounds and authority belong to the ordinary place/borrow checkers; a local
+/// capture subsequently retains that formation's evaluated coordinates rather
+/// than reevaluating the selector when the reference is used.
+pub(in crate::value_custody::write_only_borrows) fn nonobserving_projection<'roots>(
     program: &dyn crate::CheckingInput,
+    machine: &super::super::Machine,
+    state: &super::super::State,
     expression: ExpressionHandle,
-    roots: &[WriteOnlyRoot],
-) -> Option<TypeReferenceHandle> {
-    let (_, referee, attached_root) =
-        projected(program, expression, roots, &mut |selector, length| {
-            let Some(integer) = program.expression_table.integer_node(selector) else {
-                return false;
-            };
-            integer
-                .value_bignum()
-                .and_then(|value| value.to_u64())
-                .and_then(|value| usize::try_from(value).ok())
-                .is_some_and(|position| position < length)
-        })?;
-    (!attached_root && is_admitted_checked_referee(program, referee)).then_some(referee)
+    sources: &'roots [WriteOnlyRoot],
+    observation_roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<super::super::Diagnostic>,
+) -> Option<(&'roots WriteOnlyRoot, TypeReferenceHandle, bool)> {
+    projected(program, expression, sources, &mut |selector, _| {
+        super::super::validate_expression(
+            program,
+            machine,
+            state,
+            selector,
+            observation_roots,
+            diagnostics,
+        );
+        true
+    })
 }
 
-/// Resolve the address without observing its contents. The consumer owns
-/// selector admission: a persistent capture needs frozen coordinates, while
-/// a call evaluates its selectors and owes the ordinary range obligations.
-/// Neither policy changes field eligibility, access or the exact referee.
+/// Resolve the declared address without reading its contents. Consumers select
+/// whether indexes are permitted and check their evaluated expressions; field
+/// eligibility, access and the exact referee do not depend on the use's spelling.
 pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,

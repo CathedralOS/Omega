@@ -56,7 +56,9 @@ fn reference_store_carrier<'path>(
     }
     let StructuralTypeShape::Reference {
         referent,
-        access: terminal_psi::StructuralAccess::MutableBorrow,
+        access:
+            terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::WriteOnlyBorrow,
     } = module.structural_type(structural_type)?.shape
     else {
         return None;

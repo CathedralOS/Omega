@@ -251,13 +251,14 @@ pub(super) fn root_type(
         })
 }
 
-/// Cross only the explicit referent boundary of an exact completed mutable
-/// carrier. The retained path stays on the operation; this borrowed suffix is
+/// Cross only the explicit referent boundary of an exact completed carrier
+/// with the operation's required access. The retained path stays on the operation; this borrowed suffix is
 /// used solely to reconstruct geometry within the selected referent.
-pub(super) fn mutable_projection<'path>(
+pub(super) fn referent_projection<'path>(
     function: &LegalizedScalarFunction,
     place: PlaceId,
     path: &'path [StructuralPathSegment],
+    required_access: StructuralAccess,
 ) -> Option<(StructuralTypeId, &'path [StructuralPathSegment])> {
     let (StructuralPathSegment::Referent, suffix) = path.split_first()? else {
         return None;
@@ -286,13 +287,20 @@ pub(super) fn mutable_projection<'path>(
     else {
         return None;
     };
-    (access == StructuralAccess::MutableBorrow).then_some((referent, suffix))
+    (access == required_access
+        || access == StructuralAccess::MutableBorrow
+            && matches!(
+                required_access,
+                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+            ))
+    .then_some((referent, suffix))
 }
 
 pub(super) fn store_destination<'path>(
     function: &LegalizedScalarFunction,
     destination: &abstract_operations::StructuralScalarStoreDestination,
     path: &'path [StructuralPathSegment],
+    required_access: StructuralAccess,
 ) -> Option<(StructuralTypeId, &'path [StructuralPathSegment])> {
     let admitted = match destination {
         abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
@@ -310,7 +318,7 @@ pub(super) fn store_destination<'path>(
     if !admitted {
         return None;
     }
-    mutable_projection(function, destination.place(), path)
+    referent_projection(function, destination.place(), path, required_access)
 }
 
 /// An outgoing borrow transports the pointer word, not the carrier home's

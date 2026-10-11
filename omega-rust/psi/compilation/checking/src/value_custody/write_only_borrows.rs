@@ -2,8 +2,8 @@
 //! A call subloan computes an address through declared fields and arrays;
 //! its selectors may read caller data but not the write-only referent.
 //! The ordinary borrow and range checkers still own authority and bounds.
-//! Persistent projected captures retain their narrower frozen-coordinate
-//! limit rather than inheriting the call's selector-evaluation contract.
+//! Persistent captures evaluate selectors through the same non-observation
+//! check; ordinary loan formation retains their coordinates for later uses.
 //! Observation checks the selected declaration and each traversed reference,
 //! not just bindings whose outermost type spells `&write`. A readable carrier
 //! can store a write-only descriptor without granting access to its referent.
@@ -653,23 +653,15 @@ fn write_only_call_subloan(
     // A projected loan lends an address, not its previous value. Fields and
     // fixed-array elements share the same content-independent place walk;
     // aggregate leaves owe the same exact referee contract as whole roots.
-    if let Some((_, referee, attached_root)) =
-        receiver::projected(program, target, roots, &mut |selector, _| {
-            // Address arithmetic may evaluate caller data, but never observe
-            // the write-only referent. Ordinary range checking separately
-            // proves this selector against the declared array extent; this
-            // non-observation pass does not mint a bounds proof.
-            validate_expression(
-                program,
-                machine,
-                state,
-                selector,
-                observation_roots,
-                diagnostics,
-            );
-            true
-        })
-    {
+    if let Some((_, referee, attached_root)) = receiver::nonobserving_projection(
+        program,
+        machine,
+        state,
+        target,
+        roots,
+        observation_roots,
+        diagnostics,
+    ) {
         if attached_root {
             return false;
         }
@@ -921,15 +913,7 @@ fn validate_statement<'p>(
             diagnostics,
         ),
         StatementNode::LocalData(local)
-            if local_formation::admitted(
-                program,
-                machine_definition,
-                state_definition,
-                local,
-                roots,
-            ) => {}
-        StatementNode::LocalData(local)
-            if local_formation::reject_mismatched_capture(
+            if local_formation::validate(
                 program,
                 machine_definition,
                 state_definition,
@@ -1248,14 +1232,10 @@ fn validate_call_argument(
             diagnostics,
         )
     {
-        // This milestone admits the exact projected or whole-root subloan
-        // only at a direct checked-call argument boundary — statement calls,
-        // expression calls, and named state-transition targets all deliver
-        // arguments to callee parameters through the same borrow-call facts.
-        // The lent place carries the declared `&write` referee atom-for-atom:
-        // nothing weaker, stronger, or different crosses here. The gate does
-        // not create a reusable local reference or widen general expression
-        // formation.
+        // Calls and local formation use the same non-observing place walk.
+        // This boundary checks the lent place against the receiving parameter;
+        // persistent locals check their own declared referee instead. Neither
+        // may weaken, strengthen or substitute the original constraint atoms.
         return;
     }
     validate_expression(program, machine, state, expression, roots, diagnostics);
@@ -1305,7 +1285,7 @@ fn validate_expression(
                     )));
                 } else if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine_name}` state `{state_name}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes only as a direct checked-call argument whose declared `&write` referee carries exactly the same type; persistent projected captures require literal indexes"
+                        "machine `{machine_name}` state `{state_name}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type"
                     )));
                 }
             }

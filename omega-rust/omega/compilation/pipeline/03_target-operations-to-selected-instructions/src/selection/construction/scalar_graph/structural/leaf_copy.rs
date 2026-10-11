@@ -216,8 +216,13 @@ pub(super) fn reseat(
         Some(terminal_psi::StructuralPathSegment::Referent)
     ) {
         let root = pointer_of(destination.place())?;
-        crate::selection::reference_input::store_destination(source, destination, path)
-            .ok_or(invalid())?;
+        crate::selection::reference_input::store_destination(
+            source,
+            destination,
+            path,
+            terminal_psi::StructuralAccess::MutableBorrow,
+        )
+        .ok_or(invalid())?;
         super::reference::load(builder, row, destination.place(), root)?
     } else if path.is_empty() {
         pointer_of(destination.place())?

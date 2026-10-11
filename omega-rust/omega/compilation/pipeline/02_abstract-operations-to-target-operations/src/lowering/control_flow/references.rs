@@ -173,7 +173,10 @@ pub(super) fn referent_projection(
     };
     if *access != required_access
         && !(*access == StructuralAccess::MutableBorrow
-            && required_access == StructuralAccess::SharedBorrow)
+            && matches!(
+                required_access,
+                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+            ))
     {
         return None;
     }

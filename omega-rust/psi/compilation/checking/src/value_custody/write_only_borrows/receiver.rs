@@ -8,7 +8,7 @@ use typed_trees::expression::TableNamePath;
 use typed_trees::statement::TableCall;
 
 mod projections;
-pub(super) use projections::captured_type;
+pub(super) use projections::nonobserving_projection;
 pub(super) use projections::projected;
 
 pub(super) fn record<'program>(

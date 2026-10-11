@@ -2144,12 +2144,14 @@ pub(crate) fn store(
         return Some((offset, bytes, Vec::new()));
     }
     // The owner retains the reference carrier and explicit crossing. Layout
-    // continues inside its mutable record referent; this supplies geometry,
+    // continues inside its exclusive record referent; this supplies geometry,
     // never permission or evidence that the carrier is currently live.
     let (root, path) = if let Some((StructuralPathSegment::Referent, suffix)) = path.split_first() {
         let StructuralTypeShape::Reference {
             referent,
-            access: terminal_psi::StructuralAccess::MutableBorrow,
+            access:
+                terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow,
         } = find_structural_type(declarations, root)?.shape
         else {
             return None;

@@ -6154,3 +6154,8 @@ fail/traits/ordinary_selection_name_missing_conformance_region rejected 376ms ex
 	generic conformance `ReadingMap` has 1 erased lifetime parameter(s), but this application supplies none and no unique ordinary borrow constraint is available; write the lifetime argument explicitly
 fail/layouts/placement_policy_unproved_callee_premise rejected 28ms expected @86441935879a64d7f3af4c34d1475129884c2970
 	placed view `Placed<CheckedPolicy,Register>`: machine `CheckedPolicy::plan` is not build-time admissible: machine `CheckedPolicy::limit` has an authored `requires` premise along `CheckedPolicy::plan -> CheckedPolicy::limit`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/borrow/write_only_capture_missing_bounds rejected 419ms expected @e80db4a269fa+wt
+	cannot prove index `position` is within length 3 in select::entry
+fail/borrow/write_only_capture_selector_observation rejected 211ms expected @e80db4a269fa+wt
+	machine `select` state `entry` reads field `value` from write-only parameter `cells`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+pass/borrow/runtime_write_only_array_selector_snapshot_exit checked 4145ms check-target:macos_arm64 @e80db4a269fa+wt

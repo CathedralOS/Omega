@@ -166,8 +166,12 @@ pub(super) fn window_hole(
         path.first(),
         Some(terminal_psi::StructuralPathSegment::Referent)
     ) {
-        crate::unit_validation::references::mutable_record_field_destination(
-            function, types, place, path,
+        crate::unit_validation::references::record_field_destination(
+            function,
+            types,
+            place,
+            path,
+            terminal_psi::StructuralAccess::MutableBorrow,
         )?
     } else {
         (root, path)
@@ -213,6 +217,7 @@ fn check_window_access(
             root.place(),
             path,
             field,
+            StructuralAccess::MutableBorrow,
         )?;
         if !terminal_semantics::structural_window_selects_child(path, field) {
             let origin = live
@@ -349,6 +354,7 @@ fn check_record_field_access(
     place: PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
+    required_access: StructuralAccess,
 ) -> Result<(), OptimizationUnitValidationError> {
     if !matches!(
         path.first(),
@@ -357,8 +363,12 @@ fn check_record_field_access(
         let region = super::storage_regions::projected(function, types, place, path, field);
         return check_region_access(function, block, node, live, place, region.direct_path());
     }
-    let valid_shape = crate::unit_validation::references::mutable_record_field_destination(
-        function, types, place, path,
+    let valid_shape = crate::unit_validation::references::record_field_destination(
+        function,
+        types,
+        place,
+        path,
+        required_access,
     )
     .is_some();
     let mut carriers = live
@@ -372,7 +382,7 @@ fn check_record_field_access(
             function,
             block,
             Some(node),
-            "record field access has no active mutable reference carrier",
+            "record field access has no active reference carrier with the required access",
         ));
     }
     Ok(())
@@ -1167,6 +1177,7 @@ pub(super) fn apply_operation(
                         source.place,
                         &source.path,
                         Some(*field),
+                        StructuralAccess::MutableBorrow,
                     )?,
                 }
             }
@@ -1220,6 +1231,7 @@ pub(super) fn apply_operation(
                 destination.place(),
                 path,
                 Some(*field),
+                StructuralAccess::WriteOnlyBorrow,
             )?;
         }
         O::StructuralByteSequenceFieldStore {
@@ -1238,6 +1250,7 @@ pub(super) fn apply_operation(
                 *destination,
                 path,
                 Some(*field),
+                StructuralAccess::MutableBorrow,
             )?;
             check_root_access(function, block, node, live, *source)?;
         }
@@ -1256,6 +1269,7 @@ pub(super) fn apply_operation(
                 *destination,
                 path,
                 Some(*field),
+                StructuralAccess::MutableBorrow,
             )?;
         }
         O::MoveStructuralField {

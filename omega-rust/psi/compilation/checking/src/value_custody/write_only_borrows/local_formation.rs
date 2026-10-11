@@ -5,26 +5,10 @@ use super::{
 };
 use typed_trees::statement::TableLocalData;
 
-pub(super) fn admitted(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    local: &TableLocalData,
-    roots: &[WriteOnlyRoot],
-) -> bool {
-    capture(program, machine, state, local, roots).is_some_and(|(actual, referee)| {
-        crate::value_custody::type_references::type_references_match(program, actual, referee)
-    })
-}
-
-/// When `admitted` refuses an otherwise resolvable `&write` local formation
-/// only because the captured place's type is not the declared referee
-/// atom-for-atom, report the mismatch directly. Without this rung a bare
-/// direct-name target fell through to the generic expression walk, which
-/// holds no diagnostic for a direct name and silently admitted the weakened
-/// capture. Returns `true` once a diagnostic is emitted so the statement is
-/// resolved; places that never resolve keep the ordinary walk.
-pub(super) fn reject_mismatched_capture(
+/// Resolve a formation once, including selector evaluation and exact referee
+/// admission. An invalid observation retains its diagnostic even if the place
+/// otherwise resolves, so it cannot fall through as an unchecked local borrow.
+pub(super) fn validate(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -32,11 +16,12 @@ pub(super) fn reject_mismatched_capture(
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) -> bool {
-    let Some((actual, referee)) = capture(program, machine, state, local, roots) else {
+    let Some((actual, referee)) = capture(program, machine, state, local, roots, diagnostics)
+    else {
         return false;
     };
     if crate::value_custody::type_references::type_references_match(program, actual, referee) {
-        return false;
+        return true;
     }
     diagnostics.push(diagnostics::Diagnostic::error(format!(
         "machine `{}` state `{}` captures `{}` of type `{}` as `&write {}`; a write-only formation must preserve the declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected",
@@ -63,6 +48,7 @@ fn capture(
     state: &State,
     local: &TableLocalData,
     roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) -> Option<(TypeReferenceHandle, TypeReferenceHandle)> {
     if local.is_mutable
         || !program
@@ -103,5 +89,15 @@ fn capture(
         state,
         Some(local.symbol),
     ));
-    receiver::captured_type(program, borrow.target, &sources).map(|actual| (actual, *referee))
+    let (_, actual, attached_root) = receiver::nonobserving_projection(
+        program,
+        machine,
+        state,
+        borrow.target,
+        &sources,
+        roots,
+        diagnostics,
+    )?;
+    (!attached_root && super::is_admitted_checked_referee(program, actual))
+        .then_some((actual, *referee))
 }

@@ -844,3 +844,4 @@ pass/borrow/runtime_write_only_array_indexed_calls_exit built 3108ms exit:0 inte
 pass/providers/runtime_adapter_dispatch_exit built 4290ms exit:70 interpreter-exit:70 interpreter:agrees @80bdb14533eb+wt
 pass/comptime/range_endpoint_requires_discharge_exit built 12796ms exit:70 interpreter-exit:70 interpreter:agrees @86441935879a64d7f3af4c34d1475129884c2970
 pass/comptime/runtime_const_measured_recursion_exit built 7771ms exit:70 interpreter-exit:70 interpreter:agrees @86441935879a64d7f3af4c34d1475129884c2970
+pass/borrow/runtime_write_only_array_selector_snapshot_exit built 4293ms exit:0 interpreter-exit:0 interpreter:agrees @e80db4a269fa+wt

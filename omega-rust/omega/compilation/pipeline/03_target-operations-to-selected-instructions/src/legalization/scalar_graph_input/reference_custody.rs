@@ -166,19 +166,20 @@ impl Custody {
 
 /// Live permission and referent-relative geometry behind a materialized carrier.
 /// Candidate roots constrain authority; its pointer payload selects the address.
-pub(in crate::legalization) struct WritableReferentDestination {
+pub(in crate::legalization) struct ReferentDestination {
     pub(in crate::legalization) carrier_type: StructuralTypeId,
     pub(in crate::legalization) referent: StructuralTypeId,
     pub(in crate::legalization) path: Vec<StructuralPathSegment>,
 }
 
-fn materialized_mutable_record_projection(
+pub(in crate::legalization) fn referent_destination(
     function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     carrier: PlaceId,
     path: &[StructuralPathSegment],
-) -> Option<WritableReferentDestination> {
+    required_access: StructuralAccess,
+) -> Option<ReferentDestination> {
     let (StructuralPathSegment::Referent, tail) = path.split_first()? else {
         return None;
     };
@@ -187,13 +188,14 @@ fn materialized_mutable_record_projection(
     // supplies carrier custody, not authority over the loan's backing.
     let carrier_type =
         optimization_unit_semantics::unqualified_owned_reference_carrier(function, carrier)?;
-    let StructuralTypeShape::Reference {
-        referent,
-        access: StructuralAccess::MutableBorrow,
-    } = &find_structural_type(types, carrier_type)?.shape
+    let StructuralTypeShape::Reference { referent, access } =
+        &find_structural_type(types, carrier_type)?.shape
     else {
         return None;
     };
+    if !access_covers(*access, required_access) {
+        return None;
+    }
     // A whole `Referent` path is also the established primitive-reference
     // spelling. Only a record referent may enter this aggregate-origin route.
     if !matches!(
@@ -212,21 +214,11 @@ fn materialized_mutable_record_projection(
     }
     // The retained formation has already authenticated backing and view
     // interpretation. Origin type equality would erase byte-backed views.
-    Some(WritableReferentDestination {
+    Some(ReferentDestination {
         carrier_type,
         referent: *referent,
         path: tail.to_vec(),
     })
-}
-
-pub(in crate::legalization) fn writable_referent_destination(
-    function: &PsiOptimizationFunction,
-    custody: &Custody,
-    types: &[StructuralTypeDeclaration],
-    carrier: PlaceId,
-    path: &[StructuralPathSegment],
-) -> Option<WritableReferentDestination> {
-    materialized_mutable_record_projection(function, custody, types, carrier, path)
 }
 
 #[track_caller]

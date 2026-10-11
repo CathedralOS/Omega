@@ -217,11 +217,12 @@ pub(crate) fn validate_structural_root_operations(
                         path.first(),
                         Some(terminal_psi::StructuralPathSegment::Referent)
                     ) {
-                        super::super::references::mutable_record_field_destination(
+                        super::super::references::record_field_destination(
                             function,
                             structural_types,
                             *source,
                             path,
+                            terminal_psi::StructuralAccess::MutableBorrow,
                         )
                         .filter(|(_, storage_path)| {
                             terminal_psi::is_static_structural_scalar_store_path(storage_path)
@@ -392,11 +393,12 @@ pub(crate) fn validate_structural_root_operations(
                         path.first(),
                         Some(terminal_psi::StructuralPathSegment::Referent)
                     ) {
-                        super::super::references::mutable_record_field_destination(
+                        super::super::references::record_field_destination(
                             function,
                             structural_types,
                             destination.place(),
                             path,
+                            terminal_psi::StructuralAccess::WriteOnlyBorrow,
                         )
                     } else {
                         Some((destination.structural_type(), path.as_slice()))
@@ -1197,11 +1199,12 @@ fn window_field_type(
         if root.parameter().is_some() {
             return None;
         }
-        crate::unit_validation::references::mutable_record_field_destination(
+        crate::unit_validation::references::record_field_destination(
             function,
             structural_types,
             root.place(),
             path,
+            terminal_psi::StructuralAccess::MutableBorrow,
         )?
     } else {
         (root.structural_type(), path)

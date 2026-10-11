@@ -491,7 +491,13 @@ fn byte_field_predicates_in<'t>(
             .clone()
             .map(|declaration| (declaration.id, declaration))
             .collect();
-        super::super::references::mutable_record_field_destination(function, &catalog, root, path)?
+        super::super::references::record_field_destination(
+            function,
+            &catalog,
+            root,
+            path,
+            terminal_psi::StructuralAccess::MutableBorrow,
+        )?
     } else {
         (structural_type, path)
     };

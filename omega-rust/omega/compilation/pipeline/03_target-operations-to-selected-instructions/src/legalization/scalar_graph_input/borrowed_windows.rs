@@ -56,12 +56,13 @@ pub(in crate::legalization) fn extent(
         if root.parameter().is_some() {
             return Err(LegalizationError::custody());
         }
-        let referent = super::reference_custody::writable_referent_destination(
+        let referent = super::reference_custody::referent_destination(
             function,
             custody,
             &plan.structural_types,
             root.place(),
             path,
+            terminal_psi::StructuralAccess::MutableBorrow,
         )
         .ok_or(LegalizationError::custody())?;
         if referent.carrier_type != root.structural_type()

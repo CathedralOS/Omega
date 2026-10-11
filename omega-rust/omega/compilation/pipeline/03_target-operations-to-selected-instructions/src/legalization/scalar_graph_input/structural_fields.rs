@@ -19,12 +19,13 @@ pub(in crate::legalization) fn scalar_store_destination(
     ) {
         return Some((destination.clone(), path.to_vec()));
     }
-    let resolved = super::reference_custody::writable_referent_destination(
+    let resolved = super::reference_custody::referent_destination(
         function,
         custody,
         types,
         destination.place(),
         path,
+        terminal_psi::StructuralAccess::WriteOnlyBorrow,
     )?;
     (destination.parameter().is_none()
         && destination.multiplicity() == terminal_psi::StructuralMultiplicity::Affine
@@ -147,12 +148,13 @@ pub(in crate::legalization) fn replacement(
             path.clone(),
         )
     } else {
-        let resolved = super::reference_custody::writable_referent_destination(
+        let resolved = super::reference_custody::referent_destination(
             function,
             custody,
             types,
             *destination,
             path,
+            terminal_psi::StructuralAccess::MutableBorrow,
         )?;
         (
             *destination,
@@ -218,12 +220,13 @@ pub(in crate::legalization) fn view_replacement(
             terminal_psi::StructuralAccess::Owned,
             path.clone(),
         )
-    } else if let Some(resolved) = super::reference_custody::writable_referent_destination(
+    } else if let Some(resolved) = super::reference_custody::referent_destination(
         function,
         custody,
         types,
         *destination,
         path,
+        terminal_psi::StructuralAccess::MutableBorrow,
     ) {
         (
             resolved.referent,

@@ -212,7 +212,7 @@ pub(super) fn resolve<'a>(
         // place through the structural-local roster, so admission here
         // pins the earlier declaration, not permission to transfer
         // all its contents. A reference leaf retains its own custody.
-        return borrowed_view_local_root(
+        return exclusive_reference_local_root(
             program,
             facts,
             state,
@@ -879,11 +879,11 @@ fn record_view_leaf(
     Some((loaned, view))
 }
 
-/// A reference local names its current materialized carrier. The declaration
+/// An exclusive reference local names its current materialized carrier. The declaration
 /// supplies its referent shape and access; source checking already admitted
 /// this assignment's loan compatibility. Replaying the initializer's loan here
 /// would confuse its old backing with the descriptor installed by a rebind.
-fn borrowed_view_local_root<'a>(
+fn exclusive_reference_local_root<'a>(
     program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     state: &'a typed_trees::state::State,
@@ -912,11 +912,15 @@ fn borrowed_view_local_root<'a>(
     {
         return None;
     }
-    let (referee, access) =
-        super::super::reference_results::mutable_borrowed_parts(program, local.type_reference)?;
-    if access != CheckedStructuralAccess::MutableBorrow {
+    let shell = validation::reference_shell(program, local.type_reference)?;
+    if !matches!(
+        shell.access,
+        language_semantics::ReferenceAccess::Mutable
+            | language_semantics::ReferenceAccess::WriteOnly
+    ) {
         return None;
     }
+    let referee = shell.referee;
     Some(Destination {
         root: Root::Local {
             symbol: root_symbol,

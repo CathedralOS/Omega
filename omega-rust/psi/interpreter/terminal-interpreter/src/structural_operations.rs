@@ -710,11 +710,11 @@ impl TerminalExecution<'_> {
             })
             .ok_or(malformed())?;
         let source = self.scalar_value(value)?;
-        // Owning a reference carrier permits a write through its mutable
+        // Owning a reference carrier permits a write through its exclusive
         // loan, not ownership of the referent. Cross retained descriptors at
         // the requested write authority before selecting the scalar endpoint.
         let projection_access = match access {
-            StructuralAccess::Owned => StructuralAccess::MutableBorrow,
+            StructuralAccess::Owned => StructuralAccess::WriteOnlyBorrow,
             access => access,
         };
         let (parent, view) =

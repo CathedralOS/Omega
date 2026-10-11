@@ -121,7 +121,13 @@ pub(super) fn field_path(
     let (structural_type, _) = byte_field_root(function, root)?;
     let (storage_type, storage_path) =
         if matches!(path.first(), Some(StructuralPathSegment::Referent)) {
-            super::super::references::mutable_record_field_destination(function, types, root, path)?
+            super::super::references::record_field_destination(
+                function,
+                types,
+                root,
+                path,
+                terminal_psi::StructuralAccess::MutableBorrow,
+            )?
         } else {
             (structural_type, path)
         };

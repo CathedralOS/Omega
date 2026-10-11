@@ -4218,11 +4218,9 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   - runtime domain-qualified byte-field replacement with encoding evidence;
   - computed IEEE store/readback (through **FLOAT-PROVIDERS**; the mutable
     controls stop in caller guard planning);
-  - persistent write-only captures of runtime-indexed places: source checking
-    currently requires literal indexes. Computed-index aggregate replacement and
-    local affine backing still need the complete state and cleanup route. Keep
-    named whole-array loans and runtime-indexed helper writes in original caller
-    storage; reuse the existing computed-selector and scalar-source plans.
+  - computed-index aggregate replacement and local affine backing through the
+    complete state and cleanup route. Reuse the existing computed-selector and
+    scalar-source plans.
 
   Coordinate sequencing with **STATE-LOCAL-VALUE-FRONTIER**, reference identity
   with **STRUCTURAL-BORROW-IDENTITY**, mutable dynamic dispatch with

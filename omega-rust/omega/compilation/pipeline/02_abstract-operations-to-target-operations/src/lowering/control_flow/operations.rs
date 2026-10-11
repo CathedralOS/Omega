@@ -494,7 +494,7 @@ pub(super) fn lower_operation(
                     structural_types,
                     destination.place(),
                     path,
-                    terminal_psi::StructuralAccess::MutableBorrow,
+                    terminal_psi::StructuralAccess::WriteOnlyBorrow,
                 ),
                 _ => None,
             };

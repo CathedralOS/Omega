@@ -139,7 +139,7 @@ fn lower_store(
             };
             let Some(StructuralTypeShape::Reference {
                 referent,
-                access: StructuralAccess::MutableBorrow,
+                access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
             }) = find_structural_type(structural_types, result.structural_type)
                 .map(|declaration| &declaration.shape)
             else {

@@ -141,47 +141,22 @@ pub(crate) fn leaf_paths(
 }
 
 /// A carrier identifies its declared referent, never ownership of that storage.
-/// Shared observation preserves the referent's complete shape, as Terminal
-/// permits; writable references retain the supported primitive/plain-record
-/// storage constraint. Construction, calls and relocation use this same rule.
-/// Loan strength and live backing are checked separately from type identity.
+/// Every borrowed access preserves the full referent type; operations separately
+/// check their required access, live backing and displaced-content restrictions.
 pub(crate) fn referent(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
-    let declaration = types.get(&structural_type)?;
-    match declaration.shape {
-        terminal_psi::StructuralTypeShape::Reference {
-            referent,
-            access: terminal_psi::StructuralAccess::SharedBorrow,
-        } => types.contains_key(&referent).then_some(referent),
+    match types.get(&structural_type)?.shape {
         terminal_psi::StructuralTypeShape::Reference {
             referent,
             access:
-                terminal_psi::StructuralAccess::MutableBorrow
+                terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow,
-        } if matches!(
-            types.get(&referent).map(|declaration| &declaration.shape),
-            Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(_))
-        ) || (access_is_mutable_record(types, structural_type, referent)) =>
-        {
-            Some(referent)
-        }
+        } => types.contains_key(&referent).then_some(referent),
         _ => None,
     }
-}
-
-fn access_is_mutable_record(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    carrier: StructuralTypeId,
-    referent: StructuralTypeId,
-) -> bool {
-    reference_access(types, carrier) == Some(terminal_psi::StructuralAccess::MutableBorrow)
-        && matches!(
-            types.get(&referent).map(|row| &row.shape),
-            Some(terminal_psi::StructuralTypeShape::Record { .. })
-        )
-        && plain_referent_storage(types, referent)
 }
 
 /// The Terminal plain-owned referent rule, independently reconstructed from
@@ -278,11 +253,12 @@ pub fn unqualified_owned_reference_carrier(
 
 /// Declared referent geometry behind an unqualified owned carrier. This
 /// declaration alone supplies no live loan or authority over its backing.
-pub(crate) fn mutable_record_field_destination<'path>(
+pub(crate) fn record_field_destination<'path>(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     destination: PlaceId,
     path: &'path [terminal_psi::StructuralPathSegment],
+    required_access: terminal_psi::StructuralAccess,
 ) -> Option<(
     StructuralTypeId,
     &'path [terminal_psi::StructuralPathSegment],
@@ -292,7 +268,13 @@ pub(crate) fn mutable_record_field_destination<'path>(
     };
     let carrier_type = unqualified_owned_reference_carrier(function, destination)?;
     let referent = referent(types, carrier_type)?;
-    access_is_mutable_record(types, carrier_type, referent).then_some((referent, suffix))
+    (access_covers(reference_access(types, carrier_type)?, required_access)
+        && matches!(
+            types.get(&referent)?.shape,
+            terminal_psi::StructuralTypeShape::Record { .. }
+        )
+        && plain_referent_storage(types, referent))
+    .then_some((referent, suffix))
 }
 
 /// A field-only carrier path ending at a reference leaf, then its referent.
