@@ -180,7 +180,9 @@ impl AdmittedTerminalProgram<'_> {
         if self.has_provider(&slot) || self.is_target_family_head(slot) {
             return None;
         }
-        self.boundary_machines().get(&slot)
+        self.boundary_machines().get(&slot).filter(|declaration| {
+            declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
+        })
     }
 }
 
@@ -385,6 +387,11 @@ impl<'artifact> TerminalProgram<'artifact> {
                 .boundary_machines()
                 .get(&boundary)
                 .ok_or_else(|| rejected("host import names no declared boundary"))?;
+            if declaration.role != terminal_psi::BoundaryDeclarationRole::Callable {
+                return Err(rejected(
+                    "host import names contract evidence rather than a callable",
+                ));
+            }
             if self.program.is_target_family_head(boundary) {
                 let member = crate::calls::target_families::selected_member(
                     &self.program,
@@ -430,7 +437,8 @@ impl<'artifact> TerminalProgram<'artifact> {
             .boundary_machines()
             .values()
             .filter(move |declaration| {
-                !self.program.has_provider(&declaration.id)
+                declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
+                    && !self.program.has_provider(&declaration.id)
                     && !self.program.is_target_family_head(declaration.id)
             })
     }
@@ -452,10 +460,11 @@ impl<'artifact> TerminalProgram<'artifact> {
             .boundary_machines()
             .get(&slot)
             .filter(|declaration| {
-                matches!(
-                    declaration.completion,
-                    terminal_psi::BoundaryCompletion::External(_)
-                )
+                declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
+                    && matches!(
+                        declaration.completion,
+                        terminal_psi::BoundaryCompletion::External(_)
+                    )
             })
     }
 

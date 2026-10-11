@@ -180,6 +180,7 @@ pub(crate) struct ScalarCalleeClosure;
 pub(crate) fn build_checked_unit_effect_plans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    boundary_signature_reaches: &[(symbols::SymbolHandle, language_semantics::ServiceReachRowId)],
     scalar_callees: ScalarCalleeClosure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     free_nominal_cleanups: &mut Vec<CheckedNominalAffineUnitCleanupMachinePlan>,
@@ -198,6 +199,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     boundary_machines.extend(build_static_boundary_requirements(
         program,
         facts,
+        boundary_signature_reaches,
         &mut shapes,
     ));
     let dynamic_slots = control::build_dynamic_slot_plans(program, &mut shapes);

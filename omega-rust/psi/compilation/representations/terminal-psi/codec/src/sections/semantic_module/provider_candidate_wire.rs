@@ -26,6 +26,7 @@ pub(crate) fn encode_provider_candidate(
     writer.id(candidate.boundary);
     writer.u32(candidate.requirement_identity.0);
     writer.u32(candidate.provider_identity.0);
+    writer.u32(candidate.provider_declaration.identity().0);
     writer.u32(candidate.candidate_identity.0);
     writer.id(candidate.candidate);
     writer.len(
@@ -75,6 +76,8 @@ pub(crate) fn decode_provider_candidate(
     let boundary = reader.id("BoundaryMachineId")?;
     let requirement_identity = TerminalIdentityIndex(reader.u32()?);
     let provider_identity = TerminalIdentityIndex(reader.u32()?);
+    let provider_declaration =
+        terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
     let candidate_identity = TerminalIdentityIndex(reader.u32()?);
     let candidate = reader.id("MachineId")?;
     let parameters = decode_counted(reader, |reader| {
@@ -111,6 +114,7 @@ pub(crate) fn decode_provider_candidate(
         boundary,
         requirement_identity,
         provider_identity,
+        provider_declaration,
         candidate_identity,
         candidate,
         signature: ProviderSignature { parameters },

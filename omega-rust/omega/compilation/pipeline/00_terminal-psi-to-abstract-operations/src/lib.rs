@@ -62,7 +62,8 @@ pub use retained_terminal::{
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
     TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
     TerminalNativeOccurrences, TerminalNativeProposalRequest, TerminalNativeProviders,
-    TerminalNativeRealizationProposal, project_terminal_native_realization_proposal,
+    TerminalNativeRealizationProposal, TerminalTargetProviderProposal,
+    project_terminal_native_realization_proposal,
 };
 
 pub(crate) use artifact_admission::ArtifactLoweringError;

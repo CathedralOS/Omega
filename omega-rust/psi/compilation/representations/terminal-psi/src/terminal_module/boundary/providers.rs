@@ -19,6 +19,9 @@ pub struct ProviderCandidateConformance {
     pub boundary: BoundaryMachineId,
     pub requirement_identity: TerminalIdentityIndex,
     pub provider_identity: TerminalIdentityIndex,
+    /// Exact package/toolchain-owned selecting declaration, independently of
+    /// the callable it realizes. Named maps may share the same body.
+    pub provider_declaration: crate::NominalDeclarationIdentity,
     /// Canonical checked-machine identity named by the selected
     /// `CheckedAdapter` row. The dense `candidate` ID is artifact-local.
     pub candidate_identity: TerminalIdentityIndex,

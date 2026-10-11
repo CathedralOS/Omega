@@ -238,6 +238,9 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
         boundary,
         requirement_identity: terminal_psi::TerminalIdentityIndex(4),
         provider_identity: terminal_psi::TerminalIdentityIndex(5),
+        provider_declaration: terminal_psi::NominalDeclarationIdentity::new(
+            terminal_psi::TerminalIdentityIndex(5),
+        ),
         candidate_identity: terminal_psi::TerminalIdentityIndex(6),
         candidate: id(2),
         signature: terminal_psi::ProviderSignature {

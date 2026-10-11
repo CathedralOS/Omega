@@ -71,12 +71,14 @@ fn target_expectations(
 }
 
 /// Install every authored target against one exact retained artifact. The
-/// receiving runtime supplies no providers, receiver, clock, input, or domain
-/// authority; fixtures needing those provisions refuse rather than fabricate
-/// them. Each install observes the artifact's unchanged semantic bytes,
+/// receiving runtime admits the retained whole-provider proposal for that
+/// exact target, but supplies no receiver, clock, input, or domain authority;
+/// fixtures needing those provisions refuse rather than fabricate them.
+/// Each install observes the artifact's unchanged semantic bytes,
 /// identity, and canonical module storage, not a newly compiled target cohort.
 pub(super) fn target_installations(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
+    proposals: &[backend_plan::TerminalTargetProviderProposal],
     fixture_dir: &std::path::Path,
     fuel_allowance: u64,
 ) -> Observation {
@@ -95,10 +97,22 @@ pub(super) fn target_installations(
     let mut matched = true;
     let mut unchanged = true;
     for (target, expected) in expectations {
+        let mut matching = proposals
+            .iter()
+            .filter(|proposal| proposal.target == target);
+        let provider_proposal = matching.next();
+        if matching.next().is_some() {
+            observation.diagnostics.push(format!(
+                "Terminal target {target}: duplicate provider proposal"
+            ));
+            matched = false;
+            continue;
+        }
         let result = compiler::runtime::execute(TerminalRuntimeRequest {
             artifact,
             target: Some(&target),
             provisions: None,
+            provider_proposal,
             fuel_allowance,
             domain_exit: TerminalDomainExitDelegation::Unprovided,
             standard_input: None,
@@ -210,6 +224,7 @@ pub(super) fn interpret(
         Err(error) => return Observation::failure(error),
     };
     let result = match compiler::runtime::execute(TerminalRuntimeRequest {
+        provider_proposal: None,
         artifact,
         target,
         provisions,

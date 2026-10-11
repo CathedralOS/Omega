@@ -43,6 +43,8 @@ pub struct TerminalRuntimeProvisions {
     /// same admitted schema/plan, not a provider-name or trait-prefix lookup.
     fused_service_boundary_slots: Vec<Vec<BoundaryMachineId>>,
     installation: Option<terminal_installation::AdmittedProviderSelections>,
+    target_provider_proposals:
+        Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal>,
     host: Vec<TerminalRuntimeHostProvision>,
     host_requirements: Vec<RuntimeHostRequirement>,
     borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
@@ -134,6 +136,7 @@ impl TerminalRuntimeProvisions {
             fused_services: fused_services.to_vec(),
             fused_service_boundary_slots,
             installation: installation.cloned(),
+            target_provider_proposals: Vec::new(),
             host,
             host_requirements,
         })
@@ -163,6 +166,22 @@ impl TerminalRuntimeProvisions {
 
     pub const fn identity(&self) -> TerminalPsiIdentity {
         self.identity
+    }
+
+    /// Retain the same producer's portable selections separately from this
+    /// native target's admitted entry, backing and external host provisions.
+    pub fn with_target_provider_proposals(
+        mut self,
+        proposals: Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal>,
+    ) -> Self {
+        self.target_provider_proposals = proposals;
+        self
+    }
+
+    pub fn target_provider_proposals(
+        &self,
+    ) -> &[terminal_psi_to_abstract_operations::TerminalTargetProviderProposal] {
+        &self.target_provider_proposals
     }
 
     /// Retain the same native producer's layout companion. These coordinates

@@ -214,6 +214,7 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
                 .boundary_machine(boundary)
                 .is_some_and(|declaration| {
                     declaration.kind == semantic_vocabulary::BoundaryRequirementKind::Machine
+                        && declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
                 }) => {}
         _ => return malformed("portable entry has no retained machine or target-family head"),
     }
@@ -240,6 +241,7 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
             };
             if module.boundary_machine(head).is_none_or(|declaration| {
                 declaration.kind != semantic_vocabulary::BoundaryRequirementKind::Machine
+                    || declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
             }) {
                 return malformed("independent target-family head has no machine declaration");
             }
@@ -273,7 +275,9 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
                 }
                 TargetMachineCallable::Boundary(boundary) => {
                     if member.supply == TargetMachineSupply::CheckedBody
-                        || !module.boundary_machine(boundary).is_some()
+                        || module.boundary_machine(boundary).is_none_or(|declaration| {
+                            declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
+                        })
                     {
                         return malformed(
                             "target-family opaque member has no matching declaration supply",

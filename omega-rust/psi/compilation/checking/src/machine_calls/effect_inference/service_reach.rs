@@ -761,6 +761,26 @@ pub fn fixed_installation_boundary_service_reach(
     Some(direct_service_reach_for_call(program, target).concrete_services)
 }
 
+/// Project an exact trait requirement's declared ceiling, including nominal
+/// service and synchronous invocation contributions, without inventing a call.
+/// Publication needs the same contract for called and uncalled coordinates.
+pub fn boundary_signature_service_reach(
+    program: &dyn crate::CheckingInput,
+    signature: SymbolHandle,
+) -> Option<Vec<ServiceReachId>> {
+    let mut declarations = program
+        .traits()
+        .iter()
+        .filter(|owner| owner.is_boundary)
+        .flat_map(|owner| program.trait_machine_signatures(owner))
+        .filter(|declaration| declaration.symbol == signature);
+    declarations.next()?;
+    if declarations.next().is_some() {
+        return None;
+    }
+    Some(direct_service_reach_for_call(program, signature).services)
+}
+
 fn direct_service_reach_for_call(
     program: &dyn crate::CheckingInput,
     target: SymbolHandle,

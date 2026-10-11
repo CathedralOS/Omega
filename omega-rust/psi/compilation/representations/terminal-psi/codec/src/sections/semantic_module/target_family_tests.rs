@@ -71,6 +71,7 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
     {
         let boundary = BoundaryMachineId::new(boundary_position as u64 + 1).unwrap();
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            role: terminal_psi::BoundaryDeclarationRole::Callable,
             id: boundary,
             kind: BoundaryRequirementKind::Machine,
             completion: BoundaryCompletion::NormalReturn,
@@ -79,6 +80,7 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
                 u32::try_from(boundary.get()).expect("boundary identity"),
             ),
             attachment: None,
+            owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             parameter_order: Vec::new(),
             scalar_parameters: Vec::new(),
             crash_routes: Vec::new(),

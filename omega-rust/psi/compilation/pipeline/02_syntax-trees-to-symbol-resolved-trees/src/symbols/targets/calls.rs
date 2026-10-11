@@ -536,10 +536,6 @@ pub(in crate::symbols) fn build_operand_route(
     }
 }
 
-/// Resolve one `Build::select_provider` path as an exact declaration identity.
-/// The marker's static arguments are exact declaration paths, not executable
-/// machine selections. The first may denote one boundary trait, one explicit
-/// top-level boundary requirement, or an entire same-path boundary-operator
 /// A bound selection argument (already carrying a type reference, evidence,
 /// const, or application payload) takes no symbol; unbound ones render their
 /// qualified path for name resolution.
@@ -578,8 +574,11 @@ fn descendant_selection_symbol(
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
-/// family; build harvesting reifies and validates the exact declaration after
-/// typed lowering.
+/// Resolve a provider-selection operand as an exact declaration, not an
+/// executable static machine. The subject may name a boundary trait, top-level
+/// requirement or operator family; the provider may name data or a named map.
+/// Both lexical and qualified resolution preserve that declaration category.
+/// Harvesting validates the resolved declaration after typed lowering.
 pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
     symbols: &SymbolTable,
     argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
@@ -601,6 +600,7 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
             SymbolKind::Trait,
             SymbolKind::Operator,
             SymbolKind::Data,
+            SymbolKind::Conformance,
             SymbolKind::BuiltinType,
         ]
     };
@@ -623,18 +623,9 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
     argument.symbol = if exact.is_valid() {
         exact
     } else {
-        // The descendant fallback admits only lexical declarations: machine
-        // and operator-family members resolve through the top-level lookup.
-        descendant_selection_symbol(
-            symbols,
-            argument,
-            &[
-                SymbolKind::Trait,
-                SymbolKind::Operator,
-                SymbolKind::Data,
-                SymbolKind::BuiltinType,
-            ],
-        )
+        // Qualified declarations obey the same role and visibility rules as
+        // top-level operands; a named map is not a hidden receiver data type.
+        descendant_selection_symbol(symbols, argument, kinds)
     };
 }
 

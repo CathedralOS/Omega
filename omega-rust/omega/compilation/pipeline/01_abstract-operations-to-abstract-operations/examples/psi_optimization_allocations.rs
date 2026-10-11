@@ -103,6 +103,7 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
         &checked,
         TerminalMachineSelection::Name("measure"),
         &[],
+        &[],
     )
     .expect("lower measure");
     let semantic =

@@ -6,7 +6,7 @@ pub(super) fn provider_identities(
     checked: &CheckedTrees,
     machine: &Machine,
     requirement: CatalogRequirement<'_>,
-) -> Result<Vec<String>, LoweringError> {
+) -> Result<Vec<(symbols::SymbolHandle, String)>, LoweringError> {
     let CatalogRequirement::Trait {
         definition,
         signature,
@@ -56,7 +56,10 @@ pub(super) fn provider_identities(
                 return unsupported("named provider lost its exact specialization entry");
             }
         }
-        identities.push(typed.symbols.display_path(implementation.symbol, "::"));
+        identities.push((
+            implementation.symbol,
+            typed.symbols.display_path(implementation.symbol, "::"),
+        ));
     }
     Ok(identities)
 }

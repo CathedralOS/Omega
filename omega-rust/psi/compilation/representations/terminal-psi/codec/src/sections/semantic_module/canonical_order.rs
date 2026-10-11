@@ -487,6 +487,10 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 .unwrap_or_default(),
             module
                 .identities
+                .text(candidate.provider_declaration.identity())
+                .unwrap_or_default(),
+            module
+                .identities
                 .text(candidate.candidate_identity)
                 .unwrap_or_default(),
             candidate.candidate,

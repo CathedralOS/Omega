@@ -104,9 +104,12 @@ name = "backend-plan"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
+ "effects",
  "function-identity",
+ "optimization-core",
  "semantic-vocabulary",
  "terminal-codec",
+ "terminal-installation",
  "terminal-psi",
 ]
 
@@ -1520,6 +1523,8 @@ dependencies = [
  "symbols",
  "target",
  "task-plans",
+ "terminal-codec",
+ "terminal-installation",
  "terminal-psi",
  "typed-trees",
  "typed-trees-to-checked-trees",
@@ -1537,6 +1542,7 @@ dependencies = [
  "lowered-psi-to-terminal-psi",
  "optimization",
  "source",
+ "symbols",
  "terminal-codec",
  "terminal-psi",
 ]
@@ -2134,6 +2140,7 @@ dependencies = [
  "optimization",
  "psi-terminal-production",
  "source",
+ "symbols",
  "target",
  "terminal-codec",
  "terminal-psi",

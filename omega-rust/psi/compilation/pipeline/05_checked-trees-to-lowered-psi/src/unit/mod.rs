@@ -100,22 +100,42 @@ pub(crate) fn lower_unit_plan_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: CheckedUnitPlan<'_>,
+    boundary_roots: &[symbols::SymbolHandle],
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<LoweredSelectedMachine, LoweringError> {
     Ok(match plan {
         CheckedUnitPlan::NominalAffineCleanup(plan) => LoweredSelectedMachine::source_mapped(
-            lower_nominal_affine_unit_cleanup_machine(identities, checked, plan)?,
+            lower_nominal_affine_unit_cleanup_machine(
+                identities,
+                checked,
+                plan,
+                boundary_roots,
+                exact_toolchain_sources,
+            )?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
             },
         ),
         CheckedUnitPlan::PartialAffineCleanup(plan) => LoweredSelectedMachine::source_mapped(
-            lower_partial_affine_unit_cleanup_machine(identities, checked, plan)?,
+            lower_partial_affine_unit_cleanup_machine(
+                identities,
+                checked,
+                plan,
+                boundary_roots,
+                exact_toolchain_sources,
+            )?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
             },
         ),
         CheckedUnitPlan::ComposedControl(plan) => LoweredSelectedMachine::source_mapped(
-            lower_unit_effect_closure(identities, checked, plan.machine)?,
+            lower_unit_effect_closure(
+                identities,
+                checked,
+                plan.machine,
+                boundary_roots,
+                exact_toolchain_sources,
+            )?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
             },

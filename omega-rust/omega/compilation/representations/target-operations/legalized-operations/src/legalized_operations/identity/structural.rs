@@ -126,6 +126,7 @@ pub(super) fn encode_provider_candidate(
     bytes.extend_from_slice(&provider.requirement_identity.0.to_le_bytes());
     bytes.extend_from_slice(&provider.provider_identity.0.to_le_bytes());
     bytes.extend_from_slice(&provider.candidate_identity.0.to_le_bytes());
+    bytes.extend_from_slice(&provider.provider_declaration.identity().0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, provider.candidate.get().to_le_bytes());
     encode_len(bytes, provider.signature.parameters.len());
     for parameter in &provider.signature.parameters {

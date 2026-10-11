@@ -6,8 +6,7 @@
 //! still requires its separately checked authorization route.
 
 use crate::execution::terminal_unit::calls::{
-    boundary_owner_scalar_signature, exact_external_leaf_boundary_requirement,
-    free_structural_scalar_signature,
+    boundary_owner_scalar_signature, free_structural_scalar_signature,
 };
 use crate::execution::terminal_unit::types::{
     ShapeCollector, boundary_borrowed_referent, boundary_domain_requirements,
@@ -235,10 +234,10 @@ pub(crate) fn build_dynamic_slot_plans(
 pub(crate) fn build_static_boundary_requirements(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    boundary_signature_reaches: &[(SymbolHandle, language_semantics::ServiceReachRowId)],
     shapes: &mut ShapeCollector<'_>,
 ) -> Vec<CheckedBoundaryMachinePlan> {
     let mut plans = Vec::new();
-    let mut call_target_requirements = None;
     for definition in program.traits().iter().filter(|definition| {
         definition.is_boundary && program.trait_type_parameters(definition).is_empty()
     }) {
@@ -343,50 +342,15 @@ pub(crate) fn build_static_boundary_requirements(
             else {
                 continue;
             };
-            // Target classification is invariant across boundary signatures.
-            // Resolve each distinct target once, only if a supported boundary
-            // actually needs call evidence. Keep every call's reach below.
-            let requirements = call_target_requirements
-                .get_or_insert_with(|| static_boundary_call_targets(program, facts));
-            let signature_key = (
-                signature.symbol.arena_index(),
-                signature.symbol.generation(),
-            );
-            let first_target = requirements.partition_point(|(requirement, _)| {
-                (requirement.arena_index(), requirement.generation()) < signature_key
-            });
-            let after_targets = requirements.partition_point(|(requirement, _)| {
-                (requirement.arena_index(), requirement.generation()) <= signature_key
-            });
-            let targets = &requirements[first_target..after_targets];
-            if targets.is_empty() {
-                continue;
-            }
-            let call_reaches = facts
-                .flow
-                .control
-                .calls
+            // A contract cannot depend on callers or selected provider reach.
+            // The checking owner projected the declaration once, including its
+            // nominal service and invocation promises, even when never called.
+            let Some((_, published_reach)) = boundary_signature_reaches
                 .iter()
-                .map(|(_, call)| call)
-                .filter(|call| {
-                    targets
-                        .binary_search_by_key(
-                            &(
-                                call.target_symbol.arena_index(),
-                                call.target_symbol.generation(),
-                            ),
-                            |(_, target)| (target.arena_index(), target.generation()),
-                        )
-                        .is_ok()
-                })
-                .map(|call| call.service_reach.transitive)
-                .collect::<Vec<_>>();
-            let [published_reach, rest @ ..] = call_reaches.as_slice() else {
+                .find(|(requirement, _)| *requirement == signature.symbol)
+            else {
                 continue;
             };
-            if rest.iter().any(|reach| reach != published_reach) {
-                continue;
-            }
             let service_reach = language_semantics::ServiceReachSummary {
                 direct: *published_reach,
                 transitive: *published_reach,
@@ -624,43 +588,6 @@ fn build_boundary_operator(
         },
         service_reach,
     })
-}
-
-/// A target can denote its own requirement and project to another one. Retain
-/// the union of exact identities, not a preferred classification. This sorted
-/// scratch index belongs only to the current immutable program and call facts.
-/// Nominal binder requirements are not selected execution targets; only a closed
-/// specialization may replace a binder with a callable body or exact boundary.
-fn static_boundary_call_targets(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-) -> Vec<(SymbolHandle, SymbolHandle)> {
-    let mut targets = facts
-        .flow
-        .control
-        .calls
-        .iter()
-        .map(|(_, call)| call.target_symbol)
-        .collect::<Vec<_>>();
-    targets.sort_unstable_by_key(|target| (target.arena_index(), target.generation()));
-    targets.dedup();
-    let mut requirements = Vec::new();
-    for target in targets {
-        requirements.push((target, target));
-        if let Some((requirement, _)) = exact_external_leaf_boundary_requirement(program, target) {
-            requirements.push((requirement, target));
-        }
-    }
-    requirements.sort_unstable_by_key(|(requirement, target)| {
-        (
-            requirement.arena_index(),
-            requirement.generation(),
-            target.arena_index(),
-            target.generation(),
-        )
-    });
-    requirements.dedup();
-    requirements
 }
 
 /// Substitute a generic requirement's `Type` formals with the actuals its

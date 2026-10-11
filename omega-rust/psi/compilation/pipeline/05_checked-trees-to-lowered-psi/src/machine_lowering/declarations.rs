@@ -6,6 +6,21 @@ use terminal_psi::{
     CheckedMachineDeclaration, CheckedMachineSpecialization, NominalDeclarationIdentity,
 };
 
+pub(crate) fn nominal(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    symbol: SymbolHandle,
+) -> Result<NominalDeclarationIdentity, &'static str> {
+    let identity = checked
+        .exact_owner_nominal_identity(symbol, sources)
+        .ok_or("checked declaration has no exact package or toolchain owner")?;
+    let text = checked
+        .type_identity_text(identity)
+        .ok_or("checked declaration lost its normalized identity")?;
+    Ok(NominalDeclarationIdentity::new(identities.intern(&text)))
+}
+
 pub(super) fn identity(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
@@ -25,16 +40,7 @@ pub(super) fn identity(
     for parameter in checked.state_parameters(entry) {
         identities.intern(&checked.normalized_type_identity_text(parameter.type_reference));
     }
-    let mut nominal = |symbol| {
-        checked
-            .exact_owner_nominal_identity(symbol, sources)
-            .ok_or("checked machine has no exact declaration owner")
-            .map(|identity| {
-                NominalDeclarationIdentity::new(
-                    identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
-                )
-            })
-    };
+    let mut nominal = |symbol| nominal(identities, checked, sources, symbol);
     let contract = checked
         .facts
         .contract_plans

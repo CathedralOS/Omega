@@ -12,6 +12,9 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct ProviderInstallationSelection {
     pub boundary: BoundaryMachineId,
     pub provider_identity: String,
+    /// Canonical selecting declaration, distinct even when two maps share
+    /// a display path and the same physical callable body.
+    pub provider_declaration: String,
     pub candidate: MachineId,
 }
 
@@ -71,8 +74,17 @@ pub struct AdmittedAssumedBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedProviderSelections {
     terminal_psi: terminal_psi::TerminalPsiIdentity,
-    providers: BTreeMap<BoundaryMachineId, MachineId>,
+    providers: BTreeMap<BoundaryMachineId, AdmittedProviderSelection>,
     assumed_bindings: Vec<AdmittedAssumedBinding>,
+}
+
+// Build agreement compares selecting declarations, not just dispatch bodies:
+// independent named maps may deliberately share the same implementation.
+// The canonical handle is scoped by the enclosing Terminal artifact identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AdmittedProviderSelection {
+    candidate: MachineId,
+    provider_declaration: terminal_psi::NominalDeclarationIdentity,
 }
 
 impl AdmittedProviderSelections {
@@ -89,7 +101,7 @@ impl AdmittedProviderSelections {
     pub fn providers(&self) -> impl Iterator<Item = (BoundaryMachineId, MachineId)> + '_ {
         self.providers
             .iter()
-            .map(|(&boundary, &machine)| (boundary, machine))
+            .map(|(&boundary, selection)| (boundary, selection.candidate))
     }
 }
 
@@ -201,22 +213,45 @@ fn admit_provider_selections(
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
     let mut installed = BTreeMap::new();
     for selection in selections {
+        let mut candidates = module.provider_candidates.iter().filter(|candidate| {
+            candidate.boundary == selection.boundary
+                && module.identities.text(candidate.provider_identity)
+                    == Some(selection.provider_identity.as_str())
+                && module
+                    .identities
+                    .text(candidate.provider_declaration.identity())
+                    == Some(selection.provider_declaration.as_str())
+                && candidate.candidate == selection.candidate
+        });
+        let candidate = candidates.next();
         if selection.provider_identity.is_empty()
-            || installed
-                .insert(selection.boundary, selection.candidate)
-                .is_some()
-            || !module.provider_candidates.iter().any(|candidate| {
-                candidate.boundary == selection.boundary
-                    && module.identities.text(candidate.provider_identity)
-                        == Some(selection.provider_identity.as_str())
-                    && candidate.candidate == selection.candidate
-            })
+            || selection.provider_declaration.is_empty()
+            || module
+                .boundary_machine(selection.boundary)
+                .is_none_or(|boundary| {
+                    boundary.role != terminal_psi::BoundaryDeclarationRole::Callable
+                })
+            || installed.contains_key(&selection.boundary)
+            || candidates.next().is_some()
         {
             return Err(ProviderInstallationError::UnknownOrDuplicateSelection {
                 boundary: selection.boundary,
                 candidate: selection.candidate,
             });
         }
+        let Some(candidate) = candidate else {
+            return Err(ProviderInstallationError::UnknownOrDuplicateSelection {
+                boundary: selection.boundary,
+                candidate: selection.candidate,
+            });
+        };
+        installed.insert(
+            selection.boundary,
+            AdmittedProviderSelection {
+                candidate: candidate.candidate,
+                provider_declaration: candidate.provider_declaration.clone(),
+            },
+        );
     }
     let assumed_bindings = admit_assumed_bindings(module, &installed, assumptions)?;
     Ok(AdmittedProviderSelections {
@@ -235,12 +270,13 @@ fn admit_provider_selections(
 /// `supply_path` — and never through artifact bytes alone.
 fn admit_assumed_bindings(
     module: &terminal_psi::TerminalModule,
-    installed: &BTreeMap<BoundaryMachineId, MachineId>,
+    installed: &BTreeMap<BoundaryMachineId, AdmittedProviderSelection>,
     assumptions: &[AssumedBindingSelection],
 ) -> Result<Vec<AdmittedAssumedBinding>, ProviderInstallationError> {
     let boundary_ids: BTreeSet<BoundaryMachineId> = module
         .boundary_machines
         .iter()
+        .filter(|boundary| boundary.role == terminal_psi::BoundaryDeclarationRole::Callable)
         .map(|boundary| boundary.id)
         .collect();
     let mut admitted = Vec::new();
@@ -276,7 +312,7 @@ fn admit_assumed_bindings(
         let mut requirement = assumption.supplied_requirement;
         let implementation = loop {
             if let Some(candidate) = installed.get(&requirement) {
-                break *candidate;
+                break candidate.candidate;
             }
             if !visiting.insert(requirement) {
                 return Err(reject(AssumedBindingRejection::CyclicSupply));

@@ -6,7 +6,8 @@ use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 /// Canonical Terminal output beside the checked-source evidence the caller
 /// asked production to retain: the checked `ProgramEntry` receipt when an
-/// entry identity was supplied. Earlier representations never escape.
+/// entry identity was supplied. Provider and boundary declaration identities
+/// live in the canonical catalog; no source-index companion escapes.
 ///
 /// The retained native route rejoins the checked entry receipt after the
 /// checked frontend is gone, so the receipt leaves production beside the

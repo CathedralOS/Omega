@@ -54,6 +54,21 @@ target's Build row to that catalog; it does not reopen checked source or ask the
 publication stage for a source-index companion. Requirement package identity is
 explicit, so same-spelling requirements from different packages cannot collide.
 
+The provider catalog retains the exact nominal selecting declaration separately
+from the realizing callable: two named maps may share code without becoming one
+provider. Boundary declarations retain their exact schema owner so whole-interface
+demand filtering also uses canonical identities. Receiving checked selections
+name that declaration and the artifact-local boundary/body IDs; display labels
+alone do not establish owner or package identity.
+Admitted selections retain the canonical choosing declaration for policy
+agreement; projecting a selection to its execution body does not erase that
+declaration from the sealed installation.
+The source-free Build proposal retains that exact selecting declaration with
+each complete provider plan; a plan's display label and optional managed package
+are not sufficient to recover a toolchain source owner. Proof-only foreign loan
+rows carry ContractEvidence rather than Callable role: their schema owner creates
+no provider demand, and receiving execution cannot install or invoke those rows.
+
 Source-produced machine bodies retain a portable checked declaration identity:
 exact-owner callable and initial state, contract commitment, and optional
 specialization template/commitment. Optimization preserves this identity on the

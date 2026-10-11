@@ -93,6 +93,11 @@ pub(super) fn encode_boundary_machine(
 ) {
     bytes.id(declaration.id);
     bytes.u32(declaration.identity.0);
+    bytes.u32(declaration.owner.identity().0);
+    bytes.u8(match declaration.role {
+        terminal_psi::BoundaryDeclarationRole::Callable => 0,
+        terminal_psi::BoundaryDeclarationRole::ContractEvidence => 1,
+    });
     bytes.u8(match declaration.kind {
         terminal_psi::BoundaryRequirementKind::Machine => 0,
         terminal_psi::BoundaryRequirementKind::Trait => 1,
@@ -351,6 +356,7 @@ pub(super) fn encode_provider_candidate(
     bytes.id(candidate.boundary);
     bytes.u32(candidate.requirement_identity.0);
     bytes.u32(candidate.provider_identity.0);
+    bytes.u32(candidate.provider_declaration.identity().0);
     bytes.u32(candidate.candidate_identity.0);
     bytes.id(candidate.candidate);
     bytes.slice(&candidate.signature.parameters, |bytes, parameter| {

@@ -82,6 +82,7 @@ fn interpret_product(
             "native report lost its produced Terminal artifact before comparison",
         ))?;
     compiler::runtime::execute(TerminalRuntimeRequest {
+        provider_proposal: None,
         artifact,
         target: Some(target),
         provisions: report.runtime_provisions(),

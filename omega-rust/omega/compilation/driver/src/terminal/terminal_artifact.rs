@@ -110,6 +110,19 @@ pub(crate) fn produce_retained_terminal_artifact(
     // rejoins the record once the product is produced and admitted.
     let mut stage_timings = std::mem::take(checked.timings_mut());
     let psi_optimizations = selections.project_psi();
+    let context = provider_planning::ProviderPlanningContext::new(
+        &checked.execution().program.typed,
+        source::DependencyScope::Product,
+    );
+    let boundary_roots = provider_planning::target_machines::provider_selection_roots(
+        context,
+        checked
+            .build_admission()
+            .provider_defaults
+            .iter()
+            .flat_map(|row| &row.selections)
+            .chain(&checked.build().config.provider_selections),
+    )?;
     // Production records its own legs into this same ladder, so the aggregate
     // row cannot be taken with `record_result`: that holds the accumulator
     // borrowed across the call. Measuring around it and adding the row
@@ -127,6 +140,7 @@ pub(crate) fn produce_retained_terminal_artifact(
         checked: &checked.execution().program,
         exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
         machine: terminal_production::TerminalMachineSelection::Symbol(portable_entry_symbol),
+        boundary_roots: &boundary_roots,
         optimization_selections: psi_optimizations.selections().clone(),
     }
     .produce(TerminalProductionCustody {
@@ -154,6 +168,34 @@ pub(crate) fn produce_retained_terminal_artifact(
             "terminal-artifact production retained no checked ProgramEntry receipt",
         )]
     })?;
+    let mut targets = checked
+        .build_admission()
+        .provider_defaults
+        .iter()
+        .filter_map(|row| row.target.clone())
+        .collect::<Vec<_>>();
+    for binding in &checked.build().config.root_bindings {
+        if let Some((owner, _)) = binding.slot.rsplit_once("::")
+            && let Ok(profile) = target::TargetProfile::from_root_slot_owner(owner)
+        {
+            targets.push(profile.target_name().to_owned());
+        }
+    }
+    targets.push(entry_target_profile.target_name().to_owned());
+    targets.sort();
+    targets.dedup();
+    let target_provider_proposals =
+        provider_planning::target_machines::TargetProviderPublicationRequest {
+            context,
+            artifact: produced.artifact().view(),
+            exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
+            defaults: &checked.build_admission().provider_defaults,
+            overrides: &checked.build().config.provider_selections,
+            settlement: checked.providers(),
+            targets: &targets,
+            optimization_selection: selections.identity(),
+        }
+        .publish();
     let artifact = produced.into_artifact();
     let native_realization_proposal =
         stage_timings.record_result(NATIVE_REALIZATION_PROPOSAL_STAGE, || {
@@ -165,7 +207,8 @@ pub(crate) fn produce_retained_terminal_artifact(
             )
         });
     *checked.timings_mut() = stage_timings;
-    let native_realization_proposal = native_realization_proposal?;
+    let native_realization_proposal =
+        native_realization_proposal?.with_target_provider_proposals(target_provider_proposals);
     let artifact =
         compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
             artifact,

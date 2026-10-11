@@ -467,7 +467,8 @@ pub(super) fn validate_external_completion(
     else {
         return malformed("external completion references an unknown boundary");
     };
-    if declaration.completion != terminal_psi::BoundaryCompletion::External(*kind)
+    if declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
+        || declaration.completion != terminal_psi::BoundaryCompletion::External(*kind)
         || declaration.result != BoundaryMachineResult::Unit
         || declaration.scalar_parameters.len() != 1
         || !matches!(declaration.scalar_parameters.first(),
@@ -537,6 +538,9 @@ pub(super) fn validate_boundary_call(
     };
     if boundary.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn {
         return malformed("external completion requires a closed terminal invocation");
+    }
+    if boundary.role != terminal_psi::BoundaryDeclarationRole::Callable {
+        return malformed("boundary call references contract evidence rather than a callable");
     }
     let actual_result = match &operation.result {
         OperationResult::Unit => Some(BoundaryMachineResult::Unit),

@@ -55,6 +55,8 @@ pub(crate) fn lower_selected_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
+    boundary_roots: &[symbols::SymbolHandle],
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<LoweredSelectedMachine, LoweringError> {
     // A portable head owns a checked contract and complete member catalog,
     // but no executable body. Close the same catalog without inserting the
@@ -74,6 +76,8 @@ pub(crate) fn lower_selected_machine(
                     checked,
                     selection.machine,
                     &[],
+                    boundary_roots,
+                    exact_toolchain_sources,
                 ),
             )?,
             LoweringCompletion {
@@ -85,7 +89,13 @@ pub(crate) fn lower_selected_machine(
     // result-bearing ordinary body lowers through a closure below, its
     // result with the cleanup after it.
     if let Some(plan) = select_unit_plan(checked, selection)? {
-        return lower_unit_plan_machine(identities, checked, plan);
+        return lower_unit_plan_machine(
+            identities,
+            checked,
+            plan,
+            boundary_roots,
+            exact_toolchain_sources,
+        );
     }
     if selection.signature == CheckedTerminalSignatureEligibility::Unsupported {
         return unsupported("machine signature is outside the current terminal-Psi source slice");
@@ -111,7 +121,13 @@ pub(crate) fn lower_selected_machine(
         && (unit_plan || selection.signature == CheckedTerminalSignatureEligibility::FreeUnitEffect)
     {
         return Ok(LoweredSelectedMachine::source_mapped(
-            lower_unit_effect_closure(identities, checked, selection.machine)?,
+            lower_unit_effect_closure(
+                identities,
+                checked,
+                selection.machine,
+                boundary_roots,
+                exact_toolchain_sources,
+            )?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
                 ..Default::default()
@@ -134,6 +150,8 @@ pub(crate) fn lower_selected_machine(
             identities,
             checked,
             selection.machine,
+            boundary_roots,
+            exact_toolchain_sources,
         )?,
         LoweringCompletion {
             ..Default::default()

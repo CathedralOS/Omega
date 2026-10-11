@@ -29,10 +29,30 @@ pub(crate) fn finalize_execution(
     // complete nominal cleanup plan once and publishes that plan's `.machine`
     // as the consumer's own ordinary row; attached callers assemble below.
     let mut free_nominal_cleanups = Vec::new();
+    // Contracts are declaration-owned, not a summary of whichever calls
+    // happen to exist. Intern their complete target-neutral reach once before
+    // immutable planning so whole-provider defaults retain unused methods.
+    let boundary_signature_reaches = program
+        .traits()
+        .iter()
+        .filter(|owner| owner.is_boundary)
+        .flat_map(|owner| program.trait_machine_signatures(owner))
+        .filter_map(|signature| {
+            validation::boundary_signature_service_reach(program, signature.symbol).map(
+                |services| {
+                    (
+                        signature.symbol,
+                        facts.service_reaches.rows.intern(services),
+                    )
+                },
+            )
+        })
+        .collect::<Vec<_>>();
     let mut terminal_unit_effects =
         crate::execution::terminal_unit::build_checked_unit_effect_plans(
             program,
             &facts,
+            &boundary_signature_reaches,
             crate::execution::terminal_unit::ScalarCalleeClosure,
             call_frames.as_ref(),
             &mut free_nominal_cleanups,

@@ -78,6 +78,11 @@ pub(crate) fn admit_provider_installation_with_projection(
                 .unwrap_or_default()
                 .to_string(),
             candidate: candidate.candidate,
+            provider_declaration: plan
+                .identities
+                .text(candidate.provider_declaration.identity())
+                .ok_or(ProviderInstallationError::InvalidLoweredCatalog)?
+                .to_owned(),
         });
         installed_candidates.push((**candidate).clone());
     }

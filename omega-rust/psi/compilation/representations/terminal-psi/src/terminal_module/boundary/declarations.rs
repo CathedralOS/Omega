@@ -61,9 +61,21 @@ pub enum BoundaryParameterKind {
     Structural,
 }
 
+/// A callable signature and retained contract evidence have different custody.
+/// Evidence-only rows retain an unused foreign contract's checked loan, but
+/// cannot create an installation demand or an executable entrance. Empty
+/// parameter lists and Unit results also occur on real calls, so shape is not
+/// a substitute for this explicit semantic role.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoundaryDeclarationRole {
+    Callable,
+    ContractEvidence,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoundaryMachineDeclaration {
     pub id: BoundaryMachineId,
+    pub role: BoundaryDeclarationRole,
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
     /// Exact opaque completion contract; installation must authenticate it.
     pub completion: semantic_vocabulary::BoundaryCompletion,
@@ -72,6 +84,9 @@ pub struct BoundaryMachineDeclaration {
     /// it neither erases nor discharges a conditional guarantee's subjects.
     pub unconditional_termination: bool,
     pub identity: TerminalIdentityIndex,
+    /// Exact declaring schema owner. Whole-provider selection joins this
+    /// portable identity, never a publication-time source-index companion.
+    pub owner: crate::NominalDeclarationIdentity,
     pub attachment: Option<StructuralTypeId>,
     /// Exact interleave of the two lanes. Each parameter appears once, in its
     /// lane's order. This relationship is part of the portable signature.

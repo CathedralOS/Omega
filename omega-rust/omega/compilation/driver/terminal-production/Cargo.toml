@@ -10,6 +10,7 @@ effects = { path = "../../backend/plans/provider-evidence" }
 trust-model = { path = "../../realization/trust-model" }
 target = { path = "../../backend/target" }
 source = { path = "../../../../psi/foundation/source" }
+symbols = { path = "../../../../psi/foundation/symbols" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
 optimization = { path = "../../../../psi/foundation/optimization-selections" }
 

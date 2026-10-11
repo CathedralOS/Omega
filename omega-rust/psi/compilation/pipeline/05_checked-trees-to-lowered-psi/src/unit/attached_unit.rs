@@ -130,6 +130,8 @@ pub(crate) struct UnitClosureRequest<'a> {
     pub(crate) plans: UnitPlans<'a>,
     pub(crate) entry: symbols::SymbolHandle,
     pub(crate) unit_roots: &'a [symbols::SymbolHandle],
+    pub(crate) boundary_roots: &'a [symbols::SymbolHandle],
+    pub(crate) exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub(crate) scalar_entry: bool,
 }
 
@@ -139,11 +141,15 @@ impl<'a> UnitClosureRequest<'a> {
         checked: &'a CheckedTrees,
         entry: symbols::SymbolHandle,
         roots: &'a [symbols::SymbolHandle],
+        boundary_roots: &'a [symbols::SymbolHandle],
+        exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     ) -> Self {
         Self {
             plans: UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
             entry,
             unit_roots: roots,
+            boundary_roots,
+            exact_toolchain_sources,
             scalar_entry: false,
         }
     }
@@ -156,11 +162,19 @@ pub(crate) fn lower_unit_effect_closure(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
+    boundary_roots: &[symbols::SymbolHandle],
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_unit_closure(
         identities,
         checked,
-        &UnitClosureRequest::unit(checked, entry, &[entry]),
+        &UnitClosureRequest::unit(
+            checked,
+            entry,
+            &[entry],
+            boundary_roots,
+            exact_toolchain_sources,
+        ),
     )
 }
 
@@ -171,13 +185,15 @@ pub(crate) fn lower_scalar_effect_closure(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
+    boundary_roots: &[symbols::SymbolHandle],
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_unit_closure(
         identities,
         checked,
         &UnitClosureRequest {
             scalar_entry: true,
-            ..UnitClosureRequest::unit(checked, entry, &[])
+            ..UnitClosureRequest::unit(checked, entry, &[], boundary_roots, exact_toolchain_sources)
         },
     )
 }
@@ -194,6 +210,8 @@ pub(crate) fn lower_unit_closure(
         plans,
         entry,
         unit_roots,
+        boundary_roots,
+        exact_toolchain_sources,
         scalar_entry,
     } = *request;
     let ordinary_entry = unit_roots.first().copied();
@@ -203,7 +221,14 @@ pub(crate) fn lower_unit_closure(
 
     // Discovery: every machine the closure emits, grouped by the route that
     // emits it.
-    let call_catalog = call_catalog::discover(checked, plans, entry, unit_roots, scalar_entry)?;
+    let call_catalog = call_catalog::discover(
+        checked,
+        plans,
+        entry,
+        unit_roots,
+        boundary_roots,
+        scalar_entry,
+    )?;
     let closure = call_catalog.operations;
     let provider_candidate_plans = call_catalog.providers;
 
@@ -299,6 +324,7 @@ pub(crate) fn lower_unit_closure(
     let (boundary_machines, lowered_boundary_parameters) = boundaries::lower_declarations(
         identities,
         checked,
+        exact_toolchain_sources,
         &boundaries,
         &type_ids,
         &structural_types,
@@ -496,6 +522,7 @@ pub(crate) fn lower_unit_closure(
     let provider_candidates = providers::conformances(
         identities,
         checked,
+        exact_toolchain_sources,
         &provider_candidate_plans,
         &lowered_boundary_parameters,
         &boundary_machines,
@@ -609,6 +636,7 @@ impl ClosureOccurrences {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CheckedUnitProviderCandidate {
+    provider: symbols::SymbolHandle,
     boundary: symbols::SymbolHandle,
     candidate: symbols::SymbolHandle,
     requirement_identity: typed_trees::type_identity::CallableIdentityId,

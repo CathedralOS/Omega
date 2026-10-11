@@ -149,6 +149,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // Possessing this same artifact, its selected provider and established
     // root Binding does not delegate containing-domain death to an embedding.
     let denied = compiler::runtime::execute(compiler::runtime::TerminalRuntimeRequest {
+        provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
         provisions: product.runtime_provisions.as_ref(),
@@ -168,6 +169,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         "embedding without host delegation must refuse before execution"
     );
     let observation = compiler::runtime::execute(compiler::runtime::TerminalRuntimeRequest {
+        provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
         provisions: product.runtime_provisions.as_ref(),
@@ -240,7 +242,10 @@ fn exercise_owned_and_borrowed_instances() {
     );
     let (transferred_module, _) = published.into_semantics();
     assert_eq!(machine_storage, transferred_module.machines.as_ptr());
-    let entry = module.machine(module.entry).unwrap();
+    let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry else {
+        panic!("this fixture has an ordinary machine entry");
+    };
+    let entry = module.machine(entry).unwrap();
     assert!(
         std::ptr::eq(borrowed.entry().unwrap().result, &entry.result),
         "execution descriptions must borrow the original declarations"

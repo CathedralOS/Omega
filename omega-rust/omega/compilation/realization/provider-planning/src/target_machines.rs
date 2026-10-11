@@ -12,6 +12,9 @@ use target::TargetProfile;
 use typed_trees::TypedTrees;
 use typed_trees::typed_trees::inspection::callees::ExplicitStateCallees;
 
+mod provider_publication;
+pub use provider_publication::{TargetProviderPublicationRequest, provider_selection_roots};
+
 /// Harvest every Product default before choosing a realization. Build defaults
 /// instead belong to its separately admitted execution, not foreign siblings.
 pub fn retain_provider_defaults(

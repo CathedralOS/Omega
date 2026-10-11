@@ -14,3 +14,6 @@ calling-conventions = { path = "../../calling-conventions" }
 function-identity = { path = "../../../../foundation/function-identity" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-installation = { path = "../../../../../psi/compilation/checking/terminal-installation" }
+effects = { path = "../provider-evidence" }
+optimization-core = { path = "../../../../foundation/optimization-core" }

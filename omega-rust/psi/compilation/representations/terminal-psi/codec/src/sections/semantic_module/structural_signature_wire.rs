@@ -40,6 +40,11 @@ pub(crate) fn encode_boundary_machine(
 ) -> Result<(), CodecError> {
     writer.id(declaration.id);
     writer.u32(declaration.identity.0);
+    writer.u32(declaration.owner.identity().0);
+    writer.u8(match declaration.role {
+        terminal_psi::BoundaryDeclarationRole::Callable => 0,
+        terminal_psi::BoundaryDeclarationRole::ContractEvidence => 1,
+    });
     writer.u8(match declaration.kind {
         terminal_psi::BoundaryRequirementKind::Machine => 0,
         terminal_psi::BoundaryRequirementKind::Trait => 1,
@@ -263,6 +268,12 @@ pub(crate) fn decode_boundary_machine(
     Ok(BoundaryMachineDeclaration {
         id: reader.id("BoundaryMachineId")?,
         identity: TerminalIdentityIndex(reader.u32()?),
+        owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
+        role: match reader.u8()? {
+            0 => terminal_psi::BoundaryDeclarationRole::Callable,
+            1 => terminal_psi::BoundaryDeclarationRole::ContractEvidence,
+            tag => return Err(CodecError::InvalidTag("BoundaryDeclarationRole", tag)),
+        },
         kind: match reader.u8()? {
             0 => terminal_psi::BoundaryRequirementKind::Machine,
             1 => terminal_psi::BoundaryRequirementKind::Trait,

@@ -18,6 +18,7 @@ pub(crate) struct NativeRealizationRequest<'request> {
     /// Isolated bodies paired one-to-one with admitted callback arguments.
     /// Each body has its own Terminal artifact namespace.
     pub callback_thunks: &'request [backend_plan::NativeCallbackThunkSettlement<'request>],
+    pub target_provider_proposals: &'request [backend_plan::TerminalTargetProviderProposal],
 }
 
 impl NativeRealizationRequest<'_> {

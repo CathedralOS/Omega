@@ -118,7 +118,7 @@ pub(super) fn checked_unit_provider_candidates(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
-    retained_requirements: &[symbols::SymbolHandle],
+    retained_requirements: &mut Vec<symbols::SymbolHandle>,
 ) -> Result<Vec<CheckedUnitProviderCandidate>, LoweringError> {
     let bodies = closure
         .iter()
@@ -140,8 +140,41 @@ pub(super) fn checked_unit_provider_candidates(
             crate::expression_preparation::computation_graph::boundary_targets(checked, *machine)?,
         );
     }
+    // A runtime call demands its complete boundary-trait interface. Retain
+    // unused coordinates before candidate/body discovery so automatic unique
+    // selection has the same whole-plan semantics as an authored default.
+    // The checker still owns every concrete boundary plan; no open application
+    // or missing method is synthesized from a provider body.
+    let demanded_traits = checked
+        .typed
+        .traits()
+        .iter()
+        .filter(|definition| {
+            definition.is_boundary
+                && checked
+                    .typed
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .any(|signature| boundary_symbols.contains(&signature.symbol))
+        })
+        .collect::<Vec<_>>();
+    for definition in demanded_traits {
+        typed_trees::trait_definition::AppliedTraitScope::abstract_scope(definition).visit(
+            &checked.typed,
+            &mut |scope| {
+                boundary_symbols.extend(
+                    checked
+                        .typed
+                        .trait_machine_signatures(scope.declaration)
+                        .iter()
+                        .map(|signature| signature.symbol),
+                );
+            },
+        );
+    }
     boundary_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     boundary_symbols.dedup();
+    *retained_requirements = boundary_symbols.clone();
     let mut output = Vec::new();
     for boundary_symbol in boundary_symbols {
         let boundary = unique_unit_boundary(plans, boundary_symbol)?;
@@ -214,11 +247,14 @@ pub(super) fn checked_unit_provider_candidates(
             if machine.attached_data.is_some() {
                 for conformance in checked.typed.machine_trait_conformances(machine) {
                     if satisfies_requirement(checked, machine, conformance, requirement) {
-                        providers.push(checked.typed.attached_data_path(machine).ok_or(
-                            LoweringError::Unsupported(
-                                "provider candidate has no attached data path",
-                            ),
-                        )?);
+                        providers.push((
+                            machine.attached_data_symbol,
+                            checked.typed.attached_data_path(machine).ok_or(
+                                LoweringError::Unsupported(
+                                    "provider candidate has no attached data path",
+                                ),
+                            )?,
+                        ));
                         break;
                     }
                 }
@@ -289,8 +325,12 @@ pub(super) fn checked_unit_provider_candidates(
                     }
                 }
             }
-            for provider_identity in providers {
+            for (provider, provider_identity) in providers {
+                if !provider.is_valid() {
+                    return unsupported("provider candidate has no exact declaration owner");
+                }
                 output.push(CheckedUnitProviderCandidate {
+                    provider,
                     boundary: boundary_symbol,
                     candidate: machine.symbol,
                     requirement_identity,
@@ -309,6 +349,8 @@ pub(super) fn checked_unit_provider_candidates(
             left.boundary.arena_index(),
             left.boundary.generation(),
             &left.provider_identity,
+            left.provider.arena_index(),
+            left.provider.generation(),
             left.candidate.arena_index(),
             left.candidate.generation(),
         )
@@ -316,6 +358,8 @@ pub(super) fn checked_unit_provider_candidates(
                 right.boundary.arena_index(),
                 right.boundary.generation(),
                 &right.provider_identity,
+                right.provider.arena_index(),
+                right.provider.generation(),
                 right.candidate.arena_index(),
                 right.candidate.generation(),
             ))
@@ -323,6 +367,7 @@ pub(super) fn checked_unit_provider_candidates(
     if output.windows(2).any(|pair| {
         pair[0].boundary == pair[1].boundary
             && pair[0].provider_identity == pair[1].provider_identity
+            && pair[0].provider == pair[1].provider
             && pair[0].candidate == pair[1].candidate
     }) {
         return unsupported("Unit provider catalog contains a duplicate exact candidate");
@@ -337,6 +382,7 @@ pub(super) fn checked_unit_provider_candidates(
 pub(super) fn conformances(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     candidates: &[CheckedUnitProviderCandidate],
     boundary_parameters: &[BoundaryParameters],
     boundary_machines: &[BoundaryMachineDeclaration],
@@ -372,6 +418,7 @@ pub(super) fn conformances(
                     "provider candidate scalar signature disagrees with its boundary requirement",
                 );
             }
+            let provider_identity = identities.intern(&candidate.provider_identity);
             Ok(ProviderCandidateConformance {
                 boundary: *boundary,
                 requirement_identity: identities.intern(
@@ -379,7 +426,14 @@ pub(super) fn conformances(
                         .typed
                         .callable_identity_text(candidate.requirement_identity),
                 ),
-                provider_identity: identities.intern(&candidate.provider_identity.clone()),
+                provider_identity,
+                provider_declaration: crate::machine_lowering::declarations::nominal(
+                    identities,
+                    checked,
+                    exact_toolchain_sources,
+                    candidate.provider,
+                )
+                .map_err(LoweringError::Unsupported)?,
                 candidate_identity: identities.intern(
                     &checked
                         .typed
@@ -425,14 +479,22 @@ pub(super) fn conformances(
     conformances.sort_by(|left, right| {
         (
             left.boundary,
-            &left.provider_identity,
-            &left.candidate_identity,
+            identities.text(left.provider_identity).unwrap_or_default(),
+            identities
+                .text(left.provider_declaration.identity())
+                .unwrap_or_default(),
+            identities.text(left.candidate_identity).unwrap_or_default(),
             left.candidate,
         )
             .cmp(&(
                 right.boundary,
-                &right.provider_identity,
-                &right.candidate_identity,
+                identities.text(right.provider_identity).unwrap_or_default(),
+                identities
+                    .text(right.provider_declaration.identity())
+                    .unwrap_or_default(),
+                identities
+                    .text(right.candidate_identity)
+                    .unwrap_or_default(),
                 right.candidate,
             ))
     });

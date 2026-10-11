@@ -57,6 +57,9 @@ pub struct TerminalRuntimeRequest<'program> {
     /// execution scopes that do not demand a portable target-family head.
     pub target: Option<&'program str>,
     pub provisions: Option<&'program TerminalRuntimeProvisions>,
+    /// Explicit receiving-root choice from the Build companion. It supplies
+    /// checked candidate selection only, never entry backing or host authority.
+    pub provider_proposal: Option<&'program backend_plan::TerminalTargetProviderProposal>,
     pub fuel_allowance: u64,
     /// Explicit host acceptance of domain death through the driver's private
     /// storage and buffered crossings. Binding establishment, reach, provider
@@ -141,9 +144,36 @@ pub fn execute(
             "runtime provisions name another deployment target",
         ));
     }
-    let checked_installation = request
+    let retained_installation = request
         .provisions
         .and_then(TerminalRuntimeProvisions::installation);
+    let proposed_installation = request
+        .provider_proposal
+        .map(|proposal| {
+            if proposal.terminal_psi != artifact.identity()
+                || request.target != Some(proposal.target.as_str())
+            {
+                return Err(TerminalRuntimeError::InvalidProvision(
+                    "provider proposal names another Terminal artifact or deployment target",
+                ));
+            }
+            let selection = proposal.selection.as_ref().map_err(|reasons| {
+                TerminalRuntimeError::missing("target-provider-selection", reasons.join("; "))
+            })?;
+            selection
+                .admit(artifact, &proposal.target)
+                .map_err(|error| TerminalRuntimeError::missing("target-provider-selection", error))
+        })
+        .transpose()?;
+    if let (Some(retained), Some(proposed)) =
+        (retained_installation, proposed_installation.as_ref())
+        && retained != proposed
+    {
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "runtime provisions and explicit provider proposal disagree",
+        ));
+    }
+    let checked_installation = proposed_installation.as_ref().or(retained_installation);
     let target_machines = request
         .target
         .map(|target| terminal_interpreter::admit_target_machine_selections(artifact, target));

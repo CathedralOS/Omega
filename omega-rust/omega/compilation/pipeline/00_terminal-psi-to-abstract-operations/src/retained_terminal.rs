@@ -10,6 +10,7 @@ pub use proposal::{
     project_terminal_native_realization_proposal,
 };
 
+pub use backend_plan::TerminalTargetProviderProposal;
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use native_providers::RetainedNativeProviderInputs;
 
@@ -67,6 +68,7 @@ pub struct TerminalNativeRealizationProposal {
     boundary_applications: TerminalNativeBoundaryApplications,
     package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     behavior_exclusions: effects::BehaviorExclusions,
+    target_provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
 }
 
 impl TerminalNativeRealizationProposal {
@@ -97,6 +99,7 @@ impl TerminalNativeRealizationProposal {
                 })
         });
         Self {
+            target_provider_proposals: Vec::new(),
             application,
             program_entry,
             post_terminal_optimizations,
@@ -110,6 +113,20 @@ impl TerminalNativeRealizationProposal {
 
     pub const fn target_profile(&self) -> target::TargetProfile {
         self.program_entry.source().target_slot().owner
+    }
+
+    /// Keep all authored deployment choices beside the portable artifact.
+    /// These are pending selections, not the selected entry's backing or grants.
+    pub fn with_target_provider_proposals(
+        mut self,
+        proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+    ) -> Self {
+        self.target_provider_proposals = proposals;
+        self
+    }
+
+    pub fn target_provider_proposals(&self) -> &[backend_plan::TerminalTargetProviderProposal] {
+        &self.target_provider_proposals
     }
 
     pub const fn native_target(&self) -> target::NativeTarget {

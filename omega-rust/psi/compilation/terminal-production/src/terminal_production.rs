@@ -19,6 +19,9 @@ pub struct TerminalProductionRequest<'a> {
     pub checked: &'a CheckedTrees,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub machine: TerminalMachineSelection<'a>,
+    /// Complete checked interface roots requested by the owning product.
+    /// These retain declarations/candidates and introduce no runtime call.
+    pub boundary_roots: &'a [symbols::SymbolHandle],
     pub optimization_selections: optimization::PsiOptimizationSelections,
 }
 
@@ -33,6 +36,7 @@ impl<'a> TerminalProductionRequest<'a> {
             checked,
             exact_toolchain_sources,
             machine,
+            boundary_roots: &[],
             optimization_selections: optimization::PsiOptimizationSelections::default(),
         }
     }
@@ -71,7 +75,12 @@ impl<'a> TerminalProductionRequest<'a> {
         };
         let lowered = observer
             .record_result(TerminalProductionStage::Lowering, || {
-                lower_machine(self.checked, self.machine, self.exact_toolchain_sources)
+                lower_machine(
+                    self.checked,
+                    self.machine,
+                    self.exact_toolchain_sources,
+                    self.boundary_roots,
+                )
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         if let (Some(admission), Some(selection)) = (admission, entry_selection) {

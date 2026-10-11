@@ -770,6 +770,9 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
                     boundary,
                     requirement_identity: terminal_psi::TerminalIdentityIndex(7),
                     provider_identity: terminal_psi::TerminalIdentityIndex(8),
+                    provider_declaration: terminal_psi::NominalDeclarationIdentity::new(
+                        terminal_psi::TerminalIdentityIndex(8),
+                    ),
                     candidate_identity: terminal_psi::TerminalIdentityIndex(9),
                     candidate: callee,
                     signature: ProviderSignature::empty(),

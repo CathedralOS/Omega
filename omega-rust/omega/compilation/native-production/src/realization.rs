@@ -83,7 +83,9 @@ pub(crate) fn realize_native_artifact(
         &request,
     )?;
     let runtime_provisions = runtime_provisions.map(|provisions| {
-        provisions.with_borrowed_storage_layouts(emitted.borrowed_storage_layouts)
+        provisions
+            .with_borrowed_storage_layouts(emitted.borrowed_storage_layouts)
+            .with_target_provider_proposals(request.target_provider_proposals.to_vec())
     });
     let emitted = emitted.object;
     // Build output configuration supplies the loader; the emitted object's own

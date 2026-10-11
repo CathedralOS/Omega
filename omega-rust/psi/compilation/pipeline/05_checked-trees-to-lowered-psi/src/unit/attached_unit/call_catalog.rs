@@ -23,11 +23,18 @@ pub(super) fn discover(
     plans: UnitPlans<'_>,
     entry: symbols::SymbolHandle,
     unit_roots: &[symbols::SymbolHandle],
+    boundary_roots: &[symbols::SymbolHandle],
     scalar_entry: bool,
 ) -> Result<CheckedCallCatalog, LoweringError> {
     let mut retained_roots = unit_roots.to_vec();
     let mut family_scalar_roots = Vec::new();
-    let mut retained_boundary_roots = Vec::new();
+    // Authored selection subjects are interface roots, not runtime calls.
+    // Keep the complete supplied roster, even methods no body invokes; a
+    // missing checked plan rejects rather than narrowing a whole-trait default.
+    let mut retained_boundary_roots = boundary_roots.to_vec();
+    for boundary in &retained_boundary_roots {
+        super::unique_unit_boundary(plans, *boundary)?;
+    }
     // Target families are portable product surface, not entry reachability.
     // Discover each contract head and implementation before allocating shared
     // namespaces. An independent head retains its opaque checked plan even
@@ -104,8 +111,12 @@ pub(super) fn discover(
             }
             None => Vec::new(),
         };
-        let candidates =
-            checked_unit_provider_candidates(checked, plans, &closure, &retained_boundary_roots)?;
+        let candidates = checked_unit_provider_candidates(
+            checked,
+            plans,
+            &closure,
+            &mut retained_boundary_roots,
+        )?;
         // This catalog contains checked Omega bodies, not opaque realizations.
         // Their stores and atomic operations keep the same checked access and
         // custody as ordinary calls, and their transitive calls join this
@@ -113,11 +124,15 @@ pub(super) fn discover(
         // or into owned local storage; its operation kind does not imply an
         // opaque write-only boundary. Such boundaries retain their separate
         // source admission and provider-installation evidence requirements.
-        let mut new_roots = candidates
-            .iter()
-            .map(|candidate| candidate.candidate)
-            .filter(|candidate| !closure.contains(candidate))
-            .collect::<Vec<_>>();
+        // Several provider owners may share one ordinary implementation.
+        // Candidate associations stay distinct; operation roots are a set.
+        let mut new_roots = Vec::new();
+        for candidate in &candidates {
+            if !closure.contains(&candidate.candidate) && !new_roots.contains(&candidate.candidate)
+            {
+                new_roots.push(candidate.candidate);
+            }
+        }
         let mut ordinary_scalar_roots = Vec::new();
         let mut structural_scalar_roots = Vec::new();
         for root in &family_scalar_roots {

@@ -867,6 +867,9 @@ fn interpret_native_report(
     observe_retained_terminal(
         artifact,
         report.runtime_provisions(),
+        report
+            .runtime_provisions()
+            .map_or(&[], |provisions| provisions.target_provider_proposals()),
         Some(target),
         fixture_dir,
     )
@@ -877,6 +880,7 @@ fn interpret_native_report(
 fn observe_retained_terminal(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     provisions: Option<&compilation_products::TerminalRuntimeProvisions>,
+    proposals: &[backend_plan::TerminalTargetProviderProposal],
     target: Option<&str>,
     fixture_dir: &Path,
 ) -> terminal_execution::Observation {
@@ -897,7 +901,7 @@ fn observe_retained_terminal(
     };
     if fixture_dir.join(terminal_execution::TARGET_ORACLE).exists() {
         let installations =
-            terminal_execution::target_installations(artifact, fixture_dir, 1_000_000);
+            terminal_execution::target_installations(artifact, proposals, fixture_dir, 1_000_000);
         observation.facts.extend(installations.facts);
         observation.diagnostics.extend(installations.diagnostics);
     }
@@ -1606,6 +1610,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                     interpreter_observation = Some(observe_retained_terminal(
                         leg.artifact.artifact(),
                         None,
+                        leg.artifact
+                            .native_realization_proposal()
+                            .map_or(&[], |proposal| proposal.target_provider_proposals()),
                         interpreter_target.as_deref(),
                         &fixture_dir,
                     ));

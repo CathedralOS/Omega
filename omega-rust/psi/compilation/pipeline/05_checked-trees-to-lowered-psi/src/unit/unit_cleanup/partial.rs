@@ -14,6 +14,8 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
+    boundary_roots: &[symbols::SymbolHandle],
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     let plan = &partial.machine;
     // The lane's dispatcher joins the ordinary roster for this closure.
@@ -22,7 +24,13 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         checked,
         &UnitClosureRequest {
             plans: UnitPlans::with_staged(&checked.facts.flow.terminal_unit_effects, plan),
-            ..UnitClosureRequest::unit(checked, plan.machine, &[plan.machine])
+            ..UnitClosureRequest::unit(
+                checked,
+                plan.machine,
+                &[plan.machine],
+                boundary_roots,
+                exact_toolchain_sources,
+            )
         },
     )?;
     // A root fully consumed by its projections publishes no residual row and

@@ -1085,17 +1085,24 @@ are not re-sorted by the canonical-order checker.
 
 | Row | Fields |
 | --- | --- |
-| boundary machine | boundary machine id + identity string + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + optional owning service id + published service ceiling |
+| boundary machine | boundary machine id + identity string + declaring schema nominal identity + declaration-role tag + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + optional owning service id + published service ceiling |
 | optional structural type id | `u8` 0 absent; `u8` 1 + structural type id |
 | structural requirement | `u32` argument index + domain id |
 | program-local root introduction | `u32` argument index + `u32` source parameter position + qualification domain id + carrier structural type id + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression + `u64` compatibility report identity |
 | structural parameter | the machine-row structural parameter encoding |
 | service reach | counted service ids |
-| provider candidate | boundary machine id + requirement identity string + provider identity string + candidate identity string + candidate machine id + counted signature parameters + counted positional refinements + counted required domains + counted realized service-ceiling ids |
+| provider candidate | boundary machine id + requirement identity string + provider identity string + selecting declaration nominal identity + candidate identity string + candidate machine id + counted signature parameters + counted positional refinements + counted required domains + counted realized service-ceiling ids |
 | signature parameter | `u32` position + structural type id + structural multiplicity + structural access + counted qualification domain ids + counted projected qualifications |
 | projected qualification | structural path + domain id |
 | positional refinement | `u32` boundary parameter index + `u32` candidate parameter index |
 | required domain | `u32` argument index + domain id |
+
+Declaration-role tags are `0` for Callable and `1` for ContractEvidence.
+Unknown tags reject. ContractEvidence retains proof-only foreign loan custody;
+it cannot be invoked, installed, imported, or used as a target-family member.
+Its schema owner introduces no runtime provider demand. Callable signatures
+retain their exact declaring schema owner; provider candidates retain their
+exact selecting declaration independently of display labels and callable bodies.
 
 Boundary completion tags are `0` for the exact normal-return provider premise
 and `1` for external process exit. Unknown tags reject. Completion is independent
@@ -1166,7 +1173,7 @@ Boundary machines are strictly ordered by boundary machine id with canonical
 crash routes, dense parameter positions, strictly ordered requirements,
 canonical strictly increasing scalar requires propositions (the machine
 contract `requires` rule) and strictly ordered service ceilings. Provider candidates are strictly ordered
-by boundary machine id, then provider identity, then candidate identity, then
+by boundary machine id, then provider identity, then selecting declaration, then candidate identity, then
 candidate machine id.
 
 ### Float-meaning rows

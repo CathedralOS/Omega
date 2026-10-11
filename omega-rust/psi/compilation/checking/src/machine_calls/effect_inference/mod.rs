@@ -17,7 +17,10 @@ pub use invocations::{
 };
 pub use operational::{infer_operational_may, infer_operational_may_for_cleanup_dependencies};
 pub(crate) use service_reach::required_boundary_services;
-pub use service_reach::{fixed_installation_boundary_service_reach, infer_service_reaches};
+pub use service_reach::{
+    boundary_signature_service_reach, fixed_installation_boundary_service_reach,
+    infer_service_reaches,
+};
 
 /// Family interfaces derive effects from every member without adding executable
 /// call edges. Build families still have an ordinary canonical body.

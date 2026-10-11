@@ -180,6 +180,7 @@ fn lower_custody(
 pub(crate) fn retain_foreign_borrow_custodies(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     module: &mut TerminalModule,
 ) -> Result<(), LoweringError> {
     let mut rows = checked
@@ -188,12 +189,33 @@ pub(crate) fn retain_foreign_borrow_custodies(
         .content
         .retained_borrow_custodies
         .iter()
-        .map(|fact| lower_custody(identities, checked, fact))
+        .map(|fact| {
+            let owner = checked
+                .traits()
+                .iter()
+                .find(|definition| {
+                    checked
+                        .trait_machine_signatures(definition)
+                        .iter()
+                        .any(|signature| signature.symbol == fact.callable)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "retained-borrow callable lost its schema owner",
+                ))?;
+            let owner = crate::machine_lowering::declarations::nominal(
+                identities,
+                checked,
+                exact_toolchain_sources,
+                owner.symbol,
+            )
+            .map_err(LoweringError::Unsupported)?;
+            Ok((lower_custody(identities, checked, fact)?, owner))
+        })
         .collect::<Result<Vec<_>, _>>()?;
-    rows.sort_by(|left, right| left.callable_identity.cmp(&right.callable_identity));
+    rows.sort_by(|left, right| left.0.callable_identity.cmp(&right.0.callable_identity));
     if rows
         .windows(2)
-        .any(|pair| pair[0].callable_identity == pair[1].callable_identity)
+        .any(|pair| pair[0].0.callable_identity == pair[1].0.callable_identity)
     {
         return unsupported("retained-borrow callable has multiple custody rows");
     }
@@ -207,7 +229,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
         .ok_or(LoweringError::Unsupported(
             "retained-borrow boundary identity space is exhausted",
         ))?;
-    for row in rows {
+    for (row, owner) in rows {
         if let Some(boundary) = module
             .boundary_machines
             .iter_mut()
@@ -231,6 +253,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
                 "retained-borrow boundary identity space is exhausted",
             ))?;
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            role: terminal_psi::BoundaryDeclarationRole::ContractEvidence,
             unconditional_termination: false,
             completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
             kind: terminal_psi::BoundaryRequirementKind::Trait,
@@ -241,6 +264,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
             owning_service: None,
             id,
             identity: row.callable_identity.clone(),
+            owner,
             attachment: None,
             scalar_parameters: Vec::new(),
             crash_routes: Vec::new(),

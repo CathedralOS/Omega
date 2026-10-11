@@ -14,6 +14,8 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
+    boundary_roots: &[symbols::SymbolHandle],
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<SourceMappedLowered, LoweringError> {
     let plan = &nominal.machine;
     let parameter_count = plan.structural_parameters.len();
@@ -86,6 +88,8 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
             plans,
             entry: plan.machine,
             unit_roots: &unit_roots,
+            boundary_roots,
+            exact_toolchain_sources,
             scalar_entry: false,
         },
     )

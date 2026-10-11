@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // The portable root names a callable, including a bodyless family head.
-        124
+        // Provider and boundary catalogs retain exact selecting/schema owners.
+        125
     }
 }

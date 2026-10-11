@@ -5155,3 +5155,6 @@ pass/calls/runtime_owned_state_scalar_field_store_exit checked 6601ms check-targ
 pass/calls/runtime_exact_division_call_span_exit checked 5333ms check-target:macos_arm64 @6301348b6fe2
 pass/calls/runtime_wrapping_division_call_span_exit checked 5323ms check-target:macos_arm64 @6301348b6fe2
 run/arithmetic/pinned_dividend_across_console_calls checked 6751ms check-target:macos_arm64 @9d9e2c34aa73
+pass/targets/runtime_target_default_provider_rows_exit checked 2717ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @6121c00e4546+wt
+pass/targets/runtime_target_named_provider_defaults_exit checked 2688ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @6121c00e4546+wt
+pass/targets/runtime_target_provider_build_override_exit checked 2596ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @6121c00e4546+wt

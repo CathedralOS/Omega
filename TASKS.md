@@ -2698,16 +2698,25 @@ crash and native exit behavior.
     and `targets/runtime_family_current_completion_paths_exit` running through
     both engines (`tools/corpus_gate.py --both
     --filter <fixture>`).
-    Provider-default declaration operations must remain distinct from runtime
-    invocation dependencies. Publish every target's defaults and entry backing
-    in the source-free Build companion; receivers must select the exact row
-    without checked source or another Build evaluation. Preserve
+    Preserve the whole-interface target defaults, named maps sharing bodies and
+    explicit Build override fixtures
+    `targets/runtime_target_{default_provider_rows,named_provider_defaults,provider_build_override}_exit`:
+    receiving installation joins complete selected plans to exact canonical
+    candidates, including uncalled requirements, without source or another
+    Build evaluation. Unrelated providers introduce no demand. Provider-default
+    declarations remain distinct from runtime invocation dependencies.
+    Externalize these in-process proposals and every target's entry backing in
+    the source-free Build companion. Native provider installation still needs
+    exact selecting-declaration custody rather than its current display-label
+    projection; colliding native selections must refuse, not merge owners. Preserve
     `targets/portable_family_entry_installations_exit` (four selected outcomes
     from one unchanged Terminal artifact) and
     `targets/selected_family_exclusion_closure_exit` through both engines;
     selected traps and actual service invocations must still reject exclusions.
-    Distinct tagged native realizations and target-dependent provider rows
-    remain to be demonstrated from that same artifact and companion.
+    Distinct tagged native realizations with their actual ABI/entry backing
+    remain to be demonstrated from that same artifact and companion. Generic
+    and inherited application rosters must retain whole selected interfaces;
+    missing checked coordinates must refuse, never narrow the selected plan.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.
 

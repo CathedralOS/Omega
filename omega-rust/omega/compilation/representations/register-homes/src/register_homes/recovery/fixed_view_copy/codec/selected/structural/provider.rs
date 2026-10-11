@@ -27,6 +27,10 @@ pub(super) fn encode(
     crate::codec_bytes::push_encoded(bytes, provider.boundary.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, provider.requirement_identity.0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, provider.provider_identity.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        bytes,
+        provider.provider_declaration.identity().0.to_le_bytes(),
+    );
     crate::codec_bytes::push_encoded(bytes, provider.candidate_identity.0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, provider.candidate.get().to_le_bytes());
     length(bytes, provider.signature.parameters.len());
@@ -72,6 +76,9 @@ pub(super) fn decode(
     let boundary = decode_id(cursor, BoundaryMachineId::new)?;
     let requirement_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let provider_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
+    let provider_declaration = terminal_psi::NominalDeclarationIdentity::new(
+        terminal_psi::TerminalIdentityIndex(cursor.u32()?),
+    );
     let candidate_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let candidate = decode_id(cursor, MachineId::new)?;
     let parameters = decode_list(cursor, |cursor| {
@@ -100,6 +107,7 @@ pub(super) fn decode(
         boundary,
         requirement_identity,
         provider_identity,
+        provider_declaration,
         candidate_identity,
         candidate,
         signature: ProviderSignature { parameters },

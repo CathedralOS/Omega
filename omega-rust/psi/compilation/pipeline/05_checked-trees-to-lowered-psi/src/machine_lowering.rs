@@ -15,7 +15,7 @@
 mod boundary_applications;
 mod callback_applications;
 pub(crate) mod debug_map;
-mod declarations;
+pub(crate) mod declarations;
 pub(crate) mod float_meanings;
 pub(crate) mod guarded_exits;
 pub(crate) mod machine_dispatch;
@@ -48,6 +48,7 @@ pub fn lower_machine(
     checked: &CheckedTrees,
     machine: TerminalMachineSelection<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    boundary_roots: &[symbols::SymbolHandle],
 ) -> Result<LoweredPsi, LoweringError> {
     // One builder owns the complete closure's identities. Body construction
     // snapshots only a prefix: declaration, evidence and application retention
@@ -55,8 +56,13 @@ pub fn lower_machine(
     // every durable index resolves in the module that owns it.
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let selection = select_terminal_machine(checked, machine)?;
-    let mut lowered =
-        lower_terminal_selection(&mut identities, checked, selection, exact_toolchain_sources)?;
+    let mut lowered = lower_terminal_selection(
+        &mut identities,
+        checked,
+        selection,
+        exact_toolchain_sources,
+        boundary_roots,
+    )?;
     boundary_applications::retain(
         &mut identities,
         checked,
@@ -179,12 +185,19 @@ fn lower_terminal_selection(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    boundary_roots: &[symbols::SymbolHandle],
 ) -> Result<LoweredPsi, LoweringError> {
     let LoweredSelectedMachine {
         terminal: mut lowered,
         completion,
         source_machine_ids,
-    } = lower_selected_machine(identities, checked, selection)?;
+    } = lower_selected_machine(
+        identities,
+        checked,
+        selection,
+        boundary_roots,
+        exact_toolchain_sources,
+    )?;
     if lowered.semantic_module.target_machine_families.len()
         != crate::unit::attached_unit::target_families::runtime_families(checked)?.len()
     {
@@ -245,6 +258,7 @@ fn lower_terminal_selection(
     retained_borrow_custody::retain_foreign_borrow_custodies(
         identities,
         checked,
+        exact_toolchain_sources,
         &mut lowered.semantic_module,
     )?;
     // Selected operator invocations carry their crash contract beside the

@@ -49,6 +49,13 @@ pub(super) fn validate_boundary_machine(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<(), CodecError> {
+    if module
+        .identities
+        .text(boundary.owner.identity())
+        .is_none_or(str::is_empty)
+    {
+        return malformed("boundary schema owner identity must be present");
+    }
     if boundary.kind != terminal_psi::BoundaryRequirementKind::Machine
         && boundary.attachment.is_some()
     {
@@ -109,6 +116,10 @@ pub(super) fn validate_provider_candidate(
     if candidate.requirement_identity.is_absent()
         || candidate.provider_identity.is_absent()
         || candidate.candidate_identity.is_absent()
+        || module
+            .identities
+            .text(candidate.provider_declaration.identity())
+            .is_none_or(str::is_empty)
     {
         return malformed("provider candidate identities must be nonempty");
     }
@@ -116,6 +127,12 @@ pub(super) fn validate_provider_candidate(
         || !module.machine(candidate.candidate).is_some()
     {
         return malformed("provider candidate references an unknown terminal ID");
+    }
+    if module
+        .boundary_machine(candidate.boundary)
+        .is_some_and(|boundary| boundary.role != terminal_psi::BoundaryDeclarationRole::Callable)
+    {
+        return malformed("provider candidate references contract evidence rather than a callable");
     }
     for parameter in &candidate.signature.parameters {
         if !has_structural_type(module, parameter.structural_type) {

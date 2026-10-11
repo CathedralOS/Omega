@@ -367,6 +367,9 @@ mod tests {
                 boundary,
                 requirement_identity,
                 provider_identity,
+                provider_declaration: terminal_psi::NominalDeclarationIdentity::new(
+                    provider_identity,
+                ),
                 candidate_identity,
                 candidate: MachineId::new(2).unwrap(),
                 signature: terminal_psi::ProviderSignature::empty(),
@@ -379,11 +382,16 @@ mod tests {
         boundary: BoundaryMachineId,
     ) -> terminal_psi::BoundaryMachineDeclaration {
         terminal_psi::BoundaryMachineDeclaration {
+            role: terminal_psi::BoundaryDeclarationRole::Callable,
             id: boundary,
             kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
             completion: terminal_psi::BoundaryCompletion::NormalReturn,
             unconditional_termination: false,
             identity: intern_identity(catalogs, "graph boundary"),
+            owner: terminal_psi::NominalDeclarationIdentity::new(intern_identity(
+                catalogs,
+                "graph schema",
+            )),
             attachment: None,
             parameter_order: Vec::new(),
             scalar_parameters: Vec::new(),

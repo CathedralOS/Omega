@@ -59,7 +59,9 @@ pub fn candidate_process_exit_binding(
         .map(|method| {
             effects::ServiceTerminalAuthorityPermission::new(
                 plan.schema.identity_digest(),
-                plan.schema.identity_text(method.requirement_identity).to_owned(),
+                plan.schema
+                    .identity_text(method.requirement_identity)
+                    .to_owned(),
                 effects::TerminalAuthorityDisposition::from_classes(vec![
                     effects::TerminalAuthorityClass::ProcessTermination,
                 ]),

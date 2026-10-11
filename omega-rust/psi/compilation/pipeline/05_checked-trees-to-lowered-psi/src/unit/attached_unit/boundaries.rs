@@ -30,6 +30,7 @@ use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 pub(crate) fn lower_declarations(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -101,6 +102,7 @@ pub(crate) fn lower_declarations(
         let requirement_count = scalar_requires.len();
         let id = boundary_machine_id(dense_identity(index)?);
         declarations.push(BoundaryMachineDeclaration {
+            role: terminal_psi::BoundaryDeclarationRole::Callable,
             unconditional_termination: unconditional_termination(checked, plan)?,
             completion: validation::boundary_requirement_completion(&checked.typed, plan.machine),
             kind: plan.kind,
@@ -112,6 +114,13 @@ pub(crate) fn lower_declarations(
             )?,
             id,
             identity: identities.intern(&identity.render(checked)?),
+            owner: crate::machine_lowering::declarations::nominal(
+                identities,
+                checked,
+                exact_toolchain_sources,
+                plan.contract_owner,
+            )
+            .map_err(LoweringError::Unsupported)?,
             attachment: plan
                 .attachment_type_identity
                 .as_ref()

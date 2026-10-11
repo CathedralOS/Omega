@@ -6,6 +6,7 @@ version.workspace = true
 
 [dependencies]
 source = { path = "../../foundation/source" }
+symbols = { path = "../../foundation/symbols" }
 diagnostics = { path = "../../foundation/diagnostics" }
 checked-trees = { path = "../representations/checked-trees" }
 checked-trees-to-lowered-psi = { path = "../pipeline/05_checked-trees-to-lowered-psi" }

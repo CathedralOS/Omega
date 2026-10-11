@@ -1,0 +1,67 @@
+// Runtime provider defaults belong to the target's installation, not to the
+// portable requirement or whichever target first produced the artifact.
+use omega::language::core::content;
+
+// An unused foreign loan contract retains proof evidence, not a callable
+// provider demand. No installation supplies BorrowedWriter.
+data ByteUnit {}
+data Buffer [linear] {}
+domain Buffer::Owned;
+machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+data PendingWrite<'buffer> [linear] {}
+domain PendingWrite::Retained established by BorrowedWriter::submit;
+machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
+satisfies Content<PendingWrite, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+boundary trait BorrowedWriter {
+    machine unused() -> i32;
+    machine submit<'buffer>(buffer: &'buffer Buffer in Buffer::Owned)
+        -> PendingWrite<'buffer>
+    ensures result in PendingWrite::Retained;
+}
+data UnusedWriter {}
+machine UnusedWriter::unused() -> i32 satisfies BorrowedWriter::unused { 9 }
+
+boundary trait Pick {
+    machine choose() -> i32;
+    // Whole-provider selection keeps this coordinate even though no body calls it.
+    machine spare() -> i32;
+}
+
+data FirstProvider {}
+// An unrelated unique provider is not a demanded installation schema.
+boundary trait Unused { machine spare() -> i32; }
+data Lone {}
+machine Lone::spare() -> i32 satisfies Unused::spare { 9 }
+
+machine FirstProvider::choose() -> i32 satisfies Pick::choose { 1 }
+machine FirstProvider::spare() -> i32 satisfies Pick::spare { 11 }
+data SecondProvider {}
+machine SecondProvider::choose() -> i32 satisfies Pick::choose { 2 }
+machine SecondProvider::spare() -> i32 satisfies Pick::spare { 22 }
+
+data TargetProviders {}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Pick, FirstProvider>(defaults);
+}
+windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Pick, SecondProvider>(defaults);
+}
+
+data Main {}
+macos_arm64 machine Main::main() reaches Pick crashes Trap {
+    let selected: i32 = Pick::choose();
+    transition selected == 1 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+windows_x86_64 machine Main::main() reaches Pick crashes Trap {
+    let chosen: i32 = Pick::choose();
+    transition chosen == 2 { true -> selected() _ -> bad() }
+    state selected() { crash Trap; }
+    state bad() {}
+}

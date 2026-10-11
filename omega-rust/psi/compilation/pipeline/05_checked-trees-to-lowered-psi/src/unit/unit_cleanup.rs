@@ -128,8 +128,16 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
+    boundary_roots: &[symbols::SymbolHandle],
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    lower_ordered_nominal_affine_unit_cleanup_machine(identities, checked, nominal)
+    lower_ordered_nominal_affine_unit_cleanup_machine(
+        identities,
+        checked,
+        nominal,
+        boundary_roots,
+        exact_toolchain_sources,
+    )
 }
 
 /// Selected cleanup operations have the same hook contract for Unit and scalar exits.
@@ -697,6 +705,14 @@ pub(crate) fn lower_partial_affine_unit_cleanup_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
+    boundary_roots: &[symbols::SymbolHandle],
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    partial::lower_partial_affine_unit_cleanup_machine(identities, checked, partial)
+    partial::lower_partial_affine_unit_cleanup_machine(
+        identities,
+        checked,
+        partial,
+        boundary_roots,
+        exact_toolchain_sources,
+    )
 }
