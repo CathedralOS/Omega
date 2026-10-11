@@ -1,0 +1,29 @@
+// Requires locally supplied provider specialization to stay through provider
+// selection: the call is only notated as a boundary operator while the
+// generic adapter supplies a specialized concrete local provider for this
+// exact application, then reaches the selected checked provider.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data GenericMath {}
+
+data GenericMathProvider {}
+
+data Math {}
+
+machine GenericMathProvider::identity<Value>(generic: GenericMath, value: Value) -> Value
+satisfies Math::identity
+{
+    value
+}
+
+boundary machine + Math::identity<Value>(receiver: GenericMath, value: Value) -> Value;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main)
+reaches Console
+{
+    let generic: GenericMath = GenericMath {};
+    main.console.exit_process(generic + (70 as i32));
+}
