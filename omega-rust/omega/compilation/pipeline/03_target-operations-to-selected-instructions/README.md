@@ -57,7 +57,13 @@ quotient, including rejection of signed `MIN % -1`. Normalized operands use the
 existing Exact signed division instructions except for full-width unsigned
 operands, which retain their unsigned realization. x86-64 zero/sign high-half
 preparation retains explicit scratch constraints and adds no source operation or
-fuel charge.
+fuel charge. Division inputs whose target row declares a fixed view are copied
+into instruction-local registers. The original source binding remains available
+for subsequent divisions, remainder operations and calls; accumulator clobbers
+cannot pin that entire live range. Independently selected replay retains the
+same source identities and fixed operand constraints. Allocatable operands need
+no copy. `runtime_reused_division_inputs_exit` covers repeated and aliased inputs
+across signed, unsigned, Wrapping, Saturating and Exact arithmetic.
 
 Fresh sums use activation-local carriers in this graph. Construction
 initializes the complete carrier, including padding and inactive payload bytes,

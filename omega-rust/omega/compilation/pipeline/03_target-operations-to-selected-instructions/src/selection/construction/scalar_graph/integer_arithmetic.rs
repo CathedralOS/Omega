@@ -311,8 +311,10 @@ pub(super) fn emit(
             obligation,
             accepted_fact,
         } => {
-            let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
+            let (_, left_register, left_site, left_type) =
+                builder.resolve(*left).ok_or_else(invalid)?;
+            let (_, right_register, right_site, right_type) =
+                builder.resolve(*right).ok_or_else(invalid)?;
             if left_type != scalar_type
                 || right_type != scalar_type
                 || !carries(scalar_type, *carrier)
@@ -328,6 +330,20 @@ pub(super) fn emit(
                 &constraints.keys,
                 environment.target().architecture,
             );
+            let left_register = fixed_integer_input(
+                builder,
+                environment,
+                constraint,
+                0,
+                (left_register, *left, left_site, left_type),
+            )?;
+            let right_register = fixed_integer_input(
+                builder,
+                environment,
+                constraint,
+                1,
+                (right_register, *right, right_site, right_type),
+            )?;
             let mut operands = vec![left_register, right_register, output];
             match scratch {
                 SaturatingScratch::None => {}
@@ -361,8 +377,9 @@ pub(super) fn emit(
             obligation,
             accepted_fact,
         } => {
-            let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, mut right_register, right_site, right_type) =
+            let (_, left_register, left_site, left_type) =
+                builder.resolve(*left).ok_or_else(invalid)?;
+            let (_, right_register, right_site, right_type) =
                 builder.resolve(*right).ok_or_else(invalid)?;
             if left_type != scalar_type
                 || right_type != scalar_type
@@ -380,18 +397,24 @@ pub(super) fn emit(
             } else {
                 constraints.keys.remainder_u64
             };
+            let left_register = fixed_integer_input(
+                builder,
+                environment,
+                constraint,
+                0,
+                (left_register, *left, left_site, left_type),
+            )?;
+            let right_register = fixed_integer_input(
+                builder,
+                environment,
+                constraint,
+                1,
+                (right_register, *right, right_site, right_type),
+            )?;
             let mut operands = vec![left_register, right_register, output];
             if environment.target().architecture == target::Architecture::X86_64 {
-                // The realized form pins the divisor to RCX so its
-                // RDX zeroing cannot read a live divisor. A shared
-                // dividend/divisor register cannot carry RAX and
-                // RCX fixed views at once, so give the divisor its
-                // own copy first.
-                if right_register == left_register {
-                    right_register =
-                        builder.copy(right_register, *right, right_site, scalar_type)?;
-                    operands[1] = right_register;
-                }
+                // Fixed input copies keep the accumulator and divisor
+                // distinct, even when both operands name one source value.
                 operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
             }
             builder.emit(
@@ -424,8 +447,9 @@ pub(super) fn emit(
             obligation,
             accepted_fact,
         } => {
-            let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, mut right_register, right_site, right_type) =
+            let (_, left_register, left_site, left_type) =
+                builder.resolve(*left).ok_or_else(invalid)?;
+            let (_, right_register, right_site, right_type) =
                 builder.resolve(*right).ok_or_else(invalid)?;
             let Some(integer) = scalar_type.as_integer() else {
                 return Err(invalid());
@@ -445,22 +469,25 @@ pub(super) fn emit(
             let (kind, key) =
                 selection.kind_and_key(*obligation, *accepted_fact, &constraints.keys);
             let raw = builder.register(result.value, result.definition_site, scalar_type)?;
+            let left_register = fixed_integer_input(
+                builder,
+                environment,
+                key,
+                0,
+                (left_register, *left, left_site, left_type),
+            )?;
+            let right_register = fixed_integer_input(
+                builder,
+                environment,
+                key,
+                1,
+                (right_register, *right, right_site, right_type),
+            )?;
             let mut operands = vec![left_register, right_register, raw];
             if environment.target().architecture == target::Architecture::X86_64 {
                 if selection == WrappingDivision::DivideU64 {
                     operands.push(division_scratch(builder)?);
                 } else {
-                    // The realized form pins the divisor to RCX so
-                    // its RDX extension or zeroing cannot read a
-                    // live divisor. A shared dividend/divisor
-                    // register cannot carry RAX and RCX fixed
-                    // views at once, so give the divisor its own
-                    // copy first.
-                    if right_register == left_register {
-                        right_register =
-                            builder.copy(right_register, *right, right_site, scalar_type)?;
-                        operands[1] = right_register;
-                    }
                     operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
                 }
             }
@@ -701,8 +728,9 @@ pub(super) fn emit(
             obligation,
             accepted_fact,
         } => {
-            let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, mut right_register, right_site, right_type) =
+            let (_, left_register, left_site, left_type) =
+                builder.resolve(*left).ok_or_else(invalid)?;
+            let (_, right_register, right_site, right_type) =
                 builder.resolve(*right).ok_or_else(invalid)?;
             // Exact address subtraction keeps independently typed operands.
             // Replay checks the signature again rather than treating equal
@@ -809,6 +837,28 @@ pub(super) fn emit(
                 ),
             };
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
+            let left_register = if divide_operator {
+                fixed_integer_input(
+                    builder,
+                    environment,
+                    key,
+                    0,
+                    (left_register, *left, left_site, left_type),
+                )?
+            } else {
+                left_register
+            };
+            let right_register = if divide_operator {
+                fixed_integer_input(
+                    builder,
+                    environment,
+                    key,
+                    1,
+                    (right_register, *right, right_site, right_type),
+                )?
+            } else {
+                right_register
+            };
             let mut operands = vec![left_register, right_register, output];
             if environment.target().architecture == target::Architecture::X86_64 {
                 if unsigned_divide
@@ -816,16 +866,6 @@ pub(super) fn emit(
                 {
                     operands.push(division_scratch(builder)?);
                 } else if divide_operator {
-                    // The realized form pins the divisor to RCX so
-                    // its RDX extension cannot read a live divisor.
-                    // A shared dividend/divisor register cannot
-                    // carry RAX and RCX fixed views at once, so
-                    // give the divisor its own copy first.
-                    if right_register == left_register {
-                        right_register =
-                            builder.copy(right_register, *right, right_site, scalar_type)?;
-                        operands[1] = right_register;
-                    }
                     operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
                 }
             }
@@ -845,6 +885,33 @@ pub(super) fn emit(
         }
         _ => return Err(invalid()),
     })
+}
+
+/// Fixed operands are instruction-local residences of the source value. A
+/// division overwrites its accumulator, and later divisions or calls may need
+/// the original value again. Preserve that original binding while the copy
+/// takes the target row's fixed home; no allocation constraint is relaxed.
+fn fixed_integer_input(
+    builder: &mut Builder<'_>,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    key: RegisterConstraintKey,
+    operand: u16,
+    input: (
+        VirtualRegisterId,
+        semantic_vocabulary::ValueId,
+        optimization_unit::ValueDefinitionSite,
+        ScalarType,
+    ),
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let row = environment
+        .constraint(key)
+        .and_then(|row| row.operand(operand))
+        .ok_or_else(SelectedInstructionError::custody)?;
+    if row.fixed_view.is_some() {
+        builder.copy(input.0, input.1, input.2, input.3)
+    } else {
+        Ok(input.0)
+    }
 }
 
 /// Whether the declared result type is exactly this saturating carrier,
