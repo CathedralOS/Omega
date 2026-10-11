@@ -1,14 +1,15 @@
 //! Lower each settled callback thunk's canonical Terminal artifact to machine
-//! code inside the same realization as the semantic program.
+//! objects inside the same realization as the semantic program.
 //!
 //! The settlement carries a Terminal artifact, a caller-scoped private function
 //! identity and a boundary entry plan. Every thunk follows the ordinary native
-//! pipeline; emission derives its linker name from the retained identity.
+//! pipeline. The object linker retains the complete local closure under the
+//! caller-scoped identity, not a synthetic single-function byte projection.
 
 use crate::request::NativeRealizationRequest;
 use backend_plan::NativeCallbackThunkSettlement;
 use diagnostics::Diagnostic;
-use machine_code::CompilerPrivateMachineCodeFunction;
+use image_emission::PrivateFunctionObject;
 use terminal_psi_to_abstract_operations::provider_admission::realization_error;
 
 /// Realize the executable scope's callback thunks into compiler-private code,
@@ -21,25 +22,70 @@ use terminal_psi_to_abstract_operations::provider_admission::realization_error;
 pub(crate) fn lower_callback_thunks(
     request: &NativeRealizationRequest<'_>,
     native_callbacks: &[terminal_psi_to_abstract_operations::AdmittedNativeCallbackArgument],
-) -> Result<Vec<CompilerPrivateMachineCodeFunction>, Vec<Diagnostic>> {
-    request
+    root: &image_emission::ObjectArtifact,
+) -> Result<Vec<PrivateFunctionObject>, Vec<Diagnostic>> {
+    let mut pending = request
         .callback_thunks
         .iter()
         .filter(|settlement| {
-            native_callbacks.iter().any(|callback| {
-                callback.terminal_operation == settlement.terminal_operation
-                    && callback.placement_index == settlement.placement_index
-                    && callback.callback_function == settlement.callback_function
-            })
+            root.object()
+                .layout
+                .function_symbols
+                .iter()
+                .any(|(_, reference)| reference.identity == settlement.callback_function)
+                && native_callbacks.iter().any(|callback| {
+                    callback.terminal_operation == settlement.terminal_operation
+                        && callback.placement_index == settlement.placement_index
+                        && callback.callback_function == settlement.callback_function
+                })
         })
-        .map(|settlement| lower_callback_thunk(request, settlement))
-        .collect()
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut objects = Vec::new();
+    let mut next_callback = 0;
+    while next_callback < pending.len() {
+        let settlement = &pending[next_callback];
+        let object = lower_callback_thunk(request, settlement)?;
+        for child in request
+            .callback_providers
+            .callback_body_thunks(settlement.artifact)?
+        {
+            if !object
+                .body
+                .object()
+                .layout
+                .function_symbols
+                .iter()
+                .any(|(_, reference)| reference.identity == child.callback_function)
+            {
+                continue;
+            }
+            if let Some(known) = pending
+                .iter()
+                .find(|known| known.callback_function == child.callback_function)
+            {
+                if known.artifact.manifest().identity() != child.artifact.manifest().identity()
+                    || known.boundary_entry_plan != child.boundary_entry_plan
+                {
+                    return Err(realization_error(
+                        "callback body closure",
+                        "one private identity selects incompatible bodies or entry plans",
+                    ));
+                }
+            } else {
+                pending.push(child);
+            }
+        }
+        objects.push(object);
+        next_callback += 1;
+    }
+    Ok(objects)
 }
 
 fn lower_callback_thunk(
     request: &NativeRealizationRequest<'_>,
     settlement: &NativeCallbackThunkSettlement<'_>,
-) -> Result<CompilerPrivateMachineCodeFunction, Vec<Diagnostic>> {
+) -> Result<PrivateFunctionObject, Vec<Diagnostic>> {
     let artifact = settlement.artifact;
     let mut admitted = request.callback_providers.admit_callback_body(
         artifact,
@@ -71,18 +117,37 @@ fn lower_callback_thunk(
     let physical =
         crate::physical_pipeline::stage_optimized_verified_physical_pipeline(optimized_target)
             .map_err(|error| realization_error("callback thunk physical pipeline", error))?;
-    let emitted = machine_emission::stage_optimized_function_fragment_emission(physical)
-        .map_err(|error| realization_error("callback thunk fragment emission", error))?;
-    let applied = machine_emission::stage_function_fragment_frame_application(emitted)
-        .map_err(|error| realization_error("callback thunk frame application", error))?;
-    let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
-        .map_err(|error| realization_error("callback thunk text placement", error))?;
-    machine_emission::materialize_private_callback_function(
-        text,
-        machine_emission::PrivateCallbackMaterializationRequest {
-            callback_function: settlement.callback_function,
-            boundary_entry_plan: settlement.boundary_entry_plan,
-            placement_index: settlement.placement_index,
-        },
-    )
+    let object = native_artifact::emit_fragment_object(physical)?.into_object();
+    let emitted_signature = object
+        .function_on_machine(object.entry())
+        .and_then(|function| function.scalar_abi.as_ref())
+        .ok_or_else(|| {
+            realization_error(
+                "callback entry ABI",
+                "callback body has no scalar entry transport",
+            )
+        })?;
+    let declared = &settlement.boundary_entry_plan.call;
+    if emitted_signature.call_plan.policy != declared.policy
+        || emitted_signature.parameters.len() != declared.parameters.len()
+        || emitted_signature
+            .parameters
+            .iter()
+            .zip(&declared.parameters)
+            .any(|(emitted, declared)| emitted.placement != *declared)
+        || declared.result.as_ref()
+            != emitted_signature
+                .result
+                .as_ref()
+                .map(|result| &result.placement)
+    {
+        return Err(realization_error(
+            "callback entry ABI",
+            "callback signature drifts from its boundary entry plan",
+        ));
+    }
+    Ok(PrivateFunctionObject {
+        identity: settlement.callback_function,
+        body: std::sync::Arc::new(object),
+    })
 }

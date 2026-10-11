@@ -198,6 +198,11 @@ pub fn emit_executable_image(
     artifact: &ObjectArtifact,
     request: ExecutableImageEmissionRequest,
 ) -> Result<RequestedExecutableImage, Box<RequestedExecutableImageError>> {
+    crate::private_object_composition::require_definitions(&artifact.object).map_err(|error| {
+        Box::new(RequestedExecutableImageError::Direct(Diagnostic::error(
+            error.to_string(),
+        )))
+    })?;
     match (requires_dynamic_elf(artifact), request) {
         (true, ExecutableImageEmissionRequest::DynamicElf { interpreter }) => {
             emit_dynamic_elf_image(artifact, interpreter)

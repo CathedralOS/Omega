@@ -11,21 +11,18 @@ use std::sync::Arc;
 
 pub struct FunctionFragmentObjectArtifactRequest<'inputs> {
     pub replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
-    pub private_functions: &'inputs [machine_code::CompilerPrivateMachineCodeFunction],
     pub dynamic_dispatch: &'inputs terminal_psi::TerminalDynamicDispatchCatalog,
     pub implementation_table_addresses: &'inputs [machine_code::PlacedImplementationTableAddress],
 }
 
-/// Project admitted current fragments plus the materialized compiler-private
-/// callback functions into one object. Private bytes append after the program
-/// text under their private symbols; the program's fragment order and the
-/// import tail are unchanged.
+/// Project admitted current fragments into an ordinary linkable module object.
+/// Callback destinations declare private symbol references; their complete
+/// body objects are composed before application entry and image publication.
 pub fn build_function_fragment_object_artifact(
     request: FunctionFragmentObjectArtifactRequest<'_>,
 ) -> Result<ObjectArtifact, Error> {
     let FunctionFragmentObjectArtifactRequest {
         replay,
-        private_functions,
         dynamic_dispatch,
         implementation_table_addresses,
     } = request;
@@ -181,17 +178,11 @@ pub fn build_function_fragment_object_artifact(
             });
         }
     }
-    // Private callback thunks append after the program text, ahead of the
-    // import tail, so the symbol order is program, private, import.
-    let validated_private =
-        crate::object_artifact::validate_private_functions(text.target, private_functions)
-            .map_err(Error::PrivateFunctions)?;
-    let private_carriers = crate::object_artifact::emit_private_functions(
-        validated_private,
-        &mut object,
-        &mut text_bytes,
-    )
-    .map_err(Error::PrivateFunctions)?;
+    // Callback identities are unresolved object references, not projected byte
+    // functions. Composition supplies their independently emitted body objects.
+    let foreign_calls = crate::derive_normalized_foreign_call_custody(source)
+        .map_err(|_| Error::Mismatch("fragment import lacks selected call custody"))?;
+    super::imports::declare_callbacks(&foreign_calls, &mut object, text.psi)?;
     // Literal octets follow every byte of code, ahead of the import tail, so
     // the symbol order is program, private, literal pool, import.
     let byte_literal_pool = super::byte_literals::place(source, &mut object, &mut text_bytes)?;
@@ -208,8 +199,6 @@ pub fn build_function_fragment_object_artifact(
     });
     // Stack sizing happens before image emission. Keep the admitted external
     // contributions on the ordinary object, not in a later image-only append.
-    let foreign_calls = crate::derive_normalized_foreign_call_custody(source)
-        .map_err(|_| Error::Mismatch("fragment import lacks selected call custody"))?;
     let mut relocations = super::imports::publish(source, &mut object, &functions, &foreign_calls)?;
     super::byte_literals::publish_relocations(
         byte_literal_pool.as_ref(),
@@ -225,6 +214,7 @@ pub fn build_function_fragment_object_artifact(
         hosted_receiver: None,
         requires_graph_storage_replay,
         fragment_replay: Some(super::replay::FragmentReplay(Arc::clone(&replay))),
+        composition_source: None,
         psi: text.psi,
         target: text.target,
         x86_feature_profile: None,
@@ -235,7 +225,7 @@ pub fn build_function_fragment_object_artifact(
         text_bytes,
         data_bytes,
         functions,
-        private_functions: private_carriers,
+        private_functions: Vec::new(),
         semantic_code_attribution,
         // No selected instruction emits port effects yet; downstream custody
         // only replays records (wiki/drafts/designs/evaluated_foreign_bindings.md).

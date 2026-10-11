@@ -46,7 +46,6 @@ pub(crate) fn emit_realization_object(
     // request's callback custody has been admitted, under the same effective
     // selection as the entry. Target lowering rejoins the exact callback
     // roster; physical and installation replay preserve its private addresses.
-    let private_functions = lower_callback_thunks(request, native_callbacks)?;
     let target = lower_optimized_to_target_operations(
         abstract_stage,
         OptimizedTargetLoweringRequest {
@@ -61,8 +60,13 @@ pub(crate) fn emit_realization_object(
     let physical = stage_optimized_verified_physical_pipeline(target).map_err(|error| {
         selected_physical_pipeline_failed(request.optimization_selections.selections(), error)
     })?;
+    let projection = native_artifact::emit_fragment_object(physical)?;
+    // Emit the root first so optimization-pruned callback uses do not demand
+    // unused bodies. Each surviving symbolic reference retains its admitted
+    // occurrence; the body worklist follows the same rule in its own namespace.
+    let private_functions = lower_callback_thunks(request, native_callbacks, projection.object())?;
     let object = publish_fragment_object(
-        physical,
+        projection,
         FragmentObjectPublicationRequest {
             terminal,
             boundary_application_coverage,

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 
 #[derive(Debug, Clone)]
-pub(crate) struct FragmentReplay(pub(super) Arc<StagedOptimizedRelocationFreeObjectContainer>);
+pub(crate) struct FragmentReplay(pub(crate) Arc<StagedOptimizedRelocationFreeObjectContainer>);
 
 /// Audit the retained target producer independently of instruction selection.
 /// Corpus or retained-artifact inspection can call this explicitly; object
@@ -13,6 +13,9 @@ pub(crate) struct FragmentReplay(pub(super) Arc<StagedOptimizedRelocationFreeObj
 pub fn verify_retained_target_operations(
     artifact: &crate::ObjectArtifact,
 ) -> Result<(), diagnostics::Diagnostic> {
+    for private in &artifact.private_functions {
+        verify_retained_target_operations(&private.body)?;
+    }
     let replay = artifact.fragment_replay.as_ref().ok_or_else(|| {
         diagnostics::Diagnostic::error("target-operation audit requires retained pipeline input")
     })?;

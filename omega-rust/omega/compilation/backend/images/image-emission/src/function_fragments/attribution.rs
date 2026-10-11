@@ -176,16 +176,18 @@ pub(super) fn validate(
     rows: &[SemanticCodeAttribution],
 ) -> Result<(), Error> {
     // Replay each maximal contiguous site interval directly from physical
-    // membership and extent. No producer merge algorithm is invoked.
+    // membership and extent. Edge-owned argument transport can be separated
+    // by allocation copies, just like operation-owned transport. Neither site
+    // kind implies one contiguous byte interval; overlaps and omissions still
+    // reject. No producer merge algorithm is invoked.
     for (index, row) in rows.iter().enumerate() {
         if ordinal(source, row.site)? != row.operation_ordinal
             || rows[..index].iter().any(|previous| {
                 previous.site == row.site
-                    && (matches!(row.site, SemanticCodeSite::Edge(_))
-                        || previous
-                            .code_offset
-                            .checked_add(previous.byte_count)
-                            .is_none_or(|end| end >= row.code_offset))
+                    && previous
+                        .code_offset
+                        .checked_add(previous.byte_count)
+                        .is_none_or(|end| end >= row.code_offset)
             })
             || !interval_is_exact(fragment, row)?
         {

@@ -331,17 +331,28 @@ pub(crate) fn validate_image_data_relocations(
     object: &ObjectPlan,
     relocations: &RelocationPlan,
 ) -> Result<(), Error> {
-    let expected = if let Some(pool) = &artifact.implementation_table_pool {
-        let replay = artifact.fragment_replay.as_ref().ok_or(Error::Mismatch(
+    let mut expected = Vec::new();
+    for namespace in crate::private_object_composition::namespaces(artifact) {
+        let local = namespace.artifact;
+        let Some(pool) = &local.implementation_table_pool else {
+            if !local.data_bytes.is_empty() {
+                return Err(Error::Mismatch(
+                    "initialized image data has no implementation table owner",
+                ));
+            }
+            continue;
+        };
+        let replay = local.fragment_replay.as_ref().ok_or(Error::Mismatch(
             "implementation table data requires admitted fragment source",
         ))?;
-        validate(&replay.0, artifact)?;
+        validate(&replay.0, local)?;
         for symbol in pool
             .tables
             .iter()
             .map(|table| table.symbol)
-            .chain(artifact.functions.iter().map(|function| function.symbol))
+            .chain(local.functions.iter().map(|function| function.symbol))
         {
+            let symbol = namespace.symbol(symbol)?;
             if !object.layout.symbols.is_valid(symbol)
                 || object.layout.symbols.get(symbol) != artifact.object.layout.symbols.get(symbol)
             {
@@ -350,15 +361,21 @@ pub(crate) fn validate_image_data_relocations(
                 ));
             }
         }
-        records(pool, &artifact.functions)?
-    } else {
-        if !artifact.data_bytes.is_empty() {
-            return Err(Error::Mismatch(
-                "initialized image data has no implementation table owner",
-            ));
+        // Replay each local table before embedding its exact row coordinates.
+        // The root and callback bodies may reuse machine/table handles; only
+        // their retained symbol bindings identify the final-image occurrences.
+        for mut record in records(pool, &local.functions)? {
+            record.symbol_handle = namespace.symbol(record.symbol_handle)?;
+            record.origin = RelocationOrigin::Materialization {
+                object_symbol_handle: namespace.symbol(record.origin.symbol_handle())?,
+            };
+            record.offset = record
+                .offset
+                .checked_add(namespace.data_offset)
+                .ok_or(Error::Overflow)?;
+            expected.push(record);
         }
-        Vec::new()
-    };
+    }
     validate_data_relocation_roster(&expected, relocations)
 }
 

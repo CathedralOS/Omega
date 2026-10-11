@@ -326,6 +326,7 @@ pass/calls/nested_value_call_arg_compile built 1695ms exit:1 @bed5f45e9185+wt
 pass/calls/ordered_field_selector_calls_exit built 902ms exit:70 @e3012d6c0627+wt
 pass/calls/owned_indirect_argument_complete_forwarding_exit built 1724ms exit:0 @65e8a0783b05
 pass/calls/owned_state_parameter_call_exit built 512ms exit:70 @4ecfdc78f8c7+wt
+pass/calls/private_callback_call_closure built 5765ms exit:0 stdout:match stderr:match @0b802d0a8717+wt
 pass/calls/qualified_record_call_result_field_exit built 1818ms exit:70 @33d47d475b22+wt
 pass/calls/requires_carrier_ceiling_vacuous built 3069ms exit:70 @527c7c316c6f+wt
 pass/calls/requires_operand_flip_discharge built 3161ms exit:70 @527c7c316c6f+wt

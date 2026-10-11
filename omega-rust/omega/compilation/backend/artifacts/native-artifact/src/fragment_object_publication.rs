@@ -26,7 +26,24 @@ pub struct FragmentObjectPublicationRequest<'request> {
     /// The materialized compiler-private callback functions, in placement
     /// order. Each record carries real emitted bytes produced by the shared
     /// physical pipeline inside this same realization.
-    pub private_functions: &'request [machine_code::CompilerPrivateMachineCodeFunction],
+    pub private_functions: &'request [image_emission::PrivateFunctionObject],
+}
+
+/// The ordinary module projection and its original fragment custody.
+/// Emitting this before discovering callback bodies prunes dead destinations
+/// through the normal optimizer, rather than publishing orphan private code.
+pub struct FragmentObjectProjection {
+    source: std::sync::Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>,
+    object: image_emission::ObjectArtifact,
+}
+
+impl FragmentObjectProjection {
+    pub fn object(&self) -> &image_emission::ObjectArtifact {
+        &self.object
+    }
+    pub fn into_object(self) -> image_emission::ObjectArtifact {
+        self.object
+    }
 }
 
 /// One emitted object and the custody retained by its publication checks.
@@ -40,33 +57,29 @@ pub struct PublishedFragmentObject {
         Option<StagedValidatedOptimizedProgramStorageSemanticWrapperObject>,
 }
 
-/// Consume physical emission custody, emit and place the fragments, and bind
-/// the admitted entry before capturing publication evidence. Failures in
-/// emission, entry construction, or independent replay publish no object.
+/// Compose the already emitted modules and bind the admitted entry before
+/// capturing publication evidence. No producing stage is replayed here.
 pub fn publish_fragment_object(
-    emission: machine_emission::StagedOptimizedFunctionFragmentEmissionSource,
+    projection: FragmentObjectProjection,
     request: FragmentObjectPublicationRequest<'_>,
 ) -> Result<PublishedFragmentObject, Vec<Diagnostic>> {
     // Physical construction already retains the admitted abstract program.
     // Share that allocation before consuming emission; do not clone the plan
     // or accept independently supplied publication identities. The publication
     // validator still replays the emitted object and checks this exact join.
-    let optimized = emission.optimized_target().optimized();
+    let FragmentObjectProjection { source, object } = projection;
+    let optimized = source
+        .source()
+        .source()
+        .source()
+        .source()
+        .optimized_target()
+        .optimized();
     let plan = optimized.shared_program();
     let validation = optimized.validation();
-    let source = std::sync::Arc::new(stage_fragment_object(emission)?);
-    let mut object = image_emission::build_function_fragment_object_artifact(
-        image_emission::FunctionFragmentObjectArtifactRequest {
-            replay: std::sync::Arc::clone(&source),
-            private_functions: request.private_functions,
-            dynamic_dispatch: &plan.dynamic_dispatch,
-            implementation_table_addresses: &source
-                .source()
-                .text_section()
-                .unresolved_implementation_table_addresses,
-        },
-    )
-    .map_err(|error| crate::native_artifact_error("fragment object publication", error))?;
+    let mut object =
+        image_emission::compose_private_function_objects(object, request.private_functions)
+            .map_err(|error| crate::native_artifact_error("private object composition", error))?;
     // The publication receipt retains the complete immutable object, including
     // entry metadata. Bind before capture; later equality must still reject
     // any replacement, omission or mutation of that checked binding.
@@ -228,10 +241,12 @@ pub fn publish_fragment_object(
     })
 }
 
-/// Empty and selected phases publish through the same frame/text/object owners.
-fn stage_fragment_object(
+/// Produce an ordinary module object, without fabricating application entry custody.
+/// Root publication and private callback bodies share this emission operation.
+pub fn emit_fragment_object(
     emission: machine_emission::StagedOptimizedFunctionFragmentEmissionSource,
-) -> Result<object_file::StagedOptimizedRelocationFreeObjectContainer, Vec<Diagnostic>> {
+) -> Result<FragmentObjectProjection, Vec<Diagnostic>> {
+    let plan = emission.optimized_target().optimized().shared_program();
     let emitted = machine_emission::stage_optimized_function_fragment_emission(emission)
         .map_err(|error| crate::native_artifact_error("function-fragment emission", error))?;
     let applied =
@@ -240,8 +255,22 @@ fn stage_fragment_object(
         })?;
     let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
         .map_err(|error| crate::native_artifact_error("framed text placement", error))?;
-    object_file::stage_optimized_relocation_free_object_container(text)
-        .map_err(|error| crate::native_artifact_error("fragment object placement", error))
+    let source = std::sync::Arc::new(
+        object_file::stage_optimized_relocation_free_object_container(text)
+            .map_err(|error| crate::native_artifact_error("fragment object placement", error))?,
+    );
+    let object = image_emission::build_function_fragment_object_artifact(
+        image_emission::FunctionFragmentObjectArtifactRequest {
+            replay: std::sync::Arc::clone(&source),
+            dynamic_dispatch: &plan.dynamic_dispatch,
+            implementation_table_addresses: &source
+                .source()
+                .text_section()
+                .unresolved_implementation_table_addresses,
+        },
+    )
+    .map_err(|error| crate::native_artifact_error("fragment object publication", error))?;
+    Ok(FragmentObjectProjection { source, object })
 }
 
 /// Admission is demand, not construction. The emitted object must carry a

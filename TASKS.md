@@ -4371,38 +4371,38 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `fail/slices/overlapping_mut_subslice_windows_rejected` as controls.
   **CANARY-CORPUS** borrow-obligation failures route here.
 
-- **CALLBACK-PRIVATE-MATERIALIZATION.** Extend private callbacks beyond a
-  single scalar-ABI native function under
+- **CALLBACK-PRIVATE-MATERIALIZATION.** Complete private callback entry ABI and
+  matching-host invocation under
   [private callbacks](wiki/spec/build/private_callbacks.md).
-  Use ordinary body lowering, call/import closure and ABI transport, not
-  callback body recognizers. Preserve custody through optimization and
-  integrate product publication and the hosted private stack.
+  Use ordinary body lowering and ABI transport, not callback body recognizers.
+  Preserve the artifact-local function/import/data closure and publication
+  custody while completing structural inbound transport.
   Owners: `callback_settlement`,
   `omega-rust/omega/compilation/native-production/src/realization/callback_thunks.rs`,
-  `omega-rust/omega/compilation/backend/machine-emission/src/private_callback.rs`,
+  `omega-rust/omega/compilation/backend/images/image-emission/src/private_object_composition.rs`,
   and selected-call ABI transport.
 
-  `pending/calls/private_callback_call_closure` supplies a genuine macOS Arm64
-  `pthread_once` provider, two calls sharing one control, and a callback that
-  calls an ordinary helper, a callback-only `getpid` import and Console.
-  After public package review,
-  `omega run tests/omega/pending/calls/private_callback_call_closure/main.omg`
-  reaches callback private materialization and rejects because it emits more
-  than one function. Carry the callback's admitted provider/import and ordinary
-  helper closure into the private object channel without transplanting its
-  Terminal boundary or machine identities into the enclosing program.
-  Preserve the exact body-declaration, registrar and caller-scoped function
-  identity joins. The scalar control
+  Preserve the runnable macOS Arm64 `pass/calls/private_callback_call_closure`
+  regression: after package review,
+  `omega run tests/omega/pass/calls/private_callback_call_closure/main.omg`
+  must print `A\n` once and exit 0 through two genuine `pthread_once` calls,
+  an ordinary helper, callback-only `getpid`, a runtime implementation selector,
+  and an addressed byte literal.
+  Keep body-declaration, registrar and caller-scoped entry identities exact;
+  do not flatten child machine or boundary identities into the application.
+  The scalar control
   `pass/capabilities/callback_direct_install_compile` uses a nonexistent import
   and is not execution acceptance.
 
-  The private channel still requires one function and refuses foreign-call
-  and image-address custody. Carry the ordinary function/relocation closure
-  rather than filling `MachineCodeFunction` custody with empty records.
+  Entry admission still requires the body's scalar ABI to equal the selected
+  inbound plan. Complete general structural entry transport through the
+  ordinary selected-call ABI machinery. Hosted stack composition conservatively
+  includes every supplied callback; retain declared synchronous reach to
+  distinguish future-only reference cycles from same-stack invocation cycles.
   Preserve resultless transport with `calls/resultless_native_callback_compile`
   (a genuine Linux `pthread_once` import) and the runnable
   `calls/resultless_scalar_parameters`. Neither substitutes for Windows
-  invocation, a general callback body or structural argument transport.
+  invocation or structural argument transport.
 
   Acceptance: `pass/calls/callback_private_materialization` uses a genuine
   Windows x64 host registration provider and executes a callback with a general

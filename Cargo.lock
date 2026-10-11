@@ -715,6 +715,7 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
+ "arena",
  "boundary-applications",
  "calling-conventions",
  "checked-trees",

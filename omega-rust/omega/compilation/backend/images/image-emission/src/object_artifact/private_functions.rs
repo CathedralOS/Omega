@@ -8,6 +8,7 @@ use target::NativeTarget;
 pub(crate) struct ValidatedPrivateFunction<'plan> {
     pub(crate) machine: &'plan CompilerPrivateMachineCodeFunction,
     pub(crate) function: ObjectFunction,
+    pub(crate) body: std::sync::Arc<crate::ObjectArtifact>,
 }
 
 pub(crate) fn validate_private_functions<'plan>(
@@ -83,6 +84,7 @@ pub(crate) fn validate_private_functions<'plan>(
         validated.push(ValidatedPrivateFunction {
             machine: private,
             function: function.clone(),
+            body: std::sync::Arc::new(replayed),
         });
     }
     Ok(validated)

@@ -13,11 +13,42 @@ use super::{Error, host};
 use crate::{
     ObjectArtifact, ObjectForeignCall, ObjectFunction, derive_normalized_foreign_call_custody,
 };
+
+pub(super) fn declare_callbacks(
+    calls: &[ObjectForeignCall],
+    object: &mut ObjectPlan,
+    psi: terminal_psi::TerminalPsiIdentity,
+) -> Result<(), Error> {
+    for callback in calls.iter().flat_map(|call| &call.callback_addresses) {
+        let identity = callback.target.callback_function;
+        if identity.caller() != psi {
+            return Err(Error::Mismatch(
+                "callback reference escaped its caller namespace",
+            ));
+        }
+        if object_function_reference(object, identity).is_some() {
+            continue;
+        }
+        let name = identity.private_symbol().ok_or(Error::Mismatch(
+            "callback reference has no caller-scoped function identity",
+        ))?;
+        let symbol = object.layout.symbols.insert(SymbolPlan {
+            name,
+            kind: SymbolKind::Function,
+            ..SymbolPlan::default()
+        });
+        object
+            .layout
+            .function_symbols
+            .insert(object_file::FunctionSymbolPlan { identity, symbol });
+    }
+    Ok(())
+}
 use machine_code::{CallbackAddressEncoding, NormalizedForeignCallResolutionKind};
 use object_file::{
     ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind,
-    StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolSection,
-    boundary_relocation_origin, normalized_foreign_import_symbol_name, object_function_symbol,
+    StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
+    boundary_relocation_origin, normalized_foreign_import_symbol_name, object_function_reference,
     object_symbol_handle_by_foreign_locator,
 };
 
@@ -57,7 +88,7 @@ pub(super) fn publish(
         // binds the private thunk's symbol, not the import tail.
         for callback in &call.callback_addresses {
             let Some((callback_symbol, _)) =
-                object_function_symbol(object, callback.target.callback_function)
+                object_function_reference(object, callback.target.callback_function)
             else {
                 return Err(Error::Mismatch(
                     "fragment import lacks callback private function",
@@ -173,7 +204,7 @@ pub(super) fn validate(
     // find the import tail.
     let mut symbols = layout.symbols.iter().skip(
         artifact.functions.len()
-            + artifact.private_functions.len()
+            + layout.function_symbols.len()
             + usize::from(artifact.byte_literal_pool.is_some())
             + artifact
                 .implementation_table_pool
@@ -222,7 +253,7 @@ pub(super) fn validate(
         let origin = boundary_relocation_origin(function.symbol, field.invocation_site);
         for callback in &call.callback_addresses {
             let Some((callback_symbol, callback_plan)) =
-                object_function_symbol(&artifact.object, callback.target.callback_function)
+                object_function_reference(&artifact.object, callback.target.callback_function)
             else {
                 return Err(Error::Mismatch(
                     "fragment import callback private function is missing",
@@ -232,18 +263,27 @@ pub(super) fn validate(
                 .private_functions
                 .iter()
                 .filter(|private| private.identity == callback.target.callback_function);
-            let (Some(private), None) = (carriers.next(), carriers.next()) else {
-                return Err(Error::Mismatch(
-                    "fragment import callback private function is missing",
-                ));
-            };
-            if private.function.symbol != callback_symbol
-                || private.function.text_offset != callback_plan.offset
-                || private.function.byte_count != callback_plan.size
-            {
-                return Err(Error::Mismatch(
-                    "fragment import callback private function differs",
-                ));
+            match (carriers.next(), carriers.next()) {
+                (Some(private), None)
+                    if private.function.symbol == callback_symbol
+                        && private.function.text_offset == callback_plan.offset
+                        && private.function.byte_count == callback_plan.size => {}
+                (None, None)
+                    if callback_plan.section == SymbolSection::None
+                        && callback_plan.kind == SymbolKind::Function
+                        && callback_plan.offset == 0
+                        && callback_plan.size == 0
+                        && callback
+                            .target
+                            .callback_function
+                            .private_symbol()
+                            .as_deref()
+                            == Some(callback_plan.name.as_str()) => {}
+                _ => {
+                    return Err(Error::Mismatch(
+                        "fragment callback definition or reference differs",
+                    ));
+                }
             }
             let mut replay_callback_relocation =
                 |relocation_offset: usize, kind: RelocationKind| -> Result<(), Error> {

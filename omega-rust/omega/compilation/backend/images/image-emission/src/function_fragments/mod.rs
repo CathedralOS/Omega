@@ -11,7 +11,7 @@ pub(crate) mod replay;
 pub(crate) mod reporting;
 mod source;
 mod structural;
-mod validation;
+pub(crate) mod validation;
 
 pub use production::{
     FunctionFragmentObjectArtifactRequest, build_function_fragment_object_artifact,

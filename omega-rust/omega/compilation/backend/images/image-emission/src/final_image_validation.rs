@@ -187,7 +187,11 @@ fn validate_terminal_image_with_import_count(
         .filter(|region| region.origin == FinalExecutableRegionOrigin::CompilerFunction)
         .collect::<Vec<_>>();
     let expected_region_count = artifact.functions.len()
-        + artifact.private_functions.len()
+        + artifact
+            .private_functions
+            .iter()
+            .map(|private| private.body.functions.len())
+            .sum::<usize>()
         + usize::from(entry_shim.is_some());
     if compiler_regions.len() != expected_region_count {
         return Err(Diagnostic::error(format!(
@@ -242,6 +246,35 @@ fn validate_terminal_image_with_import_count(
             return Err(Diagnostic::error(format!(
                 "compiler-private callback function must bind exactly one final executable region; found {matching}"
             )));
+        }
+        for helper in private
+            .body
+            .functions
+            .iter()
+            .filter(|helper| helper.machine != private.body.entry)
+        {
+            let symbol =
+                crate::private_object_composition::remap(&private.symbol_bindings, helper.symbol)
+                    .map_err(|error| Diagnostic::error(error.to_string()))?;
+            let name = object_file::object_symbol_name(object, symbol);
+            let offset = private
+                .text_offset
+                .checked_add(helper.text_offset)
+                .ok_or_else(|| Diagnostic::error("private helper text offset overflows"))?;
+            if compiler_regions
+                .iter()
+                .filter(|region| {
+                    region.symbol == name
+                        && region.section_offset == offset
+                        && region.byte_count == helper.byte_count
+                })
+                .count()
+                != 1
+            {
+                return Err(Diagnostic::error(
+                    "private helper has no exact final executable region",
+                ));
+            }
         }
     }
     if let Some(shim) = entry_shim {
@@ -304,39 +337,58 @@ fn validate_terminal_image_with_import_count(
         relocations,
     )
     .map_err(|error| Diagnostic::error(error.to_string()))?;
-    implementation_tables::validate_targets(artifact, output)?;
+    for namespace in crate::private_object_composition::namespaces(artifact) {
+        implementation_tables::validate_targets(&namespace, output)?;
+        validate_byte_literal_address_targets(&namespace, output)?;
+    }
     validate_callback_relocation_targets(artifact, object, relocations, output)?;
-    validate_byte_literal_address_targets(artifact, output)?;
     Ok(evidence)
 }
 
 /// Every byte-literal address in the final text must resolve to its octets in
 /// the pool, and the pool must still hold exactly those octets.
 fn validate_byte_literal_address_targets(
-    artifact: &ObjectArtifact,
+    namespace: &crate::private_object_composition::ObjectNamespace<'_>,
     output: &EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
+    let artifact = namespace.artifact;
     let Some(pool) = artifact.byte_literal_pool() else {
         return Ok(());
     };
     let final_pool = output
         .final_text_bytes
-        .get(pool.text_offset..pool.text_offset.saturating_add(pool.byte_count))
+        .get(
+            namespace.text_offset(pool.text_offset)?
+                ..namespace.text_offset(
+                    pool.text_offset
+                        .checked_add(pool.byte_count)
+                        .ok_or_else(|| Diagnostic::error("literal pool range overflows"))?,
+                )?,
+        )
         .ok_or_else(|| Diagnostic::error("final byte-literal pool is truncated"))?;
-    if artifact.text_bytes().get(pool.text_offset..) != Some(final_pool) {
+    if artifact.text_bytes().get(
+        pool.text_offset
+            ..pool
+                .text_offset
+                .checked_add(pool.byte_count)
+                .ok_or_else(|| Diagnostic::error("literal pool range overflows"))?,
+    ) != Some(final_pool)
+    {
         return Err(Diagnostic::error(
             "final byte-literal pool differs from its object octets",
         ));
     }
     let to_offset = |offset: u64| {
         usize::try_from(offset)
-            .map_err(|_| Diagnostic::error("byte-literal address field offset overflows"))
+            .ok()
+            .and_then(|offset| offset.checked_add(namespace.text_offset))
+            .ok_or_else(|| Diagnostic::error("byte-literal address field offset overflows"))
     };
     for address in &pool.addresses {
         let expected_target = output
             .executable_regions
             .text_address
-            .checked_add(pool.text_offset as u64)
+            .checked_add(namespace.text_offset(pool.text_offset)? as u64)
             .and_then(|pool_address| pool_address.checked_add(address.pool_offset as u64))
             .ok_or_else(|| Diagnostic::error("byte-literal target address overflows"))?;
         let actual_target = match address.fields {
@@ -409,101 +461,119 @@ fn validate_callback_relocation_targets(
     relocations: &object_file::RelocationPlan,
     output: &EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    for call in &artifact.foreign_calls {
-        for callback in &call.callback_addresses {
-            let function = artifact.function_on_machine(call.machine).ok_or_else(|| {
-                Diagnostic::error(
-                    "callback registrar call has no exact semantic function in the final image",
+    for namespace in crate::private_object_composition::namespaces(artifact) {
+        for call in &namespace.artifact.foreign_calls {
+            for callback in &call.callback_addresses {
+                let function = namespace
+                    .artifact
+                    .function_on_machine(call.machine)
+                    .ok_or_else(|| Diagnostic::error(
+                        "callback registrar call has no exact semantic function in the final image",
+                    ))?;
+                let operation = match call.owner {
+                    target_operations::CallSiteOwner::Operation(operation) => operation,
+                    target_operations::CallSiteOwner::CleanupAction { .. }
+                    | target_operations::CallSiteOwner::ExternalCompletion(_) => {
+                        return Err(Diagnostic::error(
+                            "callback address relocation is not owned by a semantic registrar operation",
+                        ));
+                    }
+                };
+                let (callback_symbol, callback_symbol_plan) = object_file::object_function_symbol(
+                    object,
+                    callback.target.callback_function,
                 )
-            })?;
-            let operation = match call.owner {
-                target_operations::CallSiteOwner::Operation(operation) => operation,
-                target_operations::CallSiteOwner::CleanupAction { .. }
-                | target_operations::CallSiteOwner::ExternalCompletion(_) => {
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "callback address relocation lost its compiler-private function symbol",
+                    )
+                })?;
+                let expected_origin = object_file::RelocationOrigin::SemanticOperation {
+                    function_symbol_handle: namespace
+                        .symbol(function.symbol)
+                        .map_err(|error| Diagnostic::error(error.to_string()))?,
+                    operation_identity: operation.get(),
+                };
+                let expected = match callback.encoding {
+                    machine_code::CallbackAddressEncoding::X86_64Relative32 {
+                        relocation_offset,
+                    } => {
+                        vec![(
+                            relocation_offset,
+                            object_file::RelocationKind::X86_64Relative32,
+                        )]
+                    }
+                    machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                        page_relocation_offset,
+                        page_offset_relocation_offset,
+                    } => vec![
+                        (
+                            page_relocation_offset,
+                            object_file::RelocationKind::Aarch64Page21,
+                        ),
+                        (
+                            page_offset_relocation_offset,
+                            object_file::RelocationKind::Aarch64PageOffset12,
+                        ),
+                    ],
+                };
+                let private_target_relocations = relocations
+                    .records()
+                    .filter(|(_, relocation)| {
+                        relocation.symbol_handle == callback_symbol
+                            && relocation.origin == expected_origin
+                    })
+                    .map(|(_, relocation)| relocation)
+                    .collect::<Vec<_>>();
+                if private_target_relocations.len() != expected.len()
+                    || expected.iter().any(|(offset, kind)| {
+                        private_target_relocations
+                            .iter()
+                            .filter(|relocation| {
+                                relocation.origin == expected_origin
+                                    && relocation.section == object_file::SectionKind::Text
+                                    && Some(relocation.offset)
+                                        == offset.checked_add(namespace.text_offset)
+                                    && relocation.byte_width == 4
+                                    && relocation.addend == 0
+                                    && relocation.kind == *kind
+                            })
+                            .count()
+                            != 1
+                    })
+                {
                     return Err(Diagnostic::error(
-                        "callback address relocation is not owned by a semantic registrar operation",
+                        "callback address relocation set does not exactly target its private function",
                     ));
                 }
-            };
-            let (callback_symbol, callback_symbol_plan) =
-                object_file::object_function_symbol(object, callback.target.callback_function)
+                let expected_target = output
+                    .executable_regions
+                    .text_address
+                    .checked_add(callback_symbol_plan.offset as u64)
                     .ok_or_else(|| {
-                        Diagnostic::error(
-                            "callback address relocation lost its compiler-private function symbol",
-                        )
+                        Diagnostic::error("callback private function address overflows")
                     })?;
-            let expected_origin = object_file::RelocationOrigin::SemanticOperation {
-                function_symbol_handle: function.symbol,
-                operation_identity: operation.get(),
-            };
-            let expected = match callback.encoding {
-                machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
-                    vec![(
+                let actual_target = match callback.encoding {
+                    machine_code::CallbackAddressEncoding::X86_64Relative32 {
                         relocation_offset,
-                        object_file::RelocationKind::X86_64Relative32,
-                    )]
-                }
-                machine_code::CallbackAddressEncoding::Aarch64PageAddress {
-                    page_relocation_offset,
-                    page_offset_relocation_offset,
-                } => vec![
-                    (
+                    } => decode_x86_relative_target(
+                        output,
+                        namespace.text_offset(relocation_offset)?,
+                    )?,
+                    machine_code::CallbackAddressEncoding::Aarch64PageAddress {
                         page_relocation_offset,
-                        object_file::RelocationKind::Aarch64Page21,
-                    ),
-                    (
                         page_offset_relocation_offset,
-                        object_file::RelocationKind::Aarch64PageOffset12,
-                    ),
-                ],
-            };
-            let private_target_relocations = relocations
-                .records()
-                .filter(|(_, relocation)| relocation.symbol_handle == callback_symbol)
-                .map(|(_, relocation)| relocation)
-                .collect::<Vec<_>>();
-            if private_target_relocations.len() != expected.len()
-                || expected.iter().any(|(offset, kind)| {
-                    private_target_relocations
-                        .iter()
-                        .filter(|relocation| {
-                            relocation.origin == expected_origin
-                                && relocation.section == object_file::SectionKind::Text
-                                && relocation.offset == *offset
-                                && relocation.byte_width == 4
-                                && relocation.addend == 0
-                                && relocation.kind == *kind
-                        })
-                        .count()
-                        != 1
-                })
-            {
-                return Err(Diagnostic::error(
-                    "callback address relocation set does not exactly target its private function",
-                ));
-            }
-            let expected_target = output
-                .executable_regions
-                .text_address
-                .checked_add(callback_symbol_plan.offset as u64)
-                .ok_or_else(|| Diagnostic::error("callback private function address overflows"))?;
-            let actual_target = match callback.encoding {
-                machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
-                    decode_x86_relative_target(output, relocation_offset)?
+                    } => decode_aarch64_page_target(
+                        output,
+                        namespace.text_offset(page_relocation_offset)?,
+                        namespace.text_offset(page_offset_relocation_offset)?,
+                    )?,
+                };
+                if actual_target != expected_target {
+                    return Err(Diagnostic::error(
+                        "final callback address does not resolve to its exact private function",
+                    ));
                 }
-                machine_code::CallbackAddressEncoding::Aarch64PageAddress {
-                    page_relocation_offset,
-                    page_offset_relocation_offset,
-                } => decode_aarch64_page_target(
-                    output,
-                    page_relocation_offset,
-                    page_offset_relocation_offset,
-                )?,
-            };
-            if actual_target != expected_target {
-                return Err(Diagnostic::error(
-                    "final callback address does not resolve to its exact private function",
-                ));
             }
         }
     }

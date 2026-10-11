@@ -13,6 +13,7 @@ test-support = []
 installed-artifact = ["dep:executable-installation", "dep:layout-plans"]
 
 [dependencies]
+arena = { path = "../../../../../psi/foundation/arena" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 program-entry-plan = { path = "../../plans/program-entry-plan" }
 legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }

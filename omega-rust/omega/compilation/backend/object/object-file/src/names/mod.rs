@@ -70,6 +70,18 @@ pub fn object_function_symbol(
     object: &ObjectPlan,
     identity: MachineFunctionIdentity,
 ) -> Option<(ObjectSymbolHandle, &SymbolPlan)> {
+    let (handle, symbol) = object_function_reference(object, identity)?;
+    (symbol.section == SymbolSection::Section(SectionKind::Text) && symbol.size > 0)
+        .then_some((handle, symbol))
+}
+
+/// Resolve an exact private identity in a linkable object, including an
+/// undefined reference. Final image consumers require a defined text symbol
+/// through `object_function_symbol`; an unresolved reference is not executable.
+pub fn object_function_reference(
+    object: &ObjectPlan,
+    identity: MachineFunctionIdentity,
+) -> Option<(ObjectSymbolHandle, &SymbolPlan)> {
     if !identity.is_valid() {
         return None;
     }
@@ -83,10 +95,7 @@ pub fn object_function_symbol(
         return None;
     }
     let symbol = object.layout.symbols.get(binding.symbol);
-    (symbol.kind == crate::SymbolKind::Function
-        && symbol.section == SymbolSection::Section(SectionKind::Text)
-        && symbol.size > 0)
-        .then_some((binding.symbol, symbol))
+    (symbol.kind == crate::SymbolKind::Function).then_some((binding.symbol, symbol))
 }
 
 pub fn entry_symbol_name(target: NativeTarget) -> String {

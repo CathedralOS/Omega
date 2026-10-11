@@ -18,6 +18,51 @@ pub fn derive_stack_demand(
     artifact: &ObjectArtifact,
     entry: MachineId,
 ) -> Result<StackDemand, ObjectError> {
+    derive_namespace_stack_demand(
+        artifact,
+        entry,
+        &artifact.private_functions,
+        &mut Vec::new(),
+    )
+}
+
+fn derive_namespace_stack_demand(
+    artifact: &ObjectArtifact,
+    entry: MachineId,
+    private_functions: &[crate::ObjectCompilerPrivateFunction],
+    active_private: &mut Vec<function_identity::MachineFunctionIdentity>,
+) -> Result<StackDemand, ObjectError> {
+    // Native materialization by itself does not prove a provider cannot enter
+    // its supplied callback synchronously. Reserve a conservative same-stack
+    // bound for each possible entry, separately from registration permission
+    // or a future-root lease. Bodies retain their own machine namespace.
+    let mut private_demands = Vec::new();
+    for callback in artifact
+        .foreign_calls
+        .iter()
+        .flat_map(|call| &call.callback_addresses)
+    {
+        let identity = callback.target.callback_function;
+        if private_demands.iter().any(|(known, _)| *known == identity) {
+            continue;
+        }
+        let private = private_functions
+            .iter()
+            .find(|private| private.identity == identity)
+            .ok_or(ObjectError::InvalidPrivateFunctionIdentity)?;
+        if active_private.contains(&identity) {
+            return Err(ObjectError::TerminalStackCycle(private.body.entry));
+        }
+        active_private.push(identity);
+        let demand = derive_namespace_stack_demand(
+            &private.body,
+            private.body.entry,
+            private_functions,
+            active_private,
+        )?;
+        active_private.pop();
+        private_demands.push((identity, demand));
+    }
     let functions = artifact
         .functions
         .iter()
@@ -65,6 +110,7 @@ pub fn derive_stack_demand(
         &mut admitted_contribution_report_identities,
         &mut admitted_contribution_commitments,
         &stackless_nonreturning,
+        &private_demands,
     )?;
     Ok(StackDemand {
         psi: artifact.psi,
@@ -75,6 +121,7 @@ pub fn derive_stack_demand(
         contributing_machines,
         admitted_contribution_report_identities,
         admitted_contribution_commitments,
+        private_demands,
     })
 }
 
@@ -92,6 +139,7 @@ fn derive_terminal_stack_peak(
         task_plans::SameStackContributionCommitment,
     >,
     stackless_nonreturning: &std::collections::BTreeSet<MachineId>,
+    private_demands: &[(function_identity::MachineFunctionIdentity, StackDemand)],
 ) -> Result<u64, ObjectError> {
     if let Some(peak) = memoized.get(&machine) {
         contributing_machines.insert(machine);
@@ -129,6 +177,7 @@ fn derive_terminal_stack_peak(
             admitted_contribution_report_identities,
             admitted_contribution_commitments,
             stackless_nonreturning,
+            private_demands,
         )?;
         let caller_live = u64::from(call.caller_live_bytes);
         let composed = caller_live.checked_add(callee_peak).ok_or(
@@ -150,6 +199,7 @@ fn derive_terminal_stack_peak(
             admitted_contribution_report_identities,
             admitted_contribution_commitments,
             stackless_nonreturning,
+            private_demands,
         )?;
         let caller_live = u64::from(call.caller_live_bytes);
         let composed = caller_live.checked_add(callee_peak).ok_or(
@@ -171,8 +221,22 @@ fn derive_terminal_stack_peak(
             peak = peak.max(u64::from(call.caller_live_bytes));
             continue;
         };
+        let callback_peak = call
+            .callback_addresses
+            .iter()
+            .try_fold(0, |peak, callback| {
+                let (_, demand) = private_demands
+                    .iter()
+                    .find(|(identity, _)| *identity == callback.target.callback_function)
+                    .ok_or(ObjectError::InvalidPrivateFunctionIdentity)?;
+                admitted_contribution_report_identities
+                    .extend(&demand.admitted_contribution_report_identities);
+                admitted_contribution_commitments.extend(&demand.admitted_contribution_commitments);
+                Ok::<u64, ObjectError>(peak.max(demand.ceiling_bytes))
+            })?;
         let composed = u64::from(call.caller_live_bytes)
             .checked_add(contribution.bytes())
+            .and_then(|bytes| bytes.checked_add(callback_peak))
             .ok_or(ObjectError::TerminalStackCompositionOverflow {
                 caller: machine,
                 owner: call.owner,
@@ -201,6 +265,7 @@ pub struct StackDemand {
         std::collections::BTreeSet<task_plans::AdmittedStackContributionReportId>,
     pub(crate) admitted_contribution_commitments:
         std::collections::BTreeSet<task_plans::SameStackContributionCommitment>,
+    pub(crate) private_demands: Vec<(function_identity::MachineFunctionIdentity, StackDemand)>,
 }
 
 impl StackDemand {

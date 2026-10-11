@@ -96,6 +96,7 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         hosted_receiver: None,
         requires_graph_storage_replay: false,
         fragment_replay: None,
+        composition_source: None,
         psi: plan.psi,
         target: plan.target,
         x86_feature_profile,

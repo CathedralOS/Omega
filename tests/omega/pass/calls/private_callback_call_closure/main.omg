@@ -173,9 +173,22 @@ pub boundary trait OnceRegistrar: Calling<OnceCalling> {
     invokes Initializer;
 }
 
+trait ByteReader<T> {
+    machine read(subject: &mut T) -> i32;
+}
+data ByteValue { character: i32; }
+ReadByte satisfies ByteReader<ByteValue> {
+    machine read(subject: &mut ByteValue) -> i32 { subject.character }
+}
+machine read_byte(reader: dyn ByteReader<ByteValue>, subject: &mut ByteValue) -> i32 {
+    ByteReader::read(reader, subject)
+}
+
 machine emit(character: i32[0..=255]) reaches Console + ProcessId {
     let process: i32 = ProcessId::current();
-    transition process > 0 {
+    let mut byte: ByteValue = ByteValue { character: character };
+    let selected: i32 = read_byte(ReadByte as dyn ByteReader<ByteValue>, &mut byte);
+    transition process > 0 && selected == character {
         true -> write(character)
         _ -> failed()
     }
@@ -188,7 +201,7 @@ pub machine Initialization::call() satisfies Initializer::call reaches Console +
 invokes Console;
 invokes ProcessId;
 {
-    emit(65);
+    Console::write("A");
     emit(10);
 }
 

@@ -20,14 +20,14 @@ pub(crate) mod stack_demand;
 
 pub use carriers::{
     ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectForeignCall,
-    ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack,
+    ObjectFunction, ObjectPrivateFunctionEntry, ObjectScalarCallStack, ObjectUnitCallStack,
+    PrivateFunctionObject, PrivateObjectSymbolBinding,
 };
 pub(crate) use carriers::{
     ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction,
     ObjectPortEffect, ObjectScalarStack, ObjectUnitStack, find_object_function,
 };
 pub use construction::build_object_artifact;
-pub(crate) use construction::text_emission::emit_private_functions;
 pub(crate) use errors::ObjectError;
 pub(crate) use normalized_foreign_calls::image_foreign_calls_match_object;
 pub use normalized_foreign_calls::{
@@ -36,4 +36,3 @@ pub use normalized_foreign_calls::{
     producer_instruction, scalar_call_result_producer, scalar_immediate_span,
     structural_result_capture, transported_span_end, unique_block_instruction,
 };
-pub(crate) use private_functions::validate_private_functions;

@@ -33,7 +33,8 @@ mod semantic_wrapper_object;
 
 pub use entry_receiver::admit_executable_entry_receiver;
 pub use fragment_object_publication::{
-    FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,
+    FragmentObjectProjection, FragmentObjectPublicationRequest, PublishedFragmentObject,
+    emit_fragment_object, publish_fragment_object,
 };
 pub use image_emission::BoundaryExecutionRecord;
 pub use native_artifact::{DynamicElfNativeArtifact, NativeArtifact, RequestedNativeArtifact};

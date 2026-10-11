@@ -13,6 +13,22 @@ pub(crate) fn validate_function_fragment_object_artifact(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     artifact: &ObjectArtifact,
 ) -> Result<(), Error> {
+    if artifact.composition_source.is_some() {
+        let root = artifact
+            .composition_source
+            .as_ref()
+            .and_then(|root| root.fragment_replay.as_ref())
+            .ok_or(Error::Mismatch("composition root lacks fragment custody"))?;
+        if root.0.custody() != source.custody() {
+            return Err(Error::Mismatch("composition source custody changed"));
+        }
+        crate::private_object_composition::validate_composition(artifact)?;
+        if let Some(binding) = artifact.hosted_receiver_binding() {
+            crate::hosted_receiver::validate_binding(artifact, binding)
+                .map_err(|_| Error::Mismatch("composed hosted receiver binding differs"))?;
+        }
+        return Ok(());
+    }
     validate(source, artifact, None)
 }
 
@@ -69,11 +85,11 @@ fn validate(
         || artifact.private_functions.len()
             != private_functions.map_or(artifact.private_functions.len(), |roster| roster.len())
         || !artifact.port_effects.is_empty()
-        || layout.function_symbols.len() != artifact.private_functions.len()
+        || layout.function_symbols.len() != callback_reference_count(artifact)
         || layout.sections.len() != 1 + usize::from(table_count != 0)
         || layout.symbols.len()
             != text.functions.len()
-                + artifact.private_functions.len()
+                + callback_reference_count(artifact)
                 + usize::from(pool.is_some())
                 + table_count
                 + layout.normalized_imports.len()
@@ -263,6 +279,20 @@ fn validate(
             .map_err(|_| Error::Mismatch("hosted receiver binding differs from replayed object"))?;
     }
     Ok(())
+}
+
+fn callback_reference_count(artifact: &ObjectArtifact) -> usize {
+    let mut references = Vec::new();
+    for callback in artifact
+        .foreign_calls
+        .iter()
+        .flat_map(|call| &call.callback_addresses)
+    {
+        if !references.contains(&callback.target.callback_function) {
+            references.push(callback.target.callback_function);
+        }
+    }
+    references.len()
 }
 
 fn empty_unsupported_records(function: &ObjectFunction) -> bool {

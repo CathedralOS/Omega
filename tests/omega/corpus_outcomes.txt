@@ -3501,6 +3501,7 @@ pass/calls/nested_value_call_arg_compile checked 1255ms check-target:macos_arm64
 pass/calls/ordered_field_selector_calls_exit checked 1986ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/owned_indirect_argument_complete_forwarding_exit checked 1748ms check-target:macos_arm64 @65e8a0783b05
 pass/calls/owned_state_parameter_call_exit checked 1250ms check-target:macos_arm64 @2d8ed253669f
+pass/calls/private_callback_call_closure checked 5805ms check-target:macos_arm64 @0b802d0a8717+wt
 pass/calls/qualified_record_call_result_field_exit checked 902ms check-target:macos_arm64 @e687de1f01bf
 pass/calls/requires_carrier_ceiling_vacuous checked 3103ms check-target:macos_arm64 @527c7c316c6f+wt
 pass/calls/requires_operand_flip_discharge checked 3157ms check-target:macos_arm64 @527c7c316c6f+wt

@@ -45,6 +45,28 @@ struct PreparedCallbackBody<'input> {
 }
 
 impl PreparedRetainedNativeProviders<'_> {
+    /// Project child settlements in the same canonical body namespace as admission.
+    pub fn callback_body_thunks(
+        &self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+    ) -> Result<Vec<backend_plan::NativeCallbackThunkSettlement<'_>>, Vec<Diagnostic>> {
+        let prepared = self
+            .callback_bodies
+            .iter()
+            .find(|prepared| {
+                prepared.body.artifact.artifact().manifest().identity()
+                    == artifact.manifest().identity()
+            })
+            .ok_or_else(|| {
+                diagnostics::error_in_context(
+                    "Terminal callback custody",
+                    "callback artifact has no retained proposal",
+                )
+            })?;
+        Ok(backend_plan::native_callback_thunks(
+            &prepared.body.proposal.occurrences.callbacks,
+        ))
+    }
     /// Project the shared execution evidence to this body's canonical selected
     /// requirements. Numeric Terminal IDs never cross artifact namespaces.
     pub fn program_settlements(&self) -> Vec<NativeProviderSettlement<'_>> {

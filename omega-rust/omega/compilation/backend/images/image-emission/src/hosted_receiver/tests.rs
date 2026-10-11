@@ -1146,6 +1146,7 @@ fn hosted_receiver_binding(
             contributing_machines: Default::default(),
             admitted_contribution_report_identities: Default::default(),
             admitted_contribution_commitments: Default::default(),
+            private_demands: Vec::new(),
         },
         receiver_byte_count,
         receiver_alignment,

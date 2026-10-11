@@ -20,6 +20,8 @@ pub struct ObjectArtifact {
     pub(crate) requires_graph_storage_replay: bool,
     /// Complete common-pipeline replay inputs, independent of the current object.
     pub(crate) fragment_replay: Option<crate::function_fragments::replay::FragmentReplay>,
+    /// Unlinked root projection retained by independent composition replay.
+    pub(crate) composition_source: Option<std::sync::Arc<ObjectArtifact>>,
     pub(crate) psi: TerminalPsiIdentity,
     pub(crate) target: NativeTarget,
     /// Exact deployment profile for the source-free feature-requiring x86 FMA
@@ -304,7 +306,55 @@ impl ObjectFunction {
 pub struct ObjectCompilerPrivateFunction {
     pub identity: function_identity::MachineFunctionIdentity,
     pub source_psi: TerminalPsiIdentity,
-    pub function: ObjectFunction,
+    /// Image entry geometry and ABI only. Full call/frame records remain local
+    /// in `body`, never mixed with rebased image coordinates in a fake function.
+    pub function: ObjectPrivateFunctionEntry,
+    /// The complete artifact-local function, import, data and evidence namespace.
+    pub body: std::sync::Arc<ObjectArtifact>,
+    pub text_offset: usize,
+    pub data_offset: usize,
+    pub symbol_bindings: arena::Arena<PrivateObjectSymbolBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectPrivateFunctionEntry {
+    pub machine: MachineId,
+    pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
+    pub symbol: ObjectSymbolHandle,
+    pub text_offset: usize,
+    pub byte_count: usize,
+}
+
+impl ObjectPrivateFunctionEntry {
+    pub(crate) fn from_function(
+        function: &ObjectFunction,
+        symbol: ObjectSymbolHandle,
+        text_offset: usize,
+    ) -> Self {
+        Self {
+            machine: function.machine,
+            scalar_abi: function.scalar_abi.clone(),
+            symbol,
+            text_offset,
+            byte_count: function.byte_count,
+        }
+    }
+
+    pub fn bytes<'artifact>(&self, artifact: &'artifact ObjectArtifact) -> &'artifact [u8] {
+        &artifact.text_bytes[self.text_offset..self.text_offset + self.byte_count]
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PrivateObjectSymbolBinding {
+    pub local: ObjectSymbolHandle,
+    pub linked: ObjectSymbolHandle,
+}
+
+/// One independently emitted callback body selected by its caller-scoped identity.
+pub struct PrivateFunctionObject {
+    pub identity: function_identity::MachineFunctionIdentity,
+    pub body: std::sync::Arc<ObjectArtifact>,
 }
 
 impl ObjectCompilerPrivateFunction {

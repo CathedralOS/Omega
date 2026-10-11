@@ -301,13 +301,24 @@ pub(crate) fn emit_private_functions(
             identity: private.machine.identity,
             symbol,
         });
-        let mut function = private.function;
-        function.symbol = symbol;
-        function.text_offset = text_offset;
+        let function = crate::ObjectPrivateFunctionEntry::from_function(
+            &private.function,
+            symbol,
+            text_offset,
+        );
+        let mut symbol_bindings = arena::Arena::with_capacity(1);
+        symbol_bindings.insert(crate::PrivateObjectSymbolBinding {
+            local: private.body.object.layout.entry_symbol,
+            linked: symbol,
+        });
         object_private_functions.push(ObjectCompilerPrivateFunction {
             identity: private.machine.identity,
             source_psi: private.machine.source_psi,
             function,
+            body: private.body,
+            text_offset,
+            data_offset: 0,
+            symbol_bindings,
         });
     }
     Ok(object_private_functions)

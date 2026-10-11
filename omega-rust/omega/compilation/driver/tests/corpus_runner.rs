@@ -968,6 +968,11 @@ fn build_native_fixture(
     if let Some(artifact) = report.retained_native_artifact() {
         image_emission::verify_retained_target_operations(artifact.object())
             .map_err(|diagnostic| vec![diagnostic])?;
+        // Retained-artifact replay belongs to this independent receiver, not
+        // the compile that just produced the object. Audit the whole image,
+        // including each private body's artifact-local object composition.
+        image_emission::validate_direct_executable_image(artifact.object(), artifact.image())
+            .map_err(|diagnostic| vec![diagnostic])?;
     }
     if let Some((fixture_dir, observation)) = interpretation {
         *observation = Some(interpret_native_report(&report, fixture_dir, target));

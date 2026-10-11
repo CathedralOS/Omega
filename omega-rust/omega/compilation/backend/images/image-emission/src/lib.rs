@@ -3,7 +3,7 @@
 //! Standalone object and executable-image emission for the clean terminal-Psi
 //! realization lane.
 //!
-//! This crate consumes only owned terminal machine-code functions. It does not
+//! This crate consumes emitted fragments and owned terminal machine-code functions. It does not
 //! reconstruct the legacy `EncodedMachineCode` carrier or any source-shaped
 //! lowering state. Typed internal-call relocations may change only their exact
 //! architecture-native immediate fields; every other compiler-authored bit and
@@ -21,7 +21,10 @@
 //!   [`final_image_validation`] replaying either; [`function_fragments`]
 //!   projects admitted current fragments into that same object and places
 //!   every addressed byte literal's octets in one read-only pool after the
-//!   code, binding each literal address field to it.
+//!   code, binding each literal address field to it. Ordinary callback bodies
+//!   follow that same projection. [`private_object_composition`] embeds their
+//!   complete objects while keeping machine, call and replay identities local;
+//!   helpers, imports and data are not discarded to manufacture a single thunk.
 //! - **The canonical installation record wire format** lives in
 //!   [`installation_record`]: manifest metadata over the resulting sealed
 //!   image, its bytes under `installation_record/codec/` with one codec per
@@ -39,6 +42,13 @@ mod hosted_unit_entry;
 mod image_output;
 mod installation_record;
 mod object_artifact;
+mod private_object_composition;
+
+pub use function_fragments::FunctionFragmentObjectArtifactError;
+pub use object_artifact::{
+    ObjectPrivateFunctionEntry, PrivateFunctionObject, PrivateObjectSymbolBinding,
+};
+pub use private_object_composition::compose_private_function_objects;
 
 pub use function_fragments::replay::verify_retained_target_operations;
 

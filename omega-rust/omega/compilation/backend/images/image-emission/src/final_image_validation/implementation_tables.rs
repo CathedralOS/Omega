@@ -9,12 +9,13 @@ use diagnostics::Diagnostic;
 use image::EmittedImageOutput;
 use machine_code::ByteLiteralAddressFields;
 
-use crate::ObjectArtifact;
+use crate::private_object_composition::ObjectNamespace;
 
 pub(super) fn validate_targets(
-    artifact: &ObjectArtifact,
+    namespace: &ObjectNamespace<'_>,
     output: &EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
+    let artifact = namespace.artifact;
     let Some(pool) = &artifact.implementation_table_pool else {
         return Ok(());
     };
@@ -24,11 +25,15 @@ pub(super) fn validate_targets(
             .iter()
             .find(|table| table.table == address.reference.table)
             .ok_or_else(|| Diagnostic::error("final implementation address has no table"))?;
-        let expected_target =
-            section_address(output.final_image_layout.data_address, table.data_offset)?;
+        let expected_target = section_address(
+            output.final_image_layout.data_address,
+            namespace.data_offset(table.data_offset)?,
+        )?;
         let field_offset = |offset| {
             usize::try_from(offset)
-                .map_err(|_| Diagnostic::error("implementation address field offset overflows"))
+                .ok()
+                .and_then(|offset| offset.checked_add(namespace.text_offset))
+                .ok_or_else(|| Diagnostic::error("implementation address field offset overflows"))
         };
         let actual_target = match address.fields {
             ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
@@ -58,13 +63,17 @@ pub(super) fn validate_targets(
                 let function = artifact
                     .function_on_machine(*machine)
                     .ok_or_else(|| Diagnostic::error("final implementation row has no function"))?;
-                section_address(output.final_image_layout.text_address, function.text_offset)?
+                section_address(
+                    output.final_image_layout.text_address,
+                    namespace.text_offset(function.text_offset)?,
+                )?
             } else {
                 0
             };
             let row_offset = slot
                 .checked_mul(8)
                 .and_then(|offset| table.data_offset.checked_add(offset))
+                .and_then(|offset| offset.checked_add(namespace.data_offset))
                 .ok_or_else(|| Diagnostic::error("final implementation row offset overflows"))?;
             let row_end = row_offset
                 .checked_add(8)
