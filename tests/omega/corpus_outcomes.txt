@@ -1635,8 +1635,8 @@ fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 1342ms 
 fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 1330ms expected @cba4ef8c9ab1
 	`divide(value, 0.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 	`F32.from_f64(value)` in machine `wrong_format` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/generics/attached_machine_undeclared_data_extent_rejected rejected 300ms expected @ada91cf0bd16+wt
-	machine `Buffer::scratch` state `scratch` parameter `copy` uses unresolved fixed-array length `N`; a symbolic array length must name an in-scope `const` parameter
+fail/generics/attached_machine_unresolved_extent rejected 207ms expected @e178570a8179+wt
+	machine `Buffer::scratch` state `scratch` parameter `copy` uses unresolved fixed-array length `Missing`; a symbolic array length must name an in-scope `const` parameter
 fail/generics/closed_indexed_domain_mismatch rejected 537ms expected @2d8ed253669f
 	index compatibility condition `index-equality:Quantity:mismatch::entry:statement-0:Quantity<Unit { exponent: 0 }>==Quantity<Unit { exponent: 1 }>` is not established: actual `Quantity<Unit { exponent: 0 }>` and expected `Quantity<Unit { exponent: 1 }>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/const_binder_carrier_range_names_sibling_rejected rejected 298ms expected @ada91cf0bd16+wt
@@ -3428,7 +3428,6 @@ pass/concurrency/runtime_suspension_repeated_actual_exit checked 3393ms check-ta
 pass/concurrency/runtime_zero_extent_carry_exit checked 7122ms check-target:macos_arm64 @1eb6badd8c99+wt
 pass/concurrency/suspend_after_last_use_compile checked 304ms @2d8ed253669f
 pass/concurrency/suspend_explicit_parameter_after_last_use checked 654ms @c4e692442075+wt
-pass/constants/lexical_aggregate_values checked 312ms @2d8ed253669f
 pass/constants/runtime_scoped_const_exit checked 1296ms check-target:macos_arm64 @2d8ed253669f
 pass/constraints/anonymous_integer_return_landing checked 280ms @2d8ed253669f
 pass/constraints/contract_range_membership_unimplemented checked 303ms @2d8ed253669f
@@ -4092,13 +4091,13 @@ pass/modules/repeated_exact_declaration_selection_compile checked 284ms @2d8ed25
 pass/modules/runtime_foreign_generic_scoped_constant_exit checked 1338ms check-target:macos_arm64 @743851d348c6+wt
 pass/modules/runtime_named_constant_array_extent_exit checked 2684ms check-target:macos_arm64 @226c4c4b57b1+wt
 pass/modules/runtime_named_extent_generic_copy_exit checked 2650ms check-target:macos_arm64 @226c4c4b57b1+wt
+pass/modules/runtime_nominal_constant_lexical_ownership_exit checked 3746ms check-target:macos_arm64 @e178570a8179+wt
 pass/modules/runtime_qualified_static_mutation_exit checked 601ms check-target:macos_arm64 @e0a76f438a35+wt
 pass/modules/same_name_requirement_field_calls_exit checked 4720ms check-target:macos_arm64 @c4e45d3dda38+wt
 pass/modules/selected_constant_array_alias_match_qualification checked 1206ms @ccf1a63b5e21+wt
 pass/modules/selected_constant_array_alias_qualification checked 1206ms @ccf1a63b5e21+wt
 pass/modules/selected_constant_array_alias_wrapping checked 1168ms @ccf1a63b5e21+wt
 pass/modules/selected_constant_nominal_alias checked 1264ms @ccf1a63b5e21+wt
-pass/modules/selected_constant_nominal_alias_process_exit checked 7386ms check-target:linux_x86_64 @ccf1a63b5e21+wt
 pass/modules/selected_constant_nominal_array_alias checked 1364ms @ccf1a63b5e21+wt
 pass/modules/selected_constant_nominal_call checked 1654ms @ccf1a63b5e21+wt
 pass/modules/selected_constant_nominal_generic_match_literal checked 792ms @ccf1a63b5e21+wt

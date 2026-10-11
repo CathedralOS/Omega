@@ -502,6 +502,7 @@ pass/layouts/runtime_sparse_fragmented_bits_exit built 1272ms exit:70 interprete
 pass/layouts/runtime_stored_returned_encoded_reference_exit built 1697ms exit:0 interpreter-exit:0 interpreter:agrees @4cbb568dee2d+wt
 pass/locals/runtime_deferred_scalar_initialization_exit built 1212ms exit:1 interpreter-exit:1 interpreter:agrees @25d3c2dff582+wt
 pass/locals/runtime_local_record_array_element_field_reads_exit built 1979ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
+pass/modules/runtime_nominal_constant_lexical_ownership_exit built 3880ms exit:0 interpreter-exit:0 interpreter:agrees @e178570a8179+wt
 pass/operators/crash_routes built 640ms exit:0 interpreter-exit:0 interpreter:agrees @5ed90973d982+wt
 pass/operators/division_value_entry_selection built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/operators/runtime_constructed_operand_result_exit built 12708ms exit:0 interpreter-exit:0 interpreter:agrees @dfece6e7f6a1+wt

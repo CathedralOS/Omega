@@ -586,7 +586,6 @@ pass/comptime/runtime_const_measured_recursion_exit built 838ms exit:70 @090ae66
 pass/comptime/selected_float_array_length_exit built 2154ms exit:70
 pass/concurrency/suspend_after_last_use_compile checked 203ms
 pass/concurrency/suspend_explicit_parameter_after_last_use checked 985ms @9beb2be72f2d+wt
-pass/constants/lexical_aggregate_values checked 210ms
 pass/constants/runtime_scoped_const_exit built 579ms exit:70
 pass/constraints/anonymous_integer_return_landing checked 175ms
 pass/constraints/contract_range_membership_unimplemented checked 182ms

@@ -5001,7 +5001,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     evidence; value-changing casts, call-produced projections and unknown
     origins keep conservative crash ceilings.
 
-  Acceptance: `tests/omega/pass/modules/{qualified_declarations,qualified_constants,match_constant_indices,nominal_constant_bodies,module_array_constant_indices,selected_constant_nominal_alias_process_exit,runtime_foreign_generic_scoped_constant_exit,runtime_qualified_static_mutation_exit}`
+  Acceptance: `tests/omega/pass/modules/{qualified_declarations,qualified_constants,match_constant_indices,nominal_constant_bodies,module_array_constant_indices,runtime_nominal_constant_lexical_ownership_exit,runtime_foreign_generic_scoped_constant_exit,runtime_qualified_static_mutation_exit}`
   and `python tools/corpus_gate.py --filter modules/` stay green. Anonymous
   owners: one std owner in a diamond; distinct root/core/library owners; stable
   identity after relocation, rebuild and cache deletion; changed semantic inputs
