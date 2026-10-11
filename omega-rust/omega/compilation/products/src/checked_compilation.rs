@@ -41,6 +41,12 @@ pub struct RetainedCompilationChecks {
     /// judgment rather than repeating the whole-program check it owns.
     /// The pool is invocation-local: rows never reuse a sibling's admission.
     pub sibling_build_checks: Vec<typed_trees_to_checked_trees::RetainedCheck>,
+    /// Retained product judgments from earlier targets of this same request.
+    /// The single-slot `product` chain only reaches the immediately prior
+    /// target; a target whose program diverged would orphan a later target
+    /// that converges with an earlier one. An exact-input match takes that
+    /// earlier judgment; authority admission still runs per invocation.
+    pub sibling_product_checks: Vec<typed_trees_to_checked_trees::RetainedCheck>,
     pub occurrences: Vec<Option<RetainedCompilationChecks>>,
 }
 

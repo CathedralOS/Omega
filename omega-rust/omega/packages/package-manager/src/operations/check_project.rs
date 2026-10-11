@@ -278,8 +278,22 @@ fn check_one_prepared_target(
     )
     .map_err(CheckPreparedLocalProjectError::Review)?;
     // A successful check replaces the retained judgments for the next
-    // target; a failed one leaves the prior judgment untouched.
-    *retained_checks = checked.settled_checks().clone();
+    // target; a failed one leaves the prior judgment untouched. Every
+    // target's retained product judgment also joins the request pool so a
+    // later target converging with any earlier input can take it.
+    let mut next_checks = checked.settled_checks().clone();
+    if let Some(product) = next_checks.product.clone() {
+        next_checks
+            .sibling_product_checks
+            .append(&mut retained_checks.sibling_product_checks);
+        next_checks.sibling_product_checks.push(product);
+    } else {
+        std::mem::swap(
+            &mut next_checks.sibling_product_checks,
+            &mut retained_checks.sibling_product_checks,
+        );
+    }
+    *retained_checks = next_checks;
     compiler::finish_compilation(
         checked,
         entry_path.to_path_buf(),
