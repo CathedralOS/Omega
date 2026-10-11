@@ -12,8 +12,8 @@ pub(super) struct BorrowAccessCollection<'a> {
     access_segments: &'a mut arena::Arena<facts::PlaceSegment>,
     argument_accesses: &'a mut arena::Arena<BorrowArgumentAccessFact>,
     accesses: &'a mut arena::HandleSpan<BorrowArgumentAccessFact>,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
+    pub(super) state_symbol: SymbolHandle,
+    pub(super) statement_index: usize,
     machine_symbol: SymbolHandle,
     dispatch_extraction: DispatchExtraction,
 }

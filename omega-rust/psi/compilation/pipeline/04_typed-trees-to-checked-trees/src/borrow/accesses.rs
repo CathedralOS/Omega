@@ -111,7 +111,13 @@ fn collect_argument_access_span(
             collection = collection.after_dispatch_extraction();
         }
 
-        collect_target_argument_accesses(&mut collection, arguments, target_symbol);
+        collect_target_argument_accesses(
+            &mut collection,
+            arguments,
+            state_symbol,
+            statement_index,
+            target_symbol,
+        );
     }
 
     accesses
@@ -121,6 +127,8 @@ fn collect_argument_access_span(
 fn collect_target_argument_accesses(
     collection: &mut BorrowAccessCollection<'_>,
     arguments: &[ExpressionHandle],
+    state_symbol: SymbolHandle,
+    statement_index: usize,
     target_symbol: SymbolHandle,
 ) {
     let program = collection.program;
@@ -160,6 +168,39 @@ fn collect_target_argument_accesses(
             })
         });
         if let Some(kind) = forwarded_access
+            && let Some(place) = collection.borrow_access_place(*argument)
+        {
+            read::collect_place_evaluation_reads(collection, *argument);
+            collection.append_argument_access(place, kind, *argument);
+            continue;
+        }
+        // An unborrowed actual to a shared formal lends the storage it names:
+        // the implicit view keeps that place's loan through invocation rather
+        // than recording a copied observation that ends inside operand
+        // evaluation (`shared_argument_referent`, `evaluated_argument_root`).
+        let implicit_loan = parameter.and_then(|parameter| {
+            if matches!(
+                program.expression_table.expression(*argument),
+                ExpressionNode::Borrow(_)
+            ) {
+                return None;
+            }
+            let (referent, _) = crate::semantic::calls::shared_argument_referent(
+                program,
+                *argument,
+                parameter.type_reference,
+            )?;
+            validation::canonical_place_from_expression_in_state(
+                program,
+                state_symbol,
+                statement_index,
+                referent,
+            )?
+            .root
+            .as_symbol()?;
+            Some(BorrowAccessKind::Read)
+        });
+        if let Some(kind) = implicit_loan
             && let Some(place) = collection.borrow_access_place(*argument)
         {
             read::collect_place_evaluation_reads(collection, *argument);

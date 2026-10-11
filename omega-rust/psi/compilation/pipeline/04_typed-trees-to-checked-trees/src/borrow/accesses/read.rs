@@ -66,6 +66,8 @@ pub(super) fn collect_read_accesses(
                     .program
                     .expression_table
                     .expression_handles(call.arguments),
+                collection.state_symbol,
+                collection.statement_index,
                 validation::call_target_symbol(collection.program, call),
             );
             collection.finish_nested_call(first_access, expression);
