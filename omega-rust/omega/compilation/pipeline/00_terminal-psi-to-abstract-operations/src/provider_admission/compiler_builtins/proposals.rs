@@ -266,20 +266,25 @@ fn compiler_builtin_execution(
             return Some(CompilerBuiltinExecution::HostedReadByte);
         }
         CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format } => {
-            // Only arithmetic is call-demanded. Selected comparisons settle
-            // their emitted Terminal IEEE comparisons, never a boundary call.
+            // Comparisons demanded as boundary calls realize as the same
+            // IEEE relation the emitted Terminal comparison selects; a
+            // comparison selected on a use site still settles its emitted
+            // `IeeeFloatCompare`, never this row.
             use effects::CompilerPrimitiveFloatBinaryOperation as Primitive;
+            use semantic_vocabulary::IeeeFloatComparisonOperation as Relation;
             let operation = match operation {
                 Primitive::Add => Arithmetic::Add,
                 Primitive::Subtract => Arithmetic::Subtract,
                 Primitive::Multiply => Arithmetic::Multiply,
                 Primitive::Divide => Arithmetic::Divide,
-                Primitive::Equal
-                | Primitive::NotEqual
-                | Primitive::Less
-                | Primitive::LessOrEqual
-                | Primitive::Greater
-                | Primitive::GreaterOrEqual => return None,
+                Primitive::Equal => Arithmetic::Compare(Relation::Equal),
+                Primitive::NotEqual => Arithmetic::Compare(Relation::NotEqual),
+                Primitive::Less => Arithmetic::Compare(Relation::Less),
+                Primitive::LessOrEqual => Arithmetic::Compare(Relation::LessOrEqual),
+                Primitive::Greater => Arithmetic::Compare(Relation::Greater),
+                Primitive::GreaterOrEqual => {
+                    Arithmetic::Compare(Relation::GreaterOrEqual)
+                }
             };
             (operation, ieee_format(format))
         }

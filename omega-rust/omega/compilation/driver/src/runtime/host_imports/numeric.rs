@@ -317,6 +317,22 @@ fn evaluate(
         Operation::Subtract => FloatSemantics::subtract(format, first, &meanings[1]),
         Operation::Multiply => FloatSemantics::multiply(format, first, &meanings[1]),
         Operation::Divide => FloatSemantics::divide(format, first, &meanings[1]),
+        Operation::Compare(comparison) => {
+            use semantic_vocabulary::IeeeFloatComparisonOperation as Relation;
+            let holds = match comparison {
+                Relation::Equal => FloatSemantics::equal(first, &meanings[1]),
+                Relation::NotEqual => FloatSemantics::not_equal(first, &meanings[1]),
+                Relation::Less => FloatSemantics::less(first, &meanings[1]),
+                Relation::LessOrEqual => {
+                    FloatSemantics::less_or_equal(first, &meanings[1])
+                }
+                Relation::Greater => FloatSemantics::greater(first, &meanings[1]),
+                Relation::GreaterOrEqual => {
+                    FloatSemantics::greater_or_equal(first, &meanings[1])
+                }
+            };
+            return Ok(scalar(TerminalScalarValue::Boolean(holds)));
+        }
         Operation::DirectedBinary {
             operation,
             rounding,

@@ -870,6 +870,81 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
         | IeeeFloatArithmeticOperation::IsNormal
         | IeeeFloatArithmeticOperation::IsSubnormal
         | IeeeFloatArithmeticOperation::Classify => classification_program(form, registers),
+        IeeeFloatArithmeticOperation::Compare(comparison) => {
+            use semantic_vocabulary::IeeeFloatComparisonOperation as Relation;
+            // FCMEQ and FCMGT mask all-ones on a true ordered relation and
+            // zero on a false or unordered one, so a NaN makes every
+            // ordered relation false. Inequality is the inverted equality
+            // bit; the "or equal" forms OR the two relation lanes rather
+            // than inverting a single one, which a NaN would read true.
+            let compare = |equal, left, right, result| Word::Compare {
+                equal,
+                double,
+                left,
+                right,
+                result,
+            };
+            let mut words = vec![
+                move_in(registers[0], first, double),
+                move_in(registers[1], second, double),
+            ];
+            match comparison {
+                Relation::Equal | Relation::NotEqual => {
+                    words.push(compare(true, first, second, mask));
+                }
+                Relation::Less | Relation::Greater => {
+                    let (left, right) = if comparison == Relation::Less {
+                        (second, first)
+                    } else {
+                        (first, second)
+                    };
+                    words.push(compare(false, left, right, mask));
+                }
+                Relation::LessOrEqual | Relation::GreaterOrEqual => {
+                    let (left, right) = if comparison == Relation::LessOrEqual {
+                        (second, first)
+                    } else {
+                        (first, second)
+                    };
+                    words.extend([
+                        compare(true, first, second, mask),
+                        compare(false, left, right, first),
+                        Word::BitwiseOr {
+                            left: mask,
+                            right: first,
+                            result: mask,
+                        },
+                    ]);
+                }
+            }
+            words.extend([
+                move_out(mask),
+                Word::ExtractUnsigned {
+                    first: 0,
+                    width: 1,
+                    source: result,
+                    result,
+                },
+            ]);
+            if comparison == Relation::NotEqual {
+                // The bit is 1 only on equality; borrowing it from one
+                // yields the inverse without leaving the general domain.
+                words.extend([
+                    Word::SubtractImmediate {
+                        immediate: 1,
+                        source: result,
+                        result,
+                    },
+                    Word::ExtractUnsigned {
+                        first: 0,
+                        width: 1,
+                        source: result,
+                        result,
+                    },
+                ]);
+            }
+            words
+        }
         IeeeFloatArithmeticOperation::FusedMultiplyAdd => vec![
             move_in(registers[0], first, double),
             move_in(registers[1], second, double),

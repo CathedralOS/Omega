@@ -146,6 +146,10 @@ pub enum IeeeFloatArithmeticOperation {
     /// sign Boolean in byte four. The boundary result remains structural;
     /// only the selected form exposes this temporary integer carrier.
     Classify,
+    /// The authored IEEE relation on two `format` operands, with a Boolean
+    /// result. NaNs make every ordered relation and equality false and
+    /// inequality true; signed zeros compare equal.
+    Compare(semantic_vocabulary::IeeeFloatComparisonOperation),
 }
 
 /// The selected requirement's invalid-input behavior, retained through emission.
@@ -238,8 +242,8 @@ impl Ord for IeeeFloatArithmeticOperation {
 }
 
 impl IeeeFloatArithmeticOperation {
-    pub const ALL: [Self; 61] = {
-        let mut all = [Self::Add; 61];
+    pub const ALL: [Self; 67] = {
+        let mut all = [Self::Add; 67];
         let fixed = [
             Self::Add,
             Self::Subtract,
@@ -277,6 +281,14 @@ impl IeeeFloatArithmeticOperation {
         all[58] = Self::IsNormal;
         all[59] = Self::IsSubnormal;
         all[60] = Self::Classify;
+        let mut comparison = 0;
+        while comparison < semantic_vocabulary::IeeeFloatComparisonOperation::ALL.len() {
+            let compare = Self::Compare(
+                semantic_vocabulary::IeeeFloatComparisonOperation::ALL[comparison],
+            );
+            all[compare.ordinal() as usize] = compare;
+            comparison += 1;
+        }
         let mut operation = 0;
         while operation < IeeeFloatBinaryOperation::ALL.len() {
             let mut rounding = 0;
@@ -323,6 +335,7 @@ impl IeeeFloatArithmeticOperation {
             Self::IsNormal => 58,
             Self::IsSubnormal => 59,
             Self::Classify => 60,
+            Self::Compare(comparison) => 61 + comparison.ordinal(),
             // The 32- and 64-bit carriers came first (9 through 17); the
             // narrow carriers follow (18 through 29).
             Self::FromInteger(carrier) => {
@@ -374,7 +387,8 @@ impl IeeeFloatArithmeticOperation {
             | Self::Divide
             | Self::Minimum
             | Self::Maximum
-            | Self::DirectedBinary { .. } => 2,
+            | Self::DirectedBinary { .. }
+            | Self::Compare(_) => 2,
             Self::Negate
             | Self::IsNan
             | Self::IsInfinite
@@ -416,7 +430,8 @@ impl IeeeFloatArithmeticOperation {
             | Self::IsInfinite
             | Self::IsFinite
             | Self::IsNormal
-            | Self::IsSubnormal => semantic_vocabulary::ScalarType::Boolean,
+            | Self::IsSubnormal
+            | Self::Compare(_) => semantic_vocabulary::ScalarType::Boolean,
             Self::Classify => semantic_vocabulary::ScalarType::Integer(
                 semantic_vocabulary::IntegerType::new(
                     semantic_vocabulary::IntegerSign::Unsigned,

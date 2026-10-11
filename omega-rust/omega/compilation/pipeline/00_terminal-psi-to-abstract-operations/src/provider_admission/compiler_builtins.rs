@@ -425,6 +425,17 @@ fn compiler_intrinsic_execution_identity(
                 Arithmetic::Subtract => binary(Primitive::Subtract),
                 Arithmetic::Multiply => binary(Primitive::Multiply),
                 Arithmetic::Divide => binary(Primitive::Divide),
+                Arithmetic::Compare(comparison) => {
+                    use semantic_vocabulary::IeeeFloatComparisonOperation as Relation;
+                    binary(match comparison {
+                        Relation::Equal => Primitive::Equal,
+                        Relation::NotEqual => Primitive::NotEqual,
+                        Relation::Less => Primitive::Less,
+                        Relation::LessOrEqual => Primitive::LessOrEqual,
+                        Relation::Greater => Primitive::Greater,
+                        Relation::GreaterOrEqual => Primitive::GreaterOrEqual,
+                    })
+                }
                 Arithmetic::Minimum => builtin(symbols::BuiltinFunction::Min),
                 Arithmetic::Maximum => builtin(symbols::BuiltinFunction::Max),
                 Arithmetic::SquareRoot => builtin(symbols::BuiltinFunction::Sqrt),

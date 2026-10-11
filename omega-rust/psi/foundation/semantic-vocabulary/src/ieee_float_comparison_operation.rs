@@ -13,3 +13,28 @@ pub enum IeeeFloatComparisonOperation {
     Greater,
     GreaterOrEqual,
 }
+
+impl IeeeFloatComparisonOperation {
+    /// In ordinal order; operations are appended, never renumbered.
+    pub const ALL: [Self; 6] = [
+        Self::Equal,
+        Self::NotEqual,
+        Self::Less,
+        Self::LessOrEqual,
+        Self::Greater,
+        Self::GreaterOrEqual,
+    ];
+
+    /// The operation's position in [`Self::ALL`]. Selected-form ordinals
+    /// derive from this one table.
+    pub const fn ordinal(self) -> u8 {
+        match self {
+            Self::Equal => 0,
+            Self::NotEqual => 1,
+            Self::Less => 2,
+            Self::LessOrEqual => 3,
+            Self::Greater => 4,
+            Self::GreaterOrEqual => 5,
+        }
+    }
+}

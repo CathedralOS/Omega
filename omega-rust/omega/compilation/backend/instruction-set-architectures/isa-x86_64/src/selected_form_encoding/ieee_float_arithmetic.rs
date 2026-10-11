@@ -41,6 +41,12 @@
 //!   converted directly from that 64-bit register with one rounding; `u64`
 //!   uses a signed conversion below `2^63`, otherwise a sticky half followed
 //!   by exact doubling, avoiding double rounding;
+//! - comparisons: both payloads in, one `CMPS?` predicate mask, the mask's
+//!   low word into the result register, and one in-form branch deciding the
+//!   Boolean. Ordered greater relations compare with exchanged operands;
+//!   inequality uses the unordered predicate, so a NaN makes every ordered
+//!   relation false and `!=` true, exactly `FloatSemantics`' comparison
+//!   contract;
 //! - float to integer: a clamped `CVTTSD2SI` (see `truncation`),
 //!   saturating to the carrier and mapping NaN to zero. That is exactly the
 //!   Saturating contract and the identity on every operand an Exact
@@ -1113,6 +1119,47 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instru
         | IeeeFloatArithmeticOperation::IsNormal
         | IeeeFloatArithmeticOperation::IsSubnormal
         | IeeeFloatArithmeticOperation::Classify => classification_program(form, registers),
+        IeeeFloatArithmeticOperation::Compare(comparison) => {
+            use semantic_vocabulary::IeeeFloatComparisonOperation as Relation;
+            // One predicate writes the relation's mask. Ordered greater
+            // relations read the operands exchanged, which preserves the
+            // authored relation and operand roster without a sixth
+            // predicate; inequality is unordered so a NaN compares `!=`
+            // true and every ordered relation false.
+            let (left, right, predicate) = match comparison {
+                Relation::Equal => (registers[0], registers[1], EQUAL),
+                Relation::NotEqual => (registers[0], registers[1], NOT_EQUAL),
+                Relation::Less => (registers[0], registers[1], LESS),
+                Relation::LessOrEqual => (registers[0], registers[1], LESS_OR_EQUAL),
+                Relation::Greater => (registers[1], registers[0], LESS),
+                Relation::GreaterOrEqual => (registers[1], registers[0], LESS_OR_EQUAL),
+            };
+            vec![
+                move_in(left, LEFT_SCRATCH, double),
+                move_in(right, RIGHT_SCRATCH, double),
+                Instruction::CompareScalar {
+                    double,
+                    predicate,
+                    destination: LEFT_SCRATCH,
+                    source: RIGHT_SCRATCH,
+                },
+                // The mask's low lane is all-ones or zero, so the Boolean is
+                // its top bit; a logical shift selects it without reading or
+                // writing flags, keeping this form inside the arithmetic
+                // constraint roster.
+                Instruction::Transfer {
+                    to_float: false,
+                    wide: double,
+                    xmm: LEFT_SCRATCH,
+                    general: result,
+                },
+                Instruction::ShiftInteger64 {
+                    left: false,
+                    general: result,
+                    count: if double { 63 } else { 31 },
+                },
+            ]
+        },
         IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
             move_in(registers[0], LEFT_SCRATCH, double),
             move_in(registers[1], RIGHT_SCRATCH, double),
@@ -1237,8 +1284,11 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instru
 const TWO_TO_31: u64 = 0x41e0_0000_0000_0000;
 const TWO_TO_63: u64 = 0x43e0_0000_0000_0000;
 const U32_MAXIMUM: u64 = 0x41ef_ffff_ffe0_0000;
-/// `CMPSD` predicates: less-or-equal and ordered.
+/// `CMPSD` predicates: equal, less, less-or-equal, not-equal and ordered.
+const EQUAL: u8 = 0;
+const LESS: u8 = 1;
 const LESS_OR_EQUAL: u8 = 2;
+const NOT_EQUAL: u8 = 4;
 const ORDERED: u8 = 7;
 
 /// Saturating toward-zero conversion of the operand payload in `source` to
