@@ -155,3 +155,26 @@ claim registration is asserted. The clean candidate and Library transfer are
 for independent review and the documented main-only landing workflow. No
 package acceptance was denied or retried after denial. Windows and macOS
 routes were not executed on this Linux host.
+
+Independent review of original candidate
+`864b22ed7c8e730e39318e0063c72fe96c0dd5c9` requested one material fix: an
+exactly zero endpoint derivative could round slightly negative and incorrectly
+pass calibration. The original candidate and Library bundle are preserved.
+The repair compares derivatives against a 1e-12 zero guard. With integer input
+tokens B, C, T scaled by 0.001, the exact derivative is
+`(1000*B + 2*C*T)/1,000,000`; the numerator is even. Nonzero derivatives are
+at least 2e-6, while binary64 evaluation error within the sample bounds is
+well below 1e-12. This restores the declared strict-sign contract. The
+independent review controls freeze the failing input and minimum positive/negative
+nonzero derivative cases separately; no original expected result is edited.
+Follow-up commands, retained outputs, and repaired-candidate review are recorded
+in the supplemental review deliverable.
+
+Further independent threshold probing found a second exact-boundary issue:
+a discontinuity of exactly 1e-8 mV could round below that forbidden strict
+threshold. Boundary voltages are integers divided by 1e9, so the 9.5e-9
+midpoint distinguishes permitted differences <=9e-9 from forbidden >=1e-8.
+The sum of polynomial term magnitudes is bounded by 700 mV; a conservative
+2e-11 difference-error bound is below the midpoint margin of 5e-10. Separate
+continuity controls preserve exact rejection at either sign and acceptance at
+9e-9, without changing the original or derivative expected results.

@@ -18,8 +18,16 @@ possible host-read Trap; callers explicitly acknowledge blocking.
 
 Each segment must lie in [-100, 200] C, have increasing temperature endpoints,
 `|a| <= 100`, `|b| <= 1`, `|c| <= 0.01`, and a strictly positive or strictly
-negative derivative at both endpoints. The two temperature domains are contiguous
-and their voltages agree within 1e-8 mV at the shared endpoint. These checks
+negative derivative at both endpoints. For the 0.001-scaled integer input domain,
+every nonzero endpoint derivative has magnitude at least 2e-6 mV/C. A 1e-12
+zero guard rejects exact zero obscured by binary64 cancellation, without
+excluding any permitted nonzero derivative. Separate frozen boundary controls
+live in `review_controls/`; the original 23-case oracle is unchanged.
+The two temperature domains are contiguous
+and their voltages differ strictly less than 1e-8 mV at the shared endpoint.
+Exact boundary voltage differences occur in 1e-9 mV increments; the comparison
+uses the midpoint 9.5e-9 to distinguish permitted values through 9e-9 from the
+forbidden 1e-8 boundary despite binary64 roundoff. These checks
 establish segment monotonicity, while permitting global turning curves. The cold
 junction must be covered, and the requested bracket must be increasing and inside
 the complete calibration domain. Compensation is `measured_voltage + E(cold)`.

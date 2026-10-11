@@ -29,9 +29,13 @@ machine Application::main(application: &mut Application) reaches Console {
         _ -> malformed(application)
     }
     state malformed(application: &mut Application) { application.reader.console.write_line("ERROR input"); application.reader.console.exit_process(10); }
+    // Exact boundary voltage differences have a 1e-9 mV quantum from
+    // 0.001-scaled coefficients/temperature. The midpoint 9.5e-9 admits
+    // every permitted difference <=9e-9 and rejects every >=1e-8 despite
+    // binary64 roundoff within the bounded sample domain.
     state calibrate(application: &mut Application, first: Segment, second: Segment, measured: f64, cold: f64, reference: f64, low: f64, high: f64) {
         transition valid(first) && valid(second) && first.high == second.low &&
-            magnitude(voltage(first, first.high) - voltage(second, second.low)) < 0.00000001 {
+            magnitude(voltage(first, first.high) - voltage(second, second.low)) < 0.0000000095 {
             true -> cold_junction(application, first, second, measured, cold, reference, low, high)
             _ -> calibration_error(application)
         }
