@@ -14,12 +14,17 @@ impl TypedTrees {
     /// Retained rows must keep both the handle and the key it names. Unused
     /// query keys may grow independently after cloning; they are not storage
     /// obligations. Compare only keys referenced by the retained signatures.
-    pub(crate) fn retains_trait_application_identities(&self, base: &Self) -> bool {
+    pub(crate) fn retains_callable_application_identities(&self, base: &Self) -> bool {
         base.applied_callable_signatures
             .iter()
             .all(|(_, prepared)| {
-                let AppliedCallableOwner::Trait { application, .. } = prepared.owner else {
-                    return true;
+                let application = match prepared.owner {
+                    AppliedCallableOwner::Trait { application, .. } => application,
+                    AppliedCallableOwner::RequirementInstance {
+                        trait_application_identity,
+                        ..
+                    } => trait_application_identity,
+                    _ => return true,
                 };
                 let Some(key) = base.type_identity_text(application) else {
                     return false;

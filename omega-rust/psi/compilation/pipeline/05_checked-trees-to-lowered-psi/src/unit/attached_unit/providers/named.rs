@@ -59,6 +59,7 @@ pub(super) fn provider_identities(
                 .iter()
                 .any(|row| {
                     row.provider == machine.symbol
+                        && row.selecting_declaration == implementation.symbol
                         && row.template == template
                         && row.closed_requirement == signature.symbol
                 })

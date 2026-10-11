@@ -96,6 +96,7 @@ fn satisfies_requirement(
                         .iter()
                         .any(|row| {
                             row.provider == machine.symbol
+                                && row.selecting_declaration == machine.symbol
                                 && row.template == application.template
                                 && row.closed_requirement == signature.symbol
                         });
@@ -136,6 +137,7 @@ fn satisfies_requirement(
         .iter()
         .any(|row| {
             row.provider == machine.symbol
+                && row.selecting_declaration == machine.symbol
                 && row.template == conformance.symbol
                 && row.closed_requirement == requirement.symbol
         })

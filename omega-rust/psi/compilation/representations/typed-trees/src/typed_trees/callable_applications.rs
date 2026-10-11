@@ -37,6 +37,7 @@ enum AppliedCallableOwner {
     RequirementInstance {
         declaration: SymbolHandle,
         template: SymbolHandle,
+        trait_application_identity: crate::type_identity::NormalizedTypeIdentity,
         trait_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
         local_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
         application: crate::static_applications::StaticMachineApplicationHandle,

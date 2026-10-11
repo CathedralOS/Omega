@@ -340,12 +340,19 @@ pub(crate) fn satisfied_row_requirement<'typed>(
     if typed.machine_type_parameters(requirement).is_empty() {
         return Some(requirement);
     }
-    let closed = check_facts
+    let mut applications = check_facts
         .provider_closed_requirements
         .iter()
-        .find(|row| row.provider == provider.symbol && row.template == requirement.symbol)?
-        .closed_requirement;
-    typed.machine(closed)
+        .filter(|row| {
+            row.provider == provider.symbol
+                && row.selecting_declaration == provider.symbol
+                && row.template == requirement.symbol
+        });
+    let application = applications.next()?;
+    if applications.next().is_some() {
+        return None;
+    }
+    typed.machine(application.closed_requirement)
 }
 
 /// Whether two boundary names denote the same slot: equal, or one is the

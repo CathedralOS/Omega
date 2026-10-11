@@ -16,6 +16,7 @@ pub(super) fn append(
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) {
     let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let selecting_map = crate::provider_identity::named_provider(context, plan);
     for row in &plan.rows {
         let ProviderBinding::CheckedAdapter {
             machine_identity: selected_machine_identity,
@@ -54,12 +55,19 @@ pub(super) fn append(
                 }
             };
         for application in applications {
+            // A named selection owns these associations even when other maps
+            // choose the same realization template. Direct satisfactions are
+            // instead owned by the concrete machine that carries the edge.
+            // Counting body-only facts would turn those independent maps into
+            // duplicate instances of this one selected requirement.
             let matches = check_facts
                 .provider_closed_requirements
                 .iter()
                 .filter(|fact| {
                     fact.template == application.template
                         && fact.closed_requirement == application.signature.symbol
+                        && fact.selecting_declaration
+                            == selecting_map.map_or(fact.provider, |map| map.symbol)
                         && typed.requirement_realization_matches(
                             fact.closed_requirement,
                             provider.symbol,

@@ -18,6 +18,8 @@ use symbols::SymbolHandle;
 pub struct ClosedRequirementApplication<'program> {
     pub declaring_trait: SymbolHandle,
     pub template: SymbolHandle,
+    /// Complete declaring application, independent of the executable signature.
+    pub trait_application_identity: crate::type_identity::NormalizedTypeIdentity,
     pub trait_arguments: &'program [types::TypeReferenceHandle],
     pub local_arguments: &'program [types::TypeReferenceHandle],
     pub application: static_applications::StaticMachineApplicationHandle,
@@ -34,6 +36,7 @@ impl TypedTrees {
                 let AppliedCallableOwner::RequirementInstance {
                     declaration,
                     template,
+                    trait_application_identity,
                     trait_arguments,
                     local_arguments,
                     application,
@@ -44,6 +47,7 @@ impl TypedTrees {
                 Some(ClosedRequirementApplication {
                     declaring_trait: declaration,
                     template,
+                    trait_application_identity,
                     trait_arguments: self
                         .type_reference_table
                         .type_reference_handles(trait_arguments),
@@ -79,23 +83,10 @@ impl TypedTrees {
         let Some(declaration) = self.trait_definition_by_symbol(application.declaring_trait) else {
             return false;
         };
-        let Some(expected) = crate::trait_definition::AppliedTraitScope::new(
-            self,
-            declaration,
-            crate::trait_definition::TraitApplicationArguments {
-                lexical_owner: self
-                    .expression_table
-                    .static_machine_application(application.application)
-                    .lexical_owner,
-                arguments: application.trait_arguments,
-                lifetimes: &[],
-            },
-        ) else {
-            return false;
-        };
         scope
             .declaring_scope(self, declaration.symbol)
-            .is_some_and(|actual| actual.same_application(self, &expected))
+            .and_then(|actual| actual.application_identity(self))
+            == Some(application.trait_application_identity)
     }
 
     /// Join a finite requirement coordinate to the exact realization receipt.
@@ -165,6 +156,7 @@ impl TypedTrees {
         if source.registration_operation != template || source.binding_declaration != template {
             return Err("closed requirement application names a different declaration");
         }
+        let lexical_owner = source.lexical_owner;
         let bindings = self
             .expression_table
             .static_machine_application_bindings(application)
@@ -185,18 +177,28 @@ impl TypedTrees {
             .collect::<Result<Vec<_>, _>>()?;
         self.require_closed_application_operands(trait_arguments)?;
         self.require_closed_application_operands(&local_arguments)?;
+        let declaration = self
+            .trait_definition_by_symbol(declaring_trait)
+            .ok_or("closed requirement lost its declaring trait")?;
+        let trait_application_identity = crate::trait_definition::AppliedTraitScope::new(
+            self,
+            declaration,
+            crate::trait_definition::TraitApplicationArguments {
+                lexical_owner,
+                arguments: trait_arguments,
+                lifetimes: &[],
+            },
+        )
+        .and_then(|scope| scope.application_identity(self))
+        .ok_or("closed requirement has no complete declaring application identity")?;
+        // Signature and ABI equality are insufficient cache coordinates. The
+        // outer application includes phantom arguments, and local Type/Const
+        // operands retain their supplying region owner. Closure remains a
+        // separate judgment above; this key does not admit an open operand.
         if let Some(existing) = self.closed_requirement_applications().find(|existing| {
             existing.declaring_trait == declaring_trait
                 && existing.template == template
-                && existing.trait_arguments.len() == trait_arguments.len()
-                && existing
-                    .trait_arguments
-                    .iter()
-                    .zip(trait_arguments)
-                    .all(|(left, right)| {
-                        self.normalized_type_identity(*left)
-                            == self.normalized_type_identity(*right)
-                    })
+                && existing.trait_application_identity == trait_application_identity
                 && self
                     .expression_table
                     .static_machine_application_bindings(existing.application)
@@ -218,8 +220,23 @@ impl TypedTrees {
                                     static_applications::StaticMachineBindingValue::Const(left),
                                     static_applications::StaticMachineBindingValue::Const(right),
                                 ) => {
-                                    self.normalized_type_identity(*left)
-                                        == self.normalized_type_identity(*right)
+                                    let existing_owner = self
+                                        .expression_table
+                                        .static_machine_application(existing.application)
+                                        .lexical_owner;
+                                    crate::type_identity::applied_type_identity(
+                                        self,
+                                        *left,
+                                        existing_owner,
+                                        &[],
+                                    )
+                                    .zip(crate::type_identity::applied_type_identity(
+                                        self,
+                                        *right,
+                                        lexical_owner,
+                                        &[],
+                                    ))
+                                    .is_some_and(|(left, right)| left == right)
                                 }
                                 (left, right) => left == right,
                             }
@@ -313,6 +330,7 @@ impl TypedTrees {
                 owner: AppliedCallableOwner::RequirementInstance {
                     declaration: declaring_trait,
                     template,
+                    trait_application_identity,
                     trait_arguments,
                     local_arguments,
                     application,

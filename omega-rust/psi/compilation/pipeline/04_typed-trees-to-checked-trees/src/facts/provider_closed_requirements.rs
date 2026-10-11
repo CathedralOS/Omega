@@ -51,6 +51,7 @@ pub(crate) fn record_provider_closed_requirements(
                     {
                         rows.push(CheckedProviderClosedRequirement {
                             provider: provider.symbol,
+                            selecting_declaration: provider.symbol,
                             template: application.template,
                             closed_requirement: application.signature.symbol,
                         });
@@ -75,6 +76,7 @@ pub(crate) fn record_provider_closed_requirements(
             ) {
                 rows.push(CheckedProviderClosedRequirement {
                     provider: provider.symbol,
+                    selecting_declaration: provider.symbol,
                     template: template.symbol,
                     closed_requirement: closed.symbol,
                 });
@@ -83,8 +85,10 @@ pub(crate) fn record_provider_closed_requirements(
         // Named maps retain their authored requirement coordinate. Close it
         // only through a checked realization specialization of the complete
         // tuple, independently of whether any caller uses that coordinate.
+        // Record every selecting map rather than collapsing them with `any`:
+        // one executable body may belong to multiple independent selections.
         for application in program.closed_requirement_applications() {
-            let admitted = program.conformances().iter().any(|implementation| {
+            for implementation in program.conformances().iter().filter(|implementation| {
                 implementation.type_parameters.is_empty()
                     && implementation.lifetime_parameters.is_empty()
                     && AppliedTraitScope::from_conformance(program.typed_program(), implementation)
@@ -103,10 +107,10 @@ pub(crate) fn record_provider_closed_requirements(
                                 provider.symbol,
                             )
                     })
-            });
-            if admitted {
+            }) {
                 rows.push(CheckedProviderClosedRequirement {
                     provider: provider.symbol,
+                    selecting_declaration: implementation.symbol,
                     template: application.template,
                     closed_requirement: application.signature.symbol,
                 });
@@ -117,6 +121,8 @@ pub(crate) fn record_provider_closed_requirements(
         (
             row.provider.arena_index(),
             row.provider.generation(),
+            row.selecting_declaration.arena_index(),
+            row.selecting_declaration.generation(),
             row.template.arena_index(),
             row.template.generation(),
             row.closed_requirement.arena_index(),
@@ -125,6 +131,7 @@ pub(crate) fn record_provider_closed_requirements(
     });
     rows.dedup_by(|later, earlier| {
         later.provider == earlier.provider
+            && later.selecting_declaration == earlier.selecting_declaration
             && later.template == earlier.template
             && later.closed_requirement == earlier.closed_requirement
     });
