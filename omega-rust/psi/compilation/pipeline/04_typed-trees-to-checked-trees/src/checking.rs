@@ -64,7 +64,7 @@ pub fn lower_typed_trees(
     preparation: TypedPreparation,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees_reusing(program, preparation, request, None, false)
+    lower_typed_trees_reusing(program, preparation, None, request, None, false)
         .map(|outcome| outcome.checked)
 }
 
@@ -73,10 +73,29 @@ pub fn lower_typed_trees(
 /// judgment this function computed for an equal input.
 #[derive(Debug, Clone)]
 pub struct RetainedCheck {
+    /// The typed program before preparation and the admission inputs it was
+    /// prepared under. Preparation is a pure function of that pair, so an
+    /// equal request can take this judgment without preparing or checking.
+    preparation_input: std::sync::Arc<typed_trees::TypedTrees>,
+    preparation_admission: typed_trees_to_typed_trees::PreparationAdmission,
     program: std::sync::Arc<typed_trees::FrozenTypedTrees>,
     admits_pending_inputs: bool,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     checked: std::sync::Arc<CheckedTrees>,
+}
+
+impl RetainedCheck {
+    /// Whether this judgment was computed for `program` under `admission`.
+    /// Preparation is a pure function of the typed program and its admission
+    /// inputs, so an equal pair reproduces this judgment's preparation and
+    /// check exactly — [`reuse_retained_check`] may be taken without either.
+    pub fn judges_preparation_input(
+        &self,
+        program: &typed_trees::TypedTrees,
+        admission: &typed_trees_to_typed_trees::PreparationAdmission,
+    ) -> bool {
+        self.preparation_admission == *admission && *self.preparation_input == *program
+    }
 }
 
 /// What [`lower_typed_trees_reusing`] returns: the checked program, this
@@ -88,13 +107,40 @@ pub struct CheckingOutcome {
     pub took_prior: bool,
 }
 
+/// Take `prior`'s judgment for a preparation input it already judged. The
+/// caller has compared the input and admission and found them equal
+/// ([`RetainedCheck::judges_preparation_input`]); preparation and checking are
+/// both pure over that pair, so nothing recomputes. Invocation-owned
+/// declaration authority still runs.
+pub fn reuse_retained_check(
+    prior: &RetainedCheck,
+    request: &CheckingRequest<'_>,
+    retain: bool,
+) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
+    let checked = (*prior.checked).clone();
+    let retained = retain.then(|| prior.clone());
+    admit_declaration_authority(&checked, request)?;
+    Ok(CheckingOutcome {
+        checked,
+        retained,
+        took_prior: true,
+    })
+}
+
 /// [`lower_typed_trees`], taking `prior`'s judgment when its program, checkpoint
 /// and receipts equal this preparation's, and returning this request's judgment
-/// for a later request when `retain`. Retention clones the input program and
-/// the result; only a caller that will ask again should request it.
+/// for a later request when `retain`. `retained_input` is the pre-preparation
+/// program beside its admission snapshot, present only when `retain`: it lets
+/// a later caller prove equal inputs before preparing at all. Retention clones
+/// the input program and the result; only a caller that will ask again should
+/// request it.
 pub fn lower_typed_trees_reusing(
     program: typed_trees::FrozenTypedTrees,
     preparation: TypedPreparation,
+    retained_input: Option<(
+        std::sync::Arc<typed_trees::TypedTrees>,
+        typed_trees_to_typed_trees::PreparationAdmission,
+    )>,
     request: &CheckingRequest<'_>,
     prior: Option<&RetainedCheck>,
     retain: bool,
@@ -110,8 +156,10 @@ pub fn lower_typed_trees_reusing(
     let (checked, retained) = match equal_prior {
         Some(prior) => ((*prior.checked).clone(), retain.then(|| prior.clone())),
         None => {
-            let input = retain.then(|| {
+            let input = retained_input.map(|(preparation_input, preparation_admission)| {
                 (
+                    preparation_input,
+                    preparation_admission,
                     std::sync::Arc::new(program.clone()),
                     opaque_property_receipts.clone(),
                 )
@@ -122,33 +170,47 @@ pub fn lower_typed_trees_reusing(
                 mathematics,
                 opaque_property_receipts,
             )?;
-            let retained = input.map(|(program, opaque_property_receipts)| RetainedCheck {
-                program,
-                admits_pending_inputs,
-                opaque_property_receipts,
-                checked: std::sync::Arc::new(checked.clone()),
-            });
+            let retained = input.map(
+                |(preparation_input, preparation_admission, program, opaque_property_receipts)| {
+                    RetainedCheck {
+                        preparation_input,
+                        preparation_admission,
+                        program,
+                        admits_pending_inputs,
+                        opaque_property_receipts,
+                        checked: std::sync::Arc::new(checked.clone()),
+                    }
+                },
+            );
             (checked, retained)
         }
     };
-    // Package authority is invocation-owned, not part of the language
-    // judgment: admit the returned selections under the caller's authority.
+    admit_declaration_authority(&checked, request)?;
+    Ok(CheckingOutcome {
+        checked,
+        retained,
+        took_prior,
+    })
+}
+
+/// Package authority is invocation-owned, not part of the language judgment:
+/// admit the returned selections under the caller's authority on every path.
+fn admit_declaration_authority(
+    checked: &CheckedTrees,
+    request: &CheckingRequest<'_>,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
     if let Some(authority) = request.declaration_authority {
         let mut sibling_occurrences = crate::target_sibling_selection_occurrences(&checked.typed);
         sibling_occurrences.extend(crate::build_program::descriptor_selection_occurrences(
             &checked.typed,
         ));
         validation::validate_authored_declaration_selections(
-            &checked,
+            checked,
             authority,
             &sibling_occurrences,
         )?;
     }
-    Ok(CheckingOutcome {
-        checked,
-        retained,
-        took_prior,
-    })
+    Ok(())
 }
 
 /// The check itself, over a program `lower_typed_trees` has found complete.

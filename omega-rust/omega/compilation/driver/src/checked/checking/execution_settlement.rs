@@ -139,17 +139,30 @@ pub(crate) fn check_selected_execution(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {
             let started = std::time::Instant::now();
+            let admission = preparation_request.admission();
+            let prior = settled_check_reuse.prior.product.as_ref();
+            let retain = settled_check_reuse.retain;
             let result =
-                typed_trees_to_typed_trees::prepare_typed_trees(typed, &preparation_request)
-                    .and_then(|(typed, preparation)| {
-                        typed_trees_to_checked_trees::lower_typed_trees_reusing(
-                            typed,
-                            preparation,
-                            &checking,
-                            settled_check_reuse.prior.product.as_ref(),
-                            settled_check_reuse.retain,
-                        )
-                    });
+                match prior.filter(|prior| prior.judges_preparation_input(&typed, &admission)) {
+                    Some(prior) => {
+                        typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, retain)
+                    }
+                    None => {
+                        let retained_input =
+                            retain.then(|| (std::sync::Arc::new(typed.clone()), admission));
+                        typed_trees_to_typed_trees::prepare_typed_trees(typed, &preparation_request)
+                            .and_then(|(typed, preparation)| {
+                                typed_trees_to_checked_trees::lower_typed_trees_reusing(
+                                    typed,
+                                    preparation,
+                                    retained_input,
+                                    &checking,
+                                    prior,
+                                    retain,
+                                )
+                            })
+                    }
+                };
             if result.as_ref().is_ok_and(|outcome| outcome.took_prior) {
                 artifacts::compile_timings::counters::record_settled_check_reuse();
             } else {

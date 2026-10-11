@@ -120,17 +120,30 @@ pub(crate) fn prepare_checked_build(
                 .with_declaration_authority(
                     packages.map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
                 );
-            let result =
-                typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation_request)
-                    .and_then(|(program, preparation)| {
-                        typed_trees_to_checked_trees::lower_typed_trees_reusing(
-                            program,
-                            preparation,
-                            &checking,
-                            prior,
-                            retain,
-                        )
-                    });
+            let admission = preparation_request.admission();
+            let result = match prior
+                .filter(|prior| prior.judges_preparation_input(&program, &admission))
+            {
+                Some(prior) => {
+                    typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, retain)
+                }
+                None => {
+                    let retained_input =
+                        retain.then(|| (std::sync::Arc::new(program.clone()), admission));
+                    typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation_request)
+                        .and_then(|(program, preparation)| {
+                            typed_trees_to_checked_trees::lower_typed_trees_reusing(
+                                program,
+                                preparation,
+                                retained_input,
+                                &checking,
+                                prior,
+                                retain,
+                            )
+                        })
+                }
+            };
+            artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());
             if result.as_ref().is_ok_and(|outcome| outcome.took_prior) {
                 artifacts::compile_timings::counters::record_settled_check_reuse();
             } else {

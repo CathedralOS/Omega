@@ -104,6 +104,17 @@ pub fn preliminary_check_totals() -> (u64, u64) {
     )
 }
 
+/// Account one pre-build checking request, whether it checked, took a retained
+/// judgment, or rejected. Elapsed covers the whole lowering request so review
+/// accounting can weigh requests against executed checks.
+pub fn record_preliminary_check(elapsed: std::time::Duration) {
+    PRELIMINARY_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    PRELIMINARY_CHECK_MICROS.fetch_add(
+        u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX),
+        std::sync::atomic::Ordering::Relaxed,
+    );
+}
+
 /// Record entry to the checked-compilation API, including rejected requests.
 pub fn record_checked_compilation() {
     CHECKED_COMPILATION_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);

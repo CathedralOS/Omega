@@ -38,6 +38,7 @@ pub use build_program::{project_build_program, project_selected_program};
 
 pub use checking::{
     CheckingOutcome, CheckingRequest, RetainedCheck, lower_typed_trees, lower_typed_trees_reusing,
+    reuse_retained_check,
 };
 pub use package_review::{
     derive_authored_machine_crash_buckets, derive_authored_signature_crash_buckets,

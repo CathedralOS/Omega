@@ -69,6 +69,32 @@ impl<'request> PreparationRequest<'request> {
     }
 }
 
+/// One request's complete admission inputs in owned form. A caller retaining
+/// a language judgment keeps this beside it: preparation is a pure function
+/// of the typed program and these inputs, so an equal pair reproduces the
+/// exact preparation and the judgment may be taken without preparing again.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PreparationAdmission {
+    admits_pending_inputs: bool,
+    asm_authority: Option<validation::AsmAuthorityAdmission>,
+    opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
+    wire_compatibility_demands: Vec<language_semantics::wire::WireCompatibilityDemand>,
+}
+
+impl PreparationRequest<'_> {
+    /// Snapshot every admission input this request carries. The snapshot is
+    /// the comparison a retained judgment needs; the borrowed slices stay
+    /// construction-time data.
+    pub fn admission(&self) -> PreparationAdmission {
+        PreparationAdmission {
+            admits_pending_inputs: self.admits_pending_inputs,
+            asm_authority: self.asm_authority,
+            opaque_property_receipts: self.opaque_property_receipts.to_vec(),
+            wire_compatibility_demands: self.wire_compatibility_demands.to_vec(),
+        }
+    }
+}
+
 /// Judgments retained while closing the typed program. Its ordinary TypedTrees
 /// form is passed separately; this record is not another program representation.
 pub struct TypedPreparation {
