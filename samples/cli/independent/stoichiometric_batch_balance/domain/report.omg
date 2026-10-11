@@ -13,14 +13,16 @@ pub machine number(console: &mut Binding<Console>, value: i64 in Wrapping) reach
             false -> done()
         }
     }
-    state digit(console: &mut Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
+    state digit(console: &mut Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
+    requires divisor > 0 {
         let digit: i64 in Wrapping = value / divisor;
         transition started || digit > 0 || divisor == 1 {
             true -> emit(console, value, divisor, digit)
             false -> place(console, value, divisor / 10, false)
         }
     }
-    state emit(console: &mut Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping) {
+    state emit(console: &mut Binding<Console>, value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
+    requires divisor > 0 {
         let byte: i32 = narrow_i64_to_i32_wrapping((digit + 48) as i64);
         console.write_byte(byte);
         transition { _ -> place(console, value % divisor, divisor / 10, true) }

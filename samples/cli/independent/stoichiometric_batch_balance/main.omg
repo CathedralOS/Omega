@@ -66,12 +66,13 @@ machine Main::main(context: &mut Main) reaches Console {
     state balance(context: &mut Main, reaction: &Reaction) {
         let mut result: Balance;
         solve(reaction, &mut result);
-        transition result.solutions > 0 {
+        transition result.solutions > 0 && result.coefficients[0] > 0 && result.coefficients[1] > 0 {
             true -> batch(context, reaction, &result)
             false -> impossible(context)
         }
     }
-    state batch(context: &mut Main, reaction: &Reaction, balance: &Balance) {
+    state batch(context: &mut Main, reaction: &Reaction, balance: &Balance)
+    requires balance.coefficients[0] > 0 && balance.coefficients[1] > 0 {
         let mut result: Batch;
         process(reaction, balance, &mut result);
         transition result.overflow {

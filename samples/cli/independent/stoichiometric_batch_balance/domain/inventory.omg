@@ -9,7 +9,8 @@ machine minimum(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrappin
 // inventory is retained. Compute the entire proposal before committing, so a
 // refused overflow leaves all inventory untouched. Intermediate products are
 // <=8*INT32_MAX; elemental totals <=64*INT32_MAX, both safely within i64.
-pub machine process(reaction: &Reaction, balance: &Balance, batch: &mut Batch) {
+pub machine process(reaction: &Reaction, balance: &Balance, batch: &mut Batch)
+requires balance.coefficients[0] > 0 && balance.coefficients[1] > 0 {
     batch.inventory = reaction.stock;
     batch.overflow = false;
     batch.limiting = 0;
