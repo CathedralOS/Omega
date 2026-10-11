@@ -15,14 +15,13 @@ registration is uncertain, not claimed successful. Scope retained here.
 Return an independent review candidate and Library transfer bundle. Do not
 publish a remote worker branch or modify shared compiler/numerics exports.
 
-Final application frontier: repaired compiler successfully prepares the graph.
-The local package review resume rejected with exit 1: "project source changed
-since the proposal; discard it and review a fresh candidate". README provenance
-was corrected after proposal generation, changing the package bytes. The user
-requires no retry of rejected package acceptance; no fresh proposal or further
-acceptance is attempted. Check/native/Terminal application runs remain blocked
-by unaccepted program-entry binding. This is an explicit incomplete runtime
-frontier, not a successful end-to-end delivery.
+Package frontier: final candidate source is frozen before fresh preparation.
+An earlier resume rejected because README bytes changed after proposal.
+The user clarified this is a recoverable source-identity error and authorized
+discarding the stale proposal and inspecting a fresh one. Do not change source
+between fresh review and acceptance. A separate actual authorization denial
+would block its exact action; stale proposal acceptance is never permitted.
+Final runtime and landing receipts are external evidence, not source mutations.
 
 Immutable base compiler SHA-256:
 65fba950d6c72184c07ddf4306859866c31375bd922d9018c5a1e6a9f76bd671.
@@ -36,5 +35,5 @@ caf8a6144f521a34c9867a51d43ed8cce7826fd97581d76a196ab27074821cda.
 Separate intended-invalid bounds source rejects for structurally false
 Slice::index contract. Focused compiler corpus and scoped Rust receipts are
 recorded in the transfer bundle. Independent review found no implementation
-correctness defects; runtime completion and landing remain contingent on the
-recorded validation frontier and normal landing workflow.
+correctness defects; runtime completion and landing require the recorded validation receipts
+and normal landing workflow.

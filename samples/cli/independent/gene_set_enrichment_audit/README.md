@@ -83,12 +83,14 @@ user input, collapses repeated identifiers and verifies universe membership.
 `text/parse_int` parses digits; this protocol parses provenance-bearing sets.
 None computes an exact sampling distribution or multiplicity adjustment.
 
-## Recorded execution frontier
+## Package review and receipts
 
-The repaired compiler prepared this application, but review resume rejected:
-`project source changed since the proposal; discard it and review a fresh candidate`.
-The README correction changed the proposed package bytes. The assignment forbids
-retrying denied acceptance, so this project remains unaccepted. Application
-check/native/Terminal validation is blocked at the program-entry binding; the
-commands above are reproducible intended checks, not claimed passing receipts.
-The separate bounds control passed its exact rejection check.
+Prepare the final source with `omega update --project
+samples/cli/independent/gene_set_enrichment_audit --target linux_x86_64`.
+Inspect the generated package review, decide each capability row explicitly,
+and use `omega update --project samples/cli/independent/gene_set_enrichment_audit
+--resume`. Freeze all package source before preparation and acceptance.
+A previous proposal became stale after a documentation correction; it was
+discarded before fresh review. Source identity rejection is recoverable; an
+actual authorization denial must be respected. Exact commands and validation
+receipts belong in the review bundle, separately from the frozen source.
