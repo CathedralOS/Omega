@@ -37,6 +37,15 @@ watershed, catchment and region labeling found no admitted micrograph applicatio
 on this base; no active-worker candidate was used to supply that comparison.
 Reachability and generic region labels alone do not deliver this workflow.
 
+At integration main `f3c3255420f4d0eedcf5279fc17d51e7577f1f51`,
+`samples/cli/independent/micrograph_regions/domain/regions.omg` is admitted. Its
+actual implementation thresholds grayscale intensities, then uses a FIFO queue
+to label foreground components with 4- or 8-neighbor connectivity. It reports
+region measurements. This application instead computes elevation-dependent
+minimum spill heights, assigns drainage to boundary outlets and sums retained
+water depths. Its filling and volume oracles remain independent of image
+thresholding and connected-component labeling.
+
 ## Frozen independent reference
 
 Before the first Omega execution, `reference/oracle.py --freeze` generated the
