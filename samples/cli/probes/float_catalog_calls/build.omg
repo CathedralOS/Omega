@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "float_catalog_calls");
+    builder.freestanding = true;
+}
