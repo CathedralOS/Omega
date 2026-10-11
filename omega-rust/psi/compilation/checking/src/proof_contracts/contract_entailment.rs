@@ -540,6 +540,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             for path in paths {
                 let mut bound = path.judge.clone();
                 if !result_is_parameter {
+                    bound.bump();
                     std::sync::Arc::make_mut(&mut bound.substitutions)
                         .insert(0, (RESULT_BINDER.to_owned(), path.value.clone()));
                 }
@@ -562,6 +563,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 bound.intake_equation(subject_term.clone(), constructor.clone(), 0);
             }
             for (subject, constructor) in &arm.case_hypotheses {
+                bound.bump();
                 std::sync::Arc::make_mut(&mut bound.substitutions)
                     .insert(0, (subject.clone(), constructor.clone()));
             }
@@ -653,6 +655,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 }
             }
             if !result_is_parameter {
+                bound.bump();
                 std::sync::Arc::make_mut(&mut bound.substitutions)
                     .insert(0, (RESULT_BINDER.to_owned(), arm.value.clone()));
             }

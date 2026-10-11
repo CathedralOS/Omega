@@ -12,6 +12,26 @@ use super::StructuralTerm;
 
 impl Eq for StructuralTerm {}
 
+// Hashing reuses the canonical semantic view that Debug renders -- the same
+// key polynomial normalization already trusts -- so equal terms always hash
+// alike and distinct meanings almost never collide.
+impl std::hash::Hash for StructuralTerm {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        use std::fmt::Write;
+
+        struct Sink<'a, H: std::hash::Hasher>(&'a mut H);
+
+        impl<H: std::hash::Hasher> Write for Sink<'_, H> {
+            fn write_str(&mut self, text: &str) -> std::fmt::Result {
+                self.0.write(text.as_bytes());
+                Ok(())
+            }
+        }
+
+        write!(Sink(state), "{self:?}").expect("hash sink cannot fail");
+    }
+}
+
 impl PartialEq for StructuralTerm {
     fn eq(&self, other: &Self) -> bool {
         let other = other.semantic_value();
