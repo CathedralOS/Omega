@@ -30,7 +30,7 @@
 //! `owner_paths` matches owner field paths against place segments, and
 //! `types` answers whether a type is a reference and with which access.
 //! Other modules use `borrow_initializer_expressions` (persistent storage
-//! check), `helper_call_borrow_loan_place` and
+//! check),
 //! `call_declares_direct_view_source` (resource lineage replay), and
 //! `types::reference_borrow_access_kind` (borrow check details).
 //! The state builder also captures normal returned leaves through
@@ -54,7 +54,6 @@ pub(crate) use owner_paths::{
 };
 
 mod aggregate;
-mod mutable_view_results;
 mod owner_paths;
 mod returned_carriers;
 pub(crate) use returned_carriers::{call_reference_sources, returned_body_source_mismatch};
@@ -67,7 +66,7 @@ mod reference_borrows;
 pub(in crate::borrow) use aggregate_loans::borrowed_initializer_loans;
 use aggregate_loans::*;
 pub(crate) use call_views::argument_borrow_loan_place;
-pub(in crate::borrow) use call_views::{call_view_return_contract, helper_call_borrow_loan_place};
+pub(in crate::borrow) use call_views::call_view_return_contract;
 use reference_borrows::*;
 
 mod aggregate_loans;

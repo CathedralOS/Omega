@@ -55,19 +55,11 @@ pub(crate) fn helper_call_borrow_loan_place(
     // track here always matches what the elision check accepted. Elision rules
     // 1/3 and stage-2 explicit lifetimes all flow through there; a generic
     // signature resolves the same relation under the call's closed bindings.
-    // `&mut` structural-view results mint their loan at the callee's own
-    // tail source — the structural custody model names the storage the
-    // returned view borrows where signature elision can only name the
-    // declared shape.
-    if let Some(place) = super::mutable_view_results::mutable_view_call_loan_place(
-        program,
-        state_symbol,
-        statement_index,
-        machine_symbol,
-        call,
-    ) {
-        return Some(place);
-    }
+    // This place query can represent only a single declared input. Body
+    // projections and complete lifetime candidate unions belong to the
+    // captured returned-leaf relation, not a second syntactic tail walk.
+    // In particular, a convenient body path cannot replace the declaration's
+    // input lifetime set or bypass an ambiguous/unavailable relation.
 
     match call_view_return_contract(program, state_symbol, call)?.source(program) {
         ViewReturnSource::NotApplicable

@@ -106,4 +106,3 @@ pub(crate) use signatures::{
 pub(crate) use structural_arguments::{
     call_claim_transfers, computed_call_claim_transfers, exact_structural_borrow_access,
 };
-pub(crate) use structural_result_call::view_source_parameter_is_mutable;

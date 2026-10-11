@@ -260,18 +260,3 @@ pub(super) fn with_structural_custody(
     *operation.call_mut()?.structural_custody_mut()? = custody;
     Some(operation)
 }
-
-/// A parameter names caller storage only while it is mutably borrowed:
-/// `bag: &mut Bag` spells a `Reference` type, while a binding declared on the
-/// bare record type carries that access in the parameter's own `is_mutable`.
-pub(crate) fn view_source_parameter_is_mutable(
-    program: &dyn ::validation::CheckingInput,
-    parameter: &typed_trees::signature::StateParameter,
-) -> bool {
-    parameter.is_mutable
-        || crate::execution::terminal_unit::reference_results::mutable_borrowed_parts(
-            program,
-            parameter.type_reference,
-        )
-        .is_some()
-}
