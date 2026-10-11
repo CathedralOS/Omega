@@ -33,4 +33,4 @@ r=run('intended-invalid',[a.omega,'--check',str(root/'controls/invalid/invalid.o
 expected_error=(root/'controls/invalid/expected.txt').read_bytes().strip()
 expected_diagnostic=b'cannot check prepared project: checked compilation failed for package `invalid_sensor_loan` with 1 diagnostic(s)\n  error: '+expected_error+b'\n'
 assert r.returncode==1 and r.stdout==b'' and r.stderr==expected_diagnostic,r.stderr.decode()
-print('PASS: check, 8 native + 8 Terminal cases, invalid runtime inputs, EOF, exact borrow rejection')
+print('PASS: check, 8 native + 8 Terminal exit-agreement cases, invalid runtime inputs, EOF, exact borrow rejection')

@@ -64,8 +64,16 @@ printf 0 | omega run --both --keep samples/cli/independent/spatial_sensor_deploy
 python3 samples/cli/independent/spatial_sensor_deployment/validate.py --omega /absolute/path/to/omega
 ```
 
-`validate.py` checks exact native and Terminal output and exit for every variant
-and invalid runtime input, plus the independent intended-invalid source control.
+`validate.py` checks byte-exact native output, native and Terminal exit agreement
+for every variant and invalid runtime input, plus the independent intended-invalid
+source control. The CLI `--both` route compares exit status only. Run
+`python3 samples/cli/independent/spatial_sensor_deployment/validate_terminal.py
+--runner /absolute/path/to/corpus_runner` to capture and check every native and
+admitted Terminal stdout oracle independently with the documented corpus harness
+(one job, 12 complete temporary source fixtures, unchanged expected data).
+The corpus harness normalizes line endings; numeric tolerance is zero. Its
+per-engine stdout facts and pre-execution fixture hashes are retained in
+`build/terminal-validation/`; temporary corpus fixture directories are removed.
 It records stdout, stderr, elapsed time and exit in local `build/validation/`.
 Check `evidence/validation.md` for actual commands and route observations.
 
