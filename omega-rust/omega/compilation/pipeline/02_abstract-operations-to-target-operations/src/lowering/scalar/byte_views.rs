@@ -657,7 +657,8 @@ fn observes_length(
 
 /// Authenticate a completed descriptor through its allocated result home and
 /// exact producer declaration, independent of the producer's call origin.
-/// Descriptors held only in SSA keep their separate geometry route. Backing provenance is
+/// Call reception and declared locals materialize descriptors; establishment
+/// recipes keep their separate SSA geometry route. Backing provenance is
 /// retained separately by call and descriptor custody; a result home never
 /// becomes a new independent allocation merely because it has a descriptor
 /// layout.
@@ -669,9 +670,11 @@ pub(in crate::lowering) fn descriptor_result<'a>(
 ) -> Option<(OperationId, &'a terminal_psi::StructuralOperationResult)> {
     let (producer, stored) = homes.get(&place)?.operation_result()?;
     let mut producers = function.operations.iter().filter_map(|operation| {
-        operation
-            .structural_result()
-            .filter(|(_, result)| result.place == place)
+        let result = match operation {
+            AbstractOperation::EstablishStructuralLocal { .. } => operation.structural_result(),
+            _ => operation.structural_call_result(),
+        };
+        result.filter(|(_, result)| result.place == place)
     });
     let (operation, result) = producers.next()?;
     // A descriptor home's declared byte qualifications describe the contents

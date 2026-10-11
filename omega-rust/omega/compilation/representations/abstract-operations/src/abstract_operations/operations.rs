@@ -814,6 +814,17 @@ impl AbstractOperation {
         }
     }
 
+    /// A completed call's carrier, independent of ordinary, selected or
+    /// boundary dispatch. Unlike a view-establishment recipe whose words may
+    /// stay in SSA, call ABI reception materializes this carrier in its result
+    /// home. This distinction describes storage, not authority over backing.
+    pub fn structural_call_result(&self) -> Option<(OperationId, &StructuralOperationResult)> {
+        match self {
+            Self::CallStructural { .. } | Self::BoundaryCall { .. } => self.structural_result(),
+            _ => None,
+        }
+    }
+
     /// The declared structural value produced by this operation, independent
     /// of its constructor or call origin. This is semantic custody, not an
     /// assertion that the value owns storage: views and primitive locals also
