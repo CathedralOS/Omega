@@ -28,6 +28,35 @@ pub(crate) fn checked_value_call_candidate(
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
 ) -> Result<(), &'static str> {
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        let key = (machine.symbol, state.symbol);
+        if let Ok(candidates) = memos.checked_value_call_candidates.lock()
+            && let Some(result) = candidates.get(&key).copied()
+        {
+            return result;
+        }
+        let result = unchecked_value_call_candidate(
+            program,
+            machine,
+            state,
+            operational,
+            service_reaches,
+        );
+        if let Ok(mut candidates) = memos.checked_value_call_candidates.lock() {
+            candidates.insert(key, result);
+        }
+        return result;
+    }
+    unchecked_value_call_candidate(program, machine, state, operational, service_reaches)
+}
+
+fn unchecked_value_call_candidate(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    operational: &flow_effects::OperationalPlan,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
+) -> Result<(), &'static str> {
     if !has_pure_effect_closure(
         program,
         machine.symbol,

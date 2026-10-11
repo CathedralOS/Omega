@@ -354,6 +354,20 @@ pub struct CheckingMemos {
     pub(crate) content_conservation: OnceLock<Arc<Vec<ContentConservationSourcePlan>>>,
     pub(crate) binary_meanings:
         Mutex<symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>>,
+    /// One denotational candidacy verdict per selected (machine, state); the
+    /// answer is a pure function of the program's call plans, so repeated
+    /// consultations across case-arm leaves share the closure walks.
+    pub(crate) checked_value_call_candidates: Mutex<
+        symbols::SymbolKeyMap<
+            (symbols::SymbolHandle, symbols::SymbolHandle),
+            Result<(), &'static str>,
+        >,
+    >,
+    /// One owner-designated cleanup role per exact machine symbol; the chain
+    /// walk through specialization templates is program-fixed, so cleanup
+    /// consumers that probe every machine share each declaration's walk once.
+    pub(crate) nominal_cleanup_owners:
+        Mutex<symbols::SymbolMap<Option<symbols::SymbolHandle>>>,
     pub(crate) data_fields: OnceLock<Arc<DataFieldIndex>>,
     pub(crate) contract_occurrences:
         OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,

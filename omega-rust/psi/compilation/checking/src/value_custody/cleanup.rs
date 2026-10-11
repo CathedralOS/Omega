@@ -270,6 +270,25 @@ pub fn nominal_cleanup_owner(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        if let Ok(owners) = memos.nominal_cleanup_owners.lock()
+            && let Some(owner) = owners.get(&symbol).copied()
+        {
+            return owner;
+        }
+        let owner = nominal_cleanup_owner_walk(program, symbol);
+        if let Ok(mut owners) = memos.nominal_cleanup_owners.lock() {
+            owners.insert(symbol, owner);
+        }
+        return owner;
+    }
+    nominal_cleanup_owner_walk(program, symbol)
+}
+
+fn nominal_cleanup_owner_walk(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
     let machine = program.machine(symbol)?;
     let mut declaration = machine;
     let mut visited = Vec::new();
