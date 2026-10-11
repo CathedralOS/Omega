@@ -1,0 +1,3 @@
+pub machine v() -> i32 {
+    1
+}
