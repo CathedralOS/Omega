@@ -2717,12 +2717,17 @@ crash and native exit behavior.
     invocation-owned staging; captured outputs publish without repeating effects.
 
   Acceptance: a two-target request counts one Build activation and one final
-  product check (timing rows alone are insufficient); std's six rows come from
-  one evaluation. Malformed unrequested rows reject; per-target missing-row
-  outcomes stay per target. Nested generated-dependency and dual-purpose
-  custody, pre-effect rejection and snapshot/required-output settlement keep
-  their behavior; their CLI Rust tests were cut, so add corpus or CLI-level
-  coverage for them.
+  product check (timing rows alone are insufficient); std's rows for every
+  target come from one evaluation — satisfied by the shared pure-Build store:
+  executions and settled checks dedupe across targets, and across review
+  rounds through the session-owned store. Malformed unrequested rows reject;
+  per-target missing-row outcomes stay per target. Nested generated-dependency
+  and dual-purpose custody, pre-effect rejection and snapshot/required-output
+  settlement keep their behavior, covered by
+  tests/omega/pending/build/nested_generated_dependency_dual_purpose and
+  corpus fixtures scoped_build_stops_before_unaccepted_effect,
+  artifact_only_unsealed_output_refused and
+  captured_source_generated_constant.
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope) One target-neutral Psi
   product; per-target provider installation consumes Terminal Psi plus that
