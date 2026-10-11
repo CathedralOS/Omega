@@ -1,0 +1,42 @@
+// An indexed domain application in proof-fact position:
+// `ensures result in Granted & Resident<SlotPlacement, Slot>` is
+// carried by argument, and `old(&storage)` names the call-site
+// pre-image in an equality fact — restating under another index is
+// refused as a distinct normalized instance.
+use omega::language::core::binding;
+use omega::language::core::extent;
+use omega::language::core::content;
+pub data Slot [copy] {
+    value: u32;
+}
+pub data SlotPlacement {}
+pub data Retired {
+    storage: Extent in Granted & Vacant;
+    value: Slot;
+}
+pub boundary trait ResidentStorage {
+    machine place(storage: Extent in Granted & Vacant, value: Slot) -> Extent
+    ensures
+        result in Granted & Resident<SlotPlacement, Slot>,
+        Granted::content(old(&storage)) == Granted::content(&result);
+    machine view(storage: &Extent in Granted & Resident<SlotPlacement, Slot>) -> Slot;
+    machine retire_view(storage: Extent in Granted & Resident<SlotPlacement, Slot>) -> Retired
+    ensures
+        Granted::content(old(&storage)) == Granted::content(&result.storage);
+}
+machine exercise_placed(
+    storage: &Binding<ResidentStorage>,
+    vacant: Extent in Granted & Vacant
+) -> Extent
+reaches ResidentStorage
+{
+    let placed: Extent in Granted & Resident<SlotPlacement, Slot> =
+        storage.place(vacant, Slot { value: 7 });
+    let observed: Slot = storage.view(&placed);
+    let retired: Retired = storage.retire_view(placed);
+    let released: Extent in Granted & Vacant = retired.storage;
+    released as Extent
+}
+
+data Main {}
+machine Main::main(main: &mut Main) { }

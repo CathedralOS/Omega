@@ -1,20 +1,6 @@
-# ensures fact list
+# ensures_fact_list
 
-Compile-scope probe. No standard-library dependency.
+One `ensures` may list several facts — each is its own published guarantee: `bump` publishes `count > 0; count <= slots.len` and `release`'s requires list consumes them together (the exact subtraction cannot go below zero).
 
-- machine_param_schema: `apply<machine Schema, machine Unused>`
-  with `where machine X<const Number: u64>(v) -> u64 reaches
-  Console` const+reach bounds; `Schema<2>(v)` calls;
-  const-generic machines passed by name.
-- ensures_fact_list: multi-clause `ensures` rosters
-  (`count > 0; count <= slots.len`) and `requires` quoting
-  member expressions like `counter.slots.len`.
-
-Compile-checked only (no ProcessExit provider):
-
-```sh
-mbx run -p omega -- --check samples/cli/probes/ensures_fact_list/main.omg
-mbx run -p omega -- update --project samples/cli/probes/ensures_fact_list
-```
-
-Both green on Linux x86-64; `omega.lock` publishes locally, ignored.
+Compile-checked only: no standard-library dependency and
+no \`Main::exit\` — run a check target, not native.
