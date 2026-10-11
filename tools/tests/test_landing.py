@@ -643,6 +643,71 @@ class ReceiptTests(LandingTests):
         self.assertEqual(receipt["exit_code"], 101)
         self.assertEqual(calls[0][0], "cargo")
 
+    def standalone_crate(self, package="crate-one"):
+        self.rust_crate(package)
+        manifest = self.a / "crate" / "Cargo.toml"
+        with manifest.open("a", encoding="utf-8") as output:
+            output.write("\n[workspace]\n")
+        self.git(self.a, "add", "crate/Cargo.toml")
+        self.git(self.a, "commit", "-m", "independent workspace")
+        return self.git(self.a, "rev-parse", "HEAD")
+
+    def test_verify_checks_standalone_workspace_and_requires_its_receipt(self):
+        module = load_landing()
+        candidate = self.standalone_crate()
+        calls = []
+        with mock.patch.object(module.shutil, "which", return_value="/bin/mbx"), \
+                mock.patch.object(module.subprocess, "run",
+                                  side_effect=self.check_recorder(0, calls)):
+            self.assertEqual(module.verify(self.a, self.initial), 0)
+        self.assertEqual(calls[0], ["mbx", "check", "-p", "omega"])
+        self.assertEqual(calls[1], ["mbx", "check", "--manifest-path",
+                                   str(self.a / "crate" / "Cargo.toml"), "-p", "crate-one"])
+        workspaces = module.affected_workspaces(self.a, self.initial, candidate)
+        affected = {"crate-one", "omega"}
+        self.assertIsNone(module.receipt_failure(self.a, candidate, affected, workspaces))
+        # Same flat names in an old receipt cannot stand in for a check in the
+        # independent package namespace (including same-name root packages).
+        self.receipt(module, candidate, affected)
+        self.assertIn("workspace", module.receipt_failure(self.a, candidate, affected, workspaces))
+
+    def test_standalone_failure_prevents_passing_receipt(self):
+        module = load_landing()
+        candidate = self.standalone_crate()
+        calls = []
+        recorder = self.check_recorder(0, calls)
+
+        def run(command, *arguments, **keyword):
+            result = recorder(command, *arguments, **keyword)
+            if "--manifest-path" in command:
+                return subprocess.CompletedProcess(command, 101)
+            return result
+
+        with mock.patch.object(module.subprocess, "run", side_effect=run):
+            self.assertEqual(module.verify(self.a, self.initial), 1)
+        receipt = json.loads(module.receipt_path(self.a, candidate).read_text())
+        self.assertEqual(receipt["exit_code"], 101)
+        self.assertEqual([check["exit_code"] for check in receipt["checks"]], [0, 101])
+
+    def test_same_named_standalone_package_needs_its_own_check(self):
+        module = load_landing()
+        candidate = self.standalone_crate("omega")
+        workspaces = module.affected_workspaces(self.a, self.initial, candidate)
+        self.assertEqual(workspaces, {".": {"omega"}, "crate/Cargo.toml": {"omega"}})
+        self.receipt(module, candidate, {"omega"})
+        self.assertIn("workspace", module.receipt_failure(self.a, candidate, {"omega"}, workspaces))
+
+    def test_nested_lockfile_and_root_lock_keep_independent_coverage(self):
+        module = load_landing()
+        base = self.standalone_crate()
+        (self.a / "Cargo.lock").write_text("version = 4\n", encoding="utf-8")
+        (self.a / "crate" / "Cargo.lock").write_text("version = 4\n", encoding="utf-8")
+        self.git(self.a, "add", "Cargo.lock", "crate/Cargo.lock")
+        self.git(self.a, "commit", "-m", "lock dependencies")
+        candidate = self.git(self.a, "rev-parse", "HEAD")
+        self.assertEqual(module.affected_workspaces(self.a, base, candidate),
+                         {".": {"omega"}, "crate/Cargo.toml": {"crate-one"}})
+
     def test_verify_skips_the_check_when_nothing_rust_changed(self):
         module = load_landing()
         candidate = self.commit(self.a, "notes only")

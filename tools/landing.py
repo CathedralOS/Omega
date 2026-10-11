@@ -77,9 +77,10 @@ def expired(record):
 # Changes to these root files rebuild the world; they name the CLI package
 # directly instead of a crate-local manifest.
 WORKSPACE_SENTINELS = {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml"}
-RUST_FILE = re.compile(r"\.rs$|(?:^|/)Cargo\.toml$|(?:^|/)build\.rs$")
+RUST_FILE = re.compile(r"\.rs$|(?:^|/)Cargo\.(?:toml|lock)$")
 PACKAGE_TABLE = re.compile(r"(?ms)^\[package\](.*?)(?=^\[|\Z)")
 PACKAGE_NAME = re.compile(r'^\s*name\s*=\s*"([^"]+)"', re.M)
+WORKSPACE_TABLE = re.compile(r"(?m)^\s*\[workspace\]\s*(?:#.*)?$")
 RECEIPT_SCHEMA = "omega-landing-receipt-v1"
 CORPUS_GOLDEN = re.compile(r"^tests/omega/corpus_[^/]*\.txt$")
 
@@ -136,21 +137,40 @@ def package_name(manifest: Path):
     name = PACKAGE_NAME.search(table.group(1))
     return name.group(1) if name else None
 
-def affected_packages(repository, base, candidate):
-    """Rust packages the base..candidate diff must re-check.
+def package_workspace(repository, manifest):
+    """The enclosing explicit Cargo workspace; '.' selects the repository root.
+
+    Nested workspaces own separate package namespaces, even when a package has
+    the same name as one in the root workspace. Route checks through that actual
+    manifest instead of interpreting its package name in the root namespace.
+    """
+    directory = manifest.parent
+    while directory != repository:
+        workspace = directory / "Cargo.toml"
+        if workspace.is_file() and WORKSPACE_TABLE.search(
+                workspace.read_text(encoding="utf-8", errors="replace")):
+            return workspace.relative_to(repository).as_posix()
+        directory = directory.parent
+    return "."
+
+def affected_workspaces(repository, base, candidate):
+    """Rust packages the base..candidate diff must re-check, by workspace.
 
     Each changed .rs/Cargo.toml/build.rs walks up to the first manifest
     with a [package] table (deleted files still walk their parents). Any
     non-empty answer adds `omega`: building the CLI package checks the
     whole product dependency closure, which catches dependents an API
-    change broke. Root workspace files short-circuit to it directly.
+    change broke. Root workspace files select it without dropping independent
+    workspace changes elsewhere in the same candidate. Nested lockfiles select
+    their owning package just like their manifests and Rust sources.
     """
     changed = coordination.git(repository, "diff", "--name-only", base,
                                candidate).stdout.splitlines()
-    packages = set()
+    workspaces = {}
     for path in changed:
         if path in WORKSPACE_SENTINELS:
-            return {"omega"}
+            workspaces.setdefault(".", set()).add("omega")
+            continue
         if not RUST_FILE.search(path):
             continue
         directory = (repository / path).parent
@@ -158,14 +178,20 @@ def affected_packages(repository, base, candidate):
             manifest = directory / "Cargo.toml"
             name = package_name(manifest) if manifest.is_file() else None
             if name:
-                packages.add(name)
+                workspace = package_workspace(repository, manifest)
+                workspaces.setdefault(workspace, set()).add(name)
                 break
             if directory == repository:
                 break
             directory = directory.parent
-    if packages:
-        packages.add("omega")
-    return packages
+    if workspaces:
+        workspaces.setdefault(".", set()).add("omega")
+    return workspaces
+
+def affected_packages(repository, base, candidate):
+    """Flat package coverage retained for existing receipt readers."""
+    return {package for packages in affected_workspaces(repository, base, candidate).values()
+            for package in packages}
 
 def receipt_path(repository, candidate):
     return (Path(repository) / "build" / "landing_receipts"
@@ -197,15 +223,26 @@ def verify(repository, base):
                         allow_failure=True).returncode:
         raise LandingError(f"Base {base[:12]} is not an ancestor of HEAD; "
                            "rebase onto it before verifying.")
-    packages = sorted(affected_packages(repository, base, head))
+    workspaces = affected_workspaces(repository, base, head)
+    packages = sorted({package for names in workspaces.values() for package in names})
     command = None
+    checks = []
     exit_code = 0
     if packages:
         tool = "mbx" if shutil.which("mbx") else "cargo"
-        command = [tool, "check"]
-        for package in packages:
-            command += ["-p", package]
-        exit_code = subprocess.run(command, cwd=repository).returncode
+        for workspace, names in sorted(workspaces.items()):
+            check_command = [tool, "check"]
+            if workspace != ".":
+                check_command += ["--manifest-path", str(repository / workspace)]
+            for package in sorted(names):
+                check_command += ["-p", package]
+            checked_exit = subprocess.run(check_command, cwd=repository).returncode
+            checks.append({"workspace": workspace, "packages": sorted(names),
+                           "command": check_command, "exit_code": checked_exit})
+            if command is None:
+                command = check_command
+            if checked_exit and not exit_code:
+                exit_code = checked_exit
     # A golden corpus row can only vanish through a record/history accident;
     # an intended retirement deletes the fixture with it, which
     # lost_golden_rows does not flag. Block the publish here, before the
@@ -220,6 +257,7 @@ def verify(repository, base):
                 print(f"landing:   {path}: {key}", file=sys.stderr)
     receipt = {"schema": RECEIPT_SCHEMA, "candidate": head, "base": base,
                "packages": packages, "command": command,
+               "checks": checks,
                "exit_code": exit_code, "utc": now()}
     if lost:
         receipt["lost_rows"] = lost
@@ -227,7 +265,7 @@ def verify(repository, base):
     emit(receipt)
     return 0 if exit_code == 0 else 1
 
-def receipt_failure(repository, candidate, affected):
+def receipt_failure(repository, candidate, affected, workspaces=None):
     """None when a valid build receipt covers `affected`; else the reason."""
     path = receipt_path(repository, candidate)
     if not path.is_file():
@@ -249,6 +287,16 @@ def receipt_failure(repository, candidate, affected):
     if missing:
         return (f"build receipt {path} covers {receipt.get('packages')}; "
                 f"the candidate also affects {sorted(missing)}")
+    # Legacy root-only receipts remain valid. A standalone namespace requires
+    # its own successful command record; flat names cannot prove that coverage.
+    for workspace, packages in (workspaces or {}).items():
+        if workspace == ".":
+            continue
+        if not any(check.get("workspace") == workspace
+                   and check.get("exit_code") == 0
+                   and packages <= set(check.get("packages") or [])
+                   for check in receipt.get("checks", [])):
+            return f"build receipt {path} lacks a passing check for workspace {workspace}"
     return None
 
 class Landing:
@@ -527,11 +575,12 @@ class Landing:
         # Publish must not build: the head lease is 180s and a rebuild has
         # already cost a session its reservation. A Rust-touching candidate
         # needs a `verify` receipt for this exact sha instead.
-        affected = affected_packages(self.repository, options.base,
-                                     options.candidate)
+        workspaces = affected_workspaces(self.repository, options.base,
+                                        options.candidate)
+        affected = {package for packages in workspaces.values() for package in packages}
         if affected:
             failure = receipt_failure(self.repository, options.candidate,
-                                      affected)
+                                      affected, workspaces)
             if failure:
                 raise LandingError(
                     f"{failure}; run `python tools/landing.py verify "

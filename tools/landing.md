@@ -75,16 +75,23 @@ python tools/landing.py verify --base <base>
 ```
 
 `verify` computes the affected packages from `git diff --name-only <base>
-HEAD`: each changed `.rs`, `Cargo.toml`, or `build.rs` walks up to the
+HEAD`: each changed `.rs`, `Cargo.toml`, or nested `Cargo.lock` walks up to the
 first manifest with a `[package]` table; a change to the workspace root
-`Cargo.toml`, `Cargo.lock`, or `rust-toolchain.toml` means everything. Any
+`Cargo.toml`, `Cargo.lock`, or `rust-toolchain.toml` checks the product closure through `omega`. Any
 non-empty set also adds `omega`, since checking the CLI package checks the
 whole product dependency closure — dependents an API change broke. It then
-runs `mbx check -p <pkg> ...` (plain `cargo` when `mbx` is absent) and
+runs `mbx check -p <pkg> ...` for the root workspace and a separate
+`mbx check --manifest-path <workspace-manifest> -p <pkg> ...` for each affected
+nested explicit `[workspace]` (plain `cargo` when `mbx` is absent), and
 writes `build/landing_receipts/<candidate-sha>.json`. A non-Rust candidate
 needs no check and records an empty receipt. `<base>` must be an ancestor of
 HEAD, as publish requires; otherwise the diff would include other lanes'
 changes, so `verify` refuses and asks for a rebase.
+
+Every workspace check must succeed. The receipt records each workspace's
+packages, command and exit; publication requires a passing record for every
+affected standalone workspace. Root-only legacy receipts remain readable, but
+flat package names alone cannot prove that a standalone workspace was checked.
 
 The flow is: verify → enqueue/claim → if main moved, rebase and verify the
 new candidate sha → publish. Publish refuses a Rust-touching candidate
