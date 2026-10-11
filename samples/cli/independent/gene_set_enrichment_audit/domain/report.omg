@@ -15,7 +15,7 @@ invokes Console;
         }
     }
     state grow(value: u64 in Wrapping, divisor: u64 in Wrapping) {
-        let next = divisor * 10;
+        let next: u64 in Wrapping = divisor * 10;
         transition next > 0 {
             true -> scale(value, next)
             false -> done()
@@ -25,7 +25,7 @@ invokes Console;
         requires divisor > 0;
     {
         Console::write_byte(((value / divisor) % 10 + 48) as i32);
-        let next = divisor / 10;
+        let next: u64 in Wrapping = divisor / 10;
         transition next > 0 {
             true -> emit(value, next)
             false -> done()
