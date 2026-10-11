@@ -18,7 +18,7 @@ use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
     compose_linear_thread_bindings, linear_thread_ownership_is_identity,
 };
-use crate::rules::control_flow_cleanup::provenance_realized_at;
+use crate::rules::control_flow_cleanup::{provenance_realized_at, record_block_effect_drift};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
@@ -216,28 +216,14 @@ pub(super) fn path_thread_accounting(
         if block.id == empty.block {
             continue;
         }
-        for (node_index, node) in block.nodes.iter().enumerate() {
-            let location = NodeLocation {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_index).ok()?,
-            };
-            let effect_changes = node.effect.input != expected_effect
-                || node.effect.output != expected_effect.checked_add(1)?;
-            if effect_changes {
-                affected.insert(block.id);
-                if !node.provenance.is_empty() {
-                    let site = PsiRealizationSite::Node(location);
-                    realized.push(provenance_realized_at(
-                        site,
-                        site,
-                        &node.provenance,
-                        &node.fuel,
-                    ));
-                }
-            }
-            expected_effect = expected_effect.checked_add(1)?;
-        }
+        record_block_effect_drift(
+            function,
+            block,
+            &mut expected_effect,
+            None,
+            &mut affected,
+            &mut realized,
+        )?;
     }
     realized.sort_by_key(optimization_unit::ProvenanceRewrite::canonical_sort_key);
     Some((affected.into_iter().collect(), realized))

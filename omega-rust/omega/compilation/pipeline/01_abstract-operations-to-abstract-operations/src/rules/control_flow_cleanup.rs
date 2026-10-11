@@ -8,8 +8,11 @@
 
 use crate::rules::catalog::BuiltInRuleRegistration;
 use optimization_unit::{
-    FuelSettlement, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance, PsiRealizationSite,
+    FuelSettlement, NodeLocation, OptimizationBlock, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiProvenance, PsiRealizationSite,
 };
+use semantic_vocabulary::BlockId;
+use std::collections::BTreeSet;
 
 mod adjacent_block_merge;
 mod block_merge_substitutions;
@@ -74,4 +77,42 @@ pub(super) fn provenance_proven_unreachable_at(
         sources: sources.to_vec(),
         fuel: fuel.to_vec(),
     }
+}
+
+/// One block's node scan against the running effect ledger: a node whose
+/// declared input or output no longer matches the expected ordinal marks its
+/// block affected and stamps realized provenance at the node site. Shared by
+/// the cleanup rules' accounting epilogues; `excluded` is the one decision
+/// site exempt from the drift check.
+pub(super) fn record_block_effect_drift(
+    function: &PsiOptimizationFunction,
+    block: &OptimizationBlock,
+    expected_effect: &mut u64,
+    excluded: Option<NodeLocation>,
+    affected: &mut BTreeSet<BlockId>,
+    realized: &mut Vec<ProvenanceRewrite>,
+) -> Option<()> {
+    for (node_index, node) in block.nodes.iter().enumerate() {
+        let location = NodeLocation {
+            machine: function.machine,
+            block: block.id,
+            node: u32::try_from(node_index).ok()?,
+        };
+        let effect_changes = node.effect.input != *expected_effect
+            || node.effect.output != expected_effect.checked_add(1)?;
+        if effect_changes && excluded != Some(location) {
+            affected.insert(block.id);
+            if !node.provenance.is_empty() {
+                let site = PsiRealizationSite::Node(location);
+                realized.push(provenance_realized_at(
+                    site,
+                    site,
+                    &node.provenance,
+                    &node.fuel,
+                ));
+            }
+        }
+        *expected_effect = expected_effect.checked_add(1)?;
+    }
+    Some(())
 }

@@ -16,7 +16,7 @@ use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::rules::control_flow_cleanup::{
-    provenance_proven_unreachable_at, provenance_realized_at,
+    provenance_proven_unreachable_at, provenance_realized_at, record_block_effect_drift,
 };
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -197,28 +197,14 @@ fn conditional_fold_accounting(
             }
             continue;
         }
-        for (node_index, node) in block.nodes.iter().enumerate() {
-            let location = NodeLocation {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_index).ok()?,
-            };
-            let effect_changes = node.effect.input != expected_effect
-                || node.effect.output != expected_effect.checked_add(1)?;
-            if effect_changes && location != decision {
-                affected.insert(block.id);
-                if !node.provenance.is_empty() {
-                    let site = PsiRealizationSite::Node(location);
-                    realized.push(provenance_realized_at(
-                        site,
-                        site,
-                        &node.provenance,
-                        &node.fuel,
-                    ));
-                }
-            }
-            expected_effect = expected_effect.checked_add(1)?;
-        }
+        record_block_effect_drift(
+            function,
+            block,
+            &mut expected_effect,
+            Some(decision),
+            &mut affected,
+            &mut realized,
+        )?;
     }
     realized.extend(unreachable);
     realized.sort_by_key(optimization_unit::ProvenanceRewrite::canonical_sort_key);
