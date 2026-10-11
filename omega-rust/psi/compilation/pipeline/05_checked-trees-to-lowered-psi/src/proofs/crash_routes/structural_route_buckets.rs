@@ -647,6 +647,23 @@ pub(crate) fn substitute_structural_crash_route_roots(
         >,
     ) -> Result<(), LoweringError> {
         match term {
+            ScalarTerm::StructuralRead { root, path, .. } => {
+                for projection in path.iter_mut() {
+                    if let semantic_vocabulary::ScalarReadProjection::Index(selector) = projection {
+                        substitute_term(selector, substitutions)?;
+                    }
+                }
+                if let Some((replacement, prefix)) = substitutions(*root)? {
+                    *root = replacement;
+                    let mut rebased = prefix
+                        .into_iter()
+                        .map(semantic_vocabulary::ScalarReadProjection::Static)
+                        .collect::<Vec<_>>();
+                    rebased.append(path);
+                    *path = rebased;
+                }
+            }
+
             semantic_vocabulary::scalar_term_predicate_quint_pattern!(root, path, ..) => {
                 let Some((replacement, prefix)) = substitutions(*root)? else {
                     return Ok(());

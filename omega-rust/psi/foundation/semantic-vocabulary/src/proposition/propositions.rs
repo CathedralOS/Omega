@@ -372,6 +372,12 @@ impl PropositionContext {
                         });
                     }
                 }
+                ScalarTerm::StructuralRead { root, .. } => {
+                    if !self.structural_places.contains_key(root) {
+                        return Err(PropositionError::UnknownStructuralPlace(*root));
+                    }
+                    pending.extend(term.operands().into_iter().rev());
+                }
                 crate::scalar_term_predicate_quint_pattern!(root, ..) => {
                     if !self.structural_places.contains_key(root) {
                         return Err(PropositionError::UnknownStructuralPlace(*root));
@@ -470,6 +476,8 @@ macro_rules! integer_math_comparison_operands {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PropositionError {
+    EmptyStructuralReadPath,
+    StructuralReadIndexType(ScalarType),
     InvalidIntegerWidth(u16),
     InvalidIntegerRange {
         integer_type: IntegerType,

@@ -280,6 +280,23 @@ fn substitute_scalar_term_places(
         substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
     ) {
         match term {
+            ScalarTerm::StructuralRead { root, path, .. } => {
+                if let Some((replacement, prefix)) = substitutions.get(root) {
+                    *root = *replacement;
+                    let mut rebased = prefix
+                        .iter()
+                        .copied()
+                        .map(semantic_vocabulary::ScalarReadProjection::Static)
+                        .collect::<Vec<_>>();
+                    rebased.append(path);
+                    *path = rebased;
+                }
+                for projection in path {
+                    if let semantic_vocabulary::ScalarReadProjection::Index(index) = projection {
+                        substitute(index, substitutions);
+                    }
+                }
+            }
             semantic_vocabulary::scalar_term_predicate_quint_pattern!(root, path, ..) => {
                 if let Some((replacement, prefix)) = substitutions.get(root) {
                     *root = *replacement;
@@ -709,6 +726,25 @@ pub(super) fn substitute_scalar_term_values(
             .get(id)
             .cloned()
             .unwrap_or_else(|| term.clone()),
+        ScalarTerm::StructuralRead {
+            root,
+            path,
+            scalar_type,
+        } => ScalarTerm::StructuralRead {
+            root: *root,
+            path: path
+                .iter()
+                .map(|projection| match projection {
+                    semantic_vocabulary::ScalarReadProjection::Static(segment) => {
+                        semantic_vocabulary::ScalarReadProjection::Static(*segment)
+                    }
+                    semantic_vocabulary::ScalarReadProjection::Index(index) => {
+                        semantic_vocabulary::ScalarReadProjection::Index(Box::new(recurse(index)))
+                    }
+                })
+                .collect(),
+            scalar_type: *scalar_type,
+        },
         semantic_vocabulary::scalar_term_predicate_quint_pattern!(..)
         | ScalarTerm::Boolean(_)
         | ScalarTerm::Integer { .. }

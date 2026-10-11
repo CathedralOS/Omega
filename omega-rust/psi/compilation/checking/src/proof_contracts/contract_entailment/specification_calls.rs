@@ -582,6 +582,7 @@ fn term_has_complete_substitution(
         | StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. }
         | StructuralTerm::Projection { .. }
+        | StructuralTerm::IndexedValue { .. }
         | StructuralTerm::Opaque(_) => false,
         StructuralTerm::Application {
             target,

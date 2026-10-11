@@ -310,12 +310,22 @@ and the proof bundle share this grammar byte for byte.
 | 37 | IeeeFloatLiteral | IEEE format tag + exact format-width bits |
 | 38 | IeeeFloatField | root place id + counted canonical path segments + IEEE format |
 | 39 | ByteSequencePredicate | predicate `u8` + root place id + counted canonical path segments |
+| 40 | StructuralRead | root place id + scalar type + counted scalar-read projections |
 
 The byte-predicate tag selects exactly one primitive: `1` is `valid_utf8`, `2`
 is `no_nul`, `4` is `ascii_only`, and `8` is `non_empty`. Other values reject.
 An empty path observes the whole byte descriptor; a nonempty path observes its
 exact byte field. The term has Boolean type and supplies no assertion that its
 predicate holds.
+
+
+A scalar-read projection is a tag followed by its payload: `1` selects a field
+id, `2` a fixed `u64` index, `3` a case id, and `4` a recursively encoded scalar
+index term. The path is nonempty. Dynamic indices keep their own fixed-integer
+carriers, excluding addresses; they do not become static geometry. The exact
+root declaration and each selected member or element determine the leaf type.
+Selector terms participate in ordinary depth limits, value substitution and
+structural-root substitution. A term supplies no bounds, access or truth evidence.
 
 
 ## Integer math terms
@@ -599,7 +609,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 140 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 143 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -1797,7 +1807,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 127 | yes |
+| semantic module | `PSITERM\0` | 143 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

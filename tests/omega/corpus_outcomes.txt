@@ -5490,3 +5490,15 @@ pass/float/runtime_resultless_law_equality_custody_exit checked 143939ms check-t
 fail/providers/applied_entry_nested_binding_wrong_receiver rejected 5932ms expected @c61d64ccecc5+wt
 	selected ProgramEntry Binding field `Main::session::parent` requires a selected Fused provider for boundary `Parent`
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
+pass/contracts/runtime_indexed_element_requirements_exit checked 2817ms check-target:macos_arm64 @6d847e2a233e
+pass/contracts/runtime_projected_element_requirements_exit checked 2774ms check-target:macos_arm64 @6d847e2a233e
+fail/contracts/indexed_element_requirement_after_write rejected 447ms expected @6d847e2a233e
+	cannot prove requires contract for call letter from invalid: index < text.len && text[index] >= 97 (needs fact `index < text.len && text[index] >= 97` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/indexed_element_requirement_effectful_guard rejected 451ms expected @6d847e2a233e
+	cannot prove requires contract for call letter from invalid: index < text.len && text[index] >= 97 (needs fact `index < text.len && text[index] >= 97` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/indexed_element_requirement_weakened_guard rejected 449ms expected @6d847e2a233e
+	cannot prove requires contract for call letter from invalid: index < text.len && text[index] >= 97 (needs fact `index < text.len && text[index] >= 97` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/indexed_element_requirement_wrong_collection rejected 449ms expected @6d847e2a233e
+	cannot prove requires contract for call letter from invalid: index < right.len && right[index] >= 97 (needs fact `index < text.len && text[index] >= 97` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/indexed_element_requirement_wrong_selector rejected 451ms expected @6d847e2a233e
+	cannot prove requires contract for call letter from invalid: other < text.len && text[other] >= 97 (needs fact `index < text.len && text[index] >= 97` here; establish it before the call via a prior contract guarantee, domain membership, or guard)

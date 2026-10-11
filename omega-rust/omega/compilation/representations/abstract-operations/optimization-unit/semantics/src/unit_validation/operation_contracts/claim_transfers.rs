@@ -185,6 +185,12 @@ pub(crate) fn validate_internal_claim_transfers(
 pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
     fn scalar_term_roots(term: &ScalarTerm, roots: &mut BTreeSet<PlaceId>) {
         match term {
+            ScalarTerm::StructuralRead { root, .. } => {
+                roots.insert(*root);
+                for operand in term.operands() {
+                    scalar_term_roots(operand, roots);
+                }
+            }
             semantic_vocabulary::scalar_term_predicate_quint_pattern!(root, ..) => {
                 roots.insert(*root);
             }

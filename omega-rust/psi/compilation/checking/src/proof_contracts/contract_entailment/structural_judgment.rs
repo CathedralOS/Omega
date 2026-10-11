@@ -109,6 +109,15 @@ pub(super) enum StructuralTerm {
         subject: Box<StructuralTerm>,
         path: String,
     },
+    /// A builtin indexed observation of the same retained collection value and
+    /// evaluated selector. The canonical element carrier is part of identity;
+    /// the declaration handle retains observation authority after substitution.
+    IndexedValue {
+        element_type: TypeReferenceHandle,
+        element_identity: typed_trees::type_identity::TypeIdentityId,
+        collection: Box<StructuralTerm>,
+        index: Box<StructuralTerm>,
+    },
     /// A selected builtin operation, with substituted operands and original
     /// carrier/policy meaning. No scalar arithmetic is evaluated by this term.
     ScalarBinary {
@@ -640,6 +649,7 @@ impl<'program> StructuralJudge<'program> {
                 StructuralTerm::Application { .. }
                 | StructuralTerm::CapturedValue { .. }
                 | StructuralTerm::Projection { .. }
+                | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::ScalarBinary { .. },
                 _,
             ) => {
@@ -652,6 +662,7 @@ impl<'program> StructuralJudge<'program> {
                 StructuralTerm::Application { .. }
                 | StructuralTerm::CapturedValue { .. }
                 | StructuralTerm::Projection { .. }
+                | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::ScalarBinary { .. },
             ) => {
                 if !term_contains(&left, &right) {
@@ -835,6 +846,26 @@ impl<'program> StructuralJudge<'program> {
                         depth + 1,
                     ) {
                         term = unfolded;
+                        continue;
+                    }
+                    return resolved;
+                }
+                StructuralTerm::IndexedValue {
+                    element_type,
+                    element_identity,
+                    collection,
+                    index,
+                } => {
+                    let resolved = StructuralTerm::IndexedValue {
+                        element_type,
+                        element_identity,
+                        collection: Box::new(self.resolve_at(*collection, depth + 1)),
+                        index: Box::new(self.resolve_at(*index, depth + 1)),
+                    };
+                    if let Some((_, replacement)) =
+                        self.rewrites.iter().find(|(source, _)| *source == resolved)
+                    {
+                        term = replacement.clone();
                         continue;
                     }
                     return resolved;
@@ -1455,6 +1486,26 @@ impl<'program> StructuralJudge<'program> {
                 case: value.to_string(),
                 fields: Vec::new(),
             }),
+            ExpressionNode::Indexed(indexed) => super::structural_terms::indexed_term_in_scope(
+                program,
+                scope,
+                None,
+                expression,
+                self.callee_term(
+                    indexed.collection,
+                    environment,
+                    machine_environment,
+                    scope,
+                    depth + 1,
+                )?,
+                self.callee_term(
+                    indexed.index,
+                    environment,
+                    machine_environment,
+                    scope,
+                    depth + 1,
+                )?,
+            ),
             ExpressionNode::Binary(binary) => super::structural_terms::binary_term_in_scope(
                 program,
                 scope,
@@ -1499,6 +1550,17 @@ impl<'program> StructuralJudge<'program> {
             | StructuralTerm::BoundValue(_)
             | StructuralTerm::CapturedValue { .. }
             | StructuralTerm::BoundProjection { .. } => term.clone(),
+            StructuralTerm::IndexedValue {
+                element_type,
+                element_identity,
+                collection,
+                index,
+            } => StructuralTerm::IndexedValue {
+                element_type: *element_type,
+                element_identity: *element_identity,
+                collection: Box::new(Self::substitute_term(collection, map)),
+                index: Box::new(Self::substitute_term(index, map)),
+            },
             StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
                 subject: Box::new(Self::substitute_term(subject, map)),
                 path: path.clone(),
@@ -1569,7 +1631,8 @@ impl<'program> StructuralJudge<'program> {
                         | StructuralTerm::CapturedValue { .. }
                         | StructuralTerm::ObservedValue { .. }
                         | StructuralTerm::ScalarBinary { .. }
-                        | StructuralTerm::Projection { .. } => StructuralTerm::Projection {
+                        | StructuralTerm::Projection { .. }
+                        | StructuralTerm::IndexedValue { .. } => StructuralTerm::Projection {
                             subject: Box::new(replacement.clone()),
                             path: suffix.to_owned(),
                         },
@@ -1606,6 +1669,12 @@ impl<'program> StructuralJudge<'program> {
     ) {
         let term = term.semantic_value();
         match term {
+            StructuralTerm::IndexedValue {
+                collection, index, ..
+            } => {
+                Self::self_applications(collection, selected_target, found);
+                Self::self_applications(index, selected_target, found);
+            }
             StructuralTerm::Projection { subject, .. } => {
                 Self::self_applications(subject, selected_target, found)
             }
@@ -2054,7 +2123,8 @@ impl<'program> StructuralJudge<'program> {
             | StructuralTerm::BoundProjection { .. }
             | StructuralTerm::Opaque(_)
             | StructuralTerm::ScalarBinary { .. }
-            | StructuralTerm::Projection { .. } => None,
+            | StructuralTerm::Projection { .. }
+            | StructuralTerm::IndexedValue { .. } => None,
         }
     }
 

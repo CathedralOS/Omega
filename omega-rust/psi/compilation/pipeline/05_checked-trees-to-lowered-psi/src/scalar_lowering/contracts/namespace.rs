@@ -58,9 +58,7 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
             "a representation re-view is not scalar contract arithmetic",
         )),
         CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
-            Err(LoweringError::Unsupported(
-                "indexed structural scalar reads are not supported contract operands",
-            ))
+            validate_indexed_operands(expression, &scalar)
         }
         CheckedScalarExpression::Local { .. } | CheckedScalarExpression::StorageRead { .. } => {
             Err(LoweringError::Unsupported(
@@ -105,4 +103,34 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
             crate::emission::scalar_types::terminal_scalar_type(*primitive_type).map(|_| ())
         }
     }
+}
+
+/// A closed observation and every selector must belong to the supplied formal
+/// namespace; accepting its outer structural root cannot admit a body local
+/// hidden inside a nested index expression.
+pub(crate) fn validate_indexed_operands(
+    expression: &CheckedScalarExpression,
+    validate: &impl Fn(&CheckedScalarExpression) -> Result<(), LoweringError>,
+) -> Result<(), LoweringError> {
+    let CheckedScalarExpression::StructuralParameterIndexedRead {
+        root,
+        index,
+        element_path,
+        ..
+    } = expression
+    else {
+        return Err(LoweringError::Unsupported(
+            "contract has no indexed observation",
+        ));
+    };
+    root.parameter().ok_or(LoweringError::Unsupported(
+        "indexed contract observation requires a structural formal",
+    ))?;
+    validate(&index.expression)?;
+    for projection in element_path {
+        if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) = projection {
+            validate(&selector.expression)?;
+        }
+    }
+    Ok(())
 }

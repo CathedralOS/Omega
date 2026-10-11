@@ -13,6 +13,8 @@ use super::{StructuralTerm, is_arm_pattern_marker};
 mod binary;
 mod constructors;
 mod equality;
+mod indexed;
+pub(super) use indexed::indexed_term_in_scope;
 mod scalar_operands;
 pub(super) use binary::binary_term_in_scope;
 pub(super) use constructors::{
@@ -56,6 +58,9 @@ pub(super) fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) 
     }
     match haystack.semantic_value() {
         StructuralTerm::Projection { subject, .. } => term_contains(subject, needle),
+        StructuralTerm::IndexedValue {
+            collection, index, ..
+        } => term_contains(collection, needle) || term_contains(index, needle),
         StructuralTerm::ScalarBinary { left, right, .. } => {
             term_contains(left, needle) || term_contains(right, needle)
         }
@@ -139,6 +144,17 @@ pub(super) fn unfold_constant_applications(
             meaning,
             left: Box::new(unfold_constant_applications(program, *left)),
             right: Box::new(unfold_constant_applications(program, *right)),
+        },
+        StructuralTerm::IndexedValue {
+            element_type,
+            element_identity,
+            collection,
+            index,
+        } => StructuralTerm::IndexedValue {
+            element_type,
+            element_identity,
+            collection: Box::new(unfold_constant_applications(program, *collection)),
+            index: Box::new(unfold_constant_applications(program, *index)),
         },
         StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
             subject: Box::new(unfold_constant_applications(program, *subject)),
@@ -580,6 +596,14 @@ pub(super) fn structural_term(
                 )),
             }
         }
+        ExpressionNode::Indexed(indexed) => indexed_term_in_scope(
+            program,
+            scope,
+            frame,
+            expression,
+            structural_term(program, scope, frame, indexed.collection, bindings)?,
+            structural_term(program, scope, frame, indexed.index, bindings)?,
+        ),
         ExpressionNode::ZeroValue(type_reference) => {
             zero_value_structural_term(program, *type_reference)
         }

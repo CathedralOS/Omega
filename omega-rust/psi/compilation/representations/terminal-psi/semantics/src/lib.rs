@@ -184,3 +184,6 @@ pub use structural_claims::{
     result_claim_catalog_matches_returns, result_claim_paths_match_returns,
 };
 pub use structural_effect::{ElementViewLeaf, element_view_leaf, element_view_write_goal};
+
+mod scalar_observations;
+pub use scalar_observations::structural_read_scalar_type;

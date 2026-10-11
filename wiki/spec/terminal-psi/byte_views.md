@@ -416,3 +416,23 @@ view kind establishes the other.
 Consumers must not derive an element view from a byte view's backing or
 index arithmetic; a consumer needing typed elements rejects the
 unvocabularied spelling rather than reinterpreting octet contents.
+
+
+## Indexed scalar contract observations
+
+`StructuralRead` names the scalar observed through one exact structural root
+and an ordered path of field, case, fixed-index and runtime-index selections.
+Each runtime index is a scalar term in the contract's invocation namespace.
+Substitution transports both the root's actual projection and every selector;
+a coincidentally equal index or equal element type does not equate collections.
+The selected declarations determine the scalar carrier, including integer width
+and IEEE format. Erased fields, atomic storage and unreadable reference paths
+cannot be used as ordinary scalar observations.
+
+This is a logical observation, not an instruction that reevaluates storage.
+An executed read may relate its fresh result to that observation only under its
+existing bounds and readable-access obligations. Later writes retire facts about
+overlapping storage; a captured result retains the value it read. Constructing
+a contract term grants no access, establishes no index bound and proves no
+predicate. Every named-state arrival and ordinary call still owes the complete
+authored requirement before using it as an entry hypothesis.

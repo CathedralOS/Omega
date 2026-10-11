@@ -827,3 +827,5 @@ pass/termination/runtime_computed_result_rank_arrivals_exit built 3883ms exit:0 
 pass/termination/runtime_quotient_result_rank_arrivals_exit built 2842ms exit:0 interpreter-exit:0 interpreter:agrees @9412eb149c68
 pass/termination/runtime_shift_result_rank_arrivals_exit built 4362ms exit:0 interpreter-exit:0 interpreter:agrees @f70cef10b430
 pass/providers/applied_entry_nested_binding_context_exit built 2791ms exit:0 interpreter-exit:0 interpreter:agrees @c61d64ccecc5+wt
+pass/contracts/runtime_indexed_element_requirements_exit built 4423ms exit:0 interpreter-exit:0 interpreter:agrees @6d847e2a233e
+pass/contracts/runtime_projected_element_requirements_exit built 4340ms exit:0 interpreter-exit:0 interpreter:agrees @6d847e2a233e

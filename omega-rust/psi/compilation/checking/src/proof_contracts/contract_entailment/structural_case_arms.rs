@@ -394,8 +394,7 @@ fn recognize_structural_state_leaves_from(
             if let Some(requirement) = requirement.as_deref_mut()
                 && requirement.site().state == state.symbol
                 && requirement.site().statement_index == statement_index
-                && (!requirement.site().in_transition_target
-                    || !matches!(statement, StatementNode::Transition(_)))
+                && !matches!(statement, StatementNode::Transition(_))
             {
                 requirement.visit(
                     program,
@@ -643,165 +642,239 @@ fn recognize_structural_state_leaves_from(
                 StructuralTerm::Opaque("()".to_owned()),
             )]);
         }
-        // A fallback is checked with the incoming facts alone. Omitting the
-        // preceding arms' negations weakens its evidence but cannot donate a
-        // guard from another arm or skip its obligation.
+        // Arms test their guards in order. A later arm observes each earlier
+        // Boolean guard as false, while the chosen arm alone receives its
+        // positive refinement. Keep those completed observations on the
+        // remaining path, never in a sibling's selected branch environment.
         let mut leaves = Vec::new();
+        let mut remaining_paths = vec![(judge.clone(), case_equations.clone())];
         for (statement_index, transition) in transitions {
-            let mut branch_environment = environment.clone();
-            let mut branch_hypotheses = case_hypotheses.clone();
-            let mut branch_equations = case_equations.clone();
-            if let TransitionGuardNode::When(guard) = transition.guard {
-                if judge.requires_value_preservation()
-                    && !crate::machine_calls::calls::CallFrameResolver::new(program)?
-                        .expression_may_write_paths(machine, guard)?
-                        .is_empty()
+            let mut next_remaining = Vec::new();
+            let mut selected_paths = Vec::new();
+            for (incoming, remaining_equations) in remaining_paths {
+                if let Some(requirement) = requirement.as_deref_mut()
+                    && requirement.site().state == state.symbol
+                    && requirement.site().statement_index == statement_index
+                    && !requirement.site().in_transition_target
                 {
-                    return None;
+                    // The requested guard call has not returned. Only earlier
+                    // guards and preceding operands can establish its premises.
+                    requirement.visit(
+                        program,
+                        machine,
+                        &incoming,
+                        &environment,
+                        &case_hypotheses,
+                        &remaining_equations,
+                        &established_guarantees,
+                    );
+                    continue;
                 }
-                let Some(comparison) = program.expression_table.binary_node(guard) else {
-                    return None;
+                let TransitionGuardNode::When(guard) = transition.guard else {
+                    selected_paths.push((
+                        incoming,
+                        environment.clone(),
+                        case_hypotheses.clone(),
+                        remaining_equations,
+                    ));
+                    continue;
                 };
-                if !matches!(
-                    comparison.operator,
-                    BinaryOperator::Equal | BinaryOperator::CaseMembership
-                ) {
+                let guard_preserves_values =
+                    crate::machine_calls::calls::CallFrameResolver::new(program)
+                        .and_then(|frames| frames.expression_may_write_paths(machine, guard))
+                        .is_some_and(|paths| paths.is_empty());
+                if incoming.requires_value_preservation() && !guard_preserves_values {
                     return None;
                 }
+                let (subject_expression, constructor) =
+                    guard_observation(program, machine, state, guard, fresh)?;
                 let raw_subject = structural_term(
                     program,
                     Some((machine, state, Default::default())),
                     None,
-                    comparison.left,
+                    subject_expression,
                     None,
-                )?;
-                let subject = judge.callee_term_in_scope(
-                    Some((machine, state, Default::default())),
-                    comparison.left,
-                    &branch_environment,
-                    0,
-                )?;
-                let constructor = guard_case_value(program, machine, state, guard, fresh)?;
-
-                match subject {
-                    StructuralTerm::Variable(subject) => {
-                        branch_hypotheses.push((subject, constructor.clone()));
-                    }
-                    // Every successfully observed subject can retain its case
-                    // equation, including computed Boolean predicates. Its
-                    // spelling does not determine whether a guard is evidence.
-                    subject => branch_equations.push((subject, constructor.clone())),
-                }
-                if let StructuralTerm::Variable(raw_name) = raw_subject {
-                    let (_, binding) = branch_environment
-                        .iter_mut()
-                        .find(|(name, _)| name == &raw_name)?;
-                    *binding = constructor;
-                }
-                // Computed and projected subjects have no direct environment
-                // binder; their exact value equation carries the refinement.
-            }
-
-            if let Some(requirement) = requirement.as_deref_mut()
-                && requirement.site().state == state.symbol
-                && requirement.site().statement_index == statement_index
-                && requirement.site().in_transition_target
-            {
-                requirement.visit(
+                );
+                let observed = structural_arm_judge(
+                    program,
+                    &incoming,
+                    &case_hypotheses,
+                    &remaining_equations,
+                );
+                let subject_type = crate::expression_result_type_reference(
                     program,
                     machine,
-                    judge,
-                    &branch_environment,
-                    &branch_hypotheses,
-                    &branch_equations,
-                    &established_guarantees,
-                );
-                continue;
-            }
-            let mut branch_judge =
-                structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
-            let judge = &mut branch_judge;
-            match program.statement_table.transition_target(transition.target) {
-                TransitionTargetNode::Value(value) => {
-                    if requirement.is_some() {
-                        continue;
-                    }
-                    for outcome in judge.normal_return_paths(
-                        *value,
-                        &branch_environment,
-                        (machine, state, state.return_type),
-                    )? {
-                        leaves.push(finalize_structural_case_arm(
-                            program,
-                            machine,
-                            &outcome.judge,
-                            classification,
-                            diagnostics,
-                            parameter_names,
-                            branch_hypotheses.clone(),
-                            branch_equations.clone(),
-                            pending_citations.clone(),
-                            outcome.value,
+                    state,
+                    subject_expression,
+                )
+                .unwrap_or_default();
+                for outcome in observed.normal_return_paths(
+                    subject_expression,
+                    &environment,
+                    (machine, state, subject_type),
+                )? {
+                    let subject = outcome.value;
+                    let mut branch_environment = environment.clone();
+                    let mut branch_hypotheses = case_hypotheses.clone();
+                    let mut branch_equations = remaining_equations.clone();
+                    let mut skipped_equations = remaining_equations.clone();
+                    // A Boolean has exactly two values. Nominal classifiers
+                    // retain their selected tag but do not invent a single
+                    // constructor for the complement of a multi-case type.
+                    if guard_preserves_values
+                        && let StructuralTerm::Constructor { data, case, fields } = &constructor
+                        && data == "bool"
+                        && fields.is_empty()
+                        && let Some(truth) =
+                            language_semantics::const_value::boolean_literal_spelling(case)
+                    {
+                        skipped_equations.push((
+                            subject.clone(),
+                            StructuralTerm::Constructor {
+                                data: "bool".to_owned(),
+                                case: (!truth).to_string(),
+                                fields: Vec::new(),
+                            },
                         ));
                     }
-                }
-                TransitionTargetNode::Named {
-                    path: target,
-                    arguments,
-                    ..
-                } => {
-                    let [state_name] = program.statement_table.name_path_members(target.members)
-                    else {
-                        return None;
-                    };
-                    let target_state = states[1..]
-                        .iter()
-                        .find(|candidate| candidate.name.as_str() == state_name.as_str())?;
-                    let target_parameters = program.state_parameters(target_state);
-                    let argument_handles = program.statement_table.expression_handles(*arguments);
-                    if target_parameters.len() != argument_handles.len() {
-                        return None;
-                    }
-                    let mut target_frames = vec![(Vec::new(), judge.clone())];
-                    for (parameter, argument) in target_parameters.iter().zip(argument_handles) {
-                        let mut next = Vec::new();
-                        for (target_environment, captured) in target_frames {
-                            for outcome in captured.normal_return_paths(
-                                *argument,
-                                &branch_environment,
-                                (machine, state, parameter.type_reference),
-                            )? {
-                                let mut target_environment = target_environment.clone();
-                                target_environment
-                                    .push((parameter.name.as_str().to_owned(), outcome.value));
-                                next.push((target_environment, outcome.judge));
-                            }
+                    next_remaining.push((outcome.judge.clone(), skipped_equations));
+                    match subject {
+                        StructuralTerm::Variable(subject) => {
+                            branch_hypotheses.push((subject, constructor.clone()));
                         }
-                        target_frames = next;
+                        subject => branch_equations.push((subject, constructor.clone())),
                     }
-                    for (target_environment, captured) in target_frames {
-                        leaves.extend(recognize_structural_state_leaves(
-                            program,
-                            machine,
-                            &captured,
-                            classification,
-                            diagnostics,
-                            states,
-                            target_state,
-                            parameter_names,
-                            target_environment,
-                            branch_hypotheses.clone(),
-                            branch_equations.clone(),
-                            pending_citations.clone(),
-                            true,
-                            path,
-                            fresh,
-                            requirement,
-                            established_guarantees.clone(),
-                        )?);
+                    if let Some(StructuralTerm::Variable(raw_name)) = &raw_subject {
+                        let (_, binding) = branch_environment
+                            .iter_mut()
+                            .find(|(name, _)| name == raw_name)?;
+                        *binding = constructor.clone();
                     }
+                    selected_paths.push((
+                        outcome.judge,
+                        branch_environment,
+                        branch_hypotheses,
+                        branch_equations,
+                    ));
                 }
-                _ => return None,
+            }
+            if requirement.as_deref().is_some_and(|requirement| {
+                requirement.site().state == state.symbol
+                    && requirement.site().statement_index == statement_index
+                    && !requirement.site().in_transition_target
+            }) {
+                return Some(Vec::new());
+            }
+            remaining_paths = next_remaining;
+            for (captured, branch_environment, branch_hypotheses, branch_equations) in
+                selected_paths
+            {
+                let judge = &captured;
+
+                if let Some(requirement) = requirement.as_deref_mut()
+                    && requirement.site().state == state.symbol
+                    && requirement.site().statement_index == statement_index
+                    && requirement.site().in_transition_target
+                {
+                    requirement.visit(
+                        program,
+                        machine,
+                        judge,
+                        &branch_environment,
+                        &branch_hypotheses,
+                        &branch_equations,
+                        &established_guarantees,
+                    );
+                    continue;
+                }
+                let mut branch_judge =
+                    structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
+                let judge = &mut branch_judge;
+                match program.statement_table.transition_target(transition.target) {
+                    TransitionTargetNode::Value(value) => {
+                        if requirement.is_some() {
+                            continue;
+                        }
+                        for outcome in judge.normal_return_paths(
+                            *value,
+                            &branch_environment,
+                            (machine, state, state.return_type),
+                        )? {
+                            leaves.push(finalize_structural_case_arm(
+                                program,
+                                machine,
+                                &outcome.judge,
+                                classification,
+                                diagnostics,
+                                parameter_names,
+                                branch_hypotheses.clone(),
+                                branch_equations.clone(),
+                                pending_citations.clone(),
+                                outcome.value,
+                            ));
+                        }
+                    }
+                    TransitionTargetNode::Named {
+                        path: target,
+                        arguments,
+                        ..
+                    } => {
+                        let [state_name] =
+                            program.statement_table.name_path_members(target.members)
+                        else {
+                            return None;
+                        };
+                        let target_state = states[1..]
+                            .iter()
+                            .find(|candidate| candidate.name.as_str() == state_name.as_str())?;
+                        let target_parameters = program.state_parameters(target_state);
+                        let argument_handles =
+                            program.statement_table.expression_handles(*arguments);
+                        if target_parameters.len() != argument_handles.len() {
+                            return None;
+                        }
+                        let mut target_frames = vec![(Vec::new(), judge.clone())];
+                        for (parameter, argument) in target_parameters.iter().zip(argument_handles)
+                        {
+                            let mut next = Vec::new();
+                            for (target_environment, captured) in target_frames {
+                                for outcome in captured.normal_return_paths(
+                                    *argument,
+                                    &branch_environment,
+                                    (machine, state, parameter.type_reference),
+                                )? {
+                                    let mut target_environment = target_environment.clone();
+                                    target_environment
+                                        .push((parameter.name.as_str().to_owned(), outcome.value));
+                                    next.push((target_environment, outcome.judge));
+                                }
+                            }
+                            target_frames = next;
+                        }
+                        for (target_environment, captured) in target_frames {
+                            leaves.extend(recognize_structural_state_leaves(
+                                program,
+                                machine,
+                                &captured,
+                                classification,
+                                diagnostics,
+                                states,
+                                target_state,
+                                parameter_names,
+                                target_environment,
+                                branch_hypotheses.clone(),
+                                branch_equations.clone(),
+                                pending_citations.clone(),
+                                true,
+                                path,
+                                fresh,
+                                requirement,
+                                established_guarantees.clone(),
+                            )?);
+                        }
+                    }
+                    _ => return None,
+                }
             }
         }
         Some(leaves)
@@ -917,7 +990,55 @@ pub(super) fn structural_arm_judge<'program>(
     arm_judge
 }
 
-/// Boolean literals and nominal case classifiers retain their own meanings.
+/// Observe the selected value, rather than recognizing a spelling of a
+/// Boolean guard. Classifiers retain their nominal payload refinement; all
+/// other Boolean expressions use the ordinary completed-expression path.
+fn guard_observation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    guard: ExpressionHandle,
+    fresh: &mut usize,
+) -> Option<(ExpressionHandle, StructuralTerm)> {
+    if let Some(comparison) = program.expression_table.binary_node(guard) {
+        if comparison.operator == BinaryOperator::Equal
+            && crate::has_builtin_binary_expression_meaning(program, machine, Some(state), guard)
+            && let ExpressionNode::Boolean(truth) =
+                program.expression_table.expression(comparison.right)
+        {
+            return Some((
+                comparison.left,
+                StructuralTerm::Constructor {
+                    data: "bool".to_owned(),
+                    case: truth.to_string(),
+                    fields: Vec::new(),
+                },
+            ));
+        }
+        if super::structural_terms::case_guard_classifier(program, machine, Some(state), guard)
+            .is_some()
+        {
+            return Some((
+                comparison.left,
+                guard_case_value(program, machine, state, guard, fresh)?,
+            ));
+        }
+    }
+    let reference = crate::expression_result_type_reference(program, machine, state, guard)?;
+    if program.primitive_type_reference(reference) != Some(typed_trees::types::PrimitiveType::Bool)
+    {
+        return None;
+    }
+    Some((
+        guard,
+        StructuralTerm::Constructor {
+            data: "bool".to_owned(),
+            case: "true".to_owned(),
+            fields: Vec::new(),
+        },
+    ))
+}
+
 /// Nominal cases expose only their tag; payload and common fields stay fresh.
 fn guard_case_value(
     program: &dyn crate::CheckingInput,
@@ -926,18 +1047,6 @@ fn guard_case_value(
     guard: ExpressionHandle,
     fresh: &mut usize,
 ) -> Option<StructuralTerm> {
-    let comparison = program.expression_table.binary_node(guard)?;
-    if comparison.operator == BinaryOperator::Equal
-        && crate::has_builtin_binary_expression_meaning(program, machine, Some(state), guard)
-        && let ExpressionNode::Boolean(truth) =
-            program.expression_table.expression(comparison.right)
-    {
-        return Some(StructuralTerm::Constructor {
-            data: "bool".to_owned(),
-            case: truth.to_string(),
-            fields: Vec::new(),
-        });
-    }
     let (definition, variant) =
         super::structural_terms::case_guard_classifier(program, machine, Some(state), guard)?;
     let data = definition.name.as_str().to_owned();

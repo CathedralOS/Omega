@@ -37,6 +37,23 @@ impl ScalarTerm {
     /// legality. Never walks children — `validate` drives the traversal.
     fn validate_after_operands(&self) -> Result<(), PropositionError> {
         match self {
+            Self::StructuralRead { path, .. } => {
+                if path.is_empty() {
+                    return Err(PropositionError::EmptyStructuralReadPath);
+                }
+                for operand in self.operands() {
+                    if operand
+                        .scalar_type()
+                        .as_integer()
+                        .is_none_or(|integer| integer.is_address())
+                    {
+                        return Err(PropositionError::StructuralReadIndexType(
+                            operand.scalar_type(),
+                        ));
+                    }
+                }
+                Ok(())
+            }
             Self::IeeeFloatField { path, .. } => {
                 if path.is_empty() {
                     return Err(PropositionError::EmptyIeeeFloatStructuralFieldPath);

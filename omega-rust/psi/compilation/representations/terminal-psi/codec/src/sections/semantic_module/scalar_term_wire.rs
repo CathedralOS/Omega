@@ -4,7 +4,9 @@
 //! structural field paths, and decode-time constructor validation. Scalar
 //! primitive encodings remain in the sibling scalar wire module.
 
-use semantic_vocabulary::{IntegerType, PropositionError, ScalarTerm};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, IntegerType, PropositionError, ScalarReadProjection, ScalarTerm,
+};
 
 use super::scalar_wire::{
     decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
@@ -14,7 +16,7 @@ use super::structural_field_wire::{
     decode_canonical_structural_field, decode_ieee_float_format, encode_canonical_structural_field,
     encode_ieee_float_format,
 };
-use super::wire::{Reader, Writer};
+use super::wire::{Reader, Writer, decode_counted};
 use super::{CodecError, MAX_SCALAR_TERM_DEPTH};
 
 pub(crate) fn encode_scalar_terms(
@@ -37,6 +39,39 @@ pub(crate) fn encode_scalar_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     match term {
+        ScalarTerm::StructuralRead {
+            root,
+            path,
+            scalar_type,
+        } => {
+            term.validate().map_err(CodecError::MalformedProposition)?;
+            writer.u8(40);
+            writer.id(*root);
+            encode_scalar_type(writer, *scalar_type);
+            writer.len("scalar read path", path.len())?;
+            for projection in path {
+                match projection {
+                    ScalarReadProjection::Static(CanonicalStructuralPathSegment::Field(field)) => {
+                        writer.u8(1);
+                        writer.id(*field);
+                    }
+                    ScalarReadProjection::Static(CanonicalStructuralPathSegment::FixedIndex(
+                        index,
+                    )) => {
+                        writer.u8(2);
+                        writer.u64(*index);
+                    }
+                    ScalarReadProjection::Static(CanonicalStructuralPathSegment::Case(case)) => {
+                        writer.u8(3);
+                        writer.id(*case);
+                    }
+                    ScalarReadProjection::Index(index) => {
+                        writer.u8(4);
+                        encode_scalar_term(writer, index, depth + 1)?;
+                    }
+                }
+            }
+        }
         ScalarTerm::IeeeFloatField { root, path, format } => {
             term.validate().map_err(CodecError::MalformedProposition)?;
             writer.u8(38);
@@ -450,6 +485,30 @@ pub(crate) fn decode_scalar_term(
             };
             let (root, path) = decode_canonical_structural_field(reader)?;
             ScalarTerm::byte_sequence_predicate(predicate, root, path)
+        }
+        40 => {
+            let root = reader.id("PlaceId")?;
+            let scalar_type = decode_scalar_type(reader)?;
+            let path = decode_counted(reader, |reader| {
+                Ok(match reader.u8()? {
+                    1 => ScalarReadProjection::Static(CanonicalStructuralPathSegment::Field(
+                        reader.id("StructuralFieldId")?,
+                    )),
+                    2 => ScalarReadProjection::Static(CanonicalStructuralPathSegment::FixedIndex(
+                        reader.u64()?,
+                    )),
+                    3 => ScalarReadProjection::Static(CanonicalStructuralPathSegment::Case(
+                        reader.id("StructuralCaseId")?,
+                    )),
+                    4 => ScalarReadProjection::Index(Box::new(decode_scalar_term(
+                        reader,
+                        depth + 1,
+                    )?)),
+                    tag => return Err(CodecError::InvalidTag("ScalarReadProjection", tag)),
+                })
+            })?;
+            ScalarTerm::structural_read(root, path, scalar_type)
+                .map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
     })

@@ -4099,22 +4099,6 @@ and `mapped` need matching-host measurements, including the full-i32 status.
 
 ## P3 - Terminal Psi, proofs, and observation
 
-- **ELEMENT-CONTRACT-ATOMS.** (new-scope) A `requires` over an element of a
-  parameter view, such as `requires index < text.len && text[index] >= 97`,
-  bounds nothing. Checking drops the whole conjunction:
-  `condition_belongs_to_state` in
-  `omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/arrivals.rs`
-  has no arm for an indexed read. An `Indexed` arm over a parameter-rooted
-  collection and index makes the body check, and an arrival that does not
-  establish the condition still rejects. Lowering then has no Terminal term
-  for an element at a runtime index (`ScalarTerm` names fixed-path fields and
-  `ViewExtent` only), so stage 05 `covered_requires` refuses the clause with
-  "scalar contract contains an unsupported clause". It needs a
-  verifier-checked element term, or the checker's decision carried as
-  SourceChecked evidence through **PCC removal**. Acceptance: a state and a
-  machine with that `requires` compute `(text[index] - 97) as u64` and run
-  natively; an arrival that establishes only `text[index] >= 90` rejects.
-
 - **WRITE-ONLY-BORROW.** Caller-visible `&write T` mutation is incomplete under
   [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority).
   Remaining:

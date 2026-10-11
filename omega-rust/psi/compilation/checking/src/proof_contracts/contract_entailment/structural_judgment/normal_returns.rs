@@ -675,6 +675,19 @@ impl<'program> StructuralJudge<'program> {
                         right.clone(),
                     )?;
                 }
+                if let ExpressionNode::Indexed(_) = node {
+                    let [(_, collection), (_, index)] = inputs.as_slice() else {
+                        return None;
+                    };
+                    value = super::super::structural_terms::indexed_term_in_scope(
+                        program,
+                        Some(scope),
+                        None,
+                        expression,
+                        collection.clone(),
+                        index.clone(),
+                    )?;
+                }
                 Some(NormalReturnPath { value, judge }.at_expression(expression))
             })
             .collect()

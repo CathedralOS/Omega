@@ -98,16 +98,17 @@ pub(crate) fn lower_structural_member_path(
                 let element_shape =
                     terminal_psi::find_structural_type(structural_types, structural_type)
                         .map(|declaration| &declaration.shape);
-                let Some(StructuralTypeShape::PrimitiveScalar(scalar)) = element_shape else {
-                    return unsupported(
-                        "structural scalar contract element leaf is not a primitive scalar",
-                    );
+                let field = match element_shape {
+                    Some(StructuralTypeShape::PrimitiveScalar(scalar)) => {
+                        StructuralFieldType::Scalar(*scalar)
+                    }
+                    Some(_) => StructuralFieldType::Structural(structural_type),
+                    None => return unsupported("structural contract element type is absent"),
                 };
-                return Ok((
-                    parameter.place,
-                    terminal_path,
-                    StructuralFieldType::Scalar(*scalar),
-                ));
+                // Path resolution can stop at an aggregate before a later
+                // runtime selector. Scalar consumers separately require a
+                // scalar endpoint; geometry itself does not impose that use.
+                return Ok((parameter.place, terminal_path, field));
             }
             continue;
         }
@@ -223,6 +224,150 @@ pub(crate) fn lower_sequence_extent_term(
         "sequence extent is not an integer",
     ))?;
     Ok(ScalarTerm::view_extent(root, path, integer))
+}
+
+/// Indexed observations retain each selector in the contract's scalar
+/// namespace. Static runs use the same declared-field resolver as ordinary
+/// member contracts; a dynamic step changes only collection selection.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn lower_structural_indexed_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    expression: &checked_trees::CheckedScalarExpression,
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+    lower_selector: &mut impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
+        &checked_trees::CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError>,
+) -> Result<ScalarTerm, LoweringError> {
+    use checked_trees::CheckedScalarReadProjection;
+    use semantic_vocabulary::ScalarReadProjection;
+    let checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+        root,
+        path,
+        index,
+        element_path,
+        primitive_type,
+    } = expression
+    else {
+        return unsupported("indexed contract observation has no selected read");
+    };
+    let position = root.parameter().ok_or(LoweringError::Unsupported(
+        "indexed contract observation requires a structural formal",
+    ))?;
+    let parameter = parameters
+        .iter()
+        .find(|parameter| parameter.position == position)
+        .ok_or(LoweringError::Unsupported(
+            "indexed contract formal is absent",
+        ))?;
+    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+        return unsupported("indexed contract observation requires readable access");
+    }
+    let mut projections = path
+        .iter()
+        .cloned()
+        .map(CheckedScalarReadProjection::Static)
+        .collect::<Vec<_>>();
+    projections.push(CheckedScalarReadProjection::RuntimeIndex((**index).clone()));
+    projections.extend_from_slice(element_path);
+    let mut terminal_path = Vec::new();
+    let mut selected = StructuralFieldType::Structural(parameter.structural_type);
+    let mut cursor = 0;
+    while cursor < projections.len() {
+        if matches!(&projections[cursor], CheckedScalarReadProjection::Static(_)) {
+            let mut static_path = Vec::new();
+            while let Some(CheckedScalarReadProjection::Static(segment)) = projections.get(cursor) {
+                static_path.push(segment.clone());
+                cursor += 1;
+            }
+            let StructuralFieldType::Structural(structural_type) = selected else {
+                return unsupported("indexed contract member follows a scalar leaf");
+            };
+            let namespace = StructuralParameterDeclaration {
+                structural_type,
+                ..parameter.clone()
+            };
+            let (_, path, field) = lower_structural_member_path(
+                identities,
+                position,
+                &static_path,
+                &[namespace],
+                structural_types,
+            )?;
+            terminal_path.extend(path.into_iter().map(ScalarReadProjection::Static));
+            selected = field;
+            continue;
+        }
+        let CheckedScalarReadProjection::RuntimeIndex(selector) = &projections[cursor] else {
+            unreachable!();
+        };
+        let selector = lower_selector(identities, &selector.expression)?;
+        if !matches!(selector.scalar_type(), ScalarType::Integer(integer) if !integer.is_address())
+        {
+            return unsupported("indexed contract selector is not a fixed integer");
+        }
+        let byte_carrier = match &selected {
+            StructuralFieldType::Structural(identity) => {
+                let declaration = terminal_psi::find_structural_type(structural_types, *identity)
+                    .ok_or(LoweringError::Unsupported(
+                    "indexed contract collection type is absent",
+                ))?;
+                match &declaration.shape {
+                    StructuralTypeShape::FixedArray { element, .. }
+                    | StructuralTypeShape::ElementView { element } => {
+                        selected = StructuralFieldType::Structural(*element);
+                        None
+                    }
+                    StructuralTypeShape::ByteSequence(carrier) => Some(*carrier),
+                    _ => return unsupported("indexed contract receiver is not a collection"),
+                }
+            }
+            field => Some(
+                field
+                    .byte_sequence_carrier()
+                    .ok_or(LoweringError::Unsupported(
+                        "indexed contract receiver is not a collection",
+                    ))?,
+            ),
+        };
+        if let Some(carrier) = byte_carrier {
+            if matches!(
+                carrier,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
+                } | terminal_psi::ByteSequenceCarrier::BoundedView {
+                    access: Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
+                    ..
+                }
+            ) {
+                return unsupported("indexed contract byte observation requires readable access");
+            }
+            selected =
+                StructuralFieldType::Scalar(crate::emission::scalar_types::terminal_scalar_type(
+                    checked_trees::types::PrimitiveType::U8,
+                )?);
+        }
+        terminal_path.push(ScalarReadProjection::Index(Box::new(selector)));
+        cursor += 1;
+    }
+    let actual = terminal_semantics::structural_read_scalar_type(
+        structural_types.iter(),
+        parameter.structural_type,
+        &terminal_path,
+    );
+    let expected = crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?;
+    if actual != Some(expected) {
+        return unsupported("indexed contract path does not select its retained scalar type");
+    }
+    let term = ScalarTerm::StructuralRead {
+        root: parameter.place,
+        path: terminal_path,
+        scalar_type: expected,
+    };
+    term.validate()
+        .map_err(LoweringError::InvalidCrashPredicate)?;
+    Ok(term)
 }
 
 pub(crate) fn lower_structural_member_term(

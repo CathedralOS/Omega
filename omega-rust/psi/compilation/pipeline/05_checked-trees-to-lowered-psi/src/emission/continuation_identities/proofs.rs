@@ -15,6 +15,17 @@ impl super::IdentityMap {
         while let Some(term) = pending.pop() {
             match term {
                 ScalarTerm::Value { id, .. } => *id = self.value(*id),
+                ScalarTerm::StructuralRead { root, path, .. } => {
+                    *root = self.place(*root);
+                    for projection in path.iter_mut().rev() {
+                        if let semantic_vocabulary::ScalarReadProjection::Index(selector) =
+                            projection
+                        {
+                            pending.push(selector);
+                        }
+                    }
+                }
+
                 ScalarTerm::BooleanField { root, .. }
                 | ScalarTerm::IntegerField { root, .. }
                 | ScalarTerm::IeeeFloatField { root, .. }

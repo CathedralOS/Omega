@@ -20,6 +20,6 @@ pub use proof_terms::{ProofTerm, ProofTermField};
 pub use propositions::{Proposition, PropositionContext, PropositionError};
 pub use scalar_terms::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
-    IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, ScalarTerm, ScalarType,
-    StructuralCaseSubject,
+    IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, ScalarReadProjection, ScalarTerm,
+    ScalarType, StructuralCaseSubject,
 };

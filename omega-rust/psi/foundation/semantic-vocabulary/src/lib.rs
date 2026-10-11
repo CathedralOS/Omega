@@ -63,7 +63,7 @@ pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
     IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, IntegerCarrier, IntegerMathLiteral,
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ProofTerm, ProofTermField,
-    Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType,
-    StructuralCaseSubject,
+    Proposition, PropositionContext, PropositionError, ScalarReadProjection, ScalarTerm,
+    ScalarType, StructuralCaseSubject,
 };
 pub use structural_places::{AffineConstructionElement, StructuralPlaceKind};

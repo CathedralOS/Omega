@@ -20,6 +20,7 @@ use semantic_vocabulary::{ProofTerm, ProofTermField, ScalarType};
 use terminal_psi::{ErasedProofFormal, StructuralResultDeclaration};
 
 mod namespace;
+pub(crate) use namespace::validate_indexed_operands;
 mod result_range;
 pub(crate) use result_range::with_result_range;
 
@@ -496,6 +497,18 @@ impl ScalarContractTerms<'_> {
     ) -> Result<ScalarTerm, LoweringError> {
         if let CheckedScalarExpression::Boolean(predicate) = expression {
             return self.boolean(identities, predicate);
+        }
+        if matches!(
+            expression,
+            CheckedScalarExpression::StructuralParameterIndexedRead { .. }
+        ) {
+            return crate::proofs::crash_routes::lower_structural_indexed_term(
+                identities,
+                expression,
+                &self.authored_structural_parameters(),
+                self.views.structural_types,
+                &mut |identities, selector| self.scalar(identities, selector),
+            );
         }
         if let CheckedScalarExpression::StructuralParameterByteLength { root, path } = expression {
             let position = root.parameter().ok_or(LoweringError::Unsupported(

@@ -10,7 +10,9 @@ impl ScalarTerm {
         match self {
             Self::IeeeFloatLiteral(value) => ScalarType::IeeeFloat(value.format()),
             Self::IeeeFloatField { format, .. } => ScalarType::IeeeFloat(*format),
-            Self::Value { scalar_type, .. } => *scalar_type,
+            Self::Value { scalar_type, .. } | Self::StructuralRead { scalar_type, .. } => {
+                *scalar_type
+            }
             Self::IntegerField { scalar_type, .. } | Self::ViewExtent { scalar_type, .. } => {
                 ScalarType::Integer(*scalar_type)
             }

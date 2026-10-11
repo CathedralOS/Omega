@@ -110,27 +110,74 @@ struct ContractPredicates<'program, 'budget> {
 }
 
 impl ContractPredicates<'_, '_> {
-    /// All scalar field observations share the formal-place and access check.
-    /// The leaf's type chooses its Boolean or numeric denotation, not a second
-    /// contract namespace or a separate source-shape admission rule.
+    /// Scalar storage observations share the formal-place and access check.
+    /// Selectors use this contract's exact scalar namespace; the shared read
+    /// planner retains builtin meaning, declaration geometry and occurrences.
     fn structural_observation(
         &self,
         expression: ExpressionHandle,
+        depth: usize,
     ) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
-        let (position, _, reference) = super::structural_fields::structural_parameter_place(
+        if depth >= 64 {
+            return None;
+        }
+        let static_observation = super::structural_fields::structural_parameter_place(
             self.program,
             self.parameters,
             expression,
-        )?;
+        )
+        .and_then(|(position, _, reference)| {
+            let (term, _) = super::structural_fields::lower_structural_parameter_field(
+                self.program,
+                self.parameters,
+                expression,
+            )?;
+            Some((position, term, reference))
+        });
+        let (position, term, reference) = if let Some(observation) = static_observation {
+            observation
+        } else {
+            let (term, _) = super::scalar_lowering::indexed_scalar_read_with_selectors(
+                self.program,
+                self.operators,
+                expression,
+                self.parameters,
+                |_, selector| {
+                    self.numeric_term(selector, depth + 1)
+                        .map(|(term, _)| term)
+                        .or_else(|| {
+                            lower_contract_integer_literal(
+                                self.program,
+                                self.operators,
+                                selector,
+                                PrimitiveType::U64,
+                            )
+                        })
+                },
+            )?;
+            let CheckedScalarExpression::StructuralParameterIndexedRead { root, .. } = &term else {
+                return None;
+            };
+            let position = root.parameter()?;
+            // Keep the selected endpoint's qualifications and arithmetic policy,
+            // rather than reconstructing a bare type from its scalar carrier.
+            let reference = validation::parameter_expression_result_type_reference(
+                self.program,
+                self.owner,
+                self.parameters,
+                expression,
+            )?;
+            let reference =
+                validation::field_domains::readable_type_reference(self.program, reference)?;
+            if scalar_expression_type(&term) != self.program.primitive_type_reference(reference) {
+                return None;
+            }
+            (position, term, reference)
+        };
         let parameter = self.parameters.get(position as usize)?;
         if !contract_storage_root(self.program, parameter, self.allow_result) {
             return None;
         }
-        let (term, _) = super::structural_fields::lower_structural_parameter_field(
-            self.program,
-            self.parameters,
-            expression,
-        )?;
         Some((term, reference))
     }
 
@@ -362,7 +409,7 @@ impl ContractPredicates<'_, '_> {
                 }
                 // Reading a field for comparison preserves its carrier value;
                 // its arithmetic policy constrains operations, not observation.
-                self.structural_observation(expression)
+                self.structural_observation(expression, depth + 1)
             }
             // `value as u64` from a u32 subject names the same integer in a
             // carrier holding every source value, so it is a total
@@ -527,7 +574,7 @@ impl ContractPredicates<'_, '_> {
             program.expression_table.expression(expression),
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
         ) && let Some((CheckedScalarExpression::Boolean(predicate), _)) =
-            self.structural_observation(expression)
+            self.structural_observation(expression, depth + 1)
         {
             return Some(*predicate);
         }

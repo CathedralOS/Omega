@@ -196,8 +196,25 @@ impl ByteSequenceStructuralField {
     canonical_field_accessors!();
 }
 
+/// An observation path keeps declaration geometry separate from evaluated
+/// selectors. Index operands are scalar terms, never executable syntax or a
+/// claim that the selected storage is readable or in bounds.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ScalarReadProjection {
+    Static(CanonicalStructuralPathSegment),
+    Index(Box<ScalarTerm>),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarTerm {
+    /// A current scalar observation at an exact root and ordered projection.
+    /// Only supplied premises establish its relation to an SSA value; this
+    /// term grants no access, bounds, case membership or value guarantee.
+    StructuralRead {
+        root: PlaceId,
+        path: Vec<ScalarReadProjection>,
+        scalar_type: ScalarType,
+    },
     /// Exact IEEE interchange bits, distinct from mathematical equality and
     /// from an integer encoding of those bits.
     IeeeFloatLiteral(IeeeFloatValue),
@@ -666,6 +683,20 @@ macro_rules! scalar_term_operand_table {
 }
 
 impl ScalarTerm {
+    pub fn structural_read(
+        root: PlaceId,
+        path: Vec<ScalarReadProjection>,
+        scalar_type: ScalarType,
+    ) -> Result<Self, PropositionError> {
+        let term = Self::StructuralRead {
+            root,
+            path,
+            scalar_type,
+        };
+        term.validate()?;
+        Ok(term)
+    }
+
     pub fn value(id: ValueId, scalar_type: ScalarType) -> Self {
         Self::Value { id, scalar_type }
     }
@@ -965,11 +996,29 @@ impl ScalarTerm {
     /// unary operators yield their operand, binary and shift operators yield
     /// `left`/`right` or `value`/`count`, and leaf variants yield none.
     pub fn operands(&self) -> Vec<&ScalarTerm> {
+        if let Self::StructuralRead { path, .. } = self {
+            return path
+                .iter()
+                .filter_map(|segment| match segment {
+                    ScalarReadProjection::Index(index) => Some(index.as_ref()),
+                    ScalarReadProjection::Static(_) => None,
+                })
+                .collect();
+        }
         scalar_term_operand_table!(self, as_ref)
     }
 
     /// Mutable view of [`Self::operands`], in the same declaration order.
     pub fn operands_mut(&mut self) -> Vec<&mut ScalarTerm> {
+        if let Self::StructuralRead { path, .. } = self {
+            return path
+                .iter_mut()
+                .filter_map(|segment| match segment {
+                    ScalarReadProjection::Index(index) => Some(index.as_mut()),
+                    ScalarReadProjection::Static(_) => None,
+                })
+                .collect();
+        }
         scalar_term_operand_table!(self, as_mut)
     }
 

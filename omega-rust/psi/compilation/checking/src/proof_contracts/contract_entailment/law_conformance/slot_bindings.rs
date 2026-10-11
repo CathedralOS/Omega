@@ -201,6 +201,27 @@ pub(crate) fn rewrite_slot_applications(
         StructuralTerm::CallProjection { .. } => term.clone().map_argument_terms(|argument| {
             rewrite_slot_applications(&argument, slot_names, slot_bindings, missing)
         }),
+        StructuralTerm::IndexedValue {
+            element_type,
+            element_identity,
+            collection,
+            index,
+        } => StructuralTerm::IndexedValue {
+            element_type: *element_type,
+            element_identity: *element_identity,
+            collection: Box::new(rewrite_slot_applications(
+                collection,
+                slot_names,
+                slot_bindings,
+                missing,
+            )),
+            index: Box::new(rewrite_slot_applications(
+                index,
+                slot_names,
+                slot_bindings,
+                missing,
+            )),
+        },
         StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
             subject: Box::new(rewrite_slot_applications(
                 subject,
@@ -221,6 +242,11 @@ pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -
             term_mentions_variable(left, variable) || term_mentions_variable(right, variable)
         }
         StructuralTerm::Projection { subject, .. } => term_mentions_variable(subject, variable),
+        StructuralTerm::IndexedValue {
+            collection, index, ..
+        } => {
+            term_mentions_variable(collection, variable) || term_mentions_variable(index, variable)
+        }
         StructuralTerm::Variable(name) => name == variable,
         StructuralTerm::Constructor { fields, .. } => fields
             .iter()
@@ -384,6 +410,13 @@ pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
             "binary:{operator:?}:{meaning:?}({},{})",
             display_structural_term(left),
             display_structural_term(right)
+        ),
+        StructuralTerm::IndexedValue {
+            collection, index, ..
+        } => format!(
+            "{}[{}]",
+            display_structural_term(collection),
+            display_structural_term(index)
         ),
         StructuralTerm::Projection { subject, path } => {
             format!("{}.{path}", display_structural_term(subject))

@@ -21,6 +21,7 @@ pub(super) fn is_definition_subject(term: &ScalarTerm) -> bool {
             | ScalarTerm::BooleanField { .. }
             | ScalarTerm::IeeeFloatField { .. }
             | ScalarTerm::ViewExtent { .. }
+            | ScalarTerm::StructuralRead { .. }
     )
 }
 
@@ -239,6 +240,11 @@ impl<'input> ValueEqualities<'input> {
         // intact; this judgment assumes no arithmetic equation beyond premises.
         let mut transported = original.clone();
         match &mut transported {
+            ScalarTerm::StructuralRead { .. } => {
+                for operand in transported.operands_mut() {
+                    *operand = self.scalar(operand, budget, depth + 1, active)?;
+                }
+            }
             super::scalar_term_unary_operand!(operand) => {
                 **operand = self.scalar(operand, budget, depth + 1, active)?;
             }

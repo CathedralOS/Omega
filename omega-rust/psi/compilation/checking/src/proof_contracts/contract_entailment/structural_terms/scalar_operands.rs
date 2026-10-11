@@ -58,6 +58,13 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
             )
             .is_some()
         }
+        StructuralTerm::IndexedValue { element_type, .. } => {
+            crate::value_custody::expression_types::scalar_observation_meaning(program, declared)
+                == crate::value_custody::expression_types::scalar_observation_meaning(
+                    program,
+                    *element_type,
+                )
+        }
         StructuralTerm::CallProjection { .. } => true,
         // A produced aggregate's reference field is still a descriptor. An
         // exact input subject projection instead starts at its retained binder.
@@ -108,6 +115,16 @@ pub(in crate::proof_contracts::contract_entailment) fn term_is_unobserved_descri
                     .iter()
                     .any(|argument| term_is_unobserved_descriptor(program, argument))
         }
+        StructuralTerm::IndexedValue {
+            element_type,
+            collection,
+            index,
+            ..
+        } => {
+            crate::reference_shell(program, *element_type).is_some()
+                || term_is_unobserved_descriptor(program, collection)
+                || term_is_unobserved_descriptor(program, index)
+        }
         StructuralTerm::Constructor { fields, .. } => fields
             .iter()
             .any(|(_, value)| term_is_unobserved_descriptor(program, value)),
@@ -133,6 +150,7 @@ fn has_produced_subject(term: &StructuralTerm) -> bool {
         | StructuralTerm::CapturedValue { .. }
         | StructuralTerm::CallProjection { .. } => true,
         StructuralTerm::Projection { subject, .. } => has_produced_subject(subject),
+        StructuralTerm::IndexedValue { collection, .. } => has_produced_subject(collection),
         _ => false,
     }
 }

@@ -150,6 +150,24 @@ impl PartialEq for StructuralTerm {
                     other_arguments,
                 )
             }
+            Self::IndexedValue {
+                element_identity,
+                collection,
+                index,
+                ..
+            } => {
+                let Self::IndexedValue {
+                    element_identity: other_identity,
+                    collection: other_collection,
+                    index: other_index,
+                    ..
+                } = other
+                else {
+                    return false;
+                };
+                (element_identity, collection, index)
+                    == (other_identity, other_collection, other_index)
+            }
             Self::Projection { subject, path } => {
                 let Self::Projection {
                     subject: other_subject,
@@ -252,6 +270,17 @@ impl std::fmt::Debug for StructuralTerm {
                 .field("field", field)
                 .field("field_name", field_name)
                 .field("arguments", arguments)
+                .finish(),
+            Self::IndexedValue {
+                element_identity,
+                collection,
+                index,
+                ..
+            } => formatter
+                .debug_struct("IndexedValue")
+                .field("element_identity", element_identity)
+                .field("collection", collection)
+                .field("index", index)
                 .finish(),
             Self::Projection { subject, path } => formatter
                 .debug_struct("Projection")

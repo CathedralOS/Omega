@@ -79,6 +79,15 @@ fn validate_namespace(expression: &CheckedBooleanExpression) -> Result<(), Lower
 
 fn validate_float_namespace(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
     match expression {
+        CheckedScalarExpression::StructuralParameterIndexedRead { primitive_type, .. }
+            if matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64) =>
+        {
+            crate::scalar_lowering::contracts::validate_indexed_operands(
+                expression,
+                &validate_integer_namespace,
+            )
+        }
+
         CheckedScalarExpression::Parameter { primitive_type, .. }
         | CheckedScalarExpression::ErasedParameter { primitive_type, .. }
         | CheckedScalarExpression::StructuralParameterField { primitive_type, .. }
@@ -95,6 +104,13 @@ fn validate_float_namespace(expression: &CheckedScalarExpression) -> Result<(), 
 
 fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
     match expression {
+        CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
+            crate::scalar_lowering::contracts::validate_indexed_operands(
+                expression,
+                &validate_integer_namespace,
+            )
+        }
+
         CheckedScalarExpression::Parameter { primitive_type, .. }
         | CheckedScalarExpression::ErasedParameter { primitive_type, .. }
         | CheckedScalarExpression::StructuralParameterField { primitive_type, .. } => {
@@ -181,6 +197,16 @@ impl RuntimeRequirementTerms<'_> {
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
         match expression {
+            CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
+                crate::proofs::crash_routes::lower_structural_indexed_term(
+                    identities,
+                    expression,
+                    self.parameters,
+                    self.structural_types,
+                    &mut |identities, selector| self.scalar(identities, selector),
+                )
+            }
+
             CheckedScalarExpression::Parameter { primitive_type, .. }
             | CheckedScalarExpression::ErasedParameter { primitive_type, .. } => {
                 if !matches!(
@@ -314,6 +340,17 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
             substitutions: &BTreeMap<ValueId, ValueDeclaration>,
         ) -> Result<(), LoweringError> {
             match term {
+                ScalarTerm::StructuralRead { path, .. } => {
+                    for projection in path {
+                        if let semantic_vocabulary::ScalarReadProjection::Index(selector) =
+                            projection
+                        {
+                            rebind(selector, substitutions)?;
+                        }
+                    }
+                    Ok(())
+                }
+
                 semantic_vocabulary::scalar_term_unary_operand!(operand) => {
                     rebind(operand, substitutions)
                 }

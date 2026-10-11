@@ -128,7 +128,7 @@ pub(crate) fn binary_term_in_scope(
 }
 
 /// Walk an anchored name's symbol upward to its declaring machine and state.
-fn scoped_machine_state<'program>(
+pub(super) fn scoped_machine_state<'program>(
     program: &'program dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<(&'program Machine, &'program State)> {
@@ -153,7 +153,7 @@ fn scoped_machine_state<'program>(
     }
 }
 
-fn expression_scope(
+pub(super) fn expression_scope(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     depth: usize,
@@ -166,6 +166,10 @@ fn expression_scope(
         ExpressionNode::Binary(binary) => expression_scope(program, binary.left, depth + 1)
             .or_else(|| expression_scope(program, binary.right, depth + 1)),
         ExpressionNode::Member(member) => expression_scope(program, member.receiver, depth + 1),
+        ExpressionNode::Indexed(indexed) => {
+            expression_scope(program, indexed.collection, depth + 1)
+                .or_else(|| expression_scope(program, indexed.index, depth + 1))
+        }
         ExpressionNode::Cast(cast) => expression_scope(program, cast.value, depth + 1),
         _ => None,
     }

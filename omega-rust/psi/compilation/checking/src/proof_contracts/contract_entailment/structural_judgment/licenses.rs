@@ -255,6 +255,9 @@ pub(super) fn additive_addends(
 pub(super) fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) -> bool {
     match term.semantic_value() {
         StructuralTerm::Projection { subject, .. } => term_uses_application(subject, op),
+        StructuralTerm::IndexedValue {
+            collection, index, ..
+        } => term_uses_application(collection, op) || term_uses_application(index, op),
         StructuralTerm::ScalarBinary { left, right, .. } => {
             term_uses_application(left, op) || term_uses_application(right, op)
         }
@@ -964,6 +967,9 @@ fn consistent_operation_selections(left: &StructuralTerm, right: &StructuralTerm
                 visit(left, seen) && visit(right, seen)
             }
             StructuralTerm::Projection { subject, .. } => visit(subject, seen),
+            StructuralTerm::IndexedValue {
+                collection, index, ..
+            } => visit(collection, seen) && visit(index, seen),
             _ => true,
         }
     }

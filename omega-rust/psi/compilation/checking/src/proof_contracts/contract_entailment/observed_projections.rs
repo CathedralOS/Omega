@@ -88,7 +88,8 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
         }),
         value @ (StructuralTerm::CapturedValue { .. }
         | StructuralTerm::Application { .. }
-        | StructuralTerm::CallProjection { .. }) => Some(StructuralTerm::Projection {
+        | StructuralTerm::CallProjection { .. }
+        | StructuralTerm::IndexedValue { .. }) => Some(StructuralTerm::Projection {
             subject: Box::new(value),
             path: field_name.to_owned(),
         }),

@@ -359,6 +359,28 @@ pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) 
             bytes.id(*root);
             encode_canonical_path(bytes, path);
         }
+        S::StructuralRead {
+            root,
+            path,
+            scalar_type,
+        } => {
+            bytes.u8(40);
+            bytes.id(*root);
+            encode_scalar_type(bytes, *scalar_type);
+            bytes.len(path.len());
+            for projection in path {
+                match projection {
+                    semantic_vocabulary::ScalarReadProjection::Static(segment) => {
+                        bytes.u8(1);
+                        encode_canonical_path(bytes, std::slice::from_ref(segment));
+                    }
+                    semantic_vocabulary::ScalarReadProjection::Index(index) => {
+                        bytes.u8(2);
+                        encode_scalar_term(bytes, index);
+                    }
+                }
+            }
+        }
         S::ViewExtent {
             root,
             path,
