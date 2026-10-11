@@ -71,8 +71,16 @@ pub(crate) fn dynamic_selector_call<'program>(
             program.symbols.name(target)
         ));
     };
-    let application = AppliedTraitScope::new(program, selector_definition, selector_arguments)
-        .and_then(|scope| scope.declaring_scope(program, declaring.symbol));
+    let application = AppliedTraitScope::new(
+        program,
+        selector_definition,
+        typed_trees::trait_definition::TraitApplicationArguments {
+            lexical_owner: machine.symbol,
+            arguments: selector_arguments,
+            lifetimes: &[],
+        },
+    )
+    .and_then(|scope| scope.declaring_scope(program, declaring.symbol));
     let Some(application) = application else {
         return Err(format!(
             "a `dyn {}` selector cannot call `{}::{}`: `{}` does not inherit `{}`",

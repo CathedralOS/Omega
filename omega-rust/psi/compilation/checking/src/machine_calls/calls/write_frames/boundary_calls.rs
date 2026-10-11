@@ -343,7 +343,11 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         return None;
     }
     let receiver_scope = if has_runtime_receiver {
-        crate::declarations::traits::receiver_trait_scope(program, receiver_reference)?
+        crate::declarations::traits::receiver_trait_scope(
+            program,
+            receiver_reference,
+            current_machine.symbol,
+        )?
     } else {
         typed_trees::trait_definition::AppliedTraitScope::abstract_scope(trait_definition)
     };

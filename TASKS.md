@@ -2781,6 +2781,11 @@ crash and native exit behavior.
     still need exact application joins and indexed named-provider family
     coverage; the current classifier refuses rather than using erased carrier
     matching. Build selects the provider declaration, not a runtime caller region.
+    First finish shared conformance borrow refinement in checking: on macos_arm64,
+    an uncalled `Reading<&'left i32, &'right i32>` map still incorrectly admits
+    a `read<'source>` body returning its input `&'source i32`. Retain borrowed
+    simultaneous trait scopes, infer realization regions from inputs only, and
+    check the independent result-source relation before widening provider admission.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.
 

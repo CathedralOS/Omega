@@ -110,6 +110,54 @@ pub fn applied_type_identity(
     (!invalid.get()).then_some(program_intern_type_identity(program, identity))
 }
 
+/// Resolve one erased region through the same simultaneous application scopes
+/// as its containing type. This is local semantic identity, not loan authority
+/// or a portable artifact coordinate.
+pub fn applied_lifetime_identity(
+    program: &TypedTrees,
+    name: &str,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = TypeIdentityContext {
+        application_scopes: scopes,
+        application_owner: lexical_owner,
+        invalid_application: Some(&invalid),
+        ..TypeIdentityContext::default()
+    }
+    .lifetime(program, name);
+    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
+}
+
+/// Intern one complete local application key without exposing declaration or
+/// region arena identities as a portable commitment.
+pub(crate) fn local_trait_application_identity(
+    program: &TypedTrees,
+    declaration: SymbolHandle,
+    arguments: &[NormalizedTypeIdentity],
+    lifetimes: &[NormalizedTypeIdentity],
+) -> Option<NormalizedTypeIdentity> {
+    let render = |identities: &[NormalizedTypeIdentity]| {
+        identities
+            .iter()
+            .map(|identity| program.type_identity_text(*identity))
+            .collect::<Option<Vec<_>>>()
+    };
+    let identity = compound(
+        "local-trait-application",
+        [
+            atom(
+                "declaration",
+                &format!("{}:{}", declaration.arena_index(), declaration.generation()),
+            ),
+            compound("arguments", render(arguments)?),
+            compound("lifetimes", render(lifetimes)?),
+        ],
+    );
+    Some(program_intern_type_identity(program, identity))
+}
+
 /// Compare static indices and local fact operands through the same licensed
 /// normalizer as type identity. Replacements belong to the caller's scope and
 /// are therefore simultaneous: a swapped telescope must not bind twice.

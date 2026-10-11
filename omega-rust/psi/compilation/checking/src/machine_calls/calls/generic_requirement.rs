@@ -153,9 +153,16 @@ pub(super) fn named_conformance_requirement<'program>(
     let carrier = program
         .trait_definition_by_symbol(bound.trait_symbol)
         .ok_or_else(failure)?;
-    let root =
-        typed_trees::trait_definition::AppliedTraitScope::new(program, carrier, &bound.arguments)
-            .ok_or_else(failure)?;
+    let root = typed_trees::trait_definition::AppliedTraitScope::new(
+        program,
+        carrier,
+        typed_trees::trait_definition::TraitApplicationArguments {
+            lexical_owner: machine.symbol,
+            arguments: &bound.arguments,
+            lifetimes: &[],
+        },
+    )
+    .ok_or_else(failure)?;
     let mut selected: Option<crate::declarations::traits::GenericBoundRequirement<'program>> = None;
     let mut ambiguous = false;
     root.visit(program, &mut |application| {

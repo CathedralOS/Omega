@@ -89,6 +89,7 @@ impl TypedTrees {
                 .wire_schemas()
                 .starts_with(base.tables.wire_schemas.span_or_empty(*wire_schemas))
             && self.tables.retains_exact_prefix(&base.tables)
+            && self.retains_trait_application_identities(base)
     }
 }
 

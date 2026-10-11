@@ -1,12 +1,34 @@
 //! Prepare and rejoin exact logical trait applications for both named maps and
 //! machine satisfaction edges. Consumers borrow these signatures after freezing;
 //! they neither mutate declarations nor infer an authored fixed type argument.
+//! The cache key retains regions even though carrier preparation substitutes
+//! Type operands only. Complete region refinement must read the original
+//! signature with its borrowed application scopes: flattening a mixed captured
+//! and fresh lifetime telescope can recapture same-spelled operands.
 
 use super::{AppliedCallableOwner, AppliedCallableSignature, CallableApplication};
 use crate::{TypedTrees, signature, trait_definition::AppliedTraitScope};
 use symbols::SymbolHandle;
 
 impl TypedTrees {
+    /// Retained rows must keep both the handle and the key it names. Unused
+    /// query keys may grow independently after cloning; they are not storage
+    /// obligations. Compare only keys referenced by the retained signatures.
+    pub(crate) fn retains_trait_application_identities(&self, base: &Self) -> bool {
+        base.applied_callable_signatures
+            .iter()
+            .all(|(_, prepared)| {
+                let AppliedCallableOwner::Trait { application, .. } = prepared.owner else {
+                    return true;
+                };
+                let Some(key) = base.type_identity_text(application) else {
+                    return false;
+                };
+                self.type_identities
+                    .with(|table| table.text(application) == Some(key.as_str()))
+            })
+    }
+
     /// Applied logical signature for one exact declaring scope. Its complete
     /// trait application remains separate from requirement authority.
     pub fn applied_callable_signature(
@@ -14,27 +36,24 @@ impl TypedTrees {
         application: &AppliedTraitScope<'_>,
         requirement: SymbolHandle,
     ) -> Option<&signature::StateSignature> {
+        let identity = application.application_identity(self)?;
         self.applied_callable_signatures
             .iter()
             .find_map(|(_, prepared)| {
                 let AppliedCallableOwner::Trait {
                     declaration,
-                    arguments,
+                    application: prepared_identity,
                 } = &prepared.owner
                 else {
                     return None;
                 };
                 if *declaration != application.declaration.symbol
+                    || *prepared_identity != identity
                     || prepared.signature.symbol != requirement
                 {
                     return None;
                 }
-                let arguments = self.type_reference_table.type_reference_handles(*arguments);
-                let prepared_scope =
-                    AppliedTraitScope::new(self, application.declaration, arguments)?;
-                application
-                    .same_application(self, &prepared_scope)
-                    .then_some(&prepared.signature)
+                Some(&prepared.signature)
             })
     }
 
@@ -42,88 +61,80 @@ impl TypedTrees {
     /// An application owns logical contracts, not executable realizations;
     /// constructing this row confers no conformance or proof authority.
     pub fn prepare_applied_callable_signatures(&mut self) -> Result<(), &'static str> {
+        let program = &*self;
         let roots =
             self.machines()
                 .iter()
-                .flat_map(|machine| self.machine_trait_conformances(machine))
-                .map(|edge| {
-                    (
-                        edge.symbol,
-                        self.type_reference_table
-                            .type_reference_handles(edge.arguments)
-                            .to_vec(),
-                    )
+                .flat_map(|machine| {
+                    self.machine_trait_conformances(machine)
+                        .iter()
+                        .filter_map(move |edge| {
+                            AppliedTraitScope::from_machine_conformance(program, machine, edge)
+                        })
                 })
-                .chain(self.conformances().iter().map(|edge| {
-                    (
-                        edge.trait_symbol,
-                        self.type_reference_table
-                            .type_reference_handles(edge.arguments)
-                            .to_vec(),
-                    )
-                }))
+                .chain(
+                    self.conformances()
+                        .iter()
+                        .filter_map(|edge| AppliedTraitScope::from_conformance(self, edge)),
+                )
                 .chain(
                     self.traits()
                         .iter()
                         .filter(|declaration| declaration.type_parameters.is_empty())
-                        .map(|declaration| (declaration.symbol, Vec::new())),
+                        .map(AppliedTraitScope::abstract_scope),
                 )
                 .chain(self.type_reference_table.type_reference_rows().filter_map(
                     |(reference, _)| {
                         crate::service::classify_exact_bound_service_carrier(self, reference)
                             .ok()
                             .flatten()
-                            .map(|carrier| (carrier.requirement, carrier.arguments(self).to_vec()))
+                            .and_then(|carrier| carrier.application(self))
                     },
                 ))
                 .collect::<Vec<_>>();
         let mut pending = Vec::new();
-        for (trait_symbol, arguments) in roots {
-            let Some(declaration) = self.trait_definition_by_symbol(trait_symbol) else {
-                continue;
-            };
-            let Some(scope) = AppliedTraitScope::new(self, declaration, &arguments) else {
-                continue;
-            };
+        for scope in roots {
             scope.visit(self, &mut |scope| {
                 for signature in self.trait_machine_signatures(scope.declaration) {
                     // A completely monomorphic declaration needs no view.
                     // Outer arguments still substitute contracts when the
                     // requirement has no local binders, including phantom ones.
                     if signature.type_parameters.is_empty()
-                        && scope.declaration.type_parameters.is_empty()
+                        && scope.substitutions.is_empty()
+                        && scope.declaration.lifetime_parameters.is_empty()
                     {
                         continue;
                     }
+                    let Some(identity) = scope.application_identity(self) else {
+                        continue;
+                    };
                     pending.push((
                         scope.declaration.symbol,
+                        identity,
                         signature.symbol,
                         scope.substitutions.clone(),
                         scope.substitution_scope_starts.clone(),
+                        scope.argument_owner,
                     ));
                 }
             });
         }
-        for (trait_symbol, requirement, substitutions, starts) in pending {
-            let Some(declaration) = self.trait_definition_by_symbol(trait_symbol) else {
-                continue;
-            };
-            let scope = AppliedTraitScope {
-                declaration,
-                substitutions: substitutions.clone(),
-                substitution_scope_starts: starts.clone(),
-            };
+        for (trait_symbol, identity, requirement, substitutions, starts, argument_owner) in pending
+        {
             if self
-                .applied_callable_signature(&scope, requirement)
-                .is_some()
+                .applied_callable_signatures.iter().any(|(_, prepared)| {
+                    prepared.signature.symbol == requirement
+                        && matches!(prepared.owner, AppliedCallableOwner::Trait { application, .. } if application == identity)
+                })
             {
                 continue;
             }
-            let arguments = self.materialize_trait_application_arguments(
-                trait_symbol,
-                &substitutions,
-                &starts,
-            )?;
+            let application =
+                self.materialize_trait_application(&substitutions, &starts, argument_owner)?;
+            let arguments = self.trait_application_arguments(trait_symbol, &application)?;
+            // Ancestor substitutions resolve the final operands, but are not
+            // the declaring signature's telescope. Reusing that scratch scope
+            // would capture unrelated binders while copying local contracts.
             let Some(applied) = CallableApplication::default().nominal(
                 self,
                 trait_symbol,
@@ -133,14 +144,11 @@ impl TypedTrees {
             else {
                 continue;
             };
-            let arguments = self
-                .type_reference_table
-                .insert_type_reference_handles(arguments);
             self.applied_callable_signatures
                 .insert(AppliedCallableSignature {
                     owner: AppliedCallableOwner::Trait {
                         declaration: trait_symbol,
-                        arguments,
+                        application: identity,
                     },
                     signature: applied,
                 });
@@ -157,6 +165,20 @@ impl TypedTrees {
         substitutions: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
         scope_starts: &[usize],
     ) -> Result<Vec<crate::types::TypeReferenceHandle>, &'static str> {
+        let application = self.materialize_trait_application(
+            substitutions,
+            scope_starts,
+            SymbolHandle::invalid(),
+        )?;
+        self.trait_application_arguments(trait_symbol, &application)
+    }
+
+    fn materialize_trait_application(
+        &mut self,
+        substitutions: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
+        scope_starts: &[usize],
+        argument_owner: SymbolHandle,
+    ) -> Result<CallableApplication, &'static str> {
         let mut application = CallableApplication::default();
         for (ordinal, start) in scope_starts.iter().copied().enumerate() {
             let end = scope_starts
@@ -166,11 +188,27 @@ impl TypedTrees {
             let group = substitutions[start..end]
                 .iter()
                 .map(|(parameter, argument)| {
-                    Ok((*parameter, application.type_reference(self, *argument)?))
+                    let applied = application.type_reference(self, *argument)?;
+                    // Only copied supplying operands acquire this custody.
+                    // Original declaration nodes remain lexical, and compound
+                    // inherited arguments may contain differently owned children.
+                    if ordinal == 0 && applied.is_valid() {
+                        self.type_reference_table
+                            .retain_operand_lifetime_owner(applied, argument_owner)?;
+                    }
+                    Ok((*parameter, applied))
                 })
                 .collect::<Result<Vec<_>, &'static str>>()?;
             application.types.extend(group);
         }
+        Ok(application)
+    }
+
+    fn trait_application_arguments(
+        &self,
+        trait_symbol: SymbolHandle,
+        application: &CallableApplication,
+    ) -> Result<Vec<crate::types::TypeReferenceHandle>, &'static str> {
         let parameters = self
             .trait_definition_by_symbol(trait_symbol)
             .map(|declaration| {

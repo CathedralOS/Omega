@@ -56,7 +56,13 @@ impl ExactServiceCarrier {
         crate::trait_definition::AppliedTraitScope::new(
             program,
             program.trait_definition_by_symbol(self.requirement)?,
-            self.arguments(program),
+            crate::trait_definition::TraitApplicationArguments {
+                // Region-bearing carriers still require occurrence custody;
+                // the classifier refuses them before this view is produced.
+                lexical_owner: SymbolHandle::invalid(),
+                arguments: self.arguments(program),
+                lifetimes: &[],
+            },
         )
     }
 }

@@ -6,11 +6,25 @@
 
 use super::TraitDefinition;
 use crate::TypedTrees;
+use crate::name::Identifier;
 use crate::type_identity::{
     NormalizedTypeIdentity, TypeIdentityQualification, TypeIdentityRequest,
 };
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
+
+mod regions;
+use regions::AppliedTraitRegionScope;
+
+/// The supplying declaration owns every actual, including regions nested in
+/// type arguments. A runtime carrier or a trait declaration cannot supply this
+/// custody on behalf of the application site.
+#[derive(Clone, Copy)]
+pub struct TraitApplicationArguments<'arguments> {
+    pub lexical_owner: SymbolHandle,
+    pub arguments: &'arguments [TypeReferenceHandle],
+    pub lifetimes: &'arguments [Identifier],
+}
 
 /// A borrowed reference and its remaining lexical scopes. Resolving a binder
 /// narrows the visible scopes before its compound argument is traversed: the
@@ -102,23 +116,95 @@ pub struct AppliedTraitScope<'program> {
     /// Each simultaneous telescope starts here in `substitutions`. Arguments
     /// belong to outer telescopes, not to the telescope replacing them.
     pub substitution_scope_starts: Vec<usize>,
+    pub argument_owner: SymbolHandle,
+    region_scopes: Vec<AppliedTraitRegionScope>,
 }
 
 impl<'program> AppliedTraitScope<'program> {
+    /// Decode a named map's declaration-relative lifetime ordinals. This
+    /// constructs an inspection scope, not conformance admission.
+    pub fn from_conformance(
+        program: &'program TypedTrees,
+        conformance: &super::Conformance,
+    ) -> Option<Self> {
+        let declaration = program.trait_definition_by_symbol(conformance.trait_symbol)?;
+        let lifetimes = conformance
+            .trait_lifetime_arguments
+            .iter()
+            .map(|ordinal| {
+                conformance
+                    .lifetime_parameters
+                    .get(usize::try_from(*ordinal).ok()?)
+                    .cloned()
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Self::new(
+            program,
+            declaration,
+            TraitApplicationArguments {
+                lexical_owner: conformance.symbol,
+                arguments: program
+                    .type_reference_table
+                    .type_reference_handles(conformance.arguments),
+                lifetimes: &lifetimes,
+            },
+        )
+    }
+
+    /// An exact machine edge supplies its own owner and explicit ordinal map;
+    /// it does not borrow a similarly shaped named implementation's scope.
+    pub fn from_machine_conformance(
+        program: &'program TypedTrees,
+        machine: &crate::machine::Machine,
+        conformance: &crate::machine::TraitConformance,
+    ) -> Option<Self> {
+        let declaration = program.trait_definition_by_symbol(conformance.symbol)?;
+        let owner = program.lifetime_declaration_owner(machine.symbol);
+        let original = program.machine_by_symbol(owner)?;
+        let lifetimes = conformance
+            .trait_lifetime_arguments
+            .iter()
+            .map(|ordinal| {
+                original
+                    .lifetime_parameters
+                    .get(usize::try_from(*ordinal).ok()?)
+                    .cloned()
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Self::new(
+            program,
+            declaration,
+            TraitApplicationArguments {
+                lexical_owner: owner,
+                arguments: program
+                    .type_reference_table
+                    .type_reference_handles(conformance.arguments),
+                lifetimes: &lifetimes,
+            },
+        )
+    }
+
     pub fn new(
         program: &TypedTrees,
         declaration: &'program TraitDefinition,
-        arguments: &[TypeReferenceHandle],
+        application: TraitApplicationArguments<'_>,
     ) -> Option<Self> {
         let parameters = program.trait_type_parameters(declaration);
-        (parameters.len() == arguments.len()).then(|| Self {
+        (parameters.len() == application.arguments.len()
+            && declaration.lifetime_parameters.len() == application.lifetimes.len())
+        .then(|| Self {
             declaration,
             substitutions: parameters
                 .iter()
-                .zip(arguments)
+                .zip(application.arguments)
                 .map(|(parameter, argument)| (parameter.symbol, *argument))
                 .collect(),
             substitution_scope_starts: vec![0],
+            argument_owner: application.lexical_owner,
+            region_scopes: vec![AppliedTraitRegionScope::new(
+                declaration,
+                application.lifetimes,
+            )],
         })
     }
 
@@ -127,7 +213,9 @@ impl<'program> AppliedTraitScope<'program> {
         Self {
             declaration,
             substitutions: Vec::new(),
-            substitution_scope_starts: Vec::new(),
+            substitution_scope_starts: vec![0],
+            argument_owner: declaration.symbol,
+            region_scopes: vec![AppliedTraitRegionScope::new(declaration, &[])],
         }
     }
 
@@ -204,20 +292,10 @@ impl<'program> AppliedTraitScope<'program> {
 
     pub fn same_application(&self, program: &TypedTrees, other: &Self) -> bool {
         self.declaration.symbol == other.declaration.symbol
-            && program
-                .trait_type_parameters(self.declaration)
-                .iter()
-                .all(|parameter| {
-                    self.parameter_identity(
-                        program,
-                        parameter.symbol,
-                        TypeIdentityQualification::Ordinary,
-                    ) == other.parameter_identity(
-                        program,
-                        parameter.symbol,
-                        TypeIdentityQualification::Ordinary,
-                    )
-                })
+            && self
+                .application_identity(program)
+                .zip(other.application_identity(program))
+                .is_some_and(|(left, right)| left == right)
     }
 
     /// Normalize one actual argument in its outer lexical scopes, not in the
@@ -335,9 +413,13 @@ impl<'program> AppliedTraitScope<'program> {
             let Some(mut scope) = Self::new(
                 program,
                 declaration,
-                program
-                    .type_reference_table
-                    .type_reference_handles(parent.arguments),
+                TraitApplicationArguments {
+                    lexical_owner: self.argument_owner,
+                    arguments: program
+                        .type_reference_table
+                        .type_reference_handles(parent.arguments),
+                    lifetimes: &parent.lifetime_arguments,
+                },
             ) else {
                 continue;
             };
@@ -346,6 +428,9 @@ impl<'program> AppliedTraitScope<'program> {
             scope.substitution_scope_starts.push(substitutions.len());
             substitutions.append(&mut scope.substitutions);
             scope.substitutions = substitutions;
+            let mut regions = self.region_scopes.clone();
+            regions.append(&mut scope.region_scopes);
+            scope.region_scopes = regions;
             scope.visit_inherited(program, active, visit);
         }
         active.pop();

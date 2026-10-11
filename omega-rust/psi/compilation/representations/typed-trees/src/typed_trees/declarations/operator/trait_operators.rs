@@ -248,11 +248,10 @@ fn visit_trait_operator_meanings<'program>(
         Vec<(SymbolHandle, TypeReferenceHandle)>,
     ),
 ) {
-    let scope = crate::trait_definition::AppliedTraitScope {
-        declaration: trait_definition,
-        substitutions: substitutions.to_vec(),
-        substitution_scope_starts: vec![0],
-    };
+    let mut scope = crate::trait_definition::AppliedTraitScope::abstract_scope(trait_definition);
+    scope.substitutions = substitutions.to_vec();
+    // This meaning query owns erased operand shapes, not source-region custody.
+    scope.argument_owner = SymbolHandle::invalid();
     scope.visit(program, &mut |scope| {
         let trait_definition = scope.declaration;
         let substitutions = scope.substitutions.as_slice();

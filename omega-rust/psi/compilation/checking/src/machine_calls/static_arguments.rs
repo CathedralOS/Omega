@@ -68,7 +68,11 @@ pub fn validate_authored_static_arguments(
         let scope = typed_trees::trait_definition::AppliedTraitScope::new(
             program,
             owner,
-            application.trait_arguments,
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner: source.lexical_owner,
+                arguments: application.trait_arguments,
+                lifetimes: &[],
+            },
         );
         let Some(signature) = scope
             .as_ref()

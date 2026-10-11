@@ -16,7 +16,6 @@ use super::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::trait_definition::{AppliedTraitScope, ConformanceRowSource};
-use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn validate_conformances(
     program: &dyn crate::CheckingInput,
@@ -109,9 +108,9 @@ pub(crate) fn validate_conformances(
             service_reaches,
             implementation_name,
             trait_definition,
-            arguments,
             &conformance.rows,
             conformance_name,
+            conformance,
             diagnostics,
         );
     }
@@ -122,13 +121,13 @@ fn validate_closed_rows(
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     implementation_name: &str,
     root_trait: &TraitDefinition,
-    root_arguments: &[TypeReferenceHandle],
     rows: &[typed_trees::trait_definition::ConformanceRow],
     conformance_name: Option<&str>,
+    conformance: &typed_trees::trait_definition::Conformance,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(root_application) =
-        AppliedTraitScope::new(program.typed_program(), root_trait, root_arguments)
+        AppliedTraitScope::from_conformance(program.typed_program(), conformance)
     else {
         return;
     };

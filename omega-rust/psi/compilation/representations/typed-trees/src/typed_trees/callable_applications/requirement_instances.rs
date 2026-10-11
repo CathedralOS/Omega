@@ -82,7 +82,14 @@ impl TypedTrees {
         let Some(expected) = crate::trait_definition::AppliedTraitScope::new(
             self,
             declaration,
-            application.trait_arguments,
+            crate::trait_definition::TraitApplicationArguments {
+                lexical_owner: self
+                    .expression_table
+                    .static_machine_application(application.application)
+                    .lexical_owner,
+                arguments: application.trait_arguments,
+                lifetimes: &[],
+            },
         ) else {
             return false;
         };

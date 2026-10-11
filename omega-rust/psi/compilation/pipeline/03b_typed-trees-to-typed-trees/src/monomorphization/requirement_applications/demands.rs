@@ -63,7 +63,15 @@ pub(super) fn collect(program: &TypedTrees) -> Vec<Demand> {
         {
             continue;
         }
-        let Some(root) = AppliedTraitScope::new(program, definition, &arguments) else {
+        let Some(root) = AppliedTraitScope::new(
+            program,
+            definition,
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner: symbols::SymbolHandle::invalid(),
+                arguments: &arguments,
+                lifetimes: &[],
+            },
+        ) else {
             continue;
         };
         root.visit(program, &mut |scope| {

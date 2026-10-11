@@ -11,7 +11,9 @@ mod applied_receivers;
 
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::planning_context::ProviderPlanningContext;
-use checked_trees::typed_trees::trait_definition::{AppliedTraitScope, AppliedTypeReference};
+use checked_trees::typed_trees::trait_definition::{
+    AppliedTraitScope, AppliedTypeReference, TraitApplicationArguments,
+};
 use effects::provider_plan::{
     ProviderIdentityTable, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
     ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
@@ -59,7 +61,17 @@ pub fn from_typed_instance(
     let root = if boundary_arguments.is_empty() {
         AppliedTraitScope::abstract_scope(trait_definition)
     } else {
-        AppliedTraitScope::new(program, trait_definition, boundary_arguments)?
+        AppliedTraitScope::new(
+            program,
+            trait_definition,
+            TraitApplicationArguments {
+                // This legacy schema entry admits only region-free receivers.
+                // An occurrence-owned applied view must precede region-bearing selection.
+                lexical_owner: symbols::SymbolHandle::invalid(),
+                arguments: boundary_arguments,
+                lifetimes: &[],
+            },
+        )?
     };
     let scopes = applied_receivers::collect_scopes(program, root)?;
     for scope in scopes.iter().rev() {

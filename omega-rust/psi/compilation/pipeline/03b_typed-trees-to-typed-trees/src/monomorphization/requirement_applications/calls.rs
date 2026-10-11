@@ -30,7 +30,7 @@ fn instance(
         None if program.trait_type_parameters(owner).is_empty()
             && owner.lifetime_parameters.is_empty() =>
         {
-            typed_trees::trait_definition::AppliedTraitScope::new(program, owner, &[])
+            Some(typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner))
         }
         None => None,
     };

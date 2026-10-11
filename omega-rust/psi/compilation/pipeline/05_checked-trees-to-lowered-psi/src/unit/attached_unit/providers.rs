@@ -78,19 +78,12 @@ fn satisfies_requirement(
                 .typed
                 .closed_requirement_application(signature.symbol)
             {
-                let scope = checked
-                    .typed
-                    .trait_definition_by_symbol(conformance.symbol)
-                    .and_then(|definition| {
-                        typed_trees::trait_definition::AppliedTraitScope::new(
-                            &checked.typed,
-                            definition,
-                            checked
-                                .typed
-                                .type_reference_table
-                                .type_reference_handles(conformance.arguments),
-                        )
-                    });
+                let scope =
+                    typed_trees::trait_definition::AppliedTraitScope::from_machine_conformance(
+                        &checked.typed,
+                        machine,
+                        conformance,
+                    );
                 return conformance.requirement_symbol == application.template
                     && scope.is_some_and(|scope| {
                         checked

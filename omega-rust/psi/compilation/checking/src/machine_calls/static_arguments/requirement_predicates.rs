@@ -99,7 +99,15 @@ pub(super) fn validate(
         StaticArgumentCall::Statement(call) => call.target_symbol,
     };
     let scope = if let Some(application) = program.closed_requirement_application(executable) {
-        AppliedTraitScope::new(program, owner, application.trait_arguments)
+        AppliedTraitScope::new(
+            program,
+            owner,
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner: call.lexical_owner(program),
+                arguments: application.trait_arguments,
+                lifetimes: &[],
+            },
+        )
     } else {
         context
             .and_then(|(machine, state)| {

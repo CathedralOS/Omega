@@ -95,7 +95,7 @@ impl TypeIdentityContext<'_> {
         None
     }
 
-    fn lifetime(&self, program: &TypedTrees, name: &str) -> String {
+    pub(crate) fn lifetime(&self, program: &TypedTrees, name: &str) -> String {
         if let Some((ordinal, scope)) = self.application_scopes.iter().enumerate().next_back()
             && let Some((_, argument)) = scope
                 .lifetimes

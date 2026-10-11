@@ -143,7 +143,11 @@ pub(crate) fn validate_equivalence_selection(
         let Some(application) = typed_trees::trait_definition::AppliedTraitScope::new(
             program.typed_program(),
             trait_definition,
-            selection_arguments,
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner: definition.symbol,
+                arguments: selection_arguments,
+                lifetimes: &[],
+            },
         )
         .and_then(|root| root.declaring_scope(program.typed_program(), row.declaring_trait)) else {
             diagnostics.push(Diagnostic::error(format!(

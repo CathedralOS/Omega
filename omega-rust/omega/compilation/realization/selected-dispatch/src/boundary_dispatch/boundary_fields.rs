@@ -50,9 +50,15 @@ impl BoundaryField {
                 .type_reference_handles(*arguments),
             _ => &[],
         };
-        let Some(scope) =
-            typed_trees::trait_definition::AppliedTraitScope::new(typed, declaration, arguments)
-        else {
+        let Some(scope) = typed_trees::trait_definition::AppliedTraitScope::new(
+            typed,
+            declaration,
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner: symbols::SymbolHandle::invalid(),
+                arguments,
+                lifetimes: &[],
+            },
+        ) else {
             return false;
         };
         if typed.closed_requirement_application(requirement).is_some() {

@@ -726,10 +726,26 @@ fn validate_machine_single_requirement(
         return;
     }
 
+    let lifetimes = trait_lifetime_arguments
+        .iter()
+        .map(|ordinal| {
+            machine
+                .lifetime_parameters
+                .get(usize::try_from(*ordinal).ok()?)
+                .cloned()
+        })
+        .collect::<Option<Vec<_>>>();
+    let Some(lifetimes) = lifetimes else {
+        return;
+    };
     let Some(application) = typed_trees::trait_definition::AppliedTraitScope::new(
         program.typed_program(),
         trait_definition,
-        explicit_type_arguments,
+        typed_trees::trait_definition::TraitApplicationArguments {
+            lexical_owner: machine.symbol,
+            arguments: explicit_type_arguments,
+            lifetimes: &lifetimes,
+        },
     ) else {
         return;
     };

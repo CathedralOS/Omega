@@ -211,16 +211,9 @@ fn collect_conformance_demands(
     demands: &mut Vec<(SymbolHandle, Vec<FamilyTuple>)>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(declaration) = program.trait_definition_by_symbol(conformance.trait_symbol) else {
-        return;
-    };
-    let Some(application) = AppliedTraitScope::new(
-        program.typed_program(),
-        declaration,
-        program
-            .type_reference_table
-            .type_reference_handles(conformance.arguments),
-    ) else {
+    let Some(application) =
+        AppliedTraitScope::from_conformance(program.typed_program(), conformance)
+    else {
         return;
     };
     for row in &conformance.rows {

@@ -3097,6 +3097,14 @@ fail/traits/implementation_call_unknown_requirement rejected 210ms expected @e31
 	implementation `NormalIncrement` has no row for requirement `decrement`
 fail/traits/inherited_default_ambiguous rejected 213ms expected @e3131e3bcd65+wt
 	implementation `CounterResettable` has 2 rows named `reset` (`LeftReset::reset`, `RightReset::reset`); a call through the implementation must select exactly one
+fail/traits/inherited_region_application_descendant_ambiguity rejected 345ms expected @4e2bb3ff7b5e
+	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
+fail/traits/inherited_region_application_phantom_ambiguity rejected 340ms expected @4e2bb3ff7b5e
+	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
+fail/traits/inherited_region_application_result_ambiguity rejected 337ms expected @4e2bb3ff7b5e
+	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
+fail/traits/inherited_region_application_telescope_ambiguity rejected 348ms expected @4e2bb3ff7b5e
+	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
 fail/traits/member_omits_requirement_ensures rejected 535ms expected @e83cb166de5f+wt
 	machine `Grow::shrink` realizes `Shrink::shrink` but does not guarantee its `ensures result <= value`; callers of the requirement assume it, so state it as the member's own `ensures`
 fail/traits/member_requires_beyond_requirement rejected 684ms expected @e83cb166de5f+wt
@@ -5185,6 +5193,7 @@ pass/traits/generic_reference_forwarding_exit checked 13520ms check-target:macos
 pass/traits/generic_trait_parent_binds_requirement checked 267ms @474542aa7f86
 pass/traits/implementation_argument_category_collision checked 1567ms check-target:macos_arm64 @9b6debbda081+wt
 pass/traits/implementation_argument_mixed_telescope checked 619ms @9b6debbda081+wt
+pass/traits/inherited_region_application_identity_exit checked 2655ms check-target:macos_arm64 @4e2bb3ff7b5e
 pass/traits/nominal_generic_reference_forwarding_exit checked 13052ms check-target:macos_arm64 @f3a79ef091a9
 pass/traits/nominal_machine_binder_static_dispatch checked 675ms check-target:macos_arm64 @a719149128ff+wt
 pass/traits/ring_requirement_satisfies_exit checked 3090ms check-target:macos_arm64 @2d8ed253669f

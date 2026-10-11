@@ -57,7 +57,9 @@ impl TypeIdentityTable {
     /// The retained rendering of one handle: diagnostics and artifact
     /// encoding only.
     pub fn text(&self, identity: TypeIdentityId) -> Option<&str> {
-        identity.slot().map(|slot| self.texts[slot].as_ref())
+        identity
+            .slot()
+            .and_then(|slot| self.texts.get(slot).map(AsRef::as_ref))
     }
 
     /// The handle a previously interned key names: wire decoders and boundary

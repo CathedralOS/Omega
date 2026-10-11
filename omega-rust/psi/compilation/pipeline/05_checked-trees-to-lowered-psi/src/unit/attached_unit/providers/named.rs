@@ -22,20 +22,13 @@ pub(super) fn provider_identities(
         implementation.type_parameters.is_empty() && implementation.lifetime_parameters.is_empty()
     }) {
         if application.is_some()
-            && !typed
-                .trait_definition_by_symbol(implementation.trait_symbol)
-                .and_then(|definition| {
-                    typed_trees::trait_definition::AppliedTraitScope::new(
-                        typed,
-                        definition,
-                        typed
-                            .type_reference_table
-                            .type_reference_handles(implementation.arguments),
-                    )
-                })
-                .is_some_and(|scope| {
-                    typed.requirement_application_matches_scope(signature.symbol, &scope)
-                })
+            && !typed_trees::trait_definition::AppliedTraitScope::from_conformance(
+                typed,
+                implementation,
+            )
+            .is_some_and(|scope| {
+                typed.requirement_application_matches_scope(signature.symbol, &scope)
+            })
         {
             continue;
         }

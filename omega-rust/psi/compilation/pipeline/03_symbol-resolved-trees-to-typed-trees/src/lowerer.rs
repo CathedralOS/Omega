@@ -432,9 +432,9 @@ impl Lowerer<'_> {
             boundary_completion_declarations: _,
             evidence_forwardings,
             proof_output_calls,
-            // Derived lookup state does not travel with the fields; the
-            // rebuilt program's indexes and interned identities fill lazily
-            // from its own tables.
+            // Derived lookup state rebuilds from the retained tables.
+            // Append-only interners travel with any rows storing their IDs;
+            // restarting their handle space would silently rebind those rows.
             declaration_indexes: _,
             callable_identities: _,
             callable_identity_memo: _,
@@ -442,10 +442,11 @@ impl Lowerer<'_> {
             // Typing precedes every build-time evaluation deferral, so no
             // pending endpoint mark can exist here to carry forward.
             pending_const_range_endpoints: _,
-            type_identities: _,
+            type_identities,
         } = self.typed_trees;
 
         let mut trees = TypedTrees::with_roots(roots, tables, symbols);
+        trees.type_identities = type_identities;
         trees.excluded_authored_selection_occurrences = excluded_authored_selection_occurrences;
         // The copied semantic interners survive the rebuild.
         trees.service_reaches = service_reaches;

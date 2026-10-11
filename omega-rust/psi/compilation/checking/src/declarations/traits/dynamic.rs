@@ -245,7 +245,11 @@ pub fn collect_dynamic_slot_demands(
             let Some(application) = typed_trees::trait_definition::AppliedTraitScope::new(
                 program,
                 selector_definition,
-                selector_arguments,
+                typed_trees::trait_definition::TraitApplicationArguments {
+                    lexical_owner: selection.machine,
+                    arguments: selector_arguments,
+                    lifetimes: &[],
+                },
             )
             .and_then(|scope| scope.declaring_scope(program, row.declaring_trait)) else {
                 continue;
@@ -489,6 +493,7 @@ pub fn resolve_selected_dynamic_call_targets(
                     let dynamic_target = receiver.as_ref().and_then(|receiver| {
                         resolved_dynamic_requirement_symbol(
                             program,
+                            machine.symbol,
                             receiver.type_reference,
                             call.target.as_str(),
                             call.target_symbol,
@@ -645,6 +650,7 @@ fn collect_dynamic_expression_call_updates(
             if let Some(receiver_type) = receiver_type
                 && let Some(requirement) = resolved_dynamic_requirement_symbol(
                     program,
+                    machine.symbol,
                     receiver_type,
                     call.target.as_str(),
                     call.target_symbol,
@@ -684,13 +690,14 @@ fn collect_dynamic_expression_call_updates(
 
 fn resolved_dynamic_requirement_symbol(
     program: &dyn crate::CheckingInput,
+    lexical_owner: symbols::SymbolHandle,
     receiver_type: TypeReferenceHandle,
     target: &str,
     retained_target: symbols::SymbolHandle,
     span: source::SourceSpan,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<symbols::SymbolHandle> {
-    let receiver_scope = receiver_trait_scope(program, receiver_type)?;
+    let receiver_scope = receiver_trait_scope(program, receiver_type, lexical_owner)?;
     let trait_definition = receiver_scope.declaration;
     let mut matches = Vec::new();
     collect_dynamic_requirements_named(program, &receiver_scope, target, &mut matches);
@@ -753,6 +760,7 @@ fn resolved_dynamic_requirement_symbol(
 pub(crate) fn receiver_trait_scope<'program>(
     program: &'program dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
+    lexical_owner: symbols::SymbolHandle,
 ) -> Option<typed_trees::trait_definition::AppliedTraitScope<'program>> {
     if let Some(carrier) =
         typed_trees::service::classify_exact_service_parameter_carrier(program, type_reference)
@@ -762,9 +770,11 @@ pub(crate) fn receiver_trait_scope<'program>(
         return carrier.carrier.application(program);
     }
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => receiver_trait_scope(program, *referee),
+        TypeReferenceNode::Reference { referee, .. } => {
+            receiver_trait_scope(program, *referee, lexical_owner)
+        }
         TypeReferenceNode::Constrained { base_type, .. } => {
-            receiver_trait_scope(program, *base_type)
+            receiver_trait_scope(program, *base_type, lexical_owner)
         }
         TypeReferenceNode::Named { symbol, .. }
             if program.trait_definition_by_symbol(*symbol).is_some() =>
@@ -778,18 +788,33 @@ pub(crate) fn receiver_trait_scope<'program>(
         TypeReferenceNode::Generic {
             base_symbol,
             arguments,
+            lifetime_arguments,
             ..
-        }
-        | TypeReferenceNode::DynamicTrait {
+        } => typed_trees::trait_definition::AppliedTraitScope::new(
+            program,
+            program.trait_definition_by_symbol(*base_symbol)?,
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner,
+                arguments: program
+                    .type_reference_table
+                    .type_reference_handles(*arguments),
+                lifetimes: lifetime_arguments,
+            },
+        ),
+        TypeReferenceNode::DynamicTrait {
             symbol: base_symbol,
             arguments,
             ..
         } => typed_trees::trait_definition::AppliedTraitScope::new(
             program,
             program.trait_definition_by_symbol(*base_symbol)?,
-            program
-                .type_reference_table
-                .type_reference_handles(*arguments),
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner,
+                arguments: program
+                    .type_reference_table
+                    .type_reference_handles(*arguments),
+                lifetimes: &[],
+            },
         ),
         _ => None,
     }

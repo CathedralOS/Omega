@@ -32,7 +32,7 @@ enum AppliedCallableOwner {
     Absent,
     Trait {
         declaration: SymbolHandle,
-        arguments: arena::HandleSpan<types::TypeReferenceHandle>,
+        application: crate::type_identity::NormalizedTypeIdentity,
     },
     RequirementInstance {
         declaration: SymbolHandle,

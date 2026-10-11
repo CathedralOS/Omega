@@ -32,15 +32,11 @@ pub(crate) fn record_provider_closed_requirements(
             }
             // A closed provider keeps the original authored satisfaction edge.
             // Rejoin its entire trait application before its local const tuple.
-            if let Some(definition) = program.trait_definition_by_symbol(conformance.symbol)
-                && let Some(scope) = AppliedTraitScope::new(
-                    program.typed_program(),
-                    definition,
-                    program
-                        .type_reference_table
-                        .type_reference_handles(conformance.arguments),
-                )
-            {
+            if let Some(scope) = AppliedTraitScope::from_machine_conformance(
+                program.typed_program(),
+                provider,
+                conformance,
+            ) {
                 for application in program.closed_requirement_applications() {
                     if conformance.requirement_symbol == application.template
                         && program.requirement_application_matches_scope(
@@ -91,17 +87,7 @@ pub(crate) fn record_provider_closed_requirements(
             let admitted = program.conformances().iter().any(|implementation| {
                 implementation.type_parameters.is_empty()
                     && implementation.lifetime_parameters.is_empty()
-                    && program
-                        .trait_definition_by_symbol(implementation.trait_symbol)
-                        .and_then(|definition| {
-                            AppliedTraitScope::new(
-                                program.typed_program(),
-                                definition,
-                                program
-                                    .type_reference_table
-                                    .type_reference_handles(implementation.arguments),
-                            )
-                        })
+                    && AppliedTraitScope::from_conformance(program.typed_program(), implementation)
                         .is_some_and(|scope| {
                             program.requirement_application_matches_scope(
                                 application.signature.symbol,
