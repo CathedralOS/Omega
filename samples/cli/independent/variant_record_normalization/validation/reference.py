@@ -33,6 +33,10 @@ def simulate(text):
     merged = conflicts = rejected = 0
     output = ['VARIANT_NORMALIZATION|1']
     for line_number, raw in enumerate(text.splitlines(keepends=True), 1):
+        if line_number > 512:
+            output.append('FATAL|record_capacity')
+            rejected += 1
+            break
         if len(raw.encode()) >= 64 and not (len(raw.encode()) == 64 and raw.endswith('\n')):
             output.append('FATAL|line_capacity')
             rejected += 1

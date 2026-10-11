@@ -10,6 +10,7 @@ cases = {
     'invalid_runtime': 'R0:ACGT\nR0:AAAA\nV1:0:A:C:0\nV0:8:-:A:0\nV0:3:TT:-:0\nV0:1:A:T:0\nV0:1:C:C:0\nV0:1:CCCCC:A:0\nV0:1:N:A:0\nV2:1:C:A:0\nV0:1:C:A:8\nV0:1:C:A:0junk\nR1:AAAA\nV0:1:C:A:0\n',
     'final_eof': 'R0:AC\nV0:2:-:T:0',
     'line_capacity': 'R0:AAAA\n' + 'X' * 65 + '\n',
+    'record_capacity': 'R0:A\n' + 'V0:0:A:A:0\n' * 513,
     'capacity': 'R0:ACGT\n' + ''.join(f'V0:0:-:{word}:0\n' for word in words('ACGT', 3)[1:]),
 }
 # Exhaust every valid input position, deletion <=2 and inserted AC word <=2

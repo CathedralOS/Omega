@@ -199,6 +199,11 @@
       "input_sha256": "5538a0e9e58a135f62f3d79a6750e5398d2acacd840181612d6fed20c4c335f3",
       "stdout_sha256": "5eb0e25fec1bfa7daf546f400259849333f1f76e01b76f2893179ac65480d23f"
     },
+    "record_capacity": {
+      "exit": 2,
+      "input_sha256": "919aa44aad106dc8dc1635b95c4f44157d5970ca4c49098f00a0294d64102e15",
+      "stdout_sha256": "dcf617206e5ffae45e9a227ad2db80d16e43897f77f708b47232edcbd113da7d"
+    },
     "repeats": {
       "exit": 0,
       "input_sha256": "72cff1aadfa471c096c7171fed06a493c1ded4bfa2a19fe29247154cde4ee5f0",
