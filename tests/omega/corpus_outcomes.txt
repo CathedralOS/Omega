@@ -2317,13 +2317,13 @@ fail/providers/computed_binding_receiver_fabricated_carrier rejected 881ms expec
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
 fail/providers/consuming_requirement_without_provider rejected 6663ms expected @e4c5f1527652+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-fail/providers/finite_requirement_boolean_outside_roster rejected 823ms expected @da6d4e11721e
+fail/providers/finite_requirement_boolean_outside_roster rejected 821ms expected @dd0178b7e0e6
 	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
-fail/providers/finite_requirement_const_outside_roster rejected 819ms expected @da6d4e11721e
+fail/providers/finite_requirement_const_outside_roster rejected 825ms expected @dd0178b7e0e6
 	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
-fail/providers/finite_requirement_crossed_tuple rejected 823ms expected @da6d4e11721e
+fail/providers/finite_requirement_crossed_tuple rejected 818ms expected @dd0178b7e0e6
 	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
-fail/providers/finite_requirement_forwarded_const_without_predicate rejected 818ms expected @da6d4e11721e
+fail/providers/finite_requirement_forwarded_const_without_predicate rejected 819ms expected @dd0178b7e0e6
 	cannot prove declared where facts for static application of requirement `Service::echo` under its complete applied telescope
 fail/providers/foreign_address_fixed_carrier_mismatch rejected 520ms expected @365e35212c0c
 	provider machine `Imports::release` for top-level boundary requirement `AddressProbe::release` parameter 0 expects `pointer: addr`, got `pointer: u64`
@@ -4313,10 +4313,10 @@ pass/providers/component_owner_provider_override_compile checked 626ms check-tar
 pass/providers/direct_boundary_array_snapshot_exit checked 2938ms check-target:macos_arm64 @36ad3370c97a
 pass/providers/external_boundary_requirement_via_exit checked 8941ms check-target:macos_arm64 @5ce9755c44a5+wt
 pass/providers/external_leaf_dllimport_compile checked 808ms check-target:macos_arm64 @2d8ed253669f
-pass/providers/finite_requirement_boolean_const_exit checked 2607ms check-target:macos_arm64 @da6d4e11721e
-pass/providers/finite_requirement_correlated_tuple_exit checked 2608ms check-target:macos_arm64 @da6d4e11721e
-pass/providers/finite_requirement_direct_provider_exit checked 2579ms check-target:macos_arm64 @da6d4e11721e
-pass/providers/finite_requirement_forwarded_const_exit checked 2578ms check-target:macos_arm64 @da6d4e11721e
+pass/providers/finite_requirement_boolean_const_exit checked 2573ms check-target:macos_arm64 @dd0178b7e0e6
+pass/providers/finite_requirement_correlated_tuple_exit checked 2571ms check-target:macos_arm64 @dd0178b7e0e6
+pass/providers/finite_requirement_direct_provider_exit checked 2569ms check-target:macos_arm64 @dd0178b7e0e6
+pass/providers/finite_requirement_forwarded_const_exit checked 2577ms check-target:macos_arm64 @dd0178b7e0e6
 pass/providers/foreign_address_result_release_exit checked 4696ms check-target:linux_x86_64 @365e35212c0c
 pass/providers/foreign_indirect_record_distinct_exit checked 4820ms check-target:linux_x86_64 @365e35212c0c
 pass/providers/foreign_indirect_record_relay_exit checked 7141ms check-target:linux_x86_64 @ce0ed8ee8e37
@@ -4552,8 +4552,8 @@ pass/targets/retained_target_family_bodies checked 1604ms check-target:macos_arm
 pass/targets/retained_target_provider_family_exit rejected 18215ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d54a6f89c75b+wt
 	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
 	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
-pass/targets/runtime_target_inherited_named_provider_defaults_exit checked 2597ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @da6d4e11721e
-pass/targets/runtime_target_inherited_provider_roster_exit checked 2612ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @da6d4e11721e
+pass/targets/runtime_target_inherited_named_provider_defaults_exit checked 2581ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @dd0178b7e0e6
+pass/targets/runtime_target_inherited_provider_roster_exit checked 2598ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @dd0178b7e0e6
 pass/targets/single_target_internal_package_same_target_caller rejected 18829ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d54a6f89c75b+wt
 	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
 	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
