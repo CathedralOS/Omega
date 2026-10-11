@@ -1,4 +1,4 @@
-use crate::physical::{canonical_usize, hash_bytes};
+use crate::physical::canonical_usize;
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 
 use crate::NativePhysicalEvidenceScope;

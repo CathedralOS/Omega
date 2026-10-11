@@ -10,8 +10,7 @@ use crate::FixedViewCopyDecodeError;
 
 use super::{
     declarations::{
-        decode_access, decode_multiplicity, decode_string, encode_access, encode_multiplicity,
-        encode_string,
+        decode_access, decode_multiplicity, encode_access, encode_multiplicity,
     },
     projected_qualifications::{decode_projected, encode_projected},
 };

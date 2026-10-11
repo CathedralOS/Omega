@@ -138,7 +138,6 @@ pub(super) fn bind<'host>(
                     ));
                 }
                 if let Some(adapter) = clock::ClockImport::admit(
-                    &program.module().identities,
                     declaration,
                     binding,
                     provisions.map_or(&[], TerminalRuntimeProvisions::borrowed_storage_layouts),

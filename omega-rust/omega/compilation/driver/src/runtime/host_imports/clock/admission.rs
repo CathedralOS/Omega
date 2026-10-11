@@ -67,7 +67,6 @@ pub(super) fn select(
 }
 
 pub(super) fn validate(
-    identities: &terminal_psi::TerminalIdentityTable,
     declaration: &BoundaryMachineDeclaration,
     binding: &NormalizedForeignCallBinding,
     signature: &TerminalImportSignature,

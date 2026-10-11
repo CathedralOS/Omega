@@ -327,7 +327,6 @@ fn collect_determined_evidence_fields(
 /// uniqueness is enforced: a repeated field route is refused, so two same-named
 /// leaves under different record fields each keep their own row.
 fn admit_fused_service_field(
-    identities: &terminal_psi::TerminalIdentityTable,
     roster: &mut Vec<CheckedProgramEntryFusedServiceField>,
     field: CheckedProgramEntryFusedServiceField,
 ) -> bool {
@@ -387,7 +386,6 @@ fn collect_fused_service_fields(
                 }
                 field_path.push(terminal_field.identity);
                 if !admit_fused_service_field(
-                    identities,
                     roster,
                     CheckedProgramEntryFusedServiceField::new(
                         terminal_field.identity,
