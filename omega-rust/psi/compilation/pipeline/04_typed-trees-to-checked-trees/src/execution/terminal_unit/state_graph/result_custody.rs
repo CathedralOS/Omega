@@ -309,7 +309,17 @@ pub(super) fn account(
         // A successor moves the result either as a direct transfer or, for
         // a result with ownership debt, into one of its own operand calls.
         let transferred = |edge: &CheckedStructuralControlSuccessorPlan| {
-            !release_owned_view && edge.result_moves(result) == 1
+            let transfers = edge.result_moves(result);
+            // Unrestricted successor arguments are copies. Several target
+            // parameters can observe the same completed local, while its
+            // source home still has one disposition on this selected exit.
+            // Affine and linear carriers must retain exactly one transfer.
+            !release_owned_view
+                && if result.multiplicity == Multiplicity::Unrestricted {
+                    transfers != 0
+                } else {
+                    transfers == 1
+                }
         };
         // A returning arm owns the result when its call or construction
         // consumes it, or when the return retires it. Abnormal completion

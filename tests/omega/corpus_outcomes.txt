@@ -5141,3 +5141,6 @@ run/calls/fixed_dividend_across_console_calls checked 6881ms check-target:macos_
 fail/slices/noncopy_array_view_keeps_backing_loan rejected 572ms expected @6d312ec7d5ba
 	statement 1 mutates `main.entries[1].value` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 pass/slices/runtime_borrowed_noncopy_array_argument_exit checked 3845ms check-target:macos_arm64 @6d312ec7d5ba
+fail/control_flow/linear_result_repeated_successor_arguments rejected 1001ms expected @c24b141cb29b+wt
+	linear value `receipt` was already transferred or consumed; it cannot be moved here
+pass/control_flow/runtime_copy_result_conditional_successor_reuse_exit checked 6783ms check-target:linux_x86_64 @c24b141cb29b+wt
