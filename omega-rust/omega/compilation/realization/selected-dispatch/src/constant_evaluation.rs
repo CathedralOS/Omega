@@ -74,6 +74,20 @@ impl SelectedConstantEvaluation {
         Ok(())
     }
 
+    /// The provider rows this target's pending constant folds are evaluated
+    /// under — the part of the selection every realized target must agree on,
+    /// since each fold lands its value in the one checked program.
+    /// `native_target` and the opaque representation selections are legitimate
+    /// per-target layout custody and are not part of the agreement.
+    pub fn pending_fold_providers(
+        &self,
+    ) -> (
+        &[SelectedBuildTimeBinaryOperator],
+        &[SelectedBuildTimeProviderBody],
+    ) {
+        (&self.operators, &self.provider_bodies)
+    }
+
     /// Join provider authority once for every retained source use. Psi prepares
     /// semantic operands and independently admits both intrinsic and checked-body
     /// execution. Its coordinator supplies the operator selections; realization

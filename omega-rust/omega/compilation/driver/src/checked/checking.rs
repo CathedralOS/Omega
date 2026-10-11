@@ -444,6 +444,65 @@ impl SettledCompletedSource {
     ) -> Option<&mut execution_settlement::InitialExecutionSelection> {
         self.selection.as_mut().ok()
     }
+
+    fn selection(&self) -> Option<&execution_settlement::InitialExecutionSelection> {
+        self.selection.as_ref().ok()
+    }
+}
+
+/// Provider-dependent constants fold once into the one checked program every
+/// realized target shares, so the provider a pending use folds under must
+/// agree across targets. A target whose selection disagrees with another's
+/// rejects here — every disagreeing pair is a divergence, no subset is
+/// privileged as canonical — with the diagnostic naming the diverging
+/// targets and the pending use whose providers differ. Per-target layout
+/// custody is not part of the agreement.
+pub(crate) fn reject_divergent_constant_providers(
+    selections: &mut [Result<SettledCompletedSource, Vec<Diagnostic>>],
+    target_names: &[&str],
+) {
+    let mut disagreements: Vec<Vec<(usize, String)>> = vec![Vec::new(); selections.len()];
+    for left_index in 0..selections.len() {
+        for right_index in (left_index + 1)..selections.len() {
+            let (Some(left), Some(right)) = (
+                selections[left_index]
+                    .as_ref()
+                    .ok()
+                    .and_then(SettledCompletedSource::selection),
+                selections[right_index]
+                    .as_ref()
+                    .ok()
+                    .and_then(SettledCompletedSource::selection),
+            ) else {
+                continue;
+            };
+            if left.pending_fold_providers() == right.pending_fold_providers() {
+                continue;
+            }
+            let detail =
+                execution_settlement::first_divergent_pending_fold(left, right).unwrap_or_else(|| {
+                    "a pending constant's selected providers".to_owned()
+                });
+            disagreements[left_index].push((right_index, detail.clone()));
+            disagreements[right_index].push((left_index, detail));
+        }
+    }
+    for (index, partners) in disagreements.iter().enumerate() {
+        if partners.is_empty() {
+            continue;
+        }
+        let diagnostics = partners
+            .iter()
+            .map(|(partner, detail)| {
+                Diagnostic::error(format!(
+                    "targets `{}` and `{}` select different providers for {detail} -- \
+                     provider-dependent constants belong to the one checked program",
+                    target_names[index], target_names[*partner],
+                ))
+            })
+            .collect();
+        selections[index] = Err(diagnostics);
+    }
 }
 
 /// Settle one target's initial source-dependent selection against the shared

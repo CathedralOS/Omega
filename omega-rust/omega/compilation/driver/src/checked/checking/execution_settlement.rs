@@ -33,6 +33,78 @@ pub(crate) struct InitialExecutionSelection {
     checked_provider_selection: provider_planning::CheckedProviderSelection,
     x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     selected_build_machine_symbol: Option<symbols::SymbolHandle>,
+    /// The evaluation that folded this target's pending constants — retained
+    /// so the driver can reject when targets selected different providers
+    /// for the same pending use before checking binds the views.
+    constant_evaluation: Option<SelectedConstantEvaluation>,
+}
+
+impl InitialExecutionSelection {
+    /// The provider rows this target folded pending source constants under —
+    /// empty when no pending evaluation ran (the same as having folded none).
+    pub(crate) fn pending_fold_providers(
+        &self,
+    ) -> (
+        &[build_time_evaluation::SelectedBuildTimeBinaryOperator],
+        &[build_time_evaluation::SelectedBuildTimeProviderBody],
+    ) {
+        self.constant_evaluation
+            .as_ref()
+            .map(SelectedConstantEvaluation::pending_fold_providers)
+            .unwrap_or_default()
+    }
+
+    /// The settled view, for cross-target comparisons that run before
+    /// checking binds it.
+    pub(crate) fn settled_typed(&self) -> &typed_trees::TypedTrees {
+        &self.typed
+    }
+}
+
+/// Describe the first pending use whose selected providers disagree, for the
+/// const-exception diagnostic. The use rows enumerate the same resolved
+/// selections on every target's view, so an index-wise walk finds the
+/// disagreement; `None` means the selections agree.
+pub(crate) fn first_divergent_pending_fold(
+    left: &InitialExecutionSelection,
+    right: &InitialExecutionSelection,
+) -> Option<String> {
+    let (left_operators, left_bodies) = left.pending_fold_providers();
+    let (right_operators, right_bodies) = right.pending_fold_providers();
+    let typed = left.settled_typed();
+    let machine_name = |symbol| {
+        typed
+            .machine(symbol)
+            .map(|machine| machine.name.to_string())
+            .unwrap_or_else(|| "an unnamed machine".to_owned())
+    };
+    for (left_row, right_row) in left_operators.iter().zip(right_operators.iter()) {
+        if left_row != right_row {
+            return Some(format!(
+                "pending constant `{}` (selected operators `{:?}` and `{:?}`)",
+                machine_name(left_row.requirement),
+                left_row.operation,
+                right_row.operation,
+            ));
+        }
+    }
+    if left_operators.len() != right_operators.len() {
+        return Some("a pending constant's selected operator rows".to_owned());
+    }
+    for (left_row, right_row) in left_bodies.iter().zip(right_bodies.iter()) {
+        if left_row != right_row {
+            return Some(format!(
+                "pending constant `{}` (providers `{}` and `{}`)",
+                machine_name(left_row.requirement),
+                machine_name(left_row.provider_machine),
+                machine_name(right_row.provider_machine),
+            ));
+        }
+    }
+    if left_bodies.len() != right_bodies.len() {
+        return Some("a pending constant's selected provider rows".to_owned());
+    }
+    None
 }
 
 /// Record one target's initial source-dependent selection: provider defaults,
@@ -127,10 +199,11 @@ pub(crate) fn settle_initial_execution(
             typed_trees::expression::ExpressionNode::Call(call) => call.layout_query.is_some(),
             _ => false,
         });
+    let mut constant_evaluation = None;
     if !pending_pre_checks.is_empty() || has_layout_queries {
         let operator_selections =
             typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
-        SelectedConstantEvaluation::prepare(
+        let evaluation = SelectedConstantEvaluation::prepare(
             provider_planning::ProviderPlanningContext::new(
                 &typed,
                 source::DependencyScope::Product,
@@ -139,8 +212,9 @@ pub(crate) fn settle_initial_execution(
             opaque_representation_selections,
             &operator_selections,
             &checked_provider_selection.selected_provider_plan_facts,
-        )?
-        .evaluate_pending(&mut typed, pending_pre_checks)?;
+        )?;
+        constant_evaluation = Some(evaluation.clone());
+        evaluation.evaluate_pending(&mut typed, pending_pre_checks)?;
     }
     Ok(InitialExecutionSelection {
         typed: std::sync::Arc::new(typed),
@@ -149,6 +223,7 @@ pub(crate) fn settle_initial_execution(
         checked_provider_selection,
         x86_scalar_fma_provider,
         selected_build_machine_symbol,
+        constant_evaluation,
     })
 }
 
@@ -229,6 +304,7 @@ pub(crate) fn check_selected_execution(
         checked_provider_selection,
         x86_scalar_fma_provider,
         selected_build_machine_symbol,
+        constant_evaluation: _,
     } = selection;
     let provider_planning::CheckedProviderSelection {
         settlement: providers,

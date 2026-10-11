@@ -94,6 +94,22 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
             });
             selections.push(settled);
         }
+        // Provider-dependent constants belong to the one checked program:
+        // every realized target must select the same provider for the same
+        // pending use, so a selection that disagrees with another's rejects
+        // its target here — before the views unify — with the diverging
+        // targets named. Per-target layout custody is not part of the
+        // agreement.
+        let target_names: Vec<&'static str> = targets
+            .iter()
+            .map(|target| {
+                target
+                    .profile()
+                    .unwrap_or_else(target::TargetProfile::host)
+                    .target_name()
+            })
+            .collect();
+        crate::checked::reject_divergent_constant_providers(&mut selections, &target_names);
         // A boundary completion is a fact of the requirement it completes —
         // whichever target's selection discovered the external row — so the
         // settled views unify before checking: declaration-scoped facts
