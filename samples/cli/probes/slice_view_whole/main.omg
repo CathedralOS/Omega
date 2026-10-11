@@ -1,0 +1,31 @@
+use omega::language::core::binding;
+
+data Bag {
+    cells: [i32 [0..=255]; 4];
+}
+
+data Main {
+    bag: Bag;
+}
+
+machine fill(cells: &mut [i32 [0..=255]], at: u64, value: i32 [0..=255]) requires at < cells.len; {
+    cells[at] = value;
+}
+
+machine tally(cells: &[i32 [0..=255]]) -> i32 requires cells.len == 4; {
+    let total: i32 = cells[0] + cells[1] + cells[2] + cells[3];
+    transition { _ -> total }
+}
+
+machine Main::main(main: &mut Main) -> i32 {
+    let cells: &mut [i32 [0..=255]] = &mut main.bag.cells[..];
+    cells[0] = 3;
+    cells[1] = 5;
+    fill(&mut main.bag.cells[..], 2, 7);
+    fill(&mut main.bag.cells[..], 3, 9);
+
+    let total: i32 = tally(&main.bag.cells[..]);
+    let observed: i32 = total + main.bag.cells[2];
+
+    transition { _ -> observed }
+}
