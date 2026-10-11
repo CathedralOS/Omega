@@ -12,8 +12,8 @@ use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedOperatorResolutionStatus;
 use checked_trees::CheckedScalarExpression;
 use checked_trees::{
-    CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,
-    CheckedIntegerMathTerm,
+    CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerComparisonKind,
+    CheckedIntegerMathExpression, CheckedIntegerMathTerm,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::BinaryOperator;
@@ -200,20 +200,35 @@ impl ContractPredicates<'_, '_> {
     }
 
     /// One comparison operand as a typed scalar term: an exact entry/result
-    /// subject, integer arithmetic (`+`, `-`, `*` with builtin meaning) over
-    /// such subjects and contextual integer literals, or a value-preserving
+    /// subject or landed IEEE literal, total builtin integer arithmetic over
+    /// subjects and contextual integer literals, or a value-preserving
     /// Exact widening of a term. The operands' arithmetic policies select the
     /// operation as they do in a body, so an Exact, Wrapping or Saturating
     /// carrier keeps its own meaning; Trapping arithmetic, which can crash,
     /// or any other spelling stays outside the closed language and lowers to
     /// `None`.
-    fn integer_term(
+    fn numeric_term(
         &self,
         expression: ExpressionHandle,
         depth: usize,
     ) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
         let program = self.program;
         match program.expression_table.expression(expression) {
+            ExpressionNode::Float(literal) => {
+                // Typed literal landing carries the exact IEEE format and bits.
+                // Contract lowering never rounds a decimal through host floats.
+                let reference = validation::parameter_expression_result_type_reference(
+                    program,
+                    self.owner,
+                    self.parameters,
+                    expression,
+                )?;
+                let value = typed_trees::expression::ieee_float_value(literal, literal.landing()?);
+                Some((
+                    CheckedScalarExpression::IeeeFloatLiteral { value },
+                    reference,
+                ))
+            }
             ExpressionNode::Name(_) => {
                 let (position, reference, erased) = self.subject(expression)?;
                 let primitive_type = program.primitive_type_reference(reference)?;
@@ -242,7 +257,7 @@ impl ContractPredicates<'_, '_> {
                     _ => return None,
                 };
                 let terms = [binary.left, binary.right]
-                    .map(|operand| self.integer_term(operand, depth + 1));
+                    .map(|operand| self.numeric_term(operand, depth + 1));
                 // The typed peer supplies the carrier; a literal peer lands on
                 // it. Two literals have no carrier and stay unsupported here.
                 let (carrier_type, carrier_reference) =
@@ -365,7 +380,7 @@ impl ContractPredicates<'_, '_> {
                     && cast.domain == ArithmeticDomain::Exact =>
             {
                 let target_type = program.primitive_type_reference(cast.target_type)?;
-                let (operand, _) = self.integer_term(cast.value, depth + 1)?;
+                let (operand, _) = self.numeric_term(cast.value, depth + 1)?;
                 let source_type = scalar_expression_type(&operand)?;
                 if !validation::integer_widen_is_total(source_type, target_type) {
                     return None;
@@ -413,7 +428,7 @@ impl ContractPredicates<'_, '_> {
             validation::integer_embedding_argument(program, expression)
         {
             let operand = self
-                .integer_term(argument, depth + 1)
+                .numeric_term(argument, depth + 1)
                 .map(|(term, _)| term)
                 .or_else(|| {
                     lower_contract_integer_literal(
@@ -555,6 +570,20 @@ impl ContractPredicates<'_, '_> {
                 )))
             }
             ExpressionNode::Binary(binary) => {
+                let subjects =
+                    [binary.left, binary.right].map(|operand| self.numeric_term(operand, 0));
+                // IEEE comparison identity is established by the common numeric
+                // contract owner, including sealed Float requirements. Arrival,
+                // entry, result and crash predicates share that same relation;
+                // none may reinterpret an authored lookalike as builtin logic.
+                if let Some(comparison) = lower_float_contract_comparison(
+                    program,
+                    self.owner,
+                    expression,
+                    subjects.clone(),
+                ) {
+                    return Some(comparison);
+                }
                 if !operator_is_builtin(self.operators, expression) {
                     return None;
                 }
@@ -598,8 +627,6 @@ impl ContractPredicates<'_, '_> {
                         comparison
                     });
                 }
-                let subjects =
-                    [binary.left, binary.right].map(|expression| self.integer_term(expression, 0));
                 if let Some(comparison) = lower_integer_contract_comparison(
                     program,
                     self.operators,
@@ -740,6 +767,61 @@ pub(crate) fn lower_integer_contract_comparison(
     let left = operand(binary.left, left_subject)?;
     let right = operand(binary.right, right_subject)?;
     construct_integer_comparison(binary.operator, left, right)
+}
+
+/// One IEEE relation over authenticated contract subjects. Subject readers
+/// own entry/result/state namespaces; this owner preserves format, literal bits,
+/// selected comparison meaning and unordered behavior for all those readers.
+/// Comparison spelling alone never grants builtin or sealed Float semantics.
+pub(crate) fn lower_float_contract_comparison(
+    program: &dyn ::validation::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    subjects: [Option<(CheckedScalarExpression, TypeReferenceHandle)>; 2],
+) -> Option<CheckedBooleanExpression> {
+    let binary = program.expression_table.binary_node(expression)?;
+    let [
+        Some((mut left, left_reference)),
+        Some((mut right, right_reference)),
+    ] = subjects
+    else {
+        return None;
+    };
+    let primitive = program.primitive_type_reference(left_reference)?;
+    if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+        || program.primitive_type_reference(right_reference) != Some(primitive)
+        || scalar_expression_type(&left) != Some(primitive)
+        || scalar_expression_type(&right) != Some(primitive)
+        || !validation::has_builtin_or_sealed_float_comparison_meaning(
+            program,
+            owner,
+            expression,
+            binary.operator,
+            &[Some(left_reference), Some(right_reference)],
+        )
+    {
+        return None;
+    }
+    let kind = match binary.operator {
+        BinaryOperator::Equal => CheckedIeeeFloatComparisonKind::Equal,
+        BinaryOperator::NotEqual => CheckedIeeeFloatComparisonKind::NotEqual,
+        BinaryOperator::Less => CheckedIeeeFloatComparisonKind::LessThan,
+        BinaryOperator::LessOrEqual => CheckedIeeeFloatComparisonKind::LessOrEqual,
+        BinaryOperator::Greater | BinaryOperator::GreaterOrEqual => {
+            std::mem::swap(&mut left, &mut right);
+            if binary.operator == BinaryOperator::Greater {
+                CheckedIeeeFloatComparisonKind::LessThan
+            } else {
+                CheckedIeeeFloatComparisonKind::LessOrEqual
+            }
+        }
+        _ => return None,
+    };
+    Some(CheckedBooleanExpression::ScalarIeeeFloatComparison {
+        kind,
+        left: Box::new(left),
+        right: Box::new(right),
+    })
 }
 
 /// Anonymous arithmetic lands at the comparison or typed peer's carrier through
@@ -1064,7 +1146,7 @@ pub(crate) fn lower_state_declared_range_predicate(
         remaining: &mut remaining,
     };
     let endpoint = |expression| {
-        if let Some((value, reference)) = context.integer_term(expression, 0) {
+        if let Some((value, reference)) = context.numeric_term(expression, 0) {
             let primitive = program.primitive_type_reference(reference)?;
             return (is_integer(primitive) && scalar_expression_type(&value) == Some(primitive))
                 .then_some(value);

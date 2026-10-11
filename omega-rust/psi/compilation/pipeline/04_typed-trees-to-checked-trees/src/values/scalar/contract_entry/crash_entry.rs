@@ -3,8 +3,8 @@
 use crate::values::operator_is_builtin;
 
 use checked_trees::{
-    CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedOperatorFacts,
-    CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
+    CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
+    CheckedStructuralPredicatePathSegment,
 };
 use symbols::{BuiltinTypeAtom, SymbolKind};
 use typed_trees::data::{DataDefinition, DataMember};
@@ -479,7 +479,7 @@ impl<'program> Reader<'program> {
         &mut self,
         expression: ExpressionHandle,
         operands: [ExpressionHandle; 2],
-        operator: BinaryOperator,
+        _operator: BinaryOperator,
         depth: usize,
     ) -> Option<CheckedBooleanExpression> {
         // Dense scalar positions depend on the entire entry telescope, exactly
@@ -510,7 +510,7 @@ impl<'program> Reader<'program> {
                 )?;
                 subjects[position] = Some((
                     CheckedScalarExpression::IeeeFloatLiteral { value },
-                    Some(type_reference),
+                    type_reference,
                 ));
                 continue;
             }
@@ -539,62 +539,15 @@ impl<'program> Reader<'program> {
                     position: scalar_position,
                     primitive_type,
                 },
-                Some(type_reference),
+                type_reference,
             ));
         }
-        let operand_types = subjects.each_ref().map(|subject| {
-            subject
-                .as_ref()
-                .and_then(|(_, type_reference)| *type_reference)
-        });
-        let [Some((mut left, _)), Some((mut right, _))] = subjects else {
-            return None;
-        };
-        if left.primitive_type() != right.primitive_type() {
-            return None;
-        }
-        if self.operators.uses.iter().any(|(_, operator)| {
-            operator.expression == expression
-                && operator.status
-                    != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-        }) {
-            return None;
-        }
-        // A machine-less reader still requires the authored relation to carry
-        // builtin IEEE meaning over these operands before it becomes logic.
-        // A declaration being bodyless does not grant IEEE meaning: a declared
-        // relation must rejoin the exact sealed Float contract, not a lookalike.
-        if self.machine.is_none()
-            && !validation::has_builtin_or_sealed_float_comparison_meaning(
-                self.program,
-                self.owner,
-                expression,
-                operator,
-                &operand_types,
-            )
-        {
-            return None;
-        }
-        let kind = match operator {
-            BinaryOperator::Equal => CheckedIeeeFloatComparisonKind::Equal,
-            BinaryOperator::NotEqual => CheckedIeeeFloatComparisonKind::NotEqual,
-            BinaryOperator::Less => CheckedIeeeFloatComparisonKind::LessThan,
-            BinaryOperator::LessOrEqual => CheckedIeeeFloatComparisonKind::LessOrEqual,
-            BinaryOperator::Greater | BinaryOperator::GreaterOrEqual => {
-                std::mem::swap(&mut left, &mut right);
-                if operator == BinaryOperator::Greater {
-                    CheckedIeeeFloatComparisonKind::LessThan
-                } else {
-                    CheckedIeeeFloatComparisonKind::LessOrEqual
-                }
-            }
-            _ => return None,
-        };
-        Some(CheckedBooleanExpression::ScalarIeeeFloatComparison {
-            kind,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
+        super::super::result_contract::lower_float_contract_comparison(
+            self.program,
+            self.owner,
+            expression,
+            subjects,
+        )
     }
 
     fn has_float_operand(&mut self, operands: [ExpressionHandle; 2], depth: usize) -> Option<bool> {
