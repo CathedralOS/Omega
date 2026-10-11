@@ -491,17 +491,16 @@ pub(crate) fn finalize_checked_authored_selections(
             })?;
         }
     }
-    // A target sibling's body is checked here but realized by its own
-    // target: a selection its realization resolves may stay late-bound.
-    let mut sibling_occurrences =
-        crate::product_pruning::target_sibling_selection_occurrences(program);
-    sibling_occurrences
-        .extend(validation::execution_projection::descriptor_selection_occurrences(program));
+    // Psi checks every target-scoped body, so a target sibling resolves its
+    // selections here like any other body. Only execution descriptors stay
+    // late-bound for their projection.
+    let descriptor_occurrences =
+        validation::execution_projection::descriptor_selection_occurrences(program);
     if let Some(selection) = selections.iter().find(|selection| {
         if !matches!(
             selection.target(),
             AuthoredDeclarationSelectionTarget::LateBound(_)
-        ) || sibling_occurrences.contains(&selection.occurrence_id())
+        ) || descriptor_occurrences.contains(&selection.occurrence_id())
         {
             return false;
         }

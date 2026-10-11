@@ -72,7 +72,7 @@ use std::sync::Arc;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::{AuthoredDeclarationSelectionOccurrenceId, TypedTrees};
+use typed_trees::TypedTrees;
 
 pub(crate) mod dependencies;
 pub(crate) mod rewrite;
@@ -372,61 +372,6 @@ fn retain_live_family_members(typed: &mut TypedTrees) {
     typed
         .target_machine_families
         .retain(|family| !family.members.is_empty());
-}
-
-/// The authored declaration selections recorded inside every target sibling,
-/// present or already pruned from `typed`: another target's realization
-/// resolves them, so
-/// this realization's checking and admission do not report the late-bound
-/// ones. Ownership follows source position: a selection belongs to the last
-/// top-level declaration that starts before it in its file, which is robust
-/// to typing re-homing an occurrence onto an expression no statement reaches.
-pub fn target_sibling_selection_occurrences(
-    typed: &dyn ::validation::CheckingInput,
-) -> HashSet<AuthoredDeclarationSelectionOccurrenceId> {
-    // Projection retains backing declarations. Absence from executable roots
-    // alone is not a target-sibling designation: ordinary private projections
-    // remove machine roots too, and their unknown occurrences must still fail.
-    let owner_is_sibling = |symbol: SymbolHandle| {
-        let mut declarations = typed
-            .tables
-            .machines
-            .iter()
-            .filter(|(_, machine)| machine.symbol == symbol)
-            .map(|(_, machine)| machine);
-        let Some(first) = declarations.next() else {
-            return false;
-        };
-        first.target.is_some() && declarations.all(|machine| machine.target == first.target)
-    };
-    let mut starts: Vec<(usize, usize, SymbolHandle)> = typed
-        .symbols
-        .child_handles(typed.symbols.root())
-        .into_iter()
-        .flatten()
-        .filter_map(|symbol| {
-            let span = typed.symbols.symbol_source_span(symbol)?;
-            Some((span.source_id.0, span.span.start, symbol))
-        })
-        .collect();
-    starts.sort_unstable_by_key(|(source, start, _)| (*source, *start));
-    typed
-        .authored_declaration_selections()
-        .iter()
-        .filter(|selection| {
-            let span = selection.source_span();
-            let owner = starts
-                .partition_point(|(source, start, _)| {
-                    (*source, *start) <= (span.source_id.0, span.span.start)
-                })
-                .checked_sub(1)
-                .and_then(|index| starts.get(index))
-                .filter(|(source, _, _)| *source == span.source_id.0)
-                .map(|(_, _, symbol)| *symbol);
-            owner.is_some_and(owner_is_sibling)
-        })
-        .map(|selection| selection.occurrence_id())
-        .collect()
 }
 
 fn selection_identity(
