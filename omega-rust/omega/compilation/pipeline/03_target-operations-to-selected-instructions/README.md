@@ -57,12 +57,21 @@ quotient, including rejection of signed `MIN % -1`. Normalized operands use the
 existing Exact signed division instructions except for full-width unsigned
 operands, which retain their unsigned realization. x86-64 zero/sign high-half
 preparation retains explicit scratch constraints and adds no source operation or
-fuel charge. Division inputs whose target row declares a fixed view are copied
-into instruction-local registers. The original source binding remains available
-for subsequent divisions, remainder operations and calls; accumulator clobbers
-cannot pin that entire live range. Independently selected replay retains the
-same source identities and fixed operand constraints. Allocatable operands need
-no copy. `runtime_reused_division_inputs_exit` covers repeated and aliased inputs
+fuel charge.
+
+Integer arithmetic copies each fixed source `Use` into an instruction-local value,
+according to the selected target constraint row. A reused source value therefore
+keeps its flexible range across intervening calls, and equal source operands can
+reach distinct required views without a source-equality special case. The copies
+retain source identity and definition custody; the arithmetic instruction keeps
+its original operation, definedness obligations and fuel. Instruction-local
+scratch, including unsigned division's explicit zero high half, keeps its
+existing lineage and fixed constraints. Scratch definitions,
+early clobbers and physical-home checks remain explicit downstream constraints.
+An early-clobber output also requires distinct physical input participants;
+repeated source operands get a separate copy according to that same constraint
+row, including on targets whose operands have no fixed view.
+`runtime_reused_division_inputs_exit` covers repeated and aliased inputs
 across signed, unsigned, Wrapping, Saturating and Exact arithmetic.
 
 Fresh sums use activation-local carriers in this graph. Construction
