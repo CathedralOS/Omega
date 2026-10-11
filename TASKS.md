@@ -1629,11 +1629,21 @@ defines the complete product bar.
   on macOS ARM64. A byte store preserves `Utf8` only with carrier/byte
   evidence: `ValidUtf8` does not imply `AsciiOnly`.
 
-  The Dungeon Crawler is migrated to explicit parameters and checks. On macOS
-  ARM64 it meets its README closed-stdin oracle natively
-  (`tools/sample_native_gate.py --filter dungeon_crawler`), and its
-  `help`/`exit` input route prints command help and the goodbye message and
-  exits 0; the other hosts are not re-qualified.
+  The Dungeon Crawler no longer checks on any host. Import locality
+  (2026-10-09) ended its `platform/console.omg` re-export hop on every
+  target; with the consumers migrated to direct `omega_language_std::console`
+  imports the first failure is nominal-inputs admission:
+  `cannot prove default-domain field requirement ... event.enemy.name
+  requires [u8; N]::Utf8` at `RoomEvents::roll_event` (from `carve_room`)
+  and `MazeBuilder::clear_event` (from `force_quiet_room`). The domain is
+  genuinely established — `clear_level` writes `event.enemy.name = ""` on all
+  sixteen rooms through `&mut rooms[i]` element arguments before either call —
+  but the fact does not reach the callee through `Level::room_mut`'s
+  runtime-indexed `&mut Room` return. A same-state write to
+  `room.event.enemy.name` through the borrow satisfies the check, so the gap
+  is prior-establishment transport across element-argument handbacks and the
+  borrowed return's runtime cell, not argument capture. The macOS ARM64
+  native qualification predates both failures and is not re-qualified.
 
   Acceptance:
   - Paired qualified/free-machine corpus cases over the same established
