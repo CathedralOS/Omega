@@ -515,7 +515,26 @@ pub(crate) fn borrowed_storage_argument(
     // Only represented value constraints enter this route; the formal retains
     // its qualifications and Terminal independently proves them from the exact
     // source field or parameter. No predicate is minted by this carrier join.
-    if identity != target_identity
+    let presentation_identity = shapes.add_type(target.type_reference, &[], &[])?;
+    // Computed scalar calls lend the same initialized fixed-array backing as
+    // ordinary calls. Reuse representation admission; exact access below still
+    // owns the loan. Raw array views retain field-only backing, never a runtime
+    // indexed selection or a crossed reference descriptor.
+    let array_view = super::argument_presentation::classify(
+        program,
+        reference,
+        target.type_reference,
+        presentation_identity,
+        &[],
+    ) == Some(super::argument_presentation::ArgumentPresentation::FixedArraySlice)
+        && path.iter().all(|segment| {
+            matches!(
+                segment,
+                checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+            )
+        })
+        && parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty();
+    if (identity != target_identity && !array_view)
         || (!parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
             && !validation::has_contents(
                 program,
@@ -544,7 +563,6 @@ pub(crate) fn borrowed_storage_argument(
     // presents that storage through the formal's carrier, as ordinary calls
     // do: a fixed byte array loan uses a bounded byte view, while its owned
     // backing remains a fixed array.
-    let presentation_identity = shapes.add_type(target.type_reference, &[], &[])?;
     Some(CheckedUnitStructuralArgumentPlan {
         source,
         path,
