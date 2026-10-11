@@ -1,0 +1,4 @@
+// A managed library probe for Terminal inspection; no process entry requested.
+machine build(builder: &mut Build) {
+    Build::package(builder, "ieee_arrival_reproduction");
+}

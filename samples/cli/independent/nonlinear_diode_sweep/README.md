@@ -33,7 +33,7 @@ and 36. The reference independently uses `Decimal.exp`, not this expansion.
 
 ## Input
 
-One record on stdin contains nine signed decimal integers, separated by spaces
+One record on stdin contains nine decimal integers with optional minus signs, separated by spaces
 or tabs, terminated by LF or EOF. CR is accepted as whitespace for CRLF input.
 The parser reads at most 160 bytes, rejects malformed/extra/missing fields and
 decimal overflow, and stores exactly nine bounded values.
