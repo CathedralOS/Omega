@@ -1157,6 +1157,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "new087-terminal-validation"
+version = "0.1.0"
+dependencies = [
+ "compiler",
+ "omega",
+ "package-manager",
+ "target",
+ "terminal-interpreter",
+]
+
+[[package]]
 name = "nix"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
