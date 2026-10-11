@@ -61,6 +61,10 @@ pub struct CheckedCompilationInputs {
     /// Authored choices stay distinct from the realized settlements beside it.
     pub build: Arc<ComputedBuildConfig>,
     pub build_admission: BuildAdmission,
+    /// Source-owned defaults include unrequested deployments and share storage
+    /// across realizations. They are not effects of the earlier Build execution.
+    pub provider_defaults:
+        Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub providers: ProviderSettlement,
     /// Identity-bearing checked-tree product selection evidence, present only
     /// when the effective build selection named `CheckedTreeProductPruning`.
@@ -154,6 +158,13 @@ impl CheckedCompilation {
     /// the evaluated build machine's identity and its restricted host requests.
     pub const fn build_admission(&self) -> &BuildAdmission {
         &self.execution.build_admission
+    }
+
+    /// Every authored Product default, retained before source root pruning.
+    pub fn provider_defaults(
+        &self,
+    ) -> &[build_time_evaluation::provider_declarations::TargetProviderDefaults] {
+        &self.execution.provider_defaults
     }
 
     /// Provider-planning custody retained for package review, trust replay

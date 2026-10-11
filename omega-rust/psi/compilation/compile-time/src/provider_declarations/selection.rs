@@ -1,4 +1,4 @@
-use crate::ProviderPlanningContext;
+use super::ProviderPlanningContext;
 use checked_trees::typed_trees::TypedTrees;
 use symbols::SymbolHandle;
 
@@ -122,7 +122,7 @@ impl ProviderOperatorFamilySelection {
     /// resolves is stale, a member resolving outside the family is padding,
     /// and a same-spelled member with another symbol or telescope is a
     /// substitution. Each rejection names the coordinate.
-    pub(crate) fn replay_against_typed(&self, context: ProviderPlanningContext<'_>) -> Vec<String> {
+    pub fn replay_against_typed(&self, context: ProviderPlanningContext<'_>) -> Vec<String> {
         let typed = context.typed;
         let expected = match family_coordinates(context, self.package, &self.canonical_path) {
             Ok(expected) => expected,
@@ -279,11 +279,7 @@ impl ProviderSelectionSubject {
         }
     }
 
-    pub(crate) fn selects_schema(
-        &self,
-        schema_symbol: SymbolHandle,
-        requirement_identity: &str,
-    ) -> bool {
+    pub fn selects_schema(&self, schema_symbol: SymbolHandle, requirement_identity: &str) -> bool {
         match self {
             Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => {
                 identity.symbol == schema_symbol

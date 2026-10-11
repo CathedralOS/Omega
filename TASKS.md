@@ -2971,7 +2971,9 @@ crash and native exit behavior.
     Source assembly, Build role projection and dependency editing now use Psi's
     parsing facade; no package consumer imports the lexer/parser stages.
     Psi establishes source completion roles before retained-check matching;
-    provider cycle checks consume its retained invocation facts. Join the
+    provider cycle checks consume its retained invocation facts. Psi owns the
+    static/executed provider-selection decoder and returns Product defaults
+    before pruning, shared across targets outside Build admission. Join the
     remaining source/package assembly contracts to this facade.
     Move distinct entry roots, callbacks and the package-manager batch route
     behind whole-program shared checked/Terminal storage and

@@ -1,4 +1,4 @@
-//! Select exact provider members from typed declarations.
+//! Select exact provider members from Psi's retained declaration inventory.
 //!
 //! Psi owns product-family formation and retains every authored target.
 //! Only Build source selects an execution target before resolution. Neither
@@ -14,41 +14,6 @@ use target::TargetProfile;
 
 mod provider_publication;
 pub use provider_publication::{TargetProviderPublicationRequest, provider_selection_roots};
-
-/// Harvest every Product default before choosing a realization. Build defaults
-/// instead belong to its separately admitted execution, not foreign siblings.
-pub fn retain_provider_defaults(
-    context: crate::ProviderPlanningContext<'_>,
-) -> Result<Vec<crate::TargetProviderDefaults>, Vec<Diagnostic>> {
-    let mut rows: Vec<crate::TargetProviderDefaults> = Vec::new();
-    for machine in context.typed.machines().iter().filter(|machine| {
-        machine.purpose == checked_trees::typed_trees::machine::MachinePurpose::ProviderDefaults
-            // A generated interface contributes no authored declarations.
-            // Harvest the complete member bodies, not a spurious targetless
-            // defaults row for their shared callable head.
-            && !machine.target_family_interface
-            && context.contains(machine.symbol)
-            && (context.scope == source::DependencyScope::Product || machine.target.is_none())
-    }) {
-        let target = machine
-            .authored_target
-            .as_ref()
-            .map(|name| name.as_str().to_owned());
-        let selections = crate::harvest_provider_selections(context, machine)?;
-        if let Some(row) = rows.iter_mut().find(|row| row.target == target) {
-            row.machines.push(machine.symbol);
-            row.selections.extend(selections);
-        } else {
-            rows.push(crate::TargetProviderDefaults {
-                target,
-                machines: vec![machine.symbol],
-                selections,
-            });
-        }
-    }
-    rows.sort_by(|left, right| left.target.cmp(&right.target));
-    Ok(rows)
-}
 
 /// Project retained declarations onto one realization using their exact handles.
 pub fn settle_provider_defaults(

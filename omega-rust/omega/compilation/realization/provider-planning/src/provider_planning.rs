@@ -16,8 +16,6 @@
 //! Intrinsic execution identities and labels are queries on
 //! `crate::IntrinsicRequirement`.
 
-pub(crate) mod selection;
-
 mod external_binding_rows;
 mod independent_components;
 mod installation_reach;

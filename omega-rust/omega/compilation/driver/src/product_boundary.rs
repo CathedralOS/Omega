@@ -93,6 +93,9 @@ fn product_consumers_do_not_assemble_source_stages() {
             );
         }
     }
+    let product_checking = include_str!("checked/checking/source_checking.rs");
+    assert!(!product_checking.contains("provider_planning::"));
+    assert!(!product_checking.contains("retain_provider_defaults("));
     let source = include_str!("checked/checking/build_continuation.rs");
     for operation in [
         "complete_machine_bodies",

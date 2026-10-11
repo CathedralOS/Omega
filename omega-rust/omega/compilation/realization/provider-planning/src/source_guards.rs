@@ -80,10 +80,8 @@ fn violations(forbidden: &[&str]) -> Vec<String> {
 /// frontend-stage crates whose authority terminates at the checked product.
 #[test]
 fn manifest_declares_no_source_input_dependency_edges() {
-    let manifest = fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
-    )
-    .expect("manifest is readable beside the crate sources");
+    let manifest = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
+        .expect("manifest is readable beside the crate sources");
     let banned = [
         concat!("typed", "-trees"),
         concat!("typed", "-trees", "-to", "-checked", "-trees"),
@@ -140,5 +138,18 @@ fn sources_never_name_the_conversion_stage() {
     assert!(
         violations.is_empty(),
         "provider-planning consumes the checked product, not the conversion stage: {violations:?}"
+    );
+}
+
+#[test]
+fn provider_realization_does_not_decode_source_selection_calls() {
+    let violations = violations(&[
+        concat!("fn ", "harvest_provider_selections("),
+        concat!("fn ", "collect_executed_provider_selections("),
+        concat!("fn ", "retain_provider_defaults("),
+    ]);
+    assert!(
+        violations.is_empty(),
+        "source decoding belongs to Psi: {violations:?}"
     );
 }

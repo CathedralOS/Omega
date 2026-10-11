@@ -1,20 +1,75 @@
-//! Provider-selection declarations retained from target defaults and Build execution.
+//! Decode source provider declarations without choosing a target or realization.
 //!
 //! Static defaults enter through `harvest_provider_selections`; executed Build
 //! choices enter through `collect_executed_provider_selections`. Both use one
 //! decoder for exact subject, provider and composition identities. Package review
-//! independently rejoins retained choices through
-//! `validate_executed_provider_selection_declaration`, without rerunning Build.
+//! independently rejoins retained choices without rerunning Build. Native schema,
+//! ABI and provider-plan construction belong to Omega and are not dependencies.
 
-use crate::{ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity};
-use build_time_evaluation::is_exact_toolchain_build_prelude_data;
+mod context;
+mod identities;
+mod selection;
+
+use crate::is_exact_toolchain_build_prelude_data;
 use checked_trees::typed_trees::TypedTrees;
+pub use context::ProviderPlanningContext;
 use diagnostics::Diagnostic;
+pub use identities::{eligible, is_named_provider, named_requirement_lifetime_arguments};
+pub use selection::{
+    CompositionMode, ProviderOperatorFamilySelection, ProviderSelection, ProviderSelectionIdentity,
+    ProviderSelectionSubject,
+};
 use symbols::{JoinedPath, SymbolHandle, SymbolKind};
+
+/// Normalized declaration effects retained for every authored deployment.
+/// These source handles describe Build inputs, not installed runtime authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetProviderDefaults {
+    /// None is a target-independent declaration.
+    pub target: Option<String>,
+    /// Includes empty declarations, whose phase must not depend on effects.
+    pub machines: Vec<symbols::SymbolHandle>,
+    pub selections: Vec<ProviderSelection>,
+}
+
+/// Harvest every Product default before choosing a realization. Build defaults
+/// instead belong to its separately admitted execution, not foreign siblings.
+pub fn retain_provider_defaults(
+    context: ProviderPlanningContext<'_>,
+) -> Result<Vec<TargetProviderDefaults>, Vec<Diagnostic>> {
+    let mut rows: Vec<TargetProviderDefaults> = Vec::new();
+    for machine in context.typed.machines().iter().filter(|machine| {
+        machine.purpose == checked_trees::typed_trees::machine::MachinePurpose::ProviderDefaults
+            // A generated interface contributes no authored declarations.
+            // Harvest the complete member bodies, not a spurious targetless
+            // defaults row for their shared callable head.
+            && !machine.target_family_interface
+            && context.contains(machine.symbol)
+            && (context.scope == source::DependencyScope::Product || machine.target.is_none())
+    }) {
+        let target = machine
+            .authored_target
+            .as_ref()
+            .map(|name| name.as_str().to_owned());
+        let selections = harvest_provider_selections(context, machine)?;
+        if let Some(row) = rows.iter_mut().find(|row| row.target == target) {
+            row.machines.push(machine.symbol);
+            row.selections.extend(selections);
+        } else {
+            rows.push(TargetProviderDefaults {
+                target,
+                machines: vec![machine.symbol],
+                selections,
+            });
+        }
+    }
+    rows.sort_by(|left, right| left.target.cmp(&right.target));
+    Ok(rows)
+}
 
 /// Static target-default declarations have their own admission path. Authored
 /// Build overrides instead enter through executed call receipts below.
-pub(crate) fn harvest_provider_selections(
+fn harvest_provider_selections(
     context: ProviderPlanningContext<'_>,
     machine: &checked_trees::typed_trees::machine::Machine,
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
@@ -255,7 +310,7 @@ fn collect_provider_selections<'a>(
             && typed.traits().iter().any(|definition| {
                 definition.symbol == boundary_identity.symbol && definition.is_boundary
             }) {
-            crate::ProviderSelectionSubject::BoundaryTrait(boundary_identity)
+            ProviderSelectionSubject::BoundaryTrait(boundary_identity)
         } else if boundary_identity.symbol.is_valid()
             && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Machine
             && typed.machines().iter().any(|requirement| {
@@ -265,7 +320,7 @@ fn collect_provider_selections<'a>(
                         == language_semantics::MachineSupplyMode::TopLevelRequirement
             })
         {
-            crate::ProviderSelectionSubject::BoundaryRequirement(boundary_identity)
+            ProviderSelectionSubject::BoundaryRequirement(boundary_identity)
         } else if boundary_identity.symbol.is_valid()
             && (typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Operator
                 || typed.machine_token_bindings().iter().any(|binding| {
@@ -275,12 +330,12 @@ fn collect_provider_selections<'a>(
             // One resolved overload symbol names its complete package-
             // qualified family; provider-planning derives the canonical
             // roster so harvest and later replay share one definition.
-            match crate::ProviderOperatorFamilySelection::derive(
+            match ProviderOperatorFamilySelection::derive(
                 context,
                 boundary_identity.symbol,
                 boundary_identity.authored_path,
             ) {
-                Ok(family) => crate::ProviderSelectionSubject::BoundaryOperatorFamily(family),
+                Ok(family) => ProviderSelectionSubject::BoundaryOperatorFamily(family),
                 Err(reason) => {
                     diagnostics.push(Diagnostic::error(reason));
                     return;
@@ -295,7 +350,7 @@ fn collect_provider_selections<'a>(
         };
         if !provider_type.symbol.is_valid()
             || (typed.symbols.get(provider_type.symbol).kind != SymbolKind::Data
-                && !crate::provider_identity::is_named_provider(typed, provider_type.symbol))
+                && !identities::is_named_provider(typed, provider_type.symbol))
         {
             diagnostics.push(Diagnostic::error(format!(
                 "provider selection type `{}` does not resolve to an exact provider data declaration or named implementation",
@@ -304,11 +359,10 @@ fn collect_provider_selections<'a>(
             return;
         }
         if let Some(implementation) = typed.conformances().iter().find(|implementation| {
-            implementation.symbol == provider_type.symbol
-                && crate::provider_identity::eligible(implementation)
+            implementation.symbol == provider_type.symbol && identities::eligible(implementation)
         }) {
             for row in &implementation.rows {
-                if crate::provider_identity::named_requirement_lifetime_arguments(
+                if identities::named_requirement_lifetime_arguments(
                     typed,
                     implementation,
                     row.declaring_trait,
@@ -369,7 +423,7 @@ fn collect_provider_selections<'a>(
 fn provider_selection_composition_mode(
     typed: &TypedTrees,
     arguments: &[checked_trees::typed_trees::expression::ExpressionHandle],
-) -> Result<crate::CompositionMode, Diagnostic> {
+) -> Result<CompositionMode, Diagnostic> {
     let Some((_, arguments)) = arguments.split_first() else {
         return Err(Diagnostic::error(
             "provider selection requires an explicit activation argument",
@@ -388,15 +442,15 @@ fn provider_selection_composition_mode(
         };
         return provider_composition_case(typed, case_symbol);
     };
-    Ok(crate::CompositionMode::Fused)
+    Ok(CompositionMode::Fused)
 }
 
 fn provider_composition_case(
     typed: &TypedTrees,
     case_symbol: SymbolHandle,
-) -> Result<crate::CompositionMode, Diagnostic> {
+) -> Result<CompositionMode, Diagnostic> {
     if !case_symbol.is_valid() {
-        return Ok(crate::CompositionMode::Fused);
+        return Ok(CompositionMode::Fused);
     }
     let exact_modes = typed
         .data_definitions()
@@ -434,8 +488,8 @@ fn provider_composition_case(
         ));
     }
     match selected.name.as_str() {
-        "Fused" => Ok(crate::CompositionMode::Fused),
-        "Independent" => Ok(crate::CompositionMode::Independent),
+        "Fused" => Ok(CompositionMode::Fused),
+        "Independent" => Ok(CompositionMode::Independent),
         other => Err(Diagnostic::error(format!(
             "compiler-owned CompositionMode contains unsupported case `{other}`"
         ))),

@@ -56,7 +56,7 @@ pub(crate) fn prepare_checked_build(
         &provisional,
         source::DependencyScope::Build,
     );
-    let defaults = provider_planning::target_machines::retain_provider_defaults(context)?;
+    let defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
     let declarations = provider_planning::target_machines::settle_provider_defaults(
         context,
         &defaults,

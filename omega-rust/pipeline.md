@@ -108,6 +108,9 @@ Psi owns their declaration admission and confined nomination before matching
 retained checks. Realization only rejoins the resulting source declarations to
 selected provider rows. Synchronous provider-cycle checks consume Psi's checked
 invocation facts rather than a second coordinator-owned inference sidecar.
+Psi also owns exact provider-selection declarations and the shared decoder for
+static defaults and executed Build choices. Checked Product selection returns
+all authored defaults before root pruning; Omega only selects retained rows.
 Resolver/typing continuation now lives in the [Psi compiler](psi/compilation/driver/src/source_compilation.rs):
 one owner pairs the deferred resolver, typing arenas and evaluation obligations
 across Build and generated-source resumption. Product records cannot rearrange

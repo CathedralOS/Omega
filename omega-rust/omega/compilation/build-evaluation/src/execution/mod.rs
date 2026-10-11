@@ -61,10 +61,14 @@ pub(crate) fn execute_admitted_build_program(
     let executed_exclusions = measured.executed_behavior_exclusions().to_vec();
     let wire_compatibility_demands =
         harvest_wire_compatibility_demands(typed, measured.executed_wire_demands())?;
-    let provider_selections = provider_planning::collect_executed_provider_selections(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        measured.executed_provider_selections(),
-    )?;
+    let provider_selections =
+        build_time_evaluation::provider_declarations::collect_executed_provider_selections(
+            provider_planning::ProviderPlanningContext::new(
+                typed,
+                source::DependencyScope::Product,
+            ),
+            measured.executed_provider_selections(),
+        )?;
 
     // Phase 3: join the augmented Build and declared grants/demands with
     // the selections and exclusions recorded by this execution.

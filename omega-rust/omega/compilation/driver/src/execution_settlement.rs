@@ -66,7 +66,7 @@ pub(crate) fn settle_checked_execution(
     )?;
     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
         provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        &source.admission.provider_defaults,
+        &source.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
     let provider_planning::CheckedProviderSelection {
@@ -122,6 +122,7 @@ pub(crate) fn settle_checked_execution(
         settled,
         build: Arc::clone(&source.computed_build_config),
         build_admission: source.admission.clone().for_target(selected_target_profile),
+        provider_defaults: Arc::clone(&source.provider_defaults),
         providers,
         product_selection: source.product_selection.clone(),
     })

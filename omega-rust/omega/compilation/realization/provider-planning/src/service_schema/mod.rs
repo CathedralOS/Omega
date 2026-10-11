@@ -9,8 +9,8 @@
 
 mod applied_receivers;
 
+use crate::ProviderPlanningContext;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
-use crate::planning_context::ProviderPlanningContext;
 use checked_trees::typed_trees::trait_definition::{
     AppliedTraitScope, AppliedTypeReference, TraitApplicationArguments,
 };

@@ -46,6 +46,9 @@ pub struct PreparedProductSource {
 /// The source checker produces this before any target provider is selected.
 pub struct CheckedProductSource {
     pub program: Arc<checked_trees::CheckedTrees>,
+    /// All authored Product defaults, shared unchanged across target settlement.
+    pub provider_defaults:
+        Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     pub sources: Arc<package_compilation::CheckedSourceCustody>,

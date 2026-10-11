@@ -13,6 +13,8 @@
 //! semantic schema, selection, and visitation plans and their independent replay.
 //! `wire_demands.rs` decodes authored wire demands. Their compatibility
 //! judgment belongs to Psi's typed-to-checked stage, not Build execution.
+//! `provider_declarations.rs` decodes target defaults and executed Build choices
+//! into exact source selections. Omega consumes them to realize providers.
 
 // The build-time-evaluation tests' front-end pipelines, one file shared with
 // the integration targets; see its module documentation.
@@ -22,6 +24,7 @@ mod const_evaluation;
 mod fnv;
 mod layouts;
 mod machine_execution;
+pub mod provider_declarations;
 mod reflection;
 mod syntax_probes;
 mod wire_demands;

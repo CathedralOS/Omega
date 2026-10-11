@@ -16,6 +16,8 @@
 //! Start at `provider_settlement.rs` for typed candidate derivation and selection,
 //! then `provider_planning.rs` for checked-program binding;
 //! every other folder is one public vocabulary the compiler consumes by path.
+//! Source selection declarations are owned by Psi compile-time admission; the
+//! re-exported selection records below are inputs, not a second source decoder.
 
 pub mod calling_policy_plans;
 pub mod component_progress;
@@ -24,9 +26,7 @@ pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
 mod fnv1a;
 mod intrinsic_requirements;
-mod planning_context;
 pub mod program_entry;
-mod provider_declarations;
 mod provider_identity;
 pub use provider_identity::{
     provider_row_matches, provider_trait_application, provider_trait_requirement_matches,
@@ -42,21 +42,16 @@ pub mod x86_fma_plan_association;
 
 pub(crate) use provider_settlement::SettledTargetMachineDeclarations;
 pub use provider_settlement::{
-    CheckedProviderSelection, ProviderSettlement, TargetProviderDefaults, settle_checked_providers,
+    CheckedProviderSelection, ProviderSettlement, settle_checked_providers,
     verify_selected_compositions_are_realized,
 };
 
+pub use build_time_evaluation::provider_declarations::{
+    CompositionMode, ProviderPlanningContext, ProviderSelection, ProviderSelectionSubject,
+    TargetProviderDefaults,
+};
 pub use intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
-};
-pub use planning_context::ProviderPlanningContext;
-pub use provider_declarations::collect_executed_provider_selections;
-pub(crate) use provider_declarations::harvest_provider_selections;
-pub use provider_planning::selection::{
-    CompositionMode, ProviderSelection, ProviderSelectionSubject,
-};
-pub(crate) use provider_planning::selection::{
-    ProviderOperatorFamilySelection, ProviderSelectionIdentity,
 };
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,

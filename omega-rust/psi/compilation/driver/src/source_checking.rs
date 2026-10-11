@@ -41,6 +41,8 @@ pub struct CheckedSource {
 /// Shared source product with the exact optional root-selection evidence.
 pub struct SelectedCheckedSource {
     pub program: Arc<checked_trees::CheckedTrees>,
+    pub provider_defaults:
+        Vec<build_time_evaluation::provider_declarations::TargetProviderDefaults>,
     pub retained: Option<RetainedCheck>,
     pub selection: Option<CheckedTreeProductSelection>,
 }
@@ -97,12 +99,23 @@ impl CheckedSource {
         self,
         roots: Option<Vec<symbols::SymbolHandle>>,
     ) -> Result<SelectedCheckedSource, Vec<Diagnostic>> {
+        // Defaults describe every authored target, including declarations root
+        // pruning may remove. Decode them from the checked source before pruning;
+        // realization later chooses a row without reading declaration bodies.
+        let provider_defaults =
+            build_time_evaluation::provider_declarations::retain_provider_defaults(
+                build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
+                    &self.program.typed,
+                    source::DependencyScope::Product,
+                ),
+            )?;
         let (program, selection) = typed_trees_to_checked_trees::select_checked_tree_product(
             Arc::new(self.program),
             roots,
         )?;
         Ok(SelectedCheckedSource {
             program,
+            provider_defaults,
             retained: self.retained,
             selection,
         })

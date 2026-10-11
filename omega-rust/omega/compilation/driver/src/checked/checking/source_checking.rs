@@ -19,7 +19,7 @@ pub(crate) fn check_product_source(
         typed,
         pending_pre_checks,
         computed_build_config,
-        mut admission,
+        admission,
         build_sources,
         mut timings,
         retained_build_check,
@@ -32,9 +32,6 @@ pub(crate) fn check_product_source(
             "unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source",
         )]);
     }
-    admission.provider_defaults = provider_planning::target_machines::retain_provider_defaults(
-        provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
-    )?;
     let build = &computed_build_config.config;
     let representations = representation_planning::rederive_opaque_representation_selections(
         &typed,
@@ -116,6 +113,7 @@ pub(crate) fn check_product_source(
     let roots = build.checked_tree_product_roots(rollback);
     let psi_compiler::SelectedCheckedSource {
         program,
+        provider_defaults,
         retained,
         selection: product_selection,
     } = outcome.select_product(roots)?;
@@ -124,6 +122,7 @@ pub(crate) fn check_product_source(
         trust_model::AcceptedTemplateClassifications::capture(&program);
     Ok(CheckedProductSource {
         program,
+        provider_defaults: provider_defaults.into(),
         computed_build_config,
         admission,
         sources,

@@ -89,7 +89,6 @@ pub(crate) fn evaluate_build_and_continue(
     };
     let admission = BuildAdmission {
         application,
-        provider_defaults: Vec::new(),
         selected_build_machine_identity: computed_build_config
             .selected_machine_identity(source.typed())?,
         restricted_build_requests,

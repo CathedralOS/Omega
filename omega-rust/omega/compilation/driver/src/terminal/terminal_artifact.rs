@@ -148,8 +148,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     context,
                     first
                         .checked
-                        .build_admission()
-                        .provider_defaults
+                        .provider_defaults()
                         .iter()
                         .flat_map(|row| &row.selections)
                         .chain(&first.checked.build().config.provider_selections),
@@ -255,8 +254,7 @@ fn publish_target_providers(
     selections: &OptimizationSelections,
 ) -> Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal> {
     let mut targets = checked
-        .build_admission()
-        .provider_defaults
+        .provider_defaults()
         .iter()
         .filter_map(|row| row.target.clone())
         .collect::<Vec<_>>();
@@ -284,7 +282,7 @@ fn publish_target_providers(
         ),
         artifact: artifact.view(),
         exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
-        defaults: &checked.build_admission().provider_defaults,
+        defaults: checked.provider_defaults(),
         overrides: &checked.build().config.provider_selections,
         settlement: checked.providers(),
         targets: &targets,
