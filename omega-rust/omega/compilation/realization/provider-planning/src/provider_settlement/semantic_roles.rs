@@ -127,5 +127,9 @@ fn completion_declaration(
         requirement_path: typed.symbols.display_path(requirement.symbol, "::"),
         completion: BoundaryCompletion::External(ExternalCompletionKind::ProcessExit),
     };
-    validation::valid_boundary_completion_declaration(typed, &declaration).then_some(declaration)
+    checked_trees::typed_trees::boundary_completions::valid_boundary_completion_declaration(
+        typed,
+        &declaration,
+    )
+    .then_some(declaration)
 }

@@ -109,7 +109,11 @@ pub fn from_typed_operator(
         receiver_applications: Vec::new(),
         trait_package_identity: program.symbols.symbol_package_identity(operator.symbol),
         methods: vec![ServiceMethod {
-            completion: validation::boundary_requirement_completion(program, operator.symbol),
+            completion:
+                checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
+                    program,
+                    operator.symbol,
+                ),
             name: "realize".to_owned(),
             requirement_owner:
                 checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
@@ -267,7 +271,11 @@ pub fn from_typed_boundary_requirement(
         trait_package_identity: package_identity,
         receiver_applications: Vec::new(),
         methods: vec![ServiceMethod {
-            completion: validation::boundary_requirement_completion(program, requirement.symbol),
+            completion:
+                checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
+                    program,
+                    requirement.symbol,
+                ),
             name: method_name.to_owned(),
             requirement_owner: requirement_owner.to_owned(),
             requirement_owner_package_identity: package_identity,
@@ -328,7 +336,11 @@ fn collect_service_methods(
                 && application.requirement_machine == signature.symbol
         });
         methods.push(ServiceMethod {
-            completion: validation::boundary_requirement_completion(program, signature.symbol),
+            completion:
+                checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
+                    program,
+                    signature.symbol,
+                ),
             name: signature.name.as_str().to_owned(),
             requirement_owner: program.trait_declaration_path(trait_definition),
             requirement_owner_package_identity: program
