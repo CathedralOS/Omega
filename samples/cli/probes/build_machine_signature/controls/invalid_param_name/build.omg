@@ -1,0 +1,4 @@
+machine build(context: &mut Build) {
+    Build::application(context, "invalid_param_name");
+    context.freestanding = true;
+}

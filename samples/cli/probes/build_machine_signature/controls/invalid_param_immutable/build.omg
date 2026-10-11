@@ -1,0 +1,3 @@
+machine build(builder: &Build) {
+    Build::application(builder, "invalid_param_immutable");
+}
