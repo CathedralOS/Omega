@@ -106,12 +106,19 @@ pub(crate) fn structural_call_arguments(
             // expression also has an inline literal or range presentation.
             // Shared temporaries retain their referent expression; exclusive
             // borrows cannot be peeled into an owned result.
-            let owner_expression = crate::semantic::calls::shared_argument_referent(
-                program,
-                expression,
-                target.type_reference,
-            )
-            .map_or(expression, |(referent, _)| referent);
+            let owner_expression = if caller_structural_results
+                .iter()
+                .any(|(_, root)| *root == facts::PlaceRoot::Expression(expression))
+            {
+                expression
+            } else {
+                crate::semantic::calls::shared_argument_referent(
+                    program,
+                    expression,
+                    target.type_reference,
+                )
+                .map_or(expression, |(referent, _)| referent)
+            };
             let produced = caller_structural_results
                 .iter()
                 .any(|(_, root)| *root == facts::PlaceRoot::Expression(owner_expression));

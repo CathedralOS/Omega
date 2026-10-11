@@ -1171,3 +1171,4 @@ pass/float/owned_local_computed_float_store_exit built 63210ms exit:70 @6d6a4e9b
 pass/borrows/runtime_guarded_local_byte_loan_exit built 6355ms exit:0 @a7846c335879
 pass/borrows/runtime_mixed_static_dynamic_loan_header_exit built 6092ms exit:0 @a7846c335879
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit built 12077ms exit:0 stdout:match @a7846c335879
+pass/slices/fixed_array_slice_state_arguments_exit built 9847ms exit:70 stdout:match stderr:match @bfff43e67094+wt

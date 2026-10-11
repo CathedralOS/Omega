@@ -117,13 +117,39 @@ impl Builder<'_, '_> {
                 TypeReferenceNode::Reference { .. }
                     if validation::slice_view_shell(self.program, expected, &[]).is_some() =>
                 {
-                    // Existing storage, a stored view however qualified or a
-                    // whole array lent as a view, keeps its loan route. Only a
-                    // computed formation needs an operand result.
+                    // An established view keeps its descriptor and loan route.
+                    // An array has backing storage but no view descriptor:
+                    // lending it as a slice establishes that descriptor at the
+                    // argument occurrence, through the same value planner as
+                    // a local initializer. Calls and state arrivals consume
+                    // that checked formation rather than inventing a carrier
+                    // from representation compatibility alone.
                     if crate::semantic::calls::view_argument_names_existing_place(
                         self.program,
                         expression,
-                    ) {
+                    ) && !validation::canonical_place_from_expression_in_state(
+                        self.program,
+                        self.state,
+                        self.statement_index,
+                        expression,
+                    )
+                    .and_then(|place| {
+                        validation::canonical_place_type_reference(
+                            self.program,
+                            self.state,
+                            self.statement_index,
+                            &place,
+                        )
+                    })
+                    .and_then(|reference| {
+                        validation::unwrapped_type_reference(self.program, reference)
+                    })
+                    .is_some_and(|reference| {
+                        matches!(
+                            self.program.type_reference_table.type_reference(reference),
+                            TypeReferenceNode::FixedArray { .. }
+                        )
+                    }) {
                         return None;
                     }
                     (expression, expected)

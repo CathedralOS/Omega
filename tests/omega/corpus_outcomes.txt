@@ -5198,3 +5198,6 @@ fail/operators/result_domain_operator_family_wrong_signature rejected 4710ms exp
 pass/operators/result_domain_operator_family_conversion_exit checked 74681ms check-target:macos_arm64 @ad018194f55c
 pass/structural/computed_enum_case_guard_effects_exit checked 5286ms check-target:macos_arm64 @ad018194f55c
 pass/structural/computed_enum_equality_guard_exit checked 5285ms check-target:macos_arm64 @ad018194f55c
+fail/borrows/fixed_array_slice_state_immutable_rejected rejected 634ms expected @bfff43e67094+wt
+	mutable argument `values` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
+pass/slices/fixed_array_slice_state_arguments_exit checked 9720ms check-target:macos_arm64 @bfff43e67094+wt
