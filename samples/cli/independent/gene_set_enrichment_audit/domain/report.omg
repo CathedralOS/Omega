@@ -5,33 +5,44 @@ use domain::sets;
 pub machine number(value: u64 in Wrapping) reaches Console
 invokes Console;
 {
-    transition { _ -> scale(value, 1) }
-    state scale(value: u64 in Wrapping, divisor: u64 in Wrapping)
-        requires divisor > 0;
-    {
-        transition value / divisor >= 10 {
-            true -> grow(value, divisor)
-            false -> emit(value, divisor)
+    // The declared model displays values at most 756. Subtraction extracts
+    // its three decimal columns without retaining a division operand over IO.
+    transition { _ -> hundreds(value, 0) }
+    state hundreds(left: u64 in Wrapping, count: u64 in Wrapping) {
+        transition left >= 100 {
+            true -> hundreds(left - 100, count + 1)
+            false -> leading(left, count)
         }
     }
-    state grow(value: u64 in Wrapping, divisor: u64 in Wrapping) {
-        let next: u64 in Wrapping = divisor * 10;
-        transition next > 0 {
-            true -> scale(value, next)
-            false -> done()
+    state leading(left: u64 in Wrapping, count: u64 in Wrapping) {
+        transition count > 0 {
+            true -> high(left, count)
+            false -> tens(left, 0, false)
         }
     }
-    state emit(value: u64 in Wrapping, divisor: u64 in Wrapping)
-        requires divisor > 0;
-    {
-        Console::write_byte(((value / divisor) % 10 + 48) as i32);
-        let next: u64 in Wrapping = divisor / 10;
-        transition next > 0 {
-            true -> emit(value, next)
-            false -> done()
+    state high(left: u64 in Wrapping, count: u64 in Wrapping) {
+        Console::write_byte((count % 10 + 48) as i32);
+        transition { _ -> tens(left, 0, true) }
+    }
+    state tens(left: u64 in Wrapping, count: u64 in Wrapping, high: bool) {
+        transition left >= 10 {
+            true -> tens(left - 10, count + 1, high)
+            false -> middle(left, count, high)
         }
     }
-    state done() { }
+    state middle(left: u64 in Wrapping, count: u64 in Wrapping, high: bool) {
+        transition count > 0 || high {
+            true -> low(left, count)
+            false -> units(left)
+        }
+    }
+    state low(left: u64 in Wrapping, count: u64 in Wrapping) {
+        Console::write_byte((count % 10 + 48) as i32);
+        transition { _ -> units(left) }
+    }
+    state units(left: u64 in Wrapping) {
+        Console::write_byte((left % 10 + 48) as i32);
+    }
 }
 
 pub machine fraction(value: Fraction) reaches Console
