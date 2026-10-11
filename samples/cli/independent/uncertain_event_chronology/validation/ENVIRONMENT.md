@@ -19,3 +19,14 @@ SHA256: f7a2fa493d90f6f0ead59a1dee63d279b8b1fb5dd90012fbfb27e5b22a7cd09f
 Unoptimized preparation runs produced no verdict and were terminated by the
 executor after 20m18s and 14m23s respectively; logs preserved, not treated as
 compiler rejection or acceptance. Final source has explicit helper preconditions.
+
+Current-main reproduction: source base 07a2339d78 (fetched origin/main),
+optimized compiler rebuilt serially in 6m47s, exit 0. Binary SHA256:
+96dc2f7448914fa9ef573a218056c4bb501ab441961f632919d15d65a08441aa
+The original complete source fails package preparation in 214.568 seconds:
+Main::main has no executable body; guarded jump successors: loan transfer,
+source-unit 0 bytes 541..543. The same diagnostic occurred on the original
+7192503 base. Neither is package rejection or approval denial.
+Application storage subsequently authored with private named scratch records
+and an application-owned input buffer; algorithm and frozen oracles unchanged.
+No compiler changes or weakened admission/custody/proof checks.

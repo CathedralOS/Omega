@@ -7,19 +7,19 @@ use chronology::model;
 use chronology::solver;
 use chronology::input;
 
-data Main { console: Binding<Console>; }
+// The application owns the input backing across the blocking provider call.
+data Main { console: Binding<Console>; bytes: [u8; 32]; }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let mut bytes: [u8; 32];
-    let read: LineReadResult = block main.console.read_line(&mut bytes);
+    let read: LineReadResult = block main.console.read_line(&mut main.bytes);
     transition read {
-        LineReadResult::LineComplete { count } -> input(main, &bytes, count)
-        LineReadResult::EndOfInput { count } -> input(main, &bytes, count)
+        LineReadResult::LineComplete { count } -> input(main, count)
+        LineReadResult::EndOfInput { count } -> input(main, count)
         _ -> invalid(main)
     }
-    state input(main: &mut Main, bytes: &[u8; 32], count: u64) {
+    state input(main: &mut Main, count: u64) {
         let mut model: Chronology;
-        let valid: bool = parse(bytes, count, &mut model);
+        let valid: bool = parse(&main.bytes, count, &mut model);
         transition valid {
             true -> solve(main, &mut model)
             false -> invalid(main)

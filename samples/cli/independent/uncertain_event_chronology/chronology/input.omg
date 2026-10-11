@@ -1,23 +1,25 @@
 use chronology::model;
+// A private scratch record owns the decoded wire digits across parser states.
+data Digits { values: [i32; 19]; }
 pub machine parse(bytes: &[u8; 32], count: u64, model: &mut Chronology) -> bool {
-    let mut digits: [i32; 19];
+    let mut digits: Digits;
     transition count == 19 || count == 20 {
         true -> ending(bytes, count, model, &mut digits)
         false -> false
     }
-    state ending(bytes: &[u8; 32], count: u64, model: &mut Chronology, digits: &mut [i32; 19]) -> bool {
+    state ending(bytes: &[u8; 32], count: u64, model: &mut Chronology, digits: &mut Digits) -> bool {
         transition count == 19 || bytes[19] == 10 {
             true -> digit(bytes, model, digits, 0)
             false -> false
         }
     }
-    state digit(bytes: &[u8; 32], model: &mut Chronology, digits: &mut [i32; 19], index: i32 in Wrapping) -> bool {
+    state digit(bytes: &[u8; 32], model: &mut Chronology, digits: &mut Digits, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 19 {
             true -> read(bytes, model, digits, index)
             false -> intervals(model, digits)
         }
     }
-    state read(bytes: &[u8; 32], model: &mut Chronology, digits: &mut [i32; 19], index: i32 in Wrapping) -> bool
+    state read(bytes: &[u8; 32], model: &mut Chronology, digits: &mut Digits, index: i32 in Wrapping) -> bool
     requires index >= 0
     requires index < 19
     {
@@ -27,23 +29,23 @@ pub machine parse(bytes: &[u8; 32], count: u64, model: &mut Chronology) -> bool 
             false -> false
         }
     }
-    state store(bytes: &[u8; 32], model: &mut Chronology, digits: &mut [i32; 19], index: i32 in Wrapping, byte: u8) -> bool
+    state store(bytes: &[u8; 32], model: &mut Chronology, digits: &mut Digits, index: i32 in Wrapping, byte: u8) -> bool
     requires index >= 0
     requires index < 19
     {
         let value: i32 in Wrapping = byte as i32 in Wrapping;
-        digits[index] = (value - 48) as i32;
+        digits.values[index] = (value - 48) as i32;
         transition { _ -> digit(bytes, model, digits, index + 1) }
     }
-    state intervals(model: &mut Chronology, digits: &[i32; 19]) -> bool {
-        model.lower = [digits[0],digits[2],digits[4]];
-        model.upper = [digits[1],digits[3],digits[5]];
-        model.source = [digits[7],digits[10],digits[13],digits[16]];
-        model.destination = [digits[8],digits[11],digits[14],digits[17]];
-        model.lag = [digits[9],digits[12],digits[15],digits[18]];
+    state intervals(model: &mut Chronology, digits: &Digits) -> bool {
+        model.lower = [digits.values[0],digits.values[2],digits.values[4]];
+        model.upper = [digits.values[1],digits.values[3],digits.values[5]];
+        model.source = [digits.values[7],digits.values[10],digits.values[13],digits.values[16]];
+        model.destination = [digits.values[8],digits.values[11],digits.values[14],digits.values[17]];
+        model.lag = [digits.values[9],digits.values[12],digits.values[15],digits.values[18]];
         model.enabled = [0,0,0,0];
-        transition digits[0] <= digits[1] && digits[2] <= digits[3] && digits[4] <= digits[5] && digits[6] <= 4 {
-            true -> edge(model, digits[6] as i32 in Wrapping, 0)
+        transition digits.values[0] <= digits.values[1] && digits.values[2] <= digits.values[3] && digits.values[4] <= digits.values[5] && digits.values[6] <= 4 {
+            true -> edge(model, digits.values[6] as i32 in Wrapping, 0)
             false -> false
         }
     }
