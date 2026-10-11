@@ -460,6 +460,32 @@ fn borrowed_references_are_not_results() {
 }
 
 #[test]
+fn parameter_transport_preserves_pointer_locations_and_value_categories() {
+    let plan = |shape| {
+        evaluate_call_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: vec![shape; 9],
+                result: None,
+            },
+        )
+        .expect("parameter placement")
+    };
+    let borrowed = plan(ValueShape::borrowed_reference(16, 8));
+    let pointers = plan(ValueShape::integer(8, 8));
+    for (internal, boundary) in borrowed.parameters.iter().zip(&pointers.parameters) {
+        assert!(internal.has_same_parameter_transport(boundary));
+    }
+    assert!(!borrowed.parameters[0].has_same_parameter_transport(&pointers.parameters[1]));
+    assert!(!borrowed.parameters[7].has_same_parameter_transport(&pointers.parameters[8]));
+    let owned = plan(ValueShape::integer(24, 8));
+    assert!(!owned.parameters[0].has_same_parameter_transport(&pointers.parameters[0]));
+    let scalar_loan = plan(ValueShape::borrowed_scalar_reference());
+    assert!(!scalar_loan.parameters[0].has_same_parameter_transport(&pointers.parameters[0]));
+    assert!(owned.parameters[0].has_same_parameter_transport(&owned.parameters[0]));
+}
+
+#[test]
 fn overflowing_owned_stack_extents_reject_without_fragment_expansion() {
     for policy in [
         CallingPolicy::SystemVAMD64,

@@ -356,6 +356,64 @@ pub struct ValuePlacement {
 }
 
 impl ValuePlacement {
+    /// Compare an internal parameter's physical transport with a boundary's.
+    /// Borrowed aggregate shapes measure the referent and use an indirect
+    /// location, while a foreign signature describes the thin pointer word.
+    /// The two carry the same address only at the exact same register or stack
+    /// location, with no value copy. Owned indirect aggregates and internal
+    /// scalar-loan descriptors are not thin borrowed pointers. This comparison
+    /// establishes transport only; the admitted signature owns referent custody.
+    pub fn has_same_parameter_transport(&self, boundary: &Self) -> bool {
+        if self == boundary {
+            return true;
+        }
+        if self.shape.class != ValueClass::BorrowedReference
+            || boundary.shape != ValueShape::integer(8, 8)
+        {
+            return false;
+        }
+        match (self.locations.as_slice(), boundary.locations.as_slice()) {
+            (
+                [
+                    ValueLocation::Indirect {
+                        pointer: IndirectPointerLocation::Register(internal),
+                        copy_stack_byte_offset: None,
+                        ..
+                    },
+                ],
+                [
+                    ValueLocation::Register {
+                        register: external,
+                        value_byte_offset: 0,
+                        byte_size: 8,
+                    },
+                ],
+            ) => internal == external,
+            (
+                [
+                    ValueLocation::Indirect {
+                        pointer:
+                            IndirectPointerLocation::Stack {
+                                stack_byte_offset: internal,
+                                alignment: internal_alignment,
+                            },
+                        copy_stack_byte_offset: None,
+                        ..
+                    },
+                ],
+                [
+                    ValueLocation::Stack {
+                        stack_byte_offset: external,
+                        value_byte_offset: 0,
+                        byte_size: 8,
+                        alignment: external_alignment,
+                    },
+                ],
+            ) => internal == external && internal_alignment == external_alignment,
+            _ => false,
+        }
+    }
+
     /// The byte width carried by the placement when it is exactly one
     /// register or stack word starting at value offset zero.
     pub fn single_word_byte_size(&self) -> Option<u32> {

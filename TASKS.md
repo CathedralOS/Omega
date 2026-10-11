@@ -4429,15 +4429,21 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `pass/capabilities/callback_direct_install_compile` uses a nonexistent import
   and is not execution acceptance.
 
-  Entry admission still requires the body's scalar ABI to equal the selected
-  inbound plan. Complete general structural entry transport through the
-  ordinary selected-call ABI machinery. Hosted stack composition conservatively
+  Entry admission consumes the ordinary graph's complete ABI, including
+  borrowed-record pointers, and requires the same ordered physical transport
+  as the selected inbound plan. Preserve `pass/calls/callback_borrowed_record_entry`:
+  after package review, `omega run` must sort two complete records through real
+  macOS Arm64 `qsort`, retain their associated stamps and exit 0.
+  Complete inbound recipes that differ from the internal convention through
+  ordinary selected-call bridges, including scalar-loan descriptors and mixed
+  semantic parameter ordering; equal pointer widths cannot establish those
+  mappings. Hosted stack composition conservatively
   includes every supplied callback; retain declared synchronous reach to
   distinguish future-only reference cycles from same-stack invocation cycles.
   Preserve resultless transport with `calls/resultless_native_callback_compile`
   (a genuine Linux `pthread_once` import) and the runnable
   `calls/resultless_scalar_parameters`. Neither substitutes for Windows
-  invocation or structural argument transport.
+  invocation or the remaining inbound bridges.
 
   Acceptance: `pass/calls/callback_private_materialization` uses a genuine
   Windows x64 host registration provider and executes a callback with a general

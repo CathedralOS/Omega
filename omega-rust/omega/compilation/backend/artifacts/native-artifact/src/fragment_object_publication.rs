@@ -41,6 +41,34 @@ impl FragmentObjectProjection {
     pub fn object(&self) -> &image_emission::ObjectArtifact {
         &self.object
     }
+
+    /// Borrow the entry transport that ordinary instruction selection consumed.
+    /// Scalar and mixed ABI summaries describe subsets of signatures; the
+    /// retained control graph carries the complete plan, including borrowed
+    /// referents, owned aggregates and resultless entries. Reading it does not
+    /// reconstruct or replay a plan after emission.
+    pub fn entry_call_plan(&self) -> Result<&calling_conventions::CallPlan, Vec<Diagnostic>> {
+        let targeted = self
+            .source
+            .source()
+            .source()
+            .source()
+            .source()
+            .optimized_target()
+            .target_operations();
+        targeted
+            .functions
+            .iter()
+            .find(|function| function.machine == self.object.entry())
+            .map(|function| &function.graph.call_plan)
+            .ok_or_else(|| {
+                crate::native_artifact_error(
+                    "entry transport",
+                    "emitted entry has no retained target function",
+                )
+            })
+    }
+
     pub fn into_object(self) -> image_emission::ObjectArtifact {
         self.object
     }

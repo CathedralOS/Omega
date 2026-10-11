@@ -117,29 +117,28 @@ fn lower_callback_thunk(
     let physical =
         crate::physical_pipeline::stage_optimized_verified_physical_pipeline(optimized_target)
             .map_err(|error| realization_error("callback thunk physical pipeline", error))?;
-    let object = native_artifact::emit_fragment_object(physical)?.into_object();
-    let emitted_signature = object
-        .function_on_machine(object.entry())
-        .and_then(|function| function.scalar_abi.as_ref())
-        .ok_or_else(|| {
-            realization_error(
-                "callback entry ABI",
-                "callback body has no scalar entry transport",
-            )
-        })?;
+    let projection = native_artifact::emit_fragment_object(physical)?;
+    let emitted = projection.entry_call_plan()?;
     let declared = &settlement.boundary_entry_plan.call;
-    if emitted_signature.call_plan.policy != declared.policy
-        || emitted_signature.parameters.len() != declared.parameters.len()
-        || emitted_signature
+    // Ordinary lowering already transports every parameter and result through
+    // this graph plan, not only the signatures with scalar ABI summaries.
+    // Direct installation needs identical physical transport; a different
+    // inbound recipe still needs an actual bridge and must not be relabeled.
+    // The internal convention's conservative volatile bank is not an emitted
+    // state footprint, so equality of clobber summaries would prove nothing
+    // about the implementation's separately governed state commitment.
+    if emitted.policy != declared.policy
+        || emitted.parameters.len() != declared.parameters.len()
+        || emitted
             .parameters
             .iter()
             .zip(&declared.parameters)
-            .any(|(emitted, declared)| emitted.placement != *declared)
-        || declared.result.as_ref()
-            != emitted_signature
-                .result
-                .as_ref()
-                .map(|result| &result.placement)
+            .any(|(internal, boundary)| !internal.has_same_parameter_transport(boundary))
+        || emitted.result != declared.result
+        || emitted.callback_materializations != declared.callback_materializations
+        || emitted.stack_alignment != declared.stack_alignment
+        || emitted.shadow_bytes != declared.shadow_bytes
+        || emitted.entry_control != declared.entry_control
     {
         return Err(realization_error(
             "callback entry ABI",
@@ -148,6 +147,6 @@ fn lower_callback_thunk(
     }
     Ok(PrivateFunctionObject {
         identity: settlement.callback_function,
-        body: std::sync::Arc::new(object),
+        body: std::sync::Arc::new(projection.into_object()),
     })
 }
