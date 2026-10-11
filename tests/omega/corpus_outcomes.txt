@@ -3994,6 +3994,7 @@ pass/host/runtime_descriptor_record_array_input_exit checked 15530ms check-targe
 pass/host/runtime_descriptor_record_loan_input_exit checked 19683ms check-target:macos_arm64 @198156d53e16
 pass/host/runtime_descriptor_reference_record_prefix_exit checked 13685ms check-target:macos_arm64 @dd8ff52ae8bf
 pass/host/runtime_descriptor_scalar_input_exit checked 12541ms check-target:macos_arm64 @d4c9839eb53d+wt
+pass/host/runtime_fixed_arithmetic_across_console_exit checked 8334ms check-target:macos_arm64 @d0ac3bbe218a+wt
 pass/host/runtime_foreign_scalar_loan_writeback_exit checked 1521ms check-target:windows_x86_64 @eecd0b2d2baf+wt
 pass/host/runtime_gui_foreground_window_exit rejected 1982ms check-target:macos_arm64 @c47f8652484
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`

@@ -671,6 +671,7 @@ pass/host/process_exit_i32_status_mapped built 684ms @2d8ed253669f+wt
 pass/host/process_exit_i32_status_ordered built 1139ms @2d8ed253669f+wt
 pass/host/runtime_console_bounded_line_exit built 2114ms exit:20 @2d8ed253669f+wt
 pass/host/runtime_console_byte_echo_exit built 858ms exit:70 @2d8ed253669f+wt
+pass/host/runtime_fixed_arithmetic_across_console_exit built 8355ms exit:0 stdout:match stderr:match @d0ac3bbe218a+wt
 pass/host/runtime_gui_foreground_window_exit rejected 816ms @2d8ed253669f+wt
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/runtime_gui_window_lifecycle_exit rejected 866ms @2d8ed253669f+wt
