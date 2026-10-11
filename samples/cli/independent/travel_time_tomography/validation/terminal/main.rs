@@ -85,6 +85,8 @@ fn validate(sample: &Path, output: &Path) -> Result<(), String> {
             .ok_or("non-UTF8 fixture name")?;
         let input = std::fs::read(&fixture).map_err(|error| error.to_string())?;
         let observation = compiler::runtime::execute(TerminalRuntimeRequest {
+            // Match the CLI: use the native report's retained installation.
+            provider_proposal: None,
             artifact,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
