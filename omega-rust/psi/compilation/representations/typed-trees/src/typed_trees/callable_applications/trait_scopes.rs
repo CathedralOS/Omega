@@ -61,37 +61,7 @@ impl TypedTrees {
     /// An application owns logical contracts, not executable realizations;
     /// constructing this row confers no conformance or proof authority.
     pub fn prepare_applied_callable_signatures(&mut self) -> Result<(), &'static str> {
-        let program = &*self;
-        let roots =
-            self.machines()
-                .iter()
-                .flat_map(|machine| {
-                    self.machine_trait_conformances(machine)
-                        .iter()
-                        .filter_map(move |edge| {
-                            AppliedTraitScope::from_machine_conformance(program, machine, edge)
-                        })
-                })
-                .chain(
-                    self.conformances()
-                        .iter()
-                        .filter_map(|edge| AppliedTraitScope::from_conformance(self, edge)),
-                )
-                .chain(
-                    self.traits()
-                        .iter()
-                        .filter(|declaration| declaration.type_parameters.is_empty())
-                        .map(AppliedTraitScope::abstract_scope),
-                )
-                .chain(self.type_reference_table.type_reference_rows().filter_map(
-                    |(reference, _)| {
-                        crate::service::classify_exact_bound_service_carrier(self, reference)
-                            .ok()
-                            .flatten()
-                            .and_then(|carrier| carrier.application(self))
-                    },
-                ))
-                .collect::<Vec<_>>();
+        let roots = self.applied_trait_roots();
         let mut pending = Vec::new();
         for scope in roots {
             scope.visit(self, &mut |scope| {
@@ -164,12 +134,10 @@ impl TypedTrees {
         trait_symbol: SymbolHandle,
         substitutions: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
         scope_starts: &[usize],
+        argument_owner: SymbolHandle,
     ) -> Result<Vec<crate::types::TypeReferenceHandle>, &'static str> {
-        let application = self.materialize_trait_application(
-            substitutions,
-            scope_starts,
-            SymbolHandle::invalid(),
-        )?;
+        let application =
+            self.materialize_trait_application(substitutions, scope_starts, argument_owner)?;
         self.trait_application_arguments(trait_symbol, &application)
     }
 

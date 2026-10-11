@@ -25,6 +25,7 @@ pub(crate) fn instantiate_boundary_requirement_families(
                 owner,
                 &demand.substitutions,
                 &demand.scope_starts,
+                demand.argument_owner,
             )
             .map_err(|message| vec![Diagnostic::error(message)])?;
         if program
@@ -81,7 +82,11 @@ pub(crate) fn instantiate_boundary_requirement_families(
             let source = program
                 .expression_table
                 .static_machine_application_mut(application);
-            source.lexical_owner = requirement;
+            source.lexical_owner = if demand.argument_owner.is_valid() {
+                demand.argument_owner
+            } else {
+                requirement
+            };
             source.binding_declaration = requirement;
             program
                 .expression_table

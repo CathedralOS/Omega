@@ -16,6 +16,47 @@ use symbols::SymbolHandle;
 mod regions;
 use regions::AppliedTraitRegionScope;
 
+impl TypedTrees {
+    /// Source-owned application roots shared by logical signature preparation
+    /// and executable requirement preparation. Keeping the complete supplying
+    /// scope prevents either consumer from rebuilding an application from an
+    /// erased trait symbol and losing named-map or machine-region custody.
+    /// This inventory does not select a provider or admit an open application.
+    pub fn applied_trait_roots(&self) -> Vec<AppliedTraitScope<'_>> {
+        self.machines()
+            .iter()
+            .flat_map(|machine| {
+                self.machine_trait_conformances(machine)
+                    .iter()
+                    .filter_map(move |edge| {
+                        AppliedTraitScope::from_machine_conformance(self, machine, edge)
+                    })
+            })
+            .chain(
+                self.conformances()
+                    .iter()
+                    .filter_map(|edge| AppliedTraitScope::from_conformance(self, edge)),
+            )
+            .chain(
+                self.traits()
+                    .iter()
+                    .filter(|declaration| self.trait_type_parameters(declaration).is_empty())
+                    .map(AppliedTraitScope::abstract_scope),
+            )
+            .chain(
+                self.type_reference_table
+                    .type_reference_rows()
+                    .filter_map(|(reference, _)| {
+                        crate::service::classify_exact_bound_service_carrier(self, reference)
+                            .ok()
+                            .flatten()
+                            .and_then(|carrier| carrier.application(self))
+                    }),
+            )
+            .collect()
+    }
+}
+
 /// The supplying declaration owns every actual, including regions nested in
 /// type arguments. A runtime carrier or a trait declaration cannot supply this
 /// custody on behalf of the application site.
