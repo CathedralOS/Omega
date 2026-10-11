@@ -1,0 +1,12 @@
+// `use omega::language::core::slice` imports the slice surface:
+// `.as_slice()` coerces a field array to `&[T]` and `.len` reports the
+// runtime length.
+use omega::language::core::slice;
+
+data Entry { value: i32; }
+data Main { entries: [Entry; 4]; }
+
+machine Main::main(main: &mut Main) -> u64 {
+    let view: &[Entry] = main.entries.as_slice();
+    view.len
+}
