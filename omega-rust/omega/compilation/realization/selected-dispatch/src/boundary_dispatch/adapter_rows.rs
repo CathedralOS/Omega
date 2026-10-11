@@ -4,6 +4,7 @@ use crate::boundary_dispatch::boundary_fields::exact_boundary_trait;
 use crate::boundary_dispatch::signature_families::{FamilyProbe, finite_signature_family};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
+mod closed_trait_applications;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AdapterRow {
@@ -196,6 +197,33 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
 }
 
 pub(crate) fn resolve_selected_adapter_row(
+    typed: &TypedTrees,
+    declarations: &typed_trees::references::DeclarationSelection,
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    specialization_rows: &[effects::SelectedRequirementSpecialization],
+    specialization_identities: &terminal_psi::TerminalIdentityTable,
+) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
+    let rows = resolve_template_adapter_rows(
+        typed,
+        declarations,
+        plan,
+        row,
+        specialization_rows,
+        specialization_identities,
+    )?;
+    closed_trait_applications::project(
+        typed,
+        declarations,
+        plan,
+        row,
+        specialization_rows,
+        specialization_identities,
+        rows,
+    )
+}
+
+fn resolve_template_adapter_rows(
     typed: &TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
     plan: &effects::provider_plan::ProviderPlan,

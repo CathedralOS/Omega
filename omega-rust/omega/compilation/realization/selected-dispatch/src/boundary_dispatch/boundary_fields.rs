@@ -9,6 +9,62 @@ use typed_trees::TypedTrees;
 pub(crate) struct BoundaryField {
     pub(crate) symbol: symbols::SymbolHandle,
     pub(crate) trait_symbol: symbols::SymbolHandle,
+    /// The full source application and one selected whole plan for Binding
+    /// receivers. A plain nominal/top-level receiver carries neither.
+    pub(crate) requirement_reference: typed_trees::types::TypeReferenceHandle,
+    pub(crate) provider_plan_digest: Option<[u8; 32]>,
+}
+
+impl BoundaryField {
+    pub(crate) fn supplies_adapter(self, typed: &TypedTrees, adapter: &AdapterRow) -> bool {
+        self.supplies_requirement(
+            typed,
+            adapter.provider_plan_digest,
+            adapter.receiver_trait,
+            adapter.requirement_symbol,
+        )
+    }
+
+    pub(crate) fn supplies_requirement(
+        self,
+        typed: &TypedTrees,
+        plan_digest: [u8; 32],
+        receiver_trait: symbols::SymbolHandle,
+        requirement: symbols::SymbolHandle,
+    ) -> bool {
+        let Some(plan) = self.provider_plan_digest else {
+            return receiver_trait == self.trait_symbol;
+        };
+        if plan != plan_digest {
+            return false;
+        }
+        let Some(declaration) = typed.trait_definition_by_symbol(self.trait_symbol) else {
+            return false;
+        };
+        let arguments = match typed
+            .type_reference_table
+            .type_reference(self.requirement_reference)
+        {
+            typed_trees::types::TypeReferenceNode::Generic { arguments, .. } => typed
+                .type_reference_table
+                .type_reference_handles(*arguments),
+            _ => &[],
+        };
+        let Some(scope) =
+            typed_trees::trait_definition::AppliedTraitScope::new(typed, declaration, arguments)
+        else {
+            return false;
+        };
+        if typed.closed_requirement_application(requirement).is_some() {
+            return typed.requirement_application_matches_scope(requirement, &scope);
+        }
+        typed
+            .trait_machine_signature(requirement)
+            .is_some_and(|(owner, _)| {
+                typed.trait_type_parameters(owner).is_empty()
+                    && scope.declaring_scope(typed, owner.symbol).is_some()
+            })
+    }
 }
 
 pub(crate) fn exact_boundary_trait<'typed>(
@@ -100,7 +156,7 @@ pub(crate) fn resolve_adapter_call<'adapter>(
     // A prepared static instance still selects its authored requirement row.
     // Its retained source tuple below chooses the exact realization; the fresh
     // signature is an executable coordinate, not a second provider authority.
-    let target_symbol = typed
+    let template = typed
         .closed_requirement_application(target_symbol)
         .map_or(target_symbol, |application| application.template);
     let candidates = fields
@@ -111,7 +167,7 @@ pub(crate) fn resolve_adapter_call<'adapter>(
         candidates
             .iter()
             .copied()
-            .find(|field| field_owns_target(typed, field.trait_symbol, target_symbol))
+            .find(|field| field_owns_target(typed, field.trait_symbol, template))
             .or(candidates.first().copied())
     } else {
         candidates.first().copied()
@@ -122,8 +178,7 @@ pub(crate) fn resolve_adapter_call<'adapter>(
     let matches = adapters
         .iter()
         .filter(|adapter| {
-            adapter.receiver_trait == field.trait_symbol
-                && adapter.requirement_symbol == target_symbol
+            field.supplies_adapter(typed, adapter) && adapter.requirement_symbol == target_symbol
         })
         .collect::<Vec<_>>();
     // A family requirement's rows are tuple-keyed: the call's static machine
@@ -156,8 +211,12 @@ pub(crate) fn resolve_adapter_call<'adapter>(
             // A generic requirement supplies no row: a call to it would
             // silently reach the unbound template at every width.
             if let Some(requirement) = generic_requirements.iter().find(|requirement| {
-                requirement.receiver_trait == field.trait_symbol
-                    && requirement.requirement_symbol == target_symbol
+                field.supplies_requirement(
+                    typed,
+                    requirement.provider_plan_digest,
+                    requirement.receiver_trait,
+                    requirement.requirement_symbol,
+                ) && requirement.requirement_symbol == template
             }) {
                 return Err(Diagnostic::error(format!(
                     "boundary call `{target_name}` selects generic requirement `{}`, which supplies no executable dispatch row: {}",
@@ -167,7 +226,7 @@ pub(crate) fn resolve_adapter_call<'adapter>(
             // The requirement is a declared family with settled rows, but
             // this call's tuple matched none of them.
             if let Some(family) = adapters.iter().find(|adapter| {
-                adapter.receiver_trait == field.trait_symbol
+                field.supplies_adapter(typed, adapter)
                     && adapter.requirement_symbol == target_symbol
                     && !adapter.family_tuple.is_empty()
             }) {
@@ -179,8 +238,7 @@ pub(crate) fn resolve_adapter_call<'adapter>(
             let readable = adapters
                 .iter()
                 .filter(|adapter| {
-                    adapter.receiver_trait == field.trait_symbol
-                        && adapter.requirement == target_name
+                    field.supplies_adapter(typed, adapter) && adapter.requirement == target_name
                 })
                 .count();
             if readable == 0 {
@@ -190,7 +248,7 @@ pub(crate) fn resolve_adapter_call<'adapter>(
                 "boundary call `{}`::`{target_name}` matches {readable} selected checked-adapter rows by display name but not exact target symbol {:?}",
                 adapters
                     .iter()
-                    .find(|adapter| adapter.receiver_trait == field.trait_symbol)
+                    .find(|adapter| field.supplies_adapter(typed, adapter))
                     .map(|adapter| adapter.receiver_trait_name.as_str())
                     .unwrap_or("<unknown>"),
                 target_symbol,

@@ -690,23 +690,21 @@ fn resolved_dynamic_requirement_symbol(
     span: source::SourceSpan,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<symbols::SymbolHandle> {
-    let trait_symbol = receiver_trait_symbol(program, receiver_type)?;
-    let trait_definition = program.trait_definition_by_symbol(trait_symbol)?;
+    let receiver_scope = receiver_trait_scope(program, receiver_type)?;
+    let trait_definition = receiver_scope.declaration;
     let mut matches = Vec::new();
-    collect_dynamic_requirements_named(
-        program,
-        trait_definition,
-        target,
-        &mut Vec::new(),
-        &mut matches,
-    );
+    collect_dynamic_requirements_named(program, &receiver_scope, target, &mut matches);
     // A retained requirement may select an overload in this exact family,
     // but cannot be silently overwritten by an unrelated Binding's member.
-    if retained_target.is_valid()
-        && !matches
-            .iter()
-            .any(|(_, requirement)| requirement.symbol == retained_target)
-    {
+    let retained_application = program.closed_requirement_application(retained_target);
+    let template = retained_application.map_or(retained_target, |application| application.template);
+    let retained_matches = matches.iter().any(|(scope, requirement)| {
+        requirement.symbol == template
+            && retained_application.is_none_or(|application| {
+                program.requirement_application_matches_scope(application.signature.symbol, scope)
+            })
+    });
+    if retained_target.is_valid() && !retained_matches {
         diagnostics.push(
             Diagnostic::error("projected binding call target belongs to a different requirement")
                 .with_source_span(span),
@@ -714,23 +712,32 @@ fn resolved_dynamic_requirement_symbol(
         return None;
     }
     match matches.as_slice() {
-        [(_, requirement)] => Some(requirement.symbol),
+        [(_, requirement)] => Some(if retained_application.is_some() {
+            retained_target
+        } else {
+            requirement.symbol
+        }),
         [] => None,
         many => {
-            let declaring_trait = many[0].0.symbol;
+            let declaring_scope = &many[0].0;
             if many
                 .iter()
-                .all(|(candidate, _)| candidate.symbol == declaring_trait)
+                .all(|(candidate, _)| candidate.same_application(program, declaring_scope))
             {
-                // Same-trait result overloads use the first declaration only
-                // as a provisional family key. Ordinary overload binding selects
-                // the exact result identity after destinations settle.
-                return Some(many[0].1.symbol);
+                // Preserve an already bound member of this exact family.
+                // Initial binding may use the first declaration provisionally;
+                // later receiver elaboration must not erase the result overload
+                // chosen by ordinary destination binding.
+                return Some(if retained_matches {
+                    retained_target
+                } else {
+                    many[0].1.symbol
+                });
             }
             let declarations = many
                 .iter()
-                .map(|(declaring_trait, requirement)| {
-                    format!("{}::{}", declaring_trait.name, requirement.name)
+                .map(|(declaring_scope, requirement)| {
+                    format!("{}::{}", declaring_scope.declaration.name, requirement.name)
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
@@ -743,57 +750,73 @@ fn resolved_dynamic_requirement_symbol(
     }
 }
 
-fn receiver_trait_symbol(
-    program: &dyn crate::CheckingInput,
+pub(crate) fn receiver_trait_scope<'program>(
+    program: &'program dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
-) -> Option<symbols::SymbolHandle> {
-    if let Some(requirement) =
-        typed_trees::service::exact_bound_service_requirement(program, type_reference)
+) -> Option<typed_trees::trait_definition::AppliedTraitScope<'program>> {
+    if let Some(carrier) =
+        typed_trees::service::classify_exact_service_parameter_carrier(program, type_reference)
+            .ok()
+            .flatten()
     {
-        return Some(requirement);
+        return carrier.carrier.application(program);
     }
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => receiver_trait_symbol(program, *referee),
+        TypeReferenceNode::Reference { referee, .. } => receiver_trait_scope(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => {
-            receiver_trait_symbol(program, *base_type)
+            receiver_trait_scope(program, *base_type)
         }
         TypeReferenceNode::Named { symbol, .. }
             if program.trait_definition_by_symbol(*symbol).is_some() =>
         {
-            Some(*symbol)
+            Some(
+                typed_trees::trait_definition::AppliedTraitScope::abstract_scope(
+                    program.trait_definition_by_symbol(*symbol)?,
+                ),
+            )
         }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        }
+        | TypeReferenceNode::DynamicTrait {
+            symbol: base_symbol,
+            arguments,
+            ..
+        } => typed_trees::trait_definition::AppliedTraitScope::new(
+            program,
+            program.trait_definition_by_symbol(*base_symbol)?,
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments),
+        ),
         _ => None,
     }
 }
 
 fn collect_dynamic_requirements_named<'program>(
     program: &'program dyn crate::CheckingInput,
-    trait_definition: &'program TraitDefinition,
+    receiver_scope: &typed_trees::trait_definition::AppliedTraitScope<'program>,
     target: &str,
-    visited: &mut Vec<symbols::SymbolHandle>,
-    matches: &mut Vec<(&'program TraitDefinition, &'program StateSignature)>,
+    matches: &mut Vec<(
+        typed_trees::trait_definition::AppliedTraitScope<'program>,
+        &'program StateSignature,
+    )>,
 ) {
-    if visited.contains(&trait_definition.symbol) {
-        return;
-    }
-    visited.push(trait_definition.symbol);
-
-    for requirement in program
-        .trait_machine_signatures(trait_definition)
-        .iter()
-        .filter(|requirement| requirement.name.as_str() == target)
-    {
-        if !matches
+    // Application paths, not declaring symbols, determine ambiguity. A diamond
+    // may reach one declaration with different phantom arguments.
+    receiver_scope.visit(program, &mut |scope| {
+        for requirement in program
+            .trait_machine_signatures(scope.declaration)
             .iter()
-            .any(|(_, candidate)| candidate.symbol == requirement.symbol)
+            .filter(|requirement| requirement.name.as_str() == target)
         {
-            matches.push((trait_definition, requirement));
+            if !matches.iter().any(|(known, candidate)| {
+                candidate.symbol == requirement.symbol && known.same_application(program, scope)
+            }) {
+                matches.push((scope.clone(), requirement));
+            }
         }
-    }
-    for parent in program.trait_requirements(trait_definition) {
-        let Some(parent_trait) = program.trait_definition_by_symbol(parent.symbol) else {
-            continue;
-        };
-        collect_dynamic_requirements_named(program, parent_trait, target, visited, matches);
-    }
+    });
 }

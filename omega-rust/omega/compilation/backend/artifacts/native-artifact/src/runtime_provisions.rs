@@ -86,7 +86,9 @@ impl TerminalRuntimeProvisions {
             if matching.next().is_some()
                 || !selected.selected_row_matches_requirement(
                     identities.text(boundary.identity).unwrap_or_default(),
-                    binding.requirement_identity(selected.identities()).unwrap_or_default(),
+                    binding
+                        .requirement_identity(selected.identities())
+                        .unwrap_or_default(),
                     binding.provider_plan_report_identity(),
                 )
             {
@@ -109,7 +111,6 @@ impl TerminalRuntimeProvisions {
         for establishment in fused_services {
             let mut matching_plans = selected.plans().iter().filter(|plan| {
                 plan.identity_digest() == establishment.selected_provider_plan_digest()
-                    && plan.schema.identity_digest() == establishment.service_schema_digest()
             });
             let plan = matching_plans
                 .next()
@@ -117,15 +118,20 @@ impl TerminalRuntimeProvisions {
             if matching_plans.next().is_some() {
                 return Err("runtime Fused establishment repeats its exact admitted plan/schema");
             }
+            let receiver = plan
+                .schema
+                .receiver_applications
+                .get(establishment.receiver_application_index())
+                .ok_or("runtime Fused establishment lost its admitted receiver view")?;
             // The native admission already authenticated these identities and
             // contracts. Capture the existing coordinate relation before that
             // admission is consumed; do not reconstruct semantics or authority.
             let mut slots = Vec::new();
             for boundary in boundaries {
-                if plan.schema.methods.iter().any(|method| {
+                if receiver.requirement_identities.iter().any(|requirement| {
                     selected.selected_row_matches_requirement(
                         identities.text(boundary.identity).unwrap_or_default(),
-                        plan.schema.identity_text(method.requirement_identity),
+                        plan.schema.identity_text(*requirement),
                         plan.report_fingerprint(),
                     )
                 }) {

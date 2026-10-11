@@ -434,6 +434,9 @@ pub(super) fn build(
     phase("call operation: boundary telescope");
     if let BoundaryRequirement::Trait { definition, .. } = requirement
         && !program.trait_type_parameters(definition).is_empty()
+        && !program
+            .closed_requirement_application(target)
+            .is_some_and(|application| application.declaring_trait == definition.symbol)
     {
         return None;
     }

@@ -248,10 +248,23 @@ pub(crate) fn build_static_boundary_requirements(
     shapes: &mut ShapeCollector<'_>,
 ) -> Vec<CheckedBoundaryMachinePlan> {
     let mut plans = Vec::new();
-    for definition in program.traits().iter().filter(|definition| {
-        definition.is_boundary && program.trait_type_parameters(definition).is_empty()
-    }) {
+    for definition in program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+    {
         for signature in program.trait_machine_instances(definition) {
+            // The declaration's outer telescope remains authored and open.
+            // Prepared instances retain its exact application and substituted
+            // formals; publish those instances without admitting the open head
+            // or inferring arguments from a selected provider's ABI.
+            if !program.trait_type_parameters(definition).is_empty()
+                && !program
+                    .closed_requirement_application(signature.symbol)
+                    .is_some_and(|application| application.declaring_trait == definition.symbol)
+            {
+                continue;
+            }
             let type_parameters = program.state_signature_type_parameters(signature);
             // A `machine` binder without an ABI `native callback` entry takes
             // its destination from a target-owned private slot. Psi retains

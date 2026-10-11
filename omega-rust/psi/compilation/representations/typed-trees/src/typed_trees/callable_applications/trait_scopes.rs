@@ -42,41 +42,57 @@ impl TypedTrees {
     /// An application owns logical contracts, not executable realizations;
     /// constructing this row confers no conformance or proof authority.
     pub fn prepare_applied_callable_signatures(&mut self) -> Result<(), &'static str> {
-        let roots = self
-            .machines()
-            .iter()
-            .flat_map(|machine| self.machine_trait_conformances(machine))
-            .map(|edge| (edge.symbol, edge.arguments))
-            .chain(
-                self.conformances()
-                    .iter()
-                    .map(|edge| (edge.trait_symbol, edge.arguments)),
-            )
-            .chain(
-                self.traits()
-                    .iter()
-                    .filter(|declaration| declaration.type_parameters.is_empty())
-                    .map(|declaration| (declaration.symbol, arena::HandleSpan::empty())),
-            )
-            .collect::<Vec<_>>();
+        let roots =
+            self.machines()
+                .iter()
+                .flat_map(|machine| self.machine_trait_conformances(machine))
+                .map(|edge| {
+                    (
+                        edge.symbol,
+                        self.type_reference_table
+                            .type_reference_handles(edge.arguments)
+                            .to_vec(),
+                    )
+                })
+                .chain(self.conformances().iter().map(|edge| {
+                    (
+                        edge.trait_symbol,
+                        self.type_reference_table
+                            .type_reference_handles(edge.arguments)
+                            .to_vec(),
+                    )
+                }))
+                .chain(
+                    self.traits()
+                        .iter()
+                        .filter(|declaration| declaration.type_parameters.is_empty())
+                        .map(|declaration| (declaration.symbol, Vec::new())),
+                )
+                .chain(self.type_reference_table.type_reference_rows().filter_map(
+                    |(reference, _)| {
+                        crate::service::classify_exact_bound_service_carrier(self, reference)
+                            .ok()
+                            .flatten()
+                            .map(|carrier| (carrier.requirement, carrier.arguments(self).to_vec()))
+                    },
+                ))
+                .collect::<Vec<_>>();
         let mut pending = Vec::new();
         for (trait_symbol, arguments) in roots {
             let Some(declaration) = self.trait_definition_by_symbol(trait_symbol) else {
                 continue;
             };
-            let Some(scope) = AppliedTraitScope::new(
-                self,
-                declaration,
-                self.type_reference_table.type_reference_handles(arguments),
-            ) else {
+            let Some(scope) = AppliedTraitScope::new(self, declaration, &arguments) else {
                 continue;
             };
             scope.visit(self, &mut |scope| {
                 for signature in self.trait_machine_signatures(scope.declaration) {
-                    // A signature without local binders needs no cloned
-                    // telescope. Existing scoped judgments already apply its
-                    // ordinary parameters, result and contracts read-only.
-                    if signature.type_parameters.is_empty() {
+                    // A completely monomorphic declaration needs no view.
+                    // Outer arguments still substitute contracts when the
+                    // requirement has no local binders, including phantom ones.
+                    if signature.type_parameters.is_empty()
+                        && scope.declaration.type_parameters.is_empty()
+                    {
                         continue;
                     }
                     pending.push((
@@ -103,41 +119,11 @@ impl TypedTrees {
             {
                 continue;
             }
-            let mut application = CallableApplication::default();
-            for (ordinal, start) in starts.iter().copied().enumerate() {
-                let end = starts
-                    .get(ordinal + 1)
-                    .copied()
-                    .unwrap_or(substitutions.len());
-                let group = substitutions[start..end]
-                    .iter()
-                    .map(|(parameter, argument)| {
-                        Ok((*parameter, application.type_reference(self, *argument)?))
-                    })
-                    .collect::<Result<Vec<_>, &'static str>>()?;
-                application.types.extend(group);
-            }
-            let parameters = self
-                .trait_definition_by_symbol(trait_symbol)
-                .map(|declaration| {
-                    self.trait_type_parameters(declaration)
-                        .iter()
-                        .map(|parameter| parameter.symbol)
-                        .collect::<Vec<_>>()
-                })
-                .ok_or("applied callable lost its declaring trait")?;
-            let arguments = parameters
-                .into_iter()
-                .map(|symbol| {
-                    application
-                        .types
-                        .iter()
-                        .rev()
-                        .find(|(parameter, _)| *parameter == symbol)
-                        .map(|(_, argument)| *argument)
-                        .ok_or("applied callable lost a trait argument")
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let arguments = self.materialize_trait_application_arguments(
+                trait_symbol,
+                &substitutions,
+                &starts,
+            )?;
             let Some(applied) = CallableApplication::default().nominal(
                 self,
                 trait_symbol,
@@ -160,5 +146,52 @@ impl TypedTrees {
                 });
         }
         Ok(())
+    }
+
+    /// Materialize each simultaneous telescope in its outer scopes. This shared
+    /// derivation serves symbolic checking views and closed executable instances;
+    /// it does not infer missing operands from a provider or runtime carrier.
+    pub fn materialize_trait_application_arguments(
+        &mut self,
+        trait_symbol: SymbolHandle,
+        substitutions: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
+        scope_starts: &[usize],
+    ) -> Result<Vec<crate::types::TypeReferenceHandle>, &'static str> {
+        let mut application = CallableApplication::default();
+        for (ordinal, start) in scope_starts.iter().copied().enumerate() {
+            let end = scope_starts
+                .get(ordinal + 1)
+                .copied()
+                .unwrap_or(substitutions.len());
+            let group = substitutions[start..end]
+                .iter()
+                .map(|(parameter, argument)| {
+                    Ok((*parameter, application.type_reference(self, *argument)?))
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            application.types.extend(group);
+        }
+        let parameters = self
+            .trait_definition_by_symbol(trait_symbol)
+            .map(|declaration| {
+                self.trait_type_parameters(declaration)
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .collect::<Vec<_>>()
+            })
+            .ok_or("applied callable lost its declaring trait")?;
+        let arguments = parameters
+            .into_iter()
+            .map(|symbol| {
+                application
+                    .types
+                    .iter()
+                    .rev()
+                    .find(|(parameter, _)| *parameter == symbol)
+                    .map(|(_, argument)| *argument)
+                    .ok_or("applied callable lost a trait argument")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(arguments)
     }
 }

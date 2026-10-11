@@ -31,6 +31,13 @@ pub(super) fn append(
                     .is_some_and(|(owner, signature)| {
                         checked.trait_requirement_callable_identity_text(owner, signature)
                             == plan.identities.text(row.requirement_identity)
+                            && crate::service_schema::from_typed_instance(
+                                context,
+                                &[],
+                                owner,
+                                application.trait_arguments,
+                            )
+                            .is_some_and(|demand| plan.schema.supplies_receiver_schema(&demand))
                     })
             })
             .collect::<Vec<_>>();
@@ -53,13 +60,11 @@ pub(super) fn append(
                 .filter(|fact| {
                     fact.template == application.template
                         && fact.closed_requirement == application.signature.symbol
-                        && checked
-                            .requirement_realization_specialization(
-                                fact.closed_requirement,
-                                provider.symbol,
-                                fact.provider,
-                            )
-                            .is_some()
+                        && checked.requirement_realization_matches(
+                            fact.closed_requirement,
+                            provider.symbol,
+                            fact.provider,
+                        )
                 })
                 .collect::<Vec<_>>();
             let [fact] = matches.as_slice() else {

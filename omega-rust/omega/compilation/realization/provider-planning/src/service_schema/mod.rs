@@ -44,7 +44,7 @@ pub fn from_typed(
 /// Reify one concrete boundary application. Canonical argument identities pin
 /// its receiver views, including phantom arguments; source spellings do not.
 /// Evaluated calling-plan commitments remain separate realization evidence.
-pub(crate) fn from_typed_instance(
+pub fn from_typed_instance(
     context: ProviderPlanningContext<'_>,
     calling_plans: &[BoundaryCallingPlanRealization],
     trait_definition: &typed_trees::trait_definition::TraitDefinition,

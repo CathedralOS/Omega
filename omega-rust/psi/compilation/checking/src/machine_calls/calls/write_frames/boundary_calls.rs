@@ -339,15 +339,30 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         }
         _ => return None,
     };
-    if !trait_definition.is_boundary
-        || (binders != SignatureBinders::ArgumentPinnedTypes
-            && !trait_definition.type_parameters.is_empty())
+    if !trait_definition.is_boundary {
+        return None;
+    }
+    let receiver_scope = if has_runtime_receiver {
+        crate::declarations::traits::receiver_trait_scope(program, receiver_reference)?
+    } else {
+        typed_trees::trait_definition::AppliedTraitScope::abstract_scope(trait_definition)
+    };
+    let template = program
+        .closed_requirement_application(target_symbol)
+        .map_or(target_symbol, |application| application.template);
+    let (trait_definition, _) = program.trait_machine_signature(template)?;
+    receiver_scope.declaring_scope(program, trait_definition.symbol)?;
+    if program
+        .closed_requirement_application(target_symbol)
+        .is_some()
+        && !program.requirement_application_matches_scope(target_symbol, &receiver_scope)
     {
         return None;
     }
     let bindings = super::type_instantiation::trait_receiver_type_bindings(
         program,
         trait_definition,
+        target_symbol,
         receiver_reference,
     )?;
     let mut signatures = program
@@ -359,6 +374,26 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         return None;
     }
     let signature = program.trait_machine_signature_by_symbol(trait_definition, target_symbol)?;
+    if !trait_definition.type_parameters.is_empty()
+        && !program
+            .closed_requirement_application(signature.symbol)
+            .is_some_and(|application| {
+                typed_trees::service::classify_exact_service_parameter_carrier(
+                    program,
+                    receiver_reference,
+                )
+                .ok()
+                .flatten()
+                .and_then(|carrier| carrier.carrier.application(program))
+                .is_some_and(|scope| {
+                    program
+                        .requirement_application_matches_scope(application.signature.symbol, &scope)
+                })
+            })
+        && binders != SignatureBinders::ArgumentPinnedTypes
+    {
+        return None;
+    }
     // Executable substitution changes the signature symbol, never which
     // authored receiver member the call selected.
     if signature.symbol != declaration.symbol
@@ -407,12 +442,6 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
             receiver_reference,
         )
         .ok()?;
-        if carrier
-            .as_ref()
-            .is_some_and(|carrier| carrier.carrier.requirement != trait_definition.symbol)
-        {
-            return None;
-        }
         carrier.is_some()
     } else {
         false

@@ -14,36 +14,6 @@ use crate::{TypedTrees, data, signature, static_applications, types};
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
-#[derive(Default)]
-struct ClosedOperands {
-    symbols: Vec<SymbolHandle>,
-    types: Vec<types::TypeReferenceHandle>,
-    expressions: Vec<crate::expression::ExpressionHandle>,
-}
-
-impl Extend<SymbolHandle> for ClosedOperands {
-    fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: Symbols) {
-        self.symbols.extend(symbols);
-    }
-}
-
-impl crate::references::TypedReferences for ClosedOperands {
-    fn type_reference(&mut self, reference: types::TypeReferenceHandle) -> bool {
-        if self.types.contains(&reference) {
-            return false;
-        }
-        self.types.push(reference);
-        true
-    }
-    fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
-        if self.expressions.contains(&expression) {
-            return false;
-        }
-        self.expressions.push(expression);
-        true
-    }
-}
-
 #[derive(Clone, Copy)]
 pub struct ClosedRequirementApplication<'program> {
     pub declaring_trait: SymbolHandle,
@@ -147,6 +117,29 @@ impl TypedTrees {
         matches.next().is_none().then_some(receipt)
     }
 
+    /// Outer application and local executable substitution are separate axes.
+    /// A requirement with no local operands needs its checked map/satisfaction
+    /// scope, not a fabricated machine-specialization receipt. Consumers must
+    /// separately rejoin that exact scope and original realization declaration.
+    pub fn requirement_realization_matches(
+        &self,
+        requirement: SymbolHandle,
+        realization: SymbolHandle,
+        provider: SymbolHandle,
+    ) -> bool {
+        let Some(application) = self.closed_requirement_application(requirement) else {
+            return false;
+        };
+        if application.local_arguments.is_empty() {
+            return realization == provider
+                && self
+                    .machine(provider)
+                    .is_some_and(|machine| self.machine_type_parameters(machine).is_empty());
+        }
+        self.requirement_realization_specialization(requirement, realization, provider)
+            .is_some()
+    }
+
     /// Close an exact declaring trait application and complete local telescope.
     /// The supplied row is derivation data, not an admitted selection receipt.
     pub fn instantiate_requirement_application(
@@ -183,70 +176,8 @@ impl TypedTrees {
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let mut operands = ClosedOperands::default();
-        for argument in trait_arguments.iter().chain(&local_arguments) {
-            crate::references::visit_type_reference(self, &mut operands, *argument);
-        }
-        // A materialized nominal owns an origin application even when its
-        // visible node is now a bare name. Closure must follow that origin,
-        // just as region-sensitive identity does, including phantom operands.
-        let mut next = 0;
-        while let Some(reference) = operands.types.get(next).copied() {
-            next += 1;
-            let symbol = match self.type_reference_table.type_reference(reference) {
-                types::TypeReferenceNode::Named { symbol, .. } => *symbol,
-                types::TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                _ => continue,
-            };
-            if let Some(origin) = self
-                .data_definition_by_symbol(symbol)
-                .and_then(|definition| definition.generic_instance)
-            {
-                crate::references::visit_type_reference(self, &mut operands, origin);
-            }
-        }
-        if operands
-            .symbols
-            .iter()
-            .filter(|symbol| symbol.is_valid())
-            .any(|symbol| {
-                matches!(
-                    self.symbols.get(*symbol).kind,
-                    symbols::SymbolKind::TypeParameter
-                        | symbols::SymbolKind::MachineParameter
-                        | symbols::SymbolKind::ConformanceParameter
-                        | symbols::SymbolKind::PropositionParameter
-                        | symbols::SymbolKind::PropositionMachineParameter
-                        | symbols::SymbolKind::Local
-                        | symbols::SymbolKind::Parameter
-                )
-            })
-        {
-            return Err("open operands do not close a requirement instance");
-        }
-        for reference in &operands.types {
-            if let types::TypeReferenceNode::Named { symbol, .. } =
-                self.type_reference_table.type_reference(*reference)
-                && let Some(definition) = self.data_definition_by_symbol(*symbol)
-                && (!definition.type_parameters.is_empty()
-                    || !definition.lifetime_parameters.is_empty())
-            {
-                return Err("closed requirement operand omits a nominal telescope");
-            }
-        }
-        // The present exact-application representation deliberately refuses
-        // region-bearing operands; an erased carrier identity is not custody.
-        for argument in trait_arguments.iter().chain(&local_arguments).copied() {
-            if self
-                .region_free_scoped_type_identity(
-                    crate::type_identity::TypeIdentityRequest::ordinary(argument),
-                    &[],
-                )
-                .is_none()
-            {
-                return Err("closed requirement needs a retained exact region application");
-            }
-        }
+        self.require_closed_application_operands(trait_arguments)?;
+        self.require_closed_application_operands(&local_arguments)?;
         if let Some(existing) = self.closed_requirement_applications().find(|existing| {
             existing.declaring_trait == declaring_trait
                 && existing.template == template

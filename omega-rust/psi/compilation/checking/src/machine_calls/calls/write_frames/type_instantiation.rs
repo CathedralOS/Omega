@@ -22,11 +22,29 @@ pub(super) use crate::type_applications::{
 pub(super) fn trait_receiver_type_bindings(
     program: &dyn crate::CheckingInput,
     definition: &typed_trees::trait_definition::TraitDefinition,
+    requirement: symbols::SymbolHandle,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeBindings> {
     let parameters = program.trait_type_parameters(definition);
     if parameters.is_empty() {
         return Some(Vec::new());
+    }
+    if let Some(application) = program.closed_requirement_application(requirement) {
+        if application.declaring_trait != definition.symbol
+            || application.trait_arguments.len() != parameters.len()
+        {
+            return None;
+        }
+        // The caller joined the exact receiver scope first. The prepared
+        // callable owns deep substituted arguments, unlike a shallow inherited
+        // node whose compound children can still refer to an outer binder.
+        return Some(
+            parameters
+                .iter()
+                .zip(application.trait_arguments)
+                .map(|(parameter, argument)| (parameter.symbol, *argument))
+                .collect(),
+        );
     }
     for _ in 0..program.type_reference_table.type_reference_count() {
         if !program

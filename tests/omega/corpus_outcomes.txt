@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 1.95, "load1_start": 2.03, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 1.47, "load1_start": 1.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -5279,3 +5279,10 @@ fail/providers/applied_binding_unused_const_overflow rejected 234ms expected @0e
 	const argument `256` for `Parent::Count` does not fit `u8`
 fail/providers/applied_binding_unused_property_bound rejected 206ms expected @0e7af1e5722c+wt
 	type parameter `Value [copy]` of `Parent` was instantiated with `Token`, which does not satisfy `[copy]`
+fail/providers/inherited_applied_binding_ambiguous_ancestors rejected 18ms expected @344ec0329ba8+wt
+	dynamic call `Child::read` is ambiguous across inherited requirements: First::read, Second::read
+fail/providers/inherited_applied_binding_wrong_receiver rejected 5040ms expected @344ec0329ba8+wt
+	selected ProgramEntry Binding field `Main::parent` requires a selected Fused provider for boundary `Parent`
+pass/providers/inherited_applied_binding_dispatch_exit checked 2567ms check-target:macos_arm64 @344ec0329ba8+wt
+pass/providers/inherited_applied_binding_finite_family_exit checked 2579ms check-target:macos_arm64 @344ec0329ba8+wt
+pass/providers/inherited_applied_binding_forwarded_value_exit checked 2554ms check-target:macos_arm64 @344ec0329ba8+wt

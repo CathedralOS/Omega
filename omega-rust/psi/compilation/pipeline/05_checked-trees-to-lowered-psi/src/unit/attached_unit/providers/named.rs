@@ -69,13 +69,11 @@ pub(super) fn provider_identities(
                         && row.template == template
                         && row.closed_requirement == signature.symbol
                 })
-                || typed
-                    .requirement_realization_specialization(
-                        signature.symbol,
-                        realization.symbol,
-                        machine.symbol,
-                    )
-                    .is_none()
+                || !typed.requirement_realization_matches(
+                    signature.symbol,
+                    realization.symbol,
+                    machine.symbol,
+                )
             {
                 continue;
             }

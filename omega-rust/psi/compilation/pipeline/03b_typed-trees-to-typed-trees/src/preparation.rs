@@ -238,15 +238,17 @@ pub fn prepare_typed_trees(
     }
     settle_value_destinations(&mut program)?;
     default_domain_zero::refine_default_domain_zero(&mut program);
-    // Every selection and selector call is now final: instantiate each
-    // reached requirement under its selector application and retarget the
-    // calls to those slots before validation judges the call edges.
-    crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
-    crate::monomorphization::instantiate_boundary_requirement_families(&mut program)?;
     // Constructed result types finish the source roster that field elaboration reads;
     // substituted member edges do not become new application demands.
     crate::constructed_results::retain_constructed_result_types(&mut program);
     data_applications::elaborate(&mut program)?;
+    // A projected receiver reads its elaborated field telescope. Binding it
+    // before that producer would borrow the declaration's open field instead
+    // of the caller's exact application. This is the ordinary dependency order,
+    // not a separate path for nested Binding carriers.
+    validation::resolve_dynamic_call_targets(&mut program)?;
+    crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
+    crate::monomorphization::instantiate_boundary_requirement_families(&mut program)?;
     Ok((
         program.into(),
         TypedPreparation {

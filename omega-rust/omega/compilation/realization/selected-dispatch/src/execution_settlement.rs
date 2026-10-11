@@ -67,14 +67,13 @@ impl SelectedExecution {
     /// answering `true` is not interchangeable with one produced without the
     /// tolerance.
     pub fn tolerated_unsettled_service_fields(&self) -> bool {
-        self.program_entry_service_requirements()
-            .iter()
-            .any(|requirement| {
-                !crate::service_custody::has_fused_selection(
-                    &self.selected_provider_provenance,
-                    *requirement,
-                )
-            })
+        self.selected_program_entry.as_ref().is_some_and(|entry| {
+            crate::service_custody::program_entry_has_unsettled_service_fields(
+                &self.program,
+                entry.machine_symbol(),
+                &self.selected_provider_provenance,
+            )
+        })
     }
 
     pub fn resolved_semantic_binding(

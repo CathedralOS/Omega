@@ -57,6 +57,39 @@ pub fn program_entry_service_requirements(
         .collect()
 }
 
+/// Discovery tolerance follows exact carrier applications, not the base-symbol
+/// nomination list. Otherwise a selected descendant falsely appears unsettled,
+/// or a differently applied ancestor appears to supply a field it cannot own.
+pub(crate) fn program_entry_has_unsettled_service_fields(
+    checked: &CheckedTrees,
+    machine_symbol: symbols::SymbolHandle,
+    selected: &[SelectedProviderReviewProvenance],
+) -> bool {
+    let Some(machine) = checked.machine(machine_symbol) else {
+        return false;
+    };
+    let Some(entry) = checked.machine_states(machine).first() else {
+        return false;
+    };
+    let Ok(Some(context)) =
+        provider_planning::program_entry::provisioned_entry_context(checked, machine, entry)
+    else {
+        return false;
+    };
+    let mut fields = Vec::new();
+    collect_service_fields(
+        checked,
+        context.definition,
+        context.definition,
+        &mut Vec::new(),
+        &mut fields,
+        &mut Vec::new(),
+    );
+    fields
+        .iter()
+        .any(|(_, carrier, _)| !super::has_fused_selection(checked, selected, *carrier))
+}
+
 pub(crate) fn derive_fused_program_entry_establishments(
     checked: &CheckedTrees,
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
@@ -145,9 +178,8 @@ pub(crate) fn derive_fused_program_entry_establishments(
     // Unsettled fields leave the derivation instead of diagnosing; every other
     // establishment check still applies to the fields that keep a selection.
     if permit_unsettled {
-        service_fields.retain(|(_, carrier, _path)| {
-            super::has_fused_selection(selected, carrier.requirement)
-        });
+        service_fields
+            .retain(|(_, carrier, _path)| super::has_fused_selection(checked, selected, *carrier));
         if service_fields.is_empty() {
             return Ok(Vec::new());
         }
@@ -157,7 +189,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
     // realization currently supports only Fused entry establishment; missing
     // or Independent selection cannot authorize zero-payload storage.
     for (_field, carrier, path) in &service_fields {
-        if !super::has_fused_selection(selected, carrier.requirement) {
+        if !super::has_fused_selection(checked, selected, *carrier) {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry Binding field `{}::{}` requires a selected Fused provider for boundary `{}`",
                 owner.name,
@@ -323,26 +355,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
             )));
             continue;
         }
-        let Some(requirement) = checked
-            .traits()
-            .iter()
-            .find(|definition| definition.is_boundary && definition.symbol == carrier.requirement)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Binding field `{}::{}` lost its boundary requirement",
-                owner.name,
-                field_path.join("::"),
-            )));
-            continue;
-        };
-        let Some(schema) = provider_planning::service_schema::from_typed(
-            provider_planning::ProviderPlanningContext::new(
-                checked,
-                source::DependencyScope::Product,
-            ),
-            calling_plans,
-            requirement,
-        ) else {
+        let Some(schema) = super::carrier_schema(checked, calling_plans, carrier) else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry Binding field `{}::{}` cannot reconstruct its schema",
                 owner.name,
@@ -353,7 +366,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
         let matching_plans = selected
             .iter()
             .filter(|candidate| {
-                candidate.plan.schema == schema
+                candidate.plan.schema.supplies_receiver_schema(&schema)
                     && candidate.selected_by.composition_mode() == Ok(CompositionMode::Fused)
             })
             .collect::<Vec<_>>();
@@ -367,6 +380,15 @@ pub(crate) fn derive_fused_program_entry_establishments(
             continue;
         };
         let carrier_base_identity = unconstrained_type_identity(checked, field.type_reference);
+        let receiver_application_index = selected_plan
+            .plan
+            .schema
+            .receiver_application_index(&schema)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected Fused plan lost its exact receiver application",
+                )]
+            })?;
         let row = program_entry_plan::ProgramEntryFusedServiceEstablishment::new(
             source.identity(),
             source.target_slot(),
@@ -381,6 +403,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
             program_entry_plan::ProgramEntryFusedServiceEstablishment::requirement_identity_for_schema(&schema),
             schema.identity_digest(),
             selected_plan.plan.identity_digest(),
+            receiver_application_index,
             identities,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;

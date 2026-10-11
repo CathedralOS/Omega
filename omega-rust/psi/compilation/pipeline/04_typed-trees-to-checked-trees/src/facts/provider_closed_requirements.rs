@@ -47,13 +47,11 @@ pub(crate) fn record_provider_closed_requirements(
                             application.signature.symbol,
                             &scope,
                         )
-                        && program
-                            .requirement_realization_specialization(
-                                application.signature.symbol,
-                                provider_template(program, provider.symbol),
-                                provider.symbol,
-                            )
-                            .is_some()
+                        && program.requirement_realization_matches(
+                            application.signature.symbol,
+                            provider_template(program, provider.symbol),
+                            provider.symbol,
+                        )
                     {
                         rows.push(CheckedProviderClosedRequirement {
                             provider: provider.symbol,
@@ -113,13 +111,11 @@ pub(crate) fn record_provider_closed_requirements(
                     && implementation.rows.iter().any(|row| {
                         row.declaring_trait == application.declaring_trait
                             && row.requirement == application.template
-                            && program
-                                .requirement_realization_specialization(
-                                    application.signature.symbol,
-                                    row.realization_machine,
-                                    provider.symbol,
-                                )
-                                .is_some()
+                            && program.requirement_realization_matches(
+                                application.signature.symbol,
+                                row.realization_machine,
+                                provider.symbol,
+                            )
                     })
             });
             if admitted {
@@ -160,7 +156,7 @@ fn provider_template(
         .iter()
         .filter(|receipt| receipt.instance == provider);
     let Some(receipt) = receipts.next() else {
-        return symbols::SymbolHandle::invalid();
+        return provider;
     };
     if receipts.next().is_some() {
         return symbols::SymbolHandle::invalid();

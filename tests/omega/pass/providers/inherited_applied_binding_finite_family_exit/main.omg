@@ -1,0 +1,32 @@
+use omega::language::core::binding;
+
+pub boundary trait Parent<Value> {
+    machine echo<const Count: u64>(value: Value) -> Value
+    where Count == 4 || Count == 8;
+    machine spare() -> i32;
+}
+pub boundary trait Child: Parent<i32> { machine choose() -> i32; }
+ChildMap satisfies Child {
+    Parent::echo = echo;
+    Parent::spare = spare;
+    Child::choose = choose;
+}
+machine echo<const Count: u64>(value: i32) -> i32 { value }
+machine spare() -> i32 { 33 }
+machine choose() -> i32 { 19 }
+
+data TargetProviders {}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
+data Main { parent: Binding<Parent<i32>>; }
+machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
+    let chosen: i32 = Child::choose();
+    let first: i32 = main.parent.echo<4>((17 as i32));
+    let second: i32 = main.parent.echo<8>((25 as i32));
+    transition chosen == 19 && first == 17 && second == 25 {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 2.26, "load1_start": 2.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 1.55, "load1_start": 1.51, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1780,3 +1780,6 @@ pass/slices/runtime_forwarded_range_extent_snapshot_exit built 3964ms exit:0 @2a
 pass/slices/runtime_returned_range_extent_contract_exit built 3951ms exit:0 @2a23b3a1e99d
 run/calls/resultless_scalar_parameters built 5055ms exit:0 stdout:match stderr:match @10b02229ff8b
 pass/calls/resultless_native_callback_compile built 3475ms @9ae10c8a9412+wt
+pass/providers/inherited_applied_binding_dispatch_exit built 2729ms exit:0 @344ec0329ba8+wt
+pass/providers/inherited_applied_binding_finite_family_exit built 2800ms exit:0 @344ec0329ba8+wt
+pass/providers/inherited_applied_binding_forwarded_value_exit built 2638ms exit:0 @344ec0329ba8+wt

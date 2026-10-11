@@ -201,3 +201,23 @@ pub fn projected_statement_receiver_place(
     }
     (receiver.symbol == call.receiver_symbol).then_some((root, segments))
 }
+
+/// The exact receiver occurrence's stored application, after replaying all
+/// field substitutions. Namespace qualifiers have no value place or authority.
+pub fn projected_statement_receiver_type_reference(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    before: usize,
+    call: &typed_trees::statement::TableCall,
+) -> Option<TypeReferenceHandle> {
+    let (root, segments) = projected_statement_receiver_place(program, state, before, call)?;
+    super::canonical_place_type_reference(
+        program,
+        state.symbol,
+        before,
+        &super::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(root),
+            segments,
+        },
+    )
+}

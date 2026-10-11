@@ -6,7 +6,7 @@
 //! `adapter_rows.rs` carries adapter rows and their resolution,
 //! `signature_families.rs` probes finite signature families and
 //! `boundary_fields.rs` names boundary fields, traits, receivers and
-//! adapter calls; `tests.rs` holds the dispatch tests.
+//! adapter calls. Language fixtures exercise dispatch through both engines.
 
 mod adapter_rows;
 pub(crate) mod boundary_fields;
@@ -43,33 +43,31 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
 /// Exact schema ownership still matters: another requirement's valid digest
 /// cannot authorize this receiver. Fused selection provenance and carrier
 /// custody remain independently checked by `service_custody` before native use.
-fn selected_service_plan_matches_requirement(
+fn selected_service_plan_for_carrier<'plans>(
     typed: &TypedTrees,
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
-    selected_plans: &effects::SelectedProviderPlanFacts,
-    requirement: symbols::SymbolHandle,
-) -> bool {
-    let Some(schema) = typed
-        .trait_definition_by_symbol(requirement)
+    selected_plans: &'plans effects::SelectedProviderPlanFacts,
+    carrier: typed_trees::service::ExactServiceCarrier,
+) -> Option<&'plans effects::provider_plan::ProviderPlan> {
+    let schema = typed
+        .trait_definition_by_symbol(carrier.requirement)
         .and_then(|definition| {
-            provider_planning::service_schema::from_typed(
+            provider_planning::service_schema::from_typed_instance(
                 provider_planning::ProviderPlanningContext::new(
                     typed,
                     source::DependencyScope::Product,
                 ),
                 calling_plans,
                 definition,
+                carrier.arguments(typed),
             )
-        })
-    else {
-        return false;
-    };
-    selected_plans
+        })?;
+    let mut matching = selected_plans
         .plans()
         .iter()
-        .filter(|plan| plan.schema == schema)
-        .count()
-        == 1
+        .filter(|plan| plan.schema.supplies_receiver_schema(&schema));
+    let plan = matching.next()?;
+    matching.next().is_none().then_some(plan)
 }
 
 fn plan_selected_boundary_adapter_dispatch(
@@ -165,20 +163,26 @@ fn plan_selected_boundary_adapter_dispatch(
             let Some(field) = member.as_field() else {
                 continue;
             };
-            let symbol = if let Some(requirement) =
-                typed_trees::service::exact_bound_service_requirement(typed, field.type_reference)
-            {
-                if !selected_service_plan_matches_requirement(
+            let (symbol, requirement_reference, provider_plan_digest) = if let Ok(Some(carrier)) =
+                typed_trees::service::classify_exact_bound_service_carrier(
+                    typed,
+                    field.type_reference,
+                ) {
+                let Some(plan) = selected_service_plan_for_carrier(
                     typed,
                     calling_plans,
                     selected_plans,
-                    requirement,
-                ) {
+                    carrier,
+                ) else {
                     // Unselected requirements supply no executable adapter.
                     // Root establishment owns missing-provider diagnostics.
                     continue;
-                }
-                requirement
+                };
+                (
+                    carrier.requirement,
+                    carrier.requirement_reference,
+                    Some(*plan.identity_digest().as_bytes()),
+                )
             } else {
                 let Some(symbol) = typed
                     .type_reference_table
@@ -187,14 +191,29 @@ fn plan_selected_boundary_adapter_dispatch(
                 else {
                     continue;
                 };
-                symbol
+                (
+                    symbol,
+                    typed_trees::types::TypeReferenceHandle::invalid(),
+                    None,
+                )
+            };
+            let receiver = BoundaryField {
+                symbol: field.symbol,
+                trait_symbol: symbol,
+                requirement_reference,
+                provider_plan_digest,
             };
             if !adapters
                 .iter()
-                .any(|adapter| adapter.receiver_trait == symbol)
-                && !generic_requirements
-                    .iter()
-                    .any(|selected| selected.receiver_trait == symbol)
+                .any(|adapter| receiver.supplies_adapter(typed, adapter))
+                && !generic_requirements.iter().any(|selected| {
+                    receiver.supplies_requirement(
+                        typed,
+                        selected.provider_plan_digest,
+                        selected.receiver_trait,
+                        selected.requirement_symbol,
+                    )
+                })
             {
                 continue;
             }
@@ -215,10 +234,7 @@ fn plan_selected_boundary_adapter_dispatch(
                 )));
                 continue;
             }
-            boundary_fields.push(BoundaryField {
-                symbol: field.symbol,
-                trait_symbol: symbol,
-            });
+            boundary_fields.push(receiver);
         }
     }
 
@@ -233,6 +249,8 @@ fn plan_selected_boundary_adapter_dispatch(
         let field = BoundaryField {
             symbol: owner,
             trait_symbol: adapter.receiver_trait,
+            requirement_reference: typed_trees::types::TypeReferenceHandle::invalid(),
+            provider_plan_digest: None,
         };
         if !boundary_fields.contains(&field) {
             boundary_fields.push(field);
@@ -295,6 +313,8 @@ fn plan_selected_boundary_adapter_dispatch(
                 boundary_fields.push(BoundaryField {
                     symbol: parameter.symbol,
                     trait_symbol,
+                    requirement_reference: typed_trees::types::TypeReferenceHandle::invalid(),
+                    provider_plan_digest: None,
                 });
             }
         }
@@ -325,20 +345,52 @@ fn plan_selected_boundary_adapter_dispatch(
             let Some(receipt) = &parameter.binding_carrier else {
                 continue;
             };
-            if !selected_service_plan_matches_requirement(
+            let Some(source_parameter) = typed
+                .machines()
+                .iter()
+                .flat_map(|machine| typed.machine_states(machine))
+                .flat_map(|state| typed.state_parameters(state))
+                .find(|source| source.symbol == receipt.source_parameter)
+            else {
+                continue;
+            };
+            let Ok(Some(carrier)) = typed_trees::service::classify_exact_service_parameter_carrier(
+                typed,
+                source_parameter.type_reference,
+            ) else {
+                continue;
+            };
+            if carrier.carrier.requirement != receipt.requirement
+                || typed.normalized_type_identity(source_parameter.type_reference)
+                    != receipt.carrier_type_identity
+            {
+                continue;
+            }
+            let Some(plan) = selected_service_plan_for_carrier(
                 typed,
                 calling_plans,
                 selected_plans,
-                receipt.requirement,
-            ) {
+                carrier.carrier,
+            ) else {
                 continue;
-            }
+            };
+            let receiver = BoundaryField {
+                symbol: receipt.source_parameter,
+                trait_symbol: receipt.requirement,
+                requirement_reference: carrier.carrier.requirement_reference,
+                provider_plan_digest: Some(*plan.identity_digest().as_bytes()),
+            };
             if !adapters
                 .iter()
-                .any(|adapter| adapter.receiver_trait == receipt.requirement)
-                && !generic_requirements
-                    .iter()
-                    .any(|selected| selected.receiver_trait == receipt.requirement)
+                .any(|adapter| receiver.supplies_adapter(typed, adapter))
+                && !generic_requirements.iter().any(|selected| {
+                    receiver.supplies_requirement(
+                        typed,
+                        selected.provider_plan_digest,
+                        selected.receiver_trait,
+                        selected.requirement_symbol,
+                    )
+                })
             {
                 continue;
             }
@@ -346,7 +398,7 @@ fn plan_selected_boundary_adapter_dispatch(
                 .iter()
                 .find(|existing| existing.symbol == receipt.source_parameter)
             {
-                if existing.trait_symbol != receipt.requirement {
+                if *existing != receiver {
                     diagnostics.push(Diagnostic::error(format!(
                         "boundary receiver symbol {:?} maps to both trait symbols {:?} and {:?}",
                         receipt.source_parameter, existing.trait_symbol, receipt.requirement,
@@ -354,10 +406,7 @@ fn plan_selected_boundary_adapter_dispatch(
                 }
                 continue;
             }
-            boundary_fields.push(BoundaryField {
-                symbol: receipt.source_parameter,
-                trait_symbol: receipt.requirement,
-            });
+            boundary_fields.push(receiver);
         }
     }
 
@@ -418,7 +467,7 @@ fn plan_selected_boundary_adapter_dispatch(
     for receiver in boundary_fields {
         for adapter in adapters
             .iter()
-            .filter(|adapter| adapter.receiver_trait == receiver.trait_symbol)
+            .filter(|adapter| receiver.supplies_adapter(typed, adapter))
         {
             dispatch.push(checked_trees::CheckedBoundaryAdapterDispatch {
                 receiver: receiver.symbol,

@@ -24,6 +24,7 @@ pub struct ProgramEntryFusedServiceEstablishment {
     requirement_identity: terminal_psi::TerminalIdentityIndex,
     service_schema_digest: ServiceSchemaDigest,
     selected_provider_plan_digest: ProviderPlanDigest,
+    receiver_application_index: usize,
 }
 
 impl ProgramEntryFusedServiceEstablishment {
@@ -58,6 +59,7 @@ impl ProgramEntryFusedServiceEstablishment {
         requirement_identity: String,
         service_schema_digest: ServiceSchemaDigest,
         selected_provider_plan_digest: ProviderPlanDigest,
+        receiver_application_index: usize,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     ) -> Result<Self, &'static str> {
         if target_slot != target_slot.owner.program_entry_slot() {
@@ -91,6 +93,7 @@ impl ProgramEntryFusedServiceEstablishment {
             requirement_identity: identities.intern(&requirement_identity),
             service_schema_digest,
             selected_provider_plan_digest,
+            receiver_application_index,
         })
     }
 
@@ -139,5 +142,11 @@ impl ProgramEntryFusedServiceEstablishment {
 
     pub const fn selected_provider_plan_digest(&self) -> ProviderPlanDigest {
         self.selected_provider_plan_digest
+    }
+
+    /// Exact view in the digest-bound whole plan, not an independently selected
+    /// ancestor plan. Its roster limits the slots provisioned for this field.
+    pub const fn receiver_application_index(&self) -> usize {
+        self.receiver_application_index
     }
 }

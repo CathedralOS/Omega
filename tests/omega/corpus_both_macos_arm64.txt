@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 2.66, "load1_start": 2.51, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 1.51, "load1_start": 1.47, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
@@ -807,3 +807,7 @@ pass/traits/runtime_dyn_structural_result_exit built 2661ms exit:0 interpreter-e
 pass/ownership/runtime_owned_parameter_restoration_exit built 2843ms exit:0 interpreter-exit:0 interpreter:agrees @b296be94ff95
 # context: {"cpus": 10, "jobs": "2", "load1_end": 4.0, "load1_start": 3.39, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/borrows/runtime_computed_backing_reference_copy_exit built 3045ms exit:0 interpreter-exit:0 interpreter:agrees @c01ece463989+wt
+pass/providers/inherited_applied_binding_dispatch_exit built 2699ms exit:0 interpreter-exit:0 interpreter:agrees @344ec0329ba8+wt
+pass/providers/inherited_applied_binding_finite_family_exit built 2780ms exit:0 interpreter-exit:0 interpreter:agrees @344ec0329ba8+wt
+pass/providers/inherited_applied_binding_forwarded_value_exit built 2656ms exit:0 interpreter-exit:0 interpreter:agrees @344ec0329ba8+wt
+pass/providers/runtime_result_domain_requirement_overload_exit built 3600ms exit:70 interpreter-exit:70 interpreter:agrees @344ec0329ba8+wt

@@ -778,4 +778,6 @@ pub use projection_types::{
     project_type_reference_from_segments, unique_data_definition_by_symbol,
 };
 pub mod receiver_projections;
-pub use receiver_projections::projected_statement_receiver_place;
+pub use receiver_projections::{
+    projected_statement_receiver_place, projected_statement_receiver_type_reference,
+};

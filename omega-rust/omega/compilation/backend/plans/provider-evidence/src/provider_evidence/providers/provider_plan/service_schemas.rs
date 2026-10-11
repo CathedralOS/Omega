@@ -485,12 +485,18 @@ impl ServiceSchema {
     /// Whether this whole schema owns exactly the demanded receiver application
     /// and its entire declared roster. Coverage is never a union of providers.
     pub fn supplies_receiver_schema(&self, demanded: &Self) -> bool {
-        let Some(root) = demanded.receiver_applications.first() else {
-            return false;
-        };
+        self.receiver_application_index(demanded).is_some()
+    }
+
+    /// Retain the exact receiver view beneath this whole plan. Its index is
+    /// meaningful only together with the digest of the owning provider plan;
+    /// consumers can use its complete original roster without rebuilding an
+    /// ancestor schema or selecting another provider.
+    pub fn receiver_application_index(&self, demanded: &Self) -> Option<usize> {
+        let root = demanded.receiver_applications.first()?;
         self.receiver_applications
             .iter()
-            .any(|application| application.eq_in(&self.identities, root, &demanded.identities))
+            .position(|application| application.eq_in(&self.identities, root, &demanded.identities))
     }
 
     /// Distinct whole choices cannot install the same exact receiver view.

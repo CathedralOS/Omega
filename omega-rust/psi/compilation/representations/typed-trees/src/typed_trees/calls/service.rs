@@ -14,10 +14,51 @@ use symbols::SymbolHandle;
 
 pub const SERVICE_CORE_SOURCE: &str = "binding.omg";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub struct ExactServiceCarrier {
     pub service_data: SymbolHandle,
     pub requirement: SymbolHandle,
+    /// Original exact application, not the enclosing Binding or an ABI view.
+    pub requirement_reference: TypeReferenceHandle,
+    pub requirement_identity: crate::type_identity::TypeIdentityId,
+}
+
+impl PartialEq for ExactServiceCarrier {
+    fn eq(&self, other: &Self) -> bool {
+        self.service_data == other.service_data
+            && self.requirement == other.requirement
+            && self.requirement_identity == other.requirement_identity
+    }
+}
+
+impl Eq for ExactServiceCarrier {}
+
+impl ExactServiceCarrier {
+    pub fn arguments<'program>(
+        self,
+        program: &'program TypedTrees,
+    ) -> &'program [TypeReferenceHandle] {
+        match program
+            .type_reference_table
+            .type_reference(self.requirement_reference)
+        {
+            TypeReferenceNode::Generic { arguments, .. } => program
+                .type_reference_table
+                .type_reference_handles(*arguments),
+            _ => &[],
+        }
+    }
+
+    pub fn application(
+        self,
+        program: &TypedTrees,
+    ) -> Option<crate::trait_definition::AppliedTraitScope<'_>> {
+        crate::trait_definition::AppliedTraitScope::new(
+            program,
+            program.trait_definition_by_symbol(self.requirement)?,
+            self.arguments(program),
+        )
+    }
 }
 
 /// A parameter's exact underlying binding and its separately retained borrow
@@ -118,17 +159,15 @@ pub fn classify_exact_bound_service_carrier(
             arguments.len()
         ));
     };
-    let TypeReferenceNode::Named {
-        symbol: requirement,
-        name,
-    } = program.type_reference_table.type_reference(*requirement)
-    else {
-        return Err(
-            "the first Service rung accepts only one closed, monomorphic boundary-trait requirement"
-                .to_owned(),
-        );
+    let requirement_reference = *requirement;
+    let (requirement, name, arguments) = match program.type_reference_table.type_reference(requirement_reference) {
+        TypeReferenceNode::Named { symbol, name } => (*symbol, name, &[][..]),
+        TypeReferenceNode::Generic { base_symbol, base_name, lifetime_arguments, arguments, .. }
+            if lifetime_arguments.is_empty() => (*base_symbol, base_name,
+                program.type_reference_table.type_reference_handles(*arguments)),
+        _ => return Err("the core `Binding` carrier requires one complete closed boundary-trait application with retained exact regions".to_owned()),
     };
-    let Some(requirement_definition) = program.trait_definition_by_symbol(*requirement) else {
+    let Some(requirement_definition) = program.trait_definition_by_symbol(requirement) else {
         return Err(format!(
             "`Binding<{name}>` does not name an exact boundary-trait requirement"
         ));
@@ -144,18 +183,21 @@ pub fn classify_exact_bound_service_carrier(
         ));
     }
     if !requirement_definition.lifetime_parameters.is_empty()
-        || !program
-            .trait_type_parameters(requirement_definition)
-            .is_empty()
+        || program.trait_type_parameters(requirement_definition).len() != arguments.len()
     {
         return Err(format!(
-            "the first Service rung accepts only a closed, nongeneric, lifetime-free boundary requirement; `{name}` remains open"
+            "the core `Binding` carrier requires a complete closed boundary application with retained exact regions; `{name}` remains open"
         ));
     }
+    program
+        .require_closed_application_operands(arguments)
+        .map_err(str::to_owned)?;
 
     Ok(Some(ExactServiceCarrier {
         service_data: *base_symbol,
-        requirement: *requirement,
+        requirement,
+        requirement_reference,
+        requirement_identity: program.normalized_type_identity(requirement_reference),
     }))
 }
 

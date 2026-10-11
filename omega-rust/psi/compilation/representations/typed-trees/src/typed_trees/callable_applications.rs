@@ -7,6 +7,7 @@
 //! Trait scopes own universal requirement views; static selection occurrences
 //! own determined provider tuples. Neither view is an admission or an instance.
 
+mod closed_operands;
 mod machine_selections;
 mod payloads;
 mod requirement_instances;
