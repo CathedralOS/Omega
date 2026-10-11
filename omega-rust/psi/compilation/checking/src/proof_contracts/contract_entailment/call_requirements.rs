@@ -322,11 +322,11 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn visit(
+    fn visit<'program>(
         &mut self,
-        program: &dyn crate::CheckingInput,
+        program: &'program dyn crate::CheckingInput,
         machine: &Machine,
-        judge: &StructuralJudge<'_>,
+        judge: &StructuralJudge<'program>,
         environment: &[(String, StructuralTerm)],
         hypotheses: &[(String, StructuralTerm)],
         equations: &[(StructuralTerm, StructuralTerm)],
@@ -385,7 +385,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     self.proven = false;
                     return;
                 };
-                crate::machine_calls::calls::CallFrameResolver::new(program).and_then(|frames| {
+                site_judge.frame_resolver().and_then(|frames| {
                     frames.expression_call_reference_subjects(
                         owner_machine,
                         self.call_expression,

@@ -137,6 +137,8 @@ pub(super) enum StructuralTerm {
     Opaque(String),
 }
 
+#[path = "structural_judgment/rewrite_table.rs"]
+mod rewrite_table;
 #[path = "structural_judgment/term_identity.rs"]
 mod term_identity;
 
@@ -221,7 +223,7 @@ pub(super) struct StructuralJudge<'program> {
     /// equations with an application side orient REDUCING -- the inductive
     /// hypothesis rewrites the self-application away instead of expanding a
     /// variable into it, which also serves asymmetric goals.
-    rewrites: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
+    rewrites: Arc<rewrite_table::RewriteTable>,
     // Tag predicates are not value equations: even a payload-free case may
     // have common fields. Retain exact classifier identities while ordinary
     // argument substitution acts only on the observed subject.
@@ -234,6 +236,14 @@ pub(super) struct StructuralJudge<'program> {
     ring_licenses: Vec<RingLicense>,
     /// Tier-2: paired add/mul licenses with a conformed distributivity law.
     semiring_licenses: Vec<SemiringLicense>,
+    /// Frame resolution is program-pure for every judge on one program: the
+    /// shared cell builds it once per judge tree instead of once per probe
+    /// site (per-leaf clones all share the same cell).
+    frame_resolver: Arc<
+        std::sync::OnceLock<
+            Option<crate::machine_calls::calls::CallFrameResolver<'program>>,
+        >,
+    >,
 }
 
 impl Clone for StructuralJudge<'_> {
@@ -258,6 +268,7 @@ impl Clone for StructuralJudge<'_> {
             hypotheses_contradictory: self.hypotheses_contradictory,
             ring_licenses: self.ring_licenses.clone(),
             semiring_licenses: self.semiring_licenses.clone(),
+            frame_resolver: Arc::clone(&self.frame_resolver),
         }
     }
 }
@@ -318,11 +329,23 @@ impl<'program> StructuralJudge<'program> {
         self.runtime_body_values && !self.case_facts_only
     }
 
+    /// Frame writes are program-pure; every probe on a judge tree resolves
+    /// the same tables, so the resolver is built once behind the shared cell.
+    pub(super) fn frame_resolver(
+        &self,
+    ) -> Option<&crate::machine_calls::calls::CallFrameResolver<'program>> {
+        self.frame_resolver
+            .get_or_init(|| {
+                crate::machine_calls::calls::CallFrameResolver::new(self.program)
+            })
+            .as_ref()
+    }
+
     /// Tag preservation does not preserve scalar premises or payload equations.
     pub(super) fn restrict_to_case_facts(&mut self) {
         self.case_facts_only = true;
         self.substitutions = Arc::new(Vec::new());
-        self.rewrites = Arc::new(Vec::new());
+        self.rewrites = Arc::new(rewrite_table::RewriteTable::default());
         self.case_substitutions = Arc::new(Vec::new());
         self.hypotheses_contradictory = false;
     }
@@ -370,7 +393,8 @@ impl<'program> StructuralJudge<'program> {
             runtime_body_values: false,
             case_facts_only: false,
             substitutions: Arc::new(Vec::new()),
-            rewrites: Arc::new(Vec::new()),
+            rewrites: Arc::new(rewrite_table::RewriteTable::default()),
+            frame_resolver: Arc::new(std::sync::OnceLock::new()),
             case_facts: Arc::new(Vec::new()),
             case_substitutions: Arc::new(Vec::new()),
             hypotheses_contradictory: false,
@@ -719,9 +743,7 @@ impl<'program> StructuralJudge<'program> {
                     };
                 }
                 StructuralTerm::CapturedValue { .. } => {
-                    let Some((_, replacement)) =
-                        self.rewrites.iter().find(|(source, _)| *source == term)
-                    else {
+                    let Some((_, replacement)) = self.rewrites.find(&term) else {
                         return term;
                     };
                     term = replacement.clone();
@@ -771,11 +793,7 @@ impl<'program> StructuralJudge<'program> {
                     }
                     // Hypothesis rewrites first (the inductive hypothesis
                     // reduces the self-application), then unfolding.
-                    if let Some((_, replacement)) = self
-                        .rewrites
-                        .iter()
-                        .find(|(pattern, _)| pattern == &resolved)
-                    {
+                    if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                         term = replacement.clone();
                         continue;
                     }
@@ -867,9 +885,7 @@ impl<'program> StructuralJudge<'program> {
                         collection: Box::new(self.resolve_at(*collection, depth + 1)),
                         index: Box::new(self.resolve_at(*index, depth + 1)),
                     };
-                    if let Some((_, replacement)) =
-                        self.rewrites.iter().find(|(source, _)| *source == resolved)
-                    {
+                    if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                         term = replacement.clone();
                         continue;
                     }
@@ -881,9 +897,7 @@ impl<'program> StructuralJudge<'program> {
                         subject: Box::new(subject.clone()),
                         path: path.clone(),
                     };
-                    if let Some((_, replacement)) =
-                        self.rewrites.iter().find(|(source, _)| *source == resolved)
-                    {
+                    if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                         term = replacement.clone();
                         continue;
                     }

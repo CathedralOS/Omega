@@ -511,7 +511,8 @@ impl<'program> StructuralJudge<'program> {
             && !call_has_mathematical_denotation(program, call)
         {
             let machine = program.machine(scope.0.symbol)?;
-            let writes = crate::machine_calls::calls::CallFrameResolver::new(program)?
+            let writes = self
+                .frame_resolver()?
                 .expression_may_write_paths(machine, expression);
             if super::super::struct_trace() {
                 eprintln!(
@@ -796,11 +797,9 @@ impl<'program> StructuralJudge<'program> {
         let Some(machine) = program.machine(scope.0.symbol) else {
             return;
         };
-        let Some(subjects) =
-            crate::machine_calls::calls::CallFrameResolver::new(program).and_then(|frames| {
-                frames.expression_call_reference_subjects(machine, expression, parameters)
-            })
-        else {
+        let Some(subjects) = self.frame_resolver().and_then(|frames| {
+            frames.expression_call_reference_subjects(machine, expression, parameters)
+        }) else {
             return;
         };
         if !independent_application(

@@ -446,11 +446,11 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
         }
     }
 
-    fn visit(
+    fn visit<'program>(
         &mut self,
-        program: &dyn crate::CheckingInput,
+        program: &'program dyn crate::CheckingInput,
         machine: &Machine,
-        judge: &StructuralJudge<'_>,
+        judge: &StructuralJudge<'program>,
         environment: &[(String, StructuralTerm)],
         hypotheses: &[(String, StructuralTerm)],
         equations: &[(StructuralTerm, StructuralTerm)],

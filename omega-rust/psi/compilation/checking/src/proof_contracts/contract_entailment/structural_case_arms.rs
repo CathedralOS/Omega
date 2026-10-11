@@ -222,10 +222,10 @@ fn stage_citation_argument_terms(
 
 type PendingStructuralCitation = (CitationTarget, Vec<StructuralTerm>);
 
-pub(crate) fn recognize_structural_case_arms(
-    program: &dyn crate::CheckingInput,
+pub(crate) fn recognize_structural_case_arms<'a>(
+    program: &'a dyn crate::CheckingInput,
     machine: &Machine,
-    judge: &StructuralJudge<'_>,
+    judge: &StructuralJudge<'a>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
     mut requirement: Option<&mut dyn StructuralPrefixVisitor>,
@@ -269,11 +269,11 @@ pub(crate) fn recognize_structural_case_arms(
 /// independently establish that state's Requires; only preceding statements
 /// and completed operands can contribute facts at this exact call occurrence.
 /// The same path walker stops there, so no recurrent successor is unrolled.
-pub(super) fn recognize_structural_state_prefix(
-    program: &dyn crate::CheckingInput,
+pub(super) fn recognize_structural_state_prefix<'a>(
+    program: &'a dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
-    judge: &StructuralJudge<'_>,
+    judge: &StructuralJudge<'a>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
     requirement: &mut dyn StructuralPrefixVisitor,
@@ -309,10 +309,10 @@ pub(super) fn recognize_structural_state_prefix(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn recognize_structural_state_leaves(
-    program: &dyn crate::CheckingInput,
+fn recognize_structural_state_leaves<'a>(
+    program: &'a dyn crate::CheckingInput,
     machine: &Machine,
-    judge: &StructuralJudge<'_>,
+    judge: &StructuralJudge<'a>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
     states: &[typed_trees::state::State],
@@ -351,10 +351,10 @@ fn recognize_structural_state_leaves(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn recognize_structural_state_leaves_from(
-    program: &dyn crate::CheckingInput,
+fn recognize_structural_state_leaves_from<'a>(
+    program: &'a dyn crate::CheckingInput,
     machine: &Machine,
-    judge: &StructuralJudge<'_>,
+    judge: &StructuralJudge<'a>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
     states: &[typed_trees::state::State],
@@ -426,7 +426,7 @@ fn recognize_structural_state_leaves_from(
             if judge.requires_value_preservation()
                 && let StatementNode::Call(call) = statement
             {
-                let frames = crate::machine_calls::calls::CallFrameResolver::new(program)?;
+                let frames = judge.frame_resolver()?;
                 for frame in [
                     frames.may_write_frame(machine, call),
                     frames.statement_value_write_frame(machine, statement),
@@ -688,10 +688,10 @@ fn recognize_structural_state_leaves_from(
                     ));
                     continue;
                 };
-                let guard_preserves_values =
-                    crate::machine_calls::calls::CallFrameResolver::new(program)
-                        .and_then(|frames| frames.expression_may_write_paths(machine, guard))
-                        .is_some_and(|paths| paths.is_empty());
+                let guard_preserves_values = judge
+                    .frame_resolver()
+                    .and_then(|frames| frames.expression_may_write_paths(machine, guard))
+                    .is_some_and(|paths| paths.is_empty());
                 if incoming.requires_value_preservation() && !guard_preserves_values {
                     return None;
                 }
