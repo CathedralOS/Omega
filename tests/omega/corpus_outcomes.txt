@@ -5105,3 +5105,6 @@ pass/operators/runtime_declared_open_range_evaluates_collection_once_exit checke
 pass/operators/runtime_declared_open_range_preserves_operand_snapshot_exit checked 3960ms check-target:macos_arm64 @ebe013852fbf
 fail/operators/declared_open_range_shared_collection_cannot_mutate rejected 289ms expected @ebe013852fbf
 	mutable argument `main` for state `range` is not writable in this state; the source cannot lend the requested exclusive access
+fail/modules/private_generic_dependency rejected 1872ms expected @26d992089644
+	package `private_generic_dependency` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `values::Window::range$specialized$accfc01a22f6af21$0`
+pass/modules/runtime_public_generic_dependency_exit checked 3753ms check-target:macos_arm64 @26d992089644
