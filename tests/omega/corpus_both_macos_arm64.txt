@@ -710,7 +710,7 @@ pass/termination/runtime_nested_borrowed_rank_carrier_exit built 3503ms exit:0 i
 pass/termination/runtime_rank_state_constraint_disjoint_write_exit built 3505ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/termination/runtime_selected_boundary_requirement_identity_exit built 3576ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/termination/runtime_selected_requirement_reference_identity_exit built 3417ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
-pass/termination/runtime_stored_exclusive_endpoint_exit built 4316ms exit:0 interpreter-exit:0 interpreter:agrees @4aa233110d5
+pass/termination/runtime_stored_exclusive_endpoint_exit built 3608ms exit:0 interpreter-exit:0 interpreter:agrees @dac11cec2727
 pass/concurrency/runtime_returned_carrier_suspension_exit built 3545ms exit:0 interpreter-exit:0 interpreter:agrees @32f04773833e
 pass/termination/runtime_rankless_boundary_suffix_exit built 2515ms exit:0 interpreter-exit:0 interpreter:agrees @cd9cf1f708cc
 pass/termination/runtime_public_result_field_rank_arrivals_exit built 3538ms exit:0 interpreter-exit:0 interpreter:agrees @09715a326eee
