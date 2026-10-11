@@ -610,8 +610,8 @@ fn recover_over(
                     // that succeeds commits the step, ending recovery one reload
                     // pair earlier; anything else falls back to the bounded
                     // shape, so a committed step never strands an unhomeable
-                    // interval. Replay independently re-derives this exact
-                    // decision.
+                    // interval. Each candidate's fresh analyses and final
+                    // home assignment establish whether it can commit.
                     if let Ok(crossing) = spill_selected_runtime_value_with_span_policy(
                         &selected,
                         function,
