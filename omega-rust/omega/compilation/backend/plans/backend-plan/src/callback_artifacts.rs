@@ -10,10 +10,18 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCallbackThunkArtifact {
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+    /// Dense semantic formal ordinals in the body's scalar-then-structural
+    /// parameter order. These are produced from the checked entry before
+    /// source erasure, never inferred from equal native shapes.
+    parameter_formals: Vec<u32>,
 }
 
 impl TerminalCallbackThunkArtifact {
-    pub fn new(artifact: terminal_codec::CanonicalTerminalArtifact) -> Result<Self, &'static str> {
+    pub fn new(
+        artifact: terminal_codec::CanonicalTerminalArtifact,
+        scalar_source_positions: &[u32],
+        structural_source_positions: &[u32],
+    ) -> Result<Self, &'static str> {
         let module = artifact.semantic_module();
         // Callees may be present too; the artifact's entry is the callback.
         let Some(machine) = (match module.entry {
@@ -25,13 +33,49 @@ impl TerminalCallbackThunkArtifact {
         if machine.declaration.is_none() {
             return Err("Terminal callback thunk has no checked declaration identity");
         }
+        if machine.parameters.len() != scalar_source_positions.len()
+            || machine.structural_parameters.len() != structural_source_positions.len()
+            || scalar_source_positions
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            || structural_source_positions
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+        {
+            return Err("callback checked and Terminal entry parameter lanes disagree");
+        }
+        let mut runtime_positions = scalar_source_positions
+            .iter()
+            .chain(structural_source_positions)
+            .copied()
+            .collect::<Vec<_>>();
+        runtime_positions.sort_unstable();
+        if runtime_positions.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err("callback checked entry has duplicate runtime formal positions");
+        }
+        let parameter_formals = scalar_source_positions
+            .iter()
+            .chain(structural_source_positions)
+            .map(|position| {
+                runtime_positions
+                    .binary_search(position)
+                    .ok()
+                    .and_then(|ordinal| u32::try_from(ordinal).ok())
+                    .ok_or("callback entry formal cannot be represented")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             artifact: std::sync::Arc::new(artifact),
+            parameter_formals,
         })
     }
 
     pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.artifact
+    }
+
+    pub fn parameter_formals(&self) -> &[u32] {
+        &self.parameter_formals
     }
 }
 
@@ -49,6 +93,7 @@ pub struct TerminalCallbackOccurrenceProposal {
     callback_thunk_identity: function_identity::MachineFunctionIdentity,
     callback_thunk_artifact: TerminalCallbackThunkArtifact,
     boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
+    entry_parameters: Vec<crate::NativeCallbackEntryParameter>,
 }
 
 impl TerminalCallbackOccurrenceProposal {
@@ -60,6 +105,7 @@ impl TerminalCallbackOccurrenceProposal {
         callback_thunk_identity: function_identity::MachineFunctionIdentity,
         callback_thunk_artifact: TerminalCallbackThunkArtifact,
         boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
+        entry_parameters: Vec<crate::NativeCallbackEntryParameter>,
     ) -> Self {
         Self {
             placement_index,
@@ -69,6 +115,7 @@ impl TerminalCallbackOccurrenceProposal {
             callback_thunk_identity,
             callback_thunk_artifact,
             boundary_entry_plan,
+            entry_parameters,
         }
     }
 
@@ -111,6 +158,8 @@ pub struct NativeCallbackThunkSettlement<'artifact> {
     pub callback_function: function_identity::MachineFunctionIdentity,
     pub artifact: &'artifact terminal_codec::CanonicalTerminalArtifact,
     pub boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
+    pub parameter_formals: &'artifact [u32],
+    pub entry_parameters: &'artifact [crate::NativeCallbackEntryParameter],
 }
 
 /// Close produced callback bodies against the caller's portable demands.
@@ -171,6 +220,8 @@ pub fn native_callback_thunks(
             callback_function: occurrence.callback_thunk_identity(),
             artifact: occurrence.callback_thunk_artifact().artifact(),
             boundary_entry_plan: &occurrence.boundary_entry_plan,
+            parameter_formals: occurrence.callback_thunk_artifact().parameter_formals(),
+            entry_parameters: &occurrence.entry_parameters,
         })
         .collect()
 }

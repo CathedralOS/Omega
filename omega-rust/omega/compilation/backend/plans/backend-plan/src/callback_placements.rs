@@ -14,7 +14,18 @@ pub struct NativeCallbackPlacement {
     pub canonical_requirement_overload: String,
     pub contract_commitment: [u8; 32],
     pub boundary_entry_plan: BoundaryEntryPlan,
+    /// Ordered nominal native rows of the callback's inbound requirement,
+    /// including origins. This is not the registrar's outbound telescope.
+    pub entry_parameters: Vec<NativeCallbackEntryParameter>,
     pub private_materialization: Option<BoundCallbackPrivateMaterialization>,
+}
+
+/// One admitted callback ingress row. Keep the nominal parameter, physical
+/// recipe and authored origin together for the eventual internal ABI bridge.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeCallbackEntryParameter {
+    pub application: NativeParameterApplication,
+    pub origin: calling_conventions::BoundaryNativeParameterOrigin,
 }
 
 /// Complete address-free context and selected row for one private callback

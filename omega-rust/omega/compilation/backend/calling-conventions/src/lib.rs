@@ -36,12 +36,12 @@ pub use boundary_values::{
     BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape,
 };
 pub use callback_materializations::{
-    CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,
-    CallbackRequirementId, LayoutPlanId, LayoutSlotId, NativeCallbackDemand,
-    NativeParameterApplication, NativeParameterId, NativePlace, StaticMachineBinderId,
-    callback_layout_field_slot_id, callback_layout_plan_id, callback_layout_slot_id,
-    callback_nominal_report_fingerprint, callback_plan_laid_layout_id, callback_requirement_id,
-    nominal_callback_native_parameter_id,
+    BoundaryNativeParameterOrigin, CallbackBinderRequirement, CallbackMaterialization,
+    CallbackMaterializationContext, CallbackRequirementId, LayoutPlanId, LayoutSlotId,
+    NativeCallbackDemand, NativeParameterApplication, NativeParameterId, NativePlace,
+    StaticMachineBinderId, callback_layout_field_slot_id, callback_layout_plan_id,
+    callback_layout_slot_id, callback_nominal_report_fingerprint, callback_plan_laid_layout_id,
+    callback_requirement_id, nominal_callback_native_parameter_id,
 };
 pub use host_operations::external_bindings::{ExternalBindingKind, ExternalBindingRow};
 pub use host_operations::{HostCapability, HostOperation};

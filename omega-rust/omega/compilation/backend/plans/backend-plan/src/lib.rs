@@ -14,7 +14,9 @@ pub use callback_artifacts::{
     NativeCallbackThunkSettlement, TerminalCallbackOccurrenceProposal,
     TerminalCallbackThunkArtifact, native_callback_thunks, validate_callback_thunk_joins,
 };
-pub use callback_placements::{BoundCallbackPrivateMaterialization, NativeCallbackPlacement};
+pub use callback_placements::{
+    BoundCallbackPrivateMaterialization, NativeCallbackEntryParameter, NativeCallbackPlacement,
+};
 pub use target_providers::{
     TerminalTargetProviderPlan, TerminalTargetProviderProposal, TerminalTargetProviderSelection,
 };

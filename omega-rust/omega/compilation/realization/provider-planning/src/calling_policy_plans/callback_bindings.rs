@@ -417,6 +417,35 @@ pub fn validate_nominal_callback_placement_bindings(
                 canonical_requirement_overload: nominal_use.canonical_requirement_overload.clone(),
                 contract_commitment: resource_receipt.contract_commitment().as_bytes(),
                 boundary_entry_plan: validated.plan().clone(),
+                entry_parameters: realization
+                    .native_parameters
+                    .iter()
+                    .map(|parameter| {
+                        let placement = validated
+                            .plan()
+                            .call
+                            .parameters
+                            .get(usize::try_from(parameter.native_ordinal).map_err(|_| {
+                                vec![Diagnostic::error(
+                                    "callback ingress ordinal cannot be represented",
+                                )]
+                            })?)
+                            .ok_or_else(|| {
+                                vec![Diagnostic::error(
+                                    "callback ingress row has no validated native placement",
+                                )]
+                            })?;
+                        Ok(backend_plan::NativeCallbackEntryParameter {
+                            application: calling_conventions::NativeParameterApplication {
+                                parameter: parameter.identity,
+                                native_ordinal: parameter.native_ordinal,
+                                shape: placement.shape,
+                                placement: placement.clone(),
+                            },
+                            origin: parameter.origin,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?,
                 private_materialization,
             },
         });

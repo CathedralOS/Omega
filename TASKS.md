@@ -4430,15 +4430,18 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `pass/capabilities/callback_direct_install_compile` uses a nonexistent import
   and is not execution acceptance.
 
-  Entry admission consumes the ordinary graph's complete ABI, including
-  borrowed-record pointers, and requires the same ordered physical transport
-  as the selected inbound plan. Preserve `pass/calls/callback_borrowed_record_entry`:
+  Entry admission joins the body's separate scalar and structural lanes to the
+  selected inbound telescope's nominal origins before comparing the ordinary
+  graph's complete ABI. Preserve `pass/calls/callback_borrowed_record_entry`:
   after package review, `omega run` must sort two complete records through real
   macOS Arm64 `qsort`, retain their associated stamps and exit 0.
-  Complete inbound recipes that differ from the internal convention through
-  ordinary selected-call bridges, including scalar-loan descriptors and mixed
-  semantic parameter ordering; equal pointer widths cannot establish those
-  mappings. Hosted stack composition conservatively
+  Keep `pass/calls/callback_mixed_formal_entry`: real macOS Arm64 `qsort_r`
+  supplies a scalar context between two authored record-reference formals;
+  both sort directions and associated stamps must survive their separate lanes.
+  Complete inbound recipes that differ physically from the internal convention
+  through ordinary selected-call bridges, including scalar-loan descriptors and
+  register/stack redistribution. Equal pointer widths cannot establish those
+  conversions. Hosted stack composition conservatively
   includes every supplied callback; retain declared synchronous reach to
   distinguish future-only reference cycles from same-stack invocation cycles.
   Preserve resultless transport with `calls/resultless_native_callback_compile`

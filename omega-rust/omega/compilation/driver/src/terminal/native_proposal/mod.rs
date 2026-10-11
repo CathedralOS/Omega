@@ -61,6 +61,32 @@ fn produce_callback_thunk_artifact(
         timings: &mut production_timings,
     })
     .map_err(|error| error.diagnostics())?;
-    compilation_products::TerminalCallbackThunkArtifact::new(produced.into_artifact())
-        .map_err(|message| vec![Diagnostic::error(message)])
+    let entry = checked
+        .execution()
+        .program
+        .facts
+        .flow
+        .terminal_unit_effects
+        .callable_entry_for_machine(placement.selected_machine)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "callback body has no unique checked entry signature",
+            )]
+        })?;
+    let scalar_positions = entry
+        .scalar_parameters
+        .iter()
+        .map(|parameter| parameter.source_position)
+        .collect::<Vec<_>>();
+    let structural_positions = entry
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.position)
+        .collect::<Vec<_>>();
+    compilation_products::TerminalCallbackThunkArtifact::new(
+        produced.into_artifact(),
+        &scalar_positions,
+        &structural_positions,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])
 }

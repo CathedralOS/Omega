@@ -44,6 +44,19 @@ pub struct NativeParameterApplication {
     pub placement: ValuePlacement,
 }
 
+/// The authored origin of one row in the ordered native telescope. An ABI
+/// location or equal-sized shape cannot establish semantic formal identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundaryNativeParameterOrigin {
+    SemanticFormal {
+        formal_ordinal: u32,
+    },
+    PrivateCallback {
+        binder: StaticMachineBinderId,
+        requirement: CallbackRequirementId,
+    },
+}
+
 pub fn callback_nominal_report_fingerprint(domain: &[u8], parts: &[&[u8]]) -> u64 {
     let mut hasher = crate::fnv1a::Fnv1a::new();
     for bytes in std::iter::once(domain).chain(parts.iter().copied()) {

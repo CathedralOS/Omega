@@ -66,6 +66,8 @@ pub(crate) fn lower_callback_thunks(
             {
                 if known.artifact.manifest().identity() != child.artifact.manifest().identity()
                     || known.boundary_entry_plan != child.boundary_entry_plan
+                    || known.parameter_formals != child.parameter_formals
+                    || known.entry_parameters != child.entry_parameters
                 {
                     return Err(realization_error(
                         "callback body closure",
@@ -122,18 +124,43 @@ fn lower_callback_thunk(
     let declared = &settlement.boundary_entry_plan.call;
     // Ordinary lowering already transports every parameter and result through
     // this graph plan, not only the signatures with scalar ABI summaries.
-    // Direct installation needs identical physical transport; a different
-    // inbound recipe still needs an actual bridge and must not be relabeled.
+    // Terminal has independent scalar and structural lanes, whereas the
+    // boundary telescope follows authored formal order. Rejoin those ordinals
+    // through producer-retained identities before comparing transport: a zip
+    // would compare the wrong arguments whenever the two lanes interleave.
+    // Different physical transport still needs an actual bridge; this mapping
+    // neither builds scalar-loan descriptors nor relabels their pointers.
     // The internal convention's conservative volatile bank is not an emitted
     // state footprint, so equality of clobber summaries would prove nothing
     // about the implementation's separately governed state commitment.
     if emitted.policy != declared.policy
         || emitted.parameters.len() != declared.parameters.len()
+        || emitted.parameters.len() != settlement.parameter_formals.len()
+        || settlement.entry_parameters.len() != declared.parameters.len()
         || emitted
             .parameters
             .iter()
-            .zip(&declared.parameters)
-            .any(|(internal, boundary)| !internal.has_same_parameter_transport(boundary))
+            .zip(settlement.parameter_formals)
+            .any(|(internal, formal)| {
+                let mut matching = settlement.entry_parameters.iter().filter(|parameter| {
+                    parameter.origin
+                        == calling_conventions::BoundaryNativeParameterOrigin::SemanticFormal {
+                            formal_ordinal: *formal,
+                        }
+                });
+                let Some(parameter) = matching.next() else {
+                    return true;
+                };
+                let boundary = usize::try_from(parameter.application.native_ordinal)
+                    .ok()
+                    .and_then(|ordinal| declared.parameters.get(ordinal));
+                matching.next().is_some()
+                    || boundary.is_none_or(|boundary| {
+                        parameter.application.placement != *boundary
+                            || parameter.application.shape != boundary.shape
+                            || !internal.has_same_parameter_transport(boundary)
+                    })
+            })
         || emitted.result != declared.result
         || emitted.callback_materializations != declared.callback_materializations
         || emitted.stack_alignment != declared.stack_alignment

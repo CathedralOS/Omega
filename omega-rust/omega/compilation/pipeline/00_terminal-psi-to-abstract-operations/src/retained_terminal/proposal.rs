@@ -344,6 +344,7 @@ fn project_callback_occurrences(
                 callback_thunk_identity,
                 callback_thunk_artifact.clone(),
                 placement.boundary_entry_plan.clone(),
+                placement.entry_parameters.clone(),
             ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

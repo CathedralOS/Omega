@@ -1151,6 +1151,7 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "backend-plan",
  "boundary-applications",
+ "calling-conventions",
  "diagnostics",
  "image-emission",
  "machine-code",

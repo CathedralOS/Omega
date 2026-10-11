@@ -10,7 +10,9 @@ use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
 use calling_conventions::callback_nominal_report_fingerprint;
-pub use calling_conventions::{BoundaryValueClass, BoundaryValueField, BoundaryValueShape};
+pub use calling_conventions::{
+    BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
+};
 use calling_conventions::{
     BoundaryValueGraph, CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand,
     NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan, callback_requirement_id,
@@ -269,17 +271,6 @@ pub struct BoundaryNativeParameter {
 pub enum BoundaryNativeParameterShape {
     Semantic(u16),
     TargetFunctionPointer { byte_size: u16, alignment: u16 },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BoundaryNativeParameterOrigin {
-    SemanticFormal {
-        formal_ordinal: u32,
-    },
-    PrivateCallback {
-        binder: StaticMachineBinderId,
-        requirement: CallbackRequirementId,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

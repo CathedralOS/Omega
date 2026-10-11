@@ -13,6 +13,7 @@ selected-instructions-to-register-homes = { path = "../pipeline/05_selected-inst
 register-homes-to-post-allocation-machine = { path = "../pipeline/06_register-homes-to-post-allocation-machine" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 backend-plan = { path = "../backend/plans/backend-plan" }
+calling-conventions = { path = "../backend/calling-conventions" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 image-emission = { path = "../backend/images/image-emission" }
