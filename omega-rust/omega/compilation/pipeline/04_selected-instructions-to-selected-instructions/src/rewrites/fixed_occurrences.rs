@@ -312,6 +312,12 @@ fn materialize(
     }
     let mut before = Vec::new();
     let mut after = Vec::new();
+    // A read carrier places this occurrence's fixed operand, so it belongs to
+    // the occurrence's operations: a returning foreign call requires every
+    // instruction between its floating-control save and the call to carry the
+    // call's operation. A write carrier preserves the published result and
+    // stays an operation-free value copy, the shape result transport follows.
+    let operations = instruction.provenance.operations.clone();
     for (operand, roster_index) in instruction.operands.iter_mut().zip(&prepared.operands) {
         let Some(roster_index) = *roster_index else {
             continue;
@@ -365,14 +371,14 @@ fn materialize(
         );
         if reads {
             let id = SelectedInstructionId(take_identity(next_instruction)?);
-            before.push(copy(row, id, original.id, fresh, &original));
+            before.push(copy(row, id, original.id, fresh, &original, &operations));
             temporary.origin = origin_at(original.origin, id)?;
         } else {
             temporary.origin = origin_at(original.origin, instruction.id)?;
         }
         if writes {
             let id = SelectedInstructionId(take_identity(next_instruction)?);
-            after.push(copy(row, id, fresh, original.id, &original));
+            after.push(copy(row, id, fresh, original.id, &original, &[]));
             registers[original_index].origin = origin_at(original.origin, id)?;
         }
         registers.push(temporary);
@@ -665,6 +671,7 @@ fn copy(
     input: VirtualRegisterId,
     output: VirtualRegisterId,
     register: &VirtualRegister,
+    operations: &[semantic_vocabulary::OperationId],
 ) -> SelectedInstruction {
     let operand = |constraint: &register_model::RegisterOperandConstraint, virtual_register| {
         SelectedOperand {
@@ -688,7 +695,10 @@ fn copy(
         implicit_uses: row.implicit_uses.clone(),
         implicit_defs: row.implicit_defs.clone(),
         clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
+        provenance: selected_instructions::SelectedInstructionProvenance {
+            operations: operations.to_vec(),
+            ..Default::default()
+        },
     };
     match register.origin {
         VirtualRegisterOrigin::InstructionResult { source_value, .. }
