@@ -42,6 +42,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from corpus_gate import host_target
 from sample_projects import ROOT, discover as discover_projects, project_at, rejection_verdict
 
 # Freestanding targets have no host oracle: a UEFI image cannot run on the
@@ -235,7 +236,8 @@ def measure(cli, sample, target, timeout):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli", default="./target/debug/omega")
-    parser.add_argument("--target", default="macos_arm64")
+    parser.add_argument("--target", default=host_target(),
+                        help="defaults to this host's target")
     parser.add_argument("--filter", help="comma-separated path fragments")
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument("--timeout", type=int, default=300, help="seconds per CLI call")
