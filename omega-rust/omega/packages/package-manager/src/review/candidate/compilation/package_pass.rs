@@ -654,8 +654,14 @@ impl ClosurePass<'_> {
         // package identity, purpose, checked context, entry, toolchain,
         // and the complete live inputs, and the decoded record
         // re-verifies its own canonical payloads before it counts.
-        // Tolerated records are never stored, and the graph root is never
-        // persisted — its checked compilation is the invocation's product.
+        // A compile that used the discovery-only tolerance carries only into
+        // a discovery pass, which permits the same tolerance and so would
+        // compute the same provisional result; a bound pass withholds it and
+        // compiles fresh. Discovery mode is part of the inputs, so a record
+        // a discovery pass stored only answers another discovery pass. The
+        // graph root is never persisted: its checked compilation is the
+        // invocation's product.
+        let tolerance_permitted = self.discovery == TargetEntryDiscovery::Dependencies;
         let reused = self.prior.and_then(|prior| {
             prior
                 .occurrences
@@ -666,7 +672,8 @@ impl ClosurePass<'_> {
                         && occurrence.entry == *entry
                         && occurrence.inputs == *unanswered_inputs
                         && occurrence.build_snapshot == *build_snapshot
-                        && !occurrence.checked.tolerated_unsettled_service_fields()
+                        && (tolerance_permitted
+                            || !occurrence.checked.tolerated_unsettled_service_fields())
                 })
                 .and_then(|occurrence| {
                     prior
@@ -703,7 +710,7 @@ impl ClosurePass<'_> {
                 let policy_canonical_bytes = record.policy_canonical_bytes()?;
                 let (review, facts) = record.into_review_and_facts(key, custody.resolution())?;
                 let occurrence = OccurrenceCompile::Cached(Box::new(facts));
-                if occurrence.tolerated_unsettled_service_fields() {
+                if occurrence.tolerated_unsettled_service_fields() && !tolerance_permitted {
                     return None;
                 }
                 Some((occurrence, review, policy_canonical_bytes, true))
@@ -1087,7 +1094,8 @@ impl ClosurePass<'_> {
         // publication retry never matches an unanswered-inputs lookup —
         // the same shape the in-session carry takes.
         if key != closure.graph().root()
-            && !checked.execution().tolerated_unsettled_service_fields()
+            && (self.discovery == TargetEntryDiscovery::Dependencies
+                || !checked.execution().tolerated_unsettled_service_fields())
             && let Some(directory) = custody.compiled_review_cache_dir()
             && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
             && let Some(subject) = checked.sources().package_subject()
