@@ -8,6 +8,10 @@ pub(crate) use optimization_core::codec_bytes;
 mod cursor;
 mod fma;
 mod frame_protocol;
+/// Unresolved ordinary internal call control; the owner retains its rel32 field.
+pub const ORDINARY_DIRECT_CALL_BYTES: [u8; 5] = [0xe8, 0, 0, 0, 0];
+/// Ordinary call-return control, after releasing the active frame.
+pub const ORDINARY_RETURN_BYTES: [u8; 1] = [0xc3];
 mod hosted_kernel;
 mod hosted_linux_encoding;
 mod ieee_float;
@@ -68,7 +72,8 @@ mod semantic_unit_wrapper_encoding;
 pub use fma::{DecodedScalarFmaFormat, decode_vfmadd132_scalar};
 pub use frame_protocol::{
     X86_64FrameProtocolError, X86_64FrameSlot, X86_64StackProbe,
-    encode_system_v_amd64_frame_protocol,
+    encode_system_v_amd64_frame_protocol, encode_x86_64_frame_address, encode_x86_64_frame_memory,
+    encode_x86_64_integer_constant,
 };
 pub use ieee_float::{
     OMEGA_CANONICAL_MXCSR, encode_binary32_bits_to_xmm, encode_binary64_bits_to_xmm,

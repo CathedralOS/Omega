@@ -239,10 +239,98 @@ fn append_memory(
     scratch: Option<u8>,
     load: bool,
 ) -> Result<(), Aarch64FrameProtocolError> {
-    if !offset_bytes.is_multiple_of(8) {
+    append_sized_memory(bytes, register, offset_bytes, scratch, 8, load)
+}
+
+/// Encode a physical SP-relative transfer without inventing a semantic frame
+/// slot. Native entry adapters own their frame ranges separately. The declared
+/// address scratch may be clobbered for large displacements; the caller owns
+/// its footprint and must keep it separate from stored values.
+pub fn encode_aarch64_frame_memory(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    offset_bytes: u32,
+    byte_size: u8,
+    load: bool,
+    address_scratch: RegisterViewId,
+) -> Result<Vec<u8>, Aarch64FrameProtocolError> {
+    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
+    }
+    let value_register = register(model, view)?;
+    let Register::X(scratch) = register(model, address_scratch)? else {
+        return Err(Aarch64FrameProtocolError::UnknownOrUnsupportedView(
+            address_scratch,
+        ));
+    };
+    if !load && matches!(value_register, Register::X(number) if number == scratch) {
+        return Err(Aarch64FrameProtocolError::NonCanonicalSlots);
+    }
+    let mut bytes = Vec::new();
+    append_sized_memory(
+        &mut bytes,
+        value_register,
+        u64::from(offset_bytes),
+        Some(scratch),
+        byte_size,
+        load,
+    )?;
+    Ok(bytes)
+}
+
+/// Form a frame address with the same checked immediate steps as frame forms.
+pub fn encode_aarch64_frame_address(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    offset_bytes: u32,
+) -> Result<Vec<u8>, Aarch64FrameProtocolError> {
+    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
+    }
+    let Register::X(destination) = register(model, view)? else {
+        return Err(Aarch64FrameProtocolError::UnknownOrUnsupportedView(view));
+    };
+    Ok(
+        crate::immediate_offset::address_words(destination, 31, u64::from(offset_bytes))
+            .into_iter()
+            .flat_map(u32::to_le_bytes)
+            .collect(),
+    )
+}
+
+/// Materialize an interpretation word using the ordinary integer encoder.
+pub fn encode_aarch64_integer_constant(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    value: u64,
+) -> Result<Vec<u8>, Aarch64FrameProtocolError> {
+    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
+    }
+    let Register::X(destination) = register(model, view)? else {
+        return Err(Aarch64FrameProtocolError::UnknownOrUnsupportedView(view));
+    };
+    let mut words = Vec::new();
+    crate::selected_form_encoding::movn_materialization::append_canonical_materialization(
+        &mut words,
+        destination,
+        value,
+    );
+    Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
+}
+
+fn append_sized_memory(
+    bytes: &mut Vec<u8>,
+    register: Register,
+    offset_bytes: u64,
+    scratch: Option<u8>,
+    byte_size: u8,
+    load: bool,
+) -> Result<(), Aarch64FrameProtocolError> {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) || !offset_bytes.is_multiple_of(u64::from(byte_size)) {
         return Err(Aarch64FrameProtocolError::OffsetOutOfRange);
     }
-    let (base_register, displacement) = if offset_bytes / 8 <= 4095 {
+    let (base_register, displacement) = if offset_bytes / u64::from(byte_size) <= 4095 {
         (31, offset_bytes)
     } else {
         let scratch = scratch.ok_or(Aarch64FrameProtocolError::NonCanonicalSlots)?;
@@ -257,13 +345,17 @@ fn append_memory(
         }
         (scratch, offset_bytes & 4095)
     };
-    let scaled = (displacement / 8) as u32;
-    let (base, number) = match (register, load) {
-        (Register::X(number), false) => (0xf900_0000, number),
-        (Register::X(number), true) => (0xf940_0000, number),
-        (Register::D(number), false) => (0xfd00_0000, number),
-        (Register::D(number), true) => (0xfd40_0000, number),
+    let scaled = (displacement / u64::from(byte_size)) as u32;
+    let (base, number) = match (register, byte_size) {
+        (Register::X(number), 1) => (0x3900_0000, number),
+        (Register::X(number), 2) => (0x7900_0000, number),
+        (Register::X(number), 4) => (0xb900_0000, number),
+        (Register::X(number), 8) => (0xf900_0000, number),
+        (Register::D(number), 4) => (0xbd00_0000, number),
+        (Register::D(number), 8) => (0xfd00_0000, number),
+        _ => return Err(Aarch64FrameProtocolError::OffsetOutOfRange),
     };
+    let base = base | if load { 1 << 22 } else { 0 };
     append_word(
         bytes,
         base | (scaled << 10) | (u32::from(base_register) << 5) | u32::from(number),
@@ -291,6 +383,27 @@ mod tests {
         interval_bytes: 16_384,
         touches: 0,
     };
+
+    #[test]
+    fn physical_frame_transfers_encode_exact_scalar_widths() {
+        let model =
+            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let scratch = model.model().view_named("x17").unwrap().id;
+        for (name, offset, width, load, expected) in [
+            ("x0", 3, 1, false, 0x3900_0fe0_u32),
+            ("x1", 6, 2, true, 0x7940_0fe1),
+            ("x0", 16, 8, false, 0xf900_0be0),
+            ("d0", 4, 4, false, 0xbd00_07e0),
+            ("d0", 4, 4, true, 0xbd40_07e0),
+        ] {
+            let view = model.model().view_named(name).unwrap().id;
+            assert_eq!(
+                super::encode_aarch64_frame_memory(&model, view, offset, width, load, scratch)
+                    .unwrap(),
+                expected.to_le_bytes()
+            );
+        }
+    }
 
     #[test]
     fn canonical_frame_encodes_sp_adjustment_and_link_custody() {

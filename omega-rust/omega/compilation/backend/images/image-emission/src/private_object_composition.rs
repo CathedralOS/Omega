@@ -7,6 +7,10 @@
 //! or boundary number. Undefined private references allow cyclic code linkage
 //! without recursively emitting a registrar. Synchronous stack cycles are a
 //! separate resource obligation, not a linker recursion.
+//!
+//! A non-identity native entry is a separate physical region and symbol calling
+//! the namespaced ordinary body entry. Aliasing the body symbol to that bridge
+//! would send helpers or recursion back through foreign pointer conversion.
 
 use std::sync::Arc;
 
@@ -142,68 +146,69 @@ fn append_body(linked: &mut ObjectArtifact, private: &PrivateFunctionObject) -> 
             .iter()
             .find(|(_, row)| row.symbol == local)
             .map(|(_, row)| row.identity);
-        let linked_symbol = if local == body.object.layout.entry_symbol {
-            let handle = private_symbol(&mut linked.object, private.identity)?;
-            let destination = linked.object.layout.symbols.get_mut(handle);
-            if destination.section != SymbolSection::None {
-                return Err(Error::Mismatch("duplicate private function definition"));
-            }
-            destination.section = SymbolSection::Section(SectionKind::Text);
-            destination.offset = symbol
-                .offset
-                .checked_add(text_offset)
-                .ok_or(Error::Overflow)?;
-            destination.size = symbol.size;
-            handle
-        } else if let Some(identity) = private_reference {
-            private_symbol(&mut linked.object, identity)?
-        } else if symbol.kind == SymbolKind::Import {
-            let locator = body
-                .object
-                .layout
-                .normalized_imports
-                .iter()
-                .find(|import| import.symbol == local)
-                .ok_or(Error::Mismatch("private import has no normalized locator"))?;
-            if let Some(import) = linked
-                .object
-                .layout
-                .normalized_imports
-                .iter()
-                .find(|import| import.locator == locator.locator)
-            {
-                import.symbol
+        let linked_symbol =
+            if local == body.object.layout.entry_symbol && private.entry_bridge.is_none() {
+                let handle = private_symbol(&mut linked.object, private.identity)?;
+                let destination = linked.object.layout.symbols.get_mut(handle);
+                if destination.section != SymbolSection::None {
+                    return Err(Error::Mismatch("duplicate private function definition"));
+                }
+                destination.section = SymbolSection::Section(SectionKind::Text);
+                destination.offset = symbol
+                    .offset
+                    .checked_add(text_offset)
+                    .ok_or(Error::Overflow)?;
+                destination.size = symbol.size;
+                handle
+            } else if let Some(identity) = private_reference {
+                private_symbol(&mut linked.object, identity)?
+            } else if symbol.kind == SymbolKind::Import {
+                let locator = body
+                    .object
+                    .layout
+                    .normalized_imports
+                    .iter()
+                    .find(|import| import.symbol == local)
+                    .ok_or(Error::Mismatch("private import has no normalized locator"))?;
+                if let Some(import) = linked
+                    .object
+                    .layout
+                    .normalized_imports
+                    .iter()
+                    .find(|import| import.locator == locator.locator)
+                {
+                    import.symbol
+                } else {
+                    let name = object_file::normalized_foreign_import_symbol_name(&locator.locator);
+                    if linked
+                        .object
+                        .layout
+                        .symbols
+                        .iter()
+                        .any(|(_, symbol)| symbol.name == name)
+                    {
+                        return Err(Error::Mismatch("private import symbol name collision"));
+                    }
+                    linked.object.layout.insert_import(name, &locator.locator)
+                }
             } else {
-                let name = object_file::normalized_foreign_import_symbol_name(&locator.locator);
+                let mut relocated = symbol.clone();
+                relocated.name = format!("{prefix}_{}", symbol.name);
+                relocated.offset = symbol
+                    .offset
+                    .checked_add(section_offset(symbol.section, text_offset, data_offset)?)
+                    .ok_or(Error::Overflow)?;
                 if linked
                     .object
                     .layout
                     .symbols
                     .iter()
-                    .any(|(_, symbol)| symbol.name == name)
+                    .any(|(_, other)| other.name == relocated.name)
                 {
-                    return Err(Error::Mismatch("private import symbol name collision"));
+                    return Err(Error::Mismatch("private body symbol collision"));
                 }
-                linked.object.layout.insert_import(name, &locator.locator)
-            }
-        } else {
-            let mut relocated = symbol.clone();
-            relocated.name = format!("{prefix}_{}", symbol.name);
-            relocated.offset = symbol
-                .offset
-                .checked_add(section_offset(symbol.section, text_offset, data_offset)?)
-                .ok_or(Error::Overflow)?;
-            if linked
-                .object
-                .layout
-                .symbols
-                .iter()
-                .any(|(_, other)| other.name == relocated.name)
-            {
-                return Err(Error::Mismatch("private body symbol collision"));
-            }
-            linked.object.layout.symbols.insert(relocated)
-        };
+                linked.object.layout.symbols.insert(relocated)
+            };
         bindings.insert(PrivateObjectSymbolBinding {
             local,
             linked: linked_symbol,
@@ -266,7 +271,7 @@ fn append_body(linked: &mut ObjectArtifact, private: &PrivateFunctionObject) -> 
     let function = body
         .function_on_machine(body.entry)
         .ok_or(Error::Mismatch("private body entry function missing"))?;
-    let function = crate::ObjectPrivateFunctionEntry::from_function(
+    let mut function = crate::ObjectPrivateFunctionEntry::from_function(
         function,
         remap(&bindings, function.symbol)?,
         function
@@ -274,6 +279,43 @@ fn append_body(linked: &mut ObjectArtifact, private: &PrivateFunctionObject) -> 
             .checked_add(text_offset)
             .ok_or(Error::Overflow)?,
     );
+    if let Some(bridge) = &private.entry_bridge {
+        let body_symbol = function.symbol;
+        let bridge_offset = align_section(linked, SectionKind::Text, &format!("{prefix}_entry"))?;
+        let symbol = private_symbol(&mut linked.object, private.identity)?;
+        let destination = linked.object.layout.symbols.get_mut(symbol);
+        if destination.section != SymbolSection::None {
+            return Err(Error::Mismatch("duplicate private entry definition"));
+        }
+        destination.section = SymbolSection::Section(SectionKind::Text);
+        destination.offset = bridge_offset;
+        destination.size = bridge.bytes().len();
+        linked.text_bytes.extend_from_slice(bridge.bytes());
+        linked
+            .relocations
+            .push_record(object_file::RelocationRecord {
+                origin: RelocationOrigin::Materialization {
+                    object_symbol_handle: symbol,
+                },
+                section: SectionKind::Text,
+                offset: bridge_offset
+                    .checked_add(bridge.call_field_offset())
+                    .ok_or(Error::Overflow)?,
+                byte_width: 4,
+                symbol_handle: body_symbol,
+                addend: 0,
+                kind: match linked.target.architecture {
+                    target::Architecture::Aarch64 => object_file::RelocationKind::Aarch64Branch26,
+                    target::Architecture::X86_64 => object_file::RelocationKind::X86_64Relative32,
+                },
+            });
+        // The scalar ABI summary describes the ordinary body, not this physical
+        // entry. Do not publish it as if the descriptor bridge had that ABI.
+        function.scalar_abi = None;
+        function.symbol = symbol;
+        function.text_offset = bridge_offset;
+        function.byte_count = bridge.bytes().len();
+    }
     linked
         .private_functions
         .push(ObjectCompilerPrivateFunction {
@@ -281,6 +323,7 @@ fn append_body(linked: &mut ObjectArtifact, private: &PrivateFunctionObject) -> 
             source_psi: body.psi,
             function,
             body: Arc::clone(body),
+            entry_bridge: private.entry_bridge.clone(),
             text_offset,
             data_offset,
             symbol_bindings: bindings,
@@ -424,9 +467,11 @@ pub(crate) fn validate_composition(artifact: &ObjectArtifact) -> Result<(), Erro
             &replay.0,
             &private.body,
         )?;
+        crate::private_entry_transport::validate_entry_transport(private)?;
         inputs.push(PrivateFunctionObject {
             identity: private.identity,
             body: Arc::clone(&private.body),
+            entry_bridge: private.entry_bridge.clone(),
         });
     }
     let expected = compose_private_function_objects(source.as_ref().clone(), &inputs)?;

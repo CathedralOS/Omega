@@ -311,6 +311,8 @@ pub struct ObjectCompilerPrivateFunction {
     pub function: ObjectPrivateFunctionEntry,
     /// The complete artifact-local function, import, data and evidence namespace.
     pub body: std::sync::Arc<ObjectArtifact>,
+    /// Physical native entry; absent only for identity transport to the body.
+    pub entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
     pub text_offset: usize,
     pub data_offset: usize,
     pub symbol_bindings: arena::Arena<PrivateObjectSymbolBinding>,
@@ -355,6 +357,7 @@ pub struct PrivateObjectSymbolBinding {
 pub struct PrivateFunctionObject {
     pub identity: function_identity::MachineFunctionIdentity,
     pub body: std::sync::Arc<ObjectArtifact>,
+    pub entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
 }
 
 impl ObjectCompilerPrivateFunction {

@@ -229,6 +229,116 @@ fn append_register_memory(
     Ok(())
 }
 
+/// Encode a physical SP-relative scalar transfer. Entry adapters own the
+/// allocation; this operation supplies no semantic slot or storage authority.
+pub fn encode_x86_64_frame_memory(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    offset_bytes: u32,
+    byte_size: u8,
+    load: bool,
+) -> Result<Vec<u8>, X86_64FrameProtocolError> {
+    if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
+        return Err(X86_64FrameProtocolError::PhysicalRegisterModelMismatch);
+    }
+    let name = model
+        .model()
+        .view(view)
+        .ok_or(X86_64FrameProtocolError::UnknownOrUnsupportedView(view))?
+        .name
+        .as_str();
+    let mut bytes = Vec::new();
+    if let Some(number) = name.strip_prefix("xmm") {
+        let number = number
+            .parse::<u8>()
+            .ok()
+            .filter(|number| *number < 16)
+            .ok_or(X86_64FrameProtocolError::UnknownOrUnsupportedView(view))?;
+        let prefix = match byte_size {
+            4 => 0xf3,
+            8 => 0xf2,
+            _ => return Err(X86_64FrameProtocolError::OffsetOutOfRange),
+        };
+        bytes.push(prefix);
+        if number >= 8 {
+            bytes.push(0x44);
+        }
+        bytes.extend_from_slice(&[0x0f, if load { 0x10 } else { 0x11 }]);
+        append_stack_operand(&mut bytes, number, offset_bytes)?;
+        return Ok(bytes);
+    }
+    let register = register_code(model, view)?;
+    if byte_size == 8 {
+        append_register_memory(&mut bytes, register, u64::from(offset_bytes), load)?;
+        return Ok(bytes);
+    }
+    if !matches!(byte_size, 1 | 2 | 4) {
+        return Err(X86_64FrameProtocolError::OffsetOutOfRange);
+    }
+    if byte_size == 2 && !load {
+        bytes.push(0x66);
+    }
+    // Byte/halfword loads zero-extend into r32. Stores select the exact
+    // width; a byte register numbered 4..7 needs REX to name sil/dil/bpl.
+    let rex = 0x40 | ((register >> 3) << 2);
+    if rex != 0x40 || (byte_size == 1 && !load && register >= 4) {
+        bytes.push(rex);
+    }
+    match (load, byte_size) {
+        (true, 1) => bytes.extend_from_slice(&[0x0f, 0xb6]),
+        (true, 2) => bytes.extend_from_slice(&[0x0f, 0xb7]),
+        (true, 4) => bytes.push(0x8b),
+        (false, 1) => bytes.push(0x88),
+        (false, _) => bytes.push(0x89),
+        _ => return Err(X86_64FrameProtocolError::OffsetOutOfRange),
+    }
+    append_stack_operand(&mut bytes, register, offset_bytes)?;
+    Ok(bytes)
+}
+
+fn append_stack_operand(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    offset_bytes: u32,
+) -> Result<(), X86_64FrameProtocolError> {
+    if offset_bytes > i32::MAX as u32 {
+        return Err(X86_64FrameProtocolError::OffsetOutOfRange);
+    }
+    bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
+    bytes.extend_from_slice(&offset_bytes.to_le_bytes());
+    Ok(())
+}
+
+/// Form an address inside the caller-owned adapter frame without a slot ID.
+pub fn encode_x86_64_frame_address(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    offset_bytes: u32,
+) -> Result<Vec<u8>, X86_64FrameProtocolError> {
+    if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
+        return Err(X86_64FrameProtocolError::PhysicalRegisterModelMismatch);
+    }
+    let register = register_code(model, view)?;
+    let mut bytes = vec![0x48 | ((register >> 3) << 2), 0x8d];
+    append_stack_operand(&mut bytes, register, offset_bytes)?;
+    Ok(bytes)
+}
+
+/// Materialize one complete interpretation word, not a semantic operation.
+pub fn encode_x86_64_integer_constant(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    value: u64,
+) -> Result<Vec<u8>, X86_64FrameProtocolError> {
+    if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
+        return Err(X86_64FrameProtocolError::PhysicalRegisterModelMismatch);
+    }
+    let register = register_code(model, view)?;
+    let mut bytes = vec![0x48 | (register >> 3), 0xb8 | (register & 7)];
+    bytes.extend_from_slice(&value.to_le_bytes());
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -241,6 +351,35 @@ mod tests {
         interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
         touches: 0,
     };
+
+    #[test]
+    fn physical_frame_transfers_keep_byte_and_float_store_extents() {
+        let model =
+            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        for (name, offset, width, load, expected) in [
+            ("rsi", 3, 1, false, vec![0x40, 0x88, 0xb4, 0x24, 3, 0, 0, 0]),
+            (
+                "r9",
+                2,
+                2,
+                true,
+                vec![0x44, 0x0f, 0xb7, 0x8c, 0x24, 2, 0, 0, 0],
+            ),
+            (
+                "xmm8",
+                4,
+                4,
+                false,
+                vec![0xf3, 0x44, 0x0f, 0x11, 0x84, 0x24, 4, 0, 0, 0],
+            ),
+        ] {
+            let view = model.model().view_named(name).unwrap().id;
+            assert_eq!(
+                super::encode_x86_64_frame_memory(&model, view, offset, width, load).unwrap(),
+                expected
+            );
+        }
+    }
 
     #[test]
     fn canonical_frame_encodes_adjust_save_restore_and_inverse_adjust() {

@@ -242,6 +242,7 @@ pub enum ObjectError {
     },
     UnaccountedTerminalStack(MachineId),
     TerminalStackCycle(MachineId),
+    PrivateEntryStackArithmeticOverflow(function_identity::MachineFunctionIdentity),
     TerminalStackCompositionOverflow {
         caller: MachineId,
         owner: CallSiteOwner,

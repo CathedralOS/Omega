@@ -122,58 +122,57 @@ fn lower_callback_thunk(
     let projection = native_artifact::emit_fragment_object(physical)?;
     let emitted = projection.entry_call_plan()?;
     let declared = &settlement.boundary_entry_plan.call;
-    // Ordinary lowering already transports every parameter and result through
-    // this graph plan, not only the signatures with scalar ABI summaries.
-    // Terminal has independent scalar and structural lanes, whereas the
-    // boundary telescope follows authored formal order. Rejoin those ordinals
-    // through producer-retained identities before comparing transport: a zip
-    // would compare the wrong arguments whenever the two lanes interleave.
-    // Different physical transport still needs an actual bridge; this mapping
-    // neither builds scalar-loan descriptors nor relabels their pointers.
-    // The internal convention's conservative volatile bank is not an emitted
-    // state footprint, so equality of clobber summaries would prove nothing
-    // about the implementation's separately governed state commitment.
-    if emitted.policy != declared.policy
-        || emitted.parameters.len() != declared.parameters.len()
+    // Join independent Terminal lanes through their exact nominal origins.
+    // The body keeps its ordinary ABI; a differing admitted native recipe is
+    // realized by a separate physical entry, not by rewriting helper/recursion
+    // conventions or treating a thin scalar pointer as a descriptor.
+    if emitted.parameters.len() != declared.parameters.len()
         || emitted.parameters.len() != settlement.parameter_formals.len()
         || settlement.entry_parameters.len() != declared.parameters.len()
-        || emitted
-            .parameters
-            .iter()
-            .zip(settlement.parameter_formals)
-            .any(|(internal, formal)| {
-                let mut matching = settlement.entry_parameters.iter().filter(|parameter| {
-                    parameter.origin
-                        == calling_conventions::BoundaryNativeParameterOrigin::SemanticFormal {
-                            formal_ordinal: *formal,
-                        }
-                });
-                let Some(parameter) = matching.next() else {
-                    return true;
-                };
-                let boundary = usize::try_from(parameter.application.native_ordinal)
-                    .ok()
-                    .and_then(|ordinal| declared.parameters.get(ordinal));
-                matching.next().is_some()
-                    || boundary.is_none_or(|boundary| {
-                        parameter.application.placement != *boundary
-                            || parameter.application.shape != boundary.shape
-                            || !internal.has_same_parameter_transport(boundary)
-                    })
-            })
-        || emitted.result != declared.result
-        || emitted.callback_materializations != declared.callback_materializations
-        || emitted.stack_alignment != declared.stack_alignment
-        || emitted.shadow_bytes != declared.shadow_bytes
-        || emitted.entry_control != declared.entry_control
     {
         return Err(realization_error(
             "callback entry ABI",
             "callback signature drifts from its boundary entry plan",
         ));
     }
-    Ok(PrivateFunctionObject {
-        identity: settlement.callback_function,
-        body: std::sync::Arc::new(projection.into_object()),
-    })
+    let inbound_ordinals = settlement
+        .parameter_formals
+        .iter()
+        .map(|formal| {
+            let mut matching = settlement.entry_parameters.iter().filter(|parameter| {
+                parameter.origin
+                    == calling_conventions::BoundaryNativeParameterOrigin::SemanticFormal {
+                        formal_ordinal: *formal,
+                    }
+            });
+            let Some(parameter) = matching.next() else {
+                return Err(realization_error(
+                    "callback entry ABI",
+                    "callback formal has no native parameter origin",
+                ));
+            };
+            let boundary = usize::try_from(parameter.application.native_ordinal)
+                .ok()
+                .and_then(|ordinal| declared.parameters.get(ordinal));
+            if matching.next().is_some()
+                || boundary.is_none_or(|boundary| {
+                    parameter.application.placement != *boundary
+                        || parameter.application.shape != boundary.shape
+                })
+            {
+                return Err(realization_error(
+                    "callback entry ABI",
+                    "callback native parameter application differs",
+                ));
+            }
+            Ok(parameter.application.native_ordinal)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    image_emission::create_private_function_object(
+        settlement.callback_function,
+        std::sync::Arc::new(projection.into_object()),
+        declared,
+        &inbound_ordinals,
+    )
+    .map_err(|error| realization_error("callback entry ABI", error))
 }

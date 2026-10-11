@@ -29,6 +29,7 @@ pub enum FunctionFragmentObjectArtifactError {
     },
     Mismatch(&'static str),
     PrivateFunctions(crate::ObjectError),
+    NativeEntryBridge(machine_emission::native_entry_bridge::NativeEntryBridgeError),
     Overflow,
 }
 
@@ -36,6 +37,7 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Source(error) => write!(formatter, "shared object replay: {error}"),
+            Self::NativeEntryBridge(error) => write!(formatter, "native entry transport: {error}"),
             Self::Unsupported(reason) | Self::Mismatch(reason) => formatter.write_str(reason),
             Self::UnaccountedOperation {
                 machine,

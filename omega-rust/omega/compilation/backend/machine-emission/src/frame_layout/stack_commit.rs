@@ -24,7 +24,7 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 /// 4 KiB (Intel macOS uses 4 KiB pages), plus (Aarch64, Mach-O) at 16 KiB —
 /// the same five pairs the ABI preservation matrix admits. (Aarch64, COFF) is
 /// undeclared and answers `None`.
-pub(super) const fn stack_commit_granule_bytes(target: NativeTarget) -> Option<u64> {
+pub(crate) const fn stack_commit_granule_bytes(target: NativeTarget) -> Option<u64> {
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf)
         | (Architecture::X86_64, ObjectFormat::Coff)

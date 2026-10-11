@@ -312,6 +312,7 @@ pub(crate) fn emit_private_functions(
             linked: symbol,
         });
         object_private_functions.push(ObjectCompilerPrivateFunction {
+            entry_bridge: None,
             identity: private.machine.identity,
             source_psi: private.machine.source_psi,
             function,

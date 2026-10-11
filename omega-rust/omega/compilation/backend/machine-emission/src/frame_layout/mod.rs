@@ -14,7 +14,7 @@ mod compute;
 mod error;
 mod replay;
 mod save_storage;
-mod stack_commit;
+pub(crate) mod stack_commit;
 mod unwind;
 mod validation;
 

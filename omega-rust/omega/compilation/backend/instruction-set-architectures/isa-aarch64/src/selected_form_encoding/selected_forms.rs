@@ -668,7 +668,9 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
-        | SelectedInstructionKind::ReturnUnit => words.push(0xd65f_03c0),
+        | SelectedInstructionKind::ReturnUnit => {
+            words.push(u32::from_le_bytes(crate::ORDINARY_RETURN_BYTES))
+        }
         selected_instructions::layout_dependent_selected_transfers!()
         | selected_instructions::dedicated_selected_forms!() => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);

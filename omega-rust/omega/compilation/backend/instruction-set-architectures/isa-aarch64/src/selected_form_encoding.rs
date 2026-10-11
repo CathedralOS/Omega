@@ -32,7 +32,7 @@ pub(crate) mod ieee_float_arithmetic;
 mod integer_normalization_tests;
 mod jump;
 mod memory;
-mod movn_materialization;
+pub(crate) mod movn_materialization;
 mod normalized_foreign_call;
 mod scalar_call;
 mod selected_forms;

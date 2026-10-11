@@ -34,6 +34,8 @@
 //!   installed code occurrence when the `installed-artifact` feature is on.
 
 mod codec_bytes;
+mod private_entry_transport;
+pub use private_entry_transport::create_private_function_object;
 mod dynamic_elf;
 mod final_image_validation;
 mod function_fragments;

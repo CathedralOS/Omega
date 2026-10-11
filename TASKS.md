@@ -4438,10 +4438,18 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   Keep `pass/calls/callback_mixed_formal_entry`: real macOS Arm64 `qsort_r`
   supplies a scalar context between two authored record-reference formals;
   both sort directions and associated stamps must survive their separate lanes.
-  Complete inbound recipes that differ physically from the internal convention
-  through ordinary selected-call bridges, including scalar-loan descriptors and
-  register/stack redistribution. Equal pointer widths cannot establish those
-  conversions. Preserve `pass/calls/callback_future_registration_cycle`:
+  Preserve `pass/calls/callback_borrowed_scalar_entry` and
+  `pass/calls/callback_scalar_loan_permutation`: genuine macOS Arm64 `qsort`
+  and `qsort_r` must pass thin pointers through activation-local scalar-loan
+  descriptors to ordinary helpers and exit 0; the latter permutes native
+  X1/X0/X2 into ordinary X0/X1/X2 and observes both sort directions.
+  The physical entry retains its own symbol, body-call relocation, request and
+  frame demand; codecs derive from the exact retained Terminal referents.
+  Word-sized scalar/reference transport has register/stack and float encoding
+  coverage on AArch64 and x86-64, not matching-host execution on every target.
+  Complete differing owned aggregate/result transports and entry conventions;
+  they remain explicit unsupported ABI forms, not inferred copies or pointer
+  equivalence. Preserve `pass/calls/callback_future_registration_cycle`:
   genuine macOS Arm64 `pthread_key_create` registers a destructor whose body
   can register itself; native `_exit` must exit 0 without invoking it.
   Same-stack composition follows the registrar's declared synchronous reach,

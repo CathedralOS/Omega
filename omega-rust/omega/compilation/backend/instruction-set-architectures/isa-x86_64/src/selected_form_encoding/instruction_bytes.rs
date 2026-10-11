@@ -797,7 +797,9 @@ pub(crate) fn encode_unchecked(
         }
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
-        | SelectedInstructionKind::ReturnUnit => bytes.push(0xc3),
+        | SelectedInstructionKind::ReturnUnit => {
+            bytes.extend_from_slice(&crate::ORDINARY_RETURN_BYTES)
+        }
         selected_instructions::layout_dependent_selected_transfers!()
         | selected_instructions::dedicated_selected_forms!() => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);

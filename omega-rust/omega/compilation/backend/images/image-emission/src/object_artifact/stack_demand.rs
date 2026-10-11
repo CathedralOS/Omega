@@ -58,12 +58,19 @@ fn derive_namespace_stack_demand(
             return Err(ObjectError::TerminalStackCycle(private.body.entry));
         }
         active_private.push(identity);
-        let demand = derive_namespace_stack_demand(
+        let mut demand = derive_namespace_stack_demand(
             &private.body,
             private.body.entry,
             private_functions,
             active_private,
         )?;
+        if let Some(bridge) = &private.entry_bridge {
+            demand.ceiling_bytes = demand
+                .ceiling_bytes
+                .checked_add(u64::from(bridge.frame_bytes()))
+                .and_then(|bytes| bytes.checked_add(u64::from(bridge.call_stack_bias())))
+                .ok_or(ObjectError::PrivateEntryStackArithmeticOverflow(identity))?;
+        }
         active_private.pop();
         private_demands.push((identity, demand));
     }

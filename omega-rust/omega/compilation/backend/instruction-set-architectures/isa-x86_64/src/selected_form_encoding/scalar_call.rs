@@ -109,7 +109,7 @@ pub fn encode_x86_64_selected_scalar_call_template(
     let callee = kind
         .machine_callee()
         .ok_or(X86_64ScalarCallTemplateError::InstructionKindMismatch)?;
-    let bytes = [0xe8, 0, 0, 0, 0];
+    let bytes = crate::ORDINARY_DIRECT_CALL_BYTES;
     let fixup = canonical_fixup(callee);
     validate_x86_64_selected_scalar_call_template(
         target,

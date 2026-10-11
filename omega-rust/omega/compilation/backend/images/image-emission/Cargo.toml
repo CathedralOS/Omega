@@ -13,6 +13,8 @@ test-support = []
 installed-artifact = ["dep:executable-installation", "dep:layout-plans"]
 
 [dependencies]
+machine-emission = { path = "../../machine-emission" }
+runtime-abi = { path = "../../runtime/runtime-abi" }
 arena = { path = "../../../../../psi/foundation/arena" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 program-entry-plan = { path = "../../plans/program-entry-plan" }
@@ -57,7 +59,6 @@ layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
 register-model = { path = "../../register-model" }
 abstract-operations-to-target-operations = { path = "../../../pipeline/02_abstract-operations-to-target-operations" }
 terminal-psi-to-abstract-operations = { path = "../../../pipeline/00_terminal-psi-to-abstract-operations" }
-machine-emission = { path = "../../machine-emission" }
 optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
 checked-trees = { path = "../../../../../psi/compilation/representations/checked-trees" }
 extents = { path = "../../../../../psi/foundation/extents" }

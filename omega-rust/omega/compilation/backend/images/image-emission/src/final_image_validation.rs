@@ -190,7 +190,9 @@ fn validate_terminal_image_with_import_count(
         + artifact
             .private_functions
             .iter()
-            .map(|private| private.body.functions.len())
+            .map(|private| {
+                private.body.functions.len() + usize::from(private.entry_bridge.is_some())
+            })
             .sum::<usize>()
         + usize::from(entry_shim.is_some());
     if compiler_regions.len() != expected_region_count {
@@ -247,11 +249,10 @@ fn validate_terminal_image_with_import_count(
                 "compiler-private callback function must bind exactly one final executable region; found {matching}"
             )));
         }
-        for helper in private
-            .body
-            .functions
-            .iter()
-            .filter(|helper| helper.machine != private.body.entry)
+        for helper in
+            private.body.functions.iter().filter(|helper| {
+                helper.machine != private.body.entry || private.entry_bridge.is_some()
+            })
         {
             let symbol =
                 crate::private_object_composition::remap(&private.symbol_bindings, helper.symbol)

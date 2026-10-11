@@ -38,12 +38,16 @@
 //!
 //! Outside the route, [`startup_trampoline`], [`entry_exit_stub`] and
 //! [`x86_fma`] emit target-owned x86-64 byte recipes with their own replay.
+//! [`native_entry_bridge`] snapshots admitted native inputs, transports them
+//! into an unchanged ordinary body's convention and retains its unresolved
+//! call plus exact frame demand. It owns no synthetic semantic machine.
 //! The object join over placed text belongs to object-file and image-emission.
 
 // 1. Function-relative realization.
 pub(crate) use optimization_core::codec_bytes;
 pub(crate) use optimization_core::digest_encoder;
 mod function_realization;
+pub mod native_entry_bridge;
 
 pub use function_realization::stage_fixed_frame_function_relative_realization;
 

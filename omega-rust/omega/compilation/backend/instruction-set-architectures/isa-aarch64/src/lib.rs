@@ -46,11 +46,16 @@ pub use register_model::{
     aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
 };
 mod selected_form_encoding;
+/// Unresolved ordinary internal call control; the owner retains its fixup.
+pub const ORDINARY_DIRECT_CALL_BYTES: [u8; 4] = 0x9400_0000_u32.to_le_bytes();
+/// Ordinary call-return control, after restoring continuation custody.
+pub const ORDINARY_RETURN_BYTES: [u8; 4] = 0xd65f_03c0_u32.to_le_bytes();
 pub use floating_control::{
     encode_restore_fpcr_from_sp_displacement, encode_save_fpcr_to_sp_displacement,
 };
 pub use frame_protocol::{
     Aarch64FrameProtocolError, Aarch64FrameSlot, Aarch64StackProbe, encode_aapcs64_frame_protocol,
+    encode_aarch64_frame_address, encode_aarch64_frame_memory, encode_aarch64_integer_constant,
 };
 pub use machine_effects::{
     Aarch64MachineEffectCatalogValidationError, aarch64_machine_effect_catalog,

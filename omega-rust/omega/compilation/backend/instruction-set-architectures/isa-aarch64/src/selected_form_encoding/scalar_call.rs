@@ -109,7 +109,7 @@ pub fn encode_aarch64_selected_scalar_call_template(
     let callee = kind
         .machine_callee()
         .ok_or(Aarch64ScalarCallTemplateError::InstructionKindMismatch)?;
-    let bytes = 0x9400_0000_u32.to_le_bytes();
+    let bytes = crate::ORDINARY_DIRECT_CALL_BYTES;
     let fixup = canonical_fixup(callee);
     validate_aarch64_selected_scalar_call_template(
         target,
