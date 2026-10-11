@@ -1,0 +1,86 @@
+use domain::model;
+pub machine absolute(value: f64) -> f64 {
+    transition value < 0.0 { true -> (0.0 - value) false -> (value) }
+}
+pub machine distance(x: f64, y: f64, site_x: f64, site_y: f64) -> f64 {
+    let horizontal: f64 = x - site_x;
+    let vertical: f64 = y - site_y;
+    horizontal * horizontal + vertical * vertical
+}
+pub machine area(polygon: &Polygon) -> f64 {
+    transition { _ -> edge(polygon, 0, 0.0) }
+    state edge(polygon: &Polygon, index: u64, sum: f64) -> f64 {
+        transition index < polygon.count && index < 32 {
+            true -> add(polygon, index, sum)
+            false -> (sum * 0.5)
+        }
+    }
+    state add(polygon: &Polygon, index: u64, sum: f64) -> f64 {
+        let next: u64 = (index + 1) % polygon.count;
+        let cross: f64 = polygon.x[index] * polygon.y[next] - polygon.y[index] * polygon.x[next];
+        transition { _ -> edge(polygon, index + 1, sum + cross) }
+    }
+}
+// Each boundary edge must put every non-endpoint vertex strictly to its left.
+// This rejects repeated vertices, collinearity, self-intersections and CW order.
+pub machine boundary_valid(polygon: &Polygon) -> bool {
+    transition { _ -> edge(polygon, 0) }
+    state edge(polygon: &Polygon, index: u64) -> bool {
+        transition index < polygon.count && index < 32 {
+            true -> vertex(polygon, index, (index + 1) % polygon.count, 0)
+            false -> (true)
+        }
+    }
+    state vertex(polygon: &Polygon, index: u64, next: u64, other: u64) -> bool {
+        transition other < polygon.count && other < 32 {
+            true -> test(polygon, index, next, other)
+            false -> advance(polygon, index)
+        }
+    }
+    state test(polygon: &Polygon, index: u64, next: u64, other: u64) -> bool {
+        let cross: f64 = (polygon.x[next] - polygon.x[index]) * (polygon.y[other] - polygon.y[index])
+            - (polygon.y[next] - polygon.y[index]) * (polygon.x[other] - polygon.x[index]);
+        transition other == index || other == next || cross > 0.0 {
+            true -> vertex(polygon, index, next, other + 1)
+            false -> (false)
+        }
+    }
+    state advance(polygon: &Polygon, index: u64) -> bool {
+        transition { _ -> edge(polygon, index + 1) }
+    }
+}
+pub machine sites_valid(partition: &Partition) -> bool {
+    transition { _ -> site(partition, 0, 0) }
+    state site(partition: &Partition, index: u64, edge: u64) -> bool {
+        transition index < partition.site_count && index < 8 {
+            true -> boundary(partition, index, edge)
+            false -> (true)
+        }
+    }
+    state boundary(partition: &Partition, index: u64, edge: u64) -> bool {
+        transition edge < partition.boundary.count && edge < 32 {
+            true -> inside(partition, index, edge, (edge + 1) % partition.boundary.count)
+            false -> duplicate(partition, index, 0)
+        }
+    }
+    state inside(partition: &Partition, index: u64, edge: u64, next: u64) -> bool {
+        let cross: f64 = (partition.boundary.x[next] - partition.boundary.x[edge]) * (partition.site_y[index] - partition.boundary.y[edge])
+            - (partition.boundary.y[next] - partition.boundary.y[edge]) * (partition.site_x[index] - partition.boundary.x[edge]);
+        transition cross >= 0.0 {
+            true -> site(partition, index, edge + 1)
+            false -> (false)
+        }
+    }
+    state duplicate(partition: &Partition, index: u64, other: u64) -> bool {
+        transition other < index && other < 8 {
+            true -> distinct(partition, index, other)
+            false -> site(partition, index + 1, 0)
+        }
+    }
+    state distinct(partition: &Partition, index: u64, other: u64) -> bool {
+        transition partition.site_x[index] != partition.site_x[other] || partition.site_y[index] != partition.site_y[other] {
+            true -> duplicate(partition, index, other + 1)
+            false -> (false)
+        }
+    }
+}
