@@ -3771,6 +3771,39 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   Targetless checks select no physical entry; deployment cannot replace the
   physical adapter with a semantic continuation.
 
+- **BOUNDARY-CALL-PROJECTION-ARGUMENTS.** (new-scope) Stage 04 boundary-call
+  planning drops a whole carrier projected from a caller parameter or local:
+  `write_line(main.out)` where `main` is `&mut Main` and `out` is a
+  `[u8; N] in Utf8` field declines inside
+  `execution/terminal_unit/calls/trait_boundary_call.rs` at the
+  `boundary argument access` trace phase (`exact_structural_argument_access`
+  finds no matching borrow access record in
+  `calls/structural_arguments.rs::exact_structural_borrow_access`), and
+  `context.console.write_line(line)` where `line` is a locally composed
+  carrier declines at the `boundary result argument` phase
+  (`calls/result_arguments::argument`). Literal carriers
+  (`write_line("Hello")`), `&mut` borrow arguments
+  (`read_line(&mut main.pause)` — routed by
+  `computation_arguments::borrowed_storage_argument`) and indexed scalars
+  (`exit_process(main.nums[0])`) all plan and execute; only the unadorned
+  projection form is missing. Reproduces identically through
+  `omega update --project <sample> --target linux_x86_64` (candidate
+  checking fails before the review; `omega run` then only reports the stale
+  "needs an accepted program-entry binding" hint). 15 maintained samples are
+  blocked on linux_x86_64 by this one cause:
+  `samples/cli/{arithmetic/{prime_sieve,sensor_min_max},basics/{multiplication_table,print_number,print_squares,text_greeting},rendering/{bouncing_ball_2d,bouncing_particles,dungeon_render,mandelbrot,mandelbrot_zoom},simulation/calendar,systems/{elapsed_timer,status_report},text/text_padding}`
+  (elapsed_timer and status_report hit the result-argument variant). The
+  receiver call spelling is the pending **Q6** `binding-receiver-call-form`
+  decision (recommended option: the `Binding<R>` place is the receiver — the
+  form the reference compiler already resolves); coordinate the surface
+  ruling with **NOMINAL-FIELD-FLOW**, whose `&mut Binding<Console>` command
+  flow is the same machinery through a `&mut`-param receiver, and
+  **SAMPLE-CORPUS**, which owns the failing customers' native oracles.
+  Acceptance: the blocked samples reach `omega run`'s documented
+  exit/output on linux_x86_64 (the gate's `pass` bucket), or a recorded
+  Q6 ruling retires the spelling and the samples migrate to the decided
+  form; `tests/omega/pass` boundary-call fixtures keep their verdicts.
+
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Nonempty content claims
   do not execute through source, Terminal, selected providers and native code
   under [content conservation](wiki/spec/resources/content_custody.md):
