@@ -304,13 +304,19 @@ pub(super) fn assign_machine_symbols(
                         SymbolKind::Trait,
                         &conformance.name,
                     );
-                    let names_operator = symbols
-                        .find_top_level_by_name_and_kinds_from_source(
+                    // Presence of a source-visible operator family is enough
+                    // here. Its complete parameter/result-domain signature is
+                    // selected during typed settlement, just as for token
+                    // requirement families above; no sibling is chosen here.
+                    let names_operator = !matches!(
+                        symbols.lookup_signature_free_top_level_from_source_matching(
                             &path,
                             &[SymbolKind::Operator],
                             source_span,
-                        )
-                        .is_some();
+                            |_| true,
+                        ),
+                        symbols::SymbolLookup::NotFound
+                    );
                     if refinement_symbols.contains(&conformance.symbol) {
                         diagnostics.push(
                             Diagnostic::error(format!(

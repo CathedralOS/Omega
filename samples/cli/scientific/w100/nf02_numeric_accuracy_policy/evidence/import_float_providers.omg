@@ -1,0 +1,4 @@
+// Minimal check-only reproduction of the existing provider-selection failure.
+// No NF02 declarations, arithmetic, conversions, or tolerance implementation.
+use omega::language::core::float_operations;
+machine main() {}
