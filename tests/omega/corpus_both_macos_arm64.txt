@@ -782,6 +782,8 @@ pass/borrows/runtime_boundary_range_view_exit built 4390ms exit:0 interpreter-ex
 pass/borrows/runtime_computed_shared_view_reborrow_exit built 3976ms exit:0 interpreter-exit:0 interpreter:agrees @0dc6368bf7c8
 pass/slices/runtime_borrowed_noncopy_array_argument_exit built 3728ms exit:0 interpreter-exit:0 interpreter:agrees @6d312ec7d5ba
 pass/slices/runtime_namespace_range_contract_exit built 3713ms exit:0 interpreter-exit:0 interpreter:agrees @be968c2c6bfb
+pass/slices/runtime_forwarded_range_extent_snapshot_exit built 3964ms exit:0 interpreter-exit:0 interpreter:agrees @2a23b3a1e99d
+pass/slices/runtime_returned_range_extent_contract_exit built 3951ms exit:0 interpreter-exit:0 interpreter:agrees @2a23b3a1e99d
 pass/targets/runtime_target_default_provider_rows_exit built 2678ms exit:0 interpreter-exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6121c00e4546+wt
 pass/targets/runtime_target_named_provider_defaults_exit built 2763ms exit:0 interpreter-exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6121c00e4546+wt
 pass/targets/runtime_target_provider_build_override_exit built 2624ms exit:0 interpreter-exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6121c00e4546+wt

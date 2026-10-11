@@ -5145,6 +5145,12 @@ fail/control_flow/linear_result_repeated_successor_arguments rejected 1001ms exp
 	linear value `receipt` was already transferred or consumed; it cannot be moved here
 pass/control_flow/runtime_copy_result_conditional_successor_reuse_exit checked 6783ms check-target:linux_x86_64 @c24b141cb29b+wt
 pass/slices/runtime_namespace_range_contract_exit checked 3789ms check-target:macos_arm64 @be968c2c6bfb
+pass/slices/runtime_forwarded_range_extent_snapshot_exit checked 4009ms check-target:macos_arm64 @2a23b3a1e99d
+pass/slices/runtime_returned_range_extent_contract_exit checked 4009ms check-target:macos_arm64 @2a23b3a1e99d
+fail/slices/returned_range_extent_contract_keeps_actual_descriptor rejected 566ms expected @2a23b3a1e99d
+	cannot prove ensures contract for exit from Views::middle at statement 0: result.len == end - start
+fail/slices/returned_range_extent_contract_retires_replaced_descriptor rejected 561ms expected @2a23b3a1e99d
+	cannot prove ensures contract for exit from middle at statement 4: result.len == end - start
 fail/slices/namespace_range_keeps_bounds rejected 279ms expected @be968c2c6bfb
 	machine `Main::main` state `main` value call to `Views::middle` violates required fact `start <= end && end <= bytes.len`: the instantiated fact is structurally false
 pass/arithmetic/call_surviving_return_exit checked 6760ms check-target:macos_arm64 @30ec6a20142f+wt
