@@ -76,38 +76,18 @@ fn collect(
     if !expression.is_valid() || !seen.insert((expression, origin)) {
         return;
     }
-    let children = |handles: &[ExpressionHandle]| handles.to_vec();
-    let nested = match program.expression_table.expression(expression) {
-        ExpressionNode::Call(call) => {
-            if let Some(fact) = named_requirement_use_fact(program, expression, origin, call) {
-                uses.append(fact);
-            }
-            let mut nested = vec![call.receiver];
-            nested.extend_from_slice(program.expression_table.expression_handles(call.arguments));
-            nested
-        }
-        ExpressionNode::Binary(binary) => children(&[binary.left, binary.right]),
-        ExpressionNode::Unary(unary) => children(&[unary.operand]),
-        ExpressionNode::Member(member) => children(&[member.receiver]),
-        ExpressionNode::Borrow(inner) => children(&[inner.target]),
-        ExpressionNode::Atomic(atomic) => children(&[atomic.value]),
-        ExpressionNode::Indexed(indexed) => children(&[indexed.collection, indexed.index]),
-        ExpressionNode::Cast(cast) => children(&[cast.value]),
-        ExpressionNode::ArrayLiteral(values) => {
-            children(program.expression_table.expression_handles(*values))
-        }
-        ExpressionNode::Match(dispatch) => {
-            let mut nested = vec![dispatch.subject];
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                nested.push(arm.value);
-            }
-            nested
-        }
-        _ => Vec::new(),
-    };
-    for child in nested {
-        collect(program, child, origin, seen, uses);
+    let node = program.expression_table.expression(expression);
+    if let ExpressionNode::Call(call) = node
+        && let Some(fact) = named_requirement_use_fact(program, expression, origin, call)
+    {
+        uses.append(fact);
     }
+    // Selection discovery shares the canonical value edges with other checks.
+    // A local roster omitted structural initializers and match patterns, losing
+    // requirement occurrences even though their operand values were checked.
+    crate::expression_traversal::children(program, node, |child| {
+        collect(program, child, origin, seen, uses);
+    });
 }
 
 fn named_requirement_use_fact(
