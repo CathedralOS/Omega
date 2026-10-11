@@ -59,7 +59,7 @@ pub(in crate::preparation::generic_data) use arguments::{
 pub(crate) use const_evaluation::{
     ConstFactValue, ConstScalarSpelling, ConstScalarValue, closed_fixed_array_length,
     evaluate_const_fact_binary, evaluate_const_fact_expression, evaluate_const_membership_fact,
-    prove_const_literal_leaf_domain_constraints, prove_declared_const_domain_constraints,
+    prove_const_literal_predicates, prove_declared_const_domain_constraints,
 };
 pub(in crate::preparation::generic_data) use const_evaluation::{
     EvaluatedConst, canonicalize_closed_domain_indices, canonicalize_const_definition,

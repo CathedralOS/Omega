@@ -231,6 +231,23 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
         return validation::scalar_field_restriction(primitive, None, predicate);
     };
     let integer_type = crate::values::integer_type(primitive)?;
+    let carrier_integer = |value| match value {
+        IntegerValue::Signed(value) => BigInt::from_i128(value),
+        IntegerValue::Unsigned(value) => BigInt::from_u128(value),
+    };
+    let minimum = minimum.max(carrier_integer(integer_type.minimum_value()));
+    let maximum = maximum.min(carrier_integer(integer_type.maximum_value()));
+    if minimum > maximum {
+        // An empty predicate makes construction impossible, not storage
+        // undefined. Inactive cases still need their ordinary carrier shape;
+        // retain false through the general predicate representation rather
+        // than dropping the restriction or refusing the entire containing type.
+        return validation::scalar_field_restriction(
+            primitive,
+            None,
+            Some(checked_trees::CheckedBooleanExpression::Constant(false)),
+        );
+    }
     let (minimum, maximum) = match (integer_type.minimum_value(), integer_type.maximum_value()) {
         (IntegerValue::Signed(carrier_minimum), IntegerValue::Signed(carrier_maximum)) => (
             IntegerValue::Signed(i128::from(

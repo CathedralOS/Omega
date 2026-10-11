@@ -251,11 +251,9 @@ pub(crate) fn validate_const_definition(
             .with_source_span(definition.name.source_span())
         })?;
     } else {
-        // An aggregate literal initializer under a domain-carrying member
-        // carrier owes each leaf the same declaration-site discharge an
-        // evaluated initializer performs; pure literals never canonicalize
-        // through the evaluated path on their own.
-        crate::preparation::generic_data::prove_const_literal_leaf_domain_constraints(
+        // Literal initializers owe data, active-case and qualified-member
+        // predicates even without a use site or an evaluation request.
+        crate::preparation::generic_data::prove_const_literal_predicates(
             syntax, definition, selection,
         )
         .map_err(|reason| {

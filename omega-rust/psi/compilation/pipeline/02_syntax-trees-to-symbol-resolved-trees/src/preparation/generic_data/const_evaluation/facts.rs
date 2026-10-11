@@ -63,6 +63,26 @@ fn evaluate_const_fact_expression_at(
     subject: Option<ConstFactSubject<'_>>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
+    // Data predicates bind bare fields, including non-scalar fields that must
+    // shadow outer constants. Project through their actual completed tree;
+    // an unavailable projection supplies no proof and never falls back to a name.
+    if let Some(ConstFactSubject::Fields(fields)) = subject
+        && let Some(value) = const_field_projection(syntax, expression, fields, &mut |index| {
+            evaluate_const_fact_expression_at(
+                syntax,
+                index,
+                const_values,
+                parameter_values,
+                selection,
+                subject,
+                warnings,
+            )
+        })?
+    {
+        return Ok(value
+            .and_then(node_subject_leaf)
+            .map(ConstScalarValue::into_fact_value));
+    }
     if let Some(value) = evaluate_anonymous_numeric_expression(syntax, expression)? {
         return Ok(Some(ConstFactValue::Anonymous(value)));
     }
@@ -189,7 +209,7 @@ fn evaluate_const_fact_expression_at(
         // in-bounds integer and the element must hold a scalar leaf.
         ExpressionNode::Indexed(indexed) => {
             let Some(ConstSubjectBinding::Elements(elements)) =
-                subject.and_then(|subject| subject.binding)
+                subject.and_then(ConstFactSubject::binding)
             else {
                 return Ok(None);
             };
@@ -353,31 +373,49 @@ enum ConstSubjectBinding<'a> {
     Variant(&'a [(String, ConstScalarValue)]),
 }
 
-/// One lexical binding in a selected domain. An unavailable generic value still
-/// shadows outer constants and index bindings with the same spelling.
+/// The lexical value scope of one predicate. Unavailable fields or generic
+/// subjects still shadow outer constants and index bindings with the same name.
 #[derive(Clone, Copy)]
-struct ConstFactSubject<'a> {
-    name: &'a str,
-    binding: Option<ConstSubjectBinding<'a>>,
+enum ConstFactSubject<'a> {
+    Value {
+        name: &'a str,
+        binding: Option<ConstSubjectBinding<'a>>,
+    },
+    /// Bare lexical fields in a data or active-case predicate. The complete
+    /// nodes retain shadowing and compositional member/index projections.
+    Fields(&'a [(&'a str, &'a super::values::CanonicalConstNode)]),
 }
 
 impl<'a> ConstFactSubject<'a> {
     fn matches(self, syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
+        let Self::Value {
+            name: subject_name, ..
+        } = self
+        else {
+            return false;
+        };
         let ExpressionNode::Name(path) = syntax.expressions.expression(expression) else {
             return false;
         };
-        matches!(syntax.expressions.identifier_path_members(*path), [name] if name.as_str() == self.name)
+        matches!(syntax.expressions.identifier_path_members(*path), [name] if name.as_str() == subject_name)
+    }
+
+    fn binding(self) -> Option<ConstSubjectBinding<'a>> {
+        match self {
+            Self::Value { binding, .. } => binding,
+            Self::Fields(_) => None,
+        }
     }
 
     fn scalar(self) -> Option<ConstScalarValue> {
-        match self.binding {
+        match self.binding() {
             Some(ConstSubjectBinding::Scalar(value)) => Some(value),
             _ => None,
         }
     }
 
     fn fields(self) -> Option<&'a [(String, ConstScalarValue)]> {
-        match self.binding {
+        match self.binding() {
             Some(ConstSubjectBinding::Record(fields) | ConstSubjectBinding::Variant(fields)) => {
                 Some(fields)
             }
@@ -408,6 +446,298 @@ fn scalar_subject_leaf(
         }
         _ => None,
     }
+}
+
+fn node_subject_leaf(value: &super::values::CanonicalConstNode) -> Option<ConstScalarValue> {
+    match value {
+        super::values::CanonicalConstNode::Integer { type_name, value } => {
+            LandedIntegerType::from_name(type_name).map(|integer_type| {
+                ConstScalarValue::DeclaredInteger {
+                    value: *value,
+                    integer_type,
+                }
+            })
+        }
+        super::values::CanonicalConstNode::Boolean(value) => {
+            Some(ConstScalarValue::Boolean(*value))
+        }
+        _ => None,
+    }
+}
+
+/// `Some(None)` is a lexical field with an unavailable projection, not an
+/// unbound name. Keeping that distinction prevents a same-spelled constant
+/// from proving a predicate about an aggregate field or invalid array slot.
+fn const_field_projection<'value>(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    fields: &[(&str, &'value super::values::CanonicalConstNode)],
+    evaluate_index: &mut impl FnMut(ExpressionHandle) -> Result<Option<ConstFactValue>, String>,
+) -> Result<Option<Option<&'value super::values::CanonicalConstNode>>, String> {
+    use super::values::CanonicalConstNode;
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let [name] = syntax.expressions.identifier_path_members(*path) else {
+                return Ok(None);
+            };
+            Ok(fields
+                .iter()
+                .find(|(field, _)| *field == name.as_str())
+                .map(|(_, value)| Some(*value)))
+        }
+        ExpressionNode::Member(member) => {
+            let Some(receiver) =
+                const_field_projection(syntax, member.receiver, fields, evaluate_index)?
+            else {
+                return Ok(None);
+            };
+            let projected = match receiver {
+                Some(CanonicalConstNode::Record { fields, .. })
+                    if member.case_variant.is_none() =>
+                {
+                    fields
+                        .iter()
+                        .find(|(name, _)| name == member.member.as_str())
+                        .map(|(_, value)| value)
+                }
+                _ => None,
+            };
+            Ok(Some(projected))
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let Some(collection) =
+                const_field_projection(syntax, indexed.collection, fields, evaluate_index)?
+            else {
+                return Ok(None);
+            };
+            let Some(CanonicalConstNode::Array { values, .. }) = collection else {
+                return Ok(Some(None));
+            };
+            let mut warnings = Vec::new();
+            let selected = evaluate_index(indexed.index)?
+                .map(|value| value.into_integer(syntax, &mut warnings))
+                .transpose()?
+                .flatten()
+                .and_then(|value| usize::try_from(value).ok())
+                .and_then(|index| values.get(index));
+            Ok(Some(selected))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Default-domain and active-case facts belong to the selected value, not its
+/// ability to serve as a canonical static index. Close them with the existing
+/// exact fact evaluator before ordinary declaration encoding. Recursion through
+/// canonical construction establishes nested values independently; unsupported
+/// facts remain fenced, and inactive cases contribute no establishment duty.
+pub(super) fn prove_const_data_predicates(
+    syntax: &SyntaxTrees,
+    definition: &syntax_trees::item::DataDefinition,
+    value: &super::values::CanonicalConstNode,
+    substitution: &crate::preparation::declaration_selection::GenericApplicationSubstitution,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+) -> Result<(), String> {
+    use super::values::CanonicalConstNode;
+    let (fields, case_name) = match value {
+        CanonicalConstNode::Record { fields, .. } => (fields, None),
+        CanonicalConstNode::Variant {
+            fields, case_name, ..
+        } => (fields, Some(case_name.as_str())),
+        _ => return Err("data constant lost its completed structural value".to_owned()),
+    };
+    let variant = case_name.and_then(|case_name| {
+        syntax
+            .items
+            .data_members(definition.members)
+            .iter()
+            .find_map(|member| match member {
+                syntax_trees::item::DataMember::Variant(variant)
+                    if variant.name.as_str() == case_name =>
+                {
+                    Some(variant)
+                }
+                _ => None,
+            })
+    });
+    if definition.where_facts.is_empty()
+        && variant.is_none_or(|variant| variant.where_facts.is_empty())
+    {
+        return Ok(());
+    }
+    let const_values =
+        crate::preparation::generic_data::module_constants::lexical_integer_const_values(syntax);
+    let mut parameter_values = HashMap::<String, ConstScalarValue>::new();
+    let mut warnings = Vec::new();
+    for parameter in syntax.items.type_parameters(definition.type_parameters) {
+        let (TypeParameterKind::Const { type_reference }
+        | TypeParameterKind::Value { type_reference }) = parameter.kind
+        else {
+            continue;
+        };
+        let argument = substitution
+            .get(parameter.name.as_str())
+            .ok_or_else(|| "data constant predicates require closed index bindings".to_owned())?;
+        let bound = evaluate_domain_index_argument(
+            syntax,
+            definition.name.as_str(),
+            parameter.name.as_str(),
+            type_reference,
+            *argument,
+            &const_values,
+            &parameter_values,
+            syntax.items.type_parameters(definition.type_parameters),
+            selection,
+            &mut warnings,
+        )?
+        .ok_or_else(|| "data constant predicates require decidable index bindings".to_owned())?;
+        parameter_values.insert(parameter.name.as_str().to_owned(), bound);
+    }
+    // A type-wide predicate may read only common fields. The active case's
+    // predicate additionally sees its payload; siblings never enter the binding.
+    let active_fields = fields
+        .iter()
+        .map(|(name, value)| (name.as_str(), value))
+        .collect::<Vec<_>>();
+    let members = syntax.items.data_members(definition.members);
+    let common_fields = active_fields
+        .iter()
+        .copied()
+        .filter(|(name, _)| {
+            members.iter().any(|member| match member {
+                syntax_trees::item::DataMember::Field(field) => field.name.as_str() == *name,
+                _ => false,
+            })
+        })
+        .collect::<Vec<_>>();
+    for (facts, fields, label) in [
+        (
+            definition.where_facts,
+            common_fields.as_slice(),
+            "default-domain",
+        ),
+        (
+            variant.map_or(HandleSpan::empty(), |variant| variant.where_facts),
+            active_fields.as_slice(),
+            "case",
+        ),
+    ] {
+        let subject = Some(ConstFactSubject::Fields(fields));
+        for fact in syntax.items.proof_facts(facts) {
+            let proved = evaluate_selected_const_fact(
+                syntax,
+                fact,
+                &const_values,
+                &parameter_values,
+                syntax.items.type_parameters(definition.type_parameters),
+                subject,
+                definition.name.as_str(),
+                &mut Vec::new(),
+                selection,
+                &mut warnings,
+            )?;
+            match proved {
+                Some(ConstFactValue::Boolean(true)) => {}
+                Some(ConstFactValue::Boolean(false)) => {
+                    return Err(format!(
+                        "data constant `{}` violates its {label} predicate",
+                        definition.name
+                    ));
+                }
+                _ => {
+                    return Err(format!(
+                        "data constant `{}` requires declaration-site {label} proof checking",
+                        definition.name
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Data construction and named-domain establishment evaluate the same proof
+/// facts with their actual lexical bindings and selected membership owners.
+fn evaluate_selected_const_fact(
+    syntax: &SyntaxTrees,
+    fact: &ProofFact,
+    const_values: &HashMap<String, i128>,
+    parameter_values: &HashMap<String, ConstScalarValue>,
+    parameters: &[syntax_trees::item::TypeParameter],
+    subject: Option<ConstFactSubject<'_>>,
+    carrier: &str,
+    visiting: &mut Vec<(source::SourceSpan, String)>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+    warnings: &mut Vec<Diagnostic>,
+) -> Result<Option<ConstFactValue>, String> {
+    let membership = match fact {
+        ProofFact::Membership(membership) => membership,
+        ProofFact::Expression(expression) => {
+            return evaluate_const_domain_expression(
+                syntax,
+                *expression,
+                const_values,
+                parameter_values,
+                subject,
+                carrier,
+                visiting,
+                selection,
+                warnings,
+            );
+        }
+    };
+    let Some(nested_value) = evaluate_const_fact_expression_at(
+        syntax,
+        membership.value,
+        const_values,
+        parameter_values,
+        selection,
+        subject,
+        warnings,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some((nested_carrier, nested_value)) =
+        nested_membership_operand(syntax, nested_value, carrier, warnings)?
+    else {
+        return Ok(None);
+    };
+    let members = syntax.items.identifier_path_members(membership.domain);
+    let path = members.joined_path();
+    let reference = members
+        .first()
+        .map(|member| member.source_span())
+        .unwrap_or_default();
+    let holds = if membership.domain_arguments.is_empty() {
+        evaluate_named_const_domain(
+            syntax,
+            &path,
+            nested_carrier,
+            ConstSubjectBinding::Scalar(nested_value),
+            const_values,
+            visiting,
+            reference,
+            selection,
+            warnings,
+        )?
+    } else {
+        evaluate_indexed_const_domain(
+            syntax,
+            &path,
+            membership.domain_arguments,
+            nested_carrier,
+            ConstSubjectBinding::Scalar(nested_value),
+            const_values,
+            parameter_values,
+            parameters,
+            visiting,
+            reference,
+            selection,
+            warnings,
+        )?
+    };
+    Ok(holds.map(|proof| ConstFactValue::Boolean(proof.holds())))
 }
 
 /// A refuted membership is still a Boolean operand. Keep its selected atom
@@ -687,7 +1017,7 @@ fn evaluate_selected_domain_facts(
         }
         Some(subject_binding)
     };
-    let subject = domain.subject.as_ref().map(|name| ConstFactSubject {
+    let subject = domain.subject.as_ref().map(|name| ConstFactSubject::Value {
         name: name.as_str(),
         binding,
     });
@@ -726,73 +1056,18 @@ fn evaluate_selected_domain_facts(
             }
         }
         for fact in syntax.items.proof_facts(domain.facts) {
-            let holds = match fact {
-                ProofFact::Expression(expression) => evaluate_const_domain_expression(
-                    syntax,
-                    *expression,
-                    const_values,
-                    parameter_values,
-                    subject,
-                    carrier,
-                    visiting,
-                    selection,
-                    warnings,
-                )?,
-                ProofFact::Membership(membership) => {
-                    let Some(nested_value) = evaluate_const_fact_expression_at(
-                        syntax,
-                        membership.value,
-                        const_values,
-                        parameter_values,
-                        selection,
-                        subject,
-                        warnings,
-                    )?
-                    else {
-                        return Ok(None);
-                    };
-                    let Some((nested_carrier, nested_value)) =
-                        nested_membership_operand(syntax, nested_value, carrier, warnings)?
-                    else {
-                        return Ok(None);
-                    };
-                    let members = syntax.items.identifier_path_members(membership.domain);
-                    let path = members.joined_path();
-                    let reference = members
-                        .first()
-                        .map(|member| member.source_span())
-                        .unwrap_or_default();
-                    let holds = if membership.domain_arguments.is_empty() {
-                        evaluate_named_const_domain(
-                            syntax,
-                            &path,
-                            nested_carrier,
-                            ConstSubjectBinding::Scalar(nested_value),
-                            const_values,
-                            visiting,
-                            reference,
-                            selection,
-                            warnings,
-                        )?
-                    } else {
-                        evaluate_indexed_const_domain(
-                            syntax,
-                            &path,
-                            membership.domain_arguments,
-                            nested_carrier,
-                            ConstSubjectBinding::Scalar(nested_value),
-                            const_values,
-                            parameter_values,
-                            syntax.items.type_parameters(domain.type_parameters),
-                            visiting,
-                            reference,
-                            selection,
-                            warnings,
-                        )?
-                    };
-                    holds.map(|proof| ConstFactValue::Boolean(proof.holds()))
-                }
-            };
+            let holds = evaluate_selected_const_fact(
+                syntax,
+                fact,
+                const_values,
+                parameter_values,
+                syntax.items.type_parameters(domain.type_parameters),
+                subject,
+                carrier,
+                visiting,
+                selection,
+                warnings,
+            )?;
             let Some(ConstFactValue::Boolean(holds)) = holds else {
                 return Ok(None);
             };
@@ -1390,20 +1665,6 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
     {
         return Ok(());
     }
-    fn node_subject_leaf(value: &CanonicalConstNode) -> Option<ConstScalarValue> {
-        match value {
-            CanonicalConstNode::Integer { type_name, value } => {
-                LandedIntegerType::from_name(type_name).map(|integer_type| {
-                    ConstScalarValue::DeclaredInteger {
-                        value: *value,
-                        integer_type,
-                    }
-                })
-            }
-            CanonicalConstNode::Boolean(value) => Some(ConstScalarValue::Boolean(*value)),
-            _ => None,
-        }
-    }
     let record_fields: Vec<(String, ConstScalarValue)>;
     let array_elements: Vec<Option<ConstScalarValue>>;
     let variant_fields: Vec<(String, ConstScalarValue)>;
@@ -1477,51 +1738,66 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
     Ok(())
 }
 
-/// Whether a declared const type's member tree reaches a `Domain`-carrying
-/// `Constrained` leaf — the probe deciding whether a pure-literal initializer
-/// owes leaf discharge through canonicalization. Data names match by declared
-/// spelling only (canonicalization performs exact owner selection), and
-/// recursive or unresolved members decline rather than forcing the gate.
-fn const_type_mentions_domain_leaf(
+/// Find declaration predicates through the exact selected member types. This
+/// only selects a required check; it grants no value or membership. Recursion
+/// rejoins source-owned declarations rather than guessing from a leaf spelling.
+fn const_type_requires_declaration_proof(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
     visiting: &mut Vec<source::SourceSpan>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> bool {
     use syntax_trees::item::DataMember;
+    let origin = syntax
+        .type_references
+        .generic_application_origin(type_reference);
+    if origin.is_valid() && origin != type_reference {
+        return const_type_requires_declaration_proof(syntax, origin, visiting, selection);
+    }
     fn named_data(
         syntax: &SyntaxTrees,
-        name: &str,
+        name: &Identifier,
         visiting: &mut Vec<source::SourceSpan>,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> bool {
-        let Some(data) = syntax.root_items().find_map(|item| match item {
-            Item::Data(data) if data.name.as_str() == name => Some(data),
-            _ => None,
-        }) else {
+        let Ok(data) = super::values::selected_data(syntax, name, selection) else {
             return false;
         };
         if visiting.contains(&data.name.source_span()) {
             return false;
         }
         visiting.push(data.name.source_span());
-        syntax
-            .tables
-            .items
-            .data_members(data.members)
-            .iter()
-            .any(|member| match member {
-                DataMember::Field(field) => {
-                    const_type_mentions_domain_leaf(syntax, field.type_reference, visiting)
-                }
-                DataMember::Variant(variant) => syntax
-                    .tables
-                    .items
-                    .data_payload_fields(variant.payload)
-                    .iter()
-                    .any(|field| {
-                        const_type_mentions_domain_leaf(syntax, field.type_reference, visiting)
-                    }),
-                _ => false,
-            })
+        let requires_proof =
+            !data.where_facts.is_empty()
+                || syntax.tables.items.data_members(data.members).iter().any(
+                    |member| match member {
+                        DataMember::Field(field) => const_type_requires_declaration_proof(
+                            syntax,
+                            field.type_reference,
+                            visiting,
+                            selection,
+                        ),
+                        DataMember::Variant(variant) => {
+                            !variant.where_facts.is_empty()
+                                || syntax
+                                    .tables
+                                    .items
+                                    .data_payload_fields(variant.payload)
+                                    .iter()
+                                    .any(|field| {
+                                        const_type_requires_declaration_proof(
+                                            syntax,
+                                            field.type_reference,
+                                            visiting,
+                                            selection,
+                                        )
+                                    })
+                        }
+                        _ => false,
+                    },
+                );
+        visiting.pop();
+        requires_proof
     }
     match syntax.tables.type_references.type_reference(type_reference) {
         TypeReferenceNode::Constrained {
@@ -1533,12 +1809,12 @@ fn const_type_mentions_domain_leaf(
                 .constraints(*constraints)
                 .iter()
                 .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)))
-                || const_type_mentions_domain_leaf(syntax, *base_type, visiting)
+                || const_type_requires_declaration_proof(syntax, *base_type, visiting, selection)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            const_type_mentions_domain_leaf(syntax, *element_type, visiting)
+            const_type_requires_declaration_proof(syntax, *element_type, visiting, selection)
         }
-        TypeReferenceNode::Named(name) => named_data(syntax, name.as_str(), visiting),
+        TypeReferenceNode::Named(name) => named_data(syntax, name, visiting, selection),
         TypeReferenceNode::Generic {
             base_name,
             arguments,
@@ -1548,20 +1824,19 @@ fn const_type_mentions_domain_leaf(
                 .type_references
                 .type_reference_handles(*arguments)
                 .iter()
-                .any(|argument| const_type_mentions_domain_leaf(syntax, *argument, visiting))
-                || named_data(syntax, base_name.as_str(), visiting)
+                .any(|argument| {
+                    const_type_requires_declaration_proof(syntax, *argument, visiting, selection)
+                })
+                || named_data(syntax, base_name, visiting, selection)
         }
         _ => false,
     }
 }
 
-/// The literal-path gate for leaf domain carriers. A pure-literal const
-/// initializer never reaches `canonicalize_const_expression` through the
-/// evaluated-initializer path, so when its declared carrier's member tree
-/// names a `Domain` constraint, canonicalization runs here to discharge each
-/// `in <domain>` leaf exactly as an evaluated initializer would. Consts whose
-/// carriers name no domain keep their existing literal-only checks.
-pub(crate) fn prove_const_literal_leaf_domain_constraints(
+/// A pure literal does not request initializer evaluation. Its selected data,
+/// active-case and qualified-member predicates still owe the same construction
+/// discharge as an evaluated value, even in an unused private declaration.
+pub(crate) fn prove_const_literal_predicates(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
@@ -1569,7 +1844,12 @@ pub(crate) fn prove_const_literal_leaf_domain_constraints(
     if crate::constant::requires_const_initializer_evaluation(syntax, definition) {
         return Ok(());
     }
-    if !const_type_mentions_domain_leaf(syntax, definition.type_reference, &mut Vec::new()) {
+    if !const_type_requires_declaration_proof(
+        syntax,
+        definition.type_reference,
+        &mut Vec::new(),
+        selection,
+    ) {
         return Ok(());
     }
     super::canonicalize_const_expression(
@@ -1643,7 +1923,8 @@ fn evaluate_const_domain_expression(
             .map(|result| result.map(|proof| ConstFactValue::Boolean(proof.holds())))
         }
         ExpressionNode::Binary(binary) => {
-            if !has_builtin_const_operator(syntax, binary) {
+            let builtin = has_builtin_const_operator(syntax, binary);
+            if !builtin && subject.and_then(ConstFactSubject::scalar).is_some() {
                 return Ok(None);
             }
             validate_anonymous_remainder(syntax, binary)?;
@@ -1675,6 +1956,9 @@ fn evaluate_const_domain_expression(
             else {
                 return Ok(None);
             };
+            if !builtin && authored_operator_can_bind(syntax, binary.operator, &left, &right) {
+                return Ok(None);
+            }
             evaluate_const_fact_binary(syntax, expression, binary.operator, left, right, warnings)
                 .map(Some)
         }

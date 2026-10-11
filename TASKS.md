@@ -1622,13 +1622,7 @@ defines the complete product bar.
     mutation controls). Keep `pass/dependent/runtime_state_dependent_index_forward_exit`
     and `fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`
     as controls for captured state arguments and invalidated bound observations.
-  - Library: 12 integer suffixes remain, each blocked in the Rust reference.
-    `Duration.subsecond_nanoseconds` (`source/library/std/time.omg`): in data
-    `where` form, `pub const Duration::MAX` (read by
-    `pass/time/runtime_duration_core_exit`) loses its canonical declaration
-    identity, because `validate_selected_const_type`
-    (`omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/values.rs`)
-    refuses data with default-domain facts. `AccessPlan::with_bounded`'s
+  - Library: migrate `AccessPlan::with_bounded`'s
     `fuel`/`index`/`field_count` parameters (`source/library/core/layout.omg`,
     9) and `field_range`'s `first_field` (`std/entry_shapes.omg`,
     `std/targets/macos_x86_64/entry.omg`): build-time admission
@@ -1643,6 +1637,11 @@ defines the complete product bar.
   - Migrate `fail/wire/wire_policy_plan_disagrees` keeping its plan/schema
     disagreement rejection.
   Canonical controls to keep: `pass/collections/runtime_argmax_index_exit`,
+  `pass/time/runtime_duration_core_exit`,
+  `pass/constants/runtime_predicate_constant_materialization_exit` and the
+  `fail/constants/unused_*_predicate_constant`, `unused_*_default_domain_constant`
+  and `predicate_constant_*` controls (ordinary materialization never grants
+  const-index eligibility),
   `pass/collections/runtime_nested_const_row_indexed_read_exit`,
   `pass/arithmetic/runtime_guard_narrowed_transition_arg_exit`,
   `pass/arithmetic/runtime_exact_guarded_shift_count_exit`,

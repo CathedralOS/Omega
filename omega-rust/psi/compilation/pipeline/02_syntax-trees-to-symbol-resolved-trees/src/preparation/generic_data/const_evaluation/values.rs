@@ -13,6 +13,9 @@
 //! Array eligibility, element rosters and encoded carrier labels close geometry
 //! through one source-selected integer extent. Generic bindings retain priority;
 //! a completed named constant is read from its declaration, never a root-name map.
+//! Ordinary declaration materialization does not request const-index eligibility.
+//! Its recursively selected data and active-case predicates still discharge over
+//! the completed value before encoding; index requests retain their stronger fence.
 use super::super::{
     CanonicalConstValue, ConstDefinition, DataDefinition, DataMember, ExpressionHandle,
     ExpressionNode, FixedArrayLength, HandleSpan, HashSet, Identifier, Item, SyntaxTrees,
@@ -269,7 +272,7 @@ pub(in crate::preparation::generic_data) fn syntax_type_identity(
 // Encoded labels are consistency claims. Nominal equality is established from
 // the selected declarations before values lose their authored spelling; the
 // receiving generic slot independently rejoins that declared carrier later.
-fn selected_data<'syntax>(
+pub(super) fn selected_data<'syntax>(
     syntax: &'syntax SyntaxTrees,
     name: &Identifier,
     selection: Option<&ConstantSelection>,
@@ -664,8 +667,8 @@ pub(in crate::preparation::generic_data) fn canonicalize_selected_declaration_va
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
     // Materializable declaration values and structural static indices are
-    // different cohorts. Retain all recursive eligibility fences, but only an
-    // index request excludes determined floating leaves.
+    // different judgments. Determined floats and proved data predicates permit
+    // ordinary declarations, while index requests retain their stronger fences.
     let substitution = GenericApplicationSubstitution::new();
     validate_selected_const_type(
         syntax,
@@ -840,7 +843,7 @@ fn validate_selected_const_type(
                     "quotient data `{name}` is not eligible as a structural const index until quotient-backed canonical representatives land"
                 ));
             }
-            if !definition.where_facts.is_empty() {
+            if purpose == ConstValuePurpose::Index && !definition.where_facts.is_empty() {
                 return Err(format!(
                     "data `{name}` has default-domain facts whose index-site proof is not implemented; it is not yet eligible as a const index"
                 ));
@@ -934,7 +937,7 @@ fn validate_selected_const_type(
                     "quotient data `{base_name}` is not eligible as a structural const index until quotient-backed canonical representatives land"
                 ));
             }
-            if !definition.where_facts.is_empty() {
+            if purpose == ConstValuePurpose::Index && !definition.where_facts.is_empty() {
                 return Err(format!(
                     "data `{base_name}` has default-domain facts whose index-site proof is not implemented; it is not yet eligible as a const index"
                 ));
@@ -944,7 +947,7 @@ fn validate_selected_const_type(
                 return Ok(());
             }
             visiting.push(declaration);
-            let next_substitution = substituted_generic_arguments(syntax, parameters, &argument_handles, substitution)?;
+            let next_substitution = substituted_generic_arguments(syntax, parameters, argument_handles, substitution)?;
             for member in syntax.tables.items.data_members(definition.members) {
                 match member {
                     DataMember::Field(field) => validate_selected_const_type(syntax,
@@ -1317,7 +1320,7 @@ fn canonicalize_selected_data_const_expression(
     selection: Option<&ConstantSelection>,
     substitution: &GenericApplicationSubstitution,
 ) -> Result<CanonicalConstNode, String> {
-    match syntax.expressions.expression(expression) {
+    let value = match syntax.expressions.expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
             let (constructed, case_name) =
                 selected_constructor(syntax, &literal.constructor_name, selection)?;
@@ -1463,7 +1466,9 @@ fn canonicalize_selected_data_const_expression(
             })
         }
         _ => Err(format!("expected a `{type_name}` structural literal")),
-    }
+    }?;
+    super::facts::prove_const_data_predicates(syntax, definition, &value, substitution, selection)?;
+    Ok(value)
 }
 
 pub(in crate::preparation::generic_data) fn canonicalize_named_fields(

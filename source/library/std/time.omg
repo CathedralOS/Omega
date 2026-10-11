@@ -2,8 +2,8 @@
 // TimeHost seam (rung 6) per TASKS_TIME.md D1-D7/D9/D13.
 //
 // `Duration` is a normalized span: whole seconds plus subsecond nanoseconds,
-// where the field RANGE carries the normalization invariant the compiler
-// write-enforces at every construction site — ZII zero IS the zero duration.
+// whose data `where` carries the normalization invariant at construction
+// and mutation boundaries — ZII zero IS the zero duration.
 // Everything here is a pure `[copy]` value with no authority; clock
 // READS live on the `Time` capability (a later rung), never on these types.
 //
@@ -22,7 +22,7 @@
 //   runs in Wrapping-domained lets (obligation-free), whose values are only
 //   USED on the guard arms that prove them meaningful — the wrapped-compare
 //   idiom (`sum < a` iff the u64 add wrapped) needs no u64::MAX literal.
-// - The ranged `subsecond_nanoseconds` store happens in `*_emit` states whose
+// - The normalized `subsecond_nanoseconds` store happens in `*_emit` states whose
 //   SINGLE inbound edge is the `<= 999999999` guard: single-predecessor edge
 //   guards flow into the target state, so the store proves. The `false` arms
 //   are unreachable by construction but total (never a silent face).
@@ -39,9 +39,9 @@ pub data Ordering [copy] {
     case Greater;
 }
 
-pub data Duration [copy] {
+pub data Duration [copy] where subsecond_nanoseconds <= 999_999_999 {
     seconds: u64;
-    subsecond_nanoseconds: u32 [0..=999_999_999];
+    subsecond_nanoseconds: u32;
 }
 
 pub data DurationResult [copy] {
