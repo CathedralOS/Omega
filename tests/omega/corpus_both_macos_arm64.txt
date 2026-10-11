@@ -846,3 +846,12 @@ pass/comptime/range_endpoint_requires_discharge_exit built 12796ms exit:70 inter
 pass/comptime/runtime_const_measured_recursion_exit built 7771ms exit:70 interpreter-exit:70 interpreter:agrees @86441935879a64d7f3af4c34d1475129884c2970
 pass/borrow/runtime_write_only_array_selector_snapshot_exit built 4293ms exit:0 interpreter-exit:0 interpreter:agrees @e80db4a269fa+wt
 pass/termination/runtime_ranked_assignment_call_prefix_exit built 6448ms exit:0 interpreter-exit:0 interpreter:agrees @2be890c63e5e5bb4ced219b4470436492e7ad97c
+pass/targets/runtime_family_callback_guarantee_conjunction_exit built 2985ms exit:0 interpreter-exit:0 interpreter:agrees @8ef927ca678b
+pass/targets/runtime_family_callback_requirement_conjunction_exit built 2897ms exit:0 interpreter-exit:0 interpreter:agrees @8ef927ca678b
+pass/targets/runtime_family_deep_nominal_callback_variance_exit built 2874ms exit:0 interpreter-exit:0 interpreter:agrees @8ef927ca678b
+pass/targets/runtime_family_generic_callback_forwarding_exit built 2860ms exit:0 interpreter-exit:0 interpreter:agrees @8ef927ca678b
+pass/targets/runtime_family_generic_nominal_callback_conjunction_exit built 2871ms exit:0 interpreter-exit:0 interpreter:agrees @8ef927ca678b
+pass/targets/runtime_family_nested_nominal_callback_conjunction_exit built 2885ms exit:0 interpreter-exit:0 interpreter:agrees @8ef927ca678b
+pass/targets/runtime_family_nominal_callback_application_exit built 2833ms exit:0 interpreter-exit:0 interpreter:agrees @8ef927ca678b
+pass/targets/runtime_family_nominal_callback_conjunction_exit built 2827ms exit:0 interpreter-exit:0 interpreter:agrees @8ef927ca678b
+pass/traits/applied_nominal_callback_proposition_contract checked 448ms @8ef927ca678b

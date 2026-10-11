@@ -65,9 +65,13 @@ pub(super) fn validate_selected_callable_shape(
 ) {
     if let Some((actual_machine, actual_state)) = machine_and_state(program, index, selected_symbol)
     {
-        if let Some(applied) =
-            program.applied_machine_callable(application, ordinal, selected_symbol)
-        {
+        if let Some(applied) = program.applied_machine_callable(
+            application,
+            ordinal,
+            selected_symbol,
+            parameter.symbol,
+            requirement,
+        ) {
             let label = format!(
                 "machine argument `{}` for `{generic_call}`",
                 actual_machine.name
@@ -87,6 +91,13 @@ pub(super) fn validate_selected_callable_shape(
                 &mut Vec::new(),
                 diagnostics,
             );
+            return;
+        }
+        if program.has_applied_machine_selection(application, ordinal, selected_symbol) {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine argument `{selected_name}` for `{generic_call}` lost its exact applied demand for `{}`",
+                parameter.name
+            )));
             return;
         }
         validate_callable_shape(

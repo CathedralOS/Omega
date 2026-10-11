@@ -2746,11 +2746,10 @@ crash and native exit behavior.
     `targets/runtime_family_callback_requirement_conjunction_exit` and
     `targets/runtime_family_generic_callback_forwarding_exit` running with
     their non-first-member precondition and effect-ceiling rejection controls.
-    `fail/targets/family_callback_first_member_guarantee_only_rejected` is
-    incorrectly accepted by public `--check`; the saved `80bdb14533e` producer
-    also accepts it. Complete portable callback refinement must check every
-    member's demanded guarantee, not only the first member's. Preserve the
-    authored refusal; the earlier harness's missing-entry failure hid this gap.
+    Preserve `targets/runtime_family_callback_guarantee_conjunction_exit`
+    through both engines and its first-member-only guarantee rejection control;
+    each member owns its exact applied demand, independently of the selected
+    executable's private telescope.
     Keep `targets/runtime_family_generic_nominal_callback_conjunction_exit`,
     `targets/runtime_family_nested_nominal_callback_conjunction_exit` and
     `targets/runtime_family_deep_nominal_callback_variance_exit` running;
@@ -3324,12 +3323,12 @@ of a check the same flow already performed, not the check itself.
   25 negative controls lack their intended fragment; that old harness also
   masked source acceptance behind a native missing-entry refusal. The focused
   source-acceptance frontier remains
-  `shared_subslice_state_cannot_lend_mutable` and
-  `family_callback_first_member_guarantee_only_rejected`. Attribute
+  `shared_subslice_state_cannot_lend_mutable`. Attribute
   contextual slice formation here: its bare-range access rule is OWNER-BLOCKED
   on Q16 (`bare-range-reference-access`), not the remaining qualification.
   Keep portable callback refinement with
-  **PSI-TARGET-FAMILIES**. Full qualification must retain the inverted-distance
+  **PSI-TARGET-FAMILIES**. Full qualification must retain the portable callback's
+  first-member-only guarantee refusal and the inverted-distance
   refusal, fixed bounded-distance upper coordinates across state and call
   arrivals, crossed entry cursors and renamed/permuted call-component binders.
   Entry-bearing native refusals and

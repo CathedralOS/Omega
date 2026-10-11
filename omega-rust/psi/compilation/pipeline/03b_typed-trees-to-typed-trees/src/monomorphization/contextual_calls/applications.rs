@@ -12,17 +12,24 @@ pub(super) fn retain_view(
     invocation: StaticMachineApplicationHandle,
     ordinal: usize,
     selected: SymbolHandle,
+    demand: SymbolHandle,
     expected: &StateSignature,
     caller_types: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Result<(), Vec<Diagnostic>> {
+    let caller_lifetimes = program
+        .expression_table
+        .static_machine_application_lifetimes(invocation)
+        .to_vec();
     program
         .prepare_applied_machine_callable(
             invocation,
             ordinal,
             provider.binding_application,
             selected,
+            demand,
             expected,
             caller_types,
+            &caller_lifetimes,
         )
         .map_err(|message| vec![Diagnostic::error(message)])
 }

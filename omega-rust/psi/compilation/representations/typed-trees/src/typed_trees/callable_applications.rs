@@ -45,6 +45,7 @@ enum AppliedCallableOwner {
     MachineSelection {
         invocation: crate::static_applications::StaticMachineApplicationHandle,
         ordinal: usize,
+        demand: SymbolHandle,
         selected: SymbolHandle,
         provider: crate::static_applications::StaticMachineApplicationHandle,
         required: signature::StateSignature,

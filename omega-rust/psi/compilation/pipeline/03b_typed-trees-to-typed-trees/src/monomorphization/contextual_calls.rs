@@ -8,6 +8,7 @@
 //! declaration. No contract is inferred from a provider's body.
 
 mod applications;
+mod demands;
 mod invocations;
 mod providers;
 mod static_operands;
@@ -20,6 +21,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
     let invocations = invocations::collect(program);
     let mut changed = Vec::new();
     for invocation in invocations {
+        let member_demands = demands::members(program, invocation.target, &invocation.types)?;
         // Capture source scope before a provider clone can retain its tuple.
         // Standalone specialization callers need the same custody as the
         // enclosing preparation pass, which normally already retained it.
@@ -32,16 +34,28 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             .zip(&invocation.requirements)
             .enumerate()
         {
-            let Some(entry) = providers::close(
+            let closed_entry = providers::close(
                 program,
                 argument,
-                expected,
+                expected.parameter,
+                &expected.signature,
                 &invocation.types,
                 invocation.site,
                 application,
                 ordinal,
-            )?
-            else {
+            )?;
+            // A cache hit keeps its executable selection, but later typed
+            // closure can update a member's demanded nominal application.
+            // Refresh only its checking views; it is not another rewrite.
+            demands::retain(
+                program,
+                application,
+                ordinal,
+                closed_entry.unwrap_or(argument.symbol),
+                expected,
+                &member_demands,
+            )?;
+            let Some(entry) = closed_entry else {
                 continue;
             };
             argument.symbol = entry;

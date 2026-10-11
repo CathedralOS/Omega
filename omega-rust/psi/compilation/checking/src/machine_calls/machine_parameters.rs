@@ -569,9 +569,16 @@ fn form_call_selection(
         requirements.into_iter().zip(machine_arguments).enumerate()
     {
         let rendered = selected.path.joined_path();
+        let requirement_signature = machine_parameter_signature(program, requirement);
         if selected.application.is_some()
             && program
-                .applied_machine_callable(application, static_machine_ordinal, selected.symbol)
+                .applied_machine_callable(
+                    application,
+                    static_machine_ordinal,
+                    selected.symbol,
+                    parameter.symbol,
+                    requirement_signature,
+                )
                 .is_none()
         {
             diagnostics.push(Diagnostic::error(format!(
@@ -608,7 +615,7 @@ fn form_call_selection(
         ) else {
             continue;
         };
-        let requirement = machine_parameter_signature(program, requirement);
+        let requirement = requirement_signature;
         validate_selected_callable_shape(
             program,
             index,

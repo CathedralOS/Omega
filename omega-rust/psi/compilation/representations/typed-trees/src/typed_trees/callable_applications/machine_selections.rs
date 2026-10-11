@@ -2,6 +2,8 @@
 //! The declaration keeps its universal telescope. A view consumes only its exact
 //! supplied tuple, with the invocation and provider lexical scopes kept separate.
 //! Bounds and effects still owe ordinary admission; no executable cache is made.
+//! One selected tuple can face several member-local demands. The demanding
+//! binder owns its view; invocation and ordinal alone cannot identify a contract.
 
 mod queries;
 
@@ -22,8 +24,10 @@ impl TypedTrees {
         ordinal: usize,
         provider: StaticMachineApplicationHandle,
         selected_entry: SymbolHandle,
+        demand: SymbolHandle,
         required: &signature::StateSignature,
         caller_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        caller_lifetime_bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
     ) -> Result<(), &'static str> {
         let application = self.expression_table.static_machine_application(provider);
         let selected = application.registration_operation;
@@ -123,9 +127,7 @@ impl TypedTrees {
         }
         .signature(self, &declared)?;
         let source_required = required.clone();
-        let caller_lifetimes = self
-            .expression_table
-            .static_machine_application_lifetimes(invocation)
+        let caller_lifetimes = caller_lifetime_bindings
             .iter()
             .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
             .collect::<Vec<_>>();
@@ -144,16 +146,13 @@ impl TypedTrees {
                     }
                 }));
         let caller_lifetimes = self
-            .expression_table
-            .static_machine_application_lifetimes(invocation)
-            .to_vec();
-        let caller_lifetimes = self
             .callable_lifetime_substitutions
-            .insert_many(caller_lifetimes);
+            .insert_many(caller_lifetime_bindings.iter().cloned());
         let prepared = AppliedCallableSignature {
             owner: AppliedCallableOwner::MachineSelection {
                 invocation,
                 ordinal,
+                demand,
                 selected: selected_entry,
                 provider,
                 required,
@@ -164,7 +163,7 @@ impl TypedTrees {
             signature,
         };
         let previous = self.applied_callable_signatures.iter().find_map(|(handle, previous)| {
-            matches!(&previous.owner, AppliedCallableOwner::MachineSelection { invocation: source, ordinal: position, .. } if *source == invocation && *position == ordinal).then_some(handle)
+            matches!(&previous.owner, AppliedCallableOwner::MachineSelection { invocation: source, ordinal: position, demand: previous_demand, .. } if *source == invocation && *position == ordinal && *previous_demand == demand).then_some(handle)
         });
         if let Some(previous) = previous {
             *self.applied_callable_signatures.get_mut(previous) = prepared;

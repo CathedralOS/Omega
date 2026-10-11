@@ -1798,3 +1798,4 @@ pass/calls/callback_owned_float_record_packing built 78974ms exit:0 @759f6dbf1df
 pass/calls/callback_owned_indirect_float_record built 80220ms exit:0 @2afb09bae86c
 pass/calls/callback_owned_indirect_record built 5482ms exit:0 @2afb09bae86c
 pass/calls/owned_overaligned_local_call built 5109ms exit:0 @6d4927c3710+wt
+pass/targets/runtime_family_callback_guarantee_conjunction_exit built 2900ms exit:0 @8ef927ca678b

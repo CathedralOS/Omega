@@ -5590,18 +5590,19 @@ fail/targets/family_applied_nominal_visitor_phantom_authority_rejected rejected 
 	static machine argument `invoke` for nominal parameter `Schema` retains 0 authored satisfaction row(s) for exact requirement `Visitor::visit`; exactly one is required and structural coincidence establishes none
 fail/targets/family_callback_carrier_mismatch_rejected rejected 47ms expected @a9ae30e1c334+wt
 	machine `choose` has an incompatible signature for `macos_arm64` -- every target's body of one machine shares its signature; incompatible nested callable carrier telescope
-fail/targets/family_callback_first_member_guarantee_only_rejected rejected 3599ms unexpected @a9ae30e1c334+wt
-	terminal-artifact production requires one exact selected program entry
-fail/targets/family_callback_first_member_only_rejected rejected 1659ms unexpected @a9ae30e1c334+wt
-	cannot prove requires contract for call narrow from choose$specialized$99c7a97cea16e7a7$0: value <= 64 (needs fact `value <= 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/targets/family_callback_first_member_guarantee_only_rejected rejected 197ms expected @8ef927ca678b
+	machine argument `yes` for `choose` does not refine `Callback`: its ensures facts are not a conservative refinement
+fail/targets/family_callback_first_member_only_rejected rejected 192ms expected @8ef927ca678b
+	machine argument `narrow` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/targets/family_callback_member_effect_ceiling_rejected rejected 1548ms expected @a9ae30e1c334+wt
 	machine argument `may_block` for `choose` does not refine `Callback`: it may block, but the requirement omits `blocks;`
 fail/targets/family_deep_nominal_callback_variance_rejected rejected 1007ms expected @a9ae30e1c334+wt
 	nested machine parameter `Inner` of nested machine parameter `Middle` of machine argument `incompatible` for `choose` strengthens its nested nominal input authority; the promised callback does not carry the exact demanded requirement application
 	nested machine parameter `Inner` of nested machine parameter `Middle` of machine argument `incompatible` for `choose` strengthens its nested nominal input authority; the promised callback does not carry the exact demanded requirement application
 	nested machine parameter `Nested` of nested machine parameter `Middle` of machine argument `incompatible` for `choose` strengthens its nested nominal input authority; the promised callback does not carry the exact demanded requirement application
-fail/targets/family_forwarded_callback_first_member_only_rejected rejected 955ms expected @a9ae30e1c334+wt
+fail/targets/family_forwarded_callback_first_member_only_rejected rejected 193ms expected @8ef927ca678b
 	machine parameter `Forward` forwarded into `choose` does not refine `Callback`: its requires facts are not a conservative refinement
+	machine argument `narrow` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/targets/family_forwarded_callback_member_effect_ceiling_rejected rejected 960ms expected @a9ae30e1c334+wt
 	machine parameter `Forward` forwarded into `choose` does not refine `Callback`: it may block, but the requirement omits `blocks;`
 fail/targets/family_forwarded_nominal_callback_application_rejected rejected 821ms expected @a9ae30e1c334+wt
@@ -6164,3 +6165,4 @@ fail/termination/ranked_assignment_call_prefix_write rejected 637ms expected @2b
 fail/termination/ranked_index_call_prefix_write rejected 635ms expected @2be890c63e5e5bb4ced219b4470436492e7ad97c
 	cannot prove requires contract for call scan from countdown: remaining - 1 <= 9 (needs fact `remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+pass/targets/runtime_family_callback_guarantee_conjunction_exit checked 2751ms check-target:macos_arm64 @8ef927ca678b

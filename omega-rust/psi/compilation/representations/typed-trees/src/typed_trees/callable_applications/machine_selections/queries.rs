@@ -12,11 +12,30 @@ use crate::{
 use symbols::SymbolHandle;
 
 impl TypedTrees {
+    /// A retained tuple needs its exact demand view, never the executable
+    /// clone's erased contract as a substitute when that view is missing.
+    pub fn has_applied_machine_selection(
+        &self,
+        invocation: StaticMachineApplicationHandle,
+        ordinal: usize,
+        selected: SymbolHandle,
+    ) -> bool {
+        self.applied_callable_signatures
+            .iter()
+            .any(|(_, prepared)| {
+                matches!(&prepared.owner, AppliedCallableOwner::MachineSelection {
+                invocation: source, ordinal: position, selected: entry, ..
+            } if *source == invocation && *position == ordinal && *entry == selected)
+            })
+    }
+
     pub fn applied_machine_callable(
         &self,
         invocation: StaticMachineApplicationHandle,
         ordinal: usize,
         selected: SymbolHandle,
+        demand: SymbolHandle,
+        expected: &signature::StateSignature,
     ) -> Option<AppliedMachineCallable<'_>> {
         self.applied_callable_signatures
             .iter()
@@ -24,6 +43,7 @@ impl TypedTrees {
                 let AppliedCallableOwner::MachineSelection {
                     invocation: source,
                     ordinal: position,
+                    demand: prepared_demand,
                     selected: entry,
                     provider,
                     required,
@@ -35,8 +55,12 @@ impl TypedTrees {
                 else {
                     return None;
                 };
-                (*source == invocation && *position == ordinal && *entry == selected).then_some(
-                    AppliedMachineCallable {
+                (*source == invocation
+                    && *position == ordinal
+                    && *entry == selected
+                    && *prepared_demand == demand
+                    && source_required == expected)
+                    .then_some(AppliedMachineCallable {
                         lexical_owner: self
                             .expression_table
                             .static_machine_application(*provider)
@@ -51,8 +75,7 @@ impl TypedTrees {
                         caller_lifetimes: self
                             .callable_lifetime_substitutions
                             .span_or_empty(*caller_lifetimes),
-                    },
-                )
+                    })
             })
     }
 
@@ -61,10 +84,12 @@ impl TypedTrees {
         invocation: StaticMachineApplicationHandle,
         ordinal: usize,
         selected: SymbolHandle,
+        demand: SymbolHandle,
         provider_bindings: &[StaticMachineBinding],
         provider_lifetimes: &[crate::static_applications::StaticMachineLifetimeBinding],
         required: &signature::StateSignature,
         caller_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        caller_lifetime_bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
     ) -> bool {
         self.applied_callable_signatures
             .iter()
@@ -72,6 +97,7 @@ impl TypedTrees {
                 let AppliedCallableOwner::MachineSelection {
                     invocation: source,
                     ordinal: position,
+                    demand: prepared_demand,
                     selected: entry,
                     provider,
                     source_required,
@@ -93,13 +119,12 @@ impl TypedTrees {
                 *source == invocation
                     && *position == ordinal
                     && *entry == selected
+                    && *prepared_demand == demand
                     && source_required == required
                     && self
                         .callable_lifetime_substitutions
                         .span_or_empty(*caller_lifetimes)
-                        == self
-                            .expression_table
-                            .static_machine_application_lifetimes(invocation)
+                        == caller_lifetime_bindings
                     && self
                         .expression_table
                         .static_machine_application(*provider)

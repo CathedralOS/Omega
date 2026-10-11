@@ -15,6 +15,7 @@ use validation::contract_identities::{accepted_template_commitment, normalized_m
 pub(super) fn close(
     program: &mut TypedTrees,
     selection: &StaticMachineArgument,
+    demand: SymbolHandle,
     expected: &StateSignature,
     caller_types: &[(SymbolHandle, TypeReferenceHandle)],
     site: CallSite,
@@ -141,10 +142,14 @@ pub(super) fn close(
         application,
         ordinal,
         selected,
+        demand,
         &bindings,
         &lifetimes,
         expected,
         caller_types,
+        program
+            .expression_table
+            .static_machine_application_lifetimes(application),
     ) {
         return Ok(None);
     }
@@ -164,6 +169,7 @@ pub(super) fn close(
             application,
             ordinal,
             selected,
+            demand,
             expected,
             caller_types,
         )?;
@@ -202,6 +208,7 @@ pub(super) fn close(
             application,
             ordinal,
             selected,
+            demand,
             expected,
             caller_types,
         )?;
@@ -230,6 +237,7 @@ pub(super) fn close(
                 application,
                 ordinal,
                 entry,
+                demand,
                 expected,
                 caller_types,
             )?;
@@ -267,6 +275,7 @@ pub(super) fn close(
             application,
             ordinal,
             entry,
+            demand,
             expected,
             caller_types,
         )?;

@@ -13,9 +13,35 @@ mod operands;
 pub(super) struct Invocation {
     pub site: CallSite,
     pub owner: SymbolHandle,
+    pub target: SymbolHandle,
     pub machine_arguments: Vec<StaticMachineArgument>,
-    pub requirements: Vec<StateSignature>,
+    pub requirements: Vec<MachineDemand>,
     pub types: Vec<(SymbolHandle, TypeReferenceHandle)>,
+}
+
+pub(super) struct MachineDemand {
+    pub parameter: SymbolHandle,
+    pub signature: StateSignature,
+}
+
+pub(super) fn machine_demands(
+    program: &TypedTrees,
+    parameters: &[TypeParameter],
+) -> Vec<MachineDemand> {
+    parameters
+        .iter()
+        .filter_map(|parameter| {
+            let TypeParameterKind::Machine { contract } = &parameter.kind else {
+                return None;
+            };
+            program
+                .machine_parameter_contract_view(contract)
+                .map(|view| MachineDemand {
+                    parameter: parameter.symbol,
+                    signature: view.signature().clone(),
+                })
+        })
+        .collect()
 }
 
 pub(super) fn is_machine(program: &TypedTrees, symbol: SymbolHandle) -> bool {
@@ -90,6 +116,41 @@ fn proposal(
     selected: &[StaticMachineArgument],
     arguments: &[typed_trees::expression::ExpressionHandle],
 ) -> Option<Invocation> {
+    // Executable retargeting can name a provider's private telescope and erase
+    // its static roster. Checking still admits the occurrence's authored
+    // requirement. Derive its views from that same retained declaration and
+    // operands, while reusing the occurrence's current selected entries.
+    let application = match site {
+        CallSite::Expression(handle) => {
+            program
+                .expression_table
+                .call_node(handle)?
+                .authored_machine_application
+        }
+        CallSite::Statement(handle) => {
+            program
+                .statement_table
+                .statement(handle)
+                .as_call()?
+                .authored_machine_application
+        }
+    };
+    let (target, selected, selected_machines) = if application.is_valid() {
+        (
+            program
+                .expression_table
+                .static_machine_application(application)
+                .registration_operation,
+            program
+                .expression_table
+                .static_machine_application_arguments(application),
+            program
+                .expression_table
+                .static_machine_application_selected_machines(application),
+        )
+    } else {
+        (target, selected, &[][..])
+    };
     if !selected
         .iter()
         .any(|argument| is_machine(program, argument.symbol))
@@ -135,11 +196,15 @@ fn proposal(
                 .collect(),
         )
     };
-    let machine_arguments = selected
-        .iter()
-        .filter(|argument| is_machine(program, argument.symbol))
-        .cloned()
-        .collect::<Vec<_>>();
+    let machine_arguments = if selected_machines.is_empty() {
+        selected
+            .iter()
+            .filter(|argument| is_machine(program, argument.symbol))
+            .cloned()
+            .collect::<Vec<_>>()
+    } else {
+        selected_machines.to_vec()
+    };
     if !machine_arguments.iter().any(|argument| {
         program.machines().iter().any(|machine| {
             program
@@ -150,17 +215,7 @@ fn proposal(
     }) {
         return None;
     }
-    let requirements = parameters
-        .iter()
-        .filter_map(|parameter| {
-            let TypeParameterKind::Machine { contract } = &parameter.kind else {
-                return None;
-            };
-            program
-                .machine_parameter_contract_view(contract)
-                .map(|view| view.signature().clone())
-        })
-        .collect::<Vec<_>>();
+    let requirements = machine_demands(program, parameters);
     if requirements.len() != machine_arguments.len() {
         return None;
     }
@@ -170,6 +225,7 @@ fn proposal(
     Some(Invocation {
         site,
         owner: caller.symbol,
+        target,
         machine_arguments,
         requirements,
         types,
