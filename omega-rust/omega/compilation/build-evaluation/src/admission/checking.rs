@@ -24,12 +24,12 @@ pub(crate) fn prepare_checked_build(
     packages: Option<&PackageCompilationInputs>,
     execution_profile: Option<target::TargetProfile>,
     timings: &mut artifacts::compile_timings::CompileTimings,
-    priors: &[&typed_trees_to_checked_trees::RetainedCheck],
+    priors: &[&psi_compiler::RetainedCheck],
     retain: bool,
 ) -> Result<
     (
         PreparedBuildMachineProgram,
-        Option<typed_trees_to_checked_trees::RetainedCheck>,
+        Option<psi_compiler::RetainedCheck>,
     ),
     Vec<Diagnostic>,
 > {
@@ -43,7 +43,7 @@ pub(crate) fn prepare_checked_build(
     // would leave the continuation's Build types unresolved and make Product
     // repeat their evaluation under unrelated provider selections. Projection
     // selects work and later the executable judgment; it is not a copyback API.
-    let projection = typed_trees_to_checked_trees::project_build_program(typed, entry)?;
+    let projection = validation::execution_projection::project_build_program(typed, entry)?;
     let mut pending = Vec::new();
     for continuation in pre_checks.iter() {
         let continuation = continuation.project(typed, &projection)?;
@@ -51,7 +51,7 @@ pub(crate) fn prepare_checked_build(
             pending.push(continuation);
         }
     }
-    let provisional = typed_trees_to_checked_trees::project_build_program(typed, entry)?;
+    let provisional = validation::execution_projection::project_build_program(typed, entry)?;
     let context = provider_planning::ProviderPlanningContext::new(
         &provisional,
         source::DependencyScope::Build,
@@ -94,8 +94,7 @@ pub(crate) fn prepare_checked_build(
             provider_planning::selected_provider_plan_facts(context, selected)?
         };
     if !pending.is_empty() {
-        let operator_selections =
-            typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
+        let operator_selections = validation::derive_pre_flow_operator_selections(typed);
         selected_dispatch::SelectedConstantEvaluation::prepare(
             context,
             execution_profile
@@ -116,39 +115,20 @@ pub(crate) fn prepare_checked_build(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {
             let started = std::time::Instant::now();
-            let program = typed_trees_to_checked_trees::project_build_program(typed, entry)?;
-            let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
-            let checking = typed_trees_to_checked_trees::CheckingRequest::new()
-                .with_declaration_authority(
-                    packages.map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
-                );
-            let admission = preparation_request.admission();
-            let prior = priors
-                .iter()
-                .copied()
-                .find(|prior| prior.judges_preparation_input(&program, &admission));
-            let result = match prior {
-                Some(prior) => {
-                    typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, retain)
-                }
-                None => {
-                    let retained_input =
-                        retain.then(|| (std::sync::Arc::new(program.clone()), admission));
-                    typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation_request)
-                        .and_then(|(program, preparation)| {
-                            typed_trees_to_checked_trees::lower_typed_trees_reusing(
-                                program,
-                                preparation,
-                                retained_input,
-                                &checking,
-                                prior,
-                                retain,
-                            )
-                        })
-                }
-            };
+            let program = validation::execution_projection::project_build_program(typed, entry)?;
+            let result = psi_compiler::CheckRequest {
+                program,
+                admission: psi_compiler::SourceAdmission {
+                    declarations: packages
+                        .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+                    ..Default::default()
+                },
+                previous: priors,
+                retain,
+            }
+            .check();
             artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());
-            if result.as_ref().is_ok_and(|outcome| outcome.took_prior) {
+            if result.as_ref().is_ok_and(|outcome| outcome.reused) {
                 artifacts::compile_timings::counters::record_settled_check_reuse();
             } else {
                 artifacts::compile_timings::counters::record_settled_check(started.elapsed());
@@ -156,8 +136,8 @@ pub(crate) fn prepare_checked_build(
             result
         },
     )?;
-    let typed_trees_to_checked_trees::CheckingOutcome {
-        mut checked,
+    let psi_compiler::CheckedSource {
+        program: mut checked,
         retained,
         ..
     } = outcome;

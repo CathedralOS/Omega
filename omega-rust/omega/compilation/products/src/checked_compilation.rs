@@ -31,20 +31,20 @@ pub use report::CheckedProductReport;
 /// confusing which occurrence's input the judgment describes.
 #[derive(Debug, Clone, Default)]
 pub struct RetainedCompilationChecks {
-    pub build: Option<typed_trees_to_checked_trees::RetainedCheck>,
-    pub product: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    pub build: Option<psi_compiler::RetainedCheck>,
+    pub product: Option<psi_compiler::RetainedCheck>,
     /// Retained Build judgments made by sibling occurrences of this same
     /// invocation. Sibling rows scope different entries through projections
     /// that can still arrive equal; an exact-input match takes the earlier
     /// judgment rather than repeating the whole-program check it owns.
     /// The pool is invocation-local: rows never reuse a sibling's admission.
-    pub sibling_build_checks: Vec<typed_trees_to_checked_trees::RetainedCheck>,
+    pub sibling_build_checks: Vec<psi_compiler::RetainedCheck>,
     /// Retained product judgments from earlier targets of this same request.
     /// The single-slot `product` chain only reaches the immediately prior
     /// target; a target whose program diverged would orphan a later target
     /// that converges with an earlier one. An exact-input match takes that
     /// earlier judgment; authority admission still runs per invocation.
-    pub sibling_product_checks: Vec<typed_trees_to_checked_trees::RetainedCheck>,
+    pub sibling_product_checks: Vec<psi_compiler::RetainedCheck>,
     pub occurrences: Vec<Option<RetainedCompilationChecks>>,
 }
 
@@ -67,7 +67,7 @@ pub struct CheckedCompilationInputs {
     /// `None` means the checked-tree phase ran as the identity boundary. The
     /// retained roots and pruned roster re-derive the exact product; they are
     /// not a reselection input.
-    pub product_selection: Option<typed_trees_to_checked_trees::CheckedTreeProductSelection>,
+    pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
 }
 
 /// Psi-checked semantics paired with the Omega-owned provider realization

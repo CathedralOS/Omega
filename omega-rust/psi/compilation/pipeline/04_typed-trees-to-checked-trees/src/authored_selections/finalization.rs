@@ -495,9 +495,8 @@ pub(crate) fn finalize_checked_authored_selections(
     // target: a selection its realization resolves may stay late-bound.
     let mut sibling_occurrences =
         crate::product_pruning::target_sibling_selection_occurrences(program);
-    sibling_occurrences.extend(crate::build_program::descriptor_selection_occurrences(
-        program,
-    ));
+    sibling_occurrences
+        .extend(validation::execution_projection::descriptor_selection_occurrences(program));
     if let Some(selection) = selections.iter().find(|selection| {
         if !matches!(
             selection.target(),

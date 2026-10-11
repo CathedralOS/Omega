@@ -40,7 +40,7 @@ pub struct BuildEvaluationRequest<'request> {
     /// This occurrence's earlier Build language judgment, not grants or effects.
     /// Prior judgments this invocation may reuse: its own slot's chain plus
     /// sibling rows whose projections arrived equal. Scan-ordered by custody.
-    pub prior_checks: Vec<&'request typed_trees_to_checked_trees::RetainedCheck>,
+    pub prior_checks: Vec<&'request psi_compiler::RetainedCheck>,
     /// Retain a successful judgment only when another review pass will use it.
     pub retain_check: bool,
 }
@@ -53,7 +53,7 @@ pub struct EvaluatedBuild {
     pub restricted_build_requests: Vec<RestrictedBuildRequest>,
     pub base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
     /// Optional invocation-local language judgment, separate from configuration.
-    pub retained_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    pub retained_check: Option<psi_compiler::RetainedCheck>,
 }
 
 /// Admit and execute one Build activation. Errors return before any later step:

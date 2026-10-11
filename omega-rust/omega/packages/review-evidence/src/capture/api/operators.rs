@@ -44,9 +44,7 @@ pub(crate) fn project_public_operators(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewOperatorShape>>, Vec<Diagnostic>> {
-    let derived = typed_trees_to_checked_trees::derive_checked_operator_crash_contracts(
-        compilation.checking_input,
-    );
+    let derived = validation::derive_checked_operator_crash_contracts(compilation.checking_input);
     if derived != compilation.facts.operators.operator_crash_contracts {
         return Err(vec![Diagnostic::error(format!(
             "retained checked operator-crash evidence does not equal compiler rederivation (retained {} rows, derived {} rows)",

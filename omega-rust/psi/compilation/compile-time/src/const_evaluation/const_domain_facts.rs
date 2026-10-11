@@ -91,7 +91,7 @@ pub(crate) fn pending_memberships_need_operator_selection(
     // eventual evaluation: this pass executes the unprepared working tree, so
     // the check reads it directly.
     let execution = domain.execution_program(typed);
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&execution);
+    let facts = validation::derive_pre_flow_operator_selections(&execution);
     let admission = BuildTimeAdmissionPlan::infer(&execution, selection_authority);
     Ok(pending.iter().any(|pending| {
         membership::domain_facts_need_operator_selection(

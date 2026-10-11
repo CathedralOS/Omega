@@ -5,7 +5,7 @@
 
 use checked_trees::{CheckFacts, CheckedSemanticDependencies};
 
-use crate::{authored_selections, checks, facts, flow, operators, values};
+use crate::{authored_selections, checks, facts, flow, values};
 
 /// Conservative pre-check classification used by compiler-run semantic
 /// evaluation. `true` means the typed expression cannot select an authored
@@ -39,21 +39,6 @@ pub fn typed_operator_authored_selection_candidates(
     authored_selections::typed_operator_authored_selection_candidates(program, expression)
 }
 
-/// Derive declaration-level operator selections on the current typed graph.
-/// This reuses the checked value-origin traversal, but performs no flow proof
-/// or whole-program validation. Consumers must reject unresolved selections;
-/// ordinary checked lowering independently reconstructs these facts later.
-pub fn derive_pre_flow_operator_selections(
-    program: &dyn ::validation::CheckingInput,
-) -> checked_trees::CheckedOperatorFacts {
-    // Operator selection reads each value row's expression and origin only.
-    let values = validation::collect_executable_value_origins(
-        program,
-        &typed_trees::references::DeclarationSelection::all(),
-    );
-    operators::build_operator_facts(program, &values)
-}
-
 /// Reuse the current checked value traversal without claiming proof validity.
 /// Exact expression origins also identify cast-owned constant type positions.
 pub fn derive_pre_flow_value_origins(
@@ -73,16 +58,6 @@ pub fn derive_checked_semantic_dependencies(
     facts: &CheckFacts,
 ) -> CheckedSemanticDependencies {
     flow::derive_checked_semantic_dependencies(program, facts)
-}
-
-/// Rederive one complete checked crash-contract row for every root and
-/// domain-homed operator declaration. This compiler-internal package-review
-/// entry point retains exact typed proof-fact joins without creating a public
-/// IR format.
-pub fn derive_checked_operator_crash_contracts(
-    program: &dyn ::validation::CheckingInput,
-) -> Vec<checked_trees::CheckedOperatorCrashContract> {
-    operators::derive_checked_operator_crash_contracts(program)
 }
 
 /// Rederive canonical authored crash buckets for an exact typed machine.

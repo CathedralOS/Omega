@@ -246,8 +246,7 @@ fn evaluate_application_group(
         let execution = prepared.typed();
         let admission =
             crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
-        let operators =
-            typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
+        let operators = validation::derive_pre_flow_operator_selections(execution);
         let independent = probe_symbols
             .iter()
             .copied()

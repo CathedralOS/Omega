@@ -10,6 +10,10 @@ typed-trees = { path = "../representations/typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "../pipeline/03_symbol-resolved-trees-to-typed-trees" }
 build-time-evaluation = { path = "../compile-time" }
+typed-trees-to-typed-trees = { path = "../pipeline/03b_typed-trees-to-typed-trees" }
+typed-trees-to-checked-trees = { path = "../pipeline/04_typed-trees-to-checked-trees" }
+validation = { path = "../checking" }
+language-semantics = { path = "../../foundation/language-semantics" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
 diagnostics = { path = "../../foundation/diagnostics" }

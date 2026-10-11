@@ -62,14 +62,32 @@ fn product_consumers_do_not_assemble_source_stages() {
     for manifest in [
         include_str!("../Cargo.toml"),
         include_str!("../../products/Cargo.toml"),
+        include_str!("../../build-evaluation/Cargo.toml"),
     ] {
         for stage in [
             "02_syntax-trees-to-symbol-resolved-trees",
             "03_symbol-resolved-trees-to-typed-trees",
+            "03b_typed-trees-to-typed-trees",
+            "04_typed-trees-to-checked-trees",
         ] {
             assert!(
                 !manifest.contains(stage),
                 "product consumer imports {stage}"
+            );
+        }
+    }
+    for source in [
+        include_str!("checked/checking/source_checking.rs"),
+        include_str!("../../build-evaluation/src/admission/checking.rs"),
+    ] {
+        for operation in [
+            "prepare_typed_trees",
+            "reuse_retained_check",
+            "lower_typed_trees_reusing",
+        ] {
+            assert!(
+                !source.contains(operation),
+                "consumer assembles {operation}"
             );
         }
     }

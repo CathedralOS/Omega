@@ -179,6 +179,7 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "provider-planning",
+ "psi-compiler",
  "representation-planning",
  "selected-dispatch",
  "semantic-vocabulary",
@@ -189,8 +190,6 @@ dependencies = [
  "terminal-psi",
  "trust-model",
  "typed-trees",
- "typed-trees-to-checked-trees",
- "typed-trees-to-typed-trees",
  "validation",
 ]
 
@@ -416,7 +415,6 @@ dependencies = [
  "terminal-psi-to-abstract-operations",
  "trust-model",
  "typed-trees",
- "typed-trees-to-checked-trees",
  "validation",
 ]
 
@@ -473,8 +471,6 @@ dependencies = [
  "tokens-to-syntax-trees",
  "trust-model",
  "typed-trees",
- "typed-trees-to-checked-trees",
- "typed-trees-to-typed-trees",
  "validation",
 ]
 
@@ -1587,6 +1583,7 @@ dependencies = [
  "checked-trees",
  "checked-trees-to-lowered-psi",
  "diagnostics",
+ "language-semantics",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "optimization",
@@ -1598,6 +1595,9 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "typed-trees",
+ "typed-trees-to-checked-trees",
+ "typed-trees-to-typed-trees",
+ "validation",
 ]
 
 [[package]]

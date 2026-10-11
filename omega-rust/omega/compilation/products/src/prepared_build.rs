@@ -19,7 +19,7 @@ pub struct BuiltTypedProgram {
     pub admission: BuildAdmission,
     /// The exact successful Build language judgment, only when requested for
     /// another review pass. This is not an execution or authority checkpoint.
-    pub retained_build_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    pub retained_build_check: Option<psi_compiler::RetainedCheck>,
 }
 
 /// One completed continuation with its source custody and inclusive timing ladder.
@@ -39,7 +39,7 @@ pub struct PreparedProductSource {
     pub admission: BuildAdmission,
     pub build_sources: BuildSourceCustody,
     pub timings: CompileTimings,
-    pub retained_build_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    pub retained_build_check: Option<psi_compiler::RetainedCheck>,
 }
 
 /// One source judgment shared by every realization in the invocation.
@@ -53,5 +53,5 @@ pub struct CheckedProductSource {
     pub timings: CompileTimings,
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub retained_checks: crate::RetainedCompilationChecks,
-    pub product_selection: Option<typed_trees_to_checked_trees::CheckedTreeProductSelection>,
+    pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
 }

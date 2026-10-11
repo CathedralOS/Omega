@@ -12,7 +12,6 @@ autotests = false
 [dependencies]
 arena = { path = "../../../psi/foundation/arena" }
 native-production = { path = "../native-production" }
-typed-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03b_typed-trees-to-typed-trees" }
 compilation-products = { path = "../products" }
 lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi" }
@@ -38,7 +37,6 @@ artifacts = { path = "../../foundation/artifacts" }
 build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
 validation = { path = "../../../psi/compilation/checking" }
 representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
-typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }

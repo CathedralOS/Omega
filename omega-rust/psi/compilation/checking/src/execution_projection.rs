@@ -1,4 +1,4 @@
-//! The executable declaration context of one Build activation.
+//! Executable projections of admitted typed declarations.
 //!
 //! Resolution has already given each source instance its Product or Build
 //! identity. Preserve the complete Build declaration surface through ordinary
@@ -12,20 +12,21 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::compiler_operations::static_argument_role;
 use diagnostics::Diagnostic;
 use source::{DependencyScope, SourceOrigin};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::machine::Machine;
 use typed_trees::references::{
     DeclarationSelection, StaticArgumentClassifier, collect_program_references_with_roles,
     collect_selected_program_references,
 };
-use validation::compiler_operations::static_argument_role;
 
 /// Prepare the complete admitted Build context without changing symbol handles.
 /// The result must still pass ordinary checking before any machine executes.
 pub fn project_build_program(
-    original: &dyn ::validation::CheckingInput,
+    original: &dyn crate::CheckingInput,
     entry: SymbolHandle,
 ) -> Result<TypedTrees, Vec<Diagnostic>> {
     // Instantiation preserves template source provenance for diagnostics, not
@@ -122,9 +123,7 @@ pub fn project_build_program(
 /// graph becomes host type-work merely through the selection operation. Keep
 /// ordinary Build bodies as roots, then restore any described declaration they
 /// actually use through the same value/signature/proof reference traversal.
-fn build_descriptor_declarations(
-    program: &dyn ::validation::CheckingInput,
-) -> HashSet<SymbolHandle> {
+fn build_descriptor_declarations(program: &dyn crate::CheckingInput) -> HashSet<SymbolHandle> {
     let references = collect_program_references_with_roles(
         program,
         &DeclarationSelection::all(),
@@ -161,7 +160,7 @@ fn build_descriptor_declarations(
 /// children. This selects no target and grants no checking or execution
 /// authority. Any frozen Product descriptor already present is preserved.
 pub fn project_selected_program(
-    original: &dyn ::validation::CheckingInput,
+    original: &dyn crate::CheckingInput,
     selection: &typed_trees::references::DeclarationSelection,
 ) -> TypedTrees {
     if selection.is_all() {
@@ -182,7 +181,7 @@ pub fn project_selected_program(
 }
 
 fn project_declarations(
-    original: &dyn ::validation::CheckingInput,
+    original: &dyn crate::CheckingInput,
     selected_root: impl Fn(SymbolHandle) -> bool,
     retain_reference: impl Fn(SymbolHandle) -> bool,
     declaration_children: &[(SymbolHandle, SymbolHandle)],
@@ -272,11 +271,8 @@ fn project_declarations(
         .filter(|symbol| !retained.contains(symbol))
         .collect::<HashSet<_>>();
     removed_declarations.extend(removed.iter().copied());
-    crate::product_pruning::rewrite::apply_typed_pruning(&mut program, &retained, &removed);
-    crate::product_pruning::rewrite::apply_declaration_sidecar_pruning(
-        &mut program,
-        &removed_declarations,
-    );
+    retain_machine_roster(&mut program, &retained, &removed);
+    apply_declaration_sidecar_pruning(&mut program, &removed_declarations);
     let original_references = typed_trees::references::collect_program_references(original);
     let selected_references = typed_trees::references::collect_program_references(&program);
     // Exact owned occurrences can leave this checking context only when all
@@ -315,8 +311,8 @@ fn project_declarations(
 /// Occurrences outside this exact checking context remain in the ledger for
 /// their owners: frozen Product descriptors or declarations removed by private
 /// projection. Stable IDs are never erased or reassigned.
-pub(crate) fn descriptor_selection_occurrences(
-    program: &dyn ::validation::CheckingInput,
+pub fn descriptor_selection_occurrences(
+    program: &dyn crate::CheckingInput,
 ) -> HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
     program
         .authored_declaration_selections()
@@ -324,4 +320,81 @@ pub(crate) fn descriptor_selection_occurrences(
         .filter(|selection| !program.checks_authored_selection(selection))
         .map(|selection| selection.occurrence_id())
         .collect()
+}
+
+/// Rebuild machine roots and machine-keyed sidecars. Backing declarations stay
+/// available to exact authored-selection and visibility evidence; only roots
+/// determine which implementations belong to this executable program.
+pub fn retain_machine_roster(
+    program: &mut TypedTrees,
+    retained: &HashSet<SymbolHandle>,
+    pruned: &HashSet<SymbolHandle>,
+) {
+    // Append the retained roster without invalidating existing declaration
+    // handles or erasing payloads still named by authored-selection evidence.
+    let retained_machines: Vec<Machine> = program
+        .machines()
+        .iter()
+        .filter(|machine| retained.contains(&machine.symbol))
+        .cloned()
+        .collect();
+    program.roots.machines = program.tables.machines.insert_many(retained_machines);
+
+    // Typed sidecars keyed by a machine identity.
+    program
+        .machine_specializations
+        .retain(|row| retained.contains(&row.instance));
+    // Trait requirement signatures own reach rows too; only rows owned by a
+    // pruned machine leave.
+    program
+        .authored_service_reach_rows
+        .retain(|row| !pruned.contains(&row.owner));
+    program
+        .evidence_forwardings
+        .retain(|row| retained.contains(&row.machine_symbol));
+    program
+        .proof_output_calls
+        .retain(|row| retained.contains(&row.machine_symbol));
+    program
+        .ranking_expression_custody
+        .retain(|row| retained.contains(&row.machine));
+}
+
+/// Project sidecars whose exact declaration owner left the root roster.
+/// Unknown/orphan owners are deliberately retained for ordinary validation:
+/// absence is not authorization to discard malformed evidence.
+fn apply_declaration_sidecar_pruning(program: &mut TypedTrees, removed: &HashSet<SymbolHandle>) {
+    let symbols = &program.symbols;
+    let owner_removed = |mut symbol: SymbolHandle| {
+        while symbol.is_valid() {
+            if removed.contains(&symbol) {
+                return true;
+            }
+            symbol = symbols.get(symbol).parent;
+        }
+        false
+    };
+    program
+        .plan_laid_layouts
+        .retain(|row| !owner_removed(row.data_symbol));
+    program
+        .placed_view_plans
+        .retain(|row| !owner_removed(row.data_symbol));
+    program
+        .wire_schema_plans
+        .retain(|row| !owner_removed(row.schema));
+    program
+        .authored_service_reach_rows
+        .retain(|row| !owner_removed(row.owner));
+    // This roster has no inbound handles; source roles join by declaration
+    // symbols. Wire placement arenas and other referenced backing rows stay.
+    let completions = program
+        .boundary_completion_declarations
+        .iter()
+        .filter(|(_, row)| !owner_removed(row.owner))
+        .map(|(_, row)| row.clone())
+        .collect::<Vec<_>>();
+    let mut declarations = arena::Arena::default();
+    declarations.insert_many(completions);
+    program.boundary_completion_declarations = declarations;
 }

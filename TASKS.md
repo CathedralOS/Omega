@@ -2955,8 +2955,11 @@ crash and native exit behavior.
     borrow the same checked storage; matching entry/optimization requests also
     share Terminal production and storage, with separate target admissions.
     Psi owns resolver/typing and generated-source continuation; the product
-    driver and product carriers no longer import stages 02/03. Move source
-    checking and its preparation contracts behind the same Psi facade next.
+    driver, Build evaluator and product carriers no longer import stages
+    02/03/03b/04. Psi owns preparation, retained-check matching, checking and
+    Product pruning; shared projections/operator queries have semantic owners.
+    Move source completion-role admission out of provider planning and join
+    the remaining source/package assembly contracts to this facade.
     Move distinct entry roots, callbacks and the package-manager batch route
     behind whole-program shared checked/Terminal storage and
     retire its per-target typed copies. Remove `compile_checked_reusing_builds`

@@ -87,7 +87,7 @@ impl EvaluationDomain {
         original: &typed_trees::TypedTrees,
     ) -> typed_trees::TypedTrees {
         let mut program =
-            typed_trees_to_checked_trees::project_selected_program(original, &self.execution);
+            validation::execution_projection::project_selected_program(original, &self.execution);
         if let Some(frontier) = &self.product_frontier {
             program.product_declaration_frontier = Some(frontier.clone());
         }

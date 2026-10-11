@@ -4,8 +4,6 @@ use std::collections::HashSet;
 
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::machine::Machine;
 
 use super::dependencies::MachineIndex;
 
@@ -23,90 +21,10 @@ pub(super) fn apply_pruning(
 ) -> CheckedTrees {
     let mut typed = checked.typed.into_inner();
     let mut facts = checked.facts;
-    apply_typed_pruning(&mut typed, retained, pruned);
+    validation::execution_projection::retain_machine_roster(&mut typed, retained, pruned);
     super::retain_live_family_members(&mut typed);
     apply_fact_pruning(&mut facts, retained, pruned, index);
     CheckedTrees::with_roots(typed, facts)
-}
-
-/// Rebuild machine roots and machine-keyed sidecars. Backing declarations stay
-/// available to exact authored-selection and visibility evidence; only roots
-/// determine which implementations belong to this executable program.
-pub(crate) fn apply_typed_pruning(
-    program: &mut TypedTrees,
-    retained: &HashSet<SymbolHandle>,
-    pruned: &HashSet<SymbolHandle>,
-) {
-    // Append the retained roster without invalidating existing declaration
-    // handles or erasing payloads still named by authored-selection evidence.
-    let retained_machines: Vec<Machine> = program
-        .machines()
-        .iter()
-        .filter(|machine| retained.contains(&machine.symbol))
-        .cloned()
-        .collect();
-    program.roots.machines = program.tables.machines.insert_many(retained_machines);
-
-    // Typed sidecars keyed by a machine identity.
-    program
-        .machine_specializations
-        .retain(|row| retained.contains(&row.instance));
-    // Trait requirement signatures own reach rows too; only rows owned by a
-    // pruned machine leave.
-    program
-        .authored_service_reach_rows
-        .retain(|row| !pruned.contains(&row.owner));
-    program
-        .evidence_forwardings
-        .retain(|row| retained.contains(&row.machine_symbol));
-    program
-        .proof_output_calls
-        .retain(|row| retained.contains(&row.machine_symbol));
-    program
-        .ranking_expression_custody
-        .retain(|row| retained.contains(&row.machine));
-}
-
-/// Project sidecars whose exact declaration owner left the root roster.
-/// Unknown/orphan owners are deliberately retained for ordinary validation:
-/// absence is not authorization to discard malformed evidence.
-pub(crate) fn apply_declaration_sidecar_pruning(
-    program: &mut TypedTrees,
-    removed: &HashSet<SymbolHandle>,
-) {
-    let symbols = &program.symbols;
-    let owner_removed = |mut symbol: SymbolHandle| {
-        while symbol.is_valid() {
-            if removed.contains(&symbol) {
-                return true;
-            }
-            symbol = symbols.get(symbol).parent;
-        }
-        false
-    };
-    program
-        .plan_laid_layouts
-        .retain(|row| !owner_removed(row.data_symbol));
-    program
-        .placed_view_plans
-        .retain(|row| !owner_removed(row.data_symbol));
-    program
-        .wire_schema_plans
-        .retain(|row| !owner_removed(row.schema));
-    program
-        .authored_service_reach_rows
-        .retain(|row| !owner_removed(row.owner));
-    // This roster has no inbound handles; source roles join by declaration
-    // symbols. Wire placement arenas and other referenced backing rows stay.
-    let completions = program
-        .boundary_completion_declarations
-        .iter()
-        .filter(|(_, row)| !owner_removed(row.owner))
-        .map(|(_, row)| row.clone())
-        .collect::<Vec<_>>();
-    let mut declarations = arena::Arena::default();
-    declarations.insert_many(completions);
-    program.boundary_completion_declarations = declarations;
 }
 
 fn apply_fact_pruning(

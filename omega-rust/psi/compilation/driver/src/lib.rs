@@ -8,18 +8,27 @@
 //! and `extend` consumes admitted generated syntax against its exact predecessor.
 //! Package acquisition, Build permissions and host effects stay outside this crate.
 //!
+//! `source_checking.rs` owns preparation, exact retained-judgment matching and
+//! checking for both Product and Build. Successful checking precedes product
+//! pruning; consumers supply admission facts, never a stage sequence.
 //! `terminal_production.rs` owns checked trees through stages 05-07 and canonical
-//! publication, including separate consumer admissions. Source checking still
-//! enters through the product coordinator; joining that interval here remains
-//! unfinished. This crate does not claim an already-complete source-to-Terminal API.
+//! publication, including separate consumer admissions. Source/package assembly,
+//! source completion roles and distinct entry-root production remain outside
+//! this facade; this is not yet a complete one-call source-to-Terminal API.
 //! Observers record existing stage operations without choosing or replaying them.
 
 mod composition_admission;
 mod custody;
 pub use composition_admission::TerminalCompositionAdmission;
 mod observation;
+mod source_checking;
 mod source_compilation;
 mod terminal_production;
+
+pub use source_checking::{
+    CheckRequest, CheckedSource, CheckedTreeProductSelection, RetainedCheck, SelectedCheckedSource,
+    SourceAdmission,
+};
 
 pub use source_compilation::{
     BuildSourceInput, CompletedSource, PreparedSource, SourceCompilationRequest,

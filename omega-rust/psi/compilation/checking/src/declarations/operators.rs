@@ -3,6 +3,7 @@
 //! typed-call mutation and checked proof/application extraction stay in the pipeline.
 
 mod applications;
+mod contracts;
 pub(crate) mod namespaces;
 mod receiver;
 mod requirement_uses;
@@ -10,6 +11,10 @@ mod selection;
 mod signatures;
 mod uses;
 
+pub use contracts::{
+    build_operator_facts, derive_checked_operator_crash_contracts,
+    derive_pre_flow_operator_selections,
+};
 pub use receiver::expression_type_reference_for_origin;
 pub use requirement_uses::{collect_named_requirement_uses, token_bound_machine_call_target};
 pub use selection::select_pending_domain_operator_meanings;

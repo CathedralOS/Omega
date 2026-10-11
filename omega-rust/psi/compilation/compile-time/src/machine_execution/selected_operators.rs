@@ -229,7 +229,7 @@ fn require_unique_operator_custody<T>(
     if selected.is_empty() {
         return Ok(None);
     }
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(program);
+    let facts = validation::derive_pre_flow_operator_selections(program);
     for (index, row) in selected.iter().enumerate() {
         let key = custody(row);
         if key.is_none() || selected[..index].iter().any(|prior| custody(prior) == key) {

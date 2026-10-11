@@ -107,14 +107,18 @@ Accepted package roles enter source preparation before checking instead.
 Resolver/typing continuation now lives in the [Psi compiler](psi/compilation/driver/src/source_compilation.rs):
 one owner pairs the deferred resolver, typing arenas and evaluation obligations
 across Build and generated-source resumption. Product records cannot rearrange
-those stages or replace one half of the continuation. Package-manager batches also retain separate
+those stages or replace one half of the continuation. The same facade owns
+preparation, retained-judgment matching and checking for both Build and Product;
+product pruning consumes its checked result. Shared executable projections and
+operator contract queries live in semantic checking, without a stage dependency.
+Package-manager batches also retain separate
 checked activations. These are unfinished ownership moves, not the intended route:
 
 | Input → output | Owner |
 | --- | --- |
 | Source files → assembled syntax | [package source preparation](omega/packages/compilation-inputs/src/source_assembly.rs) |
 | Assembled syntax → completed typing | [Psi source continuation](psi/compilation/driver/src/source_compilation.rs), interrupted only for admitted Build execution and generated-source admission |
-| Completed typing → checked compilation | [source checking](omega/compilation/driver/src/checked/checking/source_checking.rs), still to move behind the Psi compiler facade |
+| Completed typing → checked program | [Psi source checking](psi/compilation/driver/src/source_checking.rs); the product coordinator supplies source admission and seals package custody afterward |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compilation/driver/src/terminal/terminal_artifact.rs) |
 
 Package-owned source preparation now feeds the ordinary loading and parsing

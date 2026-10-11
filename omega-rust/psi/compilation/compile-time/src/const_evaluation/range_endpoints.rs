@@ -257,7 +257,7 @@ pub(crate) fn pending_endpoint_calls_need_operator_selection(
     // applications as the eventual evaluation; prepare once and reuse it.
     let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
     let execution = prepared.typed();
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
+    let facts = validation::derive_pre_flow_operator_selections(execution);
     let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority);
     Ok(pending.iter().any(|endpoint| {
         // A type argument awaiting its own bound keeps this application

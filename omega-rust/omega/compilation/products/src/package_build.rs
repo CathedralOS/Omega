@@ -79,7 +79,7 @@ impl PreparedPackageBuild {
 
     /// The Build judgment this occurrence retained for its next equal-input
     /// settlement, when one was requested.
-    pub fn retained_build_check(&self) -> Option<&typed_trees_to_checked_trees::RetainedCheck> {
+    pub fn retained_build_check(&self) -> Option<&psi_compiler::RetainedCheck> {
         self.prepared.built.retained_build_check.as_ref()
     }
 

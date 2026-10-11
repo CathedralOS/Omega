@@ -21,7 +21,6 @@ source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 psi-compiler = { path = "../../../psi/compilation/driver" }
 task-plans = { path = "../backend/runtime/task-plans" }
-typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 validation = { path = "../../../psi/compilation/checking" }
 artifacts = { path = "../../foundation/artifacts" }

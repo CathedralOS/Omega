@@ -201,9 +201,9 @@ fn admit_declaration_authority(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     if let Some(authority) = request.declaration_authority {
         let mut sibling_occurrences = crate::target_sibling_selection_occurrences(&checked.typed);
-        sibling_occurrences.extend(crate::build_program::descriptor_selection_occurrences(
-            &checked.typed,
-        ));
+        sibling_occurrences.extend(
+            validation::execution_projection::descriptor_selection_occurrences(&checked.typed),
+        );
         validation::validate_authored_declaration_selections(
             checked,
             authority,

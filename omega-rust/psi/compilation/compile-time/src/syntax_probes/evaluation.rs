@@ -239,7 +239,7 @@ fn declaration_dependencies(
             selection.include(symbol);
         }
     }
-    let operators = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(program);
+    let operators = validation::derive_pre_flow_operator_selections(program);
     // An endpoint is evaluated as part of its real declared type, not detached
     // into an invented scalar carrier. Retain the declaration owning that exact
     // occurrence, including its typed calls and proof/type dependencies.

@@ -52,47 +52,36 @@ pub(crate) fn check_product_source(
         .collect::<Vec<_>>();
     let inferred_synchronous_invocations = validation::infer_synchronous_invocations(&typed);
     let symbol_sources = typed.symbols.source_map();
-    let preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
-        .with_opaque_property_receipts(&opaque_properties)
-        .with_asm_authority(
+    let source_admission = psi_compiler::SourceAdmission {
+        opaque_properties: &opaque_properties,
+        asm_authority: Some(
             validation::AsmAuthorityAdmission::from_freestanding(build.settings.freestanding)
                 .with_grants(
                     build.settings.privileged_services.port_io,
                     build.settings.privileged_services.interrupt_table,
                 ),
-        )
-        .with_wire_compatibility_demands(&build.wire_compatibility_demands);
-    let checking = typed_trees_to_checked_trees::CheckingRequest::new().with_declaration_authority(
-        package_inputs.map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
-    );
+        ),
+        wire_demands: &build.wire_compatibility_demands,
+        declarations: package_inputs
+            .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+    };
+    let previous: Vec<_> = reuse
+        .prior
+        .product
+        .iter()
+        .chain(reuse.prior.sibling_product_checks.iter())
+        .collect();
     let outcome = timings
         .record(TYPED_TREES_TO_CHECKED_TREES, || {
             let started = std::time::Instant::now();
-            let admission = preparation.admission();
-            let prior = reuse
-                .prior
-                .product
-                .iter()
-                .chain(reuse.prior.sibling_product_checks.iter())
-                .find(|prior| prior.judges_preparation_input(&typed, &admission));
-            let result = if let Some(prior) = prior {
-                typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, reuse.retain)
-            } else {
-                let retained_input = reuse.retain.then(|| (Arc::new(typed.clone()), admission));
-                typed_trees_to_typed_trees::prepare_typed_trees(typed, &preparation).and_then(
-                    |(typed, preparation)| {
-                        typed_trees_to_checked_trees::lower_typed_trees_reusing(
-                            typed,
-                            preparation,
-                            retained_input,
-                            &checking,
-                            reuse.prior.product.as_ref(),
-                            reuse.retain,
-                        )
-                    },
-                )
-            };
-            if result.as_ref().is_ok_and(|outcome| outcome.took_prior) {
+            let result = psi_compiler::CheckRequest {
+                program: typed,
+                admission: source_admission,
+                previous: &previous,
+                retain: reuse.retain,
+            }
+            .check();
+            if result.as_ref().is_ok_and(|outcome| outcome.reused) {
                 artifacts::compile_timings::counters::record_settled_check_reuse();
             } else {
                 artifacts::compile_timings::counters::record_settled_check(started.elapsed());
@@ -109,10 +98,11 @@ pub(crate) fn check_product_source(
     // per-target copy of the checked program. Native reachability chooses the
     // selected entry later, without changing this portable judgment.
     let roots = build.checked_tree_product_roots(rollback);
-    let (program, product_selection) = typed_trees_to_checked_trees::select_checked_tree_product(
-        Arc::new(outcome.checked),
-        roots,
-    )?;
+    let psi_compiler::SelectedCheckedSource {
+        program,
+        retained,
+        selection: product_selection,
+    } = outcome.select_product(roots)?;
     let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
     let accepted_template_classifications =
         trust_model::AcceptedTemplateClassifications::capture(&program);
@@ -126,7 +116,7 @@ pub(crate) fn check_product_source(
         accepted_template_classifications,
         retained_checks: compilation_products::RetainedCompilationChecks {
             build: retained_build_check,
-            product: outcome.retained,
+            product: retained,
             ..Default::default()
         },
         product_selection,

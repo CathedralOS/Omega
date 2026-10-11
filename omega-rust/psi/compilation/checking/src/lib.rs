@@ -8,8 +8,15 @@
 //! The root modules are grouped by what they validate: `machine_calls.rs`,
 //! `proof_contracts.rs`, `value_custody.rs` and `declarations.rs` each open
 //! one folder of validators and the queries they share.
+//! `execution_projection.rs` selects executable declaration contexts without
+//! granting a checked judgment; compile-time evaluation and checking share it.
 
 pub use declarations::traits::conformance_applications;
+pub mod execution_projection;
+pub use declarations::operators::{
+    build_operator_facts, derive_checked_operator_crash_contracts,
+    derive_pre_flow_operator_selections,
+};
 pub use declarations::traits::refinement_fit;
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;

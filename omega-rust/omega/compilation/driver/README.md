@@ -80,6 +80,10 @@ then [settle each target](src/checked/checking/execution_settlement.rs).
 The Build coordinator calls the [Psi source continuation](../../../psi/compilation/driver/src/source_compilation.rs)
 for resolution, typing and generated-source completion. It owns package admission
 and Build authority, not the resolver/typing fixed points or their paired arenas.
+[Psi source checking](../../../psi/compilation/driver/src/source_checking.rs) then
+owns preparation, retained-judgment matching, checking and product pruning.
+Build admission uses that same checking sequence. Shared source projections and
+operator queries belong to semantic checking libraries, not a stage backdoor.
 The product owner retains the complete checked result, its evaluated Build and
 source custody, and owns metadata and production-subject projections. Its shared
 Build records are data contracts consumed by evaluation and product assembly;

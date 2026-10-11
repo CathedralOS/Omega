@@ -280,8 +280,7 @@ impl<'selection> LengthJobs<'selection> {
         let mut execution = domain.execution_program(typed);
         let admission = BuildTimeAdmissionPlan::infer(&execution, self.authority.clone());
         if matches!(self.providers, LengthProviderSelection::Pending) {
-            let facts =
-                typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&execution);
+            let facts = validation::derive_pre_flow_operator_selections(&execution);
             if admission.closure_needs_operator_selection(&execution, machine, &facts) {
                 return Ok(None);
             }

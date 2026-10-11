@@ -7,10 +7,9 @@ version.workspace = true
 
 [dependencies]
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
-typed-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03b_typed-trees-to-typed-trees" }
+psi-compiler = { path = "../../../psi/compilation/driver" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 artifacts = { path = "../../foundation/artifacts" }
-typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 compilation-products = { path = "../products" }
 arena = { path = "../../../psi/foundation/arena" }
 language-core = { path = "../../../psi/foundation/language-core" }
