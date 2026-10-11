@@ -1,0 +1,16 @@
+use omega::language::core::slice;
+
+data Entry { value: i32; }
+data Main { entries: [Entry; 4]; }
+
+machine Main::main(main: &mut Main) crashes Trap {
+    let whole: &[Entry] = &main.entries;
+    let middle: &[Entry] = whole[1..3];
+    let empty: &[Entry] = whole[4..4];
+    transition whole.len == 4 && middle.len == 2 && empty.len == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

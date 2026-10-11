@@ -13,15 +13,17 @@
 //
 // Fixed operator tokens are written directly after `boundary machine`: the
 // token identifies the required operator slot of that signature.
+// Package callers select these public requirements, including their generic
+// applications. Visibility does not supply a body or a descriptor realization.
 
 // index returns the element by value: copying it out of a shared borrow
 // requires a copyable element type. The view-returning requirements below
 // carry no such bound.
-boundary machine [] Slice::index<T [copy]>(items: &[T], index: u64) -> T
+pub boundary machine [] Slice::index<T [copy]>(items: &[T], index: u64) -> T
 requires
     index < items.len;
 
-boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
+pub boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 requires
     start <= end && end <= items.len
 ensures
