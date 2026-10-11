@@ -697,3 +697,55 @@ Until answered, only the invocation-entry arrival subfrontier of
 selectors, byte-region footprints, bounded stores and the decided
 byte-view store leg already landed; the authored-selector subfrontier
 stays blocked under Q11.
+
+### Q13 - May opaque-receipt derivation and pending evaluation be partitioned by target-variance?
+
+Named decision: `target-variance-partitioned-custody`.
+
+**Customer:** **BUILD-EVALUATES-ONCE** (TASKS.md) — `build.omg` evaluates once
+per compilation and produces checked rows for every target. Retained-check
+pooling now dedupes every checked call that genuinely converges: preliminary
+build checks share across sibling occurrence rows, and final product checks
+share across targets and occurrence components through the
+`sibling_product_checks` pool. The residual per-target divergence is exactly
+two genuinely target-keyed inputs: `opaque_property_receipts`, derived per
+target because `ProviderCheckingInputs::prepare` consumes a
+`ProviderCheckingRequest` carrying `native_target`, and the
+`evaluate_pending` injection — the deferred pre-check custody map
+(SelectedConstantEvaluation) that writes each target's provider/operator
+selections into `typed` before the product check compares inputs.
+
+**Existing rules:** `PreparedProductSource` is already per-target, so the
+injection does not leak across targets; `judges_preparation_input` compares
+the injected `typed` plus the admission by exact equality. Wire demands, asm
+authority, privileged services and freestanding are invocation-global and
+already converge — no target-neutral BuildConfig work remains inside the
+checked input. What remains is custody, not dedup: the receipts and the
+pending-evaluation results are computed per target even where their content
+is target-invariant, because both live inside the per-target checked program.
+
+**Decision needed:** may the opaque-receipt derivation and the
+pending-evaluation results be partitioned by target-variance — target-neutral
+fraction evaluated once per invocation and injected identically into every
+target's `typed` (custody outside the checked program), leaving only the
+genuinely target-keyed fraction per target — so the per-target residue exits
+the checked program? The z20 map made injection per-target precisely because
+selections can differ; the partition question is whether a target-invariant
+result may be shared without misclaiming per-target provenance.
+
+1. **Recommended: partition by target-variance.** Evaluate the
+   target-neutral fraction of pending pre-checks and opaque receipts once
+   per invocation, inject the identical result into every target's `typed`,
+   and let `judges_preparation_input` continue to compare exact inputs —
+   programs then converge whenever the authored selections converge, and
+   divergent targets still check their own genuinely-different programs.
+   Custody stays honest: the shared result records it was evaluated once,
+   not once per target.
+2. **Keep the full per-target custody map.** Every receipt and every
+   pending evaluation stays target-scoped even when its value is
+   target-invariant; checks keep their current exact-input dedup and the
+   residual per-target cost is accepted as the price of uniform custody.
+
+Until answered, the `BuildConfig`-is-global frontier on
+**BUILD-EVALUATES-ONCE** is owner-blocked at this partition; the authored-rows
+and unrequested-row retention work within the same bullet is not blocked.
