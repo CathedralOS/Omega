@@ -5114,3 +5114,6 @@ fail/targets/selected_family_exclusion_crash_rejected rejected 5121ms expected @
 	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 6 at crash terminator in block 6
 pass/targets/portable_family_entry_installations_exit checked 2761ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:trap terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8d22fd65fdd6+wt
 pass/targets/selected_family_exclusion_closure_exit checked 2849ms check-target:macos_arm64 @8d22fd65fdd6+wt
+pass/borrows/runtime_boundary_range_view_exit checked 4457ms check-target:macos_arm64 @d4fb143570a5
+fail/borrows/boundary_returned_view_keeps_backing_loan rejected 688ms expected @d4fb143570a5
+	statement 1 mutates `main.bytes[1]` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
