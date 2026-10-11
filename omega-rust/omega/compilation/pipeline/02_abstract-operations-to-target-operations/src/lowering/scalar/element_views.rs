@@ -146,12 +146,8 @@ pub(in crate::lowering) fn is_element_view_parameter(
     parameter: &StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
-    matches!(
-        parameter.access,
-        terminal_psi::reading_borrow_pair_pattern!()
-    ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+    terminal_semantics::view_descriptor_parameter(parameter, structural_types.values().copied())
         && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
         && structural_types
             .get(&parameter.structural_type)
             .is_some_and(|declaration| {

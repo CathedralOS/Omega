@@ -154,10 +154,13 @@ impl TerminalExecution<'_> {
                     .program
                     .machines()
                     .get(&self.current_machine)
-                    .and_then(|machine| machine.structural_parameter(*source))
+                    .and_then(|machine| terminal_semantics::arrival_parameter(machine, *source))
                     .is_some_and(|parameter| {
                         parameter.access == StructuralAccess::MutableBorrow
-                            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                            && terminal_semantics::view_descriptor_parameter(
+                                parameter,
+                                self.program.structural_types().values(),
+                            )
                             && parameter.structural_type == signature.structural_type
                             && parameter.qualifications.is_empty()
                             && parameter.projected_qualifications.is_empty()

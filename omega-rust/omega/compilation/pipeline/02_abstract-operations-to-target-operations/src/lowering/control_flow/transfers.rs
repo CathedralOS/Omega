@@ -294,6 +294,26 @@ pub(super) fn validate_successors(
                     }
                     continue;
                 }
+                if terminal_semantics::view_descriptor_parameter(
+                    parameter,
+                    structural_types.values().copied(),
+                ) && parameter.qualifications.is_empty()
+                {
+                    let selected =
+                        crate::lowering::scalar::descriptor_operands::descriptor_projection(
+                            function,
+                            structural_types,
+                            live.element_view_backings(),
+                            &binding.argument,
+                        )?;
+                    if binding.parameter != parameter.place
+                        || binding.argument.access != parameter.access
+                        || selected.0 != parameter.structural_type
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    continue;
+                }
                 // An owned subtree carries its contained reference descriptors,
                 // not their referents. Re-homing strips exactly this path from
                 // each moved carrier key; siblings remain on the source root.

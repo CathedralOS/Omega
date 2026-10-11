@@ -84,8 +84,10 @@ impl Checker<'_> {
                                 parameter.place == *place
                                     && parameter.structural_type == *structural_type
                                     && access(parameter.access)
-                                    && parameter.multiplicity
-                                        == terminal_psi::StructuralMultiplicity::Unrestricted
+                                    && terminal_semantics::view_descriptor_parameter(
+                                        parameter,
+                                        self.types.iter(),
+                                    )
                                     && parameter.qualifications.is_empty()
                                     && parameter.projected_qualifications.is_empty()
                             })

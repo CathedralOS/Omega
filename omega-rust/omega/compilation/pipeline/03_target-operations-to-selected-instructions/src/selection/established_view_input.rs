@@ -128,7 +128,11 @@ fn declared_view_type(
             terminal_psi::StructuralAccess::Owned
                 | terminal_psi::StructuralAccess::SharedBorrow
                 | terminal_psi::StructuralAccess::MutableBorrow
-        ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        ) || (parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            && !terminal_semantics::view_descriptor_parameter(
+                parameter,
+                signature.structural_types.iter(),
+            ))
             || (!parameter.qualifications.is_empty()
                 && parameter.access != terminal_psi::StructuralAccess::SharedBorrow)
             || !parameter.projected_qualifications.is_empty()
@@ -175,7 +179,7 @@ pub(super) fn accepts(
             && (target.access == parameter.access
                 || target.access == terminal_psi::StructuralAccess::SharedBorrow
                     && parameter.access == terminal_psi::StructuralAccess::MutableBorrow)
-            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            && terminal_semantics::view_descriptor_parameter(parameter, signature.structural_types.iter())
             // A shared loan's qualifications describe bytes it freezes; they
             // add no carrier. An exclusive qualified loan keeps the refusal.
             && (parameter.qualifications.is_empty()

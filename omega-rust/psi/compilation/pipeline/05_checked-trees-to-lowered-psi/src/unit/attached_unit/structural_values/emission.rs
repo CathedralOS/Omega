@@ -161,8 +161,26 @@ pub(crate) fn emit(
     // lowering; local access alone would lend the descriptor itself while
     // every incoming arm transfers it owned. Keep those two custody domains
     // distinct without choosing a route from the initializer's source shape.
-    let result_access = if result.local.access
-        == checked_trees::CheckedStructuralAccess::SharedBorrow
+    let borrowed_alias = match &structural_values(checked).nodes.get(*value).kind {
+        CheckedStructuralValueKind::Reference {
+            source,
+            source_value,
+        } if !source_value.is_valid()
+            && lookup_type_id(type_ids, &source.type_identity)? == structural_type =>
+        {
+            Some(
+                crate::expression_preparation::bindings::structural_paths::terminal_access(
+                    source.access,
+                ),
+            )
+        }
+        _ => None,
+    };
+    let result_access = if let Some(access) = borrowed_alias {
+        // Equal source/destination carriers transport the existing loan. They
+        // do not acquire owned custody merely because mutable access is affine.
+        access
+    } else if result.local.access == checked_trees::CheckedStructuralAccess::SharedBorrow
         && result.multiplicity == Multiplicity::Unrestricted
     {
         StructuralAccess::SharedBorrow
@@ -1865,12 +1883,12 @@ impl Emission<'_, '_, '_> {
         Ok(place)
     }
 
-    /// A `let view: &T = &place` establishment carries the same borrowed
+    /// A reference alias carries the same borrowed
     /// custody a selection arm does, but there is no dispatch to join through:
     /// the result still binds at a fresh block parameter so the sole incoming
     /// edge can present the exact borrowed referent place. No owner moves and
     /// no residual dies on that edge -- the referent's owner stays live under
-    /// the shared loan the joined parameter records, exactly as it does for
+    /// the checked loan the joined parameter records, exactly as it does for
     /// every arm of a borrowed selection.
     fn direct_borrow(&mut self, argument: StructuralArgument) -> Result<PlaceId, LoweringError> {
         let join = block_id(allocate_dense(self.next_block)?);
@@ -1895,7 +1913,12 @@ impl Emission<'_, '_, '_> {
             pass_through: Vec::new(),
             residuals: Vec::new(),
         };
-        self.complete_loan(argument, &continuation, LoanAccess::Shared)?;
+        let loan = match argument.access {
+            StructuralAccess::SharedBorrow => LoanAccess::Shared,
+            StructuralAccess::MutableBorrow => LoanAccess::Mutable,
+            _ => return unsupported("direct borrow requires readable loan access"),
+        };
+        self.complete_loan(argument, &continuation, loan)?;
         self.start(join);
         *self.values = continuation.parameters.clone();
         self.evaluation.parameters = continuation.parameters;

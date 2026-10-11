@@ -219,13 +219,24 @@ pub(super) fn account(
             CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
             ) if facts.values.structural_values.nodes.is_valid(*value) => {
-                match &facts.values.structural_values.nodes.get(*value).kind {
+                let node = facts.values.structural_values.nodes.get(*value);
+                match &node.kind {
                     checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
                         source, ..
                     }
                     | checked_trees::CheckedStructuralValueKind::MutableSliceView {
                         source, ..
-                    } => Some(source),
+                    }
+                    | checked_trees::CheckedStructuralValueKind::Reference { source, .. }
+                        if super::super::types::borrowed_slice_result(
+                            program,
+                            node.type_reference,
+                        ) =>
+                    {
+                        // Formation and transport share the captured view's
+                        // lifetime owner, not a producer-specific disposition.
+                        Some(source)
+                    }
                     _ => None,
                 }
             }

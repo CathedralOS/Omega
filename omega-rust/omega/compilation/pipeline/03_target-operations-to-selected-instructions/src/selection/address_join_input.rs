@@ -66,13 +66,6 @@ pub(crate) fn carrier_shape(
 /// The address transport binding `argument` into the join `parameter` of
 /// `target`. `pointers` are the source block's live place pointers and
 /// `local_slots` its declared frame homes.
-pub(crate) struct AddressJoinProjection {
-    pub(crate) transport: SelectedStructuralTransport,
-    /// Construction scratch: ordered aggregate descriptor loads before the
-    /// final loan endpoint. Scalar descriptors themselves are forwarded intact.
-    pub(crate) descriptor_offsets: Vec<u32>,
-}
-
 pub(crate) fn projection(
     source: &LegalizedScalarFunction,
     target: BlockId,
@@ -81,7 +74,7 @@ pub(crate) fn projection(
     pointers: &[(PlaceId, VirtualRegisterId)],
     local_slots: &[SelectedLocalStorageSlot],
     element_views: &[crate::selection::element_view_homes::ElementViewHomes],
-) -> Option<AddressJoinProjection> {
+) -> Option<super::aggregate_result_input::BlockParameterProjection> {
     let signature = source.structural.as_ref()?;
     if argument.access != parameter.access
         || !abstract_operations::control_flow::address_joins::is_address_projection(&argument.path)
@@ -210,7 +203,7 @@ pub(crate) fn projection(
                 codec: codec?.encode()?,
             }
         };
-        return Some(AddressJoinProjection {
+        return Some(super::aggregate_result_input::BlockParameterProjection {
             transport: SelectedStructuralTransport::ScalarReference {
                 base,
                 byte_offset,
@@ -223,7 +216,7 @@ pub(crate) fn projection(
             descriptor_offsets,
         });
     }
-    Some(AddressJoinProjection {
+    Some(super::aggregate_result_input::BlockParameterProjection {
         transport: SelectedStructuralTransport::Address {
             base,
             byte_offset,

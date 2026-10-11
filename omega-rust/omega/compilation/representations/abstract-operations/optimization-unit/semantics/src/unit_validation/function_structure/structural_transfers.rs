@@ -40,6 +40,11 @@ pub(super) fn validate(
             if parameter.position as usize != position
                 || !places.insert(parameter.place)
                 || (!plain(parameter)
+                    && !(parameter.qualifications.is_empty()
+                        && terminal_semantics::view_descriptor_parameter(
+                            parameter,
+                            types.values().copied(),
+                        ))
                     && !owner_loan(parameter, types)
                     && !qualified_owned_bytes(parameter, types)
                     && !qualified_shared_view(parameter, types)
@@ -224,6 +229,19 @@ pub(super) fn validate(
                             root_type == parameter.structural_type
                                 && multiplicity != StructuralMultiplicity::Linear
                         })
+                } else if terminal_semantics::view_descriptor_parameter(
+                    parameter,
+                    types.values().copied(),
+                ) && parameter.qualifications.is_empty()
+                    && !binding.argument.path.is_empty()
+                {
+                    source.is_some_and(|(root_type, access, multiplicity)| {
+                        multiplicity != StructuralMultiplicity::Linear
+                            && super::super::operation_contracts::structural_access_can_supply(access, parameter.access)
+                            && abstract_operations::control_flow::address_joins::borrowed_referent_type(
+                                types.values().copied(), root_type, &binding.argument.path, parameter.access,
+                            ) == Some(parameter.structural_type)
+                    })
                 } else if !binding.argument.path.is_empty() {
                     // Geometry names the exact moved child; current ownership
                     // independently transfers its complete claim frontier and
@@ -466,7 +484,13 @@ fn source_contract(
         .chain(function.block_structural_parameters())
         .find(|parameter| parameter.place == place)
     {
-        return plain(parameter).then_some((
+        return (plain(parameter)
+            || parameter.qualifications.is_empty()
+                && terminal_semantics::view_descriptor_parameter(
+                    parameter,
+                    types.values().copied(),
+                ))
+        .then_some((
             parameter.structural_type,
             parameter.access,
             parameter.multiplicity,
@@ -505,7 +529,7 @@ fn source_contract(
                 // Every completed producer supplies its declared storage contract.
                 // Activation-local scalar homes lend access without owned escape;
                 // dominance and live backing remain independently replayed.
-                // A returned/copied shared view presents its descriptor's loan,
+                // A returned/copied view presents its descriptor's loan,
                 // rather than lending owned payload storage. View establishments
                 // already report their exact source-derived access.
                 let access = if source.access == StructuralAccess::Owned
@@ -520,7 +544,11 @@ fn source_contract(
                                     )
                             )
                         }) {
-                    StructuralAccess::SharedBorrow
+                    match source.multiplicity {
+                        StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
+                        StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,
+                        StructuralMultiplicity::Linear => return None,
+                    }
                 } else {
                     source.access
                 };

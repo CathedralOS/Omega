@@ -392,7 +392,8 @@ impl<'program> ShapeCollector<'program> {
     }
 
     /// A checked reference formation demands the storage of its exact source
-    /// leaf. Peel only the newly formed loan: an inner reference remains a
+    /// leaf. An equal stored carrier transports the existing descriptor.
+    /// Otherwise peel only the newly formed loan: an inner reference remains a
     /// stored descriptor. This is an operation dependency, not permission to
     /// expand the pointees of every reference field in the type catalog.
     pub(in crate::execution::terminal_unit) fn add_reference_backing(
@@ -401,6 +402,12 @@ impl<'program> ShapeCollector<'program> {
         source_identity: typed_trees::type_identity::TypeIdentityId,
         binders: &[(SymbolHandle, String)],
     ) -> Option<()> {
+        if validation::stored_structural_type_identity(self.program, reference, binders, &[])
+            == source_identity
+        {
+            return (self.add_stored_type(reference, binders, &[])? == source_identity)
+                .then_some(());
+        }
         let shell = validation::reference_shell(self.program, reference)?;
         let identity = self.add_stored_type(shell.referee, binders, &[])?;
         (identity == source_identity).then_some(())

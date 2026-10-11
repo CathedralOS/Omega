@@ -10,9 +10,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{BlockId, OperationId, PlaceId};
 use target_operations::TargetStructuralArgument;
-use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
-};
+use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
 
 /// This checks the publication relationship, not instruction realization or CFG
 /// dominance. The enclosing admission validates the complete retained pipeline.
@@ -128,12 +126,13 @@ pub(super) fn block_location(
             ) | (
                 StructuralAccess::MutableBorrow,terminal_psi::reading_borrow_pair_pattern!())
         )
-        || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        || !selected.structural.as_ref().is_some_and(|signature| {
+            terminal_semantics::view_descriptor_parameter(parameter, signature.structural_types.iter())
+        })
         // A shared loan's qualifications describe the bytes it freezes and
         // add no carrier; an exclusive qualified loan keeps the refusal.
         || !(parameter.qualifications.is_empty()
             || parameter.access == StructuralAccess::SharedBorrow)
-        || !parameter.projected_qualifications.is_empty()
     {
         return Err(invalid());
     }

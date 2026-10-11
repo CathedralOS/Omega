@@ -24,15 +24,16 @@ use terminal_psi::{
 };
 
 /// Whether the borrowed parameter directly rebinds the argument's resolved
-/// value — same type, unrestricted multiplicity, matching borrow access, and
+/// value — same type, matching borrow access, and
 /// no qualification delta on either side.
 fn is_direct_borrowed_rebinding(
     parameter: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
     resolved: &TerminalStructuralValue,
+    declarations: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     parameter.structural_type == resolved.structural_type
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && terminal_semantics::view_descriptor_parameter(parameter, declarations.values())
         && parameter.access == argument.access
         && matches!(
             parameter.access,
@@ -166,7 +167,12 @@ impl TerminalExecution<'_> {
                 continue;
             }
             if !carrier.is_borrowed()
-                || !is_direct_borrowed_rebinding(parameter, argument, resolved)
+                || !is_direct_borrowed_rebinding(
+                    parameter,
+                    argument,
+                    resolved,
+                    &self.program.structural_types(),
+                )
                 || !argument.path.is_empty()
             {
                 return Err(malformed());
@@ -207,7 +213,12 @@ impl TerminalExecution<'_> {
             if !matches!(declaration.shape, StructuralTypeShape::ElementView { .. }) {
                 continue;
             }
-            if !is_direct_borrowed_rebinding(parameter, argument, resolved) {
+            if !is_direct_borrowed_rebinding(
+                parameter,
+                argument,
+                resolved,
+                &self.program.structural_types(),
+            ) {
                 return Err(malformed());
             }
             let view = self.element_view_argument(argument, resolved)?;

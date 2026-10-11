@@ -4,7 +4,6 @@
 
 use abstract_operations::AbstractOperationPlan;
 use terminal_codec::terminal_psi_identity;
-mod block_bindings;
 mod error;
 mod machine;
 
@@ -23,7 +22,6 @@ pub(crate) fn lower_decoded_module(
     // Terminal verification already covered every caller continuation against
     // them; the realized provider body or builtin settlement commits the trap
     // natively, so no abstract operation needs a separate continuation lane.
-    block_bindings::validate_structural_block_bindings(module)?;
     if !module.machine(entry).is_some() {
         return Err(LoweringError::VerifiedEntryMachineMissing(entry));
     }

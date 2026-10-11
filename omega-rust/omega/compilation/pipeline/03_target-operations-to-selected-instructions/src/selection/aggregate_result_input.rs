@@ -886,12 +886,10 @@ pub(super) fn block_parameter_shape(
         parameter.access,
         terminal_psi::reading_borrow_pair_pattern!()
     ) {
-        let declaration = signature.structural_type(parameter.structural_type)?;
-        if parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-            || !parameter.projected_qualifications.is_empty()
-            || !(declaration.shape.is_borrowed_byte_carrier()
-                || matches!(declaration.shape, StructuralTypeShape::ElementView { .. }))
-        {
+        if !terminal_semantics::view_descriptor_parameter(
+            parameter,
+            signature.structural_types.iter(),
+        ) {
             return None;
         }
         // A stored view carries its descriptor, not a copy of its referent.
@@ -922,6 +920,13 @@ pub(super) fn block_parameter_shape(
 /// values. An inline backing-to-view presentation instead writes the backing
 /// address into that descriptor; it never copies the referent's first word.
 /// Construction and independent replay supply their own live storage maps.
+pub(crate) struct BlockParameterProjection {
+    pub(crate) transport: selected_instructions::SelectedStructuralTransport,
+    /// Ordered pointer loads before the selected storage. The edge snapshots
+    /// the final descriptor or address before replacing any destination home.
+    pub(crate) descriptor_offsets: Vec<u32>,
+}
+
 pub(super) fn block_parameter_transport(
     source: &LegalizedScalarFunction,
     target: semantic_vocabulary::BlockId,
@@ -929,14 +934,20 @@ pub(super) fn block_parameter_transport(
     argument: &terminal_psi::StructuralArgument,
     pointers: &[(PlaceId, selected_instructions::VirtualRegisterId)],
     local_slots: &[selected_instructions::SelectedLocalStorageSlot],
-) -> Option<selected_instructions::SelectedStructuralTransport> {
+) -> Option<BlockParameterProjection> {
     use selected_instructions::{LocalStorageSlotId, SelectedStructuralTransport};
     use terminal_semantics::BorrowedReferentPresentation;
     if argument.access != parameter.access
-        || !abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
+        || !(if argument.access == StructuralAccess::Owned {
+            abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
+        } else {
+            abstract_operations::control_flow::address_joins::is_address_projection(&argument.path)
+        })
     {
         return None;
     }
+    let mut descriptor_offsets = Vec::new();
+    let mut presented_type = None;
     let source_byte_offset = if argument.access == StructuralAccess::Owned {
         let declarations = &source.structural.as_ref()?.structural_types;
         let root = super::address_join_input::root_type(source, argument.place, argument.access)?;
@@ -961,14 +972,35 @@ pub(super) fn block_parameter_transport(
         }
         offset
     } else {
-        if !argument.path.is_empty() {
+        let declarations = &source.structural.as_ref()?.structural_types;
+        let root = super::established_view_input::view_type(source, argument.place)
+            .or_else(|| super::established_view_input::element_view_type(source, argument.place))
+            .or_else(|| super::reference_input::root_type(source, argument.place))?;
+        let geometry =
+            crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
+                root,
+                &argument.path,
+                declarations,
+            )?;
+        if !geometry.readable
+            || !geometry.elements.is_empty()
+            || geometry
+                .pointer_slots
+                .iter()
+                .any(|slot| !slot.indices.is_empty())
+        {
             return None;
         }
-        0
+        presented_type = Some(geometry.selected);
+        descriptor_offsets.extend(geometry.pointer_slots.iter().map(|slot| slot.byte_offset));
+        geometry.byte_offset
     };
     let shape = block_parameter_shape(source, parameter)?;
     if shape.byte_size == 0 {
-        return Some(SelectedStructuralTransport::Unused);
+        return Some(BlockParameterProjection {
+            transport: SelectedStructuralTransport::Unused,
+            descriptor_offsets,
+        });
     }
     let destination = LocalStorageSlotId::StructuralBlockParameter {
         block: target,
@@ -977,30 +1009,26 @@ pub(super) fn block_parameter_transport(
     let presentation = if parameter.access == StructuralAccess::Owned {
         BorrowedReferentPresentation::Unchanged
     } else {
-        let actual = super::established_view_input::view_type(source, argument.place)
-            .or_else(|| super::established_view_input::element_view_type(source, argument.place))
-            .or_else(|| {
-                super::address_join_input::root_type(source, argument.place, argument.access)
-            })?;
+        let actual = presented_type?;
         terminal_semantics::borrowed_referent_presentation(
             source.structural.as_ref()?.structural_types.iter(),
             actual,
             parameter.structural_type,
         )?
     };
-    match presentation {
+    let transport = match presentation {
         BorrowedReferentPresentation::Unchanged => {
             let pointer = pointers
                 .iter()
                 .find(|(place, _)| *place == argument.place)?
                 .1;
-            Some(SelectedStructuralTransport::WholeValue {
+            SelectedStructuralTransport::WholeValue {
                 argument: pointer,
                 source_byte_offset,
                 destination,
                 byte_size: shape.byte_size,
                 alignment: shape.alignment,
-            })
+            }
         }
         BorrowedReferentPresentation::AddressOfBacking { byte_count } => {
             let byte_count = u32::try_from(byte_count).ok()?;
@@ -1011,14 +1039,18 @@ pub(super) fn block_parameter_transport(
                 pointers,
                 local_slots,
             )?;
-            Some(SelectedStructuralTransport::Address {
+            SelectedStructuralTransport::Address {
                 base,
                 byte_offset: 0,
                 byte_count,
                 destination,
-            })
+            }
         }
-    }
+    };
+    Some(BlockParameterProjection {
+        transport,
+        descriptor_offsets,
+    })
 }
 
 /// The ABI planner, rather than an arbitrary pointer register, owns the hidden destination.

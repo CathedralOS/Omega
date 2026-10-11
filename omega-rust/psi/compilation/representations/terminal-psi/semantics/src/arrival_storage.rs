@@ -6,6 +6,38 @@ use terminal_psi::{
     Block, StructuralArgument, StructuralParameterDeclaration, TerminalMachine, Terminator,
 };
 
+/// A readable descriptor arrival retains its pointer and extent, not its
+/// backing storage. Affine carrier lifetime does not turn borrowed access into
+/// ownership or make the payload a thin address join. Qualification admission,
+/// exact source access and live loan custody remain the consumer's judgments.
+pub fn view_descriptor_parameter<'types>(
+    parameter: &StructuralParameterDeclaration,
+    declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    if !matches!(
+        parameter.access,
+        terminal_psi::reading_borrow_pair_pattern!()
+    ) || !matches!(
+        parameter.multiplicity,
+        terminal_psi::StructuralMultiplicity::Unrestricted
+            | terminal_psi::StructuralMultiplicity::Affine
+    ) || !parameter.projected_qualifications.is_empty()
+    {
+        return false;
+    }
+    let mut matching =
+        declarations.filter(|declaration| declaration.id == parameter.structural_type);
+    let Some(declaration) = matching.next() else {
+        return false;
+    };
+    matching.next().is_none()
+        && (declaration.shape.is_borrowed_byte_carrier()
+            || matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+            ))
+}
+
 /// The parameter declaration a structural place arrives as: the machine's own
 /// parameter at its declared position, or a block parameter in the block that
 /// declares it. Both are storage an operation addresses in place, unlike an

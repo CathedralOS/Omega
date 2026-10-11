@@ -117,8 +117,13 @@ impl Emission<'_, '_, '_> {
         // happens to contain another reference. Test the relationship before
         // classifying the destination's outer shape.
         if self.structural_type == referent_type {
+            let loan = match argument.access {
+                terminal_psi::StructuralAccess::SharedBorrow => LoanAccess::Shared,
+                terminal_psi::StructuralAccess::MutableBorrow => LoanAccess::Mutable,
+                _ => return unsupported("reference alias requires readable loan access"),
+            };
             return if let Some(continuation) = continuation {
-                self.complete_loan(argument, continuation, LoanAccess::Shared)?;
+                self.complete_loan(argument, continuation, loan)?;
                 Ok(continuation.place)
             } else {
                 self.direct_borrow(argument)

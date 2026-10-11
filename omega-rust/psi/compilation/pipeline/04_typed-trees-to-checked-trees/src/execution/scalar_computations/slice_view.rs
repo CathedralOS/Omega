@@ -73,6 +73,25 @@ impl Builder<'_, '_> {
         let state = self.program.state_by_symbol(self.state)?;
         let (mut place, access) = self.view_formation(expression, expected, view.access)?;
 
+        let declared = validation::canonical_place_type_reference(
+            self.program,
+            self.state,
+            self.statement_index,
+            &place,
+        )?;
+        if validation::slice_view_shell(self.program, declared, &[]).is_some() {
+            // Transport the current descriptor through the ordinary reference
+            // join. Collection establishment would replace its captured extent
+            // with backing geometry. Stored-leaf selection also retains every
+            // crossing through a local reference before selecting this view.
+            let (mut source, _) = self.borrowed_leaf_argument(expression, declared)?;
+            source.access = access;
+            return Some(CheckedStructuralValueKind::Reference {
+                source,
+                source_value: checked_trees::CheckedStructuralValueHandle::invalid(),
+            });
+        }
+
         let machine = self.program.machine_by_symbol(self.machine)?;
         let authored_recast = validation::slice_recast_source(self.program, expression);
         let recast = validation::slice_recast_byte_region(self.program, machine, state, expression);
@@ -171,24 +190,12 @@ impl Builder<'_, '_> {
                     &|_| None,
                 )?
             };
-        let (source, type_identity) =
-            if validation::slice_view_shell(self.program, projected, &[]).is_some() {
-                // A whole view over a place that is itself a view (`let view:
-                // &[i32] = value.readings` where the member is already `&[i32]`)
-                // names the view's own identity with the reference shell peeled —
-                // the loan's access binds on the member, not on the shape.
-                (
-                    source,
-                    validation::structural_type_identity(self.program, expected, &[], &[]),
-                )
-            } else {
-                (source, self.program.normalized_type_identity(projected))
-            };
+        let type_identity = self.program.normalized_type_identity(projected);
+        let lent = lent_collection_element(self.program, projected)?;
         // Ordinary collection openers retain their exact element identity.
         // An authored recast retains both declared identities: source
         // checking admits the relation and Terminal independently replays
         // geometry and validity under the authenticated access.
-        let lent = lent_collection_element(self.program, projected)?;
         if recast.is_none()
             && authored_recast.is_none()
             && self.program.normalized_type_identity(lent)

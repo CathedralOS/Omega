@@ -531,17 +531,30 @@ impl TerminalExecution<'_> {
                     // The common argument binder below preserves exact backing
                     // and attenuates access. Its source debt remains here until
                     // the independently verified cleanup frontier discharges it.
-                    if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                        || !argument.path.is_empty()
+                    if !terminal_semantics::view_descriptor_parameter(
+                        parameter,
+                        self.program.structural_types().values(),
+                    ) || !self.block_parameter_is_declared(target, parameter)
                         || self.live_affine_frontier.iter().any(|entry| {
                             entry.place == parameter.place
-                                || (entry.place == argument.place
-                                    && (!entry.path.is_empty()
-                                        || entry.structural_type != parameter.structural_type))
+                                || (entry.place == argument.place && !entry.path.is_empty())
                         })
                     {
                         return Err(malformed());
                     }
+                    let view = self.resolve_live_projection(
+                        argument.place,
+                        &argument.path,
+                        argument.access,
+                    )?;
+                    if view.structural_type != parameter.structural_type {
+                        return Err(TerminalInterpretError::StructuralArgumentType {
+                            place: parameter.place,
+                            expected: parameter.structural_type,
+                            actual: view.structural_type,
+                        });
+                    }
+                    projected_value = Some(view);
                 }
                 // A loan moves no custody, so it may present any aggregate,
                 // including one holding service bindings or claims, as the

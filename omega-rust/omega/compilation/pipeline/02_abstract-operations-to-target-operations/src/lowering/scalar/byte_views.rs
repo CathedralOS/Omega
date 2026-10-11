@@ -72,11 +72,7 @@ pub(in crate::lowering) fn is_byte_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
-    matches!(
-        parameter.access,
-        terminal_psi::reading_borrow_pair_pattern!()
-    ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && parameter.projected_qualifications.is_empty()
+    terminal_semantics::view_descriptor_parameter(parameter, structural_types.values().copied())
         && structural_types
             .get(&parameter.structural_type)
             .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())

@@ -396,22 +396,12 @@ fn borrowed_view_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     plan: &AbstractOperationPlan,
 ) -> bool {
-    parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && matches!(
-            parameter.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-        )
-        && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
-        && (plan.structural_types.iter().any(|declaration| {
-            declaration.id == parameter.structural_type
-                && (declaration.shape.is_borrowed_byte_carrier()
-                    || matches!(declaration.shape, StructuralTypeShape::ElementView { .. }))
-        }) || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
-            parameter,
-            &plan.structural_types,
-        ))
+    parameter.qualifications.is_empty()
+        && (terminal_semantics::view_descriptor_parameter(parameter, plan.structural_types.iter())
+            || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
+                parameter,
+                &plan.structural_types,
+            ))
 }
 
 fn byte_parameter(

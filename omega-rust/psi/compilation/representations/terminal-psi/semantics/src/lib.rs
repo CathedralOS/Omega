@@ -56,7 +56,9 @@ pub mod substitution;
 mod zero_valid_storage;
 mod zeroed_structural;
 
-pub use arrival_storage::{StorageNames, arrival_parameter, root_before_edge, storage_names};
+pub use arrival_storage::{
+    StorageNames, arrival_parameter, root_before_edge, storage_names, view_descriptor_parameter,
+};
 pub use byte_carriers::{ByteCarrierLayout, ByteCarrierScalarLeaf, byte_carrier_scalar_layout};
 pub use byte_sequence_concatenation::{
     byte_sequence_concatenation_capacity_goal, byte_sequence_concatenation_length_equation,

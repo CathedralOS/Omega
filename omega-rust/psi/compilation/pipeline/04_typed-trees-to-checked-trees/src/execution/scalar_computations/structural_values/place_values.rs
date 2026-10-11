@@ -97,7 +97,7 @@ impl Builder<'_, '_> {
     /// The `SharedBorrow` argument plan a borrowed leaf read produces: the
     /// named root as a parameter/local/`self` source plus the canonical
     /// member path, with `type_identity` naming the projected leaf.
-    pub(super) fn borrowed_leaf_argument(
+    pub(in crate::execution::scalar_computations) fn borrowed_leaf_argument(
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,

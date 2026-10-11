@@ -1,10 +1,14 @@
-//! Exact lexical owner of a view formation. Locals hold a retained loan;
-//! inline operands borrow at one authenticated call or transition occurrence.
-//! Both feed the same collection/region lowering in the parent module.
-use validation::{call_site_argument_expressions, find_call_site};
+//! View production consumes the borrow owner's evaluated occurrence captures.
+//! Local storage, normal returns and call operands retain the same expression
+//! coordinate, but different lifecycle owners. Their captures grant access;
+//! the declared carrier only identifies the descriptor to transport.
+//!
+//! An established view's home carries its current pointer and extent. Its loan
+//! backing is not a substitute: reconstructing that backing can widen a narrowed
+//! result or revive contents replaced after the original initializer.
 
-use super::{Builder, ExpressionHandle, ExpressionNode, StatementNode, TypeReferenceHandle};
-use checked_trees::CheckedStructuralAccess;
+use super::{Builder, ExpressionHandle, TypeReferenceHandle};
+use checked_trees::{BorrowAccessKind, CheckedStructuralAccess};
 
 impl Builder<'_, '_> {
     pub(super) fn view_formation(
@@ -13,214 +17,116 @@ impl Builder<'_, '_> {
         expected: TypeReferenceHandle,
         expected_access: language_semantics::ReferenceAccess,
     ) -> Option<(validation::CanonicalPlace, CheckedStructuralAccess)> {
-        // Argument custody belongs to its exact invocation, even when that
-        // invocation initializes a local. The statement's syntax cannot
-        // substitute its local's loan for a nested operand's loan.
-        if let Some(formation) = self.call_view_formation(expression, expected, expected_access) {
-            return Some(formation);
-        }
-        let state = self.program.state_by_symbol(self.state)?;
-        match self
-            .program
-            .statement_table
-            .statement_at(state, self.statement_index)?
-        {
-            StatementNode::LocalData(local) => {
-                self.local_view_formation(local, expression, expected, expected_access)
-            }
-            _ => None,
-        }
-    }
-
-    fn local_view_formation(
-        &self,
-        local: &typed_trees::statement::TableLocalData,
-        expression: ExpressionHandle,
-        expected: TypeReferenceHandle,
-        expected_access: language_semantics::ReferenceAccess,
-    ) -> Option<(validation::CanonicalPlace, CheckedStructuralAccess)> {
-        if local.is_mutable || !local.symbol.is_valid() {
-            return None;
-        }
-        // A view that supplies one record field (`Sample { bytes:
-        // self.source[0..2] }`) forms the same loan under the literal's
-        // owner: the loan's owner path names the field it fills. Only a
-        // case-free record literal hosts a field-level view; the field's
-        // declared type is the caller's `expected`.
-        let field_symbol = if local.initial_value == expression {
-            if local.type_reference != expected {
-                return None;
-            }
-            None
-        } else {
-            let ExpressionNode::StructLiteral(literal) = self
-                .program
-                .expression_table
-                .expression(local.initial_value)
-            else {
-                return None;
-            };
-            if literal.case_symbol.is_some() {
-                return None;
-            }
-            Some(
-                self.program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .find(|initializer| initializer.value == expression)?
-                    .field_symbol,
-            )
+        let (kind, access) = match expected_access {
+            language_semantics::ReferenceAccess::Shared => (
+                BorrowAccessKind::Read,
+                CheckedStructuralAccess::SharedBorrow,
+            ),
+            language_semantics::ReferenceAccess::Mutable => (
+                BorrowAccessKind::Mutable,
+                CheckedStructuralAccess::MutableBorrow,
+            ),
+            language_semantics::ReferenceAccess::WriteOnly => return None,
         };
-        let borrow_state = self
-            .borrow
-            .states
-            .iter()
-            .map(|(_, borrow_state)| borrow_state)
-            .find(|borrow_state| {
-                borrow_state.machine_symbol == self.machine
-                    && borrow_state.state_symbol == self.state
-            })?;
-        let mut loans = self
-            .borrow
-            .loans
-            .span_or_empty(borrow_state.loans)
-            .iter()
-            .filter(|loan| {
-                // The state also retains loans installed by later stores and
-                // calls into this same descriptor slot. Only this occurrence
-                // supplies initializer custody; later backing cannot replace
-                // or make ambiguous the value established here. Multiple
-                // possible backings at this occurrence still reject below.
-                loan.statement_index == self.statement_index
-                    && loan.owner_symbol == local.symbol
-                    && self.borrow.owner_segments.span_or_empty(loan.owner_path)
-                        == field_symbol
-                            .map(checked_trees::BorrowLoanOwnerSegment::Field)
-                            .as_slice()
-            });
-        let loan = loans.next()?;
-        if loans.next().is_some() {
-            return None;
-        }
-        // A shared read rejoins whichever access the declared shell spells;
-        // an exclusive loan rejoins only a declared `&mut [T]` shell.
-        let access = match loan.kind {
-            checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
-            checked_trees::BorrowAccessKind::Mutable
-                if expected_access == language_semantics::ReferenceAccess::Mutable =>
-            {
-                CheckedStructuralAccess::MutableBorrow
-            }
-            _ => return None,
-        };
-        let place = validation::CanonicalPlace {
-            root: loan.root,
-            segments: self
-                .borrow
-                .access_segments
-                .span_or_empty(loan.segments)
-                .to_vec(),
-        };
-
-        Some((place, access))
-    }
-
-    fn call_view_formation(
-        &self,
-        expression: ExpressionHandle,
-        expected: TypeReferenceHandle,
-        expected_access: language_semantics::ReferenceAccess,
-    ) -> Option<(validation::CanonicalPlace, CheckedStructuralAccess)> {
-        let mut flow_states = self
-            .flow
-            .control
-            .states
-            .iter()
-            .map(|(_, state)| state)
-            .filter(|state| {
-                state.machine_symbol == self.machine && state.state_symbol == self.state
-            });
-        let flow_state = flow_states.next()?;
-        if flow_states.next().is_some() {
-            return None;
-        }
-        let mut selected = None;
-        for call in self
-            .flow
-            .control
-            .calls
-            .span(flow_state.calls)?
-            .iter()
-            .filter(|call| call.statement_index == self.statement_index)
-        {
-            let site = find_call_site(
-                self.program,
-                self.machine,
-                self.state,
-                self.statement_index,
-                call.call_ordinal,
-            )?;
-            let arguments = call_site_argument_expressions(self.program, &site);
-            if !arguments.contains(&expression) {
-                continue;
-            }
-            let parameters = validation::call_target_parameters(self.program, call.target_symbol)?;
-            let parameters = parameters.iter().collect::<Vec<_>>();
-            if arguments.len() != parameters.len() {
-                return None;
-            }
-            let mut positions = arguments
-                .iter()
-                .enumerate()
-                .filter(|(_, actual)| **actual == expression);
-            let (position, _) = positions.next()?;
-            if positions.next().is_some()
-                || selected.is_some()
-                || self
-                    .program
-                    .normalized_type_identity(parameters[position].type_reference)
-                    != self.program.normalized_type_identity(expected)
-            {
-                return None;
-            }
-            crate::borrow::accesses::rejoin_call_accesses(
-                self.program,
-                self.borrow,
-                self.machine,
-                self.state,
-                call,
-            )?;
-            selected = Some(call);
-        }
-        let call = selected?;
-        let captured = crate::borrow::argument_borrow_loan_place(
+        let state = self.borrow.states.iter().find_map(|(_, state)| {
+            (state.machine_symbol == self.machine && state.state_symbol == self.state)
+                .then_some(state)
+        })?;
+        let descriptor = if let Some(place) = validation::canonical_place_from_expression_in_state(
             self.program,
             self.state,
             self.statement_index,
-            self.machine,
             expression,
-        )?;
-        let place = validation::CanonicalPlace {
-            root: captured.root,
-            segments: captured.segments,
+        )
+        .filter(|place| place.root.as_symbol().is_some())
+        {
+            let declared = validation::canonical_place_type_reference(
+                self.program,
+                self.state,
+                self.statement_index,
+                &place,
+            )?;
+            if validation::slice_view_shell(self.program, declared, &[]).is_some() {
+                use crate::execution::terminal_unit::{calls::view_subslice, types};
+                let identity = |reference| {
+                    let family = if types::byte_sequence_carrier(self.program, reference, &[])
+                        .is_some_and(|carrier| carrier.is_borrowed_view())
+                    {
+                        view_subslice::ViewKind::Bytes
+                    } else {
+                        view_subslice::ViewKind::Elements
+                    };
+                    Some((
+                        family,
+                        view_subslice::view_identity(self.program, family, reference)?,
+                    ))
+                };
+                if identity(declared)? != identity(expected)? {
+                    return None;
+                }
+                Some(place)
+            } else {
+                None
+            }
+        } else {
+            None
         };
-
-        let expected_access = match expected_access {
-            language_semantics::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
-            language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-            _ => return None,
+        let mut source = None;
+        let mut retain_capture = |root, segments, captured_kind: &BorrowAccessKind| {
+            if *captured_kind != kind {
+                return None;
+            }
+            let place = if let Some(descriptor) = &descriptor {
+                descriptor.clone()
+            } else {
+                validation::CanonicalPlace {
+                    root,
+                    segments: self.borrow.access_segments.span(segments)?.to_vec(),
+                }
+            };
+            // Several declared origins may supply one current descriptor.
+            // They remain in BorrowFacts; only new storage formation needs one
+            // exact backing. Never pick a convenient origin from a union.
+            if source.as_ref().is_some_and(|prior| *prior != place) {
+                return None;
+            }
+            source = Some(place);
+            Some(())
         };
-        let access = crate::execution::terminal_unit::calls::exact_structural_borrow_access(
-            self.program,
-            self.borrow,
-            self.machine,
-            self.state,
-            call,
-            &place,
-            expected_access,
-            &[],
-        )?;
-        (access == expected_access).then_some((place, access))
+        for loan in self.borrow.loans.span(state.loans)?.iter().filter(|loan| {
+            loan.statement_index == self.statement_index && loan.formation_expression == expression
+        }) {
+            retain_capture(loan.root, loan.segments, &loan.kind)?;
+        }
+        for returned in self
+            .borrow
+            .returned_loans
+            .span(state.returned_loans)?
+            .iter()
+            .filter(|returned| {
+                returned.statement_index == self.statement_index
+                    && returned.formation_expression == expression
+            })
+        {
+            retain_capture(returned.root, returned.segments, &returned.kind)?;
+        }
+        for call in self
+            .borrow
+            .calls
+            .span(state.calls)?
+            .iter()
+            .filter(|call| call.statement_index == self.statement_index)
+        {
+            for argument in self
+                .borrow
+                .argument_accesses
+                .span(call.accesses)?
+                .iter()
+                .filter(|argument| argument.expression == expression)
+            {
+                retain_capture(argument.root, argument.segments, &argument.kind)?;
+            }
+        }
+        Some((source?, access))
     }
 }

@@ -386,7 +386,7 @@ fn successor(
                     .ok_or(SelectedInstructionError::custody())?;
                     return Ok(selected_instructions::SelectedStructuralBinding {
                         semantic: semantic.clone(),
-                        transport: project_join_address(
+                        transport: project_block_storage(
                             builder,
                             next.edge,
                             semantic.argument.place,
@@ -398,7 +398,7 @@ fn successor(
                     .block(next.target)
                     .and_then(|block| block.structural_parameter(semantic.parameter))
                     .ok_or(SelectedInstructionError::custody())?;
-                let transport =
+                let projection =
                     crate::selection::aggregate_result_input::block_parameter_transport(
                         source,
                         next.target,
@@ -410,7 +410,12 @@ fn successor(
                     .ok_or(SelectedInstructionError::custody())?;
                 Ok(selected_instructions::SelectedStructuralBinding {
                     semantic: semantic.clone(),
-                    transport,
+                    transport: project_block_storage(
+                        builder,
+                        next.edge,
+                        semantic.argument.place,
+                        projection,
+                    )?,
                 })
             })
             .collect::<Result<Vec<_>, SelectedInstructionError>>()?,
@@ -450,27 +455,30 @@ fn successor(
 /// Descriptor loads only form an already-admitted loan's address. They do not
 /// observe scalar backing or choose an origin from custody alternatives.
 /// All bindings snapshot these addresses before edge homes are overwritten.
-fn project_join_address(
+fn project_block_storage(
     builder: &mut Builder<'_>,
     edge: semantic_vocabulary::EdgeId,
     place: semantic_vocabulary::PlaceId,
-    projection: crate::selection::address_join_input::AddressJoinProjection,
+    projection: crate::selection::aggregate_result_input::BlockParameterProjection,
 ) -> Result<selected_instructions::SelectedStructuralTransport, SelectedInstructionError> {
     use selected_instructions::{SelectedAddressBase, SelectedStructuralTransport};
     let mut transport = projection.transport;
     if projection.descriptor_offsets.is_empty() {
         return Ok(transport);
     }
-    let base = match &mut transport {
+    let mut base = match transport {
         SelectedStructuralTransport::Address { base, .. }
         | SelectedStructuralTransport::ScalarReference { base, .. } => base,
+        SelectedStructuralTransport::WholeValue { argument, .. } => {
+            SelectedAddressBase::Register(argument)
+        }
         _ => return Err(SelectedInstructionError::custody()),
     };
     let provenance = SelectedInstructionProvenance {
         edges: vec![edge],
         ..Default::default()
     };
-    let mut pointer = match *base {
+    let mut pointer = match base {
         SelectedAddressBase::Register(pointer) => pointer,
         SelectedAddressBase::Local(slot) => {
             let pointer = super::structural::transport_register(builder, place, 0)?;
@@ -500,7 +508,17 @@ fn project_join_address(
         builder.emit_load64(byte_offset, pointer, output, provenance.clone())?;
         pointer = output;
     }
-    *base = SelectedAddressBase::Register(pointer);
+    base = SelectedAddressBase::Register(pointer);
+    match &mut transport {
+        SelectedStructuralTransport::Address {
+            base: destination, ..
+        }
+        | SelectedStructuralTransport::ScalarReference {
+            base: destination, ..
+        } => *destination = base,
+        SelectedStructuralTransport::WholeValue { argument, .. } => *argument = pointer,
+        _ => return Err(SelectedInstructionError::custody()),
+    }
     Ok(transport)
 }
 

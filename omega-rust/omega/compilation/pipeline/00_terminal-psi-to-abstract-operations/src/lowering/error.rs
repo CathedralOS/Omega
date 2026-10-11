@@ -12,16 +12,6 @@ pub enum LoweringError {
     InvalidPrimitiveScalarRead(semantic_vocabulary::OperationId),
     InvalidStructuralCaseMembership(semantic_vocabulary::OperationId),
     SemanticIdentity(CodecError),
-    /// Abstract block entries cannot retain borrowed-view descriptor bindings yet.
-    UnsupportedStructuralBlockParameters {
-        machine: MachineId,
-        block: BlockId,
-    },
-    /// Abstract successors currently retain only scalar bindings.
-    UnsupportedStructuralSuccessorArguments {
-        machine: MachineId,
-        edge: semantic_vocabulary::EdgeId,
-    },
     /// Terminal preserves the exact payloadless sum case, but Omega has no
     /// target-neutral abstract operation for realizing that structural value.
     UnsupportedPayloadlessCase(semantic_vocabulary::OperationId),
