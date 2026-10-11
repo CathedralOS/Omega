@@ -129,3 +129,4 @@ pass/arithmetic/wrapping_signed_divide_min_by_neg_one built 7877ms exit:70 inter
 run/arithmetic/pinned_dividend_across_console_calls built 6825ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9d9e2c34aa73
 pass/arithmetic/runtime_fixed_input_policy_reuse_exit built 4162ms exit:0 interpreter-exit:0 interpreter:agrees @392e08091547
 pass/arithmetic/reused_fixed_integer_operands_exit built 6837ms exit:0 interpreter-exit:0 interpreter:agrees @7223309ebb5b
+pass/arithmetic/reused_masked_shift_count_exit built 6780ms exit:0 interpreter-exit:0 interpreter:agrees @56b53faa47a8

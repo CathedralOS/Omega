@@ -5166,3 +5166,4 @@ pass/targets/runtime_target_named_provider_defaults_exit checked 2688ms check-ta
 pass/targets/runtime_target_provider_build_override_exit checked 2596ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @6121c00e4546+wt
 pass/arithmetic/runtime_fixed_input_policy_reuse_exit checked 4514ms check-target:linux_x86_64 @392e08091547
 pass/arithmetic/reused_fixed_integer_operands_exit checked 6754ms check-target:macos_arm64 @7223309ebb5b
+pass/arithmetic/reused_masked_shift_count_exit checked 6620ms check-target:macos_arm64 @56b53faa47a8
