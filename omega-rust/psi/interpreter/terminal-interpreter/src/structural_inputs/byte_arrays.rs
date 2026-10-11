@@ -467,12 +467,69 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?;
             if qualified
                 || parameter.access != StructuralAccess::SharedBorrow
-                || value.structural_type != parameter.structural_type
                 || !value.qualifications.is_empty()
             {
                 return Err(malformed());
             }
             let binding = self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
+            if value.structural_type != parameter.structural_type {
+                // A shared bounded arrival retains its authenticated snapshot.
+                // A dynamic formal observes that same backing under a new view
+                // declaration; its extent is proved from both the declaration
+                // and the actual bytes, never from the requested destination.
+                let machine = self.program.verified_machine(self.current_machine)?;
+                let source = machine
+                    .structural_parameters
+                    .iter()
+                    .chain(machine.block_structural_parameters())
+                    .find(|source| source.place == argument.place)
+                    .ok_or_else(malformed)?;
+                let types = self.program.structural_types();
+                if source.structural_type != value.structural_type
+                    || source.access != StructuralAccess::SharedBorrow
+                    || !matches!(
+                        types
+                            .get(&source.structural_type)
+                            .ok_or_else(malformed)?
+                            .shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                        )
+                    )
+                    || !matches!(
+                        types
+                            .get(&parameter.structural_type)
+                            .ok_or_else(malformed)?
+                            .shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        )
+                    )
+                {
+                    return Err(malformed());
+                }
+                let window = terminal_semantics::fixed_byte_array_window(
+                    types.values(),
+                    source,
+                    argument,
+                    parameter,
+                )
+                .ok_or_else(malformed)?;
+                let ByteSequenceBinding::Immutable(bytes) = binding else {
+                    return Err(malformed());
+                };
+                if !window.backing_path.is_empty()
+                    || window.offset != 0
+                    || bytes.len() as u128 != u128::from(window.length)
+                {
+                    return Err(malformed());
+                }
+                let mut presented = value.clone();
+                presented.structural_type = parameter.structural_type;
+                let binding =
+                    ByteSequenceBinding::Immutable(bytes.with_descriptor_home(presented.clone()));
+                return Ok(Some((presented, binding)));
+            }
             return Ok(Some((value.clone(), binding)));
         }
         if argument.path.is_empty()
@@ -483,11 +540,66 @@ impl TerminalExecution<'_> {
                 .structural_values
                 .get(&argument.place)
                 .ok_or_else(malformed)?;
-            if qualified || value.structural_type != parameter.structural_type {
+            if qualified || !value.qualifications.is_empty() {
                 return Err(malformed());
             }
             let mut borrowed =
                 self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
+            if value.structural_type != parameter.structural_type {
+                // Mutable and shared bounded carriers have distinct identities.
+                // Authenticate attenuation against the actual source declaration
+                // and backing before presenting the resulting shared snapshot.
+                let machine = self.program.verified_machine(self.current_machine)?;
+                let source = machine
+                    .structural_parameters
+                    .iter()
+                    .chain(machine.block_structural_parameters())
+                    .find(|source| source.place == argument.place)
+                    .ok_or_else(malformed)?;
+                let types = self.program.structural_types();
+                if source.structural_type != value.structural_type
+                    || source.access != StructuralAccess::MutableBorrow
+                    || parameter.access != StructuralAccess::SharedBorrow
+                    || ![source.structural_type, parameter.structural_type]
+                        .iter()
+                        .all(|identity| {
+                            types.get(identity).is_some_and(|declaration| {
+                                matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                                    )
+                                )
+                            })
+                        })
+                {
+                    return Err(malformed());
+                }
+                let window = terminal_semantics::fixed_byte_array_window(
+                    types.values(),
+                    source,
+                    argument,
+                    parameter,
+                )
+                .ok_or_else(malformed)?;
+                let ByteSequenceBinding::Immutable(bytes) = borrowed else {
+                    return Err(malformed());
+                };
+                if !window.backing_path.is_empty()
+                    || window.offset != 0
+                    || window.length == 0
+                    || bytes.len() as u128 != u128::from(window.length)
+                    || !value.projected_qualifications.is_empty()
+                {
+                    return Err(malformed());
+                }
+                let mut presented = value.clone();
+                presented.structural_type = parameter.structural_type;
+                return Ok(Some((
+                    presented.clone(),
+                    ByteSequenceBinding::Immutable(bytes.with_descriptor_home(presented)),
+                )));
+            }
             // A formal borrows the original array, not the owned descriptor.
             // Rejoin its referent identity after validating the descriptor home;
             // this keeps a simultaneous descriptor move disjoint from the loan.

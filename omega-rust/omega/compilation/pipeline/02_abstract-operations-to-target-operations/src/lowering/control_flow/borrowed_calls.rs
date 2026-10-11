@@ -390,27 +390,41 @@ pub(super) fn byte_argument(
     {
         return Ok(loan);
     }
-    if !argument.path.is_empty() {
-        let (Some(source), Some(root)) = (
-            prepared.parameter(argument.place),
-            function.structural_parameter(argument.place),
-        ) else {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        };
-        return crate::lowering::unit::roster_arguments::fixed_array_view_argument(
-            argument,
-            declaration,
-            destination.shape,
-            &destination.placement,
-            callee,
-            root,
-            source.shape.byte_size,
-            source.placement.clone().into(),
+    // An incoming bounded view already carries its backing pointer. When a
+    // dynamic formal needs an extent too, present that pointer with the exact
+    // static length; forwarding the pointer carrier alone is not a descriptor.
+    if prepared.parameter(argument.place).is_some() || live.block_views.contains(&argument.place) {
+        let root = crate::lowering::unit::argument_roots::resolve(
+            argument.place,
+            function,
+            prepared.parameters.iter(),
+            &live.structural_homes,
+            &live.address_joins,
+            &live.block_views,
             types,
             &mut shape_cache,
             &mut active,
-        )?
-        .ok_or(LoweringError::unsupported_control_flow(function.machine));
+        )?;
+        if let Some(presentation) =
+            crate::lowering::unit::roster_arguments::fixed_array_view_argument(
+                argument,
+                declaration,
+                destination.shape,
+                &destination.placement,
+                callee,
+                &root.declaration,
+                root.backing_shape.byte_size,
+                root.source,
+                types,
+                &mut shape_cache,
+                &mut active,
+            )?
+        {
+            return Ok(presentation);
+        }
+    }
+    if !argument.path.is_empty() {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     // A descriptor view carries pointer and extent; a bounded view over a
     // fixed array (`&[u8; N]`) carries only the pointer, its extent static.

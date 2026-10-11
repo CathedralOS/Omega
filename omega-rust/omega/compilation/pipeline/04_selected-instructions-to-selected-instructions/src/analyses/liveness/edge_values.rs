@@ -5,6 +5,7 @@ use selected_instructions::{
     SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin, terminator_successors,
 };
+mod case_payload;
 
 /// One function's registers and blocks, indexed once per analysis. Transport
 /// checks run per edge and per destination; scanning the whole function for
@@ -19,6 +20,8 @@ pub(crate) struct FunctionIndex<'function> {
     parameters: Vec<(SelectedBlockId, usize)>,
     /// `(id, position)` for every block, sorted by id and then by order.
     blocks: Vec<(SelectedBlockId, usize)>,
+    /// Instruction IDs and their exact owning block and position.
+    instructions: Vec<(selected_instructions::SelectedInstructionId, usize, usize)>,
 }
 
 impl<'function> FunctionIndex<'function> {
@@ -47,12 +50,46 @@ impl<'function> FunctionIndex<'function> {
             .map(|(position, block)| (block.id, position))
             .collect::<Vec<_>>();
         blocks.sort_unstable();
+        let mut instructions = function
+            .blocks
+            .iter()
+            .enumerate()
+            .flat_map(|(block, row)| {
+                row.instructions
+                    .iter()
+                    .enumerate()
+                    .map(move |(position, instruction)| (instruction.id, block, position))
+            })
+            .collect::<Vec<_>>();
+        instructions.sort_unstable();
         Self {
             function,
             registers,
             parameters,
             blocks,
+            instructions,
         }
+    }
+
+    fn unique_instruction(
+        &self,
+        id: selected_instructions::SelectedInstructionId,
+    ) -> Option<(
+        &'function SelectedBlock,
+        &'function selected_instructions::SelectedInstruction,
+        usize,
+    )> {
+        let start = self
+            .instructions
+            .partition_point(|(other, _, _)| *other < id);
+        let [(first, block, position), rest @ ..] = self.instructions.get(start..)? else {
+            return None;
+        };
+        if *first != id || rest.first().is_some_and(|(next, _, _)| *next == id) {
+            return None;
+        }
+        let block = self.function.blocks.get(*block)?;
+        Some((block, block.instructions.get(*position)?, *position))
     }
 
     /// The one register carrying `id`, or `None` when no register or more
@@ -291,8 +328,13 @@ pub(crate) fn incoming_argument(
             if source.scalar_type != destination_register.scalar_type
                 || source.class != destination_register.class
                 || source.definition_site.is_some()
-                || !matches!(source.origin, VirtualRegisterOrigin::StructuralObservation { place, byte_offset, .. }
-                    if case.source.place() == Some(place) && byte_offset == payload.semantic.field_byte_offset)
+            {
+                return Err(mismatch());
+            }
+            let observed =
+                case_payload::observed_source(index, successor, source).ok_or_else(mismatch)?;
+            if !matches!(observed.origin, VirtualRegisterOrigin::StructuralObservation { place, byte_offset, .. }
+                if case.source.place() == Some(place) && byte_offset == payload.semantic.field_byte_offset)
             {
                 return Err(mismatch());
             }

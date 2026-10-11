@@ -59,8 +59,9 @@ impl Builder<'_, '_> {
                 })
                 && self.is_bodyless_boundary_call(expression);
         }
-        // Whole primitive stores use the same computation owner as calls nested
-        // inside their RHS. Field stores retain their statement result operation;
+        // Primitive storage and indexed primitive leaves use the same computation
+        // owner as calls nested inside their RHS. Field stores retain their
+        // statement result operation;
         // confusing these owners either drops the call or evaluates it twice.
         if role == CheckedScalarExpressionRole::StorageInitializer {
             return false;
@@ -75,7 +76,7 @@ impl Builder<'_, '_> {
             .is_some_and(|statement| {
                 matches!(statement, typed_trees::statement::StatementNode::Assignment(assignment)
                     if matches!(self.program.expression_table.expression(assignment.target),
-                        ExpressionNode::Name(_)))
+                        ExpressionNode::Name(_) | ExpressionNode::Indexed(_)))
             })
         {
             return false;

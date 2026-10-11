@@ -1,0 +1,89 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::float_operations;
+use omega::language::core::numeric_conversion;
+use domain::model;
+
+// Fixed six-decimal reporting; bounded input makes all scaled values fit i64.
+// Round magnitude half upward and retain the sign separately.
+machine number(console: &mut Binding<Console>, value: f64) reaches Console {
+    let mut bytes: [u8; 21] = "+0000000000000.000000";
+    transition value < 0.0 {
+        true -> negative(console, &mut bytes, value)
+        _ -> positive(console, &mut bytes, value)
+    }
+    state negative(console: &mut Binding<Console>, bytes: &mut [u8; 21], value: f64) {
+        bytes[0] = 45;
+        let scaled: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
+        transition { _ -> digits(console, bytes, scaled as i64 in Wrapping, 20) }
+    }
+    state positive(console: &mut Binding<Console>, bytes: &mut [u8; 21], value: f64) {
+        let scaled: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
+        transition { _ -> digits(console, bytes, scaled as i64 in Wrapping, 20) }
+    }
+    state digits(console: &mut Binding<Console>, bytes: &mut [u8; 21],
+                 remaining: i64 in Wrapping, position: i32 in Wrapping) {
+        transition position > 0 && position < 21 {
+            true -> separator(console, bytes, remaining, position)
+            _ -> emit(console, bytes)
+        }
+    }
+    state separator(console: &mut Binding<Console>, bytes: &mut [u8; 21],
+                    remaining: i64 in Wrapping, position: i32 in Wrapping) {
+        transition position == 14 {
+            true -> digits(console, bytes, remaining, position - 1)
+            _ -> store(console, bytes, remaining, position)
+        }
+    }
+    state store(console: &mut Binding<Console>, bytes: &mut [u8; 21],
+                remaining: i64 in Wrapping, position: i32 in Wrapping) {
+        let digit: i32 = narrow_i64_to_i32_trapping((remaining % 10 + 48) as i64);
+        bytes[position] = narrow_i32_to_u8_trapping(digit);
+        transition { _ -> digits(console, bytes, remaining / 10, position - 1) }
+    }
+    state emit(console: &mut Binding<Console>, bytes: &[u8; 21]) { console.write_line(bytes); }
+}
+pub machine report(console: &mut Binding<Console>, fit: &Fit) reaches Console
+invokes console;
+crashes Trap
+{
+    console.write_line("chromatogram_component_fit synthetic unit-spacing NNLS");
+    transition fit.nonidentifiable {
+        true -> ambiguous(console, fit)
+        _ -> identified(console, fit)
+    }
+    state ambiguous(console: &mut Binding<Console>, fit: &Fit) {
+        console.write_line("nonidentifiable=true");
+        transition { _ -> mask(console, fit) }
+    }
+    state identified(console: &mut Binding<Console>, fit: &Fit) {
+        console.write_line("nonidentifiable=false");
+        transition { _ -> mask(console, fit) }
+    }
+    state mask(console: &mut Binding<Console>, fit: &Fit) {
+        console.write("mask=");
+        let code: i32 in Wrapping = fit.mask as i32 in Wrapping;
+        console.write_byte((code + 48) as i32);
+        console.write_line("");
+        console.write("a_amount="); number(console, fit.amount_a);
+        console.write("b_amount="); number(console, fit.amount_b);
+        console.write("a_area="); number(console, fit.area_a);
+        console.write("b_area="); number(console, fit.area_b);
+        console.write("sse="); number(console, fit.sse);
+        transition { _ -> samples(console, fit, 0) }
+    }
+    state samples(console: &mut Binding<Console>, fit: &Fit, index: i32 in Wrapping) {
+        transition index >= 0 && index < 5 {
+            true -> sample(console, fit, index)
+            _ -> done(console)
+        }
+    }
+    state sample(console: &mut Binding<Console>, fit: &Fit, index: i32 in Wrapping) {
+        console.write("reconstruction_"); console.write_byte((index + 48) as i32); console.write("=");
+        number(console, fit.reconstruction[index]);
+        console.write("residual_"); console.write_byte((index + 48) as i32); console.write("=");
+        number(console, fit.residual[index]);
+        transition { _ -> samples(console, fit, index + 1) }
+    }
+    state done(console: &mut Binding<Console>) { console.write_line("status=ok"); }
+}

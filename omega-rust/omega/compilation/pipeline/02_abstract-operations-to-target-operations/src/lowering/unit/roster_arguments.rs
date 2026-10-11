@@ -632,7 +632,23 @@ pub(in crate::lowering) fn fixed_array_view_argument(
             .checked_add(window.offset)
             .and_then(|offset| u32::try_from(offset).ok())
             .ok_or_else(too_large)?;
-        let end = u64::from(backing_offset).checked_add(window.backing_length);
+        // A whole incoming bounded view stores one pointer cell, not its
+        // referent bytes. The semantic window proves the referent's extent;
+        // native residence independently bounds the pointer cell itself.
+        let stored_extent = if argument.path.is_empty()
+            && matches!(
+                structural_types
+                    .get(&root.structural_type)
+                    .map(|row| &row.shape),
+                Some(StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                ))
+            ) {
+            8
+        } else {
+            window.backing_length
+        };
+        let end = u64::from(backing_offset).checked_add(stored_extent);
         (offset, window.length, 1, end)
     } else if let Some(length) = terminal_semantics::fixed_element_array_extent(
         structural_types.values().copied(),

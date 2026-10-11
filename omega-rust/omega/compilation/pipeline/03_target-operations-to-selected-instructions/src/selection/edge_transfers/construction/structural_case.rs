@@ -242,6 +242,42 @@ pub(super) fn prepare(
             byte_count,
             role: SelectedMemoryAccessRole::ReadPlace,
         });
+        // Exact-width loads leave zero-extended bits. A state arrival must
+        // restore the signed carrier before its first consumer, just as an
+        // incoming machine argument does. Only the load owns a memory read.
+        let loaded = if matches!(destination.scalar_type, ScalarType::Integer(integer)
+            if integer.sign() == IntegerSign::Signed && matches!(integer.bits(), 8 | 16 | 32))
+        {
+            let normalization =
+                SelectedInstructionId((*next_instruction).try_into().map_err(|_| invalid())?);
+            *next_instruction += 1;
+            let normalized = VirtualRegisterId(registers.len().try_into().map_err(|_| invalid())?);
+            registers.push(VirtualRegister {
+                id: normalized,
+                scalar_type: destination.scalar_type,
+                class: destination.class,
+                origin: VirtualRegisterOrigin::AbiTransport {
+                    instruction: normalization,
+                    place,
+                    byte_offset: payload.semantic.field_byte_offset,
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            });
+            instructions.push(crate::selection::constraints::instruction(
+                normalization,
+                crate::selection::scalar_call_abi::integer_carrier_normalization(
+                    destination.scalar_type,
+                ),
+                constraints.keys.copy_i64,
+                &[loaded, normalized],
+                provenance(),
+                catalog,
+            )?);
+            normalized
+        } else {
+            loaded
+        };
         payload.transport = SelectedCasePayloadTransport::Registers {
             argument: loaded,
             parameter,

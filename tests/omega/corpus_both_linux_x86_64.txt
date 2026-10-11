@@ -163,3 +163,11 @@ pass/collections/runtime_fixed_byte_view_dynamic_state_loan_exit built 6769ms ex
 pass/collections/runtime_fixed_byte_view_dynamic_state_shared_loan_exit built 7120ms exit:70 interpreter-exit:70 interpreter:agrees @059a98d14555
 # ADD17 restricted-scalar composition control, one corpus job.
 pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit built 6740ms exit:70 interpreter-exit:70 interpreter:agrees @fbc2344df662
+pass/control_flow/computed_float_array_field_store_exit built 90684ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
+pass/control_flow/runtime_heterogeneous_static_parent_state_loan_exit built 5401ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
+pass/control_flow/runtime_mutable_bounded_byte_formatter_exit built 119688ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
+pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit built 6983ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
+pass/control_flow/runtime_selected_parent_state_loan_exit built 6609ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
+pass/control_flow/static_bounded_byte_state_loan_exit built 6885ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
+pass/storage/computed_float_local_view_store_exit built 105741ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
+pass/text/incoming_bounded_byte_dynamic_call_exit built 6907ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10

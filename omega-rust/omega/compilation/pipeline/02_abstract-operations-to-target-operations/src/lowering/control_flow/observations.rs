@@ -84,6 +84,8 @@ pub(super) fn lower(
             }
             _ => {}
         },
+        AbstractOperation::ElementViewRead { result, .. }
+            if matches!(result.scalar_type, ScalarType::IeeeFloat(_)) => {}
         AbstractOperation::ElementViewRead { .. } => {
             lower_element_observation(operation, &mut values, &mut provenance.operations)?;
         }
@@ -352,6 +354,23 @@ pub(super) fn lower(
             psi_operation,
             result,
             ..
+        } if matches!(result.scalar_type, ScalarType::IeeeFloat(_)) => {
+            let expression = element_views::float_element_read(
+                operation,
+                function,
+                structural_types,
+                &prepared.parameters,
+                live.element_view_backings(),
+                &values,
+                &live.lengths,
+            )?;
+            provenance.operations.push(*psi_operation);
+            (*psi_operation, result.value, result.scalar_type, expression)
+        }
+        AbstractOperation::ElementViewRead {
+            psi_operation,
+            result,
+            ..
         } => {
             let expression = values
                 .remove(&result.value)
@@ -466,12 +485,12 @@ pub(super) fn lower(
         _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     };
     let shape = match scalar_type {
+        ScalarType::IeeeFloat(format) => ValueShape::float(format.byte_size()),
         ScalarType::Boolean => ValueShape::integer(1, 1),
         ScalarType::Integer(integer) => {
             crate::lowering::scalar_abi::fixed_native_integer_shape(integer)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
         }
-        _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     };
     let home = TargetUnitScalarHomeRequirement {
         defining_operation: psi_operation,
@@ -480,13 +499,12 @@ pub(super) fn lower(
         shape,
     };
     match scalar_type {
-        ScalarType::Boolean => {
+        ScalarType::IeeeFloat(_) | ScalarType::Boolean => {
             live.scalar_homes.insert(result, home);
         }
         ScalarType::Integer(_) => {
             live.integers.insert(result, KnownUnitInteger::Home(home));
         }
-        _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     }
     operations.push(TargetUnitOperation::ScalarDefinition {
         result_home: home,

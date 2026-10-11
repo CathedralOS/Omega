@@ -398,6 +398,7 @@ pub(super) fn validate(
                             types: unit.structural_types.as_slice(),
                         };
                         match expression {
+                            TargetScalarExpression::IeeeFloatElementViewRead { .. } => false,
                             TargetScalarExpression::IeeeFloat(source) => {
                                 matches!(expected_type, ScalarType::IeeeFloat(_))
                                     && source.scalar_type() == *expected_type

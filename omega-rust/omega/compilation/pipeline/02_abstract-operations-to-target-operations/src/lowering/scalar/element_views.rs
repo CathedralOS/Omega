@@ -319,6 +319,72 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
     Ok(true)
 }
 
+/// Float observations own durable scalar homes in the graph lowering caller.
+/// Resolve the same descriptor, count and scalar leaf as other element reads;
+/// never reinterpret a float as an integer expression.
+pub(in crate::lowering) fn float_element_read(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    parameters: &[TargetStructuralParameter],
+    backings: ElementViewBackings<'_>,
+    values: &BTreeMap<ValueId, KnownScalar>,
+    lengths: &BTreeMap<ValueId, PlaceId>,
+) -> Result<target_operations::TargetScalarExpression, LoweringError> {
+    let invalid = || super::descriptor_operands::refusal(function, operation);
+    let AbstractOperation::ElementViewRead {
+        psi_operation,
+        result,
+        source,
+        index,
+        length,
+        obligation,
+        path,
+    } = operation
+    else {
+        return Err(invalid());
+    };
+    let ScalarType::IeeeFloat(format) = result.scalar_type else {
+        return Err(invalid());
+    };
+    let (view, view_type) = element_view_for_place(
+        function,
+        structural_types,
+        parameters,
+        backings,
+        values,
+        lengths,
+        *source,
+        &mut Vec::new(),
+    )?;
+    if !observes_length(values, lengths, *length, *source) {
+        return Err(invalid());
+    }
+    let element_byte_offset =
+        element_leaf_offset(structural_types, view_type, path, result.scalar_type)
+            .ok_or_else(invalid)?;
+    let Some(KnownScalar::Integer { scalar_type, value }) = values.get(index) else {
+        return Err(invalid());
+    };
+    if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
+        return Err(invalid());
+    }
+    Ok(
+        target_operations::TargetScalarExpression::IeeeFloatElementViewRead {
+            format,
+            psi_operation: *psi_operation,
+            source_value: result.value,
+            source: *source,
+            view: Box::new(view),
+            index: Box::new(value.clone().into_expression(*index)),
+            length: *length,
+            obligation: *obligation,
+            path: path.clone(),
+            element_byte_offset,
+        },
+    )
+}
+
 /// The index advances by whole elements; the static path selects bytes inside
 /// that element. A scalar field need not have a standalone type declaration.
 fn element_leaf_offset(
@@ -690,8 +756,9 @@ pub(in crate::lowering) fn mutable_element_view_for_place(
         &mut Vec::new(),
     )?;
     if access != StructuralAccess::MutableBorrow {
-        return Err(LoweringError::UnsupportedOperationInScalarFunction(
-            function.machine,
+        return Err(super::descriptor_operands::refusal(
+            function,
+            &(place, structural_type, access, &view),
         ));
     }
     Ok((view, structural_type))

@@ -825,7 +825,20 @@ pub(crate) fn fixed_byte_array_view(
         return None;
     }
     let root = shape(source.structural_type, declarations)?;
-    if u64::from(offset).checked_add(window.backing_length)? > u64::from(root.byte_size) {
+    // Independently reconstruct the whole bounded view's pointer residence.
+    // Its static referent extent must not be mistaken for inline carrier bytes.
+    let stored_extent = if argument.path.is_empty()
+        && matches!(
+            terminal_psi::find_structural_type(declarations, source.structural_type)?.shape,
+            terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+            )
+        ) {
+        8
+    } else {
+        window.backing_length
+    };
+    if u64::from(offset).checked_add(stored_extent)? > u64::from(root.byte_size) {
         return None;
     }
     let offset = u64::from(offset).checked_add(window.offset)?;

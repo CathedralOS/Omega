@@ -368,6 +368,10 @@ pub(super) fn observation(
     }
     let matches = match (expression, scalar_type) {
         (
+            TargetScalarExpression::IeeeFloatElementViewRead { format, .. },
+            ScalarType::IeeeFloat(expected),
+        ) => *format == expected && checker.float_element_read(expression, value),
+        (
             TargetScalarExpression::Integer {
                 scalar_type: actual,
                 expression,

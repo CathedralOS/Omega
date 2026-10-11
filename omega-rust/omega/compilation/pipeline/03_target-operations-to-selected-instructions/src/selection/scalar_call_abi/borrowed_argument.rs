@@ -187,7 +187,24 @@ pub(super) fn validate_borrowed_argument(
         .find(|parameter| parameter.semantic.place == semantic.place)
         .map(|parameter| &parameter.semantic)
         .or(local_loan.as_ref())
-        .or(address_join.map(|(_, joined)| joined));
+        .or(address_join.map(|(_, joined)| joined))
+        // A bounded view arriving at a state block carries the same backing
+        // pointer as an incoming formal. Its exact declared extent supplies a
+        // dynamic call descriptor; block-origin custody is rejoined below.
+        .or_else(|| {
+            source.block_structural_parameters().find(|parameter| {
+                parameter.place == semantic.place
+                    && signature.structural_types.iter().any(|declaration| {
+                        declaration.id == parameter.structural_type
+                            && matches!(
+                                declaration.shape,
+                                terminal_psi::StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                                )
+                            )
+                    })
+            })
+        });
     let byte_view = view_root.and_then(|root| {
         crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
             root,

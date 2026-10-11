@@ -141,11 +141,23 @@ pub(super) fn argument(
     // Descriptor payload and bounded-owner presentation are distinct physical
     // carriers. A completed descriptor already has the formal's exact payload;
     // an owner needs the existing backing/extent presentation adapter.
-    let offset = if actual.path.is_empty()
+    let (offset, fixed_array_length) = if actual.path.is_empty()
         && super::super::byte_views::descriptor_result(caller, actual.place, &plan.structural_types)
             .is_some_and(|(_, identity)| identity == formal.structural_type)
     {
-        0
+        (0, None)
+    } else if let Some((offset, length)) =
+        crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
+            &root,
+            actual,
+            formal.structural_type,
+            &plan.structural_types,
+        )
+    {
+        // Reconstruct the static extent from the exact source declaration.
+        // A bounded view carries a pointer, not an inline array or a dynamic
+        // descriptor; the existing geometry owner authenticates that window.
+        (offset, Some(length))
     } else {
         let Some((offset, _)) =
             crate::structural_inputs::structural_reference_input::bounded_byte_view(
@@ -157,7 +169,7 @@ pub(super) fn argument(
         else {
             return Ok(None);
         };
-        offset
+        (offset, None)
     };
     let destination = call
         .parameters
@@ -179,8 +191,8 @@ pub(super) fn argument(
         structural_type: formal.structural_type,
         shape: destination.shape,
         source_byte_offset: offset,
-        fixed_array_length: None,
-        element_stride: None,
+        fixed_array_length,
+        element_stride: fixed_array_length.map(|_| 1),
         indices: Vec::new(),
         source,
         destination: destination.clone(),

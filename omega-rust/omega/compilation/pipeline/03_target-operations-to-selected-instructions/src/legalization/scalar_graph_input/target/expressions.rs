@@ -83,6 +83,44 @@ impl Checker<'_> {
         home == expected && definitions.next().is_none()
     }
 
+    pub(super) fn float_element_read(
+        &self,
+        expression: &target_operations::TargetScalarExpression,
+        value: ValueId,
+    ) -> bool {
+        let target_operations::TargetScalarExpression::IeeeFloatElementViewRead {
+            format,
+            psi_operation,
+            source_value,
+            source,
+            view,
+            index,
+            length,
+            obligation,
+            path,
+            element_byte_offset,
+        } = expression
+        else {
+            return false;
+        };
+        *source_value == value
+            && self.element_view(view, *source, &[])
+            && self.optimized.block_nodes().any(|node| matches!(&node.operation,
+                AbstractOperation::ElementViewRead {
+                    psi_operation: operation, result, source: expected,
+                    index: expected_index, length: expected_length,
+                    obligation: expected_obligation, path: expected_path,
+                } if operation == psi_operation && result.value == value
+                    && result.scalar_type == ScalarType::IeeeFloat(*format)
+                    && expected == source && path == expected_path
+                    && length == expected_length && obligation == expected_obligation
+                    && self.integer_source(index, *expected_index, &[])
+                    && super::super::byte_views::element_type(self.optimized, *source, self.types)
+                        .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
+                            element, path, result.scalar_type, self.types))
+                        .is_some_and(|(offset, _, _)| offset == *element_byte_offset)))
+    }
+
     pub(super) fn expression(
         &self,
         expression: &Expression,
