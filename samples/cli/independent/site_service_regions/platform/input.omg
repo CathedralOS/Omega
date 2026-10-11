@@ -3,7 +3,11 @@ use omega::language::core::float_operations;
 pub data Reader { valid: bool; value: f64; }
 // A whitespace-separated signed integer, bounded to [-100,100]. This parser
 // consumes one separator, accepts EOF after digits, and rejects partial tokens.
-pub machine read_integer(reader: &mut Reader) reaches Console {
+pub machine read_integer(reader: &mut Reader) reaches Console
+invokes Console;
+blocks;
+crashes Trap
+{
     reader.value = 0.0;
     transition { _ -> skip(reader) }
     state skip(reader: &mut Reader) {
@@ -58,7 +62,11 @@ pub machine read_integer(reader: &mut Reader) reaches Console {
     state bad(reader: &mut Reader) { reader.valid = false; }
     state done() { }
 }
-pub machine end_input(reader: &mut Reader) reaches Console {
+pub machine end_input(reader: &mut Reader) reaches Console
+invokes Console;
+blocks;
+crashes Trap
+{
     let observed: ByteRead = block Console::read_byte();
     transition observed {
         ByteRead::Eof -> done()
@@ -70,7 +78,7 @@ pub machine end_input(reader: &mut Reader) reaches Console {
             false -> bad(reader)
         }
     }
-    state again(reader: &mut Reader) { end_input(reader); }
+    state again(reader: &mut Reader) { block end_input(reader); }
     state bad(reader: &mut Reader) { reader.valid = false; }
     state done() { }
 }

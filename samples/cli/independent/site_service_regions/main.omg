@@ -11,7 +11,7 @@ data Main { reader: Reader; partition: Partition; }
 machine Main::main(main: &mut Main) reaches Console {
     main.reader.valid = true;
     main.partition.valid = true;
-    read_integer(&mut main.reader);
+    block read_integer(&mut main.reader);
     transition main.reader.valid && main.reader.value >= 3.0 && main.reader.value <= 12.0 {
         true -> count(main)
         false -> invalid()
@@ -27,14 +27,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state coordinate(main: &mut Main, index: u64) {
-        read_integer(&mut main.reader);
+        block read_integer(&mut main.reader);
         main.partition.boundary.x[index] = main.reader.value;
-        read_integer(&mut main.reader);
+        block read_integer(&mut main.reader);
         main.partition.boundary.y[index] = main.reader.value;
         transition main.reader.valid { true -> boundary(main, index + 1) false -> invalid() }
     }
     state site_count(main: &mut Main) {
-        read_integer(&mut main.reader);
+        block read_integer(&mut main.reader);
         transition main.reader.valid && main.reader.value >= 1.0 && main.reader.value <= 8.0 {
             true -> sites(main)
             false -> invalid()
@@ -51,14 +51,14 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state location(main: &mut Main, index: u64) {
-        read_integer(&mut main.reader);
+        block read_integer(&mut main.reader);
         main.partition.site_x[index] = main.reader.value;
-        read_integer(&mut main.reader);
+        block read_integer(&mut main.reader);
         main.partition.site_y[index] = main.reader.value;
         transition main.reader.valid { true -> site(main, index + 1) false -> invalid() }
     }
     state validate(main: &mut Main) {
-        end_input(&mut main.reader);
+        block end_input(&mut main.reader);
         let boundary_ok: bool = boundary_valid(&main.partition.boundary);
         let sites_ok: bool = sites_valid(&main.partition);
         transition main.reader.valid && boundary_ok && sites_ok {

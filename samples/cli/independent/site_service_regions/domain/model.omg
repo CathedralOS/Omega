@@ -1,5 +1,5 @@
 // Invocation-private bounded storage: clipping a convex 12-edge boundary by
-// at most seven bisectors needs at most 19 vertices. Capacity 32 leaves margin;
+// at most seven bisectors needs at most 19 distinct vertices. Capacity 32 leaves margin;
 // overflow is still an explicit application failure, never a silent truncation.
 pub data Polygon [copy] { x: [f64; 32]; y: [f64; 32]; count: u64; }
 pub data Partition {

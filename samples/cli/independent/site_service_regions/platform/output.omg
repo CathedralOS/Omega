@@ -1,7 +1,9 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use domain::model;
-pub machine integer(value: i64 in Saturating) reaches Console {
+pub machine integer(value: i64 in Saturating) reaches Console
+invokes Console;
+{
     transition value < 0 { true -> negative(value) false -> positive(value) }
     state negative(value: i64 in Saturating) {
         Console::write("-");
@@ -18,7 +20,9 @@ pub machine integer(value: i64 in Saturating) reaches Console {
 }
 // Emit nearest integer micro-units, with ties away from zero. All geometry
 // remains f64; quantization happens only at this presentation boundary.
-pub machine micro(value: f64) reaches Console {
+pub machine micro(value: f64) reaches Console
+invokes Console;
+{
     transition value < 0.0 { true -> negative(value) false -> positive(value) }
     state negative(value: f64) {
         Console::write("-");
@@ -30,7 +34,9 @@ pub machine micro(value: f64) reaches Console {
         integer(rounded);
     }
 }
-pub machine emit(partition: &Partition) reaches Console {
+pub machine emit(partition: &Partition) reaches Console
+invokes Console;
+{
     Console::write_line("SERVICE_REGIONS micro_units=1000000");
     transition { _ -> cell(partition, 0) }
     state cell(partition: &Partition, owner: u64) {
@@ -39,39 +45,53 @@ pub machine emit(partition: &Partition) reaches Console {
             false -> finish(partition)
         }
     }
-    state header(partition: &Partition, owner: u64) {
+    state header(partition: &Partition, owner: u64)
+    requires owner < 8
+    {
         Console::write("CELL "); integer(owner as i64 in Saturating);
         Console::write(" AREA "); micro(partition.areas[owner]); Console::write_line("");
         transition { _ -> vertex(partition, owner, 0) }
     }
-    state vertex(partition: &Partition, owner: u64, index: u64) {
+    state vertex(partition: &Partition, owner: u64, index: u64)
+    requires owner < 8
+    {
         transition index < partition.cells[owner].count && index < 32 {
             true -> coordinate(partition, owner, index)
             false -> adjacent(partition, owner, 0)
         }
     }
-    state coordinate(partition: &Partition, owner: u64, index: u64) {
+    state coordinate(partition: &Partition, owner: u64, index: u64)
+    requires owner < 8
+    {
         Console::write("VERTEX "); micro(partition.cells[owner].x[index]);
         Console::write(" "); micro(partition.cells[owner].y[index]); Console::write_line("");
         transition { _ -> vertex(partition, owner, index + 1) }
     }
-    state adjacent(partition: &Partition, owner: u64, rival: u64) {
+    state adjacent(partition: &Partition, owner: u64, rival: u64)
+    requires owner < 8
+    {
         transition rival < partition.site_count && rival < 8 {
             true -> relation(partition, owner, rival)
             false -> checked(partition, owner)
         }
     }
-    state relation(partition: &Partition, owner: u64, rival: u64) {
+    state relation(partition: &Partition, owner: u64, rival: u64)
+    requires owner < 8 && rival < 8
+    {
         transition partition.adjacency[owner * 8 + rival] && rival != owner {
             true -> connected(partition, owner, rival)
             false -> adjacent(partition, owner, rival + 1)
         }
     }
-    state connected(partition: &Partition, owner: u64, rival: u64) {
+    state connected(partition: &Partition, owner: u64, rival: u64)
+    requires owner < 8
+    {
         Console::write("ADJACENT "); integer(rival as i64 in Saturating); Console::write_line("");
         transition { _ -> adjacent(partition, owner, rival + 1) }
     }
-    state checked(partition: &Partition, owner: u64) {
+    state checked(partition: &Partition, owner: u64)
+    requires owner < 8
+    {
         Console::write_line("NEAREST PASS");
         transition { _ -> cell(partition, owner + 1) }
     }

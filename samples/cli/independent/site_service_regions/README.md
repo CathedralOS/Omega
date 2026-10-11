@@ -16,7 +16,7 @@ geometry consistency failure prints `PARTITION_FAILED` and exits 70. There is no
 interactive pause and EOF ends the supplied input.
 
 Clipping uses ordinary IEEE f64 arithmetic and the exact closed predicate
-`a*x+b*y <= c`. A convex 12-edge polygon clipped by seven lines has at most 19
+`a*x+b*y <= c`. A convex 12-edge polygon clipped by seven lines has at most 19 distinct
 vertices; invocation-private capacity is 32 vertices per cell and eight cells.
 Coincident clipping endpoints may repeat in the output. Adjacency ignores zero
 length edges and excludes self relationships. Ties belong to both cell closures;
@@ -44,8 +44,10 @@ bisector (two 50-unit triangles), four quadrants (four 25-unit cells with only
 edge neighbors), triangular boundary (25, 23.5, 23.5), nonrectangular translated
 pentagon, uneven collinear sites, a single site and eight sites including four
 boundary corners. Fourteen runtime invalid controls exercise distinct input and
-geometry failures. `invalid/main.omg` is a separate complete source program
-whose negative constrained quota must be rejected by the compiler.
+geometry failures. `invalid/negative_quota.omg` is a separate complete source program
+whose negative constrained quota must be rejected by the compiler. Its explicit
+source filename keeps this rejection control out of the positive sample sweep;
+the application harness always checks it separately.
 
 ## Reproduction
 
@@ -59,15 +61,18 @@ omega update --resume --project samples/cli/independent/site_service_regions
 omega --check --target linux_x86_64 samples/cli/independent/site_service_regions/main.omg
 omega --target linux_x86_64 samples/cli/independent/site_service_regions/main.omg
 omega run --both samples/cli/independent/site_service_regions/main.omg < samples/cli/independent/site_service_regions/data/split.txt
-omega --check samples/cli/independent/site_service_regions/invalid/main.omg
+omega --check samples/cli/independent/site_service_regions/invalid/negative_quota.omg
 ```
 
 Only resume after reviewing and accepting the precise pending package decisions.
-`exercise.py --omega /absolute/compiler/path` owns the sequential checks,
+`PYTHONDONTWRITEBYTECODE=1 python3 exercise.py --omega /absolute/compiler/path` owns the sequential checks,
 retained native output, all valid/invalid runtime fixtures and Terminal comparison.
 Generated binaries, outputs, diagnostic logs and run receipts go in ignored
-`build/`. Terminal `AGREEMENT` must be observed explicitly; a `DECLINED` is
-reported as an unsupported comparison, never accepted as Terminal validation.
+`build/`. Terminal `interp exit: <expected status>` must be observed explicitly; a
+`DECLINED` is reported as an unsupported comparison. The public CLI compares
+termination and forwards native stdout. Thus the output oracles verify native
+streams, while Terminal acceptance checks execution and the application’s
+internal geometry assertions; it does not establish equal Terminal stdout.
 
 ## Semantic overlap review
 
