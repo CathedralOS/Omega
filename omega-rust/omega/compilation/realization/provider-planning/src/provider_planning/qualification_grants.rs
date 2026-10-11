@@ -6,7 +6,8 @@
 //! downstream execution admission owns whether that authority is required.
 
 pub(super) fn validate(
-    checked: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     facts: &effects::SelectedProviderPlanFacts,
     provider_grants: &[effects::provider_grants::ResolvedSelectedProviderGrant],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
@@ -33,15 +34,14 @@ pub(super) fn validate(
         }
     }
     let mut receipt_diagnostics = Vec::new();
-    let traits = checked.traits();
-    if traits.len() != checked.roots.traits.count() as usize {
+    let traits = typed.traits();
+    if traits.len() != typed.roots.traits.count() as usize {
         receipt_diagnostics.push(diagnostics::Diagnostic::error(
             "admitted qualification receipt binding has an invalid typed trait span",
         ));
     }
     for definition in traits {
-        if checked.trait_machine_signatures(definition).len()
-            != definition.machines.count() as usize
+        if typed.trait_machine_signatures(definition).len() != definition.machines.count() as usize
         {
             receipt_diagnostics.push(diagnostics::Diagnostic::error(format!(
                 "admitted qualification receipt binding has an invalid typed signature span for trait {:?}",
@@ -52,11 +52,10 @@ pub(super) fn validate(
     if !receipt_diagnostics.is_empty() {
         return Err(receipt_diagnostics);
     }
-    for (_, fact) in checked.facts.semantic.facts.iter().filter(|(_, fact)| {
+    for (_, fact) in check_facts.semantic.facts.iter().filter(|(_, fact)| {
         fact.evidence.origin == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
     }) {
-        let owners = checked
-            .typed
+        let owners = typed
             .traits()
             .iter()
             .filter(|definition| definition.symbol == fact.evidence.source_symbol)
@@ -79,13 +78,11 @@ pub(super) fn validate(
                 continue;
             }
         };
-        let requirement_owners = checked
-            .typed
+        let requirement_owners = typed
             .traits()
             .iter()
             .flat_map(|candidate_owner| {
-                checked
-                    .typed
+                typed
                     .trait_machine_signatures(candidate_owner)
                     .iter()
                     .filter(move |requirement| {
@@ -116,9 +113,8 @@ pub(super) fn validate(
                 continue;
             }
         };
-        let requirement_identity = checked
-            .typed
-            .trait_requirement_callable_identity_text(owner, requirement);
+        let requirement_identity =
+            typed.trait_requirement_callable_identity_text(owner, requirement);
         let matches = granted_plans
             .iter()
             .filter(|grant| {
@@ -142,7 +138,7 @@ pub(super) fn validate(
             .copied()
             .filter(|grant| {
                 crate::service_schema::schema_binds_exact_boundary_trait(
-                    crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
+                    crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
                     &grant.selected_plan.schema,
                     owner,
                 )

@@ -26,13 +26,12 @@ fn exact_task_machine_plan<P>(
 }
 
 pub(crate) fn exact_task_machine_suspension(
-    program: &CheckedTrees,
+    check_facts: &checked_trees::CheckFacts,
     machine: symbols::SymbolHandle,
     machine_name: &str,
 ) -> Result<language_semantics::SuspensionPlan, Vec<Diagnostic>> {
     exact_task_machine_plan(
-        program
-            .facts
+        check_facts
             .suspensions
             .machines
             .iter()
@@ -44,13 +43,12 @@ pub(crate) fn exact_task_machine_suspension(
 }
 
 pub(crate) fn exact_task_machine_blocking(
-    program: &CheckedTrees,
+    check_facts: &checked_trees::CheckFacts,
     machine: symbols::SymbolHandle,
     machine_name: &str,
 ) -> Result<language_semantics::BlockingPlan, Vec<Diagnostic>> {
     exact_task_machine_plan(
-        program
-            .facts
+        check_facts
             .blocking
             .machines
             .iter()
@@ -62,14 +60,14 @@ pub(crate) fn exact_task_machine_blocking(
 }
 
 pub(crate) fn selected_task_runtime_provider(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     selection: &TaskStartSelection,
 ) -> Result<SelectedTaskRuntimeProviderFact, Vec<Diagnostic>> {
     let (requirement_owner, _, authored_requirement_identity) =
-        exact_task_runtime_requirement(program, selection)?;
-    let requirement_owner_package = program
-        .typed
+        exact_task_runtime_requirement(typed, check_facts, selection)?;
+    let requirement_owner_package = typed
         .symbols
         .symbol_package_identity(requirement_owner.symbol);
     let matches = selected_provider_plans
@@ -77,18 +75,14 @@ pub(crate) fn selected_task_runtime_provider(
         .iter()
         .filter(|plan| {
             crate::service_schema::schema_binds_exact_boundary_trait(
-                crate::ProviderPlanningContext::new(
-                    &program.typed,
-                    source::DependencyScope::Product,
-                ),
+                crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
                 &plan.schema,
                 requirement_owner,
             ) && plan.schema.trait_package_identity == requirement_owner_package
                 && plan.schema.methods.iter().any(|method| {
-                    method.requirement_owner
-                        == program.typed.trait_declaration_path(requirement_owner)
+                    method.requirement_owner == typed.trait_declaration_path(requirement_owner)
                         && method.requirement_owner_package_identity == requirement_owner_package
-                        && program.typed.callable_identity_by_text(
+                        && typed.callable_identity_by_text(
                             plan.schema.identity_text(method.requirement_identity),
                         ) == authored_requirement_identity
                 })
@@ -111,9 +105,9 @@ pub(crate) fn selected_task_runtime_provider(
         .methods
         .iter()
         .filter(|method| {
-            method.requirement_owner == program.typed.trait_declaration_path(requirement_owner)
+            method.requirement_owner == typed.trait_declaration_path(requirement_owner)
                 && method.requirement_owner_package_identity == requirement_owner_package
-                && program.typed.callable_identity_by_text(
+                && typed.callable_identity_by_text(
                     plan.schema.identity_text(method.requirement_identity),
                 ) == authored_requirement_identity
         })
@@ -130,18 +124,14 @@ pub(crate) fn selected_task_runtime_provider(
             ),
         })]);
     };
-    if program
-        .typed
-        .callable_identity_by_text(plan.schema.identity_text(method.requirement_identity))
+    if typed.callable_identity_by_text(plan.schema.identity_text(method.requirement_identity))
         != authored_requirement_identity
     {
         return Err(vec![Diagnostic::error(format!(
             "selected TaskRuntime provider plan `{}` binds `{requirement_name}` as `{}`, but the activation call requires `{}`",
             plan.name,
             plan.schema.identity_text(method.requirement_identity),
-            program
-                .typed
-                .callable_identity_text(authored_requirement_identity)
+            typed.callable_identity_text(authored_requirement_identity)
         ))]);
     }
     let covering_rows = plan
@@ -160,14 +150,14 @@ pub(crate) fn selected_task_runtime_provider(
     Ok(SelectedTaskRuntimeProviderFact {
         runtime,
         provider_plan_name: plan.name.clone(),
-        requirement_identity: program
-            .typed
+        requirement_identity: typed
             .callable_identity_by_text(plan.schema.identity_text(method.requirement_identity)),
     })
 }
 
 pub(crate) fn exact_task_runtime_requirement<'program>(
-    program: &'program CheckedTrees,
+    typed: &'program checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     selection: &TaskStartSelection,
 ) -> Result<
     (
@@ -177,7 +167,7 @@ pub(crate) fn exact_task_runtime_requirement<'program>(
     ),
     Vec<Diagnostic>,
 > {
-    let mut owners = program
+    let mut owners = typed
         .traits()
         .iter()
         .filter(|definition| definition.symbol == selection.requirement_owner);
@@ -196,7 +186,7 @@ pub(crate) fn exact_task_runtime_requirement<'program>(
             "TaskRuntime activation requirement owner must be an exact boundary trait",
         )]);
     }
-    let mut signatures = program
+    let mut signatures = typed
         .trait_machine_signatures(owner)
         .iter()
         .filter(|signature| signature.symbol == selection.requirement);
@@ -210,8 +200,6 @@ pub(crate) fn exact_task_runtime_requirement<'program>(
             "TaskRuntime activation requirement must resolve uniquely within its exact owner",
         )]);
     }
-    let identity = program
-        .typed
-        .trait_requirement_callable_identity(owner, signature);
+    let identity = typed.trait_requirement_callable_identity(owner, signature);
     Ok((owner, signature, identity))
 }

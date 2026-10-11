@@ -282,12 +282,12 @@ pub(crate) fn validate_callback_requirement_report_collision(
 /// backend lowering so a missing, duplicated, or changed placement recipe
 /// cannot silently fall back to a convention oracle.
 pub fn validate_nominal_callback_placement_bindings(
-    checked: &checked_trees::CheckedTrees,
+    facts: &checked_trees::CheckFacts,
     realizations: &[BoundaryCallingPlanRealization],
 ) -> Result<Vec<SelectedCallbackPlacement>, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut bound = Vec::new();
-    for nominal_use in &checked.facts.nominal_machine_uses.uses {
+    for nominal_use in &facts.nominal_machine_uses.uses {
         let matching = realizations
             .iter()
             .filter(|realization| {
@@ -335,8 +335,7 @@ pub fn validate_nominal_callback_placement_bindings(
             )));
             continue;
         }
-        let Some(resource_envelope) = checked
-            .facts
+        let Some(resource_envelope) = facts
             .contract_plans
             .resource_envelope(nominal_use.selected_machine, nominal_use.selected_entry)
         else {
@@ -346,8 +345,7 @@ pub fn validate_nominal_callback_placement_bindings(
             )));
             continue;
         };
-        let Some(actual_contract) = checked
-            .facts
+        let Some(actual_contract) = facts
             .contract_plans
             .for_machine(nominal_use.selected_machine)
         else {
@@ -357,7 +355,7 @@ pub fn validate_nominal_callback_placement_bindings(
             )));
             continue;
         };
-        let Some(published_contract) = checked.facts.contract_plans.crash_capsule(
+        let Some(published_contract) = facts.contract_plans.crash_capsule(
             nominal_use.satisfaction_trait,
             nominal_use.satisfaction_requirement,
         ) else {

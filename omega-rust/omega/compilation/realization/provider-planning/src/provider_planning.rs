@@ -65,7 +65,8 @@ use installation_reach::derive_selected_installation_reach_resolutions;
 /// Provider execution and compiler-generated helpers consume this carrier; neither
 /// may reconstruct a plan by scanning authored `satisfies` rows.
 pub fn bind_selected_provider_plan_facts(
-    checked: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     candidates: &[ProviderPlan],
     facts: effects::SelectedProviderPlanFacts,
     root_grants: &[String],
@@ -80,17 +81,23 @@ pub fn bind_selected_provider_plan_facts(
             authored_root_grants,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-    qualification_grants::validate(checked, &facts, &provider_grants)?;
+    qualification_grants::validate(typed, check_facts, &facts, &provider_grants)?;
     operator_provider_evidence::validate_selected_operator_provider_evidence(
-        checked, candidates, &facts,
+        typed,
+        check_facts,
+        candidates,
+        &facts,
     )?;
     operator_provider_evidence::validate_selected_requirement_provider_evidence(
-        checked, candidates, &facts,
+        typed,
+        check_facts,
+        candidates,
+        &facts,
     )?;
     let (installation_reach_resolutions, installation_reach_identities) =
-        derive_selected_installation_reach_resolutions(checked, &facts)?;
+        derive_selected_installation_reach_resolutions(typed, check_facts, &facts)?;
     let (specialized_requirement_rows, specialized_identities) =
-        provenance_replay::derive_selected_requirement_specializations(checked, &facts)?;
+        provenance_replay::derive_selected_requirement_specializations(typed, check_facts, &facts)?;
     let selected = facts
         .with_specialized_requirement_rows(specialized_requirement_rows, &specialized_identities)
         .and_then(|facts| {

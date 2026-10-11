@@ -41,22 +41,28 @@ use task_plans::{
 /// deliberately nominal and closed: an unrelated method named `start` does
 /// not become a task operation.
 pub fn elaborate_task_activation_plans(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<TaskActivationPlanSet, Vec<Diagnostic>> {
-    let selections = task_start_selections(program)?;
+    let selections = task_start_selections(typed, check_facts)?;
     if selections.is_empty() {
         return Ok(TaskActivationPlanSet::default());
     }
     let mut activations = Vec::new();
 
     for selection in selections {
-        let selected_runtime =
-            selected_task_runtime_provider(program, selected_provider_plans, &selection)?;
+        let selected_runtime = selected_task_runtime_provider(
+            typed,
+            check_facts,
+            selected_provider_plans,
+            &selection,
+        )?;
         let (target_machine, entry) = exact_task_activation_target(
-            program,
+            typed,
+            check_facts,
             selection.target_machine,
             selection.target_entry,
         )
@@ -66,7 +72,7 @@ pub fn elaborate_task_activation_plans(
                 error.message()
             ))]
         })?;
-        if !program.machine_type_parameters(target_machine).is_empty() {
+        if !typed.machine_type_parameters(target_machine).is_empty() {
             return Err(vec![Diagnostic::error(format!(
                 "task activation target `{}` is still generic after specialization",
                 target_machine.name
@@ -74,27 +80,26 @@ pub fn elaborate_task_activation_plans(
         }
 
         let contract = exact_task_machine_contract(
-            program,
+            check_facts,
             target_machine.symbol,
             target_machine.name.as_str(),
         )?;
         let specialization_commitment = task_specialization_commitment(
-            program,
+            typed,
+            check_facts,
             &selection,
             target_machine,
             entry,
             contract,
-            &program
-                .typed
-                .callable_identity_text(selected_runtime.requirement_identity),
+            &typed.callable_identity_text(selected_runtime.requirement_identity),
         )?;
         let suspension = exact_task_machine_suspension(
-            program,
+            check_facts,
             target_machine.symbol,
             target_machine.name.as_str(),
         )?;
         let blocking = exact_task_machine_blocking(
-            program,
+            check_facts,
             target_machine.symbol,
             target_machine.name.as_str(),
         )?;
@@ -102,7 +107,8 @@ pub fn elaborate_task_activation_plans(
             contract.report_fingerprint,
             MachineContractId::from_normalized_identity,
         )?;
-        let entry_report_fingerprint = entry_report_fingerprint(program, target_machine, entry);
+        let entry_report_fingerprint =
+            entry_report_fingerprint(typed, check_facts, target_machine, entry);
         let entry_id = normalized_id(
             entry_report_fingerprint,
             MachineEntryId::from_normalized_identity,
@@ -113,16 +119,17 @@ pub fn elaborate_task_activation_plans(
         // table is what the provider boundary checks a presented bundle
         // against.
         let argument_value_layouts = signature_value_layouts(
-            program,
+            typed,
+            check_facts,
             target,
             opaque_representation_selections,
-            program
+            typed
                 .state_parameters(entry)
                 .iter()
                 .map(|parameter| parameter.type_reference),
         )?;
         let argument_layout_report_fingerprint =
-            signature_layout_report_fingerprint(program, &argument_value_layouts);
+            signature_layout_report_fingerprint(typed, check_facts, &argument_value_layouts);
         let argument_layout = task_plans::TaskArgumentLayout::new(
             normalized_id(
                 argument_layout_report_fingerprint,
@@ -135,13 +142,14 @@ pub fn elaborate_task_activation_plans(
         )
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
         let outcome_value_layouts = signature_value_layouts(
-            program,
+            typed,
+            check_facts,
             target,
             opaque_representation_selections,
             std::iter::once(entry.return_type),
         )?;
         let outcome_layout_report_fingerprint =
-            signature_layout_report_fingerprint(program, &outcome_value_layouts);
+            signature_layout_report_fingerprint(typed, check_facts, &outcome_value_layouts);
         let terminal_outcome_layout = normalized_id(
             outcome_layout_report_fingerprint,
             ValueLayoutId::from_normalized_identity,
@@ -161,7 +169,8 @@ pub fn elaborate_task_activation_plans(
         let may_block = blocking.checked_may_block;
         // Stack and carry obligations follow the same checked call graph.
         let graph = task_call_graph(
-            program,
+            typed,
+            check_facts,
             target,
             opaque_representation_selections,
             target_machine,
@@ -169,7 +178,7 @@ pub fn elaborate_task_activation_plans(
         )?;
         let mut roster = BTreeMap::new();
         for crossing in &graph.crossings {
-            let canonical = canonical_suspension_crossing(program, crossing)?;
+            let canonical = canonical_suspension_crossing(typed, check_facts, crossing)?;
             roster.insert(canonical.identity, canonical);
         }
         let canonical_suspension_crossings = roster.into_values().collect::<Vec<_>>();
@@ -240,7 +249,8 @@ fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
 /// The concrete per-parameter layouts a start signature marshals under, in
 /// source parameter order.
 fn signature_value_layouts(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     types: impl IntoIterator<Item = checked_trees::types::TypeReferenceHandle>,
@@ -255,7 +265,7 @@ fn signature_value_layouts(
         .into_iter()
         .map(|type_reference| {
             layout::layout_type_reference(
-                program,
+                typed,
                 target,
                 opaque_representation_selections,
                 type_reference,
@@ -267,7 +277,8 @@ fn signature_value_layouts(
 }
 
 fn signature_layout_report_fingerprint(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     layouts: &[(
         checked_trees::types::TypeReferenceHandle,
         layout::TypeLayout,
@@ -276,7 +287,7 @@ fn signature_layout_report_fingerprint(
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x51);
     for (type_reference, layout) in layouts {
-        hash.string_terminated(&program.normalized_type_identity_text(*type_reference));
+        hash.string_terminated(&typed.normalized_type_identity_text(*type_reference));
         hash.usize(layout.size);
         hash.usize(layout.alignment);
         hash.byte(0xff);
@@ -285,7 +296,8 @@ fn signature_layout_report_fingerprint(
 }
 
 fn entry_report_fingerprint(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     machine: &checked_trees::machine::Machine,
     entry: &checked_trees::state::State,
 ) -> u64 {
@@ -293,12 +305,12 @@ fn entry_report_fingerprint(
     hash.byte(0x45);
     hash.string_terminated(machine.name.as_str());
     hash.string_terminated(entry.name.as_str());
-    for parameter in program.state_parameters(entry) {
+    for parameter in typed.state_parameters(entry) {
         hash.byte(u8::from(parameter.is_mutable));
-        hash.string_terminated(&program.normalized_type_identity_text(parameter.type_reference));
+        hash.string_terminated(&typed.normalized_type_identity_text(parameter.type_reference));
     }
     hash.byte(0xfe);
-    hash.string_terminated(&program.normalized_type_identity_text(entry.return_type));
+    hash.string_terminated(&typed.normalized_type_identity_text(entry.return_type));
     hash.finish_or(1)
 }
 

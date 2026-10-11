@@ -92,11 +92,12 @@ impl ProviderCheckingInputs {
     ) -> Result<CheckedProviderProgram, Vec<Diagnostic>> {
         let callback_placements =
             provider_planning::calling_policy_plans::validate_nominal_callback_placement_bindings(
-                &program,
+                &program.facts,
                 settlement.boundary_calling_plan_realizations,
             )?;
         let selected_provider_binding = provider_planning::bind_selected_provider_plan_facts(
             &program,
+            &program.facts,
             settlement.provider_plans,
             settlement.selected_provider_plan_facts,
             settlement.root_grants,

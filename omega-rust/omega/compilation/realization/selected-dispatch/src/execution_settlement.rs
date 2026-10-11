@@ -211,6 +211,7 @@ pub fn settle_selected_execution(
     let component_progress =
         provider_planning::component_progress::build_selected_component_progress_manifest(
             &checked.program,
+            &checked.program.facts,
             &checked.selected_provider_plan_facts,
             exact_component_progress_root,
             None,
@@ -268,6 +269,7 @@ pub fn settle_selected_execution(
     )?;
     let task_activations = provider_planning::task_plans::elaborate_task_activation_plans(
         &checked.program,
+        &checked.program.facts,
         &checked.selected_provider_plan_facts,
         settlement
             .selected_target_profile
@@ -279,6 +281,7 @@ pub fn settle_selected_execution(
     let x86_scalar_fma_plan_associations =
         provider_planning::x86_fma_plan_association::bind_checked_x86_scalar_fma_plan_associations(
             &checked.program,
+            &checked.program.facts,
             &checked.selected_provider_plan_facts,
             &settlement.selected_provider_provenance,
             settlement.x86_scalar_fma_provider,

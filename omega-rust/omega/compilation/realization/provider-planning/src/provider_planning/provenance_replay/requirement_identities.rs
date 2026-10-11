@@ -332,16 +332,15 @@ pub(crate) fn realization_machine_identity(
 /// source-specialization evidence, and a template never aliases its closed
 /// requirement.
 pub(crate) fn satisfied_row_requirement<'typed>(
-    checked: &'typed checked_trees::CheckedTrees,
+    typed: &'typed TypedTrees,
+    check_facts: &'typed checked_trees::CheckFacts,
     provider: &'typed checked_trees::typed_trees::machine::Machine,
     requirement: &'typed checked_trees::typed_trees::machine::Machine,
 ) -> Option<&'typed checked_trees::typed_trees::machine::Machine> {
-    let typed: &'typed TypedTrees = checked;
     if typed.machine_type_parameters(requirement).is_empty() {
         return Some(requirement);
     }
-    let closed = checked
-        .facts
+    let closed = check_facts
         .provider_closed_requirements
         .iter()
         .find(|row| row.provider == provider.symbol && row.template == requirement.symbol)?

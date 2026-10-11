@@ -35,24 +35,25 @@ impl TaskActivationTargetError {
     }
 }
 
-pub(crate) fn unique_task_activation_target(
-    program: &CheckedTrees,
+pub(crate) fn unique_task_activation_target<'program>(
+    typed: &'program checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     target_entry: symbols::SymbolHandle,
 ) -> Result<
     (
-        &checked_trees::machine::Machine,
-        &checked_trees::state::State,
+        &'program checked_trees::machine::Machine,
+        &'program checked_trees::state::State,
     ),
     TaskActivationTargetError,
 > {
-    let mut matches = program.machine_states_named(target_entry);
+    let mut matches = typed.machine_states_named(target_entry);
     let (machine, entry) = matches
         .next()
         .ok_or(TaskActivationTargetError::MissingEntry)?;
     if matches.next().is_some() {
         return Err(TaskActivationTargetError::AmbiguousEntry);
     }
-    let mut owners = program
+    let mut owners = typed
         .machines()
         .iter()
         .filter(|candidate| candidate.symbol == machine.symbol);
@@ -65,18 +66,19 @@ pub(crate) fn unique_task_activation_target(
     Ok((machine, entry))
 }
 
-pub(crate) fn exact_task_activation_target(
-    program: &CheckedTrees,
+pub(crate) fn exact_task_activation_target<'program>(
+    typed: &'program checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     target_machine: symbols::SymbolHandle,
     target_entry: symbols::SymbolHandle,
 ) -> Result<
     (
-        &checked_trees::machine::Machine,
-        &checked_trees::state::State,
+        &'program checked_trees::machine::Machine,
+        &'program checked_trees::state::State,
     ),
     TaskActivationTargetError,
 > {
-    let (machine, entry) = unique_task_activation_target(program, target_entry)?;
+    let (machine, entry) = unique_task_activation_target(typed, check_facts, target_entry)?;
     if machine.symbol != target_machine {
         return Err(TaskActivationTargetError::MachineMismatch);
     }
@@ -84,16 +86,18 @@ pub(crate) fn exact_task_activation_target(
 }
 
 pub(crate) fn task_start_selections(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
 ) -> Result<Vec<TaskStartSelection>, Vec<Diagnostic>> {
     let mut selections = Vec::new();
     let mut diagnostics = Vec::new();
-    for (_, expression) in program.expression_table.iter_expressions() {
+    for (_, expression) in typed.expression_table.iter_expressions() {
         let checked_trees::expression::ExpressionNode::Call(call) = expression else {
             continue;
         };
         append_task_start_selection(
-            program,
+            typed,
+            check_facts,
             call.target_symbol,
             call.target.as_str(),
             &call.machine_arguments,
@@ -101,14 +105,15 @@ pub(crate) fn task_start_selections(
             &mut diagnostics,
         );
     }
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
+    for machine in typed.machines() {
+        for state in typed.machine_states(machine) {
+            for statement in typed.statement_table.statements(state.statement_nodes) {
                 let checked_trees::statement::StatementNode::Call(call) = statement else {
                     continue;
                 };
                 append_task_start_selection(
-                    program,
+                    typed,
+                    check_facts,
                     call.target_symbol,
                     call.target.as_str(),
                     &call.machine_arguments,
@@ -127,23 +132,24 @@ pub(crate) fn task_start_selections(
 }
 
 fn append_task_start_selection(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     requirement: symbols::SymbolHandle,
     target_name: &str,
     machine_arguments: &[checked_trees::expression::StaticMachineArgument],
     selections: &mut Vec<TaskStartSelection>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some((definition, signature, operation)) = program.traits().iter().find_map(|definition| {
+    let Some((definition, signature, operation)) = typed.traits().iter().find_map(|definition| {
         if !definition.is_boundary
             || definition.name.as_str().rsplit("::").next() != Some("TaskRuntime")
         {
             return None;
         }
-        program
+        typed
             .trait_machine_signature_by_symbol(definition, requirement)
             .and_then(|signature| {
-                let result = program.display_type_reference(signature.return_type);
+                let result = typed.display_type_reference(signature.return_type);
                 match (signature.name.as_str(), result.as_str()) {
                     ("start", result) if result.starts_with("Task<") => {
                         Some((definition, signature, TaskStartOperation::Start))
@@ -164,15 +170,18 @@ fn append_task_start_selection(
         )));
         return;
     };
-    let (target_machine, target_entry) = match unique_task_activation_target(program, target.symbol)
-    {
+    let (target_machine, target_entry) = match unique_task_activation_target(
+        typed,
+        check_facts,
+        target.symbol,
+    ) {
         Ok(target) => target,
         Err(TaskActivationTargetError::MissingEntry)
             if target.symbol.is_valid()
-                && program
+                && typed
                     .machines()
                     .iter()
-                    .flat_map(|machine| program.machine_type_parameters(machine))
+                    .flat_map(|machine| typed.machine_type_parameters(machine))
                     .any(|parameter| parameter.symbol == target.symbol) =>
         {
             // A generic wrapper may forward its own machine parameter. Its
@@ -197,12 +206,13 @@ fn append_task_start_selection(
     let mut hash = Fnv1a::new();
     hash.string_terminated("task-runtime-requirement-specialization-v1");
     hash.string_terminated(
-        program
+        typed
             .trait_requirement_callable_identity_text(definition, signature)
             .as_str(),
     );
     hash.u64(entry_report_fingerprint(
-        program,
+        typed,
+        check_facts,
         target_machine,
         target_entry,
     ));

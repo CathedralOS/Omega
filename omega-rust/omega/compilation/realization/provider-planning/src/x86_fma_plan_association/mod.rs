@@ -7,7 +7,6 @@
 use std::collections::BTreeSet;
 
 use crate::{CompilerIntrinsicExecutionIdentity, SelectedProviderReviewProvenance};
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
 use symbols::{BuiltinFunction, SymbolHandle};
@@ -60,7 +59,8 @@ impl CheckedX86ScalarFmaPlanAssociation {
 }
 
 pub fn bind_checked_x86_scalar_fma_plan_associations(
-    checked: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     selected: &effects::SelectedProviderPlanFacts,
     provenance: &[SelectedProviderReviewProvenance],
     admitted_provider: Option<AdmittedX86ScalarFmaProvider>,
@@ -77,14 +77,12 @@ pub fn bind_checked_x86_scalar_fma_plan_associations(
     // boundary-requirement call. The lowered occurrence's
     // `requirement_operator` carries the requirement symbol either way, so
     // demand joins on that one view.
-    let named_uses = checked
-        .facts
+    let named_uses = check_facts
         .operators
         .named_uses()
         .map(|operator_use| (operator_use.selected_operator_symbol, operator_use.origin))
         .chain(
-            checked
-                .facts
+            check_facts
                 .operators
                 .named_requirement_uses()
                 .map(|requirement_use| {
@@ -93,7 +91,7 @@ pub fn bind_checked_x86_scalar_fma_plan_associations(
         );
     for (requirement_symbol, origin) in named_uses {
         match crate::selected_use_plan(
-            checked,
+            typed,
             source::DependencyScope::Product,
             selected.plans(),
             requirement_symbol,

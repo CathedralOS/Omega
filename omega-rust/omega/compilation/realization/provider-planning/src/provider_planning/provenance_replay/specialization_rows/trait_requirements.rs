@@ -8,13 +8,14 @@
 use crate::provider_planning::{ProviderBinding, ProviderPlan};
 
 pub(super) fn append(
-    checked: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     plan: &ProviderPlan,
     rows: &mut Vec<effects::SelectedRequirementSpecialization>,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) {
-    let context = crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product);
+    let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     for row in &plan.rows {
         let ProviderBinding::CheckedAdapter {
             machine_identity: selected_machine_identity,
@@ -23,13 +24,13 @@ pub(super) fn append(
         else {
             continue;
         };
-        let applications = checked
+        let applications = typed
             .closed_requirement_applications()
             .filter(|application| {
-                checked
+                typed
                     .trait_machine_signature(application.template)
                     .is_some_and(|(owner, signature)| {
-                        checked.trait_requirement_callable_identity_text(owner, signature)
+                        typed.trait_requirement_callable_identity_text(owner, signature)
                             == plan.identities.text(row.requirement_identity)
                             && crate::service_schema::from_typed_instance(
                                 context,
@@ -53,14 +54,13 @@ pub(super) fn append(
                 }
             };
         for application in applications {
-            let matches = checked
-                .facts
+            let matches = check_facts
                 .provider_closed_requirements
                 .iter()
                 .filter(|fact| {
                     fact.template == application.template
                         && fact.closed_requirement == application.signature.symbol
-                        && checked.requirement_realization_matches(
+                        && typed.requirement_realization_matches(
                             fact.closed_requirement,
                             provider.symbol,
                             fact.provider,
@@ -74,14 +74,14 @@ pub(super) fn append(
                 )));
                 continue;
             };
-            let Some(instance) = checked.machine(fact.provider) else {
+            let Some(instance) = typed.machine(fact.provider) else {
                 diagnostics.push(diagnostics::Diagnostic::error(
                     "closed provider fact lost its realization body",
                 ));
                 continue;
             };
-            if !checked.machine_type_parameters(instance).is_empty()
-                || checked.symbols.symbol_package_identity(instance.symbol)
+            if !typed.machine_type_parameters(instance).is_empty()
+                || typed.symbols.symbol_package_identity(instance.symbol)
                     != *machine_package_identity
             {
                 diagnostics.push(diagnostics::Diagnostic::error(
@@ -89,16 +89,15 @@ pub(super) fn append(
                 ));
                 continue;
             }
-            let Some(owner) = checked.trait_definition_by_symbol(application.declaring_trait)
-            else {
+            let Some(owner) = typed.trait_definition_by_symbol(application.declaring_trait) else {
                 diagnostics.push(diagnostics::Diagnostic::error(
                     "closed requirement fact lost its declaring trait",
                 ));
                 continue;
             };
             let requirement_identity =
-                checked.trait_requirement_callable_identity_text(owner, application.signature);
-            let machine_identity = checked
+                typed.trait_requirement_callable_identity_text(owner, application.signature);
+            let machine_identity = typed
                 .machine_callable_identity_text(instance)
                 .unwrap_or_default();
             if requirement_identity.is_empty() || machine_identity.is_empty() {

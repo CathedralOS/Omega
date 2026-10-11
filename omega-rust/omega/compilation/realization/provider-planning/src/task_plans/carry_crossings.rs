@@ -10,12 +10,11 @@ use task_plans::{
 };
 
 pub(crate) fn exact_activation_wide_carry<'program>(
-    program: &'program CheckedTrees,
+    check_facts: &'program checked_trees::CheckFacts,
     machine: symbols::SymbolHandle,
     machine_name: &str,
 ) -> Result<&'program checked_trees::MachineActivationCarryFact, Vec<Diagnostic>> {
-    let mut matches = program
-        .facts
+    let mut matches = check_facts
         .carry
         .activation_wide_carry
         .iter()
@@ -39,10 +38,11 @@ pub(crate) fn exact_activation_wide_carry<'program>(
 }
 
 pub(crate) fn validate_activation_carry_crossing(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     crossing: &checked_trees::SuspensionCrossingCarryFact,
 ) -> Result<(), Vec<Diagnostic>> {
-    let mut machines = program
+    let mut machines = typed
         .machines()
         .iter()
         .filter(|machine| machine.symbol == crossing.machine);
@@ -56,7 +56,7 @@ pub(crate) fn validate_activation_carry_crossing(
             "task activation carry crossing machine must resolve uniquely",
         )]);
     }
-    let mut states = program
+    let mut states = typed
         .machine_states(machine)
         .iter()
         .filter(|state| state.symbol == crossing.state);
@@ -70,7 +70,7 @@ pub(crate) fn validate_activation_carry_crossing(
             "task activation carry crossing state must resolve uniquely within its machine",
         )]);
     }
-    if program
+    if typed
         .statement_table
         .statement_at(state, crossing.statement_index)
         .is_none()
@@ -80,15 +80,9 @@ pub(crate) fn validate_activation_carry_crossing(
         )]);
     }
 
-    let mut flow_states = program
-        .facts
-        .flow
-        .control
-        .states
-        .iter()
-        .filter(|(_, flow)| {
-            flow.machine_symbol == crossing.machine && flow.state_symbol == crossing.state
-        });
+    let mut flow_states = check_facts.flow.control.states.iter().filter(|(_, flow)| {
+        flow.machine_symbol == crossing.machine && flow.state_symbol == crossing.state
+    });
     let flow_state = flow_states.next().map(|(_, flow)| flow).ok_or_else(|| {
         vec![Diagnostic::error(
             "task activation carry crossing must name one exact checked flow state",
@@ -99,8 +93,7 @@ pub(crate) fn validate_activation_carry_crossing(
             "task activation carry crossing must name exactly one checked flow state",
         )]);
     }
-    let calls = program
-        .facts
+    let calls = check_facts
         .flow
         .control
         .calls
@@ -129,8 +122,8 @@ pub(crate) fn validate_activation_carry_crossing(
             "task activation carry crossing must retain its exact checked call target",
         )]);
     }
-    let mut targets = program.machines().iter().flat_map(|machine| {
-        program
+    let mut targets = typed.machines().iter().flat_map(|machine| {
+        typed
             .machine_states(machine)
             .iter()
             .filter(|state| state.symbol == crossing.target)
@@ -161,15 +154,16 @@ pub(crate) fn carry_obligations(policy: CarryPolicy) -> ActivationCarryObligatio
 }
 
 pub(crate) fn canonical_suspension_crossing(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     crossing: &checked_trees::SuspensionCrossingCarryFact,
 ) -> Result<CanonicalSuspensionCrossing, Vec<Diagnostic>> {
     let mut live_carry = Vec::with_capacity(crossing.live_values.len());
     for live in &crossing.live_values {
-        live_carry.push(live_carry_demand(program, crossing, live)?);
+        live_carry.push(live_carry_demand(typed, check_facts, crossing, live)?);
     }
     Ok(CanonicalSuspensionCrossing {
-        identity: checked_trees::canonical_suspension_crossing_id(program, crossing).ok_or_else(
+        identity: checked_trees::canonical_suspension_crossing_id(typed, crossing).ok_or_else(
             || {
                 vec![Diagnostic::error(
                     "task activation carry crossing source identity must resolve exactly",
@@ -188,17 +182,18 @@ pub(crate) fn canonical_suspension_crossing(
 /// type, the storage class holding it across the park, the complete live
 /// claim identities attached to it, and the four-axis demand it carries.
 fn live_carry_demand(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     crossing: &checked_trees::SuspensionCrossingCarryFact,
     live: &checked_trees::SuspensionCrossingLiveValueFact,
 ) -> Result<LiveCarryDemand, Vec<Diagnostic>> {
     Ok(LiveCarryDemand {
         place: super::normalized_id(
-            live_place_identity(program, crossing, live),
+            live_place_identity(typed, check_facts, crossing, live),
             LiveCarryPlaceId::from_normalized_identity,
         )?,
         ty: super::normalized_id(
-            live_type_identity(program, live),
+            live_type_identity(typed, live),
             LiveCarryTypeId::from_normalized_identity,
         )?,
         storage: match live.storage {
@@ -211,7 +206,7 @@ fn live_carry_demand(
         claims: live
             .claims
             .iter()
-            .map(|claim| live_claim_identity(program, claim))
+            .map(|claim| live_claim_identity(typed, claim))
             .collect::<Result<_, _>>()?,
         effective: live.effective,
     })
@@ -222,20 +217,21 @@ fn live_carry_demand(
 /// crossings and gives `CallArgument` ordinals — which share no symbol —
 /// their exact coordinate.
 fn live_place_identity(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     crossing: &checked_trees::SuspensionCrossingCarryFact,
     live: &checked_trees::SuspensionCrossingLiveValueFact,
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x4c);
-    hash.string_terminated(&program.typed.symbols.display_path(crossing.machine, "::"));
-    hash.string_terminated(&program.typed.symbols.display_path(crossing.state, "::"));
+    hash.string_terminated(&typed.symbols.display_path(crossing.machine, "::"));
+    hash.string_terminated(&typed.symbols.display_path(crossing.state, "::"));
     hash.usize(crossing.statement_index);
     hash.usize(crossing.call_ordinal);
     match live.origin {
         checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => {
             hash.byte(2);
-            hash.string_terminated(&program.typed.symbols.display_path(symbol, "::"));
+            hash.string_terminated(&typed.symbols.display_path(symbol, "::"));
             hash.usize(position);
         }
         checked_trees::SuspensionCrossingValueOrigin::Local {
@@ -244,7 +240,7 @@ fn live_place_identity(
             environment_position,
         } => {
             hash.byte(3);
-            hash.string_terminated(&program.typed.symbols.display_path(symbol, "::"));
+            hash.string_terminated(&typed.symbols.display_path(symbol, "::"));
             hash.usize(statement_index);
             hash.usize(environment_position);
         }
@@ -259,12 +255,12 @@ fn live_place_identity(
 /// Stable identity of a live value's checked type: the canonical type
 /// identity string is already the normalized semantic coordinate.
 fn live_type_identity(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
     live: &checked_trees::SuspensionCrossingLiveValueFact,
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x54);
-    hash.string_terminated(&program.normalized_type_identity_text(live.type_reference));
+    hash.string_terminated(&typed.normalized_type_identity_text(live.type_reference));
     hash.finish_or(1)
 }
 
@@ -273,7 +269,7 @@ fn live_type_identity(
 /// establishing machine, state, event source, and ordinal — so a plan
 /// frontier distinguishes loans rather than counting them.
 fn live_claim_identity(
-    program: &CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
     claim: &language_semantics::PermissionClaimIdentity,
 ) -> Result<semantic_vocabulary::ClaimId, Vec<Diagnostic>> {
     let language_semantics::PermissionClaimIdentity::Established {
@@ -289,8 +285,8 @@ fn live_claim_identity(
     };
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x43);
-    hash.string_terminated(&program.typed.symbols.display_path(machine_symbol, "::"));
-    hash.string_terminated(&program.typed.symbols.display_path(state_symbol, "::"));
+    hash.string_terminated(&typed.symbols.display_path(machine_symbol, "::"));
+    hash.string_terminated(&typed.symbols.display_path(state_symbol, "::"));
     match source {
         language_semantics::PermissionEventSource::StateEntry => hash.byte(1),
         language_semantics::PermissionEventSource::Statement { statement_index } => {
@@ -305,7 +301,7 @@ fn live_claim_identity(
             hash.byte(3);
             hash.usize(statement_index);
             hash.usize(call_ordinal);
-            hash.string_terminated(&program.typed.symbols.display_path(target_symbol, "::"));
+            hash.string_terminated(&typed.symbols.display_path(target_symbol, "::"));
         }
         language_semantics::PermissionEventSource::StateExit => hash.byte(4),
     }

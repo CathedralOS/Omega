@@ -17,7 +17,8 @@ struct PendingInstallationReachRow<'a> {
 }
 
 pub(super) fn derive_selected_installation_reach_resolutions(
-    checked: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    facts: &checked_trees::CheckFacts,
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<
     (
@@ -31,10 +32,9 @@ pub(super) fn derive_selected_installation_reach_resolutions(
     let mut diagnostics = Vec::new();
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let provider_context =
-        crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product);
+        crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     for plan in selected.plans() {
-        let top_level_requirements = checked
-            .typed
+        let top_level_requirements = typed
             .machines()
             .iter()
             .filter(|requirement| {
@@ -52,7 +52,8 @@ pub(super) fn derive_selected_installation_reach_resolutions(
             [requirement] => {
                 for row in &plan.rows {
                     append_top_level_installation_reach_resolution(
-                        checked,
+                        typed,
+                        facts,
                         plan,
                         row,
                         requirement,
@@ -79,7 +80,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
         // requirements. Candidate validation has already replayed their exact
         // typed operator schema. Do not make the trait-only installation-reach
         // pass reinterpret them as missing trait requirements.
-        let is_boundary_operator_plan = checked.operators().iter().any(|operator| {
+        let is_boundary_operator_plan = typed.operators().iter().any(|operator| {
             crate::service_schema::from_typed_operator(provider_context, operator).as_ref()
                 == Some(&plan.schema)
         });
@@ -87,22 +88,16 @@ pub(super) fn derive_selected_installation_reach_resolutions(
             continue;
         }
         for row in &plan.rows {
-            let requirements = checked
-                .typed
+            let requirements = typed
                 .traits()
                 .iter()
-                .filter(|owner| {
-                    crate::service_schema::is_product_declaration(checked, owner.symbol)
-                })
+                .filter(|owner| crate::service_schema::is_product_declaration(typed, owner.symbol))
                 .flat_map(|owner| {
-                    checked
-                        .typed
+                    typed
                         .trait_machine_signatures(owner)
                         .iter()
                         .filter(move |requirement| {
-                            checked
-                                .typed
-                                .trait_requirement_callable_identity_text(owner, requirement)
+                            typed.trait_requirement_callable_identity_text(owner, requirement)
                                 == plan.identities.text(row.requirement_identity)
                         })
                         .map(move |requirement| (owner, requirement))
@@ -128,30 +123,24 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                     .map(|entry| entry.realization_machine);
             let is_named_provider =
                 crate::provider_identity::named_provider(provider_context, plan).is_some();
-            let realization_machines = checked
-                .typed
+            let realization_machines = typed
                 .machines()
                 .iter()
                 .filter(|machine| {
-                    crate::service_schema::is_product_declaration(checked, machine.symbol)
+                    crate::service_schema::is_product_declaration(typed, machine.symbol)
                 })
                 .filter(|machine| {
                     if is_named_provider {
                         return named_realization == Some(machine.symbol);
                     }
-                    checked
-                        .typed
-                        .attached_data_path(machine)
-                        .unwrap_or_default()
-                        == plan.provider_type
-                        && checked
-                            .typed
+                    typed.attached_data_path(machine).unwrap_or_default() == plan.provider_type
+                        && typed
                             .machine_trait_conformances(machine)
                             .iter()
                             .any(|conformance| {
                                 conformance.requirement.is_some() && {
                                     exact_satisfied_requirement_identity(
-                                        checked,
+                                        typed,
                                         conformance.symbol,
                                         conformance.requirement_symbol,
                                     ) == plan.identities.text(row.requirement_identity)
@@ -168,18 +157,14 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                 )));
                 continue;
             };
-            let Some(envelope) = checked
-                .facts
-                .contract_plans
-                .realized_envelope(realization.symbol)
-            else {
+            let Some(envelope) = facts.contract_plans.realized_envelope(realization.symbol) else {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "selected provider realization `{}` has no checked contract envelope",
                     realization.name
                 )));
                 continue;
             };
-            let upper_bound = service_upper_bound_names(checked, requirement.service_reach_row);
+            let upper_bound = service_upper_bound_names(facts, requirement.service_reach_row);
             record_installation_reach_row(
                 plan,
                 realization,
@@ -194,7 +179,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
     }
     substitute_nested_installation_reaches(
         &mut identities,
-        checked,
+        typed,
         &mut resolutions,
         pending,
         &mut diagnostics,
@@ -207,7 +192,8 @@ pub(super) fn derive_selected_installation_reach_resolutions(
 }
 
 fn append_top_level_installation_reach_resolution<'a>(
-    checked: &'a checked_trees::CheckedTrees,
+    typed: &'a checked_trees::typed_trees::TypedTrees,
+    facts: &'a checked_trees::CheckFacts,
     plan: &'a ProviderPlan,
     row: &ProviderPlanRow,
     requirement: &'a checked_trees::typed_trees::machine::Machine,
@@ -216,8 +202,7 @@ fn append_top_level_installation_reach_resolution<'a>(
     pending: &mut Vec<PendingInstallationReachRow<'a>>,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) {
-    let requirement_identity = checked
-        .typed
+    let requirement_identity = typed
         .machine_callable_identity_text(requirement)
         .unwrap_or_default();
     if plan.identities.text(row.requirement_identity) != requirement_identity.as_str() {
@@ -230,16 +215,14 @@ fn append_top_level_installation_reach_resolution<'a>(
     if !requirement.service_reach_is_installation_bound {
         return;
     }
-    let realizations = checked
-        .typed
+    let realizations = typed
         .machines()
         .iter()
         .filter(|machine| {
-            checked.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
+            typed.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
         })
         .filter(|machine| {
-            checked
-                .typed
+            typed
                 .machine_trait_conformances(machine)
                 .iter()
                 .any(|conformance| {
@@ -247,7 +230,7 @@ fn append_top_level_installation_reach_resolution<'a>(
                         && conformance.requirement_symbol == requirement.symbol
                         && matches!(
                             checked_trees::typed_trees::machine::resolve_satisfied_declaration(
-                                checked,
+                                typed,
                                 machine,
                                 conformance,
                             ),
@@ -268,18 +251,14 @@ fn append_top_level_installation_reach_resolution<'a>(
         )));
         return;
     };
-    let Some(envelope) = checked
-        .facts
-        .contract_plans
-        .realized_envelope(realization.symbol)
-    else {
+    let Some(envelope) = facts.contract_plans.realized_envelope(realization.symbol) else {
         diagnostics.push(diagnostics::Diagnostic::error(format!(
             "selected provider realization `{}` has no checked contract envelope",
             realization.name,
         )));
         return;
     };
-    let upper_bound = service_upper_bound_names(checked, requirement.service_reach_row);
+    let upper_bound = service_upper_bound_names(facts, requirement.service_reach_row);
     record_installation_reach_row(
         plan,
         realization,
@@ -295,16 +274,15 @@ fn append_top_level_installation_reach_resolution<'a>(
 /// The reach requirement's declared service-name ceiling: the resolved
 /// names of every service definition its `service_reach_row` admits.
 fn service_upper_bound_names(
-    checked: &checked_trees::CheckedTrees,
+    facts: &checked_trees::CheckFacts,
     service_reach_row: language_semantics::ServiceReachRowId,
 ) -> Vec<String> {
-    checked
-        .facts
+    facts
         .service_reaches
         .rows
         .services(service_reach_row)
         .iter()
-        .filter_map(|service| checked.facts.service_reaches.services.definition(*service))
+        .filter_map(|service| facts.service_reaches.services.definition(*service))
         .map(|definition| definition.name.clone())
         .collect()
 }

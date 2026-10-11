@@ -26,7 +26,8 @@ impl<'a> ExactComponentProgressRoot<'a> {
 /// name fallback; absence of both means that this checked product has no
 /// component root and therefore no manifest.
 pub fn build_selected_component_progress_manifest(
-    program: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     selected: &effects::SelectedProviderPlanFacts,
     exact_source_root: Option<ExactComponentProgressRoot<'_>>,
     test_entry_name: Option<&str>,
@@ -34,7 +35,7 @@ pub fn build_selected_component_progress_manifest(
     let root = if let Some(root) = exact_source_root {
         root
     } else if let Some(entry_name) = test_entry_name {
-        let matches = program
+        let matches = typed
             .machines()
             .iter()
             .filter(|machine| machine.name.as_str() == entry_name)
@@ -45,15 +46,14 @@ pub fn build_selected_component_progress_manifest(
                 matches.len()
             ))]);
         };
-        let callable_identity = program
-            .machine_callable_identity_text(entry)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "selected test entry `{entry_name}` has no normalized callable identity"
-                ))]
-            })?;
+        let callable_identity = typed.machine_callable_identity_text(entry).ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "selected test entry `{entry_name}` has no normalized callable identity"
+            ))]
+        })?;
         return build_component_progress_manifest(
-            program,
+            typed,
+            check_facts,
             selected,
             entry.symbol,
             callable_identity,
@@ -64,7 +64,8 @@ pub fn build_selected_component_progress_manifest(
     };
 
     build_component_progress_manifest(
-        program,
+        typed,
+        check_facts,
         selected,
         root.machine,
         root.callable_identity.to_owned(),
@@ -73,7 +74,8 @@ pub fn build_selected_component_progress_manifest(
 }
 
 fn build_component_progress_manifest(
-    program: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     selected: &effects::SelectedProviderPlanFacts,
     entry_machine: SymbolHandle,
     entry_callable_identity: String,
@@ -89,31 +91,30 @@ fn build_component_progress_manifest(
         }
         visited.push(machine_symbol);
 
-        for demand in program
-            .facts
+        for demand in check_facts
             .termination
             .build_bound_for_machine(machine_symbol)
         {
             demands.push(effects::CheckedComponentProgressDemand {
                 provider_service_identity: demand_identities.intern(
-                    &program
-                        .typed
+                    &typed
                         .callable_identity_text(demand.provider_service_identity),
                 ),
                 provider_service_package_identity: demand.provider_service_package_identity,
                 requirement_identity: demand_identities.intern(
-                    &program.typed.callable_identity_text(demand.requirement_identity),
+                    &typed.callable_identity_text(demand.requirement_identity),
                 ),
                 requirement_owner_package_identity: demand.requirement_owner_package_identity,
                 profile_identity: demand_identities.intern(
-                    program
+                    typed
                         .semantic_domains
                         .name(demand.profile_identity)
                         .unwrap_or_default(),
                 ),
                 subject_projections: demand.subject_projections.clone(),
                 origin_callable_identity: demand_identities.intern(
-                    &machine_callable_identity(program, demand.origin.machine).ok_or_else(
+                    &machine_callable_identity(typed,
+            check_facts, demand.origin.machine).ok_or_else(
                         || {
                             vec![Diagnostic::error(
                                 "checked build-bound progress demand lost its origin machine identity",
@@ -122,22 +123,21 @@ fn build_component_progress_manifest(
                     )?,
                 ),
                 origin_state_identity: demand_identities
-                    .intern(&program.symbols.display_path(demand.origin.state, "::")),
+                    .intern(&typed.symbols.display_path(demand.origin.state, "::")),
                 statement_ordinal: demand.origin.statement_ordinal,
                 call_ordinal: demand.origin.call_ordinal,
             });
         }
 
-        for (_, state) in program
-            .facts
+        for (_, state) in check_facts
             .flow
             .control
             .states
             .iter()
             .filter(|(_, state)| state.machine_symbol == machine_symbol)
         {
-            for call in program.facts.flow.control.calls.span_or_empty(state.calls) {
-                if let Some(target_machine) = owning_machine(program, call.target_symbol) {
+            for call in check_facts.flow.control.calls.span_or_empty(state.calls) {
+                if let Some(target_machine) = owning_machine(typed, call.target_symbol) {
                     queue.push(target_machine.symbol);
                     continue;
                 }
@@ -146,7 +146,7 @@ fn build_component_progress_manifest(
                     service,
                     requirement_owner_package_identity,
                     requirement_identity,
-                )) = exact_boundary_requirement(program, call.target_symbol)
+                )) = exact_boundary_requirement(typed, call.target_symbol)
                 else {
                     continue;
                 };
@@ -203,7 +203,7 @@ fn build_component_progress_manifest(
                 if let ProviderBinding::CheckedAdapter { .. } = &row.binding {
                     let adapter = crate::provider_planning::exact_checked_adapter(
                         crate::ProviderPlanningContext::new(
-                            program,
+                            typed,
                             source::DependencyScope::Product,
                         ),
                         plan,
@@ -254,18 +254,18 @@ pub fn reject_undischarged_build_bound_progress(
         .collect())
 }
 
-fn owning_machine(
-    program: &checked_trees::CheckedTrees,
+fn owning_machine<'program>(
+    typed: &'program checked_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&checked_trees::typed_trees::machine::Machine> {
-    program
+) -> Option<&'program checked_trees::typed_trees::machine::Machine> {
+    typed
         .machines()
         .iter()
-        .find(|machine| program.machine_or_state_symbol(machine, symbol))
+        .find(|machine| typed.machine_or_state_symbol(machine, symbol))
 }
 
 fn exact_boundary_requirement(
-    program: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<(
     Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -273,16 +273,16 @@ fn exact_boundary_requirement(
     Option<semantic_vocabulary::PackageKeyIdentity>,
     String,
 )> {
-    program.traits().iter().find_map(|owner| {
+    typed.traits().iter().find_map(|owner| {
         owner.is_boundary.then_some(()).and_then(|_| {
-            program
+            typed
                 .trait_machine_signature_by_symbol(owner, symbol)
                 .map(|requirement| {
                     (
-                        program.symbols.symbol_package_identity(owner.symbol),
-                        program.trait_declaration_path(owner),
-                        program.symbols.symbol_package_identity(requirement.symbol),
-                        program.trait_requirement_callable_identity_text(owner, requirement),
+                        typed.symbols.symbol_package_identity(owner.symbol),
+                        typed.trait_declaration_path(owner),
+                        typed.symbols.symbol_package_identity(requirement.symbol),
+                        typed.trait_requirement_callable_identity_text(owner, requirement),
                     )
                 })
         })
@@ -290,9 +290,10 @@ fn exact_boundary_requirement(
 }
 
 fn machine_callable_identity(
-    program: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     symbol: SymbolHandle,
 ) -> Option<String> {
-    let machine = owning_machine(program, symbol)?;
-    program.machine_callable_identity_text(machine)
+    let machine = owning_machine(typed, symbol)?;
+    typed.machine_callable_identity_text(machine)
 }

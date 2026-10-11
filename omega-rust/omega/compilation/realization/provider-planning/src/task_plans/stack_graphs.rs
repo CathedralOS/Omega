@@ -58,13 +58,14 @@ pub(crate) struct TaskCallGraph<'program> {
 /// validated; graph-level closure, reachability and acyclicity are sealed by
 /// `compose_task_stack_demand`.
 pub(crate) fn task_call_graph<'program>(
-    program: &'program CheckedTrees,
+    typed: &'program checked_trees::typed_trees::TypedTrees,
+    check_facts: &'program checked_trees::CheckFacts,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-    root_machine: &checked_trees::machine::Machine,
-    root_entry: &checked_trees::state::State,
+    root_machine: &'program checked_trees::machine::Machine,
+    root_entry: &'program checked_trees::state::State,
 ) -> Result<TaskCallGraph<'program>, Vec<Diagnostic>> {
-    let root = frame_identity(program, root_machine, root_entry)?;
+    let root = frame_identity(typed, root_machine, root_entry)?;
     let mut pending = vec![root_entry.symbol];
     let mut visited = Vec::new();
     let mut frames = Vec::new();
@@ -75,12 +76,14 @@ pub(crate) fn task_call_graph<'program>(
             continue;
         }
         visited.push(entry_symbol);
-        let (machine, entry) = exact_frame_target(program, entry_symbol)?;
+        let (machine, entry) = exact_frame_target(typed, entry_symbol)?;
         carry = carry.intersect(
-            exact_activation_wide_carry(program, machine.symbol, machine.name.as_str())?.effective,
+            exact_activation_wide_carry(check_facts, machine.symbol, machine.name.as_str())?
+                .effective,
         );
         let summary = task_frame_summary(
-            program,
+            typed,
+            check_facts,
             target,
             opaque_representation_selections,
             machine,
@@ -104,17 +107,17 @@ pub(crate) fn task_call_graph<'program>(
 /// Resolve an entry state symbol to its exact owning machine and state. A
 /// state symbol is globally unique, so a zero or plural resolution means the
 /// checked program retained a drifted call target and must fail closed.
-pub(crate) fn exact_frame_target(
-    program: &CheckedTrees,
+pub(crate) fn exact_frame_target<'program>(
+    typed: &'program checked_trees::typed_trees::TypedTrees,
     entry: SymbolHandle,
 ) -> Result<
     (
-        &checked_trees::machine::Machine,
-        &checked_trees::state::State,
+        &'program checked_trees::machine::Machine,
+        &'program checked_trees::state::State,
     ),
     Vec<Diagnostic>,
 > {
-    let mut matches = program.machine_states_named(entry);
+    let mut matches = typed.machine_states_named(entry);
     let (machine, state) = matches.next().ok_or_else(|| {
         vec![Diagnostic::error(
             "task WCSU graph call target must name an exact typed state",
@@ -132,7 +135,8 @@ pub(crate) fn exact_frame_target(
 /// Callee frames discovered through checked calls are pushed onto `pending`
 /// so the traversal covers the complete reachable graph.
 fn task_frame_summary<'program>(
-    program: &'program CheckedTrees,
+    typed: &'program checked_trees::typed_trees::TypedTrees,
+    check_facts: &'program checked_trees::CheckFacts,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     machine: &'program checked_trees::machine::Machine,
@@ -140,8 +144,8 @@ fn task_frame_summary<'program>(
     pending: &mut Vec<SymbolHandle>,
     reachable_crossings: &mut Vec<&'program checked_trees::SuspensionCrossingCarryFact>,
 ) -> Result<TaskStackFrameSummary, Vec<Diagnostic>> {
-    let frame = frame_identity(program, machine, entry)?;
-    let states = frame_state_closure(program, machine, entry)?;
+    let frame = frame_identity(typed, machine, entry)?;
+    let states = frame_state_closure(typed, check_facts, machine, entry)?;
 
     // Every frame keeps an explicit resume-state word so a parked live chain
     // retains where each caller resumes, even when the machine stores nothing.
@@ -159,7 +163,7 @@ fn task_frame_summary<'program>(
     for state in &states {
         let mut size = base_size;
         let mut alignment = base_alignment;
-        for parameter in program
+        for parameter in typed
             .state_parameters(state)
             .iter()
             .filter(|parameter| !parameter.relevance.is_erased())
@@ -168,14 +172,14 @@ fn task_frame_summary<'program>(
                 &mut size,
                 &mut alignment,
                 frame_value_layout(
-                    program,
+                    typed,
                     target,
                     opaque_representation_selections,
                     parameter.type_reference,
                 )?,
             )?;
         }
-        for statement in program.statement_table.statements(state.statement_nodes) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
             let Some(local) = statement.as_local_data() else {
                 continue;
             };
@@ -186,7 +190,7 @@ fn task_frame_summary<'program>(
                 &mut size,
                 &mut alignment,
                 frame_value_layout(
-                    program,
+                    typed,
                     target,
                     opaque_representation_selections,
                     local.type_reference,
@@ -197,14 +201,13 @@ fn task_frame_summary<'program>(
         // demand composes by maximum across this state's crossings.
         let mut state_peak = align_to(size, alignment)?;
         let mut crossing_coordinates = Vec::new();
-        for crossing in program
-            .facts
+        for crossing in check_facts
             .carry
             .suspension_crossings
             .iter()
             .filter(|crossing| crossing.machine == machine.symbol && crossing.state == state.symbol)
         {
-            validate_activation_carry_crossing(program, crossing)?;
+            validate_activation_carry_crossing(typed, check_facts, crossing)?;
             let coordinate = (crossing.statement_index, crossing.call_ordinal);
             if crossing_coordinates.contains(&coordinate) {
                 return Err(vec![Diagnostic::error(
@@ -223,7 +226,7 @@ fn task_frame_summary<'program>(
                     &mut crossing_size,
                     &mut crossing_alignment,
                     frame_value_layout(
-                        program,
+                        typed,
                         target,
                         opaque_representation_selections,
                         live.type_reference,
@@ -239,15 +242,9 @@ fn task_frame_summary<'program>(
     let mut calls = Vec::new();
     let mut unresolved_calls = Vec::new();
     for state in &states {
-        let mut flow_states = program
-            .facts
-            .flow
-            .control
-            .states
-            .iter()
-            .filter(|(_, flow)| {
-                flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol
-            });
+        let mut flow_states = check_facts.flow.control.states.iter().filter(|(_, flow)| {
+            flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol
+        });
         let Some((_, flow_state)) = flow_states.next() else {
             continue;
         };
@@ -256,8 +253,7 @@ fn task_frame_summary<'program>(
                 "task WCSU frame must name exactly one checked flow state",
             )]);
         }
-        let flow_calls = program
-            .facts
+        let flow_calls = check_facts
             .flow
             .control
             .calls
@@ -270,14 +266,13 @@ fn task_frame_summary<'program>(
         for call in flow_calls {
             // A retired row was replaced by selected execution in the typed
             // body; execution planning skips it, so it places no checked frame.
-            if program.facts.flow.control.is_retired(state.symbol, call) {
+            if check_facts.flow.control.is_retired(state.symbol, call) {
                 continue;
             }
             let may_suspend =
                 call.suspension.direct_may_suspend || call.suspension.transitive_may_suspend;
             if may_suspend
-                && !program
-                    .facts
+                && !check_facts
                     .carry
                     .suspension_crossings
                     .iter()
@@ -294,7 +289,7 @@ fn task_frame_summary<'program>(
                 ))]);
             }
             let Some((callee_machine, callee_entry)) =
-                checked_call_target(program, call.target_symbol)?
+                checked_call_target(typed, call.target_symbol)?
             else {
                 // Requirement slots, machine parameters and dynamic
                 // descriptor calls name no machine state. The bound cannot
@@ -324,7 +319,7 @@ fn task_frame_summary<'program>(
                 });
                 continue;
             }
-            let callee = frame_identity(program, callee_machine, callee_entry)?;
+            let callee = frame_identity(typed, callee_machine, callee_entry)?;
             calls.push(StackCallContribution::Checked { callee });
             pending.push(callee_entry.symbol);
         }
@@ -355,7 +350,8 @@ fn task_frame_summary<'program>(
 /// owning machine only; a target outside the state roster is not a transition
 /// of this activation and contributes no state.
 fn frame_state_closure<'program>(
-    program: &'program CheckedTrees,
+    typed: &'program checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     machine: &'program checked_trees::machine::Machine,
     entry: &'program checked_trees::state::State,
 ) -> Result<Vec<&'program checked_trees::state::State>, Vec<Diagnostic>> {
@@ -367,19 +363,19 @@ fn frame_state_closure<'program>(
             continue;
         }
         seen.push(symbol);
-        let state = program.state_in_machine(machine, symbol).ok_or_else(|| {
+        let state = typed.state_in_machine(machine, symbol).ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "task WCSU frame `{}` transition reaches a state outside its machine",
                 machine.name
             ))]
         })?;
-        for statement in program.statement_table.statements(state.statement_nodes) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
-            push_transition_successor(program, machine, transition.target, &mut pending);
+            push_transition_successor(typed, machine, transition.target, &mut pending);
             if transition.continuation.is_valid() {
-                push_transition_successor(program, machine, transition.continuation, &mut pending);
+                push_transition_successor(typed, machine, transition.continuation, &mut pending);
             }
         }
         ordered.push(state);
@@ -387,13 +383,13 @@ fn frame_state_closure<'program>(
     Ok(ordered)
 }
 
-fn push_transition_successor(
-    program: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
+fn push_transition_successor<'program>(
+    typed: &'program checked_trees::typed_trees::TypedTrees,
+    machine: &'program checked_trees::machine::Machine,
     target: checked_trees::typed_trees::statement::TransitionTargetHandle,
     pending: &mut Vec<SymbolHandle>,
 ) {
-    let symbol = match program.statement_table.transition_target(target) {
+    let symbol = match typed.statement_table.transition_target(target) {
         checked_trees::typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
             path.symbol
         }
@@ -401,7 +397,7 @@ fn push_transition_successor(
         | checked_trees::typed_trees::statement::TransitionTargetNode::Terminal => return,
     };
     if symbol.is_valid()
-        && program
+        && typed
             .machine_states(machine)
             .iter()
             .any(|candidate| candidate.symbol == symbol)
@@ -414,17 +410,17 @@ fn push_transition_successor(
 /// Targets that name no machine state -- requirement slots, machine
 /// parameters, dynamic descriptor calls -- return `None`; they place no
 /// checked frame on this stack.
-fn checked_call_target(
-    program: &CheckedTrees,
+fn checked_call_target<'program>(
+    typed: &'program checked_trees::typed_trees::TypedTrees,
     target: SymbolHandle,
 ) -> Result<
     Option<(
-        &checked_trees::machine::Machine,
-        &checked_trees::state::State,
+        &'program checked_trees::machine::Machine,
+        &'program checked_trees::state::State,
     )>,
     Vec<Diagnostic>,
 > {
-    let mut matches = program.machine_states_named(target);
+    let mut matches = typed.machine_states_named(target);
     let Some(target) = matches.next() else {
         return Ok(None);
     };
@@ -439,12 +435,12 @@ fn checked_call_target(
 /// The stable identity of one frame: the machine's normalized callable
 /// overload joined with the exact entry state name. Symbol handles are
 /// per-compilation and never enter a normalized plan identity.
-fn frame_identity(
-    program: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    entry: &checked_trees::state::State,
+fn frame_identity<'program>(
+    typed: &'program checked_trees::typed_trees::TypedTrees,
+    machine: &'program checked_trees::machine::Machine,
+    entry: &'program checked_trees::state::State,
 ) -> Result<TaskStackFrameId, Vec<Diagnostic>> {
-    let callable = program
+    let callable = typed
         .machine_callable_identity_text(machine)
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
@@ -462,14 +458,14 @@ fn frame_identity(
     )
 }
 
-fn frame_value_layout(
-    program: &CheckedTrees,
+fn frame_value_layout<'program>(
+    typed: &'program checked_trees::typed_trees::TypedTrees,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     type_reference: checked_trees::typed_trees::types::TypeReferenceHandle,
 ) -> Result<TypeLayout, Vec<Diagnostic>> {
     layout::layout_type_reference(
-        program,
+        typed,
         target,
         opaque_representation_selections,
         type_reference,

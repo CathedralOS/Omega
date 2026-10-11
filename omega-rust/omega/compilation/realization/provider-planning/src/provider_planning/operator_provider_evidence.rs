@@ -8,7 +8,8 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan};
 /// serves. Uses carry no selection; each target's consumers join their plan
 /// through `selected_use_plan`, which reads only plans this gate accepted.
 pub(crate) fn validate_selected_operator_provider_evidence(
-    checked: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     candidates: &[ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
@@ -18,9 +19,9 @@ pub(crate) fn validate_selected_operator_provider_evidence(
     // plans that passed this gate.
     let mut diagnostics = Vec::new();
     for plan in selected.plans() {
-        let operator = checked.operators().iter().find(|operator| {
+        let operator = typed.operators().iter().find(|operator| {
             crate::service_schema::schema_binds_exact_boundary_operator(
-                crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
+                crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
                 &plan.schema,
                 operator,
             )
@@ -29,7 +30,8 @@ pub(crate) fn validate_selected_operator_provider_evidence(
             continue;
         };
         if let Err(diagnostic) = selected_operator_provider_evidence(
-            checked,
+            typed,
+            check_facts,
             candidates,
             selected,
             operator.symbol,
@@ -42,8 +44,7 @@ pub(crate) fn validate_selected_operator_provider_evidence(
         return Err(diagnostics);
     }
 
-    let spelled = checked
-        .facts
+    let spelled = check_facts
         .operators
         .uses
         .iter()
@@ -54,8 +55,7 @@ pub(crate) fn validate_selected_operator_provider_evidence(
             )
         })
         .collect::<Vec<_>>();
-    let named = checked
-        .facts
+    let named = check_facts
         .operators
         .named_uses
         .iter()
@@ -68,15 +68,21 @@ pub(crate) fn validate_selected_operator_provider_evidence(
         })
         .collect::<Vec<_>>();
     for (site, symbol) in spelled {
-        if let Err(diagnostic) =
-            selected_operator_provider_evidence(checked, candidates, selected, symbol, Some(site))
-        {
+        if let Err(diagnostic) = selected_operator_provider_evidence(
+            typed,
+            check_facts,
+            candidates,
+            selected,
+            symbol,
+            Some(site),
+        ) {
             diagnostics.push(diagnostic);
         }
     }
     for (expression, origin, symbol) in named {
         if let Err(diagnostic) = selected_operator_provider_evidence(
-            checked,
+            typed,
+            check_facts,
             candidates,
             selected,
             symbol,
@@ -109,14 +115,15 @@ pub(crate) fn validate_selected_operator_provider_evidence(
 /// mechanisms with a freestanding host-ABI route can serve a direct call;
 /// vtable and table rows have no receiver table here.
 pub(crate) fn validate_selected_requirement_provider_evidence(
-    checked: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     candidates: &[ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut diagnostics = Vec::new();
-    for (_, requirement_use) in checked.facts.operators.named_requirement_uses.iter() {
+    for (_, requirement_use) in check_facts.operators.named_requirement_uses.iter() {
         if let Err(diagnostic) = selected_requirement_provider_evidence(
-            checked,
+            typed,
             candidates,
             selected,
             requirement_use.requirement_symbol,
@@ -132,12 +139,12 @@ pub(crate) fn validate_selected_requirement_provider_evidence(
 }
 
 fn selected_requirement_provider_evidence(
-    checked: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
     candidates: &[ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
     requirement_symbol: symbols::SymbolHandle,
 ) -> Result<(), diagnostics::Diagnostic> {
-    let Some(requirement) = crate::IntrinsicRequirement::by_symbol(checked, requirement_symbol)
+    let Some(requirement) = crate::IntrinsicRequirement::by_symbol(typed, requirement_symbol)
     else {
         return Ok(());
     };
@@ -146,7 +153,7 @@ fn selected_requirement_provider_evidence(
     }
     let slot = requirement.display();
     let provider_context =
-        crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product);
+        crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     if !candidates
         .iter()
         .any(|candidate| requirement.schema_binds(provider_context, &candidate.schema))
@@ -176,14 +183,14 @@ fn selected_requirement_provider_evidence(
         ProviderBinding::CheckedAdapter { .. } => {}
         ProviderBinding::CompilerIntrinsic { machine, .. } => {
             requirement
-                .diagnostic_label(checked)
+                .diagnostic_label(typed)
                 .ok_or_else(|| {
                     diagnostics::Diagnostic::error(format!(
                         "selected boundary-requirement ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
                         plan.name,
                     ))
                 })?;
-            if !requirement.intrinsic_realization_matches(checked, machine) {
+            if !requirement.intrinsic_realization_matches(typed, machine) {
                 return Err(diagnostics::Diagnostic::error(format!(
                     "selected boundary-requirement ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact slot `{slot}` as an external leaf",
                     plan.name,
@@ -202,22 +209,20 @@ fn selected_requirement_provider_evidence(
 }
 
 fn selected_operator_provider_evidence(
-    checked: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     candidates: &[ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
     operator_symbol: symbols::SymbolHandle,
     use_site: Option<checked_trees::CheckedBoundaryOperatorApplicationUseSite>,
 ) -> Result<(), diagnostics::Diagnostic> {
-    let Some(operator) = checked.typed.operator_definition_by_symbol(operator_symbol) else {
+    let Some(operator) = typed.operator_definition_by_symbol(operator_symbol) else {
         return Ok(());
     };
     let slot = checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
-        checked, operator,
+        typed, operator,
     );
-    let operator_package = checked
-        .typed
-        .symbols
-        .symbol_package_identity(operator.symbol);
+    let operator_package = typed.symbols.symbol_package_identity(operator.symbol);
     // Canonical overload identities are package-blind; every candidate and
     // selected-plan join must also bind the exact declaration package or a
     // same-spelled foreign coordinate would substitute for this slot.
@@ -254,7 +259,7 @@ fn selected_operator_provider_evidence(
         machine_package_identity,
     } = &row.binding
     {
-        let [namespace, requirement] = checked.operator_path_members(operator.name) else {
+        let [namespace, requirement] = typed.operator_path_members(operator.name) else {
             return Err(diagnostics::Diagnostic::error(format!(
                 "selected checked boundary-operator ProviderPlan `{}` targets `{slot}`, whose source path is not the supported `Namespace::requirement` shape",
                 plan.name,
@@ -278,7 +283,7 @@ fn selected_operator_provider_evidence(
                         ));
                     }
                 };
-                if use_site_is_generic_template(checked, origin) {
+                if use_site_is_generic_template(typed, origin) {
                     // Generic templates are not executable provider evidence,
                     // even when one call happens not to mention a template
                     // binder. Concrete clones are annotated independently
@@ -286,8 +291,7 @@ fn selected_operator_provider_evidence(
                     // still requires exactly one closed demand below.
                     return Ok(());
                 }
-                let matching = checked
-                    .facts
+                let matching = check_facts
                     .operators
                     .boundary_applications
                     .iter()
@@ -306,19 +310,19 @@ fn selected_operator_provider_evidence(
             }
         };
         let direct_provider = exact_checked_adapter(
-            crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
+            crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
             plan,
             row,
         );
         let specialized_providers = specialized_provider_machines(
-            checked,
+            typed,
             plan.identity_text(*machine_identity),
             *machine_package_identity,
             operator.symbol,
             |realization| {
                 demanded_application.is_none_or(|application| {
                     checked_trees::operators::checked_operator_application_matches_realization(
-                        checked,
+                        typed,
                         application,
                         realization,
                     )
@@ -346,20 +350,19 @@ fn selected_operator_provider_evidence(
             }
         };
         let satisfies_slot = checked_providers.iter().all(|checked_provider| {
-            checked
-                .typed
+            typed
                 .machine_trait_conformances(checked_provider)
                 .iter()
                 .any(|conformance| {
                     conformance.external_binding.is_none()
                         && (checked_trees::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
-                            checked,
+                            typed,
                             checked_provider,
                             conformance,
                         )
                         .is_some_and(|resolved| resolved.symbol == operator.symbol)
                             || checked_trees::typed_trees::operator::resolve_specialized_checked_operator_application(
-                                checked,
+                                typed,
                                 checked_provider,
                                 namespace.as_str(),
                                 requirement.as_str(),
@@ -382,15 +385,15 @@ fn selected_operator_provider_evidence(
             plan.name, row.binding,
         )));
     };
-    let requirement = crate::IntrinsicRequirement::from_operator(checked, operator)
-        .filter(|requirement| requirement.diagnostic_label(checked).is_some())
+    let requirement = crate::IntrinsicRequirement::from_operator(typed, operator)
+        .filter(|requirement| requirement.diagnostic_label(typed).is_some())
         .ok_or_else(|| {
             diagnostics::Diagnostic::error(format!(
                 "selected boundary-operator ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
                 plan.name,
             ))
         })?;
-    if !requirement.intrinsic_realization_matches(checked, machine) {
+    if !requirement.intrinsic_realization_matches(typed, machine) {
         return Err(diagnostics::Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact slot `{slot}` as an external leaf",
             plan.name,
@@ -409,32 +412,29 @@ fn selected_operator_provider_evidence(
 /// adapter never serves a generic template's use (its concrete clones are
 /// served instead).
 pub fn selected_use_plan<'a>(
-    checked: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
     scope: source::DependencyScope,
     plans: &'a [ProviderPlan],
     requirement: symbols::SymbolHandle,
     origin: checked_trees::CheckedValueOrigin,
 ) -> Option<(usize, &'a ProviderPlan)> {
     if let checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. } = origin
-        && !checked.typed.machine(machine_symbol).is_some()
+        && !typed.machine(machine_symbol).is_some()
     {
         return None;
     }
     let (index, plan) = selected_requirement_plan(
-        crate::ProviderPlanningContext::new(checked, scope),
+        crate::ProviderPlanningContext::new(typed, scope),
         plans,
         requirement,
     )?;
-    let is_operator = checked
-        .typed
-        .operator_definition_by_symbol(requirement)
-        .is_some();
+    let is_operator = typed.operator_definition_by_symbol(requirement).is_some();
     if is_operator
         && matches!(
             plan.rows.as_slice(),
             [row] if matches!(row.binding, ProviderBinding::CheckedAdapter { .. })
         )
-        && use_site_is_generic_template(checked, origin)
+        && use_site_is_generic_template(typed, origin)
     {
         return None;
     }
@@ -489,16 +489,15 @@ pub fn selected_requirement_plan<'a>(
 }
 
 fn use_site_is_generic_template(
-    checked: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
     origin: checked_trees::CheckedValueOrigin,
 ) -> bool {
     let checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. } = origin else {
         return false;
     };
-    checked
-        .typed
+    typed
         .machine(machine_symbol)
-        .is_some_and(|machine| !checked.machine_type_parameters(machine).is_empty())
+        .is_some_and(|machine| !typed.machine_type_parameters(machine).is_empty())
 }
 
 pub(crate) fn provider_type_package_identity(
@@ -529,7 +528,7 @@ pub(crate) fn provider_type_symbol(
 /// adapter (which requires a present application match): the absent-vs-present
 /// policy stays in each caller's `application_matches`.
 pub fn specialized_provider_machines<'checked>(
-    checked: &'checked checked_trees::CheckedTrees,
+    typed: &'checked checked_trees::typed_trees::TypedTrees,
     machine_identity: &str,
     machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     requirement_symbol: symbols::SymbolHandle,
@@ -537,13 +536,12 @@ pub fn specialized_provider_machines<'checked>(
         &checked_trees::typed_trees::operator::ClosedOperatorRealizationApplication,
     ) -> bool,
 ) -> Vec<&'checked checked_trees::typed_trees::machine::Machine> {
-    checked
-        .typed
+    typed
         .machine_specializations
         .iter()
         .filter(|specialization| {
             checked_trees::typed_trees::machine_specialization_matches_template_identity(
-                &checked.typed,
+                typed,
                 specialization,
                 machine_identity,
                 machine_package_identity,
@@ -555,13 +553,9 @@ pub fn specialized_provider_machines<'checked>(
                         && application_matches(realization)
                 })
         })
-        .filter_map(|specialization| checked.machine(specialization.instance))
+        .filter_map(|specialization| typed.machine(specialization.instance))
         .filter(|machine| {
-            checked
-                .typed
-                .symbols
-                .symbol_package_identity(machine.symbol)
-                == machine_package_identity
+            typed.symbols.symbol_package_identity(machine.symbol) == machine_package_identity
         })
         .collect()
 }

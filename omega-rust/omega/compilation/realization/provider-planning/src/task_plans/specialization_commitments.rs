@@ -7,12 +7,11 @@ use diagnostics::Diagnostic;
 use task_plans::{TaskSpecializationCommitment, TaskStartOperation};
 
 pub(crate) fn exact_task_machine_contract<'program>(
-    program: &'program CheckedTrees,
+    check_facts: &'program checked_trees::CheckFacts,
     machine: symbols::SymbolHandle,
     machine_name: &str,
 ) -> Result<&'program checked_trees::MachineContractPlan, Vec<Diagnostic>> {
-    let mut matches = program
-        .facts
+    let mut matches = check_facts
         .contract_plans
         .machines
         .iter()
@@ -30,22 +29,23 @@ pub(crate) fn exact_task_machine_contract<'program>(
     Ok(plan)
 }
 
-pub(crate) fn task_specialization_commitment(
-    program: &CheckedTrees,
+pub(crate) fn task_specialization_commitment<'program>(
+    typed: &'program checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     selection: &TaskStartSelection,
     target_machine: &checked_trees::machine::Machine,
     target_entry: &checked_trees::state::State,
     target_contract: &checked_trees::MachineContractPlan,
     requirement_identity: &str,
 ) -> Result<TaskSpecializationCommitment, Vec<Diagnostic>> {
-    let requirement_owner = program
+    let requirement_owner = typed
         .trait_definition_by_symbol(selection.requirement_owner)
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "task specialization is missing its exact TaskRuntime requirement owner",
             )]
         })?;
-    let requirement = program
+    let requirement = typed
         .trait_machine_signature_by_symbol(requirement_owner, selection.requirement)
         .ok_or_else(|| {
             vec![Diagnostic::error(
@@ -53,7 +53,7 @@ pub(crate) fn task_specialization_commitment(
             )]
         })?;
     let normalized_requirement =
-        program.trait_requirement_callable_identity_text(requirement_owner, requirement);
+        typed.trait_requirement_callable_identity_text(requirement_owner, requirement);
     if normalized_requirement != requirement_identity {
         return Err(vec![Diagnostic::error(
             "task specialization selected-runtime requirement differs from its exact checked requirement",
@@ -63,32 +63,32 @@ pub(crate) fn task_specialization_commitment(
     let mut strong = ExactSpecializationEncoder::new();
     strong.string(normalized_requirement.as_str());
     strong.optional_digest(
-        program
+        typed
             .symbols
             .symbol_package_identity(requirement_owner.symbol)
             .map(|identity| identity.digest()),
     );
     let mut requirement_binders = vec![(requirement_owner.symbol, "$Self".to_owned())];
     requirement_binders.extend(
-        program
+        typed
             .trait_type_parameters(requirement_owner)
             .iter()
-            .chain(program.state_signature_type_parameters(requirement))
+            .chain(typed.state_signature_type_parameters(requirement))
             .enumerate()
             .filter(|(_, parameter)| parameter.symbol.is_valid())
             .map(|(index, parameter)| (parameter.symbol, format!("$T{index}"))),
     );
-    let requirement_parameters = program.state_signature_parameters(requirement);
+    let requirement_parameters = typed.state_signature_parameters(requirement);
     strong.length(requirement_parameters.len());
     for parameter in requirement_parameters {
         strong.byte(u8::from(parameter.is_mutable));
         strong.byte(u8::from(parameter.is_const));
-        strong.string(&program.type_identity_request_text(TypeIdentityRequest {
+        strong.string(&typed.type_identity_request_text(TypeIdentityRequest {
             binders: &requirement_binders,
             ..TypeIdentityRequest::package_qualified(parameter.type_reference)
         }));
     }
-    strong.string(&program.type_identity_request_text(TypeIdentityRequest {
+    strong.string(&typed.type_identity_request_text(TypeIdentityRequest {
         binders: &requirement_binders,
         ..TypeIdentityRequest::package_qualified(requirement.return_type)
     }));
@@ -96,10 +96,10 @@ pub(crate) fn task_specialization_commitment(
         TaskStartOperation::Start => 1,
         TaskStartOperation::TryStart => 2,
     });
-    strong.machine(program, target_machine)?;
-    strong.state(program, target_machine, target_entry);
+    strong.machine(typed, target_machine)?;
+    strong.state(typed, target_machine, target_entry);
     strong.digest(target_contract.commitment.as_bytes());
-    strong.target_machine_specialization(program, target_machine.symbol)?;
+    strong.target_machine_specialization(typed, check_facts, target_machine.symbol)?;
     Ok(strong.finish())
 }
 
@@ -150,12 +150,13 @@ impl ExactSpecializationEncoder {
         self.0.optional_string(value);
     }
 
-    fn target_machine_specialization(
+    fn target_machine_specialization<'program>(
         &mut self,
-        program: &CheckedTrees,
+        typed: &'program checked_trees::typed_trees::TypedTrees,
+        check_facts: &checked_trees::CheckFacts,
         target_machine: symbols::SymbolHandle,
     ) -> Result<(), Vec<Diagnostic>> {
-        let mut matches = program
+        let mut matches = typed
             .machine_specializations
             .iter()
             .filter(|specialization| specialization.instance == target_machine);
@@ -169,10 +170,10 @@ impl ExactSpecializationEncoder {
             )]);
         }
         self.byte(1);
-        let template = exact_specialization_machine(program, specialization.template, "template")?;
-        self.machine(program, template)?;
+        let template = exact_specialization_machine(typed, specialization.template, "template")?;
+        self.machine(typed, template)?;
         self.digest(
-            exact_task_machine_contract(program, template.symbol, template.name.as_str())?
+            exact_task_machine_contract(check_facts, template.symbol, template.name.as_str())?
                 .commitment
                 .as_bytes(),
         );
@@ -182,17 +183,21 @@ impl ExactSpecializationEncoder {
 
         self.length(specialization.machine_arguments.len());
         for argument in &specialization.machine_arguments {
-            let (owner, state) =
-                unique_task_activation_target(program, *argument).map_err(|error| {
+            let (owner, state) = unique_task_activation_target(
+                typed,
+                check_facts,
+                *argument,
+            )
+            .map_err(|error| {
                     vec![Diagnostic::error(format!(
                     "task specialization static machine argument has no exact semantic target: {}",
                     error.message()
                 ))]
                 })?;
-            self.machine(program, owner)?;
-            self.state(program, owner, state);
+            self.machine(typed, owner)?;
+            self.state(typed, owner, state);
             self.digest(
-                exact_task_machine_contract(program, owner.symbol, owner.name.as_str())?
+                exact_task_machine_contract(check_facts, owner.symbol, owner.name.as_str())?
                     .commitment
                     .as_bytes(),
             );
@@ -217,7 +222,7 @@ impl ExactSpecializationEncoder {
         }
         let operator_realizations =
             checked_trees::typed_trees::operator::canonical_closed_operator_realization_bytes(
-                &program.typed,
+                &typed,
                 specialization.instance,
                 &specialization.operator_realizations,
             )
@@ -230,12 +235,12 @@ impl ExactSpecializationEncoder {
         Ok(())
     }
 
-    fn machine(
+    fn machine<'program>(
         &mut self,
-        program: &CheckedTrees,
+        typed: &'program checked_trees::typed_trees::TypedTrees,
         machine: &checked_trees::machine::Machine,
     ) -> Result<(), Vec<Diagnostic>> {
-        let identity = program
+        let identity = typed
             .machine_callable_identity_text(machine)
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
@@ -245,7 +250,7 @@ impl ExactSpecializationEncoder {
             })?;
         self.string(identity.as_str());
         self.optional_digest(
-            program
+            typed
                 .symbols
                 .symbol_package_identity(machine.symbol)
                 .map(|identity| identity.digest()),
@@ -253,22 +258,22 @@ impl ExactSpecializationEncoder {
         Ok(())
     }
 
-    fn state(
+    fn state<'program>(
         &mut self,
-        program: &CheckedTrees,
+        typed: &'program checked_trees::typed_trees::TypedTrees,
         owner: &checked_trees::machine::Machine,
         state: &checked_trees::state::State,
     ) {
         self.string(owner.name.as_str());
         self.string(state.name.as_str());
-        let parameters = program.state_parameters(state);
+        let parameters = typed.state_parameters(state);
         self.length(parameters.len());
         for parameter in parameters {
             self.byte(u8::from(parameter.is_mutable));
             self.byte(u8::from(parameter.is_const));
-            self.string(&program.package_qualified_type_identity_text(parameter.type_reference));
+            self.string(&typed.package_qualified_type_identity_text(parameter.type_reference));
         }
-        self.string(&program.package_qualified_type_identity_text(state.return_type));
+        self.string(&typed.package_qualified_type_identity_text(state.return_type));
     }
 
     fn finish(self) -> TaskSpecializationCommitment {
@@ -277,11 +282,11 @@ impl ExactSpecializationEncoder {
 }
 
 fn exact_specialization_machine<'program>(
-    program: &'program CheckedTrees,
+    typed: &'program checked_trees::typed_trees::TypedTrees,
     symbol: symbols::SymbolHandle,
     role: &str,
 ) -> Result<&'program checked_trees::machine::Machine, Vec<Diagnostic>> {
-    let mut matches = program
+    let mut matches = typed
         .machines()
         .iter()
         .filter(|machine| machine.symbol == symbol);

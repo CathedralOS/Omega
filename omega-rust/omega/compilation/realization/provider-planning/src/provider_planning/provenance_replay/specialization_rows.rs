@@ -20,7 +20,8 @@ use crate::provider_planning::ProviderBinding;
 mod trait_requirements;
 
 pub(crate) fn derive_selected_requirement_specializations(
-    checked: &checked_trees::CheckedTrees,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<
     (
@@ -29,14 +30,20 @@ pub(crate) fn derive_selected_requirement_specializations(
     ),
     Vec<diagnostics::Diagnostic>,
 > {
-    let typed = checked;
     let provider_context =
         crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     let mut diagnostics = Vec::new();
     let mut rows = Vec::new();
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     for plan in selected.plans() {
-        trait_requirements::append(checked, plan, &mut rows, &mut identities, &mut diagnostics);
+        trait_requirements::append(
+            typed,
+            check_facts,
+            plan,
+            &mut rows,
+            &mut identities,
+            &mut diagnostics,
+        );
         let templates = typed
             .machines()
             .iter()
@@ -126,7 +133,9 @@ pub(crate) fn derive_selected_requirement_specializations(
                     )));
                     continue;
                 }
-                let Some(closed) = satisfied_row_requirement(checked, instance, template) else {
+                let Some(closed) =
+                    satisfied_row_requirement(typed, check_facts, instance, template)
+                else {
                     diagnostics.push(diagnostics::Diagnostic::error(format!(
                         "selected provider instance `{}` realizes requirement template `{}` without one exact closed requirement",
                         instance.name, template.name,
