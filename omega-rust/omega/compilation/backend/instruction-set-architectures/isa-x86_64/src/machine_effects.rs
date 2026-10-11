@@ -415,92 +415,14 @@ fn declaration(
                 size(semantic),
             )]
         }
-        MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::WrappingSubtractI64 => vec![
-            alternative(
-                semantic,
-                0,
-                MachineAlternativeApplicability::ResultAliasesOperands {
-                    result: 2,
-                    left: 0,
-                    right: 1,
-                },
-                MachineSizeKnowledge::ExactBytes(3),
-            ),
-            alternative(
-                semantic,
-                1,
-                MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                    result: 2,
-                    aliased_operand: 0,
-                    distinct_operand: 1,
-                },
-                MachineSizeKnowledge::ExactBytes(3),
-            ),
-            alternative(
-                semantic,
-                2,
-                MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                    result: 2,
-                    aliased_operand: 1,
-                    distinct_operand: 0,
-                },
-                MachineSizeKnowledge::ExactBytes(6),
-            ),
-            alternative(
-                semantic,
-                3,
-                MachineAlternativeApplicability::ResultDistinctFromOperands {
-                    result: 2,
-                    left: 0,
-                    right: 1,
-                },
-                MachineSizeKnowledge::ExactBytes(6),
-            ),
-        ],
+        MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::WrappingSubtractI64 => {
+            binary_alias_ladder(semantic, [3, 3, 6, 6])
+        }
         // `imul r64, r64` is one REX.W + 0F AF form in every alias case; only
         // the distinct-result variant prepends a three-byte `mov`.
-        MachineSemanticKind::ExactMultiplyI64 | MachineSemanticKind::WrappingMultiplyI64 => vec![
-            alternative(
-                semantic,
-                0,
-                MachineAlternativeApplicability::ResultAliasesOperands {
-                    result: 2,
-                    left: 0,
-                    right: 1,
-                },
-                MachineSizeKnowledge::ExactBytes(4),
-            ),
-            alternative(
-                semantic,
-                1,
-                MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                    result: 2,
-                    aliased_operand: 0,
-                    distinct_operand: 1,
-                },
-                MachineSizeKnowledge::ExactBytes(4),
-            ),
-            alternative(
-                semantic,
-                2,
-                MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                    result: 2,
-                    aliased_operand: 1,
-                    distinct_operand: 0,
-                },
-                MachineSizeKnowledge::ExactBytes(4),
-            ),
-            alternative(
-                semantic,
-                3,
-                MachineAlternativeApplicability::ResultDistinctFromOperands {
-                    result: 2,
-                    left: 0,
-                    right: 1,
-                },
-                MachineSizeKnowledge::ExactBytes(7),
-            ),
-        ],
+        MachineSemanticKind::ExactMultiplyI64 | MachineSemanticKind::WrappingMultiplyI64 => {
+            binary_alias_ladder(semantic, [4, 4, 4, 7])
+        }
         MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ConditionalBranchI64LessThan => vec![alternative(
             semantic,
@@ -572,6 +494,57 @@ fn declaration(
         cleanup: MachineCleanupEffect::NoneV1,
         alternatives,
     }
+}
+
+/// Two-input ops that define a third result home run the same four-way
+/// ladder: both operands aliased together, each operand aliased alone and
+/// the distinct-result variant. Only the encoded sizes differ per family.
+fn binary_alias_ladder(
+    semantic: MachineSemanticKind,
+    sizes: [u16; 4],
+) -> Vec<MachineAlternative> {
+    vec![
+        alternative(
+            semantic,
+            0,
+            MachineAlternativeApplicability::ResultAliasesOperands {
+                result: 2,
+                left: 0,
+                right: 1,
+            },
+            MachineSizeKnowledge::ExactBytes(sizes[0]),
+        ),
+        alternative(
+            semantic,
+            1,
+            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+                result: 2,
+                aliased_operand: 0,
+                distinct_operand: 1,
+            },
+            MachineSizeKnowledge::ExactBytes(sizes[1]),
+        ),
+        alternative(
+            semantic,
+            2,
+            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+                result: 2,
+                aliased_operand: 1,
+                distinct_operand: 0,
+            },
+            MachineSizeKnowledge::ExactBytes(sizes[2]),
+        ),
+        alternative(
+            semantic,
+            3,
+            MachineAlternativeApplicability::ResultDistinctFromOperands {
+                result: 2,
+                left: 0,
+                right: 1,
+            },
+            MachineSizeKnowledge::ExactBytes(sizes[3]),
+        ),
+    ]
 }
 
 fn alternative(
