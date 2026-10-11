@@ -3339,10 +3339,12 @@ of a check the same flow already performed, not the check itself.
   The two excluded float cases now have one checked and one timeout at 360s
   on that producer. Attribute these remaining reds on the integrated compiler
   before full qualification; fixed-producer evidence is not latest-main
-  acceptance. Keep closed Console catalog identity with
-  **PIPELINE-ARCHITECTURE-ENFORCEMENT**. Include owned projected locals through
-  returns and constructor captures, sibling mutations and independent result
-  regions; continuation transport must retain both storage root and field path.
+  acceptance. Keep closed Console catalog identity and dependency entry-binding
+  approval with **PIPELINE-ARCHITECTURE-ENFORCEMENT**; the public
+  `record_array_field_access_exit` run still needs that approval. Include owned
+  projected locals, constructor captures and fixed-array slot replacements
+  through calls; preserve sibling loans and reject callee-local backing escapes.
+  Continuation transport must retain both storage root and field path.
   Keep
   computed indices, renamed/permuted binders and independent result regions in
   qualification; private implementation summaries cannot supply missing abstract

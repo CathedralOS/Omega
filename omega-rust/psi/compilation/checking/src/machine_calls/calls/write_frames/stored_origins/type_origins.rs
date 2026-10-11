@@ -1,5 +1,8 @@
 //! Type-derived symbolic origins for owned aggregate values. Cases are possible,
-//! not selected by a constructor; arrays retain one unknown-element selector.
+//! not selected by a constructor. Fixed arrays retain distinct element slots;
+//! slices retain an unknown-element selector. Expand fixed coordinates only
+//! when a reference, opaque region or case is found: a large scalar array
+//! must not manufacture a walk node per element.
 //! Opaque members retain an unknown region, not an empty reference inventory.
 //! A disjoint member write can then keep its footprint without granting any
 //! knowledge of the opaque member's contents or their caller-visible effects.
@@ -41,9 +44,9 @@ pub(in crate::machine_calls::calls::write_frames) fn declared_origins_for_query(
     )
 }
 
-/// Whether the type's owned structure contains a sum case, under the same
-/// admission rules as `declared_origins`. It walks the same structure but
-/// builds no leaf paths.
+/// Whether the type's owned borrow-carrying structure contains a sum case,
+/// under the same admission rules as `declared_origins`. It walks the same
+/// structure but builds no leaf paths.
 pub(in crate::machine_calls::calls::write_frames) fn declares_cases(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
@@ -80,6 +83,7 @@ struct WalkStep {
     /// allocates its result once.
     depth: u32,
     scope: usize,
+    fixed_extent: Option<usize>,
 }
 
 #[derive(Default)]
@@ -104,6 +108,7 @@ impl TypeWalk {
             segment,
             depth,
             scope: parent.map_or(0, |parent| self.steps[parent as usize].scope),
+            fixed_extent: None,
         });
         Some(step)
     }
@@ -141,6 +146,28 @@ impl TypeWalk {
         }
         segments
     }
+
+    fn paths(&self, step: u32) -> Vec<Vec<PlaceSegment>> {
+        let mut paths = vec![self.segments(step)];
+        let mut current = Some(step);
+        while let Some(step) = current {
+            let step = self.steps[step as usize];
+            if let Some(extent) = step.fixed_extent {
+                paths = paths
+                    .into_iter()
+                    .flat_map(|path| {
+                        (0..extent).map(move |index| {
+                            let mut selected = path.clone();
+                            selected[step.depth as usize - 1] = PlaceSegment::FixedIndex { index };
+                            selected
+                        })
+                    })
+                    .collect();
+            }
+            current = step.parent;
+        }
+        paths
+    }
 }
 
 fn walk_declared_origins(
@@ -151,6 +178,7 @@ fn walk_declared_origins(
     include_shared: bool,
     detail: OriginDetail,
 ) -> Option<StoredLocalOrigins> {
+    let root_reference = reference;
     let mut origins = StoredLocalOrigins {
         local_symbol: symbol,
         references: Vec::new(),
@@ -158,6 +186,13 @@ fn walk_declared_origins(
         moves: Vec::new(),
         symbolic: true,
     };
+    // This inventory transports aliases, not ordinary case values. A complete
+    // reference-free shape contributes no loan identity, even when its arrays
+    // contain many scalar cases. Reuse the capability proof (which excludes
+    // opaque and unresolved storage) before materializing any slot paths.
+    if super::super::type_capabilities::type_is_reference_free_value(program, reference, &[]) {
+        return Some(origins);
+    }
     let mut walk = TypeWalk::default();
     let mut pending = vec![walk.push(None, reference, None)?];
     while let Some(step) = pending.pop() {
@@ -189,32 +224,34 @@ fn walk_declared_origins(
                 if detail == OriginDetail::ShapeOnly {
                     continue;
                 }
-                let segments = walk.segments(step);
-                let (path, precision) =
-                    super::super::place_paths::coordinate_storage_path(program, name, &segments);
-                origins.references.push(StoredWriteOrigin {
-                    local_symbol: symbol,
-                    local_path: path.clone(),
-                    local_segments: segments.clone(),
-                    // Crossing another reference boundary cannot be represented
-                    // by path substitution. Keep the leaf, without claiming a
-                    // source: disjoint fields remain independently writable.
-                    origin: super::super::reference_origins::referent_has_only_owned_storage(
-                        program, *referee,
-                    )
-                    .then_some(FramePlaceOrigin {
-                        path,
-                        precision,
-                        source: super::super::FrameSourcePlace {
-                            recasts: Vec::new(),
-                            representation: None,
-                            kind: Default::default(),
-                            root: symbol,
-                            segments,
-                            builtin_coordinates: symbol.is_valid(),
-                        },
-                    }),
-                });
+                for segments in walk.paths(step) {
+                    let (path, precision) = super::super::place_paths::coordinate_storage_path(
+                        program, name, &segments,
+                    );
+                    origins.references.push(StoredWriteOrigin {
+                        local_symbol: symbol,
+                        local_path: path.clone(),
+                        local_segments: segments.clone(),
+                        // Crossing another reference boundary cannot be represented
+                        // by path substitution. Keep the leaf, without claiming a
+                        // source: disjoint fields remain independently writable.
+                        origin: super::super::reference_origins::referent_has_only_owned_storage(
+                            program, *referee,
+                        )
+                        .then_some(FramePlaceOrigin {
+                            path,
+                            precision,
+                            source: super::super::FrameSourcePlace {
+                                recasts: Vec::new(),
+                                representation: None,
+                                kind: Default::default(),
+                                root: symbol,
+                                segments,
+                                builtin_coordinates: symbol.is_valid(),
+                            },
+                        }),
+                    });
+                }
             }
             TypeReferenceNode::FixedArray {
                 length: FixedArrayLength::Literal(0),
@@ -222,9 +259,17 @@ fn walk_declared_origins(
             } => {}
             TypeReferenceNode::FixedArray {
                 element_type,
-                length: FixedArrayLength::Literal(_),
+                length: FixedArrayLength::Literal(length),
+            } => {
+                let element = walk.push(
+                    Some(step),
+                    *element_type,
+                    Some(PlaceSegment::FixedIndex { index: 0 }),
+                )?;
+                walk.steps[element as usize].fixed_extent = Some(*length);
+                pending.push(element);
             }
-            | TypeReferenceNode::Slice { element_type } => {
+            TypeReferenceNode::Slice { element_type } => {
                 // This is a storage inventory, not evidence that any element
                 // exists or that the caller may access one.
                 let selector = PlaceSegment::Index {
@@ -244,18 +289,55 @@ fn walk_declared_origins(
                     // exact-origin queries still fail closed. Rejecting the whole
                     // inventory instead loses independently declared siblings.
                     if detail == OriginDetail::Paths {
-                        let segments = walk.segments(step);
-                        let (path, _) = super::super::place_paths::coordinate_storage_path(
-                            program, name, &segments,
-                        );
-                        origins.references.push(StoredWriteOrigin {
-                            local_symbol: origins.local_symbol,
-                            local_path: path,
-                            local_segments: segments,
-                            origin: None,
-                        });
+                        for segments in walk.paths(step) {
+                            let (path, _) = super::super::place_paths::coordinate_storage_path(
+                                program, name, &segments,
+                            );
+                            origins.references.push(StoredWriteOrigin {
+                                local_symbol: origins.local_symbol,
+                                local_path: path,
+                                local_segments: segments,
+                                origin: None,
+                            });
+                        }
                     }
                     continue;
+                }
+                // Only the case-bearing value needs whole-subtree identity.
+                // A record enclosing it has independently replaceable siblings;
+                // claiming that whole record as one move prevents their transfer.
+                if detail == OriginDetail::Paths
+                    && program
+                        .data_members(definition)
+                        .iter()
+                        .any(|member| matches!(member, DataMember::Variant(_)))
+                {
+                    for segments in walk.paths(step) {
+                        if origins
+                            .moves
+                            .iter()
+                            .any(|moved| segments.starts_with(&moved.local_segments))
+                        {
+                            continue;
+                        }
+                        let type_reference = super::projections::projected_storage_type(
+                            program,
+                            root_reference,
+                            &segments,
+                        )?;
+                        origins.moves.push(
+                            super::super::path_instantiation::aggregate_arguments::AggregateMove {
+                                local_segments: segments.clone(),
+                                source: super::super::FrameSourcePlace {
+                                    root: symbol,
+                                    segments,
+                                    builtin_coordinates: symbol.is_valid(),
+                                    ..Default::default()
+                                },
+                                type_reference,
+                            },
+                        );
+                    }
                 }
                 for member in program.data_members(definition) {
                     match member {
@@ -280,10 +362,10 @@ fn walk_declared_origins(
                                     variant: variant.symbol,
                                 }),
                             )?;
-                            origins.cases.push(match detail {
-                                OriginDetail::Paths => walk.segments(case),
-                                OriginDetail::ShapeOnly => Vec::new(),
-                            });
+                            match detail {
+                                OriginDetail::Paths => origins.cases.extend(walk.paths(case)),
+                                OriginDetail::ShapeOnly => origins.cases.push(Vec::new()),
+                            }
                             for field in program.data_payload_fields(variant) {
                                 push_field(
                                     program,
@@ -300,22 +382,6 @@ fn walk_declared_origins(
             }
             _ => return None,
         }
-    }
-    if !origins.cases.is_empty() {
-        origins.moves.push(
-            super::super::path_instantiation::aggregate_arguments::AggregateMove {
-                local_segments: Vec::new(),
-                source: super::super::FrameSourcePlace {
-                    recasts: Vec::new(),
-                    representation: None,
-                    kind: Default::default(),
-                    root: origins.local_symbol,
-                    segments: Vec::new(),
-                    builtin_coordinates: origins.local_symbol.is_valid(),
-                },
-                type_reference: reference,
-            },
-        );
     }
     Some(origins)
 }

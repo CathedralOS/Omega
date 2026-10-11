@@ -609,22 +609,25 @@ fn argument_origin(
     if !source.root.is_valid() || !source.builtin_coordinates {
         return None;
     }
+    let (path, precision) = super::place_paths::coordinate_storage_path(
+        program,
+        program.symbols.name(source.root),
+        &source.segments,
+    );
     Some(FramePlaceOrigin {
-        path: path(program, &source),
-        precision: FramePathPrecision::Exact,
+        path,
+        precision,
         source,
     })
 }
 
 fn path(program: &dyn crate::CheckingInput, source: &FrameSourcePlace) -> String {
-    let mut path = program.symbols.name(source.root).to_owned();
-    for segment in &source.segments {
-        if let PlaceSegment::Field { symbol } = segment {
-            path.push('.');
-            path.push_str(program.symbols.name(*symbol));
-        }
-    }
-    path
+    super::place_paths::coordinate_storage_path(
+        program,
+        program.symbols.name(source.root),
+        &source.segments,
+    )
+    .0
 }
 
 pub(super) fn apply(

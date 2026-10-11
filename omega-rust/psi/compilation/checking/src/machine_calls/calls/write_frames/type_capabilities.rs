@@ -44,7 +44,7 @@ pub(super) fn parameter_may_carry_write(
 /// boundary data has no declared members to inspect, so the second walk
 /// excludes it rather than trusting an empty field roster. Slice carriers
 /// keep their conservative classification below.
-fn type_is_reference_free_value(
+pub(super) fn type_is_reference_free_value(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],

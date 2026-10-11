@@ -27,8 +27,8 @@ mod projections;
 mod reference_values;
 mod type_origins;
 
-/// Case evidence also matters for payloads with no exclusive references. It
-/// cannot be discovered by asking whether a local contributes writes.
+/// Shared-reference alternatives need case evidence even without exclusive
+/// writes. An entirely reference-free value has no case-dependent loan topology.
 pub(super) fn has_aggregate_case_shape(
     program: &dyn crate::CheckingInput,
     reference: super::TypeReferenceHandle,
@@ -439,6 +439,17 @@ pub(super) fn canonical_origins(
     let mut origins = Vec::new();
     let mut includes_private = true;
     for leaf in stored.iter().flat_map(|local| &local.references) {
+        // Image-backed descriptors name immutable storage, not a caller write
+        // path. Their empty source spelling must not become an unresolved write.
+        // expand_write_path separately retains the containing slot's storage;
+        // replacement still invalidates that slot and access checking is unchanged.
+        if leaf
+            .origin
+            .as_ref()
+            .is_some_and(|origin| origin.source.is_static())
+        {
+            continue;
+        }
         let source = if let Some(suffix) = place_suffix(&leaf.local_path, &origin.path) {
             includes_private = false;
             let precision = if leaf.local_segments.iter().any(|segment| {

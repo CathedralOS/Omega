@@ -1,12 +1,13 @@
 //! Assigned carriers transfer their exact origins into the binding's stored
 //! rows, the same whole-subtree ownership an instantiated move relies on.
-//! Exact subtrees replace their prior rows. Indexed storage writes retain the
-//! collection footprint and forget overlapping reference identities: a coarse
-//! write cannot establish which element was replaced. Neither operation grants
+//! Exact field and fixed-element subtrees replace their prior rows. Dynamic
+//! indexed writes forget overlapping reference identities: an unknown selector
+//! cannot establish which element was replaced. Coarse write footprints do not
+//! erase independently established structural slot coordinates. Neither operation grants
 //! access permission, and later reference demands still need proven origins.
 
 use super::super::path_instantiation::aggregate_arguments::reference_leaves;
-use super::super::place_paths::append_place_suffix;
+use super::super::place_paths::{FramePathPrecision, append_place_suffix, coordinate_storage_path};
 use super::super::reference_origins::exclusive_reference_origins;
 use super::super::reference_subjects;
 use super::super::{FrameInference, FramePlaceOrigin, Machine, TopLevelSymbols};
@@ -81,7 +82,7 @@ fn assigned_stored_origins(
     include_shared: bool,
 ) -> Option<StoredLocalOrigins> {
     let source = binding_source(program, assignment.target, aliases)?;
-    if !source.root.is_valid() {
+    if !source.root.is_valid() || !source.builtin_coordinates {
         return None;
     }
     let declaration = program.symbols.get(source.root);
@@ -120,12 +121,11 @@ fn assigned_stored_origins(
     let established = stored
         .iter()
         .find(|local| local.local_symbol == source.root);
-    if let Some(collection_depth) = source.segments.iter().position(|segment| {
-        matches!(
-            segment,
-            PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. }
-        )
-    }) {
+    if let Some(collection_depth) = source
+        .segments
+        .iter()
+        .position(|segment| matches!(segment, PlaceSegment::Index { .. }))
+    {
         let root_type = program
             .state_parameter_by_symbol(state, source.root)
             .map(|parameter| parameter.type_reference)
@@ -241,15 +241,8 @@ fn assigned_stored_origins(
         .moves
         .retain(|moved| !prefix_matches(&source.segments, &moved.local_segments));
     replaced.symbolic = false;
-    let mut target_path = program.symbols.name(source.root).to_owned();
-    for segment in &source.segments {
-        // Selected case arms own no name segment in the local spelling; only
-        // fields contribute, matching the declared leaf-path convention.
-        if let PlaceSegment::Field { symbol } = segment {
-            target_path.push('.');
-            target_path.push_str(program.symbols.name(*symbol));
-        }
-    }
+    let (target_path, precision) =
+        coordinate_storage_path(program, program.symbols.name(source.root), &source.segments);
     for leaf in leaves.references {
         // Shared-value producers already captured their reference boundary.
         // Resolving that value through the current slot again would redirect
@@ -264,7 +257,12 @@ fn assigned_stored_origins(
             local_segments.extend(leaf.local_segments.iter().copied());
             replaced.references.push(StoredWriteOrigin {
                 local_symbol: source.root,
-                local_path: append_place_suffix(&target_path, &leaf.local_suffix),
+                local_path: match precision {
+                    FramePathPrecision::Exact => {
+                        append_place_suffix(&target_path, &leaf.local_suffix)
+                    }
+                    FramePathPrecision::CollectionCoarse => target_path.clone(),
+                },
                 local_segments,
                 origin,
             });
