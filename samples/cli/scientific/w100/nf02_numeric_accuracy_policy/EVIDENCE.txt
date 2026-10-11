@@ -1,3 +1,29 @@
+Latest provider-roster qualification at2b4e080ed7d637b0fb1deafb6ac56432838f0639
+Actual base4787be6abc2b8b37c762b7a87a7406ddbff6fe70; clean execution.
+Product build0/420.945s; scoped Rust check0/52.689s; effects ownercheck0/29.938s;
+runner build0/25.687s. An incorrect provider-evidence package selector failed101
+before checking; retained separately and corrected to its effects package owner.
+Classification update0/86.539s/check0/29files/68.778s.
+Error budget update0/51.940s/check0/29files/73.430s.
+NF01mutable update0/228.646s/check0/26files/55.124s;
+native73/Terminal73/57.271s. The small ProgramEntry conversion witness returned
+native0/Terminal0; corpus gate0/83.216s. Invalid suffix source1/2.002s
+with intended explicit width diagnostic. These runs qualify standard boundary
+admission after schema digestv3 and inherited whole-owner roster selection.
+Full NF02 numerical execution remains at6f181f0c513f, with identical policy,
+consumer/oracle/provider body bytes and unchanged numerical lowering.
+Later main changes4787→d4fb791 only attach/render diagnostic locations:
+messages, severity, counts, validator order and admission rules are unchanged.
+d4fb791→2f3e2b06 preserves identity mint order in cache encoding and changes
+cacheversion7→8; old records become misses. Fresh schema/selection/execution
+remain unchanged. Independent review permits reuse at these explicit historical
+revisions. Latest diagnostic rendering and cache execution are not claimed run
+by the above receipts. Final integration carries its own scoped check/landing
+receipt and focused cache codec test. Do not relabel these as latest executions.
+Full commands, diagnostics, source identities, reviews and resource measurements:
+evidence/*-roster-*. CPU5visible/quota4; memorylimit16GiB/OOM0;
+diskavailable4329508864bytes at2026-10-11T05:48:27Z.
+
 Scoped compiler reconciliation at30ea6e26e2a29a14dfc281ea531056137c23052d
 Basef3c3255420f4d0eedcf5279fc17d51e7577f1f51; clean execution.
 Product0/388.171s; runner0/27.568s. First classification check1/0.018s

@@ -82,12 +82,11 @@ Workflow is in [AGENTS.md](AGENTS.md), live assignments in the
   library in `source/library/numerics/` and its W100 API consumers in
   `samples/cli/scientific/w100/`. Reuse preserved candidate sources and frozen
   mathematical oracles; the integration owner implements all required
-  interfaces without active-worker prerequisites. Current frontier: rebase the
-  qualified NF02 named additive accuracy policy onto current provider-plan and
-  compiler changes, qualify affected source/native/Terminal paths, and publish.
-  Policy controls and floating provider imports are qualified at the retained
-  execution revisions. Then connect descriptor-backed moments and remaining kernels
-  to the shared layout and numeric policy. Preserve unrelated work and land
+  interfaces without active-worker prerequisites. Current frontier: connect
+  descriptor-backed moments to the shared layout, canonical float slice access
+  and numeric policy; qualify both complete consumers and separate invalid
+  controls, then continue the retained rank-two kernels. Preserve unrelated work
+  and land
   coherent qualified chunks through the normal queue. Candidate preservation in
   IMPORTS.json is not capability acceptance.
 
