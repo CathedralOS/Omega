@@ -206,18 +206,22 @@ fn exercise_owned_and_borrowed_instances() {
 
     let root = repo_root()
         .join("tests/omega/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg");
-    let report = compile(
-        CompileRequest::new(CompileOptions {
-            root_path: root,
-            build_dir: Some(
-                std::env::temp_dir().join(format!("omega-terminal-storage-{}", std::process::id())),
-            ),
-            target_name: Some("linux_x86_64".to_owned()),
-        })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
-    )
-    .and_then(compiler::CompileOutcomes::into_single_report)
-    .expect("ordinary empty entry produces Terminal");
+    let prepared = reviewed_repository_fixture_package_inputs(&root, Some("linux_x86_64"))
+        .unwrap_or_else(|diagnostics| panic!("empty-entry package inputs: {diagnostics:#?}"));
+    let mut request = CompileRequest::new(CompileOptions {
+        root_path: prepared.root_path,
+        build_dir: Some(
+            std::env::temp_dir().join(format!("omega-terminal-storage-{}", std::process::id())),
+        ),
+        target_name: Some("linux_x86_64".to_owned()),
+    })
+    .with_requested_product(RequestedCompileProduct::TerminalArtifact);
+    if let Some(package_inputs) = prepared.package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let report = compile(request)
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .expect("ordinary empty entry produces Terminal");
     let retained = report
         .into_retained_terminal_artifact()
         .expect("retained Terminal");
