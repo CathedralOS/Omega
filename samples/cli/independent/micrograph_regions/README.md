@@ -92,11 +92,11 @@ python3 "$SAMPLE/validate.py" --omega "$OMEGA" --mode terminal --terminal-harnes
 The link helper checks the CLI output hash against its build-unit receipt and
 selects exact libraries using the recorded dependency fingerprints. It supplies
 both full `.rmeta` metadata and corresponding `.rlib` code, as the pinned toolchain
-requires. Its build receipt records the command and every library SHA-256. If a
-matching mbx build receipt is unavailable, use the ordinary Cargo/mbx route:
-`mbx build --release --manifest-path "$SAMPLE/validation/Cargo.toml" -j 2`
-(Cargo when mbx is absent). Build only one Rust project at a time. The harness is
-validation only; the
+requires. Its build receipt records the command and every library SHA-256.
+A matching mbx CLI build receipt is required: build the compiler with
+`mbx build -p omega --release --locked -j 2` before linking the validator.
+The validator is a directly linked private tool, with no separate Cargo project.
+Build only one Rust project at a time. The harness is validation only; the
 standalone Omega application has no Rust helper at runtime.
 
 `expected/frozen.json` freezes input and stdout SHA-256 identities before Omega
