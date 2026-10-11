@@ -82,6 +82,7 @@ fn validate() -> Result<(), String> {
             artifact,
             target: Some(target.target_name()),
             provisions: report.runtime_provisions(),
+            provider_proposal: None,
             fuel_allowance: 10_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(Cursor::new(input))),
