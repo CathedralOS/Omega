@@ -14,7 +14,7 @@ mod tests;
 /// Access, geometry and bounds are independently replayed by source::admit's
 /// mandatory current-graph validation. Publication binds the emitted occurrence
 /// to the same named selector operands rather than discovering another producer catalog.
-fn retained_selectors(
+pub(super) fn retained_selectors(
     path: &[terminal_psi::StructuralPathSegment],
     indices: &[target_operations::TargetStructuralRuntimeIndex],
 ) -> bool {
@@ -924,63 +924,6 @@ pub(super) fn retained(
             if actual_result == result && actual_source.place == *source && actual_source.path == *path
                 && actual_field == field && retained_selectors(path, indices))
             && reads.next().is_none();
-    }
-    if let AbstractOperation::PrimitiveScalarRead {
-        psi_operation,
-        result,
-        source,
-        path,
-    } = operation
-    {
-        let Some((_, root)) = read_access(function, target, *source, AccessPurpose::Field) else {
-            return false;
-        };
-        // Whole-place and projected reads observe the same declared scalar
-        // leaf. A borrowed scalar carries an address and storage codec, so its
-        // observation need not be one load of the semantic carrier's width.
-        // Rejoin the admitted source and selection here. Mandatory physical
-        // replay checks the retained descriptor decoding and actual loads;
-        // the corpus additionally audits independent source/target custody.
-        if terminal_semantics::primitive_read_projection_type(
-            target.graph.structural_types.iter(),
-            root,
-            path,
-        ) != Some(result.scalar_type)
-        {
-            return false;
-        }
-        // As with record-field reads, publication retains the exact graph
-        // subject, and each runtime element's traversal names that element's
-        // selector. Selection owns the computed offset, strides and load on
-        // the original root, and physical replay preserves that realization.
-        // Do not reconstruct its layout or treat a byte offset as path identity.
-        let selectors = operation
-            .runtime_indices()
-            .into_iter()
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
-        let mut reads = target
-            .graph
-            .operations()
-            .filter_map(|operation| match operation {
-                TargetUnitOperation::PrimitiveScalarRead {
-                    psi_operation: identity,
-                    result,
-                    source,
-                    path,
-                    indices,
-                } if identity == psi_operation => Some((
-                    result,
-                    source,
-                    path,
-                    indices
-                        .iter()
-                        .map(|index| index.operand.source_value())
-                        .collect::<Vec<_>>(),
-                )),
-                _ => None,
-            });
-        return reads.next() == Some((result, source, path, selectors)) && reads.next().is_none();
     }
     let AbstractOperation::StructuralScalarFieldRead {
         psi_operation: identity,

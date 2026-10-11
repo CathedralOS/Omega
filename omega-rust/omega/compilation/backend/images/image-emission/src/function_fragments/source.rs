@@ -10,6 +10,7 @@ use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use semantic_vocabulary::MachineId;
 mod aggregate_results;
 mod control_flow;
+mod primitive_accesses;
 mod structural_case;
 mod structural_fields;
 #[cfg(test)]
@@ -28,11 +29,6 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 )
             })
         }) {
-            return true;
-        }
-        if matches!(operation,
-            AbstractOperation::WriteOnlyPrimitiveStore { path, .. } if !path.is_empty())
-        {
             return true;
         }
         if let AbstractOperation::CallStructural {
@@ -70,6 +66,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::ReturnStructural { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
+                | AbstractOperation::WriteOnlyPrimitiveStore { .. }
                 | AbstractOperation::StructuralScalarFieldRead { .. }
                 | abstract_operations::byte_len_or_field_read_pattern!(..)
                 | abstract_operations::byte_sequence_store_pair_pattern!(..)
@@ -249,7 +246,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         } else if parameter_abi(targeted).is_some() {
             return Err(Error::Mismatch("unexpected parameter/result ABI"));
         }
-        for operation in &abstracted.operations {
+        for (operation_ordinal, operation) in abstracted.operations.iter().enumerate() {
             let admitted = match operation {
                 AbstractOperation::AtomicEvent {
                     event: AbstractAtomicEvent::Load { .. }
@@ -298,8 +295,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                             &current.optimized_target().optimized().plan().structural_types,
                         )
                 }
-                AbstractOperation::PrimitiveScalarRead { .. } => {
-                    structural_fields::retained(abstracted, operation, targeted)
+                AbstractOperation::PrimitiveScalarRead { .. }
+                | AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
+                    primitive_accesses::retained(operation, targeted)
                 }
                 AbstractOperation::StructuralScalarFieldRead { .. } => {
                     structural_fields::retained(abstracted, operation, targeted)
@@ -504,17 +502,6 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                     }
                 }
-                AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, destination, .. } => {
-                    if operation.runtime_indices().is_empty() {
-                        selected.memory_accesses.iter().any(|access| {
-                            access.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(*psi_operation)
-                                && access.place == destination.place()
-                                && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
-                        })
-                    } else {
-                        structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
-                    }
-                }
                 AbstractOperation::Jump { .. }
                 | AbstractOperation::Conditional { .. } => control_flow::retained(operation, targeted),
                 AbstractOperation::StructuralCase { source, path, cases } => {
@@ -531,9 +518,11 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 _ => false,
             };
             if !admitted {
-                return Err(Error::Unsupported(
-                    "shared function contains an unaccounted operation",
-                ));
+                return Err(Error::UnaccountedOperation {
+                    machine: abstracted.machine,
+                    operation_ordinal,
+                    operation_description: format!("{operation:?}"),
+                });
             }
         }
     }

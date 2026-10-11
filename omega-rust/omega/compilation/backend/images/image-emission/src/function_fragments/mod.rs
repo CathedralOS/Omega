@@ -22,6 +22,11 @@ pub(crate) use validation::validate_function_fragment_object_artifact;
 pub enum FunctionFragmentObjectArtifactError {
     Source(object_file::RelocationFreeObjectContainerError),
     Unsupported(&'static str),
+    UnaccountedOperation {
+        machine: semantic_vocabulary::MachineId,
+        operation_ordinal: usize,
+        operation_description: String,
+    },
     Mismatch(&'static str),
     PrivateFunctions(crate::ObjectError),
     Overflow,
@@ -32,6 +37,14 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
         match self {
             Self::Source(error) => write!(formatter, "shared object replay: {error}"),
             Self::Unsupported(reason) | Self::Mismatch(reason) => formatter.write_str(reason),
+            Self::UnaccountedOperation {
+                machine,
+                operation_ordinal,
+                operation_description,
+            } => write!(
+                formatter,
+                "shared function {machine:?} contains an unaccounted operation at ordinal {operation_ordinal}: {operation_description}",
+            ),
             Self::PrivateFunctions(error) => {
                 write!(formatter, "compiler-private function custody: {error}")
             }

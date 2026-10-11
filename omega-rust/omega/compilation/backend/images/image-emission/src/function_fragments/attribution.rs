@@ -273,6 +273,24 @@ pub(super) fn validate(
             .checked_add(instruction.bytes.len())
             .ok_or(Error::Overflow)?;
         for edge in edges {
+            // A fallthrough marker can coalesce with adjacent transport for
+            // the same edge. Its decoded position, not the branch's bytes,
+            // must remain covered by that exact semantic interval.
+            if let Control::ConditionalBranch {
+                when_fallthrough, ..
+            } = &instruction.control
+                && when_fallthrough.role == SelectedSuccessorRole::Semantic
+                && when_fallthrough.psi_edge == edge
+                && let Some(FunctionFragmentBranchEvidence::Conditional(branch)) =
+                    instruction.branch.as_deref()
+                && present(
+                    SemanticCodeSite::Edge(edge),
+                    host(branch.when_fallthrough_offset)?,
+                    0,
+                )
+            {
+                continue;
+            }
             if !rows.iter().any(|row| {
                 row.site == SemanticCodeSite::Edge(edge)
                     && (supports(instruction, row.site, row.code_offset, row.byte_count)

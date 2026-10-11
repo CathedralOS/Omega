@@ -48,12 +48,14 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
         projected_qualifications: vec![],
         claims: vec![],
     };
-    let existing = [
-        AbstractOperation::BooleanConstant {
-            psi_operation: operation,
-            result: scalar.value,
-            value: true,
-        },
+    let existing = [AbstractOperation::BooleanConstant {
+        psi_operation: operation,
+        result: scalar.value,
+        value: true,
+    }];
+    assert!(!requires_graph_storage_replay(&[]));
+    assert!(!requires_graph_storage_replay(&existing));
+    for operation in [
         AbstractOperation::WriteOnlyPrimitiveStore {
             psi_operation: operation,
             path: Vec::new(),
@@ -71,10 +73,6 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
             value: scalar,
             range_obligation: None,
         },
-    ];
-    assert!(!requires_graph_storage_replay(&[]));
-    assert!(!requires_graph_storage_replay(&existing));
-    for operation in [
         AbstractOperation::EstablishPrimitiveLocal {
             psi_operation: operation,
             result: result.clone(),
