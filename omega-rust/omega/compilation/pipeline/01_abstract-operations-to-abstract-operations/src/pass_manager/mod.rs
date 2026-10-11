@@ -30,11 +30,12 @@ use crate::{
 };
 pub(crate) use execution::run_registries;
 use optimization_core::{
-    BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionRecordError,
-    ExternalDecisionLog, ExternalDecisionSchemaError, InvalidOptimizationManifestRecord,
-    OptimizationCandidateIdentity, OptimizationIdentityBundle, OptimizationPassManifestRecord,
-    OptimizationRuleIdentity, OptimizationSelections, OptimizationUnitIdentity,
-    OptimizationWorkBudget,
+    BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionOutcome,
+    BaselineDecisionRecordError, ExternalDecisionLog, ExternalDecisionSchemaError,
+    InvalidOptimizationManifestRecord, OptimizationCandidateIdentity,
+    OptimizationCandidateVerdict, OptimizationIdentityBundle, OptimizationPassManifestRecord,
+    OptimizationReasonCode, OptimizationRuleIdentity, OptimizationSelections,
+    OptimizationUnitIdentity, OptimizationWorkBudget,
 };
 use optimization_unit::{
     InvalidPsiTransformationLedger, PsiOptimizationUnit, PsiTransformationLedger,
@@ -51,6 +52,25 @@ use terminal_psi_to_abstract_operations::{
 /// target-neutral Psi pass.
 pub(crate) fn baseline_psi_cost_model_identity() -> TargetCostModelIdentity {
     TargetCostModelIdentity::from_canonical_bytes(b"omega.psi-baseline-structural-cost-model.v1")
+}
+
+/// The verdict a baseline outcome gives one validated candidate: the chosen
+/// identity applies, every other candidate is superseded, and a skip reason
+/// maps onto the same skip verdict. Shared by candidate dispatch and the
+/// external-decision replay check.
+pub(super) fn baseline_outcome_verdict(
+    outcome: BaselineDecisionOutcome,
+    candidate: OptimizationCandidateIdentity,
+) -> OptimizationCandidateVerdict {
+    match outcome {
+        BaselineDecisionOutcome::Choose(chosen) if chosen == candidate => {
+            OptimizationCandidateVerdict::Applied
+        }
+        BaselineDecisionOutcome::Choose(_) => {
+            OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Superseded)
+        }
+        BaselineDecisionOutcome::Skip(reason) => OptimizationCandidateVerdict::Skipped(reason),
+    }
 }
 
 #[derive(Debug)]

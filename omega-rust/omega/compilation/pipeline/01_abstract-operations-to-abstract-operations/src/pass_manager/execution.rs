@@ -5,10 +5,9 @@ use optimization_core::{
     BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionOutcome, ExternalDecisionLog,
 };
 use optimization_core::{
-    Optimization, OptimizationCandidateVerdict, OptimizationDecisionRecord,
-    OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationReasonCode,
-    OptimizationRuleContract, OptimizationRuleSetIdentity, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationWorkBudget,
+    Optimization, OptimizationDecisionRecord, OptimizationIdentityBundle,
+    OptimizationPassManifestRecord, OptimizationRuleContract, OptimizationRuleSetIdentity,
+    OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
 };
 use optimization_unit::{
     PsiCandidateDeclaration, PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord,
@@ -28,7 +27,7 @@ use super::{
     VerifiedPsiOptimizationSession,
     accounting::*,
     baseline::choose_baseline,
-    baseline_psi_cost_model_identity,
+    baseline_outcome_verdict, baseline_psi_cost_model_identity,
     external_policy::{
         ExternalDecisionReplayCursor, expected_context, external_points_from_manifest_decisions,
         validated_candidate_features,
@@ -305,17 +304,7 @@ fn run_unit_inner_with_retention(
                     )
                 })?;
             for (declaration, accepted) in &validated {
-                let verdict = match outcome {
-                    BaselineDecisionOutcome::Choose(chosen) if chosen == declaration.identity() => {
-                        OptimizationCandidateVerdict::Applied
-                    }
-                    BaselineDecisionOutcome::Choose(_) => {
-                        OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Superseded)
-                    }
-                    BaselineDecisionOutcome::Skip(reason) => {
-                        OptimizationCandidateVerdict::Skipped(reason)
-                    }
-                };
+                let verdict = baseline_outcome_verdict(outcome, declaration.identity());
                 candidate_decisions.push(
                     OptimizationDecisionRecord::new(
                         unit.identity,
@@ -527,17 +516,7 @@ fn run_loop_invariant_scalar_motion_step(
             })?;
         for accepted in &validated {
             let candidate = accepted.candidate();
-            let verdict = match outcome {
-                BaselineDecisionOutcome::Choose(chosen) if chosen == candidate.identity() => {
-                    OptimizationCandidateVerdict::Applied
-                }
-                BaselineDecisionOutcome::Choose(_) => {
-                    OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Superseded)
-                }
-                BaselineDecisionOutcome::Skip(reason) => {
-                    OptimizationCandidateVerdict::Skipped(reason)
-                }
-            };
+            let verdict = baseline_outcome_verdict(outcome, candidate.identity());
             candidate_decisions.push(
                 OptimizationDecisionRecord::new(
                     session.unit().identity,

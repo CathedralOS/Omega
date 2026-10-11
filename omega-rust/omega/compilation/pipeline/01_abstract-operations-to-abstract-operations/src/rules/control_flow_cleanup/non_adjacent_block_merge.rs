@@ -72,11 +72,8 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
                 .map(|(_, rows)| rows.as_slice())
                 .unwrap_or_default();
             for (predecessor_position, predecessor) in function.blocks.iter().enumerate() {
-                let Some((predecessor_index, predecessor_node)) = predecessor
-                    .nodes
-                    .len()
-                    .checked_sub(1)
-                    .map(|index| (index, &predecessor.nodes[index]))
+                let Some((predecessor_index, predecessor_node)) =
+                    predecessor.nodes.iter().enumerate().last()
                 else {
                     continue;
                 };

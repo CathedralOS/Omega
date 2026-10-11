@@ -1,11 +1,9 @@
 use optimization_core::{
-    BaselineDecisionLog, BaselineDecisionOutcome, ExternalCandidateFeatures, ExternalDecisionPoint,
-};
-use optimization_core::{
-    OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationReasonCode,
+    BaselineDecisionLog, ExternalCandidateFeatures, ExternalDecisionPoint,
+    OptimizationDecisionRecord,
 };
 
-use super::super::OptimizationRunError;
+use super::super::{OptimizationRunError, baseline_outcome_verdict};
 
 pub(crate) fn external_points_from_manifest_decisions(
     decisions: &BaselineDecisionLog,
@@ -33,17 +31,7 @@ pub(crate) fn external_points_from_manifest_decisions(
             } else {
                 rule = Some(decision.rule());
             }
-            let expected_verdict = match record.outcome {
-                BaselineDecisionOutcome::Choose(chosen) if chosen == candidate.candidate => {
-                    OptimizationCandidateVerdict::Applied
-                }
-                BaselineDecisionOutcome::Choose(_) => {
-                    OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Superseded)
-                }
-                BaselineDecisionOutcome::Skip(reason) => {
-                    OptimizationCandidateVerdict::Skipped(reason)
-                }
-            };
+            let expected_verdict = baseline_outcome_verdict(record.outcome, candidate.candidate);
             if decision.verdict() != expected_verdict {
                 return Err(OptimizationRunError::ExternalDecisionManifestMismatch);
             }

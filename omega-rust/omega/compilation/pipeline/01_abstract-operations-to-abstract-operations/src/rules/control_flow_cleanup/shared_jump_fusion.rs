@@ -62,11 +62,8 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                 continue;
             };
             for predecessor in &function.blocks {
-                let Some((predecessor_index, predecessor_node)) = predecessor
-                    .nodes
-                    .len()
-                    .checked_sub(1)
-                    .map(|index| (index, &predecessor.nodes[index]))
+                let Some((predecessor_index, predecessor_node)) =
+                    predecessor.nodes.iter().enumerate().last()
                 else {
                     continue;
                 };
