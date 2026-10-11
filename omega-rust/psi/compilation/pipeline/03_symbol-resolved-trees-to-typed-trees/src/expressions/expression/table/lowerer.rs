@@ -1230,7 +1230,7 @@ pub(super) fn resolved_data_definition_for_type<'program>(
     type_reference: &'program resolved::types::TypeReference,
 ) -> Option<&'program resolved::data::DataDefinition> {
     let (symbol, name) = match type_reference {
-        resolved::types::TypeReference::Named { symbol, name } => (*symbol, Some(name)),
+        resolved::types::TypeReference::Named { symbol, name, .. } => (*symbol, Some(name)),
         resolved::types::TypeReference::Generic(reference) => {
             (reference.base_symbol, Some(&reference.base_name))
         }

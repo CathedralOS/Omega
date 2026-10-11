@@ -775,6 +775,7 @@ fn classify_declared_domain(
     let resolved::types::TypeReference::Named {
         symbol: target,
         name,
+        ..
     } = &domain.target_type
     else {
         return LeafContribution::NotCase;

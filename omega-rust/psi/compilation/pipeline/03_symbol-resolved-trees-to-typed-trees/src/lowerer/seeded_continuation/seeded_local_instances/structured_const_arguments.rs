@@ -13,7 +13,7 @@ pub(super) fn carrier_is_supported(
     source: &SymbolResolvedTrees,
     type_reference: &TypeReference,
 ) -> bool {
-    let TypeReference::Named { symbol, name } = type_reference else {
+    let TypeReference::Named { symbol, name, .. } = type_reference else {
         return false;
     };
     exact_named_type(source, *symbol, name.as_str())
@@ -104,7 +104,7 @@ fn type_carrier_is_supported(
     visiting: &mut Vec<SymbolHandle>,
 ) -> bool {
     match type_reference {
-        TypeReference::Named { symbol, name }
+        TypeReference::Named { symbol, name, .. }
             if exact_named_type(source, *symbol, name.as_str()) =>
         {
             if scalar_atom(source, *symbol).is_some() {
@@ -140,7 +140,7 @@ fn decoded_value_matches(
     visiting: &mut Vec<SymbolHandle>,
 ) -> bool {
     match expected_type {
-        TypeReference::Named { symbol, name }
+        TypeReference::Named { symbol, name, .. }
             if exact_named_type(source, *symbol, name.as_str()) =>
         {
             if let Some(atom) = scalar_atom(source, *symbol) {
@@ -257,7 +257,7 @@ fn type_reference_label(
     type_reference: &TypeReference,
 ) -> Option<String> {
     match type_reference {
-        TypeReference::Named { symbol, name }
+        TypeReference::Named { symbol, name, .. }
             if exact_named_type(source, *symbol, name.as_str()) =>
         {
             Some(name.as_str().to_owned())

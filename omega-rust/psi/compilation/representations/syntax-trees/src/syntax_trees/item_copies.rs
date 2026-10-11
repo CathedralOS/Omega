@@ -105,8 +105,9 @@ impl SyntaxTrees {
         SyntaxCopy::new(self).copy_mathematical_definition(other, definition)
     }
 
-    #[cfg(test)]
-    pub(crate) fn copy_type_reference_handle(
+    /// Copy an operand from a retained snapshot of this syntax lineage.
+    /// Independent forests use `extend_from`, which remaps declaration owners.
+    pub fn copy_type_reference_handle(
         &mut self,
         other: &SyntaxTrees,
         handle: crate::types::TypeReferenceHandle,

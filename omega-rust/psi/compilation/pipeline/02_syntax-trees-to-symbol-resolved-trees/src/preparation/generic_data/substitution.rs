@@ -51,6 +51,9 @@ pub(super) fn substitute_copied_type_names(
                 .type_references
                 .retain_generic_application_origin(handle, application);
         }
+        syntax
+            .type_references
+            .retain_copied_operand_owner(*argument, handle);
     }
 }
 

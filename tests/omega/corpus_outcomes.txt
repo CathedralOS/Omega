@@ -6115,3 +6115,9 @@ fail/borrows/reassigned_view_uses_new_extent rejected 636ms expected @eee96af606
 	cannot prove index `1` is within length 1
 pass/borrows/runtime_reassigned_view_capture_exit checked 4224ms check-target:macos_arm64 @eee96af606fc+wt
 pass/borrows/runtime_reassigned_view_return_exit checked 4368ms check-target:macos_arm64 @eee96af606fc+wt
+fail/traits/default_row_foreign_captured_operand rejected 346ms expected @eee96af606fc+wt
+	conformance `Mapped satisfies Reader` parameter `Value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
+	machine `Mapped::Reader::read` state `read` does not satisfy trait `Reader` machine `read`: conformance borrow contract: callable input does not preserve its region identity
+pass/traits/default_row_mixed_captured_operand checked 470ms @eee96af606fc+wt
+pass/traits/default_row_shadowed_captured_operand checked 470ms @eee96af606fc+wt
+pass/traits/default_row_shadowed_captured_operand_exit checked 2755ms check-target:macos_arm64 @eee96af606fc+wt

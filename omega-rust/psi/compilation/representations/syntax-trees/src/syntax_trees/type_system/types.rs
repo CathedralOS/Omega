@@ -16,6 +16,15 @@ pub struct TypeReferenceTable {
     const_argument_builtin_operators: Arena<source::SourceSpan>,
     integer_range_normalizations: Arena<RetainedIntegerRangeNormalization>,
     pending_const_arguments: Arena<PendingConstArgument>,
+    supplied_operand_owners: Arena<SuppliedOperandOwner>,
+}
+
+/// The exact declaration supplying a substituted operand. This is syntax
+/// custody, not a resolved symbol or portable lifetime identity.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct SuppliedOperandOwner {
+    operand: TypeReferenceHandle,
+    declaration: crate::item::ItemHandle,
 }
 
 /// Private probe custody, never a canonical value or checking receipt. Copies
@@ -96,6 +105,7 @@ impl TypeReferenceTable {
             const_argument_builtin_operators: Arena::with_generation(generation),
             integer_range_normalizations: Arena::with_generation(generation),
             pending_const_arguments: Arena::with_generation(generation),
+            supplied_operand_owners: Arena::with_generation(generation),
         }
     }
 
@@ -116,6 +126,8 @@ impl TypeReferenceTable {
             .adopt(other.integer_range_normalizations);
         self.pending_const_arguments
             .adopt(other.pending_const_arguments);
+        self.supplied_operand_owners
+            .adopt(other.supplied_operand_owners);
     }
 
     pub(crate) fn begin_page(&mut self, generation: u32) {
@@ -128,10 +140,116 @@ impl TypeReferenceTable {
         self.const_argument_builtin_operators.begin_page(generation);
         self.integer_range_normalizations.begin_page(generation);
         self.pending_const_arguments.begin_page(generation);
+        self.supplied_operand_owners.begin_page(generation);
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
         self.type_references.insert(type_reference)
+    }
+
+    pub fn supplied_operand_owner(
+        &self,
+        operand: TypeReferenceHandle,
+    ) -> Result<crate::item::ItemHandle, &'static str> {
+        self.supplied_operand_owners
+            .iter()
+            .find_map(|(_, row)| {
+                (row.operand == operand).then(|| {
+                    if row.declaration.is_valid() {
+                        Ok(row.declaration)
+                    } else {
+                        Err("supplied operand lost its declaration during syntax copying")
+                    }
+                })
+            })
+            .unwrap_or(Ok(crate::item::ItemHandle::invalid()))
+    }
+
+    /// Attach custody only to a newly copied operand root. Its children retain
+    /// any more specific supplying owners; surrounding signature nodes do not
+    /// acquire this declaration's telescope.
+    pub fn retain_supplied_operand_owner(
+        &mut self,
+        operand: TypeReferenceHandle,
+        declaration: crate::item::ItemHandle,
+    ) {
+        if operand.is_valid() && declaration.is_valid() {
+            let existing = self
+                .supplied_operand_owners
+                .iter()
+                .find_map(|(handle, row)| (row.operand == operand).then_some(handle));
+            if let Some(handle) = existing {
+                let row = self.supplied_operand_owners.get_mut(handle);
+                if row.declaration != declaration {
+                    row.declaration = crate::item::ItemHandle::invalid();
+                }
+                return;
+            }
+            self.supplied_operand_owners.insert(SuppliedOperandOwner {
+                operand,
+                declaration,
+            });
+        }
+    }
+
+    /// A substitution copies the argument's custody as well as its node.
+    /// Missing-declaration errors stay errors rather than becoming lexical.
+    pub fn retain_copied_operand_owner(
+        &mut self,
+        source: TypeReferenceHandle,
+        destination: TypeReferenceHandle,
+    ) {
+        match self.supplied_operand_owner(source) {
+            Ok(owner) => self.retain_supplied_operand_owner(destination, owner),
+            Err(_) => self.retain_unresolved_supplied_operand_owner(destination),
+        }
+    }
+
+    pub(crate) fn retain_unresolved_supplied_operand_owner(
+        &mut self,
+        operand: TypeReferenceHandle,
+    ) {
+        let existing = self
+            .supplied_operand_owners
+            .iter()
+            .find_map(|(handle, row)| (row.operand == operand).then_some(handle));
+        if let Some(handle) = existing {
+            self.supplied_operand_owners.get_mut(handle).declaration =
+                crate::item::ItemHandle::invalid();
+            return;
+        }
+        self.supplied_operand_owners.insert(SuppliedOperandOwner {
+            operand,
+            declaration: crate::item::ItemHandle::invalid(),
+        });
+    }
+
+    pub(crate) fn supplied_operand_owner_frontier(&self) -> usize {
+        self.supplied_operand_owners.iter().count()
+    }
+
+    /// Independent forest copies translate exact root handles, including
+    /// forward references. A missing root is retained as an explicit error,
+    /// never reinterpreted in the destination's same-numbered arena slot.
+    pub(crate) fn remap_supplied_operand_owners(
+        &mut self,
+        frontier: usize,
+        declarations: &[(crate::item::ItemHandle, crate::item::ItemHandle)],
+    ) {
+        let rows = self
+            .supplied_operand_owners
+            .iter()
+            .skip(frontier)
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        for handle in rows {
+            let row = self.supplied_operand_owners.get_mut(handle);
+            row.declaration = declarations
+                .iter()
+                .find(|(source, _)| *source == row.declaration)
+                .map(|(_, destination)| *destination)
+                .unwrap_or_default();
+        }
     }
 
     pub fn retain_pending_const_argument(

@@ -1,0 +1,6 @@
+data Marker<'held> {}
+trait Reader<Value> {
+    machine read<'same>(value: Value) -> Value { value }
+}
+Mapped<'outer> satisfies Reader<Marker<'same>> {}
+machine main() {}

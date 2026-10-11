@@ -96,7 +96,7 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
             ) {
                 continue;
             }
-            let TypeReference::Named { symbol, name } = argument else {
+            let TypeReference::Named { symbol, name, .. } = argument else {
                 continue;
             };
             let rendered = name.as_str();

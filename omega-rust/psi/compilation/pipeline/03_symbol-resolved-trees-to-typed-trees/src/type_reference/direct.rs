@@ -131,6 +131,7 @@ pub(super) fn lower_type_reference_handle_with_context(
             symbol,
             name,
             arguments,
+            ..
         } => {
             // Arguments publish child spans into the same arena; finish their
             // recursion before inserting this node's contiguous roster.
@@ -156,7 +157,7 @@ pub(super) fn lower_type_reference_handle_with_context(
                 exposure,
             )
         }
-        resolved::types::TypeReference::Named { symbol, name } => {
+        resolved::types::TypeReference::Named { symbol, name, .. } => {
             super::lower_named_type_reference(source_trees, typed_trees, *symbol, name, exposure)
         }
         resolved::types::TypeReference::Unit => Ok(typed_trees
@@ -164,6 +165,12 @@ pub(super) fn lower_type_reference_handle_with_context(
             .insert(typed::types::TypeReferenceNode::Unit)),
     };
     let reference = result?;
+    super::retain_supplied_operand_owner(
+        source_trees,
+        typed_trees,
+        reference,
+        type_reference.supplied_operand_owner(),
+    )?;
     super::retain_computed_result_types(&source_trees.symbols, typed_trees, reference, None);
     Ok(reference)
 }

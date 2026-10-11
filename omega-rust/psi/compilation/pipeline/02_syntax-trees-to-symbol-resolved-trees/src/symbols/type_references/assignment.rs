@@ -473,7 +473,9 @@ pub(in crate::symbols) fn assign_trait_implementation_argument_symbols(
             continue;
         }
         let (selected, name) = match argument {
-            symbol_resolved_trees::types::TypeReference::Named { symbol, name } => (symbol, &*name),
+            symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } => {
+                (symbol, &*name)
+            }
             symbol_resolved_trees::types::TypeReference::Generic(generic) => {
                 (&mut generic.storage.base_symbol, &generic.storage.base_name)
             }
@@ -502,7 +504,8 @@ pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
         if !is_machine_identity {
             continue;
         }
-        let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument else {
+        let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } = argument
+        else {
             continue;
         };
         let local = local_type_parameters
@@ -556,7 +559,8 @@ pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
         if !is_proposition {
             continue;
         }
-        let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument else {
+        let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } = argument
+        else {
             continue;
         };
         let local = local_type_parameters
@@ -680,6 +684,7 @@ fn assign_type_reference_symbol_with_context(
             symbol,
             name,
             arguments,
+            ..
         } => {
             *symbol = crate::symbols::lookup::top_level_symbol_for_source(
                 symbols,
@@ -694,7 +699,7 @@ fn assign_type_reference_symbol_with_context(
                 *arguments,
             );
         }
-        symbol_resolved_trees::types::TypeReference::Named { symbol, name } => {
+        symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } => {
             *symbol = resolve_type_symbol(symbols, local_type_parameters, name);
         }
         symbol_resolved_trees::types::TypeReference::Unit => {}

@@ -5,6 +5,6 @@
 must retain those two supplying owners rather than reinterpret both under the
 synthesized row's invocation telescope.
 
-The baseline compiler at `75a8abc59f7` and the current repair candidate both
-refuse this intended-valid source. It is retained pressure for
-`PSI-TARGET-FAMILIES`, not an expected-rejection control.
+The supplying conformance declaration stays attached to the copied operand
+through syntax, resolution and typing. Fresh signature nodes keep their member
+telescope; no spelling or source-span match assigns ownership.

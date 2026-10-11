@@ -205,6 +205,7 @@ pub struct SymbolResolvedDeclarationStorage {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolResolvedTypeStorage {
+    pub operand_lifetime_owners: Arena<types::OperandLifetimeOwner>,
     pub constraints: Arena<types::TypeConstraint>,
     pub references: types::TypeReferenceTable,
     pub generic_application_origins: Arena<types::GenericApplicationOrigin>,

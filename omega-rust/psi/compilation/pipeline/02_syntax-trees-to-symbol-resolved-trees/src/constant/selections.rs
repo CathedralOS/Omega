@@ -244,7 +244,8 @@ pub(crate) fn finalize_const_argument_selections(
                 ) {
                     return Err(Diagnostic::error("selected constant nominal carrier differs from its receiving generic parameter").with_source_span(origin.reference));
                 }
-                let symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument
+                let symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } =
+                    argument
                 else {
                     return Err(Diagnostic::error(
                         "nominal constant receiving argument lost its canonical value",

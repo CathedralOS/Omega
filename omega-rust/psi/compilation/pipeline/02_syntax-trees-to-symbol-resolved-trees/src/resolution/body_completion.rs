@@ -77,6 +77,13 @@ pub struct DeferredResolvedFrontier {
     pub(super) trees: Arc<SymbolResolvedTrees>,
     pub(super) pending: Vec<PendingMachineBody>,
     pub(super) pending_type_inputs: Vec<(SymbolHandle, syntax_trees::types::TypeReferenceHandle)>,
+    // Body demand resumes this exact declaration allocation. Reconstructing
+    // these associations from spelling would capture fresh invocation binders.
+    pub(super) supplied_operand_owners: Vec<(
+        syntax_trees::item::ItemHandle,
+        symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
+    )>,
+    pub(super) conformance_inputs: Vec<(syntax_trees::item::ItemHandle, usize)>,
     pub(super) selection: ConstantSelection<'static>,
     pub(super) sources: Option<Arc<source::SourceMap>>,
     pub(super) bindings: Vec<symbols::SourceScopedTopLevelBinding>,
@@ -218,6 +225,8 @@ impl DeferredResolvedFrontier {
             .append_completed_body_tables(&predecessor, selected);
         super::finish_resolved_tables(&mut lowerer)?;
         let hoist_counter = lowerer.hoist_counter;
+        self.supplied_operand_owners = std::mem::take(&mut lowerer.supplied_operand_owners);
+        self.conformance_inputs = std::mem::take(&mut lowerer.conformance_inputs);
         self.pending.append(&mut lowerer.pending_machine_bodies);
         self.equation_sources = lowerer.equation_sources.take().map(|mut links| {
             links.expressions.clear();
@@ -244,6 +253,8 @@ impl DeferredResolvedFrontier {
     fn seed_body_lowerer(&self) -> Result<Lowerer, Vec<Diagnostic>> {
         let mut lowerer = Lowerer::new(self.sources.clone(), self.bindings.clone());
         lowerer.seed_resolved_base((*self.trees).clone())?;
+        lowerer.supplied_operand_owners = self.supplied_operand_owners.clone();
+        lowerer.conformance_inputs = self.conformance_inputs.clone();
         lowerer.constant_selection = Some(self.selection.clone());
         lowerer.hoist_counter = self.hoist_counter;
         lowerer.const_resolution_mode = self.const_resolution_mode;

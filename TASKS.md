@@ -2823,10 +2823,9 @@ crash and native exit behavior.
     `traits/default_row_captured_invocation_regions_exit` through both engines:
     owned rows capture their map's regions without replacing their fresh member
     telescope, including unused binders; external selected rows capture no map
-    scope. Default substitution still needs exact supplying-operand custody:
-    `pending/traits/default_row_shadowed_captured_operand` must check when a
-    captured phantom region and an unused invocation binder share a spelling.
-    Its `omega --check main.omg` refusal reproduces on `75a8abc59f7`.
+    scope. Preserve `traits/default_row_shadowed_captured_operand_exit` through
+    both engines: same-spelled captured phantom and fresh member binders remain
+    separate through default-body locals and generic data substitution.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.
 

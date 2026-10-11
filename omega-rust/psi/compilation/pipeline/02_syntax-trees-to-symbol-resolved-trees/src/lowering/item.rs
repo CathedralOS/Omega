@@ -26,9 +26,15 @@ pub(crate) fn lower_item(
 ) -> Result<(), Diagnostic> {
     let inputs = crate::resolution::type_inputs::TypeInputScope::new(lowerer);
     let item = syntax_trees.root_item(declaration);
+    let conformance_ordinal = lowerer.symbol_resolved_trees.conformances.len();
     lowerer.with_authored_expression_exposure(item_expression_exposure(item), |lowerer| {
         lower_item_with_exposure(lowerer, syntax_trees, item)
     })?;
+    if matches!(item, syntax::item::Item::Conformance(_)) {
+        lowerer
+            .conformance_inputs
+            .push((declaration, conformance_ordinal));
+    }
     inputs.finish(lowerer, symbols::SymbolHandle::invalid());
     Ok(())
 }

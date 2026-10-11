@@ -281,6 +281,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                 syntax,
                 &requirement.signature,
                 &requirement.substitution,
+                conformance.handle,
             );
             let machine = machine_from_signature(
                 syntax,
@@ -304,6 +305,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                 conformed_trait,
                 &closed_members,
                 &substitution,
+                conformance.handle,
             )
         {
             closed_members.push(member);
@@ -432,6 +434,7 @@ fn synthesized_equality_member(
     equatable: &TraitDefaultsInput,
     members: &[ConformanceMember],
     substitution: &HashMap<String, TypeReferenceHandle>,
+    supplying_declaration: ItemHandle,
 ) -> Option<ConformanceMember> {
     const EQUALS: &str = "equals";
     if equatable.parameter_names.len() != 1
@@ -452,7 +455,8 @@ fn synthesized_equality_member(
     if syntax.items.state_parameters(requirement.parameters).len() != 2 {
         return None;
     }
-    let mut signature = instantiate_default_signature(syntax, requirement, substitution);
+    let mut signature =
+        instantiate_default_signature(syntax, requirement, substitution, supplying_declaration);
     let [left, right] = syntax.items.state_parameters(signature.parameters) else {
         return None;
     };
@@ -570,7 +574,7 @@ fn substitute_type_reference(
         TypeReferenceNode::Generic {
             base_name,
             arguments,
-            ..
+            lifetime_arguments,
         } => {
             let original = syntax
                 .type_references
@@ -586,7 +590,11 @@ fn substitute_type_reference(
                 let arguments = syntax
                     .type_references
                     .insert_type_reference_handles(substituted);
-                syntax.type_references.insert_generic(base_name, arguments)
+                syntax.type_references.insert(TypeReferenceNode::Generic {
+                    base_name,
+                    lifetime_arguments,
+                    arguments,
+                })
             }
         }
         // A selector's trait arguments are ordinary type positions: a default
@@ -630,6 +638,7 @@ fn instantiate_default_signature(
     syntax: &mut SyntaxTrees,
     signature: &StateSignatureNode,
     substitution: &HashMap<String, TypeReferenceHandle>,
+    supplying_declaration: ItemHandle,
 ) -> StateSignatureNode {
     if substitution.is_empty() {
         return signature.clone();
@@ -641,10 +650,31 @@ fn instantiate_default_signature(
         let Some(argument) = substitution.get(&name) else {
             continue;
         };
-        let replacement = syntax.type_references.type_reference(*argument).clone();
+        // A supplied subtree belongs to the conformance telescope, not the
+        // copied requirement's invocation telescope. Deep copying keeps nested
+        // operand custody while leaving fresh surrounding wrappers untouched.
+        let supplied = syntax.copy_type_reference_handle(&snapshot, *argument);
+        let replacement = syntax.type_references.type_reference(supplied).clone();
         syntax
             .type_references
             .replace_type_reference(handle, replacement);
+        let origin = syntax.type_references.generic_application_origin(supplied);
+        if origin.is_valid() {
+            syntax
+                .type_references
+                .retain_generic_application_origin(handle, origin);
+        }
+        syntax
+            .type_references
+            .retain_copied_operand_owner(supplied, handle);
+        if matches!(
+            syntax.type_references.supplied_operand_owner(supplied),
+            Ok(owner) if !owner.is_valid()
+        ) {
+            syntax
+                .type_references
+                .retain_supplied_operand_owner(handle, supplying_declaration);
+        }
     }
     copied
 }

@@ -1473,7 +1473,9 @@ fn plain_type_is_supported(
     use symbol_resolved_trees::types::TypeReference;
     match type_reference {
         TypeReference::Named { symbol, .. } if !symbol.is_valid() => false,
-        TypeReference::Named { symbol, name } if source.symbols.name(*symbol) != name.as_str() => {
+        TypeReference::Named { symbol, name, .. }
+            if source.symbols.name(*symbol) != name.as_str() =>
+        {
             false
         }
         TypeReference::Named { symbol, .. } => match source.symbols.get(*symbol).kind {

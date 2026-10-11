@@ -133,6 +133,7 @@ pub(super) fn assign_machine_symbols(
                             })
                             .unwrap_or(owner_parameter);
                         symbol_resolved_trees::types::TypeReference::Named {
+ supplied_operand_owner: Default::default(),
                             symbol: parameter.symbol,
                             name: parameter.name.clone(),
                         }
@@ -140,6 +141,7 @@ pub(super) fn assign_machine_symbols(
                 symbol_resolved_trees::types::TypeReference::Generic(
                     symbol_resolved_trees::types::GenericTypeReference {
                         storage: symbol_resolved_trees::types::GenericTypeReferenceStorage {
+ supplied_operand_owner: Default::default(),
                             base_symbol: definition.symbol,
                             base_name: machine
                                 .attached_data

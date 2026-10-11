@@ -349,6 +349,14 @@ impl SyntaxCopy<'_> {
             self.type_references
                 .retain_pending_const_argument(copied, pending);
         }
+        match other.type_references.supplied_operand_owner(handle) {
+            Ok(owner) => self
+                .type_references
+                .retain_supplied_operand_owner(copied, owner),
+            Err(_) => self
+                .type_references
+                .retain_unresolved_supplied_operand_owner(copied),
+        }
         let origin = other.type_references.generic_application_origin(handle);
         if let TypeReferenceNode::Constrained { constraints, .. } =
             other.type_references.type_reference(handle)

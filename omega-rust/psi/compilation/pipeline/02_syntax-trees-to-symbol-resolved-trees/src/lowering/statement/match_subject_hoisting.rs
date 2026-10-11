@@ -197,6 +197,7 @@ pub(crate) fn hoist_comparison_match_subject(
     // 5`), which the let-value operand hoist does -- `__t` (an indexed-read local
     // used as a compare operand) keeps its slot, so `__t > 5` reads correctly.
     let declared_bool = TypeReference::Named {
+        supplied_operand_owner: Default::default(),
         symbol: SymbolHandle::invalid(),
         name: DiagnosticName::generated("bool"),
     };

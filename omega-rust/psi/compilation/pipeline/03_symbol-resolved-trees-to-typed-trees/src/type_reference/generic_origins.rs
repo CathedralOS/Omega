@@ -51,7 +51,7 @@ pub(crate) fn validate_range_arguments(
             .child_type_references
             .get(origin.instance);
         let (name, symbol) = match instance {
-            TypeReference::Named { name, symbol } => (name, *symbol),
+            TypeReference::Named { name, symbol, .. } => (name, *symbol),
             TypeReference::Generic(value) => (&value.base_name, value.base_symbol),
             _ => {
                 malformed_origin = true;
@@ -387,7 +387,7 @@ fn instance_identity_matches(
     name: &resolved::name::DiagnosticName,
 ) -> Result<bool, Diagnostic> {
     let (instance_symbol, instance_name) = match instance {
-        TypeReference::Named { symbol, name } => (*symbol, name),
+        TypeReference::Named { symbol, name, .. } => (*symbol, name),
         TypeReference::Generic(value) => (value.base_symbol, &value.base_name),
         _ => return Err(mismatch(name)),
     };
@@ -442,10 +442,12 @@ impl Equality<'_, '_> {
                 TypeReference::Named {
                     symbol: left,
                     name: left_name,
+                    ..
                 },
                 TypeReference::Named {
                     symbol: right,
                     name: right_name,
+                    ..
                 },
             ) => {
                 if left.is_valid() || right.is_valid() {

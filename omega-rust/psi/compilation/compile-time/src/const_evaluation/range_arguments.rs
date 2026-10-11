@@ -124,6 +124,7 @@ pub(crate) fn evaluate(
             let symbol_resolved_trees::types::TypeReference::Named {
                 symbol,
                 name: selected_name,
+                ..
             } = child
             else {
                 continue;

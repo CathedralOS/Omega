@@ -194,13 +194,14 @@ fn lower_type_reference_node(
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
-    match syntax_trees.type_references.type_reference(type_reference) {
+    let mut lowered = match syntax_trees.type_references.type_reference(type_reference) {
         syntax::types::TypeReferenceNode::Reference {
             referee,
             access,
             lifetime,
         } => Ok(TypeReference::Reference(ReferenceTypeReference {
             storage: ReferenceTypeReferenceStorage {
+                supplied_operand_owner: Default::default(),
                 referee: lower_type_reference_child(lowerer, syntax_trees, *referee)?,
                 access: *access,
                 lifetime: lifetime.as_ref().map(crate::lowering::name::lower_name),
@@ -211,6 +212,7 @@ fn lower_type_reference_node(
             constraints,
         } => Ok(TypeReference::Constrained(ConstrainedTypeReference {
             storage: ConstrainedTypeReferenceStorage {
+                supplied_operand_owner: Default::default(),
                 base_type: lower_type_reference_child(lowerer, syntax_trees, *base_type)?,
                 constraints: lower_type_constraint_handles(lowerer, syntax_trees, *constraints)?,
             },
@@ -220,6 +222,7 @@ fn lower_type_reference_node(
             length,
         } => Ok(TypeReference::FixedArray(FixedArrayTypeReference {
             storage: FixedArrayTypeReferenceStorage {
+                supplied_operand_owner: Default::default(),
                 element_type: lower_type_reference_child(lowerer, syntax_trees, *element_type)?,
                 length: lower_fixed_array_length(length),
             },
@@ -227,6 +230,7 @@ fn lower_type_reference_node(
         syntax::types::TypeReferenceNode::Slice { element_type } => {
             Ok(TypeReference::Slice(SliceTypeReference {
                 storage: SliceTypeReferenceStorage {
+                    supplied_operand_owner: Default::default(),
                     element_type: lower_type_reference_child(lowerer, syntax_trees, *element_type)?,
                 },
             }))
@@ -253,6 +257,7 @@ fn lower_type_reference_node(
             );
             Ok(TypeReference::Generic(GenericTypeReference {
                 storage: GenericTypeReferenceStorage {
+                    supplied_operand_owner: Default::default(),
                     base_symbol: SymbolHandle::invalid(),
                     base_name: crate::lowering::name::lower_name(base_name),
                     lifetime_arguments: lifetime_arguments
@@ -271,16 +276,25 @@ fn lower_type_reference_node(
             trait_name,
             trait_arguments,
         } => Ok(TypeReference::DynamicTrait {
+            supplied_operand_owner: Default::default(),
             symbol: SymbolHandle::invalid(),
             name: crate::lowering::name::lower_name(trait_name),
             arguments: lower_child_type_references(lowerer, syntax_trees, *trait_arguments)?,
         }),
         syntax::types::TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
+            supplied_operand_owner: Default::default(),
             symbol: SymbolHandle::invalid(),
             name: crate::lowering::name::lower_name(name),
         }),
         syntax::types::TypeReferenceNode::Unit => Ok(TypeReference::Unit),
-    }
+    }?;
+    let input = syntax_trees
+        .type_references
+        .supplied_operand_owner(type_reference)
+        .map_err(Diagnostic::error)?;
+    let owner = crate::resolution::operand_owners::retain(lowerer, input);
+    lowered.retain_supplied_operand_owner(owner);
+    Ok(lowered)
 }
 
 pub(crate) fn lower_fixed_array_length(

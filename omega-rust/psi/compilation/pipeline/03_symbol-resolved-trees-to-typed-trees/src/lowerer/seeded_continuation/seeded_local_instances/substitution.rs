@@ -632,7 +632,7 @@ fn type_matches(
     instance: &TypeReference,
 ) -> bool {
     match template {
-        TypeReference::Named { symbol, name }
+        TypeReference::Named { symbol, name, .. }
             if substitutions
                 .iter()
                 .any(|(parameter, _)| parameter == symbol) =>
@@ -645,7 +645,7 @@ fn type_matches(
                         exact_substituted_argument_matches(source, argument, instance)
                     })
         }
-        TypeReference::Named { symbol, name } => {
+        TypeReference::Named { symbol, name, .. } => {
             symbol.is_valid()
                 && name.as_str() == source.symbols.name(*symbol)
                 && template == instance
@@ -696,7 +696,7 @@ fn type_matches(
         }
         TypeReference::Generic(template_generic) => {
             let (symbol, name) = match instance {
-                TypeReference::Named { symbol, name }
+                TypeReference::Named { symbol, name, .. }
                     if template_generic.lifetime_arguments.is_empty() =>
                 {
                     (*symbol, name)

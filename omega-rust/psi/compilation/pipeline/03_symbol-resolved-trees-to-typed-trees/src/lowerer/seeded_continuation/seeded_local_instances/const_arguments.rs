@@ -50,7 +50,7 @@ pub(super) fn closed_argument_is_supported(
     else {
         return false;
     };
-    let TypeReference::Named { symbol, name } = argument else {
+    let TypeReference::Named { symbol, name, .. } = argument else {
         return false;
     };
     if symbol.is_valid() {
@@ -88,7 +88,7 @@ pub(super) fn template_argument_is_supported(
     else {
         return false;
     };
-    let TypeReference::Named { symbol, name } = argument else {
+    let TypeReference::Named { symbol, name, .. } = argument else {
         return false;
     };
     // An owner `Value` binder is a runtime subject: it may flow through call
@@ -135,6 +135,7 @@ pub(super) fn substituted_array_length_matches(
                 let TypeReference::Named {
                     symbol: argument_symbol,
                     name,
+                    ..
                 } = argument
                 else {
                     return None;
@@ -180,7 +181,7 @@ fn scalar_carrier(
     source: &SymbolResolvedTrees,
     type_reference: &TypeReference,
 ) -> Option<ScalarConstCarrier> {
-    let TypeReference::Named { symbol, name } = type_reference else {
+    let TypeReference::Named { symbol, name, .. } = type_reference else {
         return None;
     };
     if !symbol.is_valid() || source.symbols.name(*symbol) != name.as_str() {

@@ -35,6 +35,34 @@ mod direct;
 mod generic_origins;
 mod table;
 
+/// Type copying preserves a supplying declaration independently of the
+/// surrounding signature's fresh invocation telescope.
+pub(super) fn retain_supplied_operand_owner(
+    source_trees: &resolved::SymbolResolvedTrees,
+    typed_trees: &mut typed::TypedTrees,
+    reference: typed::types::TypeReferenceHandle,
+    owner: resolved::types::OperandLifetimeOwnerHandle,
+) -> Result<(), Diagnostic> {
+    if !owner.is_valid() {
+        return Ok(());
+    }
+    let declaration = source_trees
+        .tables
+        .types
+        .operand_lifetime_owners
+        .get(owner)
+        .declaration;
+    if !declaration.is_valid() {
+        return Err(Diagnostic::error(
+            "supplied operand has no resolved lifetime owner",
+        ));
+    }
+    typed_trees
+        .type_reference_table
+        .retain_operand_lifetime_owner(reference, declaration)
+        .map_err(Diagnostic::error)
+}
+
 pub(crate) use arithmetic_results::retain_arithmetic_result_type;
 pub(crate) use computed_results::retain_computed_result_types;
 pub(crate) use generic_origins::validate_range_arguments;

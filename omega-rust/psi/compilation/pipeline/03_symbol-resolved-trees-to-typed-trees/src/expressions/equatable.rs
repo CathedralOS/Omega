@@ -156,7 +156,7 @@ pub(crate) fn equatable_operand_data<'program>(
     program: &'program SymbolResolvedTrees,
     conformance: &Conformance,
 ) -> Option<&'program DataDefinition> {
-    let [resolved::types::TypeReference::Named { symbol, name }] =
+    let [resolved::types::TypeReference::Named { symbol, name, .. }] =
         program.child_type_references(conformance.arguments)
     else {
         return None;
@@ -486,7 +486,7 @@ pub(crate) fn value_type_base_name(
             program,
             program.child_type_reference(constrained.storage.base_type),
         ),
-        resolved::types::TypeReference::Named { symbol, name } => {
+        resolved::types::TypeReference::Named { symbol, name, .. } => {
             Some(canonical_data_name(program, *symbol, name))
         }
         _ => None,

@@ -16,6 +16,7 @@
 mod body_completion;
 mod continuations;
 pub(crate) mod lowerer;
+pub(crate) mod operand_owners;
 pub(crate) mod type_inputs;
 
 use crate::preparation::declaration_selection::ConstantSelection;
@@ -145,11 +146,15 @@ fn index_deferred(
         sources.statements.clear();
         sources
     });
+    let supplied_operand_owners = std::mem::take(&mut lowerer.supplied_operand_owners);
+    let conformance_inputs = std::mem::take(&mut lowerer.conformance_inputs);
     Ok(DeferredResolvedFrontier {
         syntax: Arc::new(syntax),
         trees: Arc::new(lowerer.into_trees()),
         pending,
         pending_type_inputs,
+        supplied_operand_owners,
+        conformance_inputs,
         selection,
         sources,
         bindings,

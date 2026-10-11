@@ -354,7 +354,7 @@ pub(super) fn template_argument_is_supported(
 ) -> bool {
     match parameter.kind {
         symbol_resolved_trees::data::TypeParameterKind::Type => {
-            let TypeReference::Named { symbol, name } = argument else {
+            let TypeReference::Named { symbol, name, .. } = argument else {
                 return false;
             };
             if !symbol.is_valid() || source.symbols.name(*symbol) != name.as_str() {
@@ -408,7 +408,7 @@ fn instance_argument_is_supported(
 ) -> bool {
     match parameter.kind {
         symbol_resolved_trees::data::TypeParameterKind::Type => match argument {
-            TypeReference::Named { symbol, name } => {
+            TypeReference::Named { symbol, name, .. } => {
                 supported_named_argument(source, validated_instances, *symbol, name.as_str())
             }
             TypeReference::Generic(application) => lifetime_instance_type_argument_is_supported(
@@ -469,7 +469,8 @@ pub(super) fn exact_constrained_argument<'source>(
     source: &'source SymbolResolvedTrees,
     constrained: &symbol_resolved_trees::types::ConstrainedTypeReference,
 ) -> Option<ExactConstrainedArgument<'source>> {
-    let TypeReference::Named { symbol, name } = source.child_type_reference(constrained.base_type)
+    let TypeReference::Named { symbol, name, .. } =
+        source.child_type_reference(constrained.base_type)
     else {
         return None;
     };
@@ -527,7 +528,7 @@ fn exact_unindexed_domain_for_named_carrier(
                 || declared_name.rsplit("::").next() == Some(authored_name);
             let target_matches = matches!(
                 &domain.target_type,
-                TypeReference::Named { symbol, name }
+                TypeReference::Named { symbol, name, .. }
                     if *symbol == carrier_symbol && name.as_str() == carrier_name
             );
             domain.symbol.is_valid()

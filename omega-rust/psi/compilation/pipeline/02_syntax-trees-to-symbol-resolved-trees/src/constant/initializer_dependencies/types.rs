@@ -137,7 +137,7 @@ impl<'program> Collector<'program> {
                 self.type_declaration(application.base_symbol)?;
                 self.type_arguments(application.arguments)?;
             }
-            TypeReference::Named { symbol, name }
+            TypeReference::Named { symbol, name, .. }
                 if self.program.symbols.get(*symbol).kind == SymbolKind::Const =>
             {
                 self.constant(*symbol, name.source_span())?;

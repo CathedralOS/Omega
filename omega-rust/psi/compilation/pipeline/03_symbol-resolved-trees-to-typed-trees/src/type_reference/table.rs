@@ -178,6 +178,16 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             .insert(typed::types::TypeReferenceNode::Unit)),
     };
     let reference = result?;
+    super::retain_supplied_operand_owner(
+        source_trees,
+        typed_trees,
+        reference,
+        source_trees
+            .tables
+            .types
+            .references
+            .supplied_operand_owner(type_reference),
+    )?;
     super::retain_computed_result_types(&source_trees.symbols, typed_trees, reference, None);
     Ok(reference)
 }

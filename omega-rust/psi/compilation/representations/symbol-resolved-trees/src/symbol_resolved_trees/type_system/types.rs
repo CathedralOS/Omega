@@ -11,6 +11,15 @@ mod tests;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
+/// A supplied subtree rejoins its declaration after symbol allocation. The
+/// row is shared by both resolved carrier forms; zero means ordinary lexical
+/// ownership. It never supplies a lifetime binder on behalf of another owner.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OperandLifetimeOwner {
+    pub declaration: SymbolHandle,
+}
+pub type OperandLifetimeOwnerHandle = Handle<OperandLifetimeOwner>;
+
 /// One authored generic application and the exact closed occurrence replacing
 /// it. Declaration exposure is supplied by the containing typed source context,
 /// never by the visibility of the synthesized data declaration.
@@ -39,10 +48,12 @@ pub enum TypeReference {
         symbol: SymbolHandle,
         name: DiagnosticName,
         arguments: HandleSpan<TypeReference>,
+        supplied_operand_owner: OperandLifetimeOwnerHandle,
     },
     Named {
         symbol: SymbolHandle,
         name: DiagnosticName,
+        supplied_operand_owner: OperandLifetimeOwnerHandle,
     },
     #[default]
     Unit,
@@ -55,6 +66,7 @@ pub struct ReferenceTypeReference {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ReferenceTypeReferenceStorage {
+    pub supplied_operand_owner: OperandLifetimeOwnerHandle,
     pub referee: Handle<TypeReference>,
     pub access: language_core::ReferenceAccess,
     /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2. A
@@ -72,6 +84,7 @@ pub struct ConstrainedTypeReference {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ConstrainedTypeReferenceStorage {
+    pub supplied_operand_owner: OperandLifetimeOwnerHandle,
     pub base_type: Handle<TypeReference>,
     pub constraints: HandleSpan<TypeConstraint>,
 }
@@ -85,6 +98,7 @@ pub struct FixedArrayTypeReference {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FixedArrayTypeReferenceStorage {
+    pub supplied_operand_owner: OperandLifetimeOwnerHandle,
     pub element_type: Handle<TypeReference>,
     pub length: FixedArrayLength,
 }
@@ -135,6 +149,7 @@ pub struct SliceTypeReference {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SliceTypeReferenceStorage {
+    pub supplied_operand_owner: OperandLifetimeOwnerHandle,
     pub element_type: Handle<TypeReference>,
 }
 
@@ -147,6 +162,7 @@ pub struct GenericTypeReference {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct GenericTypeReferenceStorage {
+    pub supplied_operand_owner: OperandLifetimeOwnerHandle,
     pub base_symbol: SymbolHandle,
     pub base_name: DiagnosticName,
     /// Erased borrow-region arguments. These remain diagnostic names rather
@@ -161,6 +177,13 @@ deref_to_storage!(GenericTypeReference => GenericTypeReferenceStorage);
 pub struct TypeReferenceTable {
     nodes: TypeReferenceNodeStorage,
     spans: TypeReferenceSpanStorage,
+    supplied_operand_owners: Arena<SuppliedOperandOwner>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct SuppliedOperandOwner {
+    reference: TypeReferenceHandle,
+    owner: OperandLifetimeOwnerHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -184,11 +207,22 @@ impl TypeReferenceTable {
                 type_reference_handles: Arena::new(),
                 constraints: Arena::new(),
             },
+            supplied_operand_owners: Arena::new(),
         }
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
         self.nodes.type_references.insert(type_reference)
+    }
+
+    pub fn supplied_operand_owner(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> OperandLifetimeOwnerHandle {
+        self.supplied_operand_owners
+            .iter()
+            .find_map(|(_, row)| (row.reference == reference).then_some(row.owner))
+            .unwrap_or_default()
     }
 
     pub fn insert_type_reference_handles(
@@ -351,7 +385,7 @@ impl TypeReferenceTable {
         source_constraints: &Arena<TypeConstraint>,
         source_expressions: &crate::expression::ExpressionTable,
     ) -> TypeReferenceHandle {
-        match type_reference {
+        let reference = match type_reference {
             TypeReference::Reference(reference) => {
                 let referee = self.insert_tree(
                     source_generic_arguments.get(reference.referee),
@@ -432,6 +466,7 @@ impl TypeReferenceTable {
                 symbol,
                 name,
                 arguments,
+                ..
             } => {
                 let arguments = self.insert_type_reference_handle_span_from_trees(
                     source_generic_arguments.span_or_empty(*arguments),
@@ -446,11 +481,57 @@ impl TypeReferenceTable {
                     arguments,
                 })
             }
-            TypeReference::Named { symbol, name } => self.insert(TypeReferenceNode::Named {
+            TypeReference::Named { symbol, name, .. } => self.insert(TypeReferenceNode::Named {
                 symbol: *symbol,
                 name: name.clone(),
             }),
             TypeReference::Unit => self.insert(TypeReferenceNode::Unit),
+        };
+        let owner = type_reference.supplied_operand_owner();
+        if owner.is_valid() {
+            self.supplied_operand_owners
+                .insert(SuppliedOperandOwner { reference, owner });
+        }
+        reference
+    }
+}
+
+impl TypeReference {
+    pub fn supplied_operand_owner(&self) -> OperandLifetimeOwnerHandle {
+        match self {
+            Self::Reference(reference) => reference.supplied_operand_owner,
+            Self::Constrained(reference) => reference.supplied_operand_owner,
+            Self::FixedArray(reference) => reference.supplied_operand_owner,
+            Self::Slice(reference) => reference.supplied_operand_owner,
+            Self::Generic(reference) => reference.supplied_operand_owner,
+            Self::Named {
+                supplied_operand_owner,
+                ..
+            }
+            | Self::DynamicTrait {
+                supplied_operand_owner,
+                ..
+            } => *supplied_operand_owner,
+            Self::ConstExpression(_) | Self::Unit => OperandLifetimeOwnerHandle::invalid(),
+        }
+    }
+
+    pub fn retain_supplied_operand_owner(&mut self, owner: OperandLifetimeOwnerHandle) {
+        match self {
+            Self::Reference(reference) => reference.supplied_operand_owner = owner,
+            Self::Constrained(reference) => reference.supplied_operand_owner = owner,
+            Self::FixedArray(reference) => reference.supplied_operand_owner = owner,
+            Self::Slice(reference) => reference.supplied_operand_owner = owner,
+            Self::Generic(reference) => reference.supplied_operand_owner = owner,
+            Self::Named {
+                supplied_operand_owner,
+                ..
+            }
+            | Self::DynamicTrait {
+                supplied_operand_owner,
+                ..
+            } => *supplied_operand_owner = owner,
+            Self::ConstExpression(_) | Self::Unit => {}
         }
     }
 }

@@ -158,8 +158,11 @@ impl SyntaxTrees {
     }
 
     pub fn extend_from(&mut self, other: &SyntaxTrees) {
+        let frontier = self.type_references.supplied_operand_owner_frontier();
+        let mut declarations = Vec::with_capacity(other.root_item_count());
         for handle in other.root_item_handles() {
-            self.push_copied_root_item(other, *handle);
+            let copied = self.push_copied_root_item(other, *handle);
+            declarations.push((*handle, copied));
         }
         // Mathematical declarations land after all copied items; source order
         // is retained within each root collection, and nothing this stage
@@ -169,6 +172,8 @@ impl SyntaxTrees {
                 .copy_mathematical_definition(other, other.root_mathematical_definition(*handle));
             self.push_root_mathematical_definition(definition);
         }
+        self.type_references
+            .remap_supplied_operand_owners(frontier, &declarations);
     }
 
     /// Adopt one independently produced syntax page without copying nodes or

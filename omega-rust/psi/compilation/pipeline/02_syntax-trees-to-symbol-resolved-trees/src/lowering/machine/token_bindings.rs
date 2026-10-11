@@ -948,6 +948,7 @@ impl<'program> ShapeNormalizer<'program> {
                 symbol,
                 name,
                 arguments,
+                ..
             } => format!(
                 "dyn {}<{}>",
                 self.binder_or_symbol(*symbol, name.as_str()),
@@ -958,7 +959,9 @@ impl<'program> ShapeNormalizer<'program> {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            TypeReference::Named { symbol, name } => self.binder_or_symbol(*symbol, name.as_str()),
+            TypeReference::Named { symbol, name, .. } => {
+                self.binder_or_symbol(*symbol, name.as_str())
+            }
             TypeReference::Unit => "()".to_owned(),
         }
     }

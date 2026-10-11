@@ -503,6 +503,7 @@ pub(crate) fn assign_declarations(
             )?;
         }
     }
+    crate::resolution::operand_owners::bind(lowerer)?;
     lowerer.bound_generic_application_origins = lowerer
         .symbol_resolved_trees
         .tables
