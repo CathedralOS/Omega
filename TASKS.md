@@ -2666,10 +2666,6 @@ crash and native exit behavior.
     and `targets/runtime_family_current_completion_paths_exit` running through
     both engines (`tools/corpus_gate.py --both
     --filter <fixture>`).
-    The shared Console ranking repair is landed. Recheck std's exit-70
-    `targets/target_machine_gating_exit` canary through public package preparation;
-    it currently requests review and acceptance of the dependency's
-    `MacosApplication` program-entry binding, not a fabricated provider grant.
     Provider-default declaration operations must remain distinct from runtime
     invocation dependencies. Publish target-default effects in
     the source-free Build companion and prove distinct tagged realizations

@@ -768,3 +768,5 @@ pass/borrows/runtime_copied_range_record_domains_exit built 3884ms exit:0 interp
 pass/borrows/runtime_nested_array_range_record_domains_exit built 3884ms exit:0 interpreter-exit:0 interpreter:agrees @97bca654182d
 pass/operators/runtime_declared_index_collection_loans_exit built 3920ms exit:0 interpreter-exit:0 interpreter:agrees @809b88c4b692
 pass/operators/runtime_declared_range_guarded_collection_exit built 3840ms exit:0 interpreter-exit:0 interpreter:agrees @65af6dcedabd
+# context: {"cpus": 10, "jobs": "2", "load1_end": 2.78, "load1_start": 1.84, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/targets/target_machine_gating_exit built 3646ms exit:70 interpreter-exit:70 interpreter:agrees @678203d30209+wt

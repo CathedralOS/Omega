@@ -4524,11 +4524,7 @@ pass/targets/sysv_mixed_aggregate_entry checked 1308ms @2d8ed253669f
 pass/targets/target_body_call_contracts_exit rejected 20881ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d54a6f89c75b+wt
 	unimplemented: portable target-family contract for `Helper::run` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
 pass/targets/target_family_entry_exit checked 42426ms check-target:macos_arm64 @d54a6f89c75b+wt
-pass/targets/target_machine_gating_exit rejected 20414ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d54a6f89c75b+wt
-	unimplemented: portable target-family contract for `Helper::pick` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `Helper::delta` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
-	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+pass/targets/target_machine_gating_exit checked 3534ms check-target:macos_arm64 @678203d30209+wt
 pass/targets/unreached_foreign_body_caller_exit rejected 21085ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d54a6f89c75b+wt
 	unimplemented: portable target-family contract for `Helper::firmware_only` referenced by `Helper::firmware_bridge`; source checking cannot use a selected target body's guarantees
 	unimplemented: portable target-family contract for `Helper::firmware_only` referenced by `FirmwareValue::read`; source checking cannot use a selected target body's guarantees

@@ -42,13 +42,36 @@ The compiler forwards that adapter to Psi's build-time evaluator, which owns
 execution admissibility, operands and replay; it does not reconstruct provider
 authority.
 
-[Target declarations](src/target_machines.rs) prepare the source family roster,
-rejoin generated extensions and select the product's typed bodies. The retained
-carrier consumes that roster into typed defaults and origins for settlement;
-build evaluation and the compiler do not implement those selection rules.
+[Target declarations](src/target_machines.rs) retain every target's default
+declaration effects and project them onto one realization for settlement.
+After Psi checks all bodies, execution reach resolves a portable family head
+to its exact selected member before following that member's calls. A concrete
+member reference retains its authored target fence; it never redirects into a
+sibling. Missing members name the authored caller and callee. This selection
+does not prune the portable catalog or grant provider authority.
+Build evaluation and the compiler do not implement these selection rules.
 [Provider declarations](src/provider_declarations.rs) decode static defaults
 and executed Build choices into the same exact selection identities. Package
 review uses its declaration replay without executing Build again.
+
+The public std canary is:
+
+```text
+omega run --both tests/omega/pass/targets/target_machine_gating_exit/main.omg
+```
+
+It exits 70 in both engines after ordinary package preparation accepts the
+dependency's host ProgramEntry binding and the program's Console permissions.
+Prepare its packages with:
+
+```text
+omega update --project tests/omega/pass/targets/target_machine_gating_exit --target <authored-host-target>
+```
+
+Then use the editable review/resume workflow. Missing acceptance is not a
+missing target-family implementation. The corpus's reviewed test policy is not an
+acceptance file for the public command. Paired missing-body controls live under
+`tests/omega/fail/targets/`, including a call inside a selected family member.
 
 This is transitional source/checked-tree realization, not target-neutral Psi
 checking or the final post-Terminal installation route. The dependency on Psi's
