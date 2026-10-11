@@ -2837,13 +2837,16 @@ crash and native exit behavior.
     owners travel in declarations, without a retained lowering clone or source
     lookup. Callback facts carry source entry resources, not target ABI hashes.
     Callback/provider-installation joins (`85568e8bed8`), the split of the
-    initial source-dependent selection from checking (`e2c8e888fd`), and
-    unifying the settled views across targets (`a783b4f358`) are done:
-    `settle_initial_execution` records every admitted target's selection over
-    the shared typed product before the first check runs, and
-    `unify_settled_execution_views` unions declaration-scoped completions and
-    shares storage between converged views. Remaining frontier: the const
-    exception, `BoundaryMachineDeclaration` `ensures`, and
+    initial source-dependent selection from checking (`e2c8e888fd`),
+    unifying the settled views across targets (`a783b4f358`), and the const
+    exception (`99e3b75e65`) are done: `settle_initial_execution` records
+    every admitted target's selection over the shared typed product before
+    the first check runs, `unify_settled_execution_views` unions
+    declaration-scoped completions and shares storage between converged
+    views, and `reject_divergent_constant_providers` compares the provider
+    rows each pending fold selected — naming every pair of diverging targets
+    in that target's own diagnostics while leaving layout custody per
+    target. Remaining frontier: `BoundaryMachineDeclaration` `ensures` and
     execution_settlement's Omega-00 installation joins.
   - `omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
     still joins frontend-dependent `provider-planning` and `selected-dispatch`
