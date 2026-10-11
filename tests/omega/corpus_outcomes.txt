@@ -881,8 +881,7 @@ pass/control_flow/runtime_projected_float_case_payload_exit timeout 120000ms reg
 pass/control_flow/runtime_projected_index_case_payload_forwarding_exit checked 13169ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_projected_index_single_case_payload_exit checked 12991ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_projected_single_case_payload_exit checked 11692ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit rejected 5484ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	cannot prove the `terminates by` ranking for machine drain
+pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit checked 11387ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_ranked_state_cycle_owned_record_exit checked 11629ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_returned_nested_case_payload_capture_exit checked 12354ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_root_float_case_payload_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt

@@ -139,24 +139,6 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **RANKED-BORROWED-RECORD-CYCLE.** (new-scope) Restore the ranked
-  `terminates by` proof for a state cycle carrying a borrowed record.
-  `pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit` checked
-  at `64c766216f02+wt` (native exit 70, four bound targets) and now rejects at
-  source checking: "cannot prove the `terminates by` ranking for machine
-  drain". The machine `drain(remaining: u32, tally: &mut Tally)` requires
-  `remaining <= 5` and loops `true -> step(remaining - 1, tally)` — a computed
-  decrement argument into a state that borrows the record. The fixture was
-  authored in 66ff12673e when the structural Unit control route retired, so
-  the regression window is the recent ranked-arrival work on that path
-  (`b0f640d4a6` carrying computed public results into ranked arrivals,
-  `a9ae30e1c3` retaining integer quotient equations across completed
-  arrivals). Reproduce with
-  `python tools/corpus_gate.py --filter runtime_ranked_state_cycle_borrowed_record`.
-  Bisect inside that window, restore the arrival's rank evidence for a
-  borrowed `&mut` record carrier, and repin the golden row from
-  `regressed-from:checked` back to `checked` when the proof returns.
-
 - **FLOAT-PAYLOAD-COMPILE-TIME.** (new-scope) Remove the ~28x source-checking
   slowdown on the float case-payload cohort.
   `pass/control_flow/runtime_{float_payload_snapshot_after_case_replacement,projected_float_case_payload,root_float_case_payload}_exit`
