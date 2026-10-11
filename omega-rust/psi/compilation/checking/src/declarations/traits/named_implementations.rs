@@ -21,6 +21,7 @@ use typed_trees::types::TypeReferenceHandle;
 pub(crate) fn validate_conformances(
     program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
+    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (index, conformance) in program.conformances().iter().enumerate() {
@@ -86,6 +87,13 @@ pub(crate) fn validate_conformances(
             trait_definition,
             arguments,
             &format!("conformance `{implementation_name} satisfies {trait_name}`"),
+            symbols,
+            crate::value_custody::type_references::TypeParameterScope {
+                type_parameters: program
+                    .data_type_parameters
+                    .span_or_empty(conformance.type_parameters),
+                lifetime_parameters: &conformance.lifetime_parameters,
+            },
             diagnostics,
         );
 

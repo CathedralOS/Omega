@@ -1,5 +1,7 @@
 //! Trait application obligations: machine declaration identity arguments,
-//! proposition family arguments and indexed carrier parameters.
+//! proposition family arguments and indexed carrier parameters. Every source
+//! use, including unused stored Binding applications, shares kind, property
+//! and callable admission; closed representation is not that judgment.
 
 use crate::declarations::traits::conformance::signature_matching::{
     carrier_data_definition_for_argument, required_trait_type_parameter, trait_type_bindings,
@@ -11,20 +13,97 @@ use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// Validate the argument obligations a generic trait header declares at one
-/// use of that trait: machine declaration identities and proposition family
-/// arguments.
+/// Admit the complete argument roster of a trait application in its caller's
+/// lexical scope, including unused binders and applications stored in fields.
+/// Binder kind, declared properties and callable/evidence contracts remain
+/// obligations independently of closedness or runtime carrier equality.
 pub(crate) fn validate_trait_application_obligations(
     program: &dyn crate::CheckingInput,
     applied_trait: &TraitDefinition,
     applied_arguments: &[TypeReferenceHandle],
     application_label: &str,
+    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
+    caller_scope: crate::value_custody::type_references::TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let parameters = program.trait_type_parameters(applied_trait);
     if applied_arguments.len() != parameters.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "{application_label} expects {} generic arguments, got {}",
+            parameters.len(),
+            applied_arguments.len()
+        )));
         return;
     }
+
+    use crate::value_custody::type_references::{
+        TypeReferenceOwner, validate_const_application_argument,
+        validate_machine_application_argument, validate_parameter_bounds,
+        validate_type_reference_handle,
+    };
+    validate_parameter_bounds(
+        program,
+        symbols,
+        applied_trait.name.as_str(),
+        parameters,
+        applied_arguments,
+        caller_scope,
+        diagnostics,
+    );
+    for (parameter, argument) in parameters.iter().zip(applied_arguments) {
+        match &parameter.kind {
+            TypeParameterKind::Type => validate_type_reference_handle(
+                program,
+                *argument,
+                symbols,
+                diagnostics,
+                TypeReferenceOwner::GenericBinder {
+                    owner: application_label,
+                    parameter: parameter.name.as_str(),
+                    generic_depth: 0,
+                },
+                caller_scope.type_parameters,
+                caller_scope.lifetime_parameters,
+            ),
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => validate_const_application_argument(
+                program,
+                applied_trait.name.as_str(),
+                parameter,
+                *type_reference,
+                *argument,
+                caller_scope,
+                diagnostics,
+            ),
+            TypeParameterKind::Machine { contract }
+                if !matches!(
+                    contract,
+                    typed_trees::data::MachineParameterContract::RequirementIdentity
+                ) =>
+            {
+                validate_machine_application_argument(
+                    program,
+                    applied_trait.symbol,
+                    applied_trait.name.as_str(),
+                    parameter,
+                    contract,
+                    *argument,
+                    caller_scope,
+                    diagnostics,
+                )
+            }
+            TypeParameterKind::Implementation
+            | TypeParameterKind::Proposition { .. }
+            | TypeParameterKind::Machine { .. } => {}
+        }
+    }
+    super::super::trait_implementation_arguments::validate_trait_implementation_application(
+        program,
+        applied_trait,
+        applied_arguments,
+        application_label,
+        diagnostics,
+    );
 
     validate_machine_declaration_identity_arguments(
         program,

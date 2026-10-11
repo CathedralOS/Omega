@@ -1,0 +1,1 @@
+requires an integer literal argument or an in-scope const parameter

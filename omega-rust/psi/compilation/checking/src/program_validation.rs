@@ -206,7 +206,7 @@ fn validate(
     cleanup::validate_cleanup_machine_declarations(program, &mut diagnostics);
     validate_trait_requirements(program, &symbols, &mut diagnostics);
     for trait_definition in program.traits() {
-        validate_trait_conformance_bounds(program, trait_definition, &mut diagnostics);
+        validate_trait_conformance_bounds(program, trait_definition, &symbols, &mut diagnostics);
     }
     content_projections::validate_content_projection_conformances(program, &mut diagnostics);
     content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
@@ -214,7 +214,12 @@ fn validate(
     let conformance_operational = infer_operational_may(program);
     let conformance_service_reaches = infer_service_reaches(program, &conformance_operational);
     if effect_admission == EffectAdmission::Complete {
-        validate_conformances(program, &conformance_service_reaches, &mut diagnostics);
+        validate_conformances(
+            program,
+            &conformance_service_reaches,
+            &symbols,
+            &mut diagnostics,
+        );
         if let Err(mut dynamic_diagnostics) = collect_dynamic_implementation_selections(program) {
             diagnostics.append(&mut dynamic_diagnostics);
         }
@@ -326,7 +331,7 @@ fn validate(
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
-        validate_generic_conformance_bounds(program, machine, &mut diagnostics);
+        validate_generic_conformance_bounds(program, machine, &symbols, &mut diagnostics);
         validate_machine_contracts(program, machine, &mut diagnostics);
         arithmetic_domains::validate_machine_total_specification_arithmetic(
             program,
@@ -789,7 +794,7 @@ pub fn admit_prepared_program_effects(
     let mut diagnostics = Vec::new();
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let service_reaches = infer_service_reaches(program, operational);
-    validate_conformances(program, &service_reaches, &mut diagnostics);
+    validate_conformances(program, &service_reaches, &symbols, &mut diagnostics);
     if let Err(mut errors) = collect_dynamic_implementation_selections(program) {
         diagnostics.append(&mut errors);
     }

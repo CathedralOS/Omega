@@ -1,6 +1,5 @@
 use super::trait_definition_by_symbol;
 use crate::declarations::symbols::TopLevelSymbols;
-use crate::value_custody::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::operator::trait_operator_operand_signature;
@@ -74,30 +73,12 @@ pub(crate) fn validate_trait_requirements(
                         "trait `{}` parent `{}`",
                         trait_definition.name, requirement.name
                     ),
-                    diagnostics,
-                );
-            }
-
-            for (parameter, argument) in program.trait_type_parameters(required_trait).iter().zip(
-                program
-                    .type_reference_table
-                    .type_reference_handles(requirement.arguments),
-            ) {
-                if parameter.kind == typed_trees::data::TypeParameterKind::Implementation {
-                    continue;
-                }
-                validate_type_reference_handle(
-                    program,
-                    *argument,
                     symbols,
-                    diagnostics,
-                    TypeReferenceOwner::TraitParent {
-                        trait_name: trait_definition.name.as_str(),
-                        parent: requirement.name.as_str(),
-                        generic_depth: 0,
+                    crate::value_custody::type_references::TypeParameterScope {
+                        type_parameters: program.trait_type_parameters(trait_definition),
+                        lifetime_parameters: &trait_definition.lifetime_parameters,
                     },
-                    program.trait_type_parameters(trait_definition),
-                    &trait_definition.lifetime_parameters,
+                    diagnostics,
                 );
             }
 

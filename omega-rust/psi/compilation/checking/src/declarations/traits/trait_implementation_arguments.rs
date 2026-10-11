@@ -21,42 +21,13 @@ pub(super) fn validate_trait_implementation_arguments(
         let Some(definition) = program.trait_definition_by_symbol(symbol) else {
             return;
         };
-        let parameters = program.trait_type_parameters(definition);
-        if parameters.len() != arguments.len() {
-            return; // The declaration validator owns ordinary arity diagnostics.
-        }
-        let substitutions = parameters
-            .iter()
-            .zip(arguments)
-            .map(|(parameter, argument)| {
-                (
-                    parameter.symbol,
-                    program.normalized_type_identity_text(*argument),
-                )
-            })
-            .collect::<Vec<_>>();
-        for (parameter, argument) in parameters.iter().zip(arguments) {
-            if parameter.kind != TypeParameterKind::Implementation {
-                continue;
-            }
-            let Some(bound) = definition
-                .conformance_bounds
-                .iter()
-                .find(|bound| bound.binder == parameter.symbol)
-            else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{label} implementation slot `{}` has no declared evidence contract",
-                    parameter.name
-                )));
-                continue;
-            };
-            if let Err(reason) = validate_binding(program, bound, *argument, &substitutions) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{label} cannot bind implementation `{}`: {reason}",
-                    parameter.name
-                )));
-            }
-        }
+        validate_trait_implementation_application(
+            program,
+            definition,
+            arguments,
+            &label,
+            &mut diagnostics,
+        );
     };
     for definition in program.traits() {
         for relationship in program.trait_requirements(definition) {
@@ -125,6 +96,53 @@ pub(super) fn validate_trait_implementation_arguments(
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+/// One exact positional evidence telescope, shared by declaration edges and
+/// trait constructors in types. Stored phantom arguments are not exempt.
+pub(super) fn validate_trait_implementation_application(
+    program: &dyn crate::CheckingInput,
+    definition: &typed_trees::trait_definition::TraitDefinition,
+    arguments: &[TypeReferenceHandle],
+    label: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let parameters = program.trait_type_parameters(definition);
+    if parameters.len() != arguments.len() {
+        return;
+    }
+    let substitutions = parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| {
+            (
+                parameter.symbol,
+                program.normalized_type_identity_text(*argument),
+            )
+        })
+        .collect::<Vec<_>>();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        if parameter.kind != TypeParameterKind::Implementation {
+            continue;
+        }
+        let Some(bound) = definition
+            .conformance_bounds
+            .iter()
+            .find(|bound| bound.binder == parameter.symbol)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} implementation slot `{}` has no declared evidence contract",
+                parameter.name
+            )));
+            continue;
+        };
+        if let Err(reason) = validate_binding(program, bound, *argument, &substitutions) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} cannot bind implementation `{}`: {reason}",
+                parameter.name
+            )));
+        }
     }
 }
 

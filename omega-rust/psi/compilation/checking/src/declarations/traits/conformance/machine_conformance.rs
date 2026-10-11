@@ -7,8 +7,9 @@ mod closed_requirement;
 pub use closed_requirement::resolve as resolve_closed_requirement_application;
 
 use crate::declarations::traits::conformance::signature_matching::{
-    TraitTypeBinding, TraitTypeBindingTarget, authored_satisfier_parameters, parameter_shape_label,
-    satisfier_parameter_correspondence, type_reference_lifetimes_match_requirement_application,
+    TraitTypeBinding, TraitTypeBindingTarget, authored_conformance_machine,
+    authored_satisfier_parameters, parameter_shape_label, satisfier_parameter_correspondence,
+    type_reference_lifetimes_match_requirement_application,
     type_references_match_for_trait_bindings, validate_applied_trait_signature,
 };
 use crate::declarations::traits::conformance::trait_applications::validate_trait_application_obligations;
@@ -98,6 +99,13 @@ pub(crate) fn validate_machine_trait_conformances(
             continue;
         }
 
+        let authored_machine = match authored_conformance_machine(program, machine) {
+            Ok(owner) => owner,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
         validate_trait_application_obligations(
             program,
             trait_definition,
@@ -106,6 +114,11 @@ pub(crate) fn validate_machine_trait_conformances(
                 "machine `{}` conformance to trait `{}`",
                 machine.name, trait_definition.name
             ),
+            symbols,
+            crate::value_custody::type_references::TypeParameterScope {
+                type_parameters: program.machine_type_parameters(authored_machine),
+                lifetime_parameters: &authored_machine.lifetime_parameters,
+            },
             diagnostics,
         );
 

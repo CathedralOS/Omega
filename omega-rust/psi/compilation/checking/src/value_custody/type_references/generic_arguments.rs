@@ -13,7 +13,7 @@ use typed_trees::data::{
 };
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn validate_machine_data_argument(
+pub(crate) fn validate_machine_data_argument(
     program: &dyn crate::CheckingInput,
     base_symbol: SymbolHandle,
     base_name: &str,
@@ -46,14 +46,16 @@ pub(super) fn validate_machine_data_argument(
             definition.symbol == base_symbol
                 || (!program.symbols.has_source_metadata() && definition.name.as_str() == base_name)
         })
-        .map(|definition| {
+        .map(|definition| program.data_type_parameters(definition))
+        .or_else(|| {
             program
-                .data_type_parameters(definition)
-                .iter()
-                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-                .collect::<Vec<_>>()
+                .trait_definition_by_symbol(base_symbol)
+                .map(|definition| program.trait_type_parameters(definition))
         })
-        .unwrap_or_default();
+        .unwrap_or(&[])
+        .iter()
+        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+        .collect::<Vec<_>>();
     // A distinct in-scope machine parameter is admissible only through the
     // same recursive refinement judgment as a concrete symbol. This is the
     // higher-order N7 path (`Family<Inner>` inside a schema parameter): its
@@ -232,7 +234,7 @@ pub(crate) fn const_argument_matches_parameter(
     !diagnostics.iter().any(Diagnostic::is_error)
 }
 
-pub(super) fn validate_const_data_argument(
+pub(crate) fn validate_const_data_argument(
     program: &dyn crate::CheckingInput,
     base_name: &str,
     parameter: &TypeParameter,
@@ -1069,7 +1071,29 @@ pub(super) fn validate_generic_argument_bounds(
     let argument_handles = program
         .type_reference_table
         .type_reference_handles(arguments);
-    for (parameter, argument) in parameters.iter().zip(argument_handles) {
+    validate_parameter_bounds(
+        program,
+        symbols,
+        base_name,
+        parameters,
+        argument_handles,
+        type_parameter_scope,
+        diagnostics,
+    );
+}
+
+/// Property admission is independent of whether a telescope belongs to stored
+/// data or a trait. Unused/phantom parameters still carry every declared bound.
+pub(crate) fn validate_parameter_bounds(
+    program: &dyn crate::CheckingInput,
+    symbols: &TopLevelSymbols<'_>,
+    base_name: &str,
+    parameters: &[TypeParameter],
+    arguments: &[TypeReferenceHandle],
+    type_parameter_scope: TypeParameterScope<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (parameter, argument) in parameters.iter().zip(arguments) {
         let bounds =
             crate::proof_contracts::properties::declared_property_requirements(&parameter.bounds);
         let bound_labels = bounds.iter().map(ToString::to_string).collect::<Vec<_>>();

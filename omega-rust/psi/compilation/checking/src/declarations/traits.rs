@@ -48,7 +48,8 @@ pub use conformance::revalidate_top_level_requirement_realization;
 pub(crate) use conformance::{
     named_conformance_argument_matches, validate_external_leaf_native_shapes,
     validate_external_via_expression, validate_generic_conformance_bounds,
-    validate_machine_trait_conformances, validate_trait_conformance_bounds,
+    validate_machine_trait_conformances, validate_trait_application_obligations,
+    validate_trait_conformance_bounds,
 };
 pub use dynamic::{
     DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,

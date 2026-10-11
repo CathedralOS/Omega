@@ -352,6 +352,9 @@ pub(super) fn clone_single_specialized_machine(
             copy_expression(source, program, source_item.initial_value, &symbol_map);
         program.push_machine_owned_data(&mut cloned, item);
     }
+    // Satisfaction quantifies over the authored family. Keep its edge operands
+    // in that source owner's telescope; executable body types are copied and
+    // substituted separately, and never redefine the universal claim.
     for conformance in source
         .unwrap_or(program)
         .machine_trait_conformances(&source_machine)

@@ -32,6 +32,7 @@ pub(crate) fn named_conformance_argument_matches(
 pub(crate) fn validate_generic_conformance_bounds(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
+    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_conformance_bounds(
@@ -39,6 +40,11 @@ pub(crate) fn validate_generic_conformance_bounds(
         "machine",
         machine.name.as_str(),
         &machine.conformance_bounds,
+        symbols,
+        crate::value_custody::type_references::TypeParameterScope {
+            type_parameters: program.machine_type_parameters(machine),
+            lifetime_parameters: &machine.lifetime_parameters,
+        },
         diagnostics,
     );
 }
@@ -46,6 +52,7 @@ pub(crate) fn validate_generic_conformance_bounds(
 pub(crate) fn validate_trait_conformance_bounds(
     program: &dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
+    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_conformance_bounds(
@@ -53,6 +60,11 @@ pub(crate) fn validate_trait_conformance_bounds(
         "trait",
         trait_definition.name.as_str(),
         &trait_definition.conformance_bounds,
+        symbols,
+        crate::value_custody::type_references::TypeParameterScope {
+            type_parameters: program.trait_type_parameters(trait_definition),
+            lifetime_parameters: &trait_definition.lifetime_parameters,
+        },
         diagnostics,
     );
 }
@@ -62,6 +74,8 @@ fn validate_conformance_bounds(
     owner_kind: &str,
     owner_name: &str,
     bounds: &[typed_trees::machine::GenericConformanceBound],
+    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
+    caller_scope: crate::value_custody::type_references::TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for bound in bounds {
@@ -99,6 +113,8 @@ fn validate_conformance_bounds(
                 "{owner_kind} `{owner_name}` evidence binder `{} satisfies {}`",
                 bound.binder_name, bound.trait_name
             ),
+            symbols,
+            caller_scope,
             diagnostics,
         );
     }

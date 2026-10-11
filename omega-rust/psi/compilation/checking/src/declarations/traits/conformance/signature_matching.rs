@@ -6,6 +6,9 @@
 //! Requirement parameters are ordinary explicit parameters: the trait's types
 //! bind from its explicit application, never from a subject position or the
 //! realization's namespace.
+//! A specialization retains universal satisfaction edges in their authored
+//! family, not its closed executable telescope. Operand admission and signature
+//! matching use the same exact source owner; body/layout checking stays concrete.
 
 mod callable_parameters;
 mod region_application;
@@ -135,6 +138,44 @@ pub(crate) fn authored_satisfier_parameters<'program>(
     &parameters[..parameters.len() - realized_tail]
 }
 
+/// Recover the owner of a retained universal satisfaction edge. Specialization
+/// closes executable types but deliberately keeps the complete authored edge
+/// roster unchanged; its operands still name that source family's binders.
+/// A missing or disagreeing origin is an error, not a name-based fallback.
+pub(crate) fn authored_conformance_machine<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+) -> Result<&'program Machine, Diagnostic> {
+    if !program.machine_type_parameters(machine).is_empty()
+        || program.machine_trait_conformances(machine).is_empty()
+    {
+        return Ok(machine);
+    }
+    let mut applications = program
+        .machine_specializations
+        .iter()
+        .filter(|application| application.instance == machine.symbol);
+    let Some(application) = applications.next() else {
+        return Ok(machine);
+    };
+    let template = program.machines().iter().find(|template| {
+        template.symbol == application.template
+            && template.symbol != machine.symbol
+            && template.type_parameters == application.template_parameters
+            && !program.machine_type_parameters(template).is_empty()
+            && program.machine_trait_conformances(template)
+                == program.machine_trait_conformances(machine)
+    });
+    template
+        .filter(|_| applications.next().is_none())
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "machine `{}` generic satisfaction lost its exact original family and application",
+                machine.name,
+            ))
+        })
+}
+
 pub(crate) fn validate_applied_trait_signature(
     program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -160,42 +201,27 @@ pub(crate) fn validate_applied_trait_signature(
     // axes in that same environment rather than mixing concrete parameters
     // with an open application. Ordinary checking still judges each concrete
     // body, and its operational ceiling is checked below.
-    let (callable_machine, callable_state) = if program.machine_type_parameters(machine).is_empty()
-        && !program.machine_trait_conformances(machine).is_empty()
-    {
-        let mut applications = program
-            .machine_specializations
-            .iter()
-            .filter(|application| application.instance == machine.symbol);
-        if let Some(application) = applications.next() {
-            let template = program.machines().iter().find(|template| {
-                template.symbol == application.template
-                    && template.symbol != machine.symbol
-                    && template.type_parameters == application.template_parameters
-                    && !program.machine_type_parameters(template).is_empty()
-                    && program.machine_trait_conformances(template)
-                        == program.machine_trait_conformances(machine)
-            });
-            let source_state = template.and_then(|template| {
-                typed_trees::state::state_position(program.machine_states(machine), state.symbol)
-                    .and_then(|ordinal| program.machine_states(template).get(ordinal))
-            });
-            let Some((template, source_state)) = template
-                .zip(source_state)
-                .filter(|_| applications.next().is_none())
-            else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` generic satisfaction lost its exact original family and application",
-                    machine.name,
-                )));
-                return;
-            };
-            (template, source_state)
-        } else {
-            (machine, state)
+    let callable_machine = match authored_conformance_machine(program, machine) {
+        Ok(owner) => owner,
+        Err(diagnostic) => {
+            diagnostics.push(diagnostic);
+            return;
         }
+    };
+    let callable_state = if callable_machine.symbol == machine.symbol {
+        state
     } else {
-        (machine, state)
+        let Some(source_state) =
+            typed_trees::state::state_position(program.machine_states(machine), state.symbol)
+                .and_then(|ordinal| program.machine_states(callable_machine).get(ordinal))
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` generic satisfaction lost its exact original family and application",
+                machine.name,
+            )));
+            return;
+        };
+        source_state
     };
     let actual_parameters =
         authored_satisfier_parameters(program, callable_machine, callable_state);

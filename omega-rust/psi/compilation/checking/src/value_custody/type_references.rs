@@ -49,6 +49,11 @@ use generic_arguments::{
     validate_machine_data_argument, validate_symbolic_array_length,
 };
 pub use generic_arguments::{validate_closed_const_argument, validate_exact_const_value_encoding};
+pub(crate) use generic_arguments::{
+    validate_const_data_argument as validate_const_application_argument,
+    validate_machine_data_argument as validate_machine_application_argument,
+    validate_parameter_bounds,
+};
 pub use open_index_expressions::normalize_open_index_expressions;
 mod refinement_predicates;
 pub use refinement_predicates::{
@@ -779,16 +784,6 @@ fn validate_type_reference_node(
                 }
             }
 
-            validate_generic_argument_bounds(
-                program,
-                symbols,
-                *base_symbol,
-                base_name.as_str(),
-                *arguments,
-                type_parameter_scope,
-                diagnostics,
-            );
-
             let argument_handles = program
                 .type_reference_table
                 .type_reference_handles(*arguments);
@@ -798,6 +793,15 @@ fn validate_type_reference_node(
                         && definition.name.as_str() == base_name.as_str())
             });
             if let Some(definition) = definition {
+                validate_generic_argument_bounds(
+                    program,
+                    symbols,
+                    *base_symbol,
+                    base_name.as_str(),
+                    *arguments,
+                    type_parameter_scope,
+                    diagnostics,
+                );
                 if definition.lifetime_parameters.len() != lifetime_arguments.len() {
                     diagnostics.push(Diagnostic::error(format!(
                         "data `{base_name}` expected {} lifetime arguments but got {}",
@@ -874,6 +878,23 @@ fn validate_type_reference_node(
                         }
                     }
                 }
+            } else if let Some(definition) = program.trait_definition_by_symbol(*base_symbol) {
+                if definition.lifetime_parameters.len() != lifetime_arguments.len() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "trait `{base_name}` expected {} lifetime arguments but got {}",
+                        definition.lifetime_parameters.len(),
+                        lifetime_arguments.len()
+                    )));
+                }
+                crate::declarations::traits::validate_trait_application_obligations(
+                    program,
+                    definition,
+                    argument_handles,
+                    base_name.as_str(),
+                    symbols,
+                    type_parameter_scope,
+                    diagnostics,
+                );
             } else {
                 for argument in argument_handles {
                     validate_generic_argument(*argument, diagnostics);
@@ -915,9 +936,15 @@ fn validate_type_reference_node(
                     arguments.len()
                 )));
             }
-            for argument in arguments {
-                validate_generic_argument(*argument, diagnostics);
-            }
+            crate::declarations::traits::validate_trait_application_obligations(
+                program,
+                trait_definition,
+                arguments,
+                name.as_str(),
+                symbols,
+                type_parameter_scope,
+                diagnostics,
+            );
         }
         TypeReferenceNode::Named { symbol, name } => {
             // Name resolution binds the lexical telescope before globals.
@@ -987,9 +1014,9 @@ fn validate_type_reference_node(
 }
 
 #[derive(Debug, Clone, Copy)]
-struct TypeParameterScope<'program> {
-    type_parameters: &'program [TypeParameter],
-    lifetime_parameters: &'program [typed_trees::name::Identifier],
+pub(crate) struct TypeParameterScope<'program> {
+    pub(crate) type_parameters: &'program [TypeParameter],
+    pub(crate) lifetime_parameters: &'program [typed_trees::name::Identifier],
 }
 
 impl<'program> TypeParameterScope<'program> {
