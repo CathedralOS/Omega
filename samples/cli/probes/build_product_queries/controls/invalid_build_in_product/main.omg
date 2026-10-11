@@ -1,0 +1,4 @@
+machine entry() -> i32 {
+    let b: Build = Build::application();
+    0
+}
