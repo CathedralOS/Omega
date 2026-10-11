@@ -4351,6 +4351,7 @@ pass/recast/runtime_field_precondition_capture_exit checked 10152ms check-target
 pass/recast/runtime_float_range_representation_recast_exit checked 4057ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_guarded_offset_recast_exit checked 1534ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_inline_shared_slice_record_read_exit checked 2196ms check-target:macos_arm64 @3b624377ec31
+pass/recast/runtime_inline_slice_recast_call_exit checked 5117ms check-target:macos_arm64 @4b5eb415f13+wt
 pass/recast/runtime_inline_slice_view_mutable_write_exit checked 1981ms check-target:macos_arm64 @3b624377ec31
 pass/recast/runtime_integer_bit_view_recast_exit checked 1553ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_interior_slice_congruent_offset_exit checked 911ms check-target:macos_arm64 @ebf381240e20+wt

@@ -53,6 +53,12 @@ pub(crate) fn view_argument_names_existing_place(
     program: &dyn ::validation::CheckingInput,
     argument: ExpressionHandle,
 ) -> bool {
+    // A recast's canonical place names its backing for loan checking, not
+    // an existing descriptor. Its unsized result must capture the region's
+    // start and derived extent at this occurrence, just as a range does.
+    if validation::slice_recast_source(program, argument).is_some() {
+        return false;
+    }
     validation::canonical_place_from_expression(program, argument)
         .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Symbol(_)))
 }

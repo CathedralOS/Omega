@@ -112,6 +112,46 @@ pub(crate) struct CollectionView {
     pub(crate) element: StructuralTypeId,
     pub(crate) place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
+    pub(crate) byte_region: Option<(LoweredDirectExpression, LoweredDirectExpression)>,
+}
+
+pub(crate) fn element_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    structural_type: StructuralTypeId,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<StructuralTypeId, LoweringError> {
+    let declaration = declarations
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .ok_or(LoweringError::Unsupported(
+            "element view lost its descriptor carrier",
+        ))?;
+    match declaration.shape {
+        terminal_psi::StructuralTypeShape::ElementView { element } => Ok(element),
+        terminal_psi::StructuralTypeShape::ByteSequence(_) => {
+            let identity = crate::terminal_identities::byte_view_element_identity(
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .structural_types
+                    .iter(),
+            )
+            .ok_or(LoweringError::Unsupported(
+                "byte view lost its element identity",
+            ))?;
+            terminal_psi::structural_type_by_identity(
+                declarations,
+                identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
+            )
+            .map(|declaration| declaration.id)
+            .ok_or(LoweringError::Unsupported(
+                "byte view lost its element carrier",
+            ))
+        }
+        _ => unsupported("element view has no descriptor carrier"),
+    }
 }
 
 impl RangeStorage {
@@ -179,6 +219,7 @@ impl RangeStorage {
                     element,
                     place: destination,
                     structural_type: self.structural_type,
+                    byte_region: None,
                 }),
             )
         } else {
@@ -373,14 +414,72 @@ pub(crate) fn establish(
     values: &[ValueDeclaration],
     next_value: &mut u64,
     operations: &mut OperationBuffer,
-) -> StructuralPlaceDeclaration {
+) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let path = emit_prepared_path(&view.path, 0, values, next_value, operations);
+    let endpoints = view.byte_region.as_ref().map(|(start, end)| {
+        (
+            crate::emission::operation_emission::expressions::emit_direct_expression(
+                start, values, next_value, operations,
+            ),
+            crate::emission::operation_emission::expressions::emit_direct_expression(
+                end, values, next_value, operations,
+            ),
+        )
+    });
+    let producer = operations.allocate();
+    // Endpoint evaluation can append operations. Bind path obligations to
+    // this descriptor's producer, not to the earlier endpoint operation.
     let source = terminal_psi::StructuralArgument {
         place: view.source,
         access: view.access,
-        path: path_with_current_bounds(&path, operations.next_identity),
+        path: path_with_current_bounds(&path, producer.get()),
     };
-    let producer = operations.allocate();
+    let region = match endpoints {
+        None => terminal_psi::ElementViewRegion::WholeCollection,
+        Some((start, end)) => terminal_psi::ElementViewRegion::RepresentationBytes {
+            start,
+            end,
+            obligation: crate::terminal_identities::obligation_id(
+                producer
+                    .get()
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "representation view obligation identity overflows",
+                    ))?,
+            ),
+        },
+    };
+    Ok(emit_view(
+        view.place,
+        view.structural_type,
+        source,
+        view.element,
+        region,
+        if view.access == terminal_psi::StructuralAccess::MutableBorrow {
+            terminal_psi::StructuralMultiplicity::Affine
+        } else {
+            terminal_psi::StructuralMultiplicity::Unrestricted
+        },
+        producer,
+        operations,
+    ))
+}
+
+/// Scalar and Unit schedules establish the same descriptor operation. The
+/// schedule captures endpoints; this emitter retains backing, region and
+/// result custody without reconstructing the source expression.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_view(
+    place: PlaceId,
+    structural_type: StructuralTypeId,
+    source: terminal_psi::StructuralArgument,
+    element: StructuralTypeId,
+    region: terminal_psi::ElementViewRegion,
+    multiplicity: terminal_psi::StructuralMultiplicity,
+    producer: semantic_vocabulary::OperationId,
+    operations: &mut OperationBuffer,
+) -> StructuralPlaceDeclaration {
+    let access = source.access;
     operations.push(terminal_psi::Operation {
         static_reach_binding: None,
         suspension_crossing: None,
@@ -388,39 +487,35 @@ pub(crate) fn establish(
         result: terminal_psi::OperationResult::Structural(
             terminal_psi::StructuralOperationResult {
                 qualification_establishments: Vec::new(),
-                place: view.place,
-                structural_type: view.structural_type,
-                multiplicity: if view.access == terminal_psi::StructuralAccess::MutableBorrow {
-                    terminal_psi::StructuralMultiplicity::Affine
-                } else {
-                    terminal_psi::StructuralMultiplicity::Unrestricted
-                },
+                place,
+                structural_type,
+                multiplicity,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             },
         ),
-        kind: if view.access == terminal_psi::StructuralAccess::MutableBorrow {
+        kind: if access == terminal_psi::StructuralAccess::MutableBorrow {
             terminal_psi::OperationKind::EstablishMutableElementView {
-                destination: view.place,
+                destination: place,
                 source,
-                element: view.element,
-                region: terminal_psi::ElementViewRegion::WholeCollection,
+                element,
+                region,
             }
         } else {
             terminal_psi::OperationKind::EstablishElementView {
-                destination: view.place,
+                destination: place,
                 source,
-                element: view.element,
-                region: terminal_psi::ElementViewRegion::WholeCollection,
+                element,
+                region,
             }
         },
     });
     StructuralPlaceDeclaration {
-        id: view.place,
+        id: place,
         kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
             producer,
-            structural_type: view.structural_type,
+            structural_type,
         },
     }
 }

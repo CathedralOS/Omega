@@ -245,14 +245,26 @@ impl Builder<'_, '_> {
                                 return None;
                             }
                             let value = self.retain_structural_argument(*argument, parameter.type_reference)?;
+                            // A view lends its completed descriptor, not an
+                            // unsized owned referent. Use the same carrier
+                            // classification as ordinary calls and arrivals.
+                            let descriptor = validation::slice_view_shell(self.program, parameter.type_reference, &[]);
                             let (access, referent) = match self.program.type_reference_table.type_reference(parameter.type_reference) {
-                                TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, referee, .. } =>
-                                    (checked_trees::CheckedStructuralAccess::SharedBorrow, *referee),
+                                TypeReferenceNode::Reference { access, .. } if descriptor.is_some() =>
+                                    ((*access).into(), parameter.type_reference),
+                                TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, .. } =>
+                                    (checked_trees::CheckedStructuralAccess::SharedBorrow,
+                                        crate::semantic::calls::shared_argument_referent(self.program, *argument, parameter.type_reference)?.1),
                                 TypeReferenceNode::Reference { .. } => return None,
                                 _ => (checked_trees::CheckedStructuralAccess::Owned, parameter.type_reference),
                             };
                             let (expression, owner_type, path) = self.retained_argument_owner(value, referent)?;
-                            validation::structural_result_contract(self.program, referent).ok()?;
+                            // The owned-value contract cannot manufacture a
+                            // reference. A descriptor instead retains the
+                            // formation/call's already admitted loan custody.
+                            if descriptor.is_none() {
+                                validation::structural_result_contract(self.program, referent).ok()?;
+                            }
                             let argument_plan = checked_trees::CheckedUnitStructuralArgumentPlan {
                                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
                                 path,
@@ -260,15 +272,21 @@ impl Builder<'_, '_> {
                                 access,
                             };
                             let mut discards = None;
-                            if access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                            if access != checked_trees::CheckedStructuralAccess::Owned {
                                 // Retention only supplies storage. The permission pass owns
                                 // the loan's exact consumer and dying continuation; carry its
                                 // settlement into the scalar call instead of inferring a drop
                                 // later from the reference formal or constructor spelling.
-                                crate::execution::terminal_unit::calls::validate_shared_temporary(
-                                    self.program, self.flow, self.machine, self.state,
-                                    self.flow.control.calls.get(source_call), expression,
-                                )?;
+                                // Descriptor formation already rejoins its
+                                // backing loan at this invocation. Only an
+                                // anonymous referent home needs a separate
+                                // temporary-owner loan settlement.
+                                if descriptor.is_none() {
+                                    crate::execution::terminal_unit::calls::validate_shared_temporary(
+                                        self.program, self.flow, self.machine, self.state,
+                                        self.flow.control.calls.get(source_call), expression,
+                                    )?;
+                                }
                                 match self.program.type_multiplicity(owner_type) {
                                     language_semantics::Multiplicity::Affine | language_semantics::Multiplicity::Linear => {
                                         discards = Some(vec![checked_trees::CheckedUnitPartialAffineDiscardPlan {

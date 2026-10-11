@@ -6,6 +6,9 @@
 //! completed root, while an expression consumer observes and retires it.
 //! Nested owned aggregates transfer into their parent, while a root survives
 //! through selected arguments.
+//! View formation participates in that same schedule: evaluate the retained
+//! offset once, then establish the descriptor through the shared Unit/scalar
+//! view emitter. Its backing is lent, never copied as constructor fields.
 //! Whole local initializers bind fresh block homes: unrestricted values copy,
 //! affine values move. Retire a moved source name only once construction finishes.
 //! Final live locals rebind in declaration order at the selected cleanup edge;
@@ -405,6 +408,70 @@ impl Preparation<'_> {
         let plans = &self.checked.facts.values.structural_values;
         let node = plans.nodes.get(value);
         let declaration = carrier_declaration(identities, self.checked, self.types, reference)?;
+        if let CheckedStructuralValueKind::BorrowedSliceView { source, region }
+        | CheckedStructuralValueKind::MutableSliceView { source, region } = &node.kind
+        {
+            use crate::unit::attached_unit::view_ranges;
+            let (machine, state) =
+                crate::declarations::state_declaration(self.checked, self.state)?;
+            let argument = self.bindings.borrowed_structural_argument(
+                identities,
+                self.checked,
+                source,
+                machine,
+                self.checked.state_parameters(state),
+            )?;
+            let byte_region = match region {
+                checked_trees::CheckedElementViewRegion::WholeCollection => None,
+                checked_trees::CheckedElementViewRegion::RepresentationBytes { start, end } => {
+                    let result_type = computations::computation_value_type(
+                        identities,
+                        self.checked,
+                        self.qualifications,
+                        *start,
+                        self.bindings,
+                        &self.prefix,
+                    )?;
+                    let position = self.prefix.len();
+                    self.steps.push(Step::Scalar {
+                        role: CheckedScalarExpressionRole::RepresentationViewOffset {
+                            expression: node.expression,
+                        },
+                        result_type,
+                        prefix: self.prefix.clone(),
+                    });
+                    self.prefix.push(result_type);
+                    Some((
+                        crate::expression_preparation::prepare_expression::exact_u64_index(
+                            LoweredDirectExpression::Parameter {
+                                position,
+                                scalar_type: result_type.scalar_type,
+                            },
+                        )?,
+                        LoweredDirectExpression::IntegerLiteral {
+                            value: semantic_vocabulary::IntegerValue::Unsigned((*end).into()),
+                            scalar_type: crate::emission::scalar_types::terminal_scalar_type(
+                                checked_trees::types::PrimitiveType::U64,
+                            )?,
+                        },
+                    ))
+                }
+            };
+            let place = self.reserved.place(value)?;
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::EstablishElementView(view_ranges::CollectionView {
+                    source: argument.place,
+                    access: argument.access,
+                    path: argument.path.into_iter().map(crate::emission::operation_emission::expressions::LoweredElementPathSegment::Static).collect(),
+                    element: view_ranges::element_type(identities, self.checked, declaration.id, self.types)?,
+                    place,
+                    structural_type: declaration.id,
+                    byte_region,
+                }),
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
         if let CheckedStructuralValueKind::Reference {
             source,
             source_value,

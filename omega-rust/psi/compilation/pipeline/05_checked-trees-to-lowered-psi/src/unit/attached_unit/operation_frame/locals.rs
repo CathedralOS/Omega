@@ -669,7 +669,7 @@ impl OperationFrame<'_, '_> {
                 self.values,
                 self.next_value,
                 self.operations,
-            );
+            )?;
             self.private_places.push(declaration);
         }
         let declaration = super::super::view_ranges::emit(

@@ -87,7 +87,7 @@ pub(super) fn emit(
             values,
             next_value,
             operations,
-        ));
+        )?);
     }
     let site = ViewRangeSite {
         state: state.state,

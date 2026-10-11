@@ -119,7 +119,7 @@ pub(super) fn emit(
             values,
             next_value,
             operations,
-        ));
+        )?);
     }
     let declaration = view_ranges::emit(
         identities,

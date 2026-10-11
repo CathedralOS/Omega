@@ -1229,7 +1229,8 @@ fn projected_loan_transfer(
     let carrier_type_identity = if matches!(
         super::super::types::byte_sequence_carrier(program, target_type_reference, &[]),
         Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. })
-    ) && !has_dynamic_selector {
+    ) && !has_dynamic_selector
+    {
         Default::default()
     } else {
         match shapes.add_reference_type(target_type_reference, &[]) {

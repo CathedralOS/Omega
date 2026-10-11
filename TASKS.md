@@ -698,6 +698,10 @@ defines the complete product bar.
     (70) for shared observation and mutable forwarding over caller-backed
     fixed byte storage in native and Terminal execution; qualify the remaining
     supported hosts without treating bounded loans as pointer/length views.
+    Keep `pass/recast/runtime_inline_{shared_slice_record_read,slice_view_mutable_write,slice_recast_call}_exit`
+    (70) for captured regions through state arrivals and scalar-returning
+    call operands, including affine descriptor retirement before a new loan;
+    qualify their remaining bound hosts.
     The ordinary cases below still need Windows x86-64 and matching-host
     Linux x86-64 execution; the bounded
     [Linux qualification](wiki/drafts/reference/rust_compiler_completion.md#borrowed-storage-linux-qualification)

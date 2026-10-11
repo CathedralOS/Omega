@@ -426,8 +426,9 @@ pub(crate) fn produced_value_root<'checked>(
         argument.access,
         checked_trees::CheckedStructuralAccess::Owned
             | checked_trees::CheckedStructuralAccess::SharedBorrow
+            | checked_trees::CheckedStructuralAccess::MutableBorrow
     ) {
-        return unsupported("computed structural operand must consume or share its retained owner");
+        return unsupported("computed structural operand must transfer or lend its retained owner");
     }
     let control = &checked.facts.flow.control;
     if !control.calls.is_valid(source_call) {
@@ -461,10 +462,9 @@ pub(crate) fn produced_value_root<'checked>(
             "computed structural operand lost its complete value root",
         ))?;
     // The root keeps the declared value contract; the argument and catalog
-    // name only its storage carrier's structural identity. Splitting the
-    // contract grants no qualifications.
-    validation::structural_result_contract(&checked.typed, root.type_reference)
-        .map_err(LoweringError::Unsupported)?;
+    // name only its storage carrier's structural identity. Loan admission
+    // belongs to the checked root, including a borrowed slice descriptor;
+    // resolving that root does not manufacture an owned reference.
     if root.machine != state.machine_symbol
         || !values.nodes.is_valid(root.root)
         || (argument.path.is_empty()

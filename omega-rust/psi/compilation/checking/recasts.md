@@ -52,7 +52,11 @@ rejoins the named transition's canonical call ordinal, exact argument and
 complete ordered borrow-access roster. Both use ordinary structural value
 construction. The selected edge evaluates an inline descriptor before lending
 it to the successor; a mutable descriptor retains its affine disposal debt
-while the receiving reference formal remains unrestricted. Writable arguments
+while the receiving reference formal remains unrestricted. Scalar-returning
+helper operands retain the same descriptor value. Scalar
+operand scheduling captures the region before the call, uses the same view
+emitter as Unit construction, and retires a mutable temporary on completion;
+an owned-result contract is not descriptor admission. Writable arguments
 use the same canonical backing place as borrow admission, including validated
 indexed recast footprints. Indexed record-field observations replay the exact
 view root, field path and selectors independently of the storage-read inventory;

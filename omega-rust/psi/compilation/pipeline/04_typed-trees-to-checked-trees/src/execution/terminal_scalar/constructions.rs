@@ -188,7 +188,6 @@ pub(crate) fn retain_shapes(
                             (root.state == state && root.expression == expression).then_some(root)
                         });
                         let root = roots.next()?;
-                        validation::structural_result_contract(program, root.type_reference).ok()?;
                         if roots.next().is_some()
                             || !structural_values.nodes.is_valid(root.root)
                             || structural_values.nodes.get(root.root).expression != expression
@@ -197,7 +196,8 @@ pub(crate) fn retain_shapes(
                                     != argument.type_identity)
                             || !matches!(argument.access,
                                 checked_trees::CheckedStructuralAccess::Owned
-                                    | checked_trees::CheckedStructuralAccess::SharedBorrow)
+                                    | checked_trees::CheckedStructuralAccess::SharedBorrow
+                                    | checked_trees::CheckedStructuralAccess::MutableBorrow)
                         {
                             return None;
                         }
@@ -206,6 +206,9 @@ pub(crate) fn retain_shapes(
                         // formal's reference type does not replace this owner;
                         // a projected argument likewise retains its exact path
                         // and transfer without replacing the owner's catalog.
+                        // A view root owns descriptor storage, not its
+                        // referent: retain its admitted carrier without
+                        // reapplying an owned-result admission fence.
                         // its scalar children have their own retained roots in
                         // this same state's computation inventory.
                         retain_declarations(

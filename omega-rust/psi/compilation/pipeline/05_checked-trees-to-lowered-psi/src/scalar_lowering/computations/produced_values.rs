@@ -1,6 +1,9 @@
 //! Reserve the complete structural producer at each authored call operand.
 //! Reservation establishes no value: the ordinary structural schedule runs at
 //! that operand's position, before the following operand can observe or mutate it.
+//! Checked value roots own admission, including borrowed descriptor custody.
+//! Reservation resolves their published carrier; it does not reapply an
+//! owned-result contract to a descriptor that lends original backing.
 
 use super::{CheckedTrees, LoweringError, unsupported};
 use crate::expression_preparation::computation_graph::produced_value_root;
@@ -60,8 +63,6 @@ pub(crate) fn prepare(
                 continue;
             }
             let root = produced_value_root(checked, source_call, argument)?;
-            validation::structural_result_contract(&checked.typed, root.type_reference)
-                .map_err(LoweringError::Unsupported)?;
             let identity =
                 validation::structural_type_identity(&checked.typed, root.type_reference, &[], &[]);
             let declaration = terminal_psi::structural_type_by_identity(

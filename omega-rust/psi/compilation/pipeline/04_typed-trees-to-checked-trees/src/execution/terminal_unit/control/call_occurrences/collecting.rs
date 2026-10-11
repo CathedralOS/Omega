@@ -666,17 +666,13 @@ pub(super) fn collect_structural_argument_calls(
         if !values.nodes.is_valid(root.root)
             || values.nodes.get(root.root).expression != expression
             || (argument.path.is_empty()
-                && (validation::structural_result_contract(program, root.type_reference).is_err()
-                    || validation::structural_type_identity(
-                        program,
-                        root.type_reference,
-                        &[],
-                        &[],
-                    ) != argument.type_identity))
+                && validation::structural_type_identity(program, root.type_reference, &[], &[])
+                    != argument.type_identity)
             || !matches!(
                 argument.access,
                 checked_trees::CheckedStructuralAccess::Owned
                     | checked_trees::CheckedStructuralAccess::SharedBorrow
+                    | checked_trees::CheckedStructuralAccess::MutableBorrow
             )
         {
             return None;
@@ -684,6 +680,8 @@ pub(super) fn collect_structural_argument_calls(
         // A projected actual selects a subtree without replacing this retained
         // owner. Its path/type/transfer were admitted with the call; discovery
         // follows the owner's dependencies, not the selected argument type.
+        // Descriptor formation owns loan admission too; call accounting must
+        // not impose an owned-result contract on that borrowed value.
         // Constructor fields already own their scalar computation roots in
         // collect_constructor_calls. Following them again here would count
         // one authored invocation twice; this edge only rejoins its value.

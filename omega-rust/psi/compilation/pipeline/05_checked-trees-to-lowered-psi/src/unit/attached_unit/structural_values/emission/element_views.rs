@@ -6,9 +6,8 @@
 
 use super::super::super::super::StructuralArgument;
 use super::super::super::{
-    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, OperationResult, PlaceId,
-    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeShape,
-    allocate_dense, place_id, unsupported,
+    CheckedScalarExpressionRole, LoweringError, PlaceId, StructuralMultiplicity, allocate_dense,
+    place_id, unsupported,
 };
 use super::{Emission, ValueContinuation};
 use crate::emission::operation_emission::expressions::{
@@ -129,7 +128,7 @@ impl Emission<'_, '_, '_> {
                     self.values,
                     self.next_value,
                     self.operations,
-                ));
+                )?);
             }
             let place = place_id(allocate_dense(self.next_place)?);
             self.temporary_places.push(view_ranges::emit(
@@ -154,37 +153,12 @@ impl Emission<'_, '_, '_> {
             )?);
             return Ok(place);
         }
-        let element = self
-            .structural_types
-            .iter()
-            .find_map(|declaration| match declaration.shape {
-                StructuralTypeShape::ElementView { element }
-                    if declaration.id == self.structural_type =>
-                {
-                    Some(element)
-                }
-                // A byte-sequence view's element is always the `u8` scalar:
-                // the carrier keeps no element field, so the view op's stride
-                // resolves through the primitive row directly.
-                StructuralTypeShape::ByteSequence(_) if declaration.id == self.structural_type => {
-                    crate::terminal_identities::byte_view_element_identity(
-                        self.checked
-                            .facts
-                            .flow
-                            .terminal_unit_effects
-                            .structural_types
-                            .iter(),
-                    )
-                    .and_then(|identity| {
-                        crate::terminal_identities::lookup_type_id(self.type_ids, &identity).ok()
-                    })
-                }
-                _ => None,
-            })
-            .ok_or(LoweringError::Unsupported(match loan {
-                LoanAccess::Shared => "borrowed element view lost its element carrier",
-                LoanAccess::Mutable => "mutable element view lost its element carrier",
-            }))?;
+        let element = super::super::super::view_ranges::element_type(
+            identities,
+            self.checked,
+            self.structural_type,
+            self.structural_types,
+        )?;
         let bindings = self.structural_bindings();
         let (machine, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
         let parameters = self.checked.state_parameters(authored);
@@ -256,42 +230,17 @@ impl Emission<'_, '_, '_> {
             },
         };
         let place = place_id(allocate_dense(self.next_place)?);
-        let kind = match loan {
-            LoanAccess::Shared => OperationKind::EstablishElementView {
-                destination: place,
-                source: argument,
-                element,
-                region,
-            },
-            LoanAccess::Mutable => OperationKind::EstablishMutableElementView {
-                destination: place,
-                source: argument,
-                element,
-                region,
-            },
-        };
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
+        self.temporary_places
+            .push(super::super::super::view_ranges::emit_view(
                 place,
-                structural_type: self.structural_type,
+                self.structural_type,
+                argument,
+                element,
+                region,
                 multiplicity,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
-            kind,
-        });
-        self.temporary_places.push(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: id,
-                structural_type: self.structural_type,
-            },
-        });
+                id,
+                self.operations,
+            ));
         Ok(place)
     }
 }

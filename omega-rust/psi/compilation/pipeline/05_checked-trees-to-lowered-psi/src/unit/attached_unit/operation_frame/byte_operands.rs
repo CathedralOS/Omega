@@ -109,7 +109,7 @@ impl OperationFrame<'_, '_> {
                     self.values,
                     self.next_value,
                     self.operations,
-                );
+                )?;
                 self.private_places.push(declaration);
             }
             let destination = place_id(allocate_dense(self.next_place)?);

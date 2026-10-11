@@ -1,0 +1,43 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    bytes: [u8; 6];
+    offset: u32 [0..=2];
+}
+
+machine inspect(words: &[u16]) -> i32 {
+    transition words.len == 2 {
+        true -> read(words)
+        _ -> 71
+    }
+
+    state read(words: &[u16]) -> i32 {
+        transition words[0] == 0x0201 && words[1] == 0x0403 {
+            true -> 70
+            _ -> 72
+        }
+    }
+}
+
+machine write(words: &mut [u16]) -> i32 {
+    transition words.len == 2 {
+        true -> store(words)
+        _ -> 73
+    }
+
+    state store(words: &mut [u16]) -> i32 {
+        words[0] = 0x0201;
+        words[1] = 0x0403;
+        70
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.offset = 1;
+    let written: i32 = write(&mut main.bytes[main.offset * 2] as &mut [u16]);
+    // A nested call receives the formed suffix descriptor, not a loan of
+    // the single byte that names its start or a view of the whole array.
+    main.console.exit_process(inspect(&main.bytes[2] as &[u16]) + written - 70);
+}

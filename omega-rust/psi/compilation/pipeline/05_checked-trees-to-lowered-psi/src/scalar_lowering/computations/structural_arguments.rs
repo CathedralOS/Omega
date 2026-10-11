@@ -66,8 +66,9 @@ pub(super) fn lower(
                         path: crate::expression_preparation::bindings::structural_paths::prepare_argument_path(identities, &argument.path, slot.structural_type, structural_types)?,
                         access: match argument.access {
                             checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
-                            checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-                            _ => return unsupported("computed owner only admits transfer or shared lending"),
+                            access => readable_borrowed_access(access).ok_or(
+                                LoweringError::Unsupported("computed owner requires transfer or readable lending"),
+                            )?,
                         },
                     });
             }

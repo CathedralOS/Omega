@@ -1392,6 +1392,7 @@ pass/recast/runtime_field_precondition_capture_exit built 2946ms exit:70 @9beb2b
 pass/recast/runtime_float_range_representation_recast_exit built 1687ms exit:70 @43d1481401ed+wt
 pass/recast/runtime_guarded_offset_recast_exit built 1748ms exit:70 @fb2178def922
 pass/recast/runtime_inline_shared_slice_record_read_exit built 1915ms exit:70 @3b624377ec31
+pass/recast/runtime_inline_slice_recast_call_exit built 5237ms exit:70 @4b5eb415f13+wt
 pass/recast/runtime_inline_slice_view_mutable_write_exit built 1715ms exit:70 @3b624377ec31
 pass/recast/runtime_integer_bit_view_recast_exit built 1515ms exit:70 @48008365d839
 pass/recast/runtime_interior_slice_congruent_offset_exit built 2330ms exit:70 @ebf381240e20+wt
