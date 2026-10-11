@@ -1,0 +1,3 @@
+# Raw byte fixtures preserve CR rejection and exact EOF boundaries.
+# Treat them as binary evidence rather than prose for diff and merge.
+data/*.input binary
