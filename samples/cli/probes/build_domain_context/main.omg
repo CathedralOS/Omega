@@ -1,0 +1,2 @@
+data Main {}
+machine Main::main(main: &mut Main) { }
