@@ -11,6 +11,11 @@ Expected rows are independently calculated as cost = position + 2, score =
 execution. Only the linux_x86_64 entry target is declared.
 
 This is a compiler composition regression, separate from the complete spatial
-sensor deployment application. A failed optional crossing-span allocation must
-leave the existing bounded spill path available, with final allocation checks
-unchanged.
+sensor deployment application. Pressure recovery first shortens a value in an
+earlier function, then discovers an empty common register domain in a later
+function: repeated fixed uses and intervening call clobbers cannot share one
+home. Recovery shortens only that named original runtime value through the
+existing admitted spill rewrite. Pressure scoring, finite victim retirement,
+semantic rewrite validation and final allocation checks remain in force.
+This covers recovery-internal empty domains; direct allocation routes retain
+their existing typed refusal for a standalone empty-domain failure.
