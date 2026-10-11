@@ -67,6 +67,7 @@ pub struct NativeCompilerBuiltinSettlement<'execution> {
 /// terminal-authority policies.
 // The request borrows invocation-local selections; executions keep their
 // provider-owned lifetime when those selections are projected into a roster.
+#[derive(Clone, Copy)]
 pub struct ProviderAdmissionRequest<'request, 'execution> {
     /// Execution scope and physical geometry come from one profile. Provider
     /// admission needs no application-entry authority: private callback bodies

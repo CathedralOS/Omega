@@ -3,13 +3,11 @@
 //! This operation owns package-custody joins and the callback, import and
 //! builtin rosters. Derived binding evidence stays owned here until admission
 //! and publication have consumed their borrowed execution records.
-//! Imports are prepared once for the application/callback demand union, then
-//! borrowed by canonical selected requirement. Each body's proposal retains
-//! its own family, boundary and operation identities. Passing the application's
-//! numeric rows to a callback would silently select unrelated local declarations;
-//! preparing imports separately could bypass a complete supplied evidence roster.
+//! One program owns all callback bodies and their nominal identities. Imports,
+//! selected plans and builtin evidence are prepared once for that program;
+//! native roots select demand from the same namespace.
 
-use super::{TerminalNativeCallbackBody, TerminalNativeRealizationProposal};
+use super::TerminalNativeRealizationProposal;
 use crate::provider_admission::{
     NativeCompilerBuiltinSettlement, NativeProviderSettlement, PreparedSourceEvaluatedBindings,
     ProviderAdmissionRequest, SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy,
@@ -35,38 +33,9 @@ pub struct PreparedRetainedNativeProviders<'input> {
     callbacks: &'input [crate::AdmittedNativeCallbackArgument],
     pub callback_thunks: Vec<backend_plan::NativeCallbackThunkSettlement<'input>>,
     compiler_builtins: Vec<NativeCompilerBuiltinSettlement<'input>>,
-    callback_bodies: Vec<PreparedCallbackBody<'input>>,
-}
-
-struct PreparedCallbackBody<'input> {
-    body: &'input TerminalNativeCallbackBody,
-    demands: BTreeSet<String>,
-    compiler_builtins: Vec<NativeCompilerBuiltinSettlement<'input>>,
 }
 
 impl PreparedRetainedNativeProviders<'_> {
-    /// Project child settlements in the same canonical body namespace as admission.
-    pub fn callback_body_thunks(
-        &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-    ) -> Result<Vec<backend_plan::NativeCallbackThunkSettlement<'_>>, Vec<Diagnostic>> {
-        let prepared = self
-            .callback_bodies
-            .iter()
-            .find(|prepared| {
-                prepared.body.artifact.artifact().manifest().identity()
-                    == artifact.manifest().identity()
-            })
-            .ok_or_else(|| {
-                diagnostics::error_in_context(
-                    "Terminal callback custody",
-                    "callback artifact has no retained proposal",
-                )
-            })?;
-        Ok(backend_plan::native_callback_thunks(
-            &prepared.body.proposal.occurrences.callbacks,
-        ))
-    }
     /// Project the shared execution evidence to this body's canonical selected
     /// requirements. Numeric Terminal IDs never cross artifact namespaces.
     pub fn program_settlements(&self) -> Vec<NativeProviderSettlement<'_>> {
@@ -82,63 +51,6 @@ impl PreparedRetainedNativeProviders<'_> {
             })
             .copied()
             .collect()
-    }
-
-    /// Admit a private canonical body through the ordinary provider route.
-    /// Imports were prepared once for the full demand closure; local rosters
-    /// borrow that evidence without deriving replacements for missing supplies.
-    /// No application entry is manufactured for the callback.
-    pub fn admit_callback_body<'execution>(
-        &'execution self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-        terminal_authority_policy: &TerminalAuthorityPolicy,
-        receiving_permissions: &Option<TerminalAuthorityPermissionPolicy>,
-    ) -> Result<crate::AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
-        let prepared = self
-            .callback_bodies
-            .iter()
-            .find(|prepared| {
-                prepared.body.artifact.artifact().manifest().identity()
-                    == artifact.manifest().identity()
-            })
-            .ok_or_else(|| {
-                diagnostics::error_in_context(
-                    "Terminal callback custody",
-                    "callback artifact has no retained native provider proposal",
-                )
-            })?;
-        let proposal = &prepared.body.proposal;
-        let settlements = self.settlements_for(&prepared.demands);
-        let callbacks = proposal
-            .occurrences
-            .callback_arguments
-            .as_deref()
-            .ok_or_else(|| {
-                diagnostics::error_in_context(
-                    "Terminal callback custody",
-                    "callback body placement has no private registrar materialization",
-                )
-            })?;
-        crate::admit_native_realization(
-            artifact,
-            &crate::NativeAdmissionRequest {
-                entry: artifact.semantic_module().entry,
-                boundary_application_coverage: Some(&proposal.boundary_applications.coverage),
-                behavior_exclusions: &proposal.behavior_exclusions,
-                providers: ProviderAdmissionRequest {
-                    profile: self.proposal.target_profile(),
-                    selected_provider_plans: &proposal.providers.selection,
-                    checked_adapters: &proposal.providers.checked_adapters,
-                    external_binding_rows: &proposal.providers.external_bindings,
-                    settlements: &settlements,
-                    compiler_builtins: &prepared.compiler_builtins,
-                    native_callbacks: callbacks,
-                    terminal_authority_policy,
-                    terminal_authority_permission_policy: receiving_permissions,
-                    x86_scalar_fma_provider: proposal.providers.x86_scalar_fma,
-                },
-            },
-        )
     }
 
     /// Assemble admission from the exact proposal this preparation consumed.
@@ -216,29 +128,11 @@ impl TerminalNativeRealizationProposal {
         // original head identities, joined through the retained exact family
         // and specialization relations rather than renamed in Terminal Psi.
         let program_demands = selected_demands(module, &self.providers().selection)?;
-        let mut demanded = program_demands.clone();
-        let mut callback_bodies = Vec::with_capacity(self.callback_bodies.len());
-        for body in &self.callback_bodies {
-            let demands = selected_demands(
-                body.artifact.artifact().semantic_module(),
-                &body.proposal.providers.selection,
-            )?;
-            demanded.extend(demands.iter().cloned());
-            callback_bodies.push(PreparedCallbackBody {
-                body,
-                demands,
-                compiler_builtins: crate::provider_admission::prepare_retained_compiler_builtins(
-                    &body.proposal.providers.compiler_builtins,
-                    body.proposal.providers.selection.plans(),
-                )?,
-            });
-        }
-        // Supplied evidence must cover the union exactly once. Preparing each
-        // body independently would treat an empty projection as permission to
-        // mint evidence, bypassing the caller's complete supplied roster.
+        // Supplied evidence covers the program's complete demand union once.
+        // Per-root native admission projects it without minting missing rows.
         let bindings = prepare_source_evaluated_bindings(
             self.providers().selection.plans(),
-            &demanded,
+            &program_demands,
             inputs.imports,
             self.providers().selection.identities(),
         )?;
@@ -255,7 +149,6 @@ impl TerminalNativeRealizationProposal {
             callbacks,
             callback_thunks,
             compiler_builtins,
-            callback_bodies,
         })
     }
 }

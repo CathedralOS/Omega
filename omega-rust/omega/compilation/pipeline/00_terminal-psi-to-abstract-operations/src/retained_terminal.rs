@@ -53,23 +53,13 @@ pub struct TerminalNativeBoundaryApplications {
     pub coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
 }
 
-/// Artifact-local provider and occurrence custody, independent of any process
-/// entry. Both application and callback artifacts use the same producer.
+/// Program-wide provider and occurrence custody, independent of any selected entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TerminalNativeBodyProposal {
     providers: TerminalNativeProviders,
     occurrences: TerminalNativeOccurrences,
     boundary_applications: TerminalNativeBoundaryApplications,
     behavior_exclusions: effects::BehaviorExclusions,
-}
-
-/// One produced callback artifact and the native inputs derived against its
-/// own identity tables. The catalog is flat so registration graphs do not
-/// require recursively constructing or duplicating native proposal trees.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TerminalNativeCallbackBody {
-    artifact: TerminalCallbackThunkArtifact,
-    proposal: TerminalNativeBodyProposal,
 }
 
 /// Target-constrained native inputs beside one canonical Terminal artifact.
@@ -92,7 +82,6 @@ pub struct TerminalNativeRealizationProposal {
     package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     behavior_exclusions: effects::BehaviorExclusions,
     target_provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
-    callback_bodies: Vec<TerminalNativeCallbackBody>,
 }
 
 impl TerminalNativeRealizationProposal {
@@ -113,7 +102,6 @@ impl TerminalNativeRealizationProposal {
         >,
         package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
         behavior_exclusions: effects::BehaviorExclusions,
-        callback_bodies: Vec<TerminalNativeCallbackBody>,
     ) -> Self {
         package_terminal_authority_permissions.sort_by(|left, right| {
             left.service_schema()
@@ -139,7 +127,6 @@ impl TerminalNativeRealizationProposal {
             package_terminal_authority_permissions,
             package_terminal_authority_permission_identities,
             behavior_exclusions,
-            callback_bodies,
         }
     }
 

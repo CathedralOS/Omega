@@ -2,13 +2,13 @@
 //!
 //! This is the producing half of the retained-Terminal contract. It owns
 //! canonical decode, entry settlement, provider demand, comparison custody,
-//! callback placement and boundary coverage. The compiler supplies already
-//! produced callback bodies; this operation never calls back into compilation.
+//! callback placement and boundary coverage. The compiler supplies retained
+//! callback entries in one program; this never calls back into compilation.
 //! Checked selections remain transitional inputs, not native execution authority.
 
 use super::{
-    TerminalNativeBodyProposal, TerminalNativeBoundaryApplications, TerminalNativeCallbackBody,
-    TerminalNativeOccurrences, TerminalNativeProviders, TerminalNativeRealizationProposal,
+    TerminalNativeBodyProposal, TerminalNativeBoundaryApplications, TerminalNativeOccurrences,
+    TerminalNativeProviders, TerminalNativeRealizationProposal,
 };
 use diagnostics::Diagnostic;
 
@@ -147,21 +147,6 @@ pub fn project_terminal_native_realization_proposal(
         ))]
     })?;
     let body = project_terminal_native_body(artifact, target_profile, &request)?;
-    // All canonical bodies were produced while source custody existed. Retain
-    // one native context per artifact, rather than a tree per registration use;
-    // repeated or recursive registration does not duplicate the context graph.
-    let mut callback_bodies = Vec::<TerminalNativeCallbackBody>::new();
-    for thunk in &request.callback_thunks {
-        if callback_bodies.iter().any(|body| {
-            body.artifact.artifact().manifest().identity() == thunk.artifact().manifest().identity()
-        }) {
-            continue;
-        }
-        callback_bodies.push(TerminalNativeCallbackBody {
-            artifact: thunk.clone(),
-            proposal: project_terminal_native_body(thunk.artifact(), target_profile, &request)?,
-        });
-    }
     Ok(TerminalNativeRealizationProposal::new(
         request.application,
         program_entry,
@@ -172,12 +157,11 @@ pub fn project_terminal_native_realization_proposal(
         request.package_terminal_authority_permissions,
         request.package_terminal_authority_permission_identities,
         body.behavior_exclusions,
-        callback_bodies,
     ))
 }
 
-/// One provider projection for every canonical body. Artifact-local IDs and
-/// family rows are derived here, never transplanted from the application body.
+/// One provider projection for the complete canonical program. Main and
+/// callback entries subsequently borrow these same identity-qualified rows.
 fn project_terminal_native_body(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     target_profile: target::TargetProfile,

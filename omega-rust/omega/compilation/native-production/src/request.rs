@@ -18,13 +18,9 @@ pub(crate) struct NativeRealizationRequest<'request> {
     /// dynamically, and a static object ignores it.
     pub elf_interpreter: Option<&'request target::NormalizedElfInterpreterPlan>,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
-    /// Isolated bodies paired one-to-one with admitted callback arguments.
-    /// Each body has its own Terminal artifact namespace.
+    /// Exact callable selections paired with admitted callback arguments,
+    /// borrowing the shared program and its ordinary provider evidence.
     pub callback_thunks: &'request [backend_plan::NativeCallbackThunkSettlement<'request>],
-    /// Prepared evidence is shared, but every body consumes its artifact-local
-    /// selection, adapters, builtin boundaries and callback occurrences.
-    pub callback_providers:
-        &'request terminal_psi_to_abstract_operations::PreparedRetainedNativeProviders<'request>,
     pub target_provider_proposals: &'request [backend_plan::TerminalTargetProviderProposal],
 }
 

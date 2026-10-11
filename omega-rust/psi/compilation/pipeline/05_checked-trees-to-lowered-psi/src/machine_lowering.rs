@@ -7,8 +7,7 @@
 //! every selected module still needs: retained custody, float-meaning projections, evidence and proof
 //! recursion, proof-only quotient correspondence rows, operand proof
 //! completion or module validation, and the debug companion.
-//! A callback body is not a second entrance: it lowers through this same
-//! route rooted at the callback entry. Each mapped body retains its portable
+//! Callback selections join the same program's retained roots. Each body retains its portable
 //! checked declaration, so consumers need no source-to-Terminal receipt.
 //! Unsupported source constructs fail closed.
 
@@ -55,6 +54,25 @@ pub fn lower_machine(
     // can intern more rows. Seal the complete table after those producers, so
     // every durable index resolves in the module that owns it.
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    // Nominal callbacks are checked callable roots, even though their foreign
+    // invocation is not an ordinary source call edge. Retain them once beside
+    // program entries; native ABI adapters select these exact bodies later.
+    let mut roots = program_roots.machines.to_vec();
+    roots.extend(
+        checked
+            .facts
+            .nominal_machine_uses
+            .uses
+            .iter()
+            .filter(|usage| usage.callback_entry.is_some())
+            .map(|usage| usage.selected_machine),
+    );
+    roots.sort_unstable_by_key(|root| (root.arena_index(), root.generation()));
+    roots.dedup();
+    let program_roots = crate::TerminalProgramRoots {
+        machines: &roots,
+        boundaries: program_roots.boundaries,
+    };
     let selection = select_terminal_machine(checked, machine)?;
     let (mut lowered, completion) = lower_terminal_selection(
         &mut identities,

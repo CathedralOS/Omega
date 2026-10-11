@@ -17,6 +17,7 @@ use diagnostics::Diagnostic;
 use terminal_codec::CanonicalTerminalArtifact;
 
 /// Independent native custody beside one canonical Terminal product.
+#[derive(Clone, Copy)]
 pub struct NativeAdmissionRequest<'request, 'execution> {
     /// Exact retained callable selected by the application's checked custody.
     pub entry: terminal_psi::TargetMachineCallable,

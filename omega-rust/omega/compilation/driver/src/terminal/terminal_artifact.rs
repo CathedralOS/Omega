@@ -148,9 +148,27 @@ pub(crate) fn produce_retained_terminal_artifacts(
         let mut timings = std::mem::take(requests[first_index].view.timings());
         timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0, AllocationDelta::default());
         let started = std::time::Instant::now();
-        let applications: Vec<_> = group
+        let admission_roots: Vec<Vec<_>> = group
             .iter()
             .map(|&request_index| {
+                let placements = match &requests[request_index].view {
+                    TerminalProductionView::Selection(selection) => {
+                        &selection.checked.callback_placements
+                    }
+                    TerminalProductionView::Installed(checked) => {
+                        &checked.execution().callback_placements
+                    }
+                };
+                placements
+                    .iter()
+                    .map(|placement| placement.selected_machine)
+                    .collect()
+            })
+            .collect();
+        let applications: Vec<_> = group
+            .iter()
+            .zip(&admission_roots)
+            .map(|(&request_index, admission_roots)| {
                 let (build, plan_facts) = match &requests[request_index].view {
                     TerminalProductionView::Selection(selection) => (
                         &*selection.build,
@@ -162,6 +180,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     ),
                 };
                 TerminalApplicationCustody {
+                    admission_roots,
                     entry_identity: entries[request_index]
                         .as_ref()
                         .ok()

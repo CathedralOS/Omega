@@ -51,6 +51,9 @@ pub struct TerminalApplicationCustody<'a> {
     /// Exact checked source member whose signature the companion retains.
     /// This does not select or rewrite the portable semantic root.
     pub entry_machine: Option<crate::TerminalMachineSelection<'a>>,
+    /// Additional checked roots governed by this application's policy, such as
+    /// its selected callbacks. These mint no ProgramEntry receipt.
+    pub admission_roots: &'a [symbols::SymbolHandle],
     pub admission: Option<&'a dyn crate::TerminalCompositionAdmission>,
 }
 

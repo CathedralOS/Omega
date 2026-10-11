@@ -86,22 +86,26 @@ impl<'a> TerminalProductionRequest<'a> {
                         TerminalArtifactProductionError::Lowering(error).diagnostics()
                     })?;
                 if let Some(admission) = application.admission {
-                    let entry = lowered_psi_to_terminal_psi::retained_source_machine(
-                        checked,
-                        selection.machine,
-                        self.exact_toolchain_sources,
-                        &lowered.semantic_module,
-                    )
-                    .map_err(|error| {
-                        TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
-                    })?;
-                    let provenance = lowered_machine_provenance(
-                        checked,
-                        &lowered,
-                        selection.machine,
-                        self.exact_toolchain_sources,
-                    );
-                    admission.admit(&lowered.semantic_module, entry.id, &provenance)?;
+                    for machine in std::iter::once(selection.machine)
+                        .chain(application.admission_roots.iter().copied())
+                    {
+                        let entry = lowered_psi_to_terminal_psi::retained_source_machine(
+                            checked,
+                            machine,
+                            self.exact_toolchain_sources,
+                            &lowered.semantic_module,
+                        )
+                        .map_err(|error| {
+                            TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
+                        })?;
+                        let provenance = lowered_machine_provenance(
+                            checked,
+                            &lowered,
+                            machine,
+                            self.exact_toolchain_sources,
+                        );
+                        admission.admit(&lowered.semantic_module, entry.id, &provenance)?;
+                    }
                 }
                 Ok(Some(selection))
             })
@@ -189,3 +193,49 @@ impl TerminalArtifactProductionError {
 diagnostics::debug_display!(TerminalArtifactProductionError);
 
 impl std::error::Error for TerminalArtifactProductionError {}
+
+/// Exact callable and semantic parameter origins after source erasure. Native
+/// callers consume this correspondence rather than invoking a Psi stage.
+pub struct RetainedCallableSignature {
+    pub machine: semantic_vocabulary::MachineId,
+    pub scalar_source_positions: Vec<u32>,
+    pub structural_source_positions: Vec<u32>,
+}
+
+pub fn retained_callable_signature(
+    checked: &CheckedTrees,
+    source: symbols::SymbolHandle,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+) -> Result<RetainedCallableSignature, Vec<Diagnostic>> {
+    let machine = lowered_psi_to_terminal_psi::retained_source_machine(
+        checked,
+        source,
+        exact_toolchain_sources,
+        artifact.semantic_module(),
+    )
+    .map_err(|error| TerminalArtifactProductionError::EntryReceipt(error).diagnostics())?;
+    let entry = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .callable_entry_for_machine(source)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "retained callable has no unique checked entry signature",
+            )]
+        })?;
+    Ok(RetainedCallableSignature {
+        machine: machine.id,
+        scalar_source_positions: entry
+            .scalar_parameters
+            .iter()
+            .map(|parameter| parameter.source_position)
+            .collect(),
+        structural_source_positions: entry
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.position)
+            .collect(),
+    })
+}

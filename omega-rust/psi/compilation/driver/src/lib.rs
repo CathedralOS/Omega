@@ -46,5 +46,6 @@ pub use custody::{
 };
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use terminal_production::{
-    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
+    ProgramEntryTerminalReceiptError, RetainedCallableSignature, TerminalArtifactProductionError,
+    TerminalProductionRequest, retained_callable_signature,
 };

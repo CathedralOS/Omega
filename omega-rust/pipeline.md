@@ -103,8 +103,10 @@ Targets selecting the same Psi optimizations share Terminal production and
 storage, including distinct Build entry roots. Lowering retains all authored
 roots and optimization preserves them. Each application selects its exact
 retained entry through source-signature custody; native and interpreted
-execution do not rewrite the artifact's default entry. Callback bodies still
-have separate production and must join the shared program closure. Product constants
+execution do not rewrite the artifact's default entry. Nominal callback bodies
+join that same portable closure and retain exact selected entries beside their
+native ABI adapters. Main and callbacks borrow one provider context; callback
+realization never starts another Psi production. Product constants
 requiring selected-provider evaluation reject until portable recipes cross this
 boundary; selected providers cannot inject completion roles into checked source.
 Accepted package roles enter source preparation before checking instead.

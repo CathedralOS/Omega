@@ -5,11 +5,13 @@
 //! native admission then borrows only executable and ABI evidence. These checks
 //! do not replace callback interface admission or final object/image replay.
 
-/// Canonical callback body. Its entry retains the declaration chosen by Psi;
-/// native preparation joins that identity to the caller's portable demand.
+/// Callback selection in the shared canonical program. Its entry retains the
+/// declaration chosen by Psi; native preparation joins that identity to the
+/// caller's portable demand.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCallbackThunkArtifact {
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+    entry: semantic_vocabulary::MachineId,
     /// Dense semantic formal ordinals in the body's scalar-then-structural
     /// parameter order. These are produced from the checked entry before
     /// source erasure, never inferred from equal native shapes.
@@ -18,16 +20,13 @@ pub struct TerminalCallbackThunkArtifact {
 
 impl TerminalCallbackThunkArtifact {
     pub fn new(
-        artifact: terminal_codec::CanonicalTerminalArtifact,
+        artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+        entry: semantic_vocabulary::MachineId,
         scalar_source_positions: &[u32],
         structural_source_positions: &[u32],
     ) -> Result<Self, &'static str> {
         let module = artifact.semantic_module();
-        // Callees may be present too; the artifact's entry is the callback.
-        let Some(machine) = (match module.entry {
-            terminal_psi::TargetMachineCallable::Machine(entry) => module.machine(entry),
-            terminal_psi::TargetMachineCallable::Boundary(_) => None,
-        }) else {
+        let Some(machine) = module.machine(entry) else {
             return Err("Terminal callback thunk artifact does not contain its entry machine");
         };
         if machine.declaration.is_none() {
@@ -65,7 +64,8 @@ impl TerminalCallbackThunkArtifact {
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
-            artifact: std::sync::Arc::new(artifact),
+            artifact,
+            entry,
             parameter_formals,
         })
     }
@@ -76,6 +76,10 @@ impl TerminalCallbackThunkArtifact {
 
     pub fn parameter_formals(&self) -> &[u32] {
         &self.parameter_formals
+    }
+
+    pub const fn entry(&self) -> semantic_vocabulary::MachineId {
+        self.entry
     }
 }
 
@@ -145,7 +149,7 @@ impl TerminalCallbackOccurrenceProposal {
     }
 }
 
-/// Borrowed canonical body and placement join for one compiler-private
+/// Borrowed canonical program, selected body and placement for one compiler-private
 /// callback thunk. The ordinary callback-argument carrier remains separate so
 /// target lowering cannot confuse executable body custody with a semantic
 /// registrar argument.
@@ -157,6 +161,7 @@ pub struct NativeCallbackThunkSettlement<'artifact> {
     pub placement_index: usize,
     pub callback_function: function_identity::MachineFunctionIdentity,
     pub artifact: &'artifact terminal_codec::CanonicalTerminalArtifact,
+    pub entry: semantic_vocabulary::MachineId,
     pub boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
     pub parameter_formals: &'artifact [u32],
     pub entry_parameters: &'artifact [crate::NativeCallbackEntryParameter],
@@ -175,6 +180,9 @@ pub fn validate_callback_thunk_joins(
     let module = caller.module();
     for occurrence in occurrences {
         let thunk = occurrence.callback_thunk_artifact();
+        if thunk.artifact().view().identity() != caller.identity() {
+            return Err("callback thunk must select a body in its caller's Terminal program");
+        }
         let application = module
             .callback_applications
             .binary_search_by_key(&occurrence.application_index, |row| row.application_index)
@@ -182,19 +190,16 @@ pub fn validate_callback_thunk_joins(
             .map(|ordinal| &module.callback_applications[ordinal])
             .ok_or("callback thunk has no portable application")?;
         let body = thunk.artifact().semantic_module();
-        let declaration = match body.entry {
-            terminal_psi::TargetMachineCallable::Machine(entry) => body.machine(entry),
-            terminal_psi::TargetMachineCallable::Boundary(_) => None,
-        }
-        .and_then(|machine| machine.declaration.as_ref())
-        .ok_or("callback thunk has no entry declaration")?;
+        let declaration = body
+            .machine(thunk.entry())
+            .and_then(|machine| machine.declaration.as_ref())
+            .ok_or("callback thunk has no entry declaration")?;
         let expected_function = function_identity::MachineFunctionIdentity::callback_thunk(
             caller.identity(),
             occurrence.placement_index(),
         );
-        // Each artifact interns its declaration identities independently.
-        // Equal table indices can name different declarations, and the same
-        // declaration can occupy different indices in caller and thunk.
+        // The selected body must be the declared callback, not merely a
+        // signature-compatible sibling in the shared program.
         if !declaration.same_identity_as(&body.identities, &application.body, &module.identities)
             || application.registrar != occurrence.terminal_operation()
             || expected_function != Some(occurrence.callback_thunk_identity())
@@ -219,6 +224,7 @@ pub fn native_callback_thunks(
             placement_index: occurrence.placement_index(),
             callback_function: occurrence.callback_thunk_identity(),
             artifact: occurrence.callback_thunk_artifact().artifact(),
+            entry: occurrence.callback_thunk_artifact().entry(),
             boundary_entry_plan: &occurrence.boundary_entry_plan,
             parameter_formals: occurrence.callback_thunk_artifact().parameter_formals(),
             entry_parameters: &occurrence.entry_parameters,

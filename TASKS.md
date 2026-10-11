@@ -2968,6 +2968,8 @@ crash and native exit behavior.
     borrow the same checked storage; matching Psi-optimization requests share
     Terminal production and storage across distinct Build entry roots, with
     separate target admissions and exact per-application execution entries.
+    Callback bodies share that Terminal program and native provider context;
+    ABI adapters retain their selected machine and parameter-origin mappings.
     Psi owns resolver/typing and generated-source continuation; the product
     driver, Build evaluator and product carriers no longer import stages
     02/03/03b/04. Psi owns preparation, retained-check matching, checking and
@@ -2979,7 +2981,7 @@ crash and native exit behavior.
     static/executed provider-selection decoder and returns Product defaults
     before pruning, shared across targets outside Build admission. Join the
     remaining source/package assembly contracts to this facade.
-    Move callbacks and the package-manager batch route
+    Move the package-manager batch route
     behind whole-program shared checked/Terminal storage and
     retire its per-target typed copies. Remove `compile_checked_reusing_builds`
     and package-manager's `CandidateSourcePreparation` as package invocations

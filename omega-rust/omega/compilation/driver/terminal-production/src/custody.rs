@@ -15,6 +15,7 @@ pub struct TerminalProductionCustody<'a> {
 pub struct TerminalApplicationCustody<'a> {
     pub entry_identity: Option<[u8; 32]>,
     pub entry_machine: Option<psi_compiler::TerminalMachineSelection<'a>>,
+    pub admission_roots: &'a [symbols::SymbolHandle],
     pub behavior_exclusions: Option<TerminalBehaviorExclusions<'a>>,
 }
 

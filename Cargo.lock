@@ -430,14 +430,12 @@ dependencies = [
  "build-time-evaluation",
  "calling-conventions",
  "checked-interpreter",
- "checked-trees-to-lowered-psi",
  "compilation-products",
  "diagnostics",
  "effects",
  "image-emission",
  "installation-evidence",
  "lowered-psi",
- "lowered-psi-to-terminal-psi",
  "mimalloc",
  "native-artifact",
  "native-production",
@@ -1187,6 +1185,7 @@ dependencies = [
  "target",
  "target-operations-to-selected-instructions",
  "terminal-codec",
+ "terminal-psi",
  "terminal-psi-to-abstract-operations",
 ]
 

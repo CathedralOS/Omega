@@ -15,9 +15,8 @@ use terminal_psi_to_abstract_operations::provider_admission::realization_error;
 /// Realize the executable scope's callback thunks into compiler-private code,
 /// preserving original placement identities and relative request order.
 ///
-/// Each thunk owns its own Terminal namespace. Its selected providers and
-/// native occurrences were closed against that artifact, not copied from the
-/// application. Admission uses the same independent receiving policy without
+/// Each thunk selects an entry in the shared Terminal namespace. Admission
+/// uses the same prepared providers and independent receiving policy without
 /// manufacturing a ProgramEntry for the private body.
 pub(crate) fn lower_callback_thunks(
     request: &NativeRealizationRequest<'_>,
@@ -46,10 +45,7 @@ pub(crate) fn lower_callback_thunks(
     while next_callback < pending.len() {
         let settlement = &pending[next_callback];
         let object = lower_callback_thunk(request, settlement)?;
-        for child in request
-            .callback_providers
-            .callback_body_thunks(settlement.artifact)?
-        {
+        for child in request.callback_thunks.iter().copied() {
             if !object
                 .body
                 .object()
@@ -65,6 +61,7 @@ pub(crate) fn lower_callback_thunks(
                 .find(|known| known.callback_function == child.callback_function)
             {
                 if known.artifact.manifest().identity() != child.artifact.manifest().identity()
+                    || known.entry != child.entry
                     || known.boundary_entry_plan != child.boundary_entry_plan
                     || known.parameter_formals != child.parameter_formals
                     || known.entry_parameters != child.entry_parameters
@@ -89,14 +86,12 @@ fn lower_callback_thunk(
     settlement: &NativeCallbackThunkSettlement<'_>,
 ) -> Result<PrivateFunctionObject, Vec<Diagnostic>> {
     let artifact = settlement.artifact;
-    let mut admitted = request.callback_providers.admit_callback_body(
-        artifact,
-        request.admission.providers.terminal_authority_policy,
-        request
-            .admission
-            .providers
-            .terminal_authority_permission_policy,
-    )?;
+    let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
+        entry: terminal_psi::TargetMachineCallable::Machine(settlement.entry),
+        ..request.admission
+    };
+    let mut admitted =
+        terminal_psi_to_abstract_operations::admit_native_realization(artifact, &admission)?;
     let selections = request.optimization_selections.selections();
     let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
         admitted.input.into_optimization_input(),

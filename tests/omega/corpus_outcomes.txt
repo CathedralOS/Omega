@@ -6142,3 +6142,7 @@ fail/constants/unused_nested_default_domain_constant rejected 6ms expected @ea68
 fail/time/duration_constant_unnormalized rejected 33ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
 	constant `INVALID` is invalid: data constant `Duration` violates its default-domain predicate
 pass/borrow/runtime_write_only_array_indexed_calls_exit checked 2848ms check-target:macos_arm64 @e67b2abb52b9+wt
+fail/calls/callback_shared_program_excluded_trap rejected 24191ms expected @eee96af606fc+wt
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: crash cause Trap is reachable in machine `PointHandler::visit` (Terminal machine 2) at crash terminator in block 12
+	the selected composition retains crash cause Trap through machine `PointHandler::visit` (Terminal machine 2) declared here

@@ -52,6 +52,7 @@ impl<'a> TerminalProductionRequest<'a> {
             .map(|application| psi_compiler::TerminalApplicationCustody {
                 entry_identity: application.entry_identity,
                 entry_machine: application.entry_machine,
+                admission_roots: application.admission_roots,
                 admission: application
                     .behavior_exclusions
                     .as_ref()

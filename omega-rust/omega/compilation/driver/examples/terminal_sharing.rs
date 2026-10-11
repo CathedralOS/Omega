@@ -3,6 +3,7 @@
 //! `cargo run -p compiler --example terminal_sharing` compiles the existing
 //! distinct-entry customer for Windows and Linux. Both native products must
 //! borrow one Terminal allocation; this does not execute a foreign-host image.
+//! Optional arguments select another corpus root followed by its target names.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
@@ -11,15 +12,21 @@ use artifacts::compile_timings::counters;
 use compiler::{CompileRequest, RequestedCompileProduct};
 
 fn main() {
-    let root = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg");
+    let mut arguments = std::env::args().skip(1);
+    let root = fixture_package_inputs::repo_root().join(arguments.next().unwrap_or_else(|| {
+        "tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg".to_owned()
+    }));
+    let mut target_names: Vec<_> = arguments.collect();
+    if target_names.is_empty() {
+        target_names = vec!["windows_x86_64".to_owned(), "linux_x86_64".to_owned()];
+    }
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
-        Some("windows_x86_64"),
+        Some(&target_names[0]),
     )
     .expect("fixture package admission");
-    let targets = ["windows_x86_64", "linux_x86_64"]
-        .into_iter()
+    let targets = target_names
+        .iter()
         .map(|name| {
             Some(target::TargetProfile::from_omega_target_name(Some(name)).expect("target"))
         })
@@ -43,26 +50,29 @@ fn main() {
         .into_iter()
         .map(|outcome| outcome.into_result().expect("native product"))
         .collect();
-    assert_eq!(reports.len(), 2);
+    assert_eq!(reports.len(), target_names.len());
     let first = reports[0]
         .retained_native_artifact()
         .expect("first native artifact")
         .psi_artifact();
-    let second = reports[1]
-        .retained_native_artifact()
-        .expect("second native artifact")
-        .psi_artifact();
-    assert!(
-        std::ptr::eq(first, second),
-        "native products must retain one Terminal allocation"
-    );
-    assert_eq!(first.manifest().semantic(), second.manifest().semantic());
+    for report in &reports[1..] {
+        let second = report
+            .retained_native_artifact()
+            .expect("second native artifact")
+            .psi_artifact();
+        assert!(
+            std::ptr::eq(first, second),
+            "native products must retain one Terminal allocation"
+        );
+        assert_eq!(first.manifest().semantic(), second.manifest().semantic());
+    }
     let sources = counters::product_source_completion_count() - sources_before;
     let builds = counters::build_execution_count() - builds_before;
     let checks = counters::settled_check_totals().0 - checks_before;
     let terminals = counters::terminal_production_count() - terminals_before;
     assert_eq!((sources, builds, checks, terminals), (1, 1, 2, 1));
     println!(
-        "native_products=2 source_completions={sources} builds={builds} checks={checks} terminal_productions={terminals} shared_allocation=true"
+        "native_products={} source_completions={sources} builds={builds} checks={checks} terminal_productions={terminals} shared_allocation=true",
+        reports.len()
     );
 }

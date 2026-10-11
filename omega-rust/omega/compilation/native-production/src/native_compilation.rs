@@ -44,7 +44,6 @@ pub fn compile(
                 elf_interpreter: proposal.application().elf_interpreter.as_ref(),
                 optimization_selections: request.optimization_selections,
                 callback_thunks: &prepared.callback_thunks,
-                callback_providers: &prepared,
                 target_provider_proposals: proposal.target_provider_proposals(),
             },
         )
