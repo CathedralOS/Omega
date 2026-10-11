@@ -3006,6 +3006,23 @@ crash and native exit behavior.
   the arm by itself would bake the upstream gap into the Psi/Omega record
   contract.
 
+- **PACKAGE-CHECK-DIAGNOSTIC-ATTRIBUTION.** (new-scope) Checked-compilation
+  diagnostics inside a batched package check report the requesting package
+  and no source location, while parse-stage diagnostics name the failing
+  package and its file. Staged in
+  `samples/cli/probes/build_sibling_checks/controls/invalid_divergent_sibling`:
+  a type mismatch in `bad_sibling/main.omg` reports "checked compilation
+  failed for package `invalid_divergent_sibling` with 1 diagnostic(s) ...
+  machine `bad_value` state `entry` terminal expression expects `i32`, got
+  `String`" — the failing package is never named and no file:line is
+  emitted, while a syntax error in the same package reports `bad_sibling`
+  with the full snapshot path and line:col. With several siblings a user
+  cannot tell which occurrence diverged. Acceptance: every
+  checked-compilation diagnostic in a package batch names the failing
+  package and carries its source location, matching the attribution
+  parse-stage diagnostics already produce; the requesting package never
+  absorbs a sibling's diagnostic.
+
 ## Lowering simplification
 
 Owner ruling 2026-10-04: stage 05 is cut down to a mechanical lowering of
