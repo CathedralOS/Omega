@@ -96,19 +96,21 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
 /// presentation above: the source keeps its literal backing, the target keeps
 /// its declared `&[T]`/`&mut [T]` view, and the projected path names the
 /// storage rather than materializing a view local.
+/// Lending does not copy the array or its elements. Their multiplicity stays
+/// with the backing owner; callers independently establish initialized storage,
+/// qualifications and exact loan access before presenting this carrier.
 pub(crate) fn fixed_array_slice_view_is_admitted(
     program: &dyn ::validation::CheckingInput,
     source: typed_trees::types::TypeReferenceHandle,
     target: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    let Some((source, element_type, target_element)) =
+    let Some((_, element_type, target_element)) =
         fixed_array_slice_view_parts(program, source, target)
     else {
         return false;
     };
     program.normalized_type_identity(*element_type)
         == program.normalized_type_identity(*target_element)
-        && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
 }
 
 /// A fixed byte array lends initialized elements without becoming a bounded owner.

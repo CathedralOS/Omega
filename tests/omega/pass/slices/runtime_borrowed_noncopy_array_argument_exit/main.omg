@@ -1,0 +1,18 @@
+data Entry { value: i32; }
+data Main { entries: [Entry; 4]; }
+
+machine extent(entries: &[Entry]) -> u64 { entries.len }
+machine forward(entries: &[Entry]) -> &[Entry] { entries }
+
+machine Main::main(main: &mut Main) crashes Trap {
+    let local: [Entry; 3];
+    let field_count: u64 = extent(&main.entries);
+    let local_count: u64 = extent(&local);
+    let view: &[Entry] = forward(&main.entries);
+    transition field_count == 4 && local_count == 3 && view.len == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
