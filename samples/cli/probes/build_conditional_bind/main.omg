@@ -1,0 +1,3 @@
+machine launch() { let marker: u8 = 0; }
+data Main {}
+machine Main::main(main: &mut Main) { }
