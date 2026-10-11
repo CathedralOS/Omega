@@ -62,7 +62,7 @@ python3 "$SAMPLE/reference.py"
 python3 "$SAMPLE/reference.py" "$SAMPLE/build/both.stdout"
 ```
 
-`run --target` is compile-only in the current CLI; host execution and Terminal comparison therefore use `run --both` without that flag. Native artifact and exact executed commands are recorded in the validation
+`run --target` is compile-only in the current CLI; host execution and Terminal comparison therefore use `run --both` without that flag. This compares completion and exit status; its stdout is the native process output. A full Terminal output check must inspect the runtime's separately captured stdout and stderr. Native artifact and exact executed commands are recorded in the validation
 report. Execute each `data/*.stdin` fixture serially through the native artifact;
 valid single-case outputs are checked with `reference.py OUTPUT --selection N`.
 A check-only result cannot establish runtime acceptance.
@@ -71,4 +71,4 @@ A check-only result cannot establish runtime acceptance.
 metadata and entry binding. It writes index 4 of `[i32;4]`, violating the
 ordinary bounds obligation. Its rejection must specifically identify
 `cannot prove index \`4\` is within length 4`; unrelated package, type or provider
-rejection is insufficient. Check it separately from the valid application with `omega --check --target linux_x86_64 controls/intended_invalid/invalid.omg` (use its full sample-relative path from the repository root). The alternate source filename keeps the intentional rejection out of normal sample discovery.
+rejection is insufficient. Check it separately from the valid application with `omega --check --target linux_x86_64 controls/intended_invalid/invalid.omg` (use its full sample-relative path from the repository root). The alternate source filename keeps it out of runnable-main discovery; the role-aware sample gate discovers and validates this intended-invalid control separately.
