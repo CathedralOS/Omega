@@ -56,8 +56,9 @@ omega update --project samples/cli/independent/landcover_area_resampling --targe
 omega update --resume --project samples/cli/independent/landcover_area_resampling
 omega --target linux_x86_64 samples/cli/independent/landcover_area_resampling/main.omg
 python3 samples/cli/independent/landcover_area_resampling/validate.py /absolute/path/to/native/executable --output samples/cli/independent/landcover_area_resampling/build/validation/native
-python3 samples/cli/independent/landcover_area_resampling/validate_terminal.py /absolute/path/to/omega --output samples/cli/independent/landcover_area_resampling/build/validation/terminal
-printf '2\n' | omega run --both --target linux_x86_64 samples/cli/independent/landcover_area_resampling/main.omg
+# Build the documented corpus_runner test target once, then reuse its executable.
+python3 samples/cli/independent/landcover_area_resampling/validate_terminal.py /absolute/path/to/corpus_runner --output samples/cli/independent/landcover_area_resampling/build/validation/terminal
+printf '2\n' | omega run --both samples/cli/independent/landcover_area_resampling/main.omg
 omega --check samples/cli/independent/landcover_area_resampling/controls/out_of_bounds/main.omg
 ```
 
@@ -67,3 +68,11 @@ complete independent source program, not a commented line in the valid sample.
 Native execution is declared for Linux x86-64; other targets have no advertised
 execution evidence. Generated products and validation observations belong under
 `build/`, while reviewed lock state follows the ordinary package workflow.
+
+`run --both` on the host compares process exit status. An explicit `run --target`
+produces an image without execution. The Terminal validator uses the documented
+corpus route to compare complete stdout, stderr and exit oracles for both engines.
+It stages byte-identical application sources in fifteen private scratch fixtures,
+adapts only the relative std dependency path, and removes the fixtures afterward.
+The engine consumes the native report's retained Terminal artifact; there is no
+checked-tree fallback or golden rewrite.
