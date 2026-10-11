@@ -105,6 +105,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             return Err("unexpected case name".into());
         }
         let observation = execute(TerminalRuntimeRequest {
+            provider_proposal: None,
             artifact: artifact.psi_artifact(),
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
