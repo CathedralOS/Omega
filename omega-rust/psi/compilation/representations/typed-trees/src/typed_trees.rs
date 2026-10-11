@@ -217,14 +217,11 @@ pub struct TypedTrees {
     /// unbounded range.
     pub pending_const_range_endpoints:
         std::collections::HashSet<crate::expression::ExpressionHandle>,
-    /// Interned named-callable identities: one record per distinct machine,
-    /// requirement or named-operator overload identity, carrying the
-    /// declarations that render it and the escaped text an artifact, plan or
-    /// review record carries across a compilation boundary. Guarded by
-    /// `structural_fingerprint()`, so a declaration append drops every
-    /// memoized identity rather than answering from a shape the program no
-    /// longer has. See `type_identity::callable_identity`.
-    pub callable_identities: OwnedIndex<crate::type_identity::CallableIdentityTable>,
+    /// Durable named-callable structural keys. Checked plans retain these
+    /// handles across arena revisions; historical keys stay renderable.
+    pub callable_identities: OwnedInterner<crate::type_identity::CallableIdentityTable>,
+    /// Current declarations and reverse lookup, rebuilt on structural revision.
+    pub callable_identity_memo: OwnedIndex<crate::type_identity::CallableIdentityMemo>,
     /// The hash-consed structural type keys minted on demand by the type
     /// identity queries. A handle minted here compares by integer; its text
     /// stays inside the table for diagnostics and artifact encoding.
@@ -489,7 +486,8 @@ impl TypedTrees {
             declaration_indexes: declaration_index::DeclarationIndexes::default(),
             ranking_expression_custody: Vec::new(),
             pending_const_range_endpoints: std::collections::HashSet::new(),
-            callable_identities: OwnedIndex::default(),
+            callable_identities: OwnedInterner::default(),
+            callable_identity_memo: OwnedIndex::default(),
             type_identities: OwnedInterner::default(),
         }
     }

@@ -437,6 +437,7 @@ impl Lowerer<'_> {
             // from its own tables.
             declaration_indexes: _,
             callable_identities: _,
+            callable_identity_memo: _,
             ranking_expression_custody,
             // Typing precedes every build-time evaluation deferral, so no
             // pending endpoint mark can exist here to carry forward.

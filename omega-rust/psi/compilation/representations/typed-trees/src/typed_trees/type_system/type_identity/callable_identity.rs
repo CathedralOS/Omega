@@ -6,9 +6,9 @@
 //! domains. Those parts used to be handed to every consult site as rendered,
 //! escaped `String`s, and the reverse join — which machine carries this
 //! identity — rendered every machine in the program and compared the text.
-//! This module interns each part once per program revision and hands out
-//! handles instead: an overload comparison is an integer compare, and the
-//! reverse join is one map read.
+//! This module interns each structural key for the program's lifetime and
+//! hands out handles: an overload comparison is an integer compare. Only the
+//! declaration memo and reverse lookup belong to a particular revision.
 //!
 //! Boundary-operator provider slots retain a separate structural key containing
 //! every operand type and the full result type. Their canonical `operator::`
@@ -23,12 +23,12 @@
 //! `callable_identity_by_text` is the matching rehydration join and is the
 //! only entry that accepts text.
 //!
-//! Freshness: the interner lives inside the program it describes and is
-//! guarded by `TypedTrees::structural_fingerprint()`, so a monomorphization
-//! append or a re-pointed root span drops every memoized identity instead of
-//! answering from a shape the program no longer has. Identity derivation
-//! walks type references and symbol paths, which consult other program-owned
-//! indexes, so every rendering happens outside this interner's lock.
+//! Freshness: durable keys never reset when monomorphization appends or root
+//! spans change. The revision-guarded memo independently rebuilds declaration
+//! addresses, active text joins and machine positions. Thus an old handle can
+//! still render its key without claiming a retired declaration remains live.
+//! Identity derivation walks type references and symbol paths outside both
+//! locks; interning and memo publication use separate lock scopes.
 
 use super::constraint_identity::{atom, compound};
 use super::{NormalizedResultDispatchSet, TypeIdentityId};
@@ -112,9 +112,10 @@ struct BoundaryOperatorIdentityParts {
 
 /// Which declaration a memoized identity was derived for. The address is the
 /// exact key: a declaration's roster position is not unique under the forged
-/// duplicate symbols fixtures can declare, and the interner's revision guard
-/// bounds the address's lifetime to the table state it was taken from — the
-/// same rule the isolation verdicts already key on.
+/// duplicate symbols fixtures can declare, and the memo's revision guard
+/// bounds the address's lifetime to the declaration state it was taken from — the
+/// same rule the isolation verdicts already key on. Cloning clears these
+/// address keys because the clone owns different arena allocations.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum DeclarationKey {
     Machine(usize),
@@ -132,15 +133,10 @@ struct CallableIdentityRecord {
     /// rendering, retained so diagnostics and artifact encoding project it
     /// rather than re-deriving it from the declaration.
     text: Box<str>,
-    /// Machine roster positions declaring this identity, excluding target
-    /// siblings: a target body shares its family's identity by design and is
-    /// never the realized declaration. Filled only by the complete sweep, so
-    /// `swept` says whether this list is the whole program's answer.
-    machines: Vec<u32>,
 }
 
-/// The interned identities of one program. Records are append-only within a
-/// revision, so a handle stays valid for as long as the table it came from.
+/// Append-only structural keys: every minted handle remains valid through
+/// declaration revisions and is preserved when its owning program is cloned.
 #[derive(Clone, Default)]
 pub struct CallableIdentityTable {
     paths: Vec<Box<str>>,
@@ -166,13 +162,29 @@ pub struct CallableIdentityTable {
     // overload dispatch. Keep their structural namespace separate.
     boundary_operator_slots:
         HashMap<(CallablePathId, Vec<TypeIdentityId>, TypeIdentityId), CallableIdentityId>,
+}
+
+/// Revision-dependent declaration lookup, separate from durable key storage.
+#[derive(Default)]
+pub struct CallableIdentityMemo {
     by_text: HashMap<Box<str>, CallableIdentityId>,
     by_declaration: HashMap<DeclarationKey, CallableIdentityId>,
-    /// Whether every non-target machine and boundary-operator requirement
-    /// in the program has been interned.
-    /// The reverse joins (`by_text`, each record's `machines`) answer for the
-    /// whole program only after that sweep.
+    /// Current non-target machine positions, indexed by durable identity slot.
+    machines: Vec<Vec<u32>>,
+    /// Only a completed current-revision sweep makes reverse lookup complete.
     swept: bool,
+}
+
+impl Clone for CallableIdentityMemo {
+    fn clone(&self) -> Self {
+        Self {
+            // Arena clones preserve semantic coordinates, not allocation addresses.
+            by_declaration: HashMap::default(),
+            by_text: self.by_text.clone(),
+            machines: self.machines.clone(),
+            swept: self.swept,
+        }
+    }
 }
 
 impl CallableIdentityTable {
@@ -229,11 +241,9 @@ impl CallableIdentityTable {
             path,
             parameters,
             result_dispatch,
-            text: text.clone(),
-            machines: Vec::new(),
+            text,
         });
         self.record_slots.insert(slot, interned);
-        self.by_text.insert(text, interned);
         interned
     }
 
@@ -254,11 +264,9 @@ impl CallableIdentityTable {
             path,
             parameters,
             result_dispatch,
-            text: text.clone(),
-            machines: Vec::new(),
+            text,
         });
         self.boundary_operator_slots.insert(key, identity);
-        self.by_text.insert(text, identity);
         identity
     }
 
@@ -324,19 +332,18 @@ impl TypedTrees {
         );
         let revision = self.structural_fingerprint();
         if let Some(identity) =
-            self.read_callable_identities(|table| table.by_declaration.get(&declaration).copied())
+            self.read_callable_memo(|memo| memo.by_declaration.get(&declaration).copied())
         {
             return identity;
         }
         let parts = self.boundary_operator_identity_parts(operator);
-        self.callable_identities
-            .with_mut(revision, CallableIdentityTable::default, |table| {
-                let identity = parts
-                    .map(|parts| table.intern_boundary_operator(parts))
-                    .unwrap_or_default();
-                table.by_declaration.insert(declaration, identity);
-                identity
-            })
+        let identity = self.callable_identities.with_mut(|table| {
+            parts
+                .map(|parts| table.intern_boundary_operator(parts))
+                .unwrap_or_default()
+        });
+        self.memoize_callable_identity(revision, declaration, identity);
+        identity
     }
 
     fn boundary_operator_identity_parts(
@@ -378,20 +385,34 @@ impl TypedTrees {
         // A memoized absence is stored as the zero handle, so a hit answers
         // both questions and only a miss pays for the derivation.
         if let Some(interned) =
-            self.callable_identities
-                .with_mut(revision, CallableIdentityTable::default, |table| {
-                    table.by_declaration.get(&declaration).copied()
-                })
+            self.read_callable_memo(|memo| memo.by_declaration.get(&declaration).copied())
         {
             return interned;
         }
         let parts = derive();
-        self.callable_identities
-            .with_mut(revision, CallableIdentityTable::default, |table| {
-                let interned = parts.map(|parts| table.intern(parts)).unwrap_or_default();
-                table.by_declaration.insert(declaration, interned);
-                interned
-            })
+        let interned = self
+            .callable_identities
+            .with_mut(|table| parts.map(|parts| table.intern(parts)).unwrap_or_default());
+        self.memoize_callable_identity(revision, declaration, interned);
+        interned
+    }
+
+    fn memoize_callable_identity(
+        &self,
+        revision: u64,
+        declaration: DeclarationKey,
+        identity: CallableIdentityId,
+    ) {
+        let text = self.read_callable_identities(|table| {
+            table.record(identity).map(|record| record.text.clone())
+        });
+        self.callable_identity_memo
+            .with_mut(revision, CallableIdentityMemo::default, |memo| {
+                memo.by_declaration.insert(declaration, identity);
+                if let Some(text) = text {
+                    memo.by_text.insert(text, identity);
+                }
+            });
     }
 
     /// The declaration path shared by one identity's overload family.
@@ -546,11 +567,8 @@ impl TypedTrees {
     /// demand keeps the comparison independent of which declarations have
     /// been consulted so far.
     pub fn callable_path_by_text(&self, path: &str) -> CallablePathId {
-        self.callable_identities.with_mut(
-            self.structural_fingerprint(),
-            CallableIdentityTable::default,
-            |table| table.intern_path(path),
-        )
+        self.callable_identities
+            .with_mut(|table| table.intern_path(path))
     }
 
     /// Intern the dispatch-bearing result set a call site requests, so
@@ -559,11 +577,8 @@ impl TypedTrees {
         &self,
         result_dispatch: &NormalizedResultDispatchSet,
     ) -> CallableResultDispatchId {
-        self.callable_identities.with_mut(
-            self.structural_fingerprint(),
-            CallableIdentityTable::default,
-            |table| table.intern_result_dispatch(result_dispatch.clone()),
-        )
+        self.callable_identities
+            .with_mut(|table| table.intern_result_dispatch(result_dispatch.clone()))
     }
 
     /// Rejoin one identity carried in as text by a plan, review record or
@@ -571,7 +586,7 @@ impl TypedTrees {
     /// that identity.
     pub fn callable_identity_by_text(&self, text: &str) -> CallableIdentityId {
         self.sweep_callable_identities();
-        self.read_callable_identities(|table| table.by_text.get(text).copied().unwrap_or_default())
+        self.read_callable_memo(|memo| memo.by_text.get(text).copied().unwrap_or_default())
     }
 
     /// Resolve one identity within an explicit declaration frontier. Build and
@@ -586,13 +601,17 @@ impl TypedTrees {
             return None;
         }
         self.sweep_callable_identities();
-        let position = self.read_callable_identities(|table| {
-            let record = table.record(identity)?;
-            let mut positions = record.machines.iter().copied().filter(|position| {
-                self.machines()
-                    .get(*position as usize)
-                    .is_some_and(|machine| declarations.contains(machine.symbol))
-            });
+        let position = self.read_callable_memo(|memo| {
+            let mut positions =
+                memo.machines
+                    .get(identity.slot()?)?
+                    .iter()
+                    .copied()
+                    .filter(|position| {
+                        self.machines()
+                            .get(*position as usize)
+                            .is_some_and(|machine| declarations.contains(machine.symbol))
+                    });
             let position = positions.next()?;
             positions.next().is_none().then_some(position)
         })?;
@@ -600,19 +619,23 @@ impl TypedTrees {
     }
 
     fn read_callable_identities<R>(&self, read: impl FnOnce(&CallableIdentityTable) -> R) -> R {
-        self.callable_identities.with(
+        self.callable_identities.with(read)
+    }
+
+    fn read_callable_memo<R>(&self, read: impl FnOnce(&CallableIdentityMemo) -> R) -> R {
+        self.callable_identity_memo.with(
             self.structural_fingerprint(),
-            CallableIdentityTable::default,
+            CallableIdentityMemo::default,
             read,
         )
     }
 
     /// Intern every non-target machine and boundary-operator requirement, so
-    /// reverse joins answer for the whole program. Only the text rehydration path needs
-    /// it: ordinary consults mint one record at a time.
+    /// reverse joins answer for the current program. Text rehydration and
+    /// machine lookup need this roster; ordinary queries intern one key at a time.
     fn sweep_callable_identities(&self) {
         let revision = self.structural_fingerprint();
-        if self.read_callable_identities(|table| table.swept) {
+        if self.read_callable_memo(|memo| memo.swept) {
             return;
         }
         // Derivation walks type references and symbol paths and therefore
@@ -643,27 +666,56 @@ impl TypedTrees {
                 ))
             })
             .collect::<Vec<_>>();
-        self.callable_identities
-            .with_mut(revision, CallableIdentityTable::default, |table| {
-                if table.swept {
+        let (machines, boundary_operators) = self.callable_identities.with_mut(|table| {
+            let machines = derived
+                .into_iter()
+                .map(|(position, declaration, parts)| {
+                    let identity = table.intern(parts);
+                    let text = table
+                        .record(identity)
+                        .expect("interned callable record")
+                        .text
+                        .clone();
+                    (position, declaration, identity, text)
+                })
+                .collect::<Vec<_>>();
+            let boundary_operators = boundary_operators
+                .into_iter()
+                .map(|(declaration, parts)| {
+                    let identity = table.intern_boundary_operator(parts);
+                    let text = table
+                        .record(identity)
+                        .expect("interned callable record")
+                        .text
+                        .clone();
+                    (declaration, identity, text)
+                })
+                .collect::<Vec<_>>();
+            (machines, boundary_operators)
+        });
+        self.callable_identity_memo
+            .with_mut(revision, CallableIdentityMemo::default, |memo| {
+                if memo.swept {
                     return;
                 }
-                for (position, declaration, parts) in derived {
-                    let interned = table.intern(parts);
-                    table.by_declaration.insert(declaration, interned);
-                    let Some(slot) = interned.slot() else {
+                for (position, declaration, identity, text) in machines {
+                    memo.by_declaration.insert(declaration, identity);
+                    memo.by_text.insert(text, identity);
+                    let Some(slot) = identity.slot() else {
                         continue;
                     };
-                    let positions = &mut table.records[slot].machines;
+                    memo.machines
+                        .resize_with(memo.machines.len().max(slot + 1), Vec::new);
+                    let positions = &mut memo.machines[slot];
                     if !positions.contains(&position) {
                         positions.push(position);
                     }
                 }
-                for (declaration, parts) in boundary_operators {
-                    let identity = table.intern_boundary_operator(parts);
-                    table.by_declaration.insert(declaration, identity);
+                for (declaration, identity, text) in boundary_operators {
+                    memo.by_declaration.insert(declaration, identity);
+                    memo.by_text.insert(text, identity);
                 }
-                table.swept = true;
+                memo.swept = true;
             });
     }
 }

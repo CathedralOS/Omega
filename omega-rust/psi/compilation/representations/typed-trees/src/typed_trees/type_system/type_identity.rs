@@ -26,8 +26,8 @@ mod result_dispatch_terms;
 mod substitution;
 
 pub use callable_identity::{
-    CallableIdentityId, CallableIdentityTable, CallableParametersId, CallablePathId,
-    CallableResultDispatchId,
+    CallableIdentityId, CallableIdentityMemo, CallableIdentityTable, CallableParametersId,
+    CallablePathId, CallableResultDispatchId,
 };
 pub use language_semantics::type_identity::{
     TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
