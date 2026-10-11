@@ -113,8 +113,7 @@ fn build_component_progress_manifest(
                 ),
                 subject_projections: demand.subject_projections.clone(),
                 origin_callable_identity: demand_identities.intern(
-                    &machine_callable_identity(typed,
-            check_facts, demand.origin.machine).ok_or_else(
+                    &machine_callable_identity(typed, demand.origin.machine).ok_or_else(
                         || {
                             vec![Diagnostic::error(
                                 "checked build-bound progress demand lost its origin machine identity",
@@ -291,7 +290,6 @@ fn exact_boundary_requirement(
 
 fn machine_callable_identity(
     typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     symbol: SymbolHandle,
 ) -> Option<String> {
     let machine = owning_machine(typed, symbol)?;

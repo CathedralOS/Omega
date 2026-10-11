@@ -154,12 +154,11 @@ pub(crate) fn carry_obligations(policy: CarryPolicy) -> ActivationCarryObligatio
 
 pub(crate) fn canonical_suspension_crossing(
     typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     crossing: &checked_trees::SuspensionCrossingCarryFact,
 ) -> Result<CanonicalSuspensionCrossing, Vec<Diagnostic>> {
     let mut live_carry = Vec::with_capacity(crossing.live_values.len());
     for live in &crossing.live_values {
-        live_carry.push(live_carry_demand(typed, check_facts, crossing, live)?);
+        live_carry.push(live_carry_demand(typed, crossing, live)?);
     }
     Ok(CanonicalSuspensionCrossing {
         identity: checked_trees::canonical_suspension_crossing_id(typed, crossing).ok_or_else(
@@ -182,13 +181,12 @@ pub(crate) fn canonical_suspension_crossing(
 /// claim identities attached to it, and the four-axis demand it carries.
 fn live_carry_demand(
     typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     crossing: &checked_trees::SuspensionCrossingCarryFact,
     live: &checked_trees::SuspensionCrossingLiveValueFact,
 ) -> Result<LiveCarryDemand, Vec<Diagnostic>> {
     Ok(LiveCarryDemand {
         place: super::normalized_id(
-            live_place_identity(typed, check_facts, crossing, live),
+            live_place_identity(typed, crossing, live),
             LiveCarryPlaceId::from_normalized_identity,
         )?,
         ty: super::normalized_id(
@@ -217,7 +215,6 @@ fn live_carry_demand(
 /// their exact coordinate.
 fn live_place_identity(
     typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     crossing: &checked_trees::SuspensionCrossingCarryFact,
     live: &checked_trees::SuspensionCrossingLiveValueFact,
 ) -> u64 {

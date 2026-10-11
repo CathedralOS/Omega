@@ -46,7 +46,7 @@ pub fn elaborate_task_activation_plans(
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<TaskActivationPlanSet, Vec<Diagnostic>> {
-    let selections = task_start_selections(typed, check_facts)?;
+    let selections = task_start_selections(typed)?;
     if selections.is_empty() {
         return Ok(TaskActivationPlanSet::default());
     }
@@ -55,13 +55,11 @@ pub fn elaborate_task_activation_plans(
     for selection in selections {
         let selected_runtime = selected_task_runtime_provider(
             typed,
-            check_facts,
             selected_provider_plans,
             &selection,
         )?;
         let (target_machine, entry) = exact_task_activation_target(
             typed,
-            check_facts,
             selection.target_machine,
             selection.target_entry,
         )
@@ -107,7 +105,7 @@ pub fn elaborate_task_activation_plans(
             MachineContractId::from_normalized_identity,
         )?;
         let entry_report_fingerprint =
-            entry_report_fingerprint(typed, check_facts, target_machine, entry);
+            entry_report_fingerprint(typed, target_machine, entry);
         let entry_id = normalized_id(
             entry_report_fingerprint,
             MachineEntryId::from_normalized_identity,
@@ -119,7 +117,6 @@ pub fn elaborate_task_activation_plans(
         // against.
         let argument_value_layouts = signature_value_layouts(
             typed,
-            check_facts,
             target,
             opaque_representation_selections,
             typed
@@ -128,7 +125,7 @@ pub fn elaborate_task_activation_plans(
                 .map(|parameter| parameter.type_reference),
         )?;
         let argument_layout_report_fingerprint =
-            signature_layout_report_fingerprint(typed, check_facts, &argument_value_layouts);
+            signature_layout_report_fingerprint(typed, &argument_value_layouts);
         let argument_layout = task_plans::TaskArgumentLayout::new(
             normalized_id(
                 argument_layout_report_fingerprint,
@@ -142,13 +139,12 @@ pub fn elaborate_task_activation_plans(
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
         let outcome_value_layouts = signature_value_layouts(
             typed,
-            check_facts,
             target,
             opaque_representation_selections,
             std::iter::once(entry.return_type),
         )?;
         let outcome_layout_report_fingerprint =
-            signature_layout_report_fingerprint(typed, check_facts, &outcome_value_layouts);
+            signature_layout_report_fingerprint(typed, &outcome_value_layouts);
         let terminal_outcome_layout = normalized_id(
             outcome_layout_report_fingerprint,
             ValueLayoutId::from_normalized_identity,
@@ -177,7 +173,7 @@ pub fn elaborate_task_activation_plans(
         )?;
         let mut roster = BTreeMap::new();
         for crossing in &graph.crossings {
-            let canonical = canonical_suspension_crossing(typed, check_facts, crossing)?;
+            let canonical = canonical_suspension_crossing(typed, crossing)?;
             roster.insert(canonical.identity, canonical);
         }
         let canonical_suspension_crossings = roster.into_values().collect::<Vec<_>>();
@@ -249,7 +245,6 @@ fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
 /// source parameter order.
 fn signature_value_layouts(
     typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     types: impl IntoIterator<Item = checked_trees::types::TypeReferenceHandle>,
@@ -277,7 +272,6 @@ fn signature_value_layouts(
 
 fn signature_layout_report_fingerprint(
     typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     layouts: &[(
         checked_trees::types::TypeReferenceHandle,
         layout::TypeLayout,
@@ -296,7 +290,6 @@ fn signature_layout_report_fingerprint(
 
 fn entry_report_fingerprint(
     typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     machine: &checked_trees::machine::Machine,
     entry: &checked_trees::state::State,
 ) -> u64 {

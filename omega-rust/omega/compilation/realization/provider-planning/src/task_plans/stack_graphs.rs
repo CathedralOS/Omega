@@ -145,7 +145,7 @@ fn task_frame_summary<'program>(
     reachable_crossings: &mut Vec<&'program checked_trees::SuspensionCrossingCarryFact>,
 ) -> Result<TaskStackFrameSummary, Vec<Diagnostic>> {
     let frame = frame_identity(typed, machine, entry)?;
-    let states = frame_state_closure(typed, check_facts, machine, entry)?;
+    let states = frame_state_closure(typed, machine, entry)?;
 
     // Every frame keeps an explicit resume-state word so a parked live chain
     // retains where each caller resumes, even when the machine stores nothing.
@@ -351,7 +351,6 @@ fn task_frame_summary<'program>(
 /// of this activation and contributes no state.
 fn frame_state_closure<'program>(
     typed: &'program checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     machine: &'program checked_trees::machine::Machine,
     entry: &'program checked_trees::state::State,
 ) -> Result<Vec<&'program checked_trees::state::State>, Vec<Diagnostic>> {

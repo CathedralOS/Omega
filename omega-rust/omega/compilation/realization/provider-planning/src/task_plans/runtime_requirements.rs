@@ -60,12 +60,11 @@ pub(crate) fn exact_task_machine_blocking(
 
 pub(crate) fn selected_task_runtime_provider(
     typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     selection: &TaskStartSelection,
 ) -> Result<SelectedTaskRuntimeProviderFact, Vec<Diagnostic>> {
     let (requirement_owner, _, authored_requirement_identity) =
-        exact_task_runtime_requirement(typed, check_facts, selection)?;
+        exact_task_runtime_requirement(typed, selection)?;
     let requirement_owner_package = typed
         .symbols
         .symbol_package_identity(requirement_owner.symbol);
@@ -156,7 +155,6 @@ pub(crate) fn selected_task_runtime_provider(
 
 pub(crate) fn exact_task_runtime_requirement<'program>(
     typed: &'program checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     selection: &TaskStartSelection,
 ) -> Result<
     (

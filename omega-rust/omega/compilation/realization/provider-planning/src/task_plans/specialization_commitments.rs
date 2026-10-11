@@ -184,7 +184,6 @@ impl ExactSpecializationEncoder {
         for argument in &specialization.machine_arguments {
             let (owner, state) = unique_task_activation_target(
                 typed,
-                check_facts,
                 *argument,
             )
             .map_err(|error| {

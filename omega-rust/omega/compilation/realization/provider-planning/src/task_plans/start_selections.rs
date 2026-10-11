@@ -36,7 +36,6 @@ impl TaskActivationTargetError {
 
 pub(crate) fn unique_task_activation_target<'program>(
     typed: &'program checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     target_entry: symbols::SymbolHandle,
 ) -> Result<
     (
@@ -67,7 +66,6 @@ pub(crate) fn unique_task_activation_target<'program>(
 
 pub(crate) fn exact_task_activation_target<'program>(
     typed: &'program checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     target_machine: symbols::SymbolHandle,
     target_entry: symbols::SymbolHandle,
 ) -> Result<
@@ -77,7 +75,7 @@ pub(crate) fn exact_task_activation_target<'program>(
     ),
     TaskActivationTargetError,
 > {
-    let (machine, entry) = unique_task_activation_target(typed, check_facts, target_entry)?;
+    let (machine, entry) = unique_task_activation_target(typed, target_entry)?;
     if machine.symbol != target_machine {
         return Err(TaskActivationTargetError::MachineMismatch);
     }
@@ -86,7 +84,6 @@ pub(crate) fn exact_task_activation_target<'program>(
 
 pub(crate) fn task_start_selections(
     typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
 ) -> Result<Vec<TaskStartSelection>, Vec<Diagnostic>> {
     let mut selections = Vec::new();
     let mut diagnostics = Vec::new();
@@ -96,7 +93,6 @@ pub(crate) fn task_start_selections(
         };
         append_task_start_selection(
             typed,
-            check_facts,
             call.target_symbol,
             call.target.as_str(),
             &call.machine_arguments,
@@ -112,7 +108,6 @@ pub(crate) fn task_start_selections(
                 };
                 append_task_start_selection(
                     typed,
-                    check_facts,
                     call.target_symbol,
                     call.target.as_str(),
                     &call.machine_arguments,
@@ -132,7 +127,6 @@ pub(crate) fn task_start_selections(
 
 fn append_task_start_selection(
     typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
     requirement: symbols::SymbolHandle,
     target_name: &str,
     machine_arguments: &[checked_trees::expression::StaticMachineArgument],
@@ -171,7 +165,6 @@ fn append_task_start_selection(
     };
     let (target_machine, target_entry) = match unique_task_activation_target(
         typed,
-        check_facts,
         target.symbol,
     ) {
         Ok(target) => target,
@@ -211,7 +204,6 @@ fn append_task_start_selection(
     );
     hash.u64(entry_report_fingerprint(
         typed,
-        check_facts,
         target_machine,
         target_entry,
     ));
