@@ -8,6 +8,7 @@ use super::*;
 /// reference, projected or whole, borrows backing and leaves its source owner
 /// on the checked cleanup roster; a returned descriptor carries its own loan.
 pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -28,25 +29,29 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
             typed_trees::type_identity::TypeIdentityId,
         )>,
     >::new();
-    for operation in operations
-        .iter()
-        .flat_map(|operation| operation.with_value_calls())
-    {
-        if let Some(call) = operation.call() {
-            for argument in &call.structural_arguments {
-                if argument.access != CheckedStructuralAccess::Owned {
-                    continue;
-                }
-                if let Some(parameter_index) = argument.source_parameter_index() {
-                    if argument.path.is_empty() {
-                        transferred_parameters.insert(parameter_index);
-                    } else {
-                        moved_parameter_paths
-                            .entry(parameter_index)
-                            .or_default()
-                            .push((argument.path.clone(), argument.type_identity));
-                    }
-                }
+    for (parameter_index, parameter) in structural_parameters.iter().enumerate() {
+        if parameter.access != CheckedStructuralAccess::Owned {
+            continue;
+        }
+        let source = source_parameters.get(parameter.position as usize)?;
+        let parameter_index = u32::try_from(parameter_index).ok()?;
+        let paths = super::super::storage_transfers::parameter_vacancies(
+            program,
+            facts,
+            parameter_index,
+            parameter.position,
+            source.symbol,
+            operations,
+        )?;
+        for path in paths {
+            if path.is_empty() {
+                transferred_parameters.insert(parameter_index);
+            } else {
+                let endpoint = projected_type(structural_types, parameter.type_identity, &path)?;
+                moved_parameter_paths
+                    .entry(parameter_index)
+                    .or_default()
+                    .push((path, endpoint));
             }
         }
     }
@@ -159,11 +164,6 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         }
         let parameter_index = parameter_index?;
         let parameter = &structural_parameters[parameter_index];
-        if parameter.multiplicity != Multiplicity::Affine
-            || output.contains(&(parameter_index as u32))
-        {
-            return None;
-        }
         let parameter_index = u32::try_from(parameter_index).ok()?;
         if transferred_parameters.contains(&parameter_index)
             || residual_roots.contains(&parameter_index)
@@ -176,6 +176,9 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         // belong to it.
         if moved_parameter_paths.contains_key(&parameter_index) {
             continue;
+        }
+        if parameter.multiplicity != Multiplicity::Affine || output.contains(&parameter_index) {
+            return None;
         }
         output.push(parameter_index);
     }
@@ -258,4 +261,62 @@ pub(super) fn partial_affine_source_contents_are_owned(
             !field.relevance.is_erased()
                 && partial_affine_source_contents_are_owned(program, field.type_reference, visited)
         })
+}
+
+/// Resolve a moved endpoint in the same checked shape catalog used to
+/// reconstruct its residual. Case identities select payload namespaces; a
+/// bare Case is not a value. No reference or runtime-index inference occurs.
+fn projected_type(
+    types: &BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
+    mut current: typed_trees::type_identity::TypeIdentityId,
+    mut path: &[CheckedUnitStructuralPathSegment],
+) -> Option<typed_trees::type_identity::TypeIdentityId> {
+    while let Some((segment, remaining)) = path.split_first() {
+        let shape = &types.get(&current)?.shape;
+        match (shape, segment) {
+            (
+                CheckedUnitStructuralTypeShape::Record { fields, .. }
+                | CheckedUnitStructuralTypeShape::Mixed { fields, .. },
+                CheckedUnitStructuralPathSegment::Field(identity),
+            ) => {
+                current = fields
+                    .iter()
+                    .find(|field| &field.identity == identity)?
+                    .field_type
+                    .structural_type_identity()?;
+                path = remaining;
+            }
+            (
+                CheckedUnitStructuralTypeShape::Sum { cases }
+                | CheckedUnitStructuralTypeShape::Mixed { cases, .. },
+                CheckedUnitStructuralPathSegment::Case(identity),
+            ) => {
+                let case = cases.iter().find(|case| &case.identity == identity)?;
+                let (CheckedUnitStructuralPathSegment::Field(field), suffix) =
+                    remaining.split_first()?
+                else {
+                    return None;
+                };
+                current = case
+                    .fields
+                    .iter()
+                    .find(|candidate| &candidate.identity == field)?
+                    .field_type
+                    .structural_type_identity()?;
+                path = suffix;
+            }
+            (
+                CheckedUnitStructuralTypeShape::FixedArray {
+                    element_type_identity,
+                    length,
+                },
+                CheckedUnitStructuralPathSegment::FixedIndex(index),
+            ) if index < length => {
+                current = *element_type_identity;
+                path = remaining;
+            }
+            _ => return None,
+        }
+    }
+    Some(current)
 }

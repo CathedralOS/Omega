@@ -26,7 +26,7 @@ impl CheckedUnitEffectOperationPlan {
     pub fn ends_local_occurrence(&self, local: SymbolHandle) -> bool {
         local.is_valid()
             && matches!(self, Self::Store(store)
-                if matches!(store.destination.leaf, crate::CheckedStoreLeaf::LocalRebind { .. })
+                if matches!(store.destination.leaf, crate::CheckedStoreLeaf::OwnedRebind { .. })
                     && store.destination.root == (crate::CheckedStoreRoot::Local { symbol: local }))
     }
 

@@ -323,6 +323,7 @@ pub(crate) fn build_checked_machine_residual_parts(
             | CheckedUnitEffectOperationPlan::Complete { .. } => Vec::new(),
         })
         .collect::<BTreeSet<_>>();
+    trace.phase("completion: local cleanup");
     // A cleanup-owned local still owned at return would need its exact
     // owner-attached `::drop` invoked here; the bounded lane has no per-local
     // cleanup edge, so the machine stays outside the slice rather than
@@ -349,8 +350,10 @@ pub(crate) fn build_checked_machine_residual_parts(
     }) {
         return None;
     }
+    trace.phase("completion: parameter cleanup");
     let (trivial_affine_discards, residual_affine_discards, has_projected_parameter_moves) =
         return_unit_affine_discards(
+            program,
             facts,
             machine.symbol,
             state.symbol,

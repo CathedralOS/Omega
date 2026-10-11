@@ -594,10 +594,11 @@ pub(super) fn emit(
         // Preserve the checker's disposal authority, but delegate its scheduling
         // to the complete operation graph. Entry order is declaration order;
         // affine_cleanup reverses it for cleanup and reconciles selected transfers.
+        let current_parameters = evaluation.current_parameters(parameters);
         parameter_cleanup = trivial_affine_discards
             .iter()
             .map(|parameter_index| {
-                parameters
+                current_parameters
                     .get(usize::try_from(*parameter_index).map_err(|_| {
                         LoweringError::Unsupported(
                             "Unit affine discard parameter index exceeds usize",
@@ -799,8 +800,10 @@ pub(super) fn emit(
                             .id
                     }
                     CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-                        parameters
+                        evaluation
+                            .structural_parameters
                             .get(parameter_index as usize)
+                            .map(|(_, parameter)| parameter)
                             .ok_or(LoweringError::Unsupported(
                                 "returned structural parameter is absent",
                             ))?
@@ -1699,7 +1702,7 @@ impl<'a> MachineEmission<'a> {
             scalar_result: plan.scalar_result.as_ref(),
             scalar_parameter_count: self.scalar_parameter_count,
             source_value_count,
-            parameters: self.parameters,
+            parameters: self.evaluation.current_parameters(self.parameters),
             structural_types: StructuralTypeRoster::Owned(self.structural_types),
             type_ids: self.type_ids,
             service_ids: self.service_ids,

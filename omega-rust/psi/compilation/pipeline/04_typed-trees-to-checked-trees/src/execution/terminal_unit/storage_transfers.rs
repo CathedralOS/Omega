@@ -2,18 +2,26 @@
 //! Possible transfers fence disposal of the original slot. Definite transfers
 //! additionally prove that every selected alternative moved that slot.
 
-use super::*;
+use checked_trees::CheckFacts;
+use checked_trees::{
+    CheckedStructuralAccess, CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
+};
+use symbols::SymbolHandle;
+
+type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
 use checked_trees::{BorrowLoanOwnerSegment as OwnerSegment, CheckedStructuralValueHandle};
 use typed_trees::data::DataMember;
 
 type Path = Vec<CheckedUnitStructuralPathSegment>;
 
-pub(super) struct Transfer {
-    pub(super) source: Path,
-    pub(super) destination: Destination,
+pub(in crate::execution::terminal_unit) struct Transfer {
+    pub(in crate::execution::terminal_unit) source: Path,
+    pub(in crate::execution::terminal_unit) destination: Destination,
 }
 
-pub(super) enum Destination {
+pub(in crate::execution::terminal_unit) enum Destination {
     Holder(CheckedUnitStructuralResultBindingPlan, Vec<OwnerSegment>),
     /// The call consumes this source. Its returned descriptor occurrences
     /// retain exact supplying-loan identities independently of result nesting.
@@ -29,9 +37,9 @@ pub(super) enum Destination {
 }
 
 #[derive(Default)]
-pub(super) struct Transfers {
-    pub(super) possible: Vec<Transfer>,
-    pub(super) definite: Vec<Path>,
+pub(in crate::execution::terminal_unit) struct Transfers {
+    pub(in crate::execution::terminal_unit) possible: Vec<Transfer>,
+    pub(in crate::execution::terminal_unit) definite: Vec<Path>,
 }
 
 impl Transfers {
@@ -57,7 +65,7 @@ struct Query<'a> {
     operations: &'a [CheckedUnitEffectOperationPlan],
 }
 
-pub(super) fn transfers(
+pub(in crate::execution::terminal_unit) fn transfers(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     results: &Results,
@@ -81,7 +89,7 @@ pub(super) fn transfers(
     )
 }
 
-pub(super) fn from_storage(
+pub(in crate::execution::terminal_unit) fn from_storage(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     results: &Results,
@@ -122,6 +130,80 @@ pub(super) fn from_storage(
         }
     }
     Some(output)
+}
+
+/// Current vacancies differ from historical transfers: a checked installation
+/// restores its destination after evaluating its RHS. Both queries consume the
+/// same operation/value traversal; no permission count stands for a move.
+pub(super) fn parameter_vacancies(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    parameter_index: u32,
+    parameter_position: u32,
+    parameter_symbol: SymbolHandle,
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> Option<Vec<Path>> {
+    let query = Query {
+        program,
+        facts,
+        results: &[],
+        source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+        formation: 0,
+        operations,
+    };
+    let mut definite = Vec::<Path>::new();
+    let mut possible = Vec::<Path>::new();
+    for operation in operations {
+        let transfers = query.operation(operation, &mut Vec::new())?;
+        definite.extend(transfers.definite);
+        possible.extend(
+            transfers
+                .possible
+                .into_iter()
+                .map(|transfer| transfer.source),
+        );
+        if let CheckedUnitEffectOperationPlan::Store(store) = operation
+            && store.installed_value().is_some()
+            && match store.destination.root {
+                checked_trees::CheckedStoreRoot::Parameter { position } => {
+                    position == parameter_position
+                }
+                checked_trees::CheckedStoreRoot::Local { symbol } => symbol == parameter_symbol,
+            }
+        {
+            let written = &store.destination.path;
+            // consumed_owners rejects writing through a strict child of a
+            // moved place. Do not interpret malformed plans as restoring it.
+            if possible
+                .iter()
+                .any(|path| written.len() > path.len() && written.starts_with(path))
+            {
+                return None;
+            }
+            definite.retain(|path| !path.starts_with(written));
+            possible.retain(|path| !path.starts_with(written));
+        }
+    }
+    // A single ordinary completion cannot dispose a path present on only
+    // some alternatives. Selected cleanup owns that control split.
+    if possible
+        .iter()
+        .any(|path| !definite.iter().any(|covered| path.starts_with(covered)))
+    {
+        return None;
+    }
+    definite.sort();
+    definite.dedup();
+    let maximal = definite
+        .iter()
+        .filter(|path| {
+            !definite
+                .iter()
+                .any(|ancestor| ancestor.len() < path.len() && path.starts_with(ancestor))
+        })
+        .cloned()
+        .collect();
+    Some(maximal)
 }
 
 impl Query<'_> {

@@ -5,15 +5,14 @@
 //! retirement never infers custody from the spelling of an initializer.
 
 use super::{
-    CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralResultBindingPlan, SymbolHandle,
+    CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan, SymbolHandle,
 };
-use checked_trees::{BorrowLoanFact, CheckedStructuralValueKind, CheckedUnitStructuralPathSegment};
+use checked_trees::{BorrowLoanFact, CheckedUnitStructuralPathSegment};
 
 type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
 
-mod transfers;
+use crate::execution::terminal_unit::storage_transfers as transfers;
 use transfers::{Destination, transfers};
 pub(super) mod selections;
 pub(super) mod stores;

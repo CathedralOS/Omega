@@ -48,7 +48,7 @@ impl CheckedStorePlan {
     pub fn installed_value(&self) -> Option<&CheckedUnitStructuralArgumentPlan> {
         match (&self.destination.leaf, &self.value) {
             (
-                CheckedStoreLeaf::WindowRepair { .. } | CheckedStoreLeaf::LocalRebind { .. },
+                CheckedStoreLeaf::WindowRepair { .. } | CheckedStoreLeaf::OwnedRebind { .. },
                 CheckedStoreValue::Place(value),
             ) => Some(value),
             _ => None,
@@ -58,7 +58,7 @@ impl CheckedStorePlan {
     pub fn installed_value_mut(&mut self) -> Option<&mut CheckedUnitStructuralArgumentPlan> {
         match (&self.destination.leaf, &mut self.value) {
             (
-                CheckedStoreLeaf::WindowRepair { .. } | CheckedStoreLeaf::LocalRebind { .. },
+                CheckedStoreLeaf::WindowRepair { .. } | CheckedStoreLeaf::OwnedRebind { .. },
                 CheckedStoreValue::Place(value),
             ) => Some(value),
             _ => None,
@@ -74,7 +74,7 @@ impl CheckedStorePlan {
         structural_parameters: &[CheckedUnitStructuralParameterPlan],
     ) -> Option<CheckedUnitStructuralArgumentPlan> {
         let (CheckedStoreLeaf::WindowRepair { type_identity, .. }
-        | CheckedStoreLeaf::LocalRebind { type_identity }) = &self.destination.leaf
+        | CheckedStoreLeaf::OwnedRebind { type_identity }) = &self.destination.leaf
         else {
             return None;
         };
@@ -194,11 +194,11 @@ pub enum CheckedStoreLeaf {
         /// already have been retired in place by old-value cleanup.
         opening_binding: Option<u32>,
     },
-    /// A whole owned local (an empty path) rebound to a whole owned value
+    /// A whole owned binding (local or formal, with an empty path) rebound to a whole owned value
     /// after its prior occurrence's disposal. Unlike a window repair, the
-    /// local's value identity changes and no restoration debt opens at
+    /// binding's value identity changes and no restoration debt opens at
     /// another owner's home.
-    LocalRebind { type_identity: TypeIdentityId },
+    OwnedRebind { type_identity: TypeIdentityId },
 }
 
 /// The value one store writes, in the shape its leaf receives.

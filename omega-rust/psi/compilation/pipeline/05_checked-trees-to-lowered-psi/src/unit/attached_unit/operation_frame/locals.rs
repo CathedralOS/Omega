@@ -339,7 +339,7 @@ impl OperationFrame<'_, '_> {
             moved,
             result,
             result_claims,
-            self.parameters,
+            &self.parameters,
             self.structural_types.declarations(),
             self.type_ids,
             &mut evaluation,
@@ -383,7 +383,7 @@ impl OperationFrame<'_, '_> {
             destination,
             opening,
             value,
-            self.parameters,
+            &self.parameters,
             self.structural_types.declarations(),
             self.type_ids,
             &mut evaluation,
@@ -408,7 +408,7 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         self.results
             .require_next(result, "borrowed-window move result binding is not dense")?;
-        require_parameter_window_root(self.parameters, source, self.evaluation)?;
+        require_parameter_window_root(&self.parameters, source, self.evaluation)?;
         let moved = self.emit_window_move(
             identities,
             result.statement_index,
@@ -812,7 +812,7 @@ impl OperationFrame<'_, '_> {
                     .map(|value| value.place)
             })
             .transpose()?;
-        require_parameter_window_root(self.parameters, destination, self.evaluation)?;
+        require_parameter_window_root(&self.parameters, destination, self.evaluation)?;
         self.emit_window_store(identities, statement_index, destination, opening, repair)
     }
 
@@ -884,28 +884,66 @@ impl OperationFrame<'_, '_> {
 
     /// Owned bindings can change value identity after the prior occurrence's
     /// ordered disposition. Reuse the completed producer's home; manufacturing
-    /// a borrowed-storage window here would give an ordinary local a second
+    /// a borrowed-storage window here would give an owned binding a second
     /// owner's restoration debt and require a spurious extraction.
-    pub(super) fn rebind_structural_local(
+    pub(super) fn rebind_structural_binding(
         &mut self,
         statement_index: u32,
-        symbol: symbols::SymbolHandle,
+        destination: checked_trees::CheckedStoreRoot,
         type_identity: typed_trees::type_identity::TypeIdentityId,
         value: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<(), LoweringError> {
         let replacement = self.owned_structural_value(value)?;
         if replacement.structural_type != lookup_type_id(self.type_ids, &type_identity)? {
-            return unsupported("owned rebind changes the local's declared type");
+            return unsupported("owned rebind changes the binding's declared type");
         }
-        if !self
-            .checked
-            .facts
-            .state_locals
-            .named(self.state, symbol)
-            .is_some_and(|local| local.is_mutable)
-        {
-            return unsupported("owned rebind names no mutable local declaration");
-        }
+        let symbol = match destination {
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
+                if !self
+                    .checked
+                    .facts
+                    .state_locals
+                    .named(self.state, symbol)
+                    .is_some_and(|local| local.is_mutable)
+                {
+                    return unsupported("owned rebind names no mutable local declaration");
+                }
+                symbol
+            }
+            checked_trees::CheckedStoreRoot::Parameter { position } => {
+                let state = self
+                    .checked
+                    .state_by_symbol(self.state)
+                    .ok_or(LoweringError::Unsupported("owned rebind state is absent"))?;
+                let formal = self
+                    .checked
+                    .state_parameters(state)
+                    .get(position as usize)
+                    .ok_or(LoweringError::Unsupported("owned rebind formal is absent"))?;
+                if !formal.is_mutable {
+                    return unsupported("owned rebind names no mutable formal");
+                }
+                let mut parameters = self.evaluation.structural_parameters.clone();
+                let (_, parameter) = parameters
+                    .iter_mut()
+                    .find(|(authored, _)| *authored == position)
+                    .ok_or(LoweringError::Unsupported(
+                        "owned rebind formal home is absent",
+                    ))?;
+                if parameter.access != StructuralAccess::Owned
+                    || parameter.structural_type != replacement.structural_type
+                {
+                    return unsupported("owned rebind changes formal custody or type");
+                }
+                self.evaluation
+                    .previous_parameter_homes
+                    .push(parameter.clone());
+                parameter.place = replacement.place;
+                self.evaluation
+                    .bind_structural_parameters(parameters, self.structural_types.declarations());
+                formal.symbol
+            }
+        };
         let mut locals = self
             .evaluation
             .structural_locals
@@ -1002,7 +1040,7 @@ impl OperationFrame<'_, '_> {
                 }
                 let (place, root_type) = self.evaluation.cleanup_storage(
                     source,
-                    self.parameters,
+                    &self.parameters,
                     |binding_ordinal| {
                         let place = self
                             .results

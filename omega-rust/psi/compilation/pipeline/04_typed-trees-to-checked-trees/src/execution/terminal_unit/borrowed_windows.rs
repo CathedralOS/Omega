@@ -687,10 +687,7 @@ impl OpenWindows {
             index,
             access_place.root,
         );
-        let local_rebind = matches!(
-            owned_source,
-            Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. })
-        );
+        let owned_rebind = owned_source.is_some();
         let (source, path, opening_binding, needs_displacement, needs_cleanup) =
             if let Some(source) = owned_source {
                 let path = assignment_path(
@@ -803,8 +800,8 @@ impl OpenWindows {
             _ => return None,
         };
         let type_identity = produced.type_identity.clone();
-        let leaf = if local_rebind && place.path.is_empty() {
-            checked_trees::CheckedStoreLeaf::LocalRebind { type_identity }
+        let leaf = if owned_rebind && place.path.is_empty() {
+            checked_trees::CheckedStoreLeaf::OwnedRebind { type_identity }
         } else {
             checked_trees::CheckedStoreLeaf::WindowRepair {
                 type_identity,

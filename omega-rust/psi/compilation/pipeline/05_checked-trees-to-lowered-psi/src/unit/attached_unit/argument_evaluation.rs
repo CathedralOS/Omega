@@ -91,7 +91,12 @@ pub(crate) struct Evaluation {
     /// their dense values. Each route installs its entry namespace before it
     /// emits a statement; state-local storage has its own rows in it.
     pub scalar_bindings: crate::expression_preparation::bindings::ScalarBindings,
+    /// Current formal bindings, keyed by authored position. Owned replacement
+    /// changes this source namespace, never the machine's entry declarations.
     pub structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
+    /// Earlier formal homes remain declaration geometry for captured aliases,
+    /// but no longer resolve a new occurrence of the formal's source name.
+    pub(crate) previous_parameter_homes: Vec<StructuralParameterDeclaration>,
     pub structural_fields: crate::expression_preparation::bindings::StructuralFieldBindings,
     pub structural_cases:
         Vec<crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding>,
@@ -238,8 +243,11 @@ impl Evaluation {
         use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
         let (place, structural_type) = match *source {
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-                let parameter = parameters
+                let parameter = self
+                    .structural_parameters
                     .get(parameter_index as usize)
+                    .map(|(_, parameter)| parameter)
+                    .or_else(|| parameters.get(parameter_index as usize))
                     .ok_or(LoweringError::Unsupported("cleanup parameter is absent"))?;
                 (parameter.place, parameter.structural_type)
             }
@@ -273,12 +281,31 @@ impl Evaluation {
         self.structural_parameters
             .iter()
             .map(|(_, declaration)| declaration)
+            .chain(self.previous_parameter_homes.iter())
             .chain(self.block_structural_parameters.iter())
             .chain(
                 self.blocks
                     .iter()
                     .flat_map(|block| block.structural_parameters.iter()),
             )
+    }
+
+    /// Snapshot the current source namespace for an operation. This changes
+    /// bindings only: already captured operands keep their historical homes.
+    pub(crate) fn current_parameters<'parameters>(
+        &self,
+        declared: &'parameters [StructuralParameterDeclaration],
+    ) -> std::borrow::Cow<'parameters, [StructuralParameterDeclaration]> {
+        if self.previous_parameter_homes.is_empty() {
+            std::borrow::Cow::Borrowed(declared)
+        } else {
+            std::borrow::Cow::Owned(
+                self.structural_parameters
+                    .iter()
+                    .map(|(_, parameter)| parameter.clone())
+                    .collect(),
+            )
+        }
     }
 
     /// Field, case and extent observations share this exact source-position
@@ -332,6 +359,7 @@ impl Evaluation {
             parameter_storage: self.parameter_storage.clone(),
             scalar_bindings: self.scalar_bindings.clone(),
             structural_parameters: self.structural_parameters.clone(),
+            previous_parameter_homes: self.previous_parameter_homes.clone(),
             structural_fields: self.structural_fields.clone(),
             structural_cases: self.structural_cases.clone(),
             erased_scalar_formals: self.erased_scalar_formals.clone(),
@@ -808,6 +836,7 @@ impl Evaluation {
             structural_fields: Default::default(),
             structural_cases: Vec::new(),
             structural_parameters: Vec::new(),
+            previous_parameter_homes: Vec::new(),
             erased_scalar_formals: Vec::new(),
             erased_proof_formals: Vec::new(),
             entry,

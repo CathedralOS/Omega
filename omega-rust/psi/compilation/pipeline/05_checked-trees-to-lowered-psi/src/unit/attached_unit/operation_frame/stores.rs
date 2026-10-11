@@ -20,7 +20,7 @@
 //! - `SumField`: a copied place or an established case literal restoring the
 //!   field through its borrowed window;
 //! - `WindowRepair`: the owned binding restoring an open borrowed window's
-//!   hole, and `LocalRebind`: an owned local's home replaced by its new
+//!   hole, and `OwnedRebind`: an owned binding's home replaced by its new
 //!   binding (`operation_frame::locals`).
 //!
 //! Every store evaluates its destination's runtime selectors before its
@@ -145,16 +145,19 @@ impl OperationFrame<'_, '_> {
                     value,
                 )
             }
-            CheckedStoreLeaf::LocalRebind { type_identity } => {
-                let (Some(value), checked_trees::CheckedStoreRoot::Local { symbol }) =
-                    (store.installed_value(), store.destination.root)
-                else {
-                    return unsupported("local rebind names no owned local and value");
+            CheckedStoreLeaf::OwnedRebind { type_identity } => {
+                let Some(value) = store.installed_value() else {
+                    return unsupported("owned rebind installs no whole value");
                 };
                 if !store.destination.path.is_empty() {
-                    return unsupported("owned rebind destination is not its whole local");
+                    return unsupported("owned rebind destination is not its whole binding");
                 }
-                self.rebind_structural_local(store.statement_index, symbol, *type_identity, value)
+                self.rebind_structural_binding(
+                    store.statement_index,
+                    store.destination.root,
+                    *type_identity,
+                    value,
+                )
             }
         }
     }
@@ -1063,7 +1066,7 @@ impl OperationFrame<'_, '_> {
             }
         };
         let hole = window_place(source, &store.destination.path, type_identity);
-        require_parameter_window_root(self.parameters, &hole, self.evaluation)?;
+        require_parameter_window_root(&self.parameters, &hole, self.evaluation)?;
         let moved = self.emit_window_move(
             identities,
             store.statement_index,

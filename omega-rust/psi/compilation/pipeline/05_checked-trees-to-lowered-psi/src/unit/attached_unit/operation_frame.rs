@@ -125,7 +125,7 @@ pub(super) struct OperationFrame<'f, 'c> {
     /// Values the operation's authored source can name; staged argument
     /// temporaries past this count are private to their call.
     pub(super) source_value_count: usize,
-    pub(super) parameters: &'f [StructuralParameterDeclaration],
+    pub(super) parameters: std::borrow::Cow<'f, [StructuralParameterDeclaration]>,
     pub(super) structural_types: StructuralTypeRoster<'f>,
     pub(super) type_ids: &'f [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     pub(super) service_ids: &'f [(ServiceReachId, ServiceId)],
@@ -237,7 +237,7 @@ impl OperationFrame<'_, '_> {
             } => self.windows.capture_assignment_destination(
                 identities,
                 destination,
-                self.parameters,
+                &self.parameters,
                 self.structural_types.declarations(),
                 self.type_ids,
                 &mut crate::emission::borrowed_window::WindowEvaluation {
@@ -352,7 +352,7 @@ impl OperationFrame<'_, '_> {
                     self.checked,
                     source,
                     self.structural_types.declarations(),
-                    self.parameters,
+                    &self.parameters,
                     self.caller.local_places,
                     &earlier,
                     self.primitive_locals,
@@ -504,7 +504,7 @@ impl OperationFrame<'_, '_> {
         };
         let (source, root_type) =
             self.evaluation
-                .cleanup_storage(source, self.parameters, |binding| {
+                .cleanup_storage(source, &self.parameters, |binding| {
                     let value = self.results.repair_value(binding, self.operations)?;
                     Ok((value.place, value.structural_type))
                 })?;
@@ -583,7 +583,7 @@ impl OperationFrame<'_, '_> {
             self.checked,
             arguments,
             self.structural_types.declarations(),
-            self.parameters,
+            &self.parameters,
             &[],
             earlier,
             &self.operations.structural_values.clone(),

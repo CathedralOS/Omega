@@ -263,7 +263,7 @@ pub(super) fn emit_call_operations(
             scalar_result,
             scalar_parameter_count: state.scalar_parameters.len(),
             source_value_count,
-            parameters,
+            parameters: evaluation.current_parameters(parameters),
             structural_types: match &mut catalogs.structural_types {
                 Cow::Owned(types) => StructuralTypeRoster::Owned(types),
                 Cow::Borrowed(types) => StructuralTypeRoster::Published(types),

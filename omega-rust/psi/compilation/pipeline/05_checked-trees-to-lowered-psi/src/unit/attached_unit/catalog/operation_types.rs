@@ -71,7 +71,7 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
                 checked_trees::CheckedStoreDestination {
                     leaf:
                         checked_trees::CheckedStoreLeaf::WindowRepair { type_identity, .. }
-                        | checked_trees::CheckedStoreLeaf::LocalRebind { type_identity },
+                        | checked_trees::CheckedStoreLeaf::OwnedRebind { type_identity },
                     ..
                 },
             value: checked_trees::CheckedStoreValue::Place(value),

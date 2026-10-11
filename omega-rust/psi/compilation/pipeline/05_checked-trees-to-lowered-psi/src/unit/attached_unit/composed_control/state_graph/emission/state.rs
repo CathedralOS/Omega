@@ -163,6 +163,7 @@ impl StateGraphEmission<'_, '_> {
             ),
             structural_fields: Default::default(),
             structural_cases: Vec::new(),
+            previous_parameter_homes: Vec::new(),
             structural_parameters: state
                 .structural_parameters
                 .iter()
@@ -328,6 +329,8 @@ impl StateGraphEmission<'_, '_> {
             &mut next_edge,
             &mut operations,
         )?;
+        let current_parameters = evaluation.current_parameters(&state_parameters);
+        let state_parameters = current_parameters.as_ref();
         if operations.external_completion.is_some() {
             evaluation.remap_transported_call_operands(&mut operations);
             let terminator = operations.take_external_completion(&mut next_edge)?.ok_or(
@@ -342,7 +345,7 @@ impl StateGraphEmission<'_, '_> {
                 evaluation,
                 operations,
                 super::seal::SealFrame {
-                    state_parameters: &state_parameters,
+                    state_parameters,
                     current_rank,
                     is_guarded_return: false,
                     dispatches: false,
@@ -496,7 +499,7 @@ impl StateGraphEmission<'_, '_> {
             identities,
             state,
             self.catalogs,
-            &state_parameters,
+            state_parameters,
             &operations,
             &mut next_value,
         )?;
@@ -506,7 +509,7 @@ impl StateGraphEmission<'_, '_> {
             plan,
             state,
             self.catalogs,
-            &state_parameters,
+            state_parameters,
             self.claims.published(),
             &mut evaluation,
             &mut values,
@@ -533,7 +536,7 @@ impl StateGraphEmission<'_, '_> {
                     self.checked,
                     state,
                     self.catalogs,
-                    &state_parameters,
+                    state_parameters,
                     &evaluation,
                     &operations,
                 )?;
@@ -634,7 +637,7 @@ impl StateGraphEmission<'_, '_> {
                 Some(self.conditional_return_arm(
                     identities,
                     position,
-                    &state_parameters,
+                    state_parameters,
                     arm_namespace,
                     match &planned_guard {
                         Some((planned, _)) if *return_when_true => planned.established.as_slice(),
@@ -669,7 +672,7 @@ impl StateGraphEmission<'_, '_> {
                 let true_edge = self.conditional_return_arm(
                     identities,
                     position,
-                    &state_parameters,
+                    state_parameters,
                     true_namespace,
                     planned_guard
                         .as_ref()
@@ -686,7 +689,7 @@ impl StateGraphEmission<'_, '_> {
                 let false_edge = self.conditional_return_arm(
                     identities,
                     position,
-                    &state_parameters,
+                    state_parameters,
                     values.clone(),
                     &[],
                     &[],
@@ -782,7 +785,7 @@ impl StateGraphEmission<'_, '_> {
                         let edge = self.conditional_return_arm(
                             identities,
                             position,
-                            &state_parameters,
+                            state_parameters,
                             namespace,
                             &established,
                             &payload_parameters,
@@ -838,7 +841,7 @@ impl StateGraphEmission<'_, '_> {
                             staged.push(Some(self.conditional_return_arm(
                                 identities,
                                 position,
-                                &state_parameters,
+                                state_parameters,
                                 namespace,
                                 established,
                                 &[],
@@ -870,7 +873,7 @@ impl StateGraphEmission<'_, '_> {
                 Some(self.conditional_return_arm(
                     identities,
                     position,
-                    &state_parameters,
+                    state_parameters,
                     values.clone(),
                     &[],
                     &[],
@@ -905,7 +908,7 @@ impl StateGraphEmission<'_, '_> {
                     state,
                     cleanup.exit,
                     self.catalogs,
-                    &state_parameters,
+                    state_parameters,
                     &evaluation,
                     &operations,
                 )?;
@@ -947,7 +950,7 @@ impl StateGraphEmission<'_, '_> {
         let mut edge_blocks = Vec::new();
         let frame = super::successor_edge::SuccessorFrame {
             position,
-            state_parameters: &state_parameters,
+            state_parameters,
             bindings: &bindings,
             current_rank,
             inherited_lengths: &inherited_lengths,

@@ -161,6 +161,7 @@ mod scalar_locals;
 pub(crate) mod scalar_return_expressions;
 mod scalar_targets;
 pub(crate) mod state_graph;
+mod storage_transfers;
 mod structural_scalar_store;
 mod structural_value_calls;
 pub(crate) use structural_value_calls::retain as retain_structural_value_calls;

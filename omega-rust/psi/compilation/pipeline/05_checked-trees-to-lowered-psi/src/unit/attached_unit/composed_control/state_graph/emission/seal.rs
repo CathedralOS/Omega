@@ -49,6 +49,8 @@ impl StateGraphEmission<'_, '_> {
             mut next_block,
             mut next_edge,
         } = frame;
+        let current_parameters = evaluation.current_parameters(state_parameters);
+        let state_parameters = current_parameters.as_ref();
         let plan = self.plan;
         let state = &plan.states[position];
         // The ordinary structural exit has one source-owned disposition

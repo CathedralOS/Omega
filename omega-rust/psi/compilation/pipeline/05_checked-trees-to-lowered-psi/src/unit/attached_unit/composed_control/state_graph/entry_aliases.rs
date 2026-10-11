@@ -27,7 +27,31 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::super::super::LoweringError;
 use super::{CheckedComposedUnitControlMachinePlan, successors};
-use checked_trees::{CheckedStructuralAccess, CheckedStructuralControlTransferSourcePlan};
+use checked_trees::{
+    CheckedComposedUnitControlStatePlan, CheckedStoreRoot, CheckedStructuralAccess,
+    CheckedStructuralControlTransferSourcePlan,
+};
+
+/// Invocation aliasing preserves both the original home and its claim
+/// identities. A projected replacement can change those claims without
+/// changing the home; a whole rebind changes both. Such arrivals use ordinary
+/// block parameters and their exact receiving claim roster instead.
+fn preserves_owned_entry_custody(state: &CheckedComposedUnitControlStatePlan, index: u32) -> bool {
+    let Some(parameter) = state.structural_parameters.get(index as usize) else {
+        return false;
+    };
+    !state
+        .operations
+        .iter()
+        .filter_map(|operation| operation.store())
+        .any(|store| {
+            store.destination.root
+                == (CheckedStoreRoot::Parameter {
+                    position: parameter.position,
+                })
+                && store.installed_value().is_some()
+        })
+}
 
 /// Bind each forwarded whole entry-parameter loan to that parameter's
 /// position in `aliased`.
@@ -245,6 +269,12 @@ pub(super) fn alias_forwarded_entry_claims(
                     rejected = true;
                     break;
                 };
+                // Parameter coordinates name the current binding. Replacement
+                // breaks invocation custody even while a cycle's root is open.
+                if !preserves_owned_entry_custody(&plan.states[source], source_index) {
+                    rejected = true;
+                    break;
+                }
                 // An arrival from a candidate whose root is still open settles
                 // through the cycle's other arrivals.
                 if roots.get(&(source, source_index)) == Some(&None) {

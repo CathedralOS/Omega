@@ -68,6 +68,8 @@ impl StateGraphEmission<'_, '_> {
             next_edge,
             edge_blocks,
         } = emitted;
+        let current_parameters = evaluation.current_parameters(state_parameters);
+        let state_parameters = current_parameters.as_ref();
         operations.length_observations.clone_from(inherited_lengths);
         let target = plan
             .state_position(edge.target_state)
