@@ -3343,9 +3343,15 @@ of a check the same flow already performed, not the check itself.
   sponsored Build controls must retain their intended diagnostics without
   replaying the accepted source compilation.
   The two excluded float cases now have one checked and one timeout at 360s
-  on that producer. Attribute these remaining reds on the integrated compiler
-  before full qualification; fixed-producer evidence is not latest-main
-  acceptance. Keep closed Console catalog identity and dependency entry-binding
+  on that producer. Revalidate historical reds before full qualification;
+  fixed-producer evidence is not latest-main acceptance. On macOS at
+  `9e28d84cd60`, `omega --check tests/omega/fail/drops/borrowed_temporary_projection_retains_owner_disposition/main.omg`
+  still rejects the projected temporary as `member access` instead of checking
+  its owner's contained linear disposition. Preserve that refusal control while
+  repairing ordinary projected-operand admission. Interpreter qualification of
+  `runtime_foreign_encoded_reference_exit` needs the exact memory-import adapters
+  under **TERMINAL-RUNTIME-DRIVERS**; native execution alone is not agreement.
+  Keep closed Console catalog identity and dependency entry-binding
   approval with **PIPELINE-ARCHITECTURE-ENFORCEMENT**; the public
   `record_array_field_access_exit` run still needs that approval. Include owned
   projected locals, constructor captures and fixed-array slot replacements

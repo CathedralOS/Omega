@@ -116,8 +116,15 @@ fn completed_reference_borrow_source(
     use language_semantics::ReferenceAccess;
     use language_semantics::declaration_selection::CollectionViewOperation;
 
+    // Ordinary borrows and representation views retain the same formation
+    // coordinates. In particular, `reference as &mut Other` lends the
+    // reference's backing without an outer Borrow node. Reuse the formation
+    // owner so spelling does not lose access or let the view type create it;
+    // the source permission and representation judgment remain independent.
+    if let Some(formation) = super::recasts::reference_formation_source(program, value) {
+        return Some((formation.source, formation.access));
+    }
     match program.expression_table.expression(value) {
-        ExpressionNode::Borrow(borrow) => Some((borrow.target, borrow.access)),
         ExpressionNode::Call(call) => {
             let operation = crate::collection_operations::collection_view_call(program, call)?;
             let reference = crate::value_custody::places::declared_place_type_raw(
@@ -220,15 +227,9 @@ fn borrow_source_access_refusal(
     machine: &Machine,
     state: Option<&State>,
     prior_statements: &[typed_trees::statement::StatementNode],
-    mut source: ExpressionHandle,
+    source: ExpressionHandle,
     access: language_semantics::ReferenceAccess,
 ) -> Option<ReferenceAccessRefusal> {
-    if let Some(cast) = program.expression_table.cast_node(source)
-        && cast.form.is_recast()
-    {
-        source = cast.value;
-        source = program.expression_table.peeled_expression_handle(source);
-    }
     let Some((root, binding_type, owned_root_is_writable)) =
         source_place_root(program, machine, state, prior_statements, source)
     else {
