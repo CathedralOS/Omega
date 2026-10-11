@@ -1,0 +1,42 @@
+"""Link validation source to the verified compiler build's existing Rust libraries.
+
+The normal Cargo manifest remains available. This bounded route avoids a second
+whole compiler build caused by an independent workspace's absolute source paths.
+Every selected input and the exact rustc invocation is recorded for review.
+"""
+import argparse, hashlib, json, subprocess
+from pathlib import Path
+parser = argparse.ArgumentParser()
+parser.add_argument('verified_target', type=Path)
+arguments = parser.parse_args()
+root = Path(__file__).resolve().parents[1]
+target = arguments.verified_target.resolve()/'release'
+command = ['rustc', '--edition=2024', '--crate-name', 'ind01_terminal_probe',
+           '-C', 'opt-level=2', '-C', 'debuginfo=0',
+           str(root/'validation/terminal_probe/src/main.rs'), '-o', str(root/'build/ind01-terminal-probe')]
+inputs = []
+for crate in ['compiler', 'package_manager', 'target', 'terminal_interpreter', 'serde_json']:
+    candidates = list(target.glob(f'build/**/out/lib{crate}-*.rlib')) + list(target.glob(f'deps/lib{crate}-*.rlib'))
+    assert candidates, crate
+    # This optional fast path reuses this executor's recorded build cache.
+    # Its target crate was built first by the main workspace, then duplicated
+    # by the cancelled separate-workspace build; retain the former identity.
+    # Changed producer crates come from the latest recorded main build. Rustc
+    # rejects a mismatched dependency graph. For another cache use Cargo.
+    select = min if crate == 'target' else max
+    selected = select(candidates, key=lambda path: path.stat().st_mtime_ns)
+    metadata = selected.with_suffix('.rmeta')
+    assert metadata.is_file(), metadata
+    command += ['--extern', f'{crate}={metadata}', '--extern', f'{crate}={selected}']
+    inputs.append(dict(crate=crate, path=str(selected), sha256=hashlib.sha256(selected.read_bytes()).hexdigest()))
+for directory in sorted(path for path in target.glob('build/**/out') if path.is_dir()):
+    command += ['-L', f'dependency={directory}']
+if (target/'deps').is_dir():
+    command += ['-L', f'dependency={target/"deps"}']
+result = subprocess.run(command, capture_output=True, text=True)
+record = dict(command=command, libraries=inputs, exit=result.returncode, stdout=result.stdout, stderr=result.stderr,
+              source_sha256=hashlib.sha256((root/'validation/terminal_probe/src/main.rs').read_bytes()).hexdigest())
+(root/'build/terminal-probe-link.json').write_text(json.dumps(record,indent=2)+'\n')
+print(result.stdout, end=''); print(result.stderr, end='')
+assert result.returncode == 0, 'validation harness did not build'
+print('PASS: validation harness linked to recorded main-build libraries')
