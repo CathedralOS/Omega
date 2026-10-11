@@ -10,6 +10,24 @@
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
+pub(crate) fn z37count(name: &'static str, n: usize) {
+    if std::env::var_os("Z37COUNT").is_some() {
+        static COUNTS: std::sync::OnceLock<
+            std::sync::Mutex<std::collections::BTreeMap<&'static str, usize>>,
+        > = std::sync::OnceLock::new();
+        let m = COUNTS.get_or_init(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
+        let mut g = m.lock().unwrap();
+        *g.entry(name).or_insert(0) += n;
+        *g.entry("zzz_total").or_insert(0) += n;
+        if name == "zzz_dump" || g["zzz_total"] % 50000 < n {
+            for (k, v) in g.iter() {
+                eprintln!("Z37COUNT {k}={v}");
+            }
+            eprintln!("---");
+        }
+    }
+}
+
 mod normal_return;
 mod specification;
 pub use normal_return::normal_return_call_candidate;
@@ -28,6 +46,37 @@ pub(crate) fn checked_value_call_candidate(
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
 ) -> Result<(), &'static str> {
+    z37count("cvcc_query", 1);
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        let key = (machine.symbol, state.symbol);
+        if let Ok(candidates) = memos.checked_value_call_candidates.lock()
+            && let Some(result) = candidates.get(&key).copied()
+        {
+            return result;
+        }
+        let result = unchecked_value_call_candidate(
+            program,
+            machine,
+            state,
+            operational,
+            service_reaches,
+        );
+        if let Ok(mut candidates) = memos.checked_value_call_candidates.lock() {
+            candidates.insert(key, result);
+        }
+        return result;
+    }
+    unchecked_value_call_candidate(program, machine, state, operational, service_reaches)
+}
+
+fn unchecked_value_call_candidate(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    operational: &flow_effects::OperationalPlan,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
+) -> Result<(), &'static str> {
+    z37count("cvcc_scan", 1);
     if !has_pure_effect_closure(
         program,
         machine.symbol,
@@ -110,11 +159,13 @@ fn each_reachable_checked_machine(
     admits: impl Fn(&dyn crate::CheckingInput, &typed_trees::machine::Machine) -> bool,
 ) -> bool {
     let mut pending = vec![machine_symbol];
+    z37count("ercm_walks", 1);
     let mut visited = Vec::new();
     while let Some(current) = pending.pop() {
         if visited.contains(&current) {
             continue;
         }
+        z37count("ercm_machine_visits", 1);
         visited.push(current);
         let Some(machine) = program.machine(current) else {
             return false;

@@ -180,11 +180,31 @@ pub(crate) fn residual_cleanup_is_eligible(
     complete && !has_erased_obligations
 }
 
+
+fn z37t2count(name: &'static str, n: usize) {
+    if std::env::var_os("Z37COUNT").is_some() {
+        static COUNTS: std::sync::OnceLock<
+            std::sync::Mutex<std::collections::BTreeMap<&'static str, usize>>,
+        > = std::sync::OnceLock::new();
+        let m = COUNTS.get_or_init(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
+        let mut g = m.lock().unwrap();
+        *g.entry(name).or_insert(0) += n;
+        *g.entry("zzz_t2_total").or_insert(0) += n;
+        if g["zzz_t2_total"] % 500000 < n {
+            for (k, v) in g.iter() {
+                eprintln!("Z37T2 {k}={v}");
+            }
+            eprintln!("---");
+        }
+    }
+}
+
 pub(crate) fn derive_cleanup_effect_dependencies(
     program: &dyn ::validation::CheckingInput,
     operational: &OperationalPlan,
     facts: &CheckFacts,
 ) -> Result<Arena<CleanupDependency>, Vec<Diagnostic>> {
+    z37t2count("derive_runs", 1);
     let dispositions = &facts.contextual_cleanup;
     let mut dependencies = Arena::default();
     let proof_only = validation::proof_only_classification(program);
@@ -235,6 +255,7 @@ pub(crate) fn derive_cleanup_effect_dependencies(
                 program.symbols.name(disposition.machine),
             ))]
         };
+        z37t2count("derive_dispositions", 1);
         let leaves = selected_cleanup_leaves(program, facts, disposition).ok_or_else(invalid)?;
         for leaf in leaves {
             let CleanupLeaf::Nominal {
@@ -306,6 +327,7 @@ fn visit(
     has_erased_obligations: &mut bool,
     inactive_case: &InactiveCase<'_>,
 ) -> Option<()> {
+    z37t2count("visit_entries", 1);
     if removed.iter().any(|path| path.is_empty()) {
         return Some(());
     }

@@ -571,6 +571,7 @@ pub(super) fn establish_citation(
     target: &CitationTarget,
     arguments: &[StructuralTerm],
 ) {
+    crate::machine_calls::denotational_calls::z37count("establish_citation", 1);
     let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
     guarantees.intake(&mut site_judge);
     // Runtime invocations transport only checked tag guarantees. Their saved

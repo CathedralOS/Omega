@@ -270,6 +270,25 @@ pub fn nominal_cleanup_owner(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        if let Ok(owners) = memos.nominal_cleanup_owners.lock()
+            && let Some(owner) = owners.get(&symbol).copied()
+        {
+            return owner;
+        }
+        let owner = nominal_cleanup_owner_walk(program, symbol);
+        if let Ok(mut owners) = memos.nominal_cleanup_owners.lock() {
+            owners.insert(symbol, owner);
+        }
+        return owner;
+    }
+    nominal_cleanup_owner_walk(program, symbol)
+}
+
+fn nominal_cleanup_owner_walk(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
     let machine = program.machine(symbol)?;
     let mut declaration = machine;
     let mut visited = Vec::new();
@@ -297,6 +316,7 @@ pub fn nominal_cleanup_machine_for_type<'program>(
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<&'program Machine> {
+    crate::machine_calls::denotational_calls::z37count("nclmft_calls", 1);
     let reference = crate::peel_declared_constraints(program, reference);
     let owner = match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => *symbol,
@@ -309,6 +329,7 @@ pub fn nominal_cleanup_machine_for_type<'program>(
     });
     let mut selected = None;
     for machine in program.machines() {
+        crate::machine_calls::denotational_calls::z37count("nclmft_machine_iters", 1);
         let Some(candidate_owner) = nominal_cleanup_owner(program, machine.symbol) else {
             continue;
         };

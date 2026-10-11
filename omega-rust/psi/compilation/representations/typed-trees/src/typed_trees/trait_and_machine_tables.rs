@@ -4,6 +4,25 @@ use crate::typed_trees::TypedTrees;
 use crate::{data, machine, signature, trait_definition};
 use symbols::SymbolHandle;
 
+
+pub fn z37ttcount(name: &'static str, n: usize) {
+    if std::env::var_os("Z37COUNT").is_some() {
+        static COUNTS: std::sync::OnceLock<
+            std::sync::Mutex<std::collections::BTreeMap<&'static str, usize>>,
+        > = std::sync::OnceLock::new();
+        let m = COUNTS.get_or_init(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
+        let mut g = m.lock().unwrap();
+        *g.entry(name).or_insert(0) += n;
+        *g.entry("zzz_tt_total").or_insert(0) += n;
+        if g["zzz_tt_total"] % 500000 < n {
+            for (k, v) in g.iter() {
+                eprintln!("Z37TT {k}={v}");
+            }
+            eprintln!("---");
+        }
+    }
+}
+
 impl TypedTrees {
     super::typed_tree_table! {
         traits => traits(trait_definition::TraitDefinition) [push_trait_definition];
@@ -217,11 +236,13 @@ impl TypedTrees {
 
     /// The machine `symbol` declares, if any.
     pub fn machine(&self, symbol: symbols::SymbolHandle) -> Option<&machine::Machine> {
+        z37ttcount("tt_machine_calls", 1);
         machine::machine_by_symbol(self.machines(), symbol)
     }
 
     /// The machine spelled `name`, if any.
     pub fn machine_by_name_str(&self, name: &str) -> Option<&machine::Machine> {
+        z37ttcount("tt_machine_by_name_str", 1);
         self.machines()
             .iter()
             .find(|machine| machine.name.as_str() == name)

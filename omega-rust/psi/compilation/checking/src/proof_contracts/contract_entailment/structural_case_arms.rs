@@ -371,6 +371,7 @@ fn recognize_structural_state_leaves_from(
     mut established_guarantees: CitationFacts,
     start_index: usize,
 ) -> Option<Vec<StructuralCaseArm>> {
+    crate::machine_calls::denotational_calls::z37count("rsslf_entries", 1);
     if !state.symbol.is_valid() || (start_index == 0 && path.contains(&state.symbol)) {
         return None;
     }
