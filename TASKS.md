@@ -2722,12 +2722,17 @@ crash and native exit behavior.
   - `BuildConfig` is still largely global. Finish authored rows,
     retain/check unrequested rows, and complete shared preliminary and final
     product checking (final checking is per target today).
-  - Remove the duplicate preliminary whole-program check by moving its
-    obligations into the owning stages; the gate is
-    `omega-rust/omega/compilation/build-evaluation/src/admission/checking.rs::prepare_checked_build`.
-    Preserve [admission before execution](wiki/spec/build/execution.md#admission-before-execution):
-    freeze authored selections and admit the exact Build entry before effects,
-    then incorporate generated source and finish product checks.
+  - The duplicate preliminary whole-program check is gone for equal inputs:
+    sibling occurrence rows of one invocation now consult a shared
+    `sibling_build_checks` pool before `prepare_checked_build`, and an
+    exact-input match takes the earlier retained judgment through
+    `reuse_retained_check` — each activation still re-admits its own
+    declaration authority, provider settlement and grants, so
+    [admission before execution](wiki/spec/build/execution.md#admission-before-execution)
+    is preserved (freeze authored selections and admit the exact Build entry
+    before effects; generated source and product checks finish after).
+    Rows whose canonical `typed` legitimately differs — projected after an
+    intervening mutation — still check their own program.
   - A `CompileRequest` now executes Build and completes authored/generated
     typing once before target settlement. Package batch compilation borrows
     one invocation across targets — `compile_accepted_project` adopts a
