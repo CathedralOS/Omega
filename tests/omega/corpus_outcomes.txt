@@ -5255,3 +5255,11 @@ pass/float/constructor_requirement_result_policy_exit checked 94207ms check-targ
 pass/float/guarded_scalar_state_contract_exit checked 95264ms check-target:macos_arm64 @8e62b89228ab+wt
 pass/float/live_division_operand_across_call_exit checked 6105ms check-target:macos_arm64 @8e62b89228ab+wt
 pass/float/live_float_parameter_across_call_exit checked 90024ms check-target:macos_arm64 @8e62b89228ab+wt
+fail/borrows/shared_float_array_element_store rejected 1748ms expected @8ddd180821eb+wt
+	machine `replace` state `entry` assignment cannot write `values` because it is not mutable in this state (if `values` is undeclared -- a typo -- no such field or local exists)
+pass/arithmetic/fixed_division_values_survive_calls_exit checked 5524ms check-target:linux_x86_64 @8ddd180821eb+wt
+pass/arrays/runtime_computed_float_element_store_exit checked 49835ms check-target:linux_x86_64 @8ddd180821eb+wt
+pass/float/hydrostatic_load_format_exit checked 65830ms check-target:linux_x86_64 @8ddd180821eb+wt
+pass/float/returned_record_computed_fields_exit checked 64486ms check-target:linux_x86_64 @8ddd180821eb+wt
+pass/float/waterline_record_computed_return_exit checked 50657ms check-target:linux_x86_64 @8ddd180821eb+wt
+pass/arithmetic/fixed_unsigned_multiply_values_survive_calls_exit checked 4051ms check-target:linux_x86_64 @ab2d2d262b5c

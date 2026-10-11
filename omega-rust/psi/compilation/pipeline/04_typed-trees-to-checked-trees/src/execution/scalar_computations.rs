@@ -431,25 +431,6 @@ pub(crate) fn build_checked_value_computation_plans(
                             root,
                         );
                     }
-                    if matches!(
-                        program.expression_table.expression(assignment.target),
-                        ExpressionNode::Member(_)
-                    ) && let Some(primitive_type) = validation::declared_place_type_raw(
-                        program,
-                        machine,
-                        Some(state),
-                        assignment.target,
-                    )
-                    .and_then(|reference| program.primitive_type_reference(reference))
-                    {
-                        builder.record_root(
-                            pure,
-                            statement_ordinal,
-                            CheckedScalarExpressionRole::AssignmentValue,
-                            assignment.value,
-                            primitive_type,
-                        );
-                    }
                     // An indexed store evaluates each selector of its
                     // target before its value. The pure plan already keeps
                     // the same `AssignmentIndex { depth }`/`AssignmentValue`
@@ -471,58 +452,24 @@ pub(crate) fn build_checked_value_computation_plans(
                             PrimitiveType::U64,
                         );
                     }
-                    if matches!(
-                        program.expression_table.expression(assignment.target),
-                        ExpressionNode::Indexed(_)
-                    ) && let Some(primitive_type) =
-                            validation::expression_type_reference_in_state(
-                                program,
-                                state.symbol,
-                                statement_index,
-                                assignment.target,
-                            )
-                            .and_then(|reference| {
-                                crate::values::scalar::expression_plans::assignment_target_primitive_type(
-                                    program,
-                                    reference,
-                                )
-                            })
-                        {
-                            builder.record_root(
-                                pure,
-                                statement_ordinal,
-                                CheckedScalarExpressionRole::AssignmentValue,
-                                assignment.value,
-                                primitive_type,
-                            );
-                        }
-                    if let ExpressionNode::Name(name) =
-                        program.expression_table.expression(assignment.target)
-                        && name.symbol.is_valid()
-                        && name.head_symbol == name.symbol
-                        && let Some(primitive_type) = locals
-                            .iter()
-                            .find(|local| local.symbol == name.symbol && local.is_mutable)
-                            .map(|local| local.primitive_type)
-                            .or_else(|| {
-                                // Storage destinations use the authored parameter roster;
-                                // dense scalar inputs deliberately exclude reference parameters.
-                                program.state_parameter_by_symbol(state, name.symbol)
-                                    .filter(|parameter| {
-                                        (parameter.is_mutable)
-                                            && !parameter.is_const
-                                    })
-                                    .and_then(|parameter| {
-                                        crate::values::scalar::expression_plans::assignment_target_primitive_type(
-                                            program,
-                                            parameter.type_reference,
-                                        )
-                                    })
-                            })
-                    {
-                        // The completed RHS replaces storage only after evaluation.
-                        // Reads here retain the existing destination symbol; assignments
-                        // neither append an immutable local nor change its namespace.
+                    // Every scalar replacement roots its RHS at the declared
+                    // receiving place, independently of whether that place is a
+                    // field, element, local or borrowed scalar. Expression-type
+                    // observations need not exist for an assignment target; its
+                    // declaration still supplies the exact payload carrier.
+                    // Store planning separately retains write authority, selector
+                    // bounds and the complete receiving restriction.
+                    if let Some(primitive_type) = validation::declared_place_type_raw(
+                        program,
+                        machine,
+                        Some(state),
+                        assignment.target,
+                    )
+                    .and_then(|reference| {
+                        crate::values::scalar::expression_plans::assignment_target_primitive_type(
+                            program, reference,
+                        )
+                    }) {
                         builder.record_root(
                             pure,
                             statement_ordinal,

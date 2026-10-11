@@ -889,6 +889,17 @@ impl Builder<'_> {
             ) {
                 continue;
             }
+            // Encoding-owned definitions belong to this instruction, even
+            // when input preparation inserted copies after scratch allocation.
+            // A separately materialized division scratch is a Use here and
+            // therefore keeps its materialization producer.
+            if let VirtualRegisterOrigin::InstructionScratch {
+                instruction: definition,
+                ..
+            } = &mut self.registers[operand.virtual_register.0 as usize].origin
+            {
+                *definition = id;
+            }
             let Some(position) = self
                 .pending_result_origins
                 .iter()
@@ -909,6 +920,53 @@ impl Builder<'_> {
         }
         self.instructions.push(instruction);
         Ok(())
+    }
+
+    /// Fixed integer inputs constrain this instruction's observation, not the
+    /// lifetime of its source value. Give each pinned use its own ordinary
+    /// carrier copy, so a source can survive destructive fixed outputs or be
+    /// forwarded to another block. The original result is still established
+    /// by the actual operation after the copies; `emit` rejoins its first Def.
+    fn emit_integer(
+        &mut self,
+        kind: SelectedInstructionKind,
+        key: register_model::RegisterConstraintKey,
+        operands: &[VirtualRegisterId],
+        provenance: SelectedInstructionProvenance,
+    ) -> Result<(), SelectedInstructionError> {
+        let pinned = row(self.catalog, key)?
+            .operands
+            .iter()
+            .filter(|operand| {
+                operand.access == RegisterOperandAccess::Use && operand.fixed_view.is_some()
+            })
+            .map(|operand| usize::from(operand.operand))
+            .collect::<Vec<_>>();
+        let mut observed = operands.to_vec();
+        for position in pinned {
+            let input = *observed
+                .get(position)
+                .ok_or_else(SelectedInstructionError::custody)?;
+            let register = self
+                .registers
+                .get(input.0 as usize)
+                .ok_or_else(SelectedInstructionError::custody)?;
+            let value = match register.origin {
+                // An encoding-owned scratch already has a bounded producer
+                // and use; it is not a source value with a surviving lifetime.
+                VirtualRegisterOrigin::InstructionScratch { .. } => continue,
+                VirtualRegisterOrigin::EntryParameter { source_value, .. }
+                | VirtualRegisterOrigin::BlockParameter { source_value, .. }
+                | VirtualRegisterOrigin::InstructionResult { source_value, .. } => source_value,
+                _ => return Err(SelectedInstructionError::custody()),
+            };
+            let site = register
+                .definition_site
+                .ok_or_else(SelectedInstructionError::custody)?;
+            let scalar_type = register.scalar_type;
+            observed[position] = self.copy(input, value, site, scalar_type)?;
+        }
+        self.emit(kind, key, &observed, provenance)
     }
 
     fn copy(

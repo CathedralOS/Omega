@@ -1,0 +1,11 @@
+use numbers;
+use omega_language_std::console;
+machine main() reaches Console {
+    write_scaled(90000.0);
+    Console::write_line("");
+    write_scaled(-90000.0);
+    Console::write_line("");
+    write_scaled(0.0);
+    Console::write_line("");
+    Console::exit_process(0);
+}

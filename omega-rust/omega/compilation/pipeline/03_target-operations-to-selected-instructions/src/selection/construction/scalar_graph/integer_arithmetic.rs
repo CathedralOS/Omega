@@ -34,7 +34,7 @@ pub(super) fn emit(
             Ok(raw)
         } else {
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
-            builder.emit(
+            builder.emit_integer(
                 normalization,
                 constraints.keys.copy_i64,
                 &[raw, output],
@@ -96,7 +96,7 @@ pub(super) fn emit(
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
             // Subtraction shares operand constraints and conservatively models
             // x64 flag clobbers; the distinct bitwise form carries the semantics.
-            builder.emit(
+            builder.emit_integer(
                 match operation.kind {
                     LegalizedScalarInstructionKind::BitwiseOr { .. } => {
                         SelectedInstructionKind::BitwiseOrI64
@@ -127,7 +127,7 @@ pub(super) fn emit(
                 return Err(invalid());
             }
             let raw = builder.register(result.value, result.definition_site, scalar_type)?;
-            builder.emit(
+            builder.emit_integer(
                 SelectedInstructionKind::BitwiseNotI64,
                 constraints.keys.copy_i64,
                 &[input, raw],
@@ -188,7 +188,7 @@ pub(super) fn emit(
             if scratch == SaturatingScratch::Bound {
                 operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
             }
-            builder.emit(
+            builder.emit_integer(
                 kind,
                 constraint,
                 &operands,
@@ -226,7 +226,7 @@ pub(super) fn emit(
                 (*right, right_register),
             )?;
             let scratch = instruction_scratch(builder, 3, IntegerSign::Signed)?;
-            builder.emit(
+            builder.emit_integer(
                 SelectedInstructionKind::SaturatingMultiply { carrier: *carrier },
                 constraint,
                 &[left_register, right_register, output, scratch],
@@ -259,7 +259,7 @@ pub(super) fn emit(
                 (*right, right_register),
             )?;
             let scratch = instruction_scratch(builder, 3, IntegerSign::Unsigned)?;
-            builder.emit(
+            builder.emit_integer(
                 SelectedInstructionKind::TrappingInteger { form: *form },
                 constraint,
                 &[left_register, right_register, output, scratch],
@@ -289,7 +289,7 @@ pub(super) fn emit(
             }
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
             let scratch = instruction_scratch(builder, 2, IntegerSign::Unsigned)?;
-            builder.emit(
+            builder.emit_integer(
                 SelectedInstructionKind::TrappingInteger { form: *form },
                 trapping_constraint(*form, &constraints.keys)?,
                 &[input, output, scratch],
@@ -340,7 +340,7 @@ pub(super) fn emit(
                 }
                 SaturatingScratch::DivisionHighHalf => operands.push(division_scratch(builder)?),
             }
-            builder.emit(
+            builder.emit_integer(
                 SelectedInstructionKind::SaturatingDivide {
                     carrier: *carrier,
                     obligation: *obligation,
@@ -397,7 +397,7 @@ pub(super) fn emit(
             if environment.target().architecture == target::Architecture::X86_64 {
                 operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
             }
-            builder.emit(
+            builder.emit_integer(
                 SelectedInstructionKind::SaturatingRemainder {
                     carrier: *carrier,
                     obligation: *obligation,
@@ -465,7 +465,7 @@ pub(super) fn emit(
                     operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
                 }
             }
-            builder.emit(
+            builder.emit_integer(
                 kind,
                 key,
                 &operands,
@@ -492,7 +492,7 @@ pub(super) fn emit(
                 // wrapped MIN. This private normalization adds no
                 // source operation or fuel.
                 let output = builder.register(result.value, result.definition_site, scalar_type)?;
-                builder.emit(
+                builder.emit_integer(
                     crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type),
                     constraints.keys.copy_i64,
                     &[raw, output],
@@ -538,7 +538,7 @@ pub(super) fn emit(
                 (*left, left_register),
                 (*right, right_register),
             )?;
-            builder.emit(
+            builder.emit_integer(
                 kind,
                 key,
                 &[left_register, right_register, raw],
@@ -609,7 +609,7 @@ pub(super) fn emit(
                     },
                 )?;
                 let masked = builder.register(*count, count_site, count_type)?;
-                builder.emit(
+                builder.emit_integer(
                     SelectedInstructionKind::BitwiseAndI64,
                     constraints.keys.subtract_i64,
                     &[count_register, mask, masked],
@@ -673,7 +673,7 @@ pub(super) fn emit(
                 (*count, count_register),
             )?;
             let operands = vec![value_register, count_register, raw];
-            builder.emit(
+            builder.emit_integer(
                 kind,
                 key,
                 &operands,
@@ -832,7 +832,7 @@ pub(super) fn emit(
                     operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
                 }
             }
-            builder.emit(
+            builder.emit_integer(
                 kind,
                 key,
                 &operands,
