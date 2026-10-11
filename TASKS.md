@@ -1686,14 +1686,11 @@ defines the complete product bar.
   backing once, and fixed-operand allocation reuses its prepared occurrence
   slots within the existing work cap. Plain views of qualified byte owners
   preserve live contents across locals, calls and state arrivals in native and
-  Terminal execution. The focused selection executes 24 of 25 programs at
-  their authored exits. The remaining
-  `pass/text/qualified_byte_state_snapshot_exit` still rejects the same
-  `StructuralByteSequenceFieldStore` as the pre-change compiler at native
-  function-fragment accounting. Close that snapshot-store frontier, retain the
-  invalid field-domain/owned-copy controls, complete the remaining cases below,
-  and qualify the other declared hosts. The whole application remains the
-  acceptance driver; see its README for the public commands.
+  Terminal execution. Keep qualified byte snapshots through state arrivals
+  and field replacement, including their live lengths and unchanged siblings.
+  Retain the invalid field-domain/owned-copy controls, complete the remaining
+  cases below, and qualify the other declared hosts. The whole application
+  remains the acceptance driver; see its README for the public commands.
 
   Acceptance:
   - Paired qualified/free-machine corpus cases over the same established

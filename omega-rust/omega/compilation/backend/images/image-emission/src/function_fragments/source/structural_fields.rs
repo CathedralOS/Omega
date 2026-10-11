@@ -487,7 +487,10 @@ pub(super) fn indexed_read_footprint_retained(
         && backing.role == Role::ReadPlace
     {
         cursor = rest;
-        consumed_backing = matches!(path.first(), Some(terminal_psi::StructuralPathSegment::Referent));
+        consumed_backing = matches!(
+            path.first(),
+            Some(terminal_psi::StructuralPathSegment::Referent)
+        );
     }
     if reads_through_descriptor(function, operation, target) {
         let count = path
@@ -504,9 +507,7 @@ pub(super) fn indexed_read_footprint_retained(
         // one 8-byte root access per hop before the terminal byte read.
         let hops = path
             .iter()
-            .filter(|segment| {
-                matches!(segment, terminal_psi::StructuralPathSegment::Referent)
-            })
+            .filter(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
             .count()
             .saturating_sub(usize::from(consumed_backing));
         if cursor.len() < hops
@@ -854,9 +855,10 @@ pub(super) fn replacement_footprints_retained(
     else {
         return false;
     };
-    // Owned parameters, concatenations and ordinary bounded-owner call results use the
-    // same `{live length, inline backing}` layout as bounded fields. Borrowed
-    // descriptor sources account for their external backing from offset zero.
+    // Entry and state arrivals, concatenations and bounded-owner call results
+    // use the same `{live length, inline backing}` layout as bounded fields.
+    // Borrowing an owner preserves that layout; source access is admitted
+    // independently. Plain descriptors account for their backing from offset zero.
     let source_byte_offset = if function.operations.iter().any(|operation| match operation {
         AbstractOperation::EstablishByteSequenceConcatenation { result, .. } => {
             result.place == *source
@@ -876,13 +878,16 @@ pub(super) fn replacement_footprints_retained(
                 })
         }
         _ => false,
-    }) || function.structural_parameters.iter().any(|parameter| {
-        parameter.place == *source
-            && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
-                parameter,
-                structural_types,
-            )
-    }) {
+    }) || function
+        .arrival_parameter(*source)
+        .is_some_and(|parameter| {
+            parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && parameter.projected_qualifications.is_empty()
+                && structural_types.iter().any(|declaration| {
+                    declaration.id == parameter.structural_type
+                        && declaration.shape.is_bounded_owned_byte_sequence()
+                })
+        }) {
         8
     } else {
         0
