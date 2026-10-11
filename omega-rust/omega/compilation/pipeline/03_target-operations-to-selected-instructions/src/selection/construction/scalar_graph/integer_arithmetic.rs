@@ -178,6 +178,12 @@ pub(super) fn emit(
             // and the realization clamps the result to the carrier,
             // so it is already normalized for later source uses.
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
+            let [left_register, right_register] = binary_operands(
+                builder,
+                constraint,
+                (*left, left_register),
+                (*right, right_register),
+            )?;
             let mut operands = vec![left_register, right_register, output];
             if scratch == SaturatingScratch::Bound {
                 operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
@@ -201,8 +207,7 @@ pub(super) fn emit(
             right,
         } => {
             let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, mut right_register, right_site, right_type) =
-                builder.resolve(*right).ok_or_else(invalid)?;
+            let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
             if left_type != scalar_type
                 || right_type != scalar_type
                 || !carries(scalar_type, *carrier)
@@ -213,17 +218,13 @@ pub(super) fn emit(
             // place, so the result is already normalized for later
             // source uses and needs no carrier normalization.
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
-            let (constraint, fixed_pair) = saturating_multiply_selection(
-                *carrier,
-                &constraints.keys,
-                environment.target().architecture,
-            );
-            if fixed_pair && right_register == left_register {
-                // x86-64 `MUL` pins the left operand to RAX and the
-                // right one to RCX; one register cannot carry both
-                // fixed views, so a squared operand gets its own copy.
-                right_register = builder.copy(right_register, *right, right_site, scalar_type)?;
-            }
+            let constraint = saturating_multiply_selection(*carrier, &constraints.keys);
+            let [left_register, right_register] = binary_operands(
+                builder,
+                constraint,
+                (*left, left_register),
+                (*right, right_register),
+            )?;
             let scratch = instruction_scratch(builder, 3, IntegerSign::Signed)?;
             builder.emit(
                 SelectedInstructionKind::SaturatingMultiply { carrier: *carrier },
@@ -240,8 +241,7 @@ pub(super) fn emit(
         }
         LegalizedScalarInstructionKind::TrappingBinary { form, left, right } => {
             let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, mut right_register, right_site, right_type) =
-                builder.resolve(*right).ok_or_else(invalid)?;
+            let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
             // The carrier is re-derived from the declared result
             // type; a shift's count may be any fixed native type.
             if left_type != scalar_type
@@ -251,19 +251,17 @@ pub(super) fn emit(
                 return Err(invalid());
             }
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
-            if right_register == left_register {
-                // Every Trapping row has two early-clobber
-                // outputs, and liveness admits independent early
-                // outputs only over distinct participants, so a
-                // shared operand (`x + x`, `x << x`) gets its own
-                // copy on every target. On x86-64 the copy also
-                // lets RCX hold the divisor or shift count alone.
-                right_register = builder.copy(right_register, *right, right_site, right_type)?;
-            }
+            let constraint = trapping_constraint(*form, &constraints.keys)?;
+            let [left_register, right_register] = binary_operands(
+                builder,
+                constraint,
+                (*left, left_register),
+                (*right, right_register),
+            )?;
             let scratch = instruction_scratch(builder, 3, IntegerSign::Unsigned)?;
             builder.emit(
                 SelectedInstructionKind::TrappingInteger { form: *form },
-                trapping_constraint(*form, &constraints.keys)?,
+                constraint,
                 &[left_register, right_register, output, scratch],
                 SelectedInstructionProvenance {
                     operations: vec![operation.operation],
@@ -311,10 +309,8 @@ pub(super) fn emit(
             obligation,
             accepted_fact,
         } => {
-            let (_, left_register, left_site, left_type) =
-                builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, right_register, right_site, right_type) =
-                builder.resolve(*right).ok_or_else(invalid)?;
+            let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
+            let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
             if left_type != scalar_type
                 || right_type != scalar_type
                 || !carries(scalar_type, *carrier)
@@ -330,19 +326,11 @@ pub(super) fn emit(
                 &constraints.keys,
                 environment.target().architecture,
             );
-            let left_register = fixed_integer_input(
+            let [left_register, right_register] = binary_operands(
                 builder,
-                environment,
                 constraint,
-                0,
-                (left_register, *left, left_site, left_type),
-            )?;
-            let right_register = fixed_integer_input(
-                builder,
-                environment,
-                constraint,
-                1,
-                (right_register, *right, right_site, right_type),
+                (*left, left_register),
+                (*right, right_register),
             )?;
             let mut operands = vec![left_register, right_register, output];
             match scratch {
@@ -381,10 +369,8 @@ pub(super) fn emit(
             obligation,
             accepted_fact,
         } => {
-            let (_, left_register, left_site, left_type) =
-                builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, right_register, right_site, right_type) =
-                builder.resolve(*right).ok_or_else(invalid)?;
+            let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
+            let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
             if left_type != scalar_type
                 || right_type != scalar_type
                 || !carries(scalar_type, *carrier)
@@ -401,24 +387,14 @@ pub(super) fn emit(
             } else {
                 constraints.keys.remainder_u64
             };
-            let left_register = fixed_integer_input(
+            let [left_register, right_register] = binary_operands(
                 builder,
-                environment,
                 constraint,
-                0,
-                (left_register, *left, left_site, left_type),
-            )?;
-            let right_register = fixed_integer_input(
-                builder,
-                environment,
-                constraint,
-                1,
-                (right_register, *right, right_site, right_type),
+                (*left, left_register),
+                (*right, right_register),
             )?;
             let mut operands = vec![left_register, right_register, output];
             if environment.target().architecture == target::Architecture::X86_64 {
-                // Fixed input copies keep the accumulator and divisor
-                // distinct, even when both operands name one source value.
                 operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
             }
             builder.emit(
@@ -455,10 +431,8 @@ pub(super) fn emit(
             obligation,
             accepted_fact,
         } => {
-            let (_, left_register, left_site, left_type) =
-                builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, right_register, right_site, right_type) =
-                builder.resolve(*right).ok_or_else(invalid)?;
+            let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
+            let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
             let Some(integer) = scalar_type.as_integer() else {
                 return Err(invalid());
             };
@@ -477,19 +451,11 @@ pub(super) fn emit(
             let (kind, key) =
                 selection.kind_and_key(*obligation, *accepted_fact, &constraints.keys);
             let raw = builder.register(result.value, result.definition_site, scalar_type)?;
-            let left_register = fixed_integer_input(
+            let [left_register, right_register] = binary_operands(
                 builder,
-                environment,
                 key,
-                0,
-                (left_register, *left, left_site, left_type),
-            )?;
-            let right_register = fixed_integer_input(
-                builder,
-                environment,
-                key,
-                1,
-                (right_register, *right, right_site, right_type),
+                (*left, left_register),
+                (*right, right_register),
             )?;
             let mut operands = vec![left_register, right_register, raw];
             if environment.target().architecture == target::Architecture::X86_64 {
@@ -566,6 +532,12 @@ pub(super) fn emit(
                 ),
             };
             let raw = builder.register(result.value, result.definition_site, scalar_type)?;
+            let [left_register, right_register] = binary_operands(
+                builder,
+                key,
+                (*left, left_register),
+                (*right, right_register),
+            )?;
             builder.emit(
                 kind,
                 key,
@@ -694,18 +666,13 @@ pub(super) fn emit(
                 _ => unreachable!("shift dispatch"),
             };
             let raw = builder.register(result.value, result.definition_site, scalar_type)?;
-            let mut operands = vec![value_register, count_register, raw];
-            if environment.target().architecture == target::Architecture::X86_64
-                && count_register == value_register
-            {
-                // The realized form copies the value into the
-                // early-clobber result before the shift reads CL.
-                // A shared value/count register must reach RCX
-                // through its own copy so the fixed-view and
-                // early-clobber rules stay disjoint.
-                count_register = builder.copy(count_register, *count, count_site, count_type)?;
-                operands[1] = count_register;
-            }
+            let [value_register, count_register] = binary_operands(
+                builder,
+                key,
+                (*value, value_register),
+                (*count, count_register),
+            )?;
+            let operands = vec![value_register, count_register, raw];
             builder.emit(
                 kind,
                 key,
@@ -742,10 +709,8 @@ pub(super) fn emit(
             obligation,
             accepted_fact,
         } => {
-            let (_, left_register, left_site, left_type) =
-                builder.resolve(*left).ok_or_else(invalid)?;
-            let (_, right_register, right_site, right_type) =
-                builder.resolve(*right).ok_or_else(invalid)?;
+            let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
+            let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
             // Exact address subtraction keeps independently typed operands.
             // Replay checks the signature again rather than treating equal
             // machine widths as source-level carrier equality.
@@ -851,28 +816,12 @@ pub(super) fn emit(
                 ),
             };
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
-            let left_register = if divide_operator {
-                fixed_integer_input(
-                    builder,
-                    environment,
-                    key,
-                    0,
-                    (left_register, *left, left_site, left_type),
-                )?
-            } else {
-                left_register
-            };
-            let right_register = if divide_operator {
-                fixed_integer_input(
-                    builder,
-                    environment,
-                    key,
-                    1,
-                    (right_register, *right, right_site, right_type),
-                )?
-            } else {
-                right_register
-            };
+            let [left_register, right_register] = binary_operands(
+                builder,
+                key,
+                (*left, left_register),
+                (*right, right_register),
+            )?;
             let mut operands = vec![left_register, right_register, output];
             if environment.target().architecture == target::Architecture::X86_64 {
                 if unsigned_divide
@@ -906,31 +855,46 @@ pub(super) fn emit(
     })
 }
 
-/// Fixed operands are instruction-local residences of the source value. A
-/// division overwrites its accumulator, and later divisions or calls may need
-/// the original value again. Preserve that original binding while the copy
-/// takes the target row's fixed home; no allocation constraint is relaxed.
-fn fixed_integer_input(
+/// Fixed uses constrain this occurrence, not the source value's whole range.
+/// A divide can overwrite its dividend's fixed view while that value is used
+/// again later. Transport each pinned input to a fresh short-lived register;
+/// the original remains independently homed. This also handles equal inputs
+/// without the former divide/multiply/shift source-equality recognizers.
+/// Early-clobber rows additionally need distinct participants even on targets
+/// with flexible inputs. Copies retain the value, type and definition lineage;
+/// operation obligations and fuel remain on the arithmetic instruction.
+fn binary_operands(
     builder: &mut Builder<'_>,
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
     key: RegisterConstraintKey,
-    operand: u16,
-    input: (
-        VirtualRegisterId,
-        semantic_vocabulary::ValueId,
-        optimization_unit::ValueDefinitionSite,
-        ScalarType,
-    ),
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let row = environment
-        .constraint(key)
-        .and_then(|row| row.operand(operand))
+    left: (semantic_vocabulary::ValueId, VirtualRegisterId),
+    right: (semantic_vocabulary::ValueId, VirtualRegisterId),
+) -> Result<[VirtualRegisterId; 2], SelectedInstructionError> {
+    let row = super::row(builder.catalog, key)?;
+    let inputs = row
+        .operands
+        .get(..2)
         .ok_or_else(SelectedInstructionError::custody)?;
-    if row.fixed_view.is_some() {
-        builder.copy(input.0, input.1, input.2, input.3)
-    } else {
-        Ok(input.0)
+    if inputs
+        .iter()
+        .any(|operand| operand.access != register_model::RegisterOperandAccess::Use)
+    {
+        return Err(SelectedInstructionError::custody());
     }
+    let pinned = [
+        inputs[0].fixed_view.is_some(),
+        inputs[1].fixed_view.is_some(),
+    ];
+    let distinct = row.operands.iter().any(|operand| operand.early_clobber);
+    let mut registers = [left.1, right.1];
+    for (index, (value, register)) in [left, right].into_iter().enumerate() {
+        if pinned[index] || index == 1 && distinct && registers[0] == registers[1] {
+            let (_, _, site, scalar_type) = builder
+                .resolve(value)
+                .ok_or_else(SelectedInstructionError::custody)?;
+            registers[index] = builder.copy(register, value, site, scalar_type)?;
+        }
+    }
+    Ok(registers)
 }
 
 /// Whether the declared result type is exactly this saturating carrier,
@@ -1016,23 +980,17 @@ fn saturating_divide_selection(
 }
 
 /// Every saturating multiplication owns an operand-3 scratch: the clamp
-/// bound for narrow carriers, the saturated value (x86-64) or product high
-/// half (AArch64) for i64, and the product high half for u64. Only x86-64
-/// u64 needs fixed registers, because `MUL` is the one baseline instruction
-/// that produces the unsigned high half; it pins RAX, RCX, and RDX, and the
-/// returned flag asks for a distinct right-operand register.
+/// bound for narrow carriers, the saturated value or product high half for
+/// i64, and the product high half for u64. The selected constraint row owns
+/// target-specific fixed inputs, transported by `binary_operands`.
 fn saturating_multiply_selection(
     carrier: SaturatingCarrier,
     keys: &SelectedConstraintKeys,
-    architecture: target::Architecture,
-) -> (RegisterConstraintKey, bool) {
+) -> RegisterConstraintKey {
     if carrier == SaturatingCarrier::U64 {
-        (
-            keys.saturating_multiply_u64,
-            architecture == target::Architecture::X86_64,
-        )
+        keys.saturating_multiply_u64
     } else {
-        (keys.saturating_multiply_clamped, false)
+        keys.saturating_multiply_clamped
     }
 }
 
