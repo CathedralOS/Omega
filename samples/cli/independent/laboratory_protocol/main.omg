@@ -8,7 +8,7 @@ use protocol::report;
 
 data Main {
     console: Binding<Console>;
-    laboratory: Laboratory;
+    laboratory: protocol::model::Laboratory;
     first: i32;
     second: i32;
     length: i32 in Saturating;
@@ -74,12 +74,12 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state interpret(main: &mut Main, final: bool) {
-        let argument: i32 in Saturating = main.second - 48;
-        main.decision = Laboratory::apply(&mut main.laboratory, main.first, argument);
+        let argument: i32 in Saturating = (main.second - 48) as i32 in Saturating;
+        main.decision = protocol::model::Laboratory::apply(&mut main.laboratory, main.first, argument);
         transition { _ -> report(main, final) }
     }
     state report(main: &mut Main, final: bool) {
-        Report::row(&mut main.console, &main.laboratory, main.decision);
+        protocol::report::Report::row(&mut main.console, &main.laboratory, main.decision);
         main.length = 0;
         transition final {
             true -> done(main)

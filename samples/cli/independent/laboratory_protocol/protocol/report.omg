@@ -6,12 +6,14 @@ use protocol::model;
 
 pub data Report { }
 
-pub machine Report::row(console: &mut Binding<Console>, laboratory: &Laboratory, decision: i32) reaches Console {
+pub machine Report::row(console: &mut Binding<Console>, laboratory: &protocol::model::Laboratory, decision: i32) reaches Console
+invokes console;
+{
     Report::decision(console, decision);
     console.write(" owner=");
-    Report::number(console, laboratory.owner as i32);
+    Report::number(console, laboratory.owner as i32 in Saturating);
     console.write(" phase=");
-    Report::number(console, laboratory.phase as i32);
+    Report::number(console, laboratory.phase as i32 in Saturating);
     console.write(" lid=");
     Report::lid(console, laboratory.closed);
     console.write(" tick=");

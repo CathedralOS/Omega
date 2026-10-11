@@ -57,7 +57,7 @@ def main():
                 failures.append(f"{fixture.name}: Terminal agreement not demonstrated")
     invalid = observe("intended-invalid", [str(omega), "--check", "--target", "linux_x86_64", str(root / "invalid/main.omg")])
     diagnostic = invalid.stdout + invalid.stderr
-    if invalid.returncode != 1 or b"precondition" not in diagnostic.lower():
+    if invalid.returncode != 1 or (root / "invalid/expected.txt").read_bytes().strip() not in diagnostic:
         failures.append("intended-invalid source did not reject at its lease precondition")
     record = {"base": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repository).decode().strip(),
               "host": platform.platform(), "binary": str(omega),
