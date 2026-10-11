@@ -9,6 +9,18 @@ pub InitializerCalling satisfies CallingPolicy {
 pub OnceCalling satisfies CallingPolicy {
     CallingPolicy::plan = CallbackPolicies::once;
 }
+pub ProcessIdCalling satisfies CallingPolicy {
+    CallingPolicy::plan = CallbackPolicies::process_id;
+}
+
+machine CallbackPolicies::process_id(signature: BoundarySignature) -> BoundaryPlanResult
+satisfies CallingPolicy::plan
+{
+    let mut plan: BoundaryEntryPlan;
+    plan.call.has_result = true;
+    plan.call.result = CallbackPolicies::word(4, 0);
+    CallbackPolicies::finish(plan)
+}
 
 machine CallbackPolicies::initializer(signature: BoundarySignature) -> BoundaryPlanResult
 satisfies CallingPolicy::plan
@@ -128,9 +140,28 @@ machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResul
 }
 
 pub boundary trait Initializer: Calling<InitializerCalling> {
-    machine call() reaches Console
+    machine call() reaches Console + ProcessId
     invokes Console;
+    invokes ProcessId;
 }
+
+pub boundary trait ProcessId: Calling<ProcessIdCalling> {
+    machine current() -> i32;
+}
+
+// Darwin declares getpid(void) -> pid_t, a signed 32-bit result. This import
+// is used only in the callback, never by the application entry.
+macos_arm64 machine process_id_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_getpid",
+        },
+    }
+}
+macos_arm64 machine process_id_leaf() -> i32
+satisfies ProcessId::current
+via process_id_binding();
 
 // Darwin's public pthread_once_t is a long signature followed by eight opaque
 // bytes on LP64. This package owns the foreign control representation.
@@ -142,13 +173,20 @@ pub boundary trait OnceRegistrar: Calling<OnceCalling> {
     invokes Initializer;
 }
 
-machine emit(character: i32[0..=255]) reaches Console {
-    Console::write_byte(character);
+machine emit(character: i32[0..=255]) reaches Console + ProcessId {
+    let process: i32 = ProcessId::current();
+    transition process > 0 {
+        true -> write(character)
+        _ -> failed()
+    }
+    state write(character: i32[0..=255]) { Console::write_byte(character); }
+    state failed() { Console::exit_process(73); }
 }
 
 pub data Initialization { }
-pub machine Initialization::call() satisfies Initializer::call reaches Console
+pub machine Initialization::call() satisfies Initializer::call reaches Console + ProcessId
 invokes Console;
+invokes ProcessId;
 {
     emit(65);
     emit(10);
@@ -170,7 +208,7 @@ via once_binding();
 
 data Main { control: OnceControl; first_status: i32; second_status: i32; }
 
-machine Main::main(main: &mut Main) reaches OnceRegistrar + Initializer + Console
+machine Main::main(main: &mut Main) reaches OnceRegistrar + Initializer + Console + ProcessId
 invokes OnceRegistrar;
 invokes Console;
 {

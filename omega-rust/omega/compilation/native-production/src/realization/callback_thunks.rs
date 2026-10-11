@@ -9,18 +9,15 @@ use crate::request::NativeRealizationRequest;
 use backend_plan::NativeCallbackThunkSettlement;
 use diagnostics::Diagnostic;
 use machine_code::CompilerPrivateMachineCodeFunction;
-use terminal_psi_to_abstract_operations::{
-    artifact_lowering_error, provider_admission::realization_error,
-};
+use terminal_psi_to_abstract_operations::provider_admission::realization_error;
 
 /// Realize the executable scope's callback thunks into compiler-private code,
 /// preserving original placement identities and relative request order.
 ///
-/// A thunk is a self-contained module: it carries no boundary settlements,
-/// provider installations or callback arguments of its own, so
-/// the shared stages run with empty auxiliary rosters. Any lowering
-/// or shape violation rejects here with the thunk's placement index in the
-/// diagnostic rather than surfacing as an unrelated program-stage failure.
+/// Each thunk owns its own Terminal namespace. Its selected providers and
+/// native occurrences were closed against that artifact, not copied from the
+/// application. Admission uses the same independent receiving policy without
+/// manufacturing a ProgramEntry for the private body.
 pub(crate) fn lower_callback_thunks(
     request: &NativeRealizationRequest<'_>,
     native_callbacks: &[terminal_psi_to_abstract_operations::AdmittedNativeCallbackArgument],
@@ -44,33 +41,17 @@ fn lower_callback_thunk(
     settlement: &NativeCallbackThunkSettlement<'_>,
 ) -> Result<CompilerPrivateMachineCodeFunction, Vec<Diagnostic>> {
     let artifact = settlement.artifact;
-    let input = terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
+    let mut admitted = request.callback_providers.admit_callback_body(
         artifact,
+        request.admission.providers.terminal_authority_policy,
         request
             .admission
             .providers
-            .program_entry
-            .source()
-            .target_slot()
-            .owner,
-        &[],
-    )
-    .map_err(artifact_lowering_error)?
-    .select_target_execution(
-        artifact,
-        request
-            .admission
-            .providers
-            .program_entry
-            .source()
-            .target_slot()
-            .owner,
-        &[],
-    )
-    .map_err(|error| realization_error("callback thunk execution scope", error))?;
+            .terminal_authority_permission_policy,
+    )?;
     let selections = request.optimization_selections.selections();
     let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
-        input.into_optimization_input(),
+        admitted.input.into_optimization_input(),
         selections,
         &selections.project_psi(),
         request.optimization_budget(),
@@ -79,9 +60,12 @@ fn lower_callback_thunk(
     let optimized_target =
         abstract_operations_to_target_operations::lower_optimized_to_target_operations(
             optimized,
-            abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
-                request.admission.providers.target,
-            ),
+            abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
+                target: request.admission.providers.target(),
+                settlements: &admitted.providers.settlements,
+                installation: admitted.providers.installation.take(),
+                native_callbacks: &admitted.providers.native_callbacks,
+            },
         )
         .map_err(|error| realization_error("callback thunk target lowering", error))?;
     let physical =

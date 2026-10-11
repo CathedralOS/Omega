@@ -4407,13 +4407,15 @@ and `mapped` need matching-host measurements, including the full-i32 status.
 
   `pending/calls/private_callback_call_closure` supplies a genuine macOS Arm64
   `pthread_once` provider, two calls sharing one control, and a callback that
-  calls an ordinary helper and Console. After public package review,
+  calls an ordinary helper, a callback-only `getpid` import and Console.
+  After public package review,
   `omega run tests/omega/pending/calls/private_callback_call_closure/main.omg`
-  rejects at callback target lowering with `MissingBoundarySettlement`.
-  Derive the callback artifact's own provider/import closure from the selected
-  plans; its Terminal boundary and machine identities are not the enclosing
-  program's numeric identities. Preserve the exact body-declaration, registrar
-  and caller-scoped function-identity joins. The scalar control
+  reaches callback private materialization and rejects because it emits more
+  than one function. Carry the callback's admitted provider/import and ordinary
+  helper closure into the private object channel without transplanting its
+  Terminal boundary or machine identities into the enclosing program.
+  Preserve the exact body-declaration, registrar and caller-scoped function
+  identity joins. The scalar control
   `pass/capabilities/callback_direct_install_compile` uses a nonexistent import
   and is not execution acceptance.
 

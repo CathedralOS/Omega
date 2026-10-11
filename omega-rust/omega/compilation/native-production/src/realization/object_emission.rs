@@ -50,7 +50,7 @@ pub(crate) fn emit_realization_object(
     let target = lower_optimized_to_target_operations(
         abstract_stage,
         OptimizedTargetLoweringRequest {
-            target: request.admission.providers.target,
+            target: request.admission.providers.target(),
             settlements,
             installation: provider_installation,
             native_callbacks,

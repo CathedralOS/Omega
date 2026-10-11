@@ -131,7 +131,7 @@ pub(crate) fn admit_native_providers<'request>(
     let terminal_authority_closure_review =
         terminal_authority_review::review_terminal_authority_closure(
             terminal_artifact_identity,
-            request.program_entry.source().target_slot().owner,
+            request.profile,
             input.optimization_input(),
             request.selected_provider_plans,
             effective_policy,

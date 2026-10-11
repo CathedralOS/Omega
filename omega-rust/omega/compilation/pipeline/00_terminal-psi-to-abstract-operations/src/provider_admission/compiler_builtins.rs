@@ -86,36 +86,36 @@ pub(super) fn settle_compiler_builtins<'request>(
             })?;
         let realization = match proposal.execution {
             CompilerBuiltinExecution::HostedExitProcessI32
-                if HostedExitProcessI32Realization::supports_target(request.target) =>
+                if HostedExitProcessI32Realization::supports_target(request.target()) =>
             {
                 HostedExitProcessI32Realization.into()
             }
             CompilerBuiltinExecution::HostedExitProcessI32 => {
                 return Err(vec![Diagnostic::error(format!(
                     "local target catalog cannot realize hosted process exit for `{requirement}` on {:?}",
-                    request.target
+                    request.target()
                 ))]);
             }
             CompilerBuiltinExecution::HostedWriteByteI32
-                if HostedWriteByteI32Realization::supports_target(request.target) =>
+                if HostedWriteByteI32Realization::supports_target(request.target()) =>
             {
                 HostedWriteByteI32Realization.into()
             }
             CompilerBuiltinExecution::HostedWriteByteI32 => {
                 return Err(vec![Diagnostic::error(format!(
                     "local target catalog cannot realize hosted write-byte for `{requirement}` on {:?}",
-                    request.target
+                    request.target()
                 ))]);
             }
             CompilerBuiltinExecution::HostedReadByte
-                if HostedReadByteRealization::supports_target(request.target) =>
+                if HostedReadByteRealization::supports_target(request.target()) =>
             {
                 HostedReadByteRealization.into()
             }
             CompilerBuiltinExecution::HostedReadByte => {
                 return Err(vec![Diagnostic::error(format!(
                     "local target catalog cannot realize hosted read-byte for `{requirement}` on {:?}",
-                    request.target
+                    request.target()
                 ))]);
             }
             CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format } => {
@@ -123,7 +123,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                 // catalog refuses it anywhere else.
                 let x86_scalar_fma = request.x86_scalar_fma_provider.filter(|_| {
                     operation == target_operations::IeeeFloatArithmeticOperation::FusedMultiplyAdd
-                        && request.target.architecture == target::Architecture::X86_64
+                        && request.target().architecture == target::Architecture::X86_64
                 });
                 float_arithmetic_realization(
                     NearestIeeeFloatArithmeticRealization {
@@ -131,7 +131,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                         format,
                         x86_scalar_fma,
                     },
-                    request.target,
+                    request.target(),
                     boundary,
                     &input.plan().structural_types,
                 )

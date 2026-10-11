@@ -1,11 +1,11 @@
 //! Complete Terminal-to-native admission before abstract optimization.
 //!
 //! This stage owns the ordering of canonical input preparation, executable
-//! scope selection, provider
-//! settlement, installation and mechanism review. The entry, fused-service and
-//! boundary-coverage custody arrive from the native proposal this compile
-//! derived for the same artifact and are not replayed here. The compiler
-//! supplies policy and consumes the result; it does not rebuild this
+//! scope selection, provider settlement, installation and mechanism review.
+//! The native proposal derives each body's boundary coverage and selected
+//! provider joins once. Application-entry and fused-service custody belong to
+//! receiver/image production, not admission of a private callback body. The
+//! compiler supplies policy and consumes the result; it does not rebuild this
 //! admission between stages.
 
 use crate::provider_admission::{
@@ -17,11 +17,11 @@ use diagnostics::Diagnostic;
 use terminal_codec::CanonicalTerminalArtifact;
 
 /// Independent native custody beside one canonical Terminal product.
-pub struct NativeAdmissionRequest<'request> {
-    /// Exact provider and entry custody plus the receiving authority policies.
+pub struct NativeAdmissionRequest<'request, 'execution> {
+    /// Exact provider custody plus the receiving authority policies.
     /// An absent permission policy makes no receiver-admission claim; it is
     /// neither an empty policy nor permission inferred from accepted packages.
-    pub providers: ProviderAdmissionRequest<'request, 'request>,
+    pub providers: ProviderAdmissionRequest<'request, 'execution>,
     /// The boundary-application coverage the proposal's producer settled
     /// against this artifact's sealed checked scope.
     pub boundary_application_coverage: Option<&'request TerminalBoundaryApplicationCoverage>,
@@ -37,24 +37,21 @@ pub struct AdmittedNativeRealization<'execution> {
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
 }
 
-/// Admit the artifact's canonical input and its providers. The entry
-/// settlement, fused establishments and boundary coverage arrive from the
-/// proposal this compile derived for this artifact, so admission does not
-/// replay their artifact joins again (pipeline.md, "Verification placement").
-pub fn admit_native_realization<'request>(
+/// Admit the artifact's canonical input and its providers. Boundary coverage
+/// and selected provider joins arrive from the proposal this compile derived
+/// for this artifact, so admission does not replay their artifact joins again
+/// (pipeline.md, "Verification placement"). Roster borrows are invocation-local;
+/// admitted execution evidence keeps its provider-owned lifetime.
+pub fn admit_native_realization<'execution>(
     artifact: &CanonicalTerminalArtifact,
-    request: &NativeAdmissionRequest<'request>,
-) -> Result<AdmittedNativeRealization<'request>, Vec<Diagnostic>> {
-    let input = VerifiedNativeArtifactInput::prepare(
-        artifact,
-        request.providers.program_entry.source().target_slot().owner,
-        &[],
-    )
-    .map_err(artifact_lowering_error)?;
+    request: &NativeAdmissionRequest<'_, 'execution>,
+) -> Result<AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
+    let input = VerifiedNativeArtifactInput::prepare(artifact, request.providers.profile, &[])
+        .map_err(artifact_lowering_error)?;
     let input = input
         .select_target_execution(
             artifact,
-            request.providers.program_entry.source().target_slot().owner,
+            request.providers.profile,
             request.providers.checked_adapters,
         )
         .map_err(|error| realization_error("execution scope", error))?
@@ -146,8 +143,7 @@ pub fn admit_native_realization<'request>(
         .cloned()
         .collect::<Vec<_>>();
     let scoped_providers = ProviderAdmissionRequest {
-        target: request.providers.target,
-        program_entry: request.providers.program_entry,
+        profile: request.providers.profile,
         selected_provider_plans: request.providers.selected_provider_plans,
         checked_adapters: request.providers.checked_adapters,
         external_binding_rows: request.providers.external_binding_rows,

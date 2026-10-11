@@ -30,10 +30,11 @@ pub fn compile(
                 imports: request.imports,
             },
         )?;
-        let native_settlements = prepared.bindings.settlements();
+        let native_settlements = prepared.program_settlements();
         crate::realization::realize_native_artifact(
             artifact,
             crate::request::NativeRealizationRequest {
+                program_entry: proposal.program_entry().as_settlement(),
                 admission: prepared.admission_request(
                     &native_settlements,
                     &request.terminal_authority_policy,
@@ -43,6 +44,7 @@ pub fn compile(
                 elf_interpreter: proposal.application().elf_interpreter.as_ref(),
                 optimization_selections: request.optimization_selections,
                 callback_thunks: &prepared.callback_thunks,
+                callback_providers: &prepared,
                 target_provider_proposals: proposal.target_provider_proposals(),
             },
         )

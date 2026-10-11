@@ -57,12 +57,12 @@ pub use provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
 };
 pub use retained_terminal::{
-    RetainedNativeProviderInputs, RetainedTerminalArtifact, SelectedFamilyRealizationSource,
-    TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
-    TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
-    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
-    TerminalNativeOccurrences, TerminalNativeProposalRequest, TerminalNativeProviders,
-    TerminalNativeRealizationProposal, TerminalTargetProviderProposal,
+    PreparedRetainedNativeProviders, RetainedNativeProviderInputs, RetainedTerminalArtifact,
+    SelectedFamilyRealizationSource, TerminalCallbackOccurrenceProposal,
+    TerminalCallbackThunkArtifact, TerminalCompilerBuiltinProposal,
+    TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
+    TerminalNativeBoundaryApplications, TerminalNativeOccurrences, TerminalNativeProposalRequest,
+    TerminalNativeProviders, TerminalNativeRealizationProposal, TerminalTargetProviderProposal,
     project_terminal_native_realization_proposal,
 };
 

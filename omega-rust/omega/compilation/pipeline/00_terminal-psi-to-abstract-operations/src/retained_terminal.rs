@@ -12,7 +12,7 @@ pub use proposal::{
 
 pub use backend_plan::TerminalTargetProviderProposal;
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
-pub use native_providers::RetainedNativeProviderInputs;
+pub use native_providers::{PreparedRetainedNativeProviders, RetainedNativeProviderInputs};
 
 pub use crate::provider_admission::TerminalCompilerBuiltinProposal;
 
@@ -53,6 +53,25 @@ pub struct TerminalNativeBoundaryApplications {
     pub coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
 }
 
+/// Artifact-local provider and occurrence custody, independent of any process
+/// entry. Both application and callback artifacts use the same producer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TerminalNativeBodyProposal {
+    providers: TerminalNativeProviders,
+    occurrences: TerminalNativeOccurrences,
+    boundary_applications: TerminalNativeBoundaryApplications,
+    behavior_exclusions: effects::BehaviorExclusions,
+}
+
+/// One produced callback artifact and the native inputs derived against its
+/// own identity tables. The catalog is flat so registration graphs do not
+/// require recursively constructing or duplicating native proposal trees.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TerminalNativeCallbackBody {
+    artifact: TerminalCallbackThunkArtifact,
+    proposal: TerminalNativeBodyProposal,
+}
+
 /// Target-constrained native inputs beside one canonical Terminal artifact.
 /// Each producing owner transfers a complete unit. The validated entry owns
 /// target identity; no independently mutable target/profile pair is retained.
@@ -73,6 +92,7 @@ pub struct TerminalNativeRealizationProposal {
     package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     behavior_exclusions: effects::BehaviorExclusions,
     target_provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+    callback_bodies: Vec<TerminalNativeCallbackBody>,
 }
 
 impl TerminalNativeRealizationProposal {
@@ -81,7 +101,7 @@ impl TerminalNativeRealizationProposal {
     /// selection. Every unit arrives from its derivation in this compile, so
     /// construction does not replay its joins against the artifact again
     /// (pipeline.md, "Verification placement").
-    pub fn new(
+    pub(crate) fn new(
         application: target::NativeApplicationMetadata,
         program_entry: crate::ValidatedNativeProgramEntrySettlement,
         post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
@@ -93,6 +113,7 @@ impl TerminalNativeRealizationProposal {
         >,
         package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
         behavior_exclusions: effects::BehaviorExclusions,
+        callback_bodies: Vec<TerminalNativeCallbackBody>,
     ) -> Self {
         package_terminal_authority_permissions.sort_by(|left, right| {
             left.service_schema()
@@ -118,6 +139,7 @@ impl TerminalNativeRealizationProposal {
             package_terminal_authority_permissions,
             package_terminal_authority_permission_identities,
             behavior_exclusions,
+            callback_bodies,
         }
     }
 

@@ -8,7 +8,10 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// Stage 00 owns admission vocabulary and checks; this request supplies policy
 /// and retains the exact image custody if realization fails.
 pub(crate) struct NativeRealizationRequest<'request> {
-    pub admission: terminal_psi_to_abstract_operations::NativeAdmissionRequest<'request>,
+    /// Application-entry custody is consumed only by receiver/image production,
+    /// not by ordinary provider admission of private canonical bodies.
+    pub program_entry: terminal_psi_to_abstract_operations::NativeProgramEntrySettlement<'request>,
+    pub admission: terminal_psi_to_abstract_operations::NativeAdmissionRequest<'request, 'request>,
     pub image_request: ExecutableImageEmissionRequest,
     /// The retained proposal's effective ELF loader, settled against the
     /// emitted object: it becomes `PT_INTERP` only when that object links
@@ -18,6 +21,10 @@ pub(crate) struct NativeRealizationRequest<'request> {
     /// Isolated bodies paired one-to-one with admitted callback arguments.
     /// Each body has its own Terminal artifact namespace.
     pub callback_thunks: &'request [backend_plan::NativeCallbackThunkSettlement<'request>],
+    /// Prepared evidence is shared, but every body consumes its artifact-local
+    /// selection, adapters, builtin boundaries and callback occurrences.
+    pub callback_providers:
+        &'request terminal_psi_to_abstract_operations::PreparedRetainedNativeProviders<'request>,
     pub target_provider_proposals: &'request [backend_plan::TerminalTargetProviderProposal],
 }
 
@@ -56,6 +63,9 @@ pub struct NativeCompileRequest<'request> {
     /// `Some`, including an empty policy, adjudicates every closure leaf.
     pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     pub image_request: ExecutableImageEmissionRequest,
+    /// A nonempty roster covers the selected application/callback import union
+    /// exactly once. Empty means derive from the selected plans, not fill holes
+    /// in supplied custody. Private bodies borrow their own demand projection.
     pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
 }
 

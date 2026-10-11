@@ -203,7 +203,7 @@ impl ValidatedNativeProgramEntrySettlement {
     /// Borrow the exact replayed declaration and calling contracts for native
     /// realization. Invocation-owned placed-view loans do not cross this view;
     /// executable receiver admission must bind its own supplied input.
-    pub(crate) fn as_settlement(&self) -> NativeProgramEntrySettlement<'_> {
+    pub fn as_settlement(&self) -> NativeProgramEntrySettlement<'_> {
         NativeProgramEntrySettlement {
             checked_entry: Some(&self.checked_entry),
             source: &self.source,

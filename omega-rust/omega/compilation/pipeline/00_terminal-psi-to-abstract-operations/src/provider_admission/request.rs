@@ -62,14 +62,16 @@ pub struct NativeCompilerBuiltinSettlement<'execution> {
 }
 
 /// The inputs provider admission reads from one target realization: the
-/// target, entry settlement, selected plans, external bindings, supplied
+/// target profile, selected plans, external bindings, supplied
 /// settlements and builtins, callback arguments and the receiving
 /// terminal-authority policies.
 // The request borrows invocation-local selections; executions keep their
 // provider-owned lifetime when those selections are projected into a roster.
 pub struct ProviderAdmissionRequest<'request, 'execution> {
-    pub target: target::NativeTarget,
-    pub program_entry: crate::NativeProgramEntrySettlement<'request>,
+    /// Execution scope and physical geometry come from one profile. Provider
+    /// admission needs no application-entry authority: private callback bodies
+    /// consume the same operation without impersonating a ProgramEntry.
+    pub profile: target::TargetProfile,
     pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
     pub checked_adapters: &'request [crate::SelectedProviderAdapter],
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
@@ -80,4 +82,10 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub terminal_authority_permission_policy: &'request Option<TerminalAuthorityPermissionPolicy>,
     /// Build-admitted AVX+FMA3 provider for this exact profile, if any.
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+}
+
+impl ProviderAdmissionRequest<'_, '_> {
+    pub fn target(&self) -> target::NativeTarget {
+        self.profile.native_target()
+    }
 }

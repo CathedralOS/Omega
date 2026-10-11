@@ -40,12 +40,12 @@ pub(crate) fn realize_native_artifact(
     let receiver_settlement = native_artifact::admit_executable_entry_receiver(
         &input,
         &artifact,
-        request.admission.providers.program_entry,
-        request.admission.providers.target,
+        request.program_entry,
+        request.admission.providers.target(),
     )?;
     // Capture before emission takes the installation. These are the admitted
     // rows of this same image request, not reconstructed provider-name hints.
-    let entry = request.admission.providers.program_entry;
+    let entry = request.program_entry;
     let runtime_provisions = entry
         .checked_entry
         .map(|checked| {
@@ -97,7 +97,7 @@ pub(crate) fn realize_native_artifact(
         .settle_elf_loader(&emitted.object, request.elf_interpreter)
         .map_err(|error| vec![error.diagnostic().clone()])?;
     let artifact = RequestedNativeArtifact::emit_admitted(
-        request.admission.providers.target,
+        request.admission.providers.target(),
         artifact,
         emitted,
         image_request,

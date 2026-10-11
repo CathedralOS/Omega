@@ -7,8 +7,8 @@
 //! Checked selections remain transitional inputs, not native execution authority.
 
 use super::{
-    TerminalNativeBoundaryApplications, TerminalNativeOccurrences, TerminalNativeProviders,
-    TerminalNativeRealizationProposal,
+    TerminalNativeBodyProposal, TerminalNativeBoundaryApplications, TerminalNativeCallbackBody,
+    TerminalNativeOccurrences, TerminalNativeProviders, TerminalNativeRealizationProposal,
 };
 use diagnostics::Diagnostic;
 
@@ -112,7 +112,6 @@ pub fn project_terminal_native_realization_proposal(
     checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     request: TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
-    let callback_placements = &request.callback_placements;
     let target_profile = request.target_profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Terminal native proposal requires one selected target profile",
@@ -147,6 +146,43 @@ pub fn project_terminal_native_realization_proposal(
             "Terminal native proposal ProgramEntry settlement failed: {error}"
         ))]
     })?;
+    let body = project_terminal_native_body(artifact, target_profile, &request)?;
+    // All canonical bodies were produced while source custody existed. Retain
+    // one native context per artifact, rather than a tree per registration use;
+    // repeated or recursive registration does not duplicate the context graph.
+    let mut callback_bodies = Vec::<TerminalNativeCallbackBody>::new();
+    for thunk in &request.callback_thunks {
+        if callback_bodies.iter().any(|body| {
+            body.artifact.artifact().manifest().identity() == thunk.artifact().manifest().identity()
+        }) {
+            continue;
+        }
+        callback_bodies.push(TerminalNativeCallbackBody {
+            artifact: thunk.clone(),
+            proposal: project_terminal_native_body(thunk.artifact(), target_profile, &request)?,
+        });
+    }
+    Ok(TerminalNativeRealizationProposal::new(
+        request.application,
+        program_entry,
+        request.optimizations,
+        body.providers,
+        body.occurrences,
+        body.boundary_applications,
+        request.package_terminal_authority_permissions,
+        request.package_terminal_authority_permission_identities,
+        body.behavior_exclusions,
+        callback_bodies,
+    ))
+}
+
+/// One provider projection for every canonical body. Artifact-local IDs and
+/// family rows are derived here, never transplanted from the application body.
+fn project_terminal_native_body(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    target_profile: target::TargetProfile,
+    request: &TerminalNativeProposalRequest<'_>,
+) -> Result<TerminalNativeBodyProposal, Vec<Diagnostic>> {
     let terminal_module = artifact.semantic_module();
     let selected = close_family_realizations(
         artifact,
@@ -179,14 +215,14 @@ pub fn project_terminal_native_realization_proposal(
             &terminal_module.identities,
         )?;
     let callback_occurrences = project_callback_occurrences(
-        callback_placements,
+        &request.callback_placements,
         artifact.view(),
-        request.callback_thunks,
+        &request.callback_thunks,
     )?;
     // Close source placements while their producer still owns them. Re-entry
     // borrows these native rows; it never retains the checked-source records.
     let callback_arguments = crate::provider_admission::project_native_callback_arguments(
-        callback_placements,
+        &request.callback_placements,
         &callback_occurrences,
     )?;
     backend_plan::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
@@ -194,12 +230,12 @@ pub fn project_terminal_native_realization_proposal(
     let boundary_application_coverage = request.boundaries.settle(artifact)?;
     let comparisons = crate::comparison_settlement::settle_comparison_occurrences(
         terminal_module,
-        request.boundaries.selected_provider_plans,
+        &selected,
         &boundary_application_coverage,
     )?;
     let external_binding_rows = crate::settle_callback_registrar_imports(
         terminal_module,
-        callback_placements,
+        &request.callback_placements,
         callback_occurrences
             .iter()
             .map(|occurrence| crate::CallbackRegistrarOccurrence {
@@ -210,30 +246,28 @@ pub fn project_terminal_native_realization_proposal(
         request.external_bindings,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
-    Ok(TerminalNativeRealizationProposal::new(
-        request.application,
-        program_entry,
-        request.optimizations,
-        TerminalNativeProviders {
+    Ok(TerminalNativeBodyProposal {
+        providers: TerminalNativeProviders {
             selection: selected,
             checked_adapters,
             external_bindings: external_binding_rows,
             compiler_builtins: builtin_proposals,
             x86_scalar_fma: request.x86_scalar_fma_provider,
         },
-        TerminalNativeOccurrences {
+        occurrences: TerminalNativeOccurrences {
             callbacks: callback_occurrences,
             callback_arguments,
             ieee_float_comparisons: comparisons.ieee_float,
             integer_comparisons: comparisons.integer,
         },
-        TerminalNativeBoundaryApplications {
+        boundary_applications: TerminalNativeBoundaryApplications {
             coverage: boundary_application_coverage,
         },
-        request.package_terminal_authority_permissions,
-        request.package_terminal_authority_permission_identities,
-        effects::authored_behavior_exclusion_set_in(request.behavior_exclusions, terminal_module),
-    ))
+        behavior_exclusions: effects::authored_behavior_exclusion_set_in(
+            request.behavior_exclusions,
+            terminal_module,
+        ),
+    })
 }
 
 /// Rejoin retained callback placements to their exact Terminal registrar
@@ -242,7 +276,7 @@ pub fn project_terminal_native_realization_proposal(
 fn project_callback_occurrences(
     callback_placements: &[backend_plan::NativeCallbackPlacement],
     caller: terminal_codec::TerminalArtifactView<'_>,
-    thunks: Vec<crate::TerminalCallbackThunkArtifact>,
+    thunks: &[crate::TerminalCallbackThunkArtifact],
 ) -> Result<Vec<crate::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
     let module = caller.module();
     if callback_placements.len() != thunks.len() {
@@ -250,10 +284,33 @@ fn project_callback_occurrences(
             "callback thunk roster differs from checked placement roster",
         )]);
     }
+    // The source roster may include uses in other canonical bodies, but every
+    // retained application in this artifact must still have exactly one use.
+    // Filtering out foreign namespaces cannot silently drop a local demand.
+    let mut application_indices = callback_placements
+        .iter()
+        .map(|placement| placement.application_index)
+        .collect::<Vec<_>>();
+    application_indices.sort_unstable();
+    for application in &module.callback_applications {
+        let first = application_indices.partition_point(|application_index| {
+            *application_index < application.application_index
+        });
+        let last = application_indices.partition_point(|application_index| {
+            *application_index <= application.application_index
+        });
+        if last - first != 1 {
+            return Err(vec![Diagnostic::error(
+                "Terminal callback application has no unique checked placement",
+            )]);
+        }
+    }
     let occurrences = callback_placements
         .iter()
         .zip(thunks)
         .enumerate()
+        .filter(|(_, (placement, _))| module.callback_applications.binary_search_by_key(
+            &placement.application_index, |row| row.application_index).is_ok())
         .map(|(placement_index, (placement, callback_thunk_artifact))| {
             let application = module.callback_applications.binary_search_by_key(
                 &placement.application_index, |row| row.application_index
@@ -285,7 +342,7 @@ fn project_callback_occurrences(
                     .transpose()
                     .map_err(|error| vec![Diagnostic::error(error.0)])?,
                 callback_thunk_identity,
-                callback_thunk_artifact,
+                callback_thunk_artifact.clone(),
                 placement.boundary_entry_plan.clone(),
             ))
         })

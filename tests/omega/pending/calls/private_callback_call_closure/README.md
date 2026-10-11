@@ -13,15 +13,18 @@ omega run tests/omega/pending/calls/private_callback_call_closure/main.omg
 
 On macOS Arm64 this must emit exactly `A\n` and exit 0. Two real
 `pthread_once` calls share one initialized control. The callback calls an
-ordinary helper, which writes through Console; the second registrar call must
-not invoke it again. Compilation alone does not establish invocation.
+ordinary helper, which queries the real `getpid` import before writing through
+Console; the second registrar call must not invoke it again. The PID result
+controls a branch so the callback-only import cannot disappear as unused work.
+Compilation alone does not establish invocation.
 
 The public update is the calling-commitment regression: the unclosed calling
 recipe must not be captured in provider schemas and then changed afterward.
-Package review now succeeds without relaxing exact identity checks. Native
-production still rejects with `MissingBoundarySettlement` while lowering the
-callback's own Terminal artifact. Its provider/import closure and ordinary
-function/relocation custody remain unfinished; this is not a passing run case.
+Package review succeeds without relaxing exact identity checks. Native
+production admits the callback's own provider closure and reaches physical
+emission, then rejects because the private channel requires exactly one
+function. Ordinary helper/import/relocation custody remains unfinished; this
+is not a passing run case.
 
 The foreign control matches the LP64 SDK's `pthread_once_t`:
 an eight-byte long signature, eight opaque bytes, and `PTHREAD_ONCE_INIT`

@@ -46,7 +46,7 @@ pub(super) fn settle_boundary<'request>(
                     selected_plan,
                     request.external_binding_rows,
                     requirement,
-                    request.target,
+                    request.target(),
                 )?,
             )
         }
@@ -59,7 +59,7 @@ pub(super) fn settle_boundary<'request>(
                     evidence.provider_plan_report_identity(),
                     requirement,
                     request.selected_provider_plans.identities(),
-                    request.target,
+                    request.target(),
                 )?,
             )
         }
