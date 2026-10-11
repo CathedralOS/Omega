@@ -1,0 +1,3 @@
+machine entry() -> i32 {
+    entry()
+}

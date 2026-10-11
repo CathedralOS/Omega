@@ -1,0 +1,4 @@
+use invalid_missing_module::dep;
+machine entry() -> i32 {
+    0
+}
