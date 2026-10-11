@@ -164,15 +164,6 @@ fn push_count(
     Ok(())
 }
 
-fn push_bytes(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
-    bytes: &[u8],
-) -> Result<(), String> {
-    push_count(digest, bytes.len())?;
-    digest.raw(&bytes);
-    Ok(())
-}
-
 fn encode_scalar(digest: &mut crate::digest_encoder::DomainDigestEncoder, scalar: ScalarType) {
     match scalar {
         ScalarType::Boolean => digest.byte(0),
