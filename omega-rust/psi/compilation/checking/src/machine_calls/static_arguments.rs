@@ -26,7 +26,7 @@ pub fn validate_authored_static_arguments(
         if let ExpressionNode::Call(call) = expression {
             validate_call(
                 program,
-                StaticArgumentCall::Expression(call),
+                StaticArgumentCall::Expression(handle, call),
                 scopes.context(handle),
                 &symbols,
                 &mut diagnostics,
@@ -138,6 +138,12 @@ fn validate_call(
     symbols: &crate::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if let Err(diagnostic) =
+        crate::compiler_operations::validate_declaration_operands(program, call)
+    {
+        diagnostics.push(diagnostic);
+        return;
+    }
     let arguments = call.arguments(program);
     requirement_predicates::validate(program, call, context, arguments, diagnostics);
     if arguments.is_empty() {

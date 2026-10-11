@@ -25,11 +25,7 @@ pub fn static_argument_role(
 ) -> StaticArgumentRole {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
-    let intrinsic = match call {
-        StaticArgumentCall::Expression(call) => classify_expression_call_intrinsic(program, call),
-        StaticArgumentCall::Statement(call) => classify_statement_call_intrinsic(program, call),
-    };
-    match intrinsic {
+    match static_call_intrinsic(program, call) {
         Some(
             Intrinsic::BuildProviderSelection
             | Intrinsic::BuildBoundaryAcceptance
@@ -39,6 +35,79 @@ pub fn static_argument_role(
             | Intrinsic::BuildAssumedBindingContract,
         ) => StaticArgumentRole::DeclarationDescription,
         _ => StaticArgumentRole::ValueDependency,
+    }
+}
+
+fn static_call_intrinsic(
+    program: &dyn crate::CheckingInput,
+    call: StaticArgumentCall<'_>,
+) -> Option<AuthoredDeclarationSelectionIntrinsic> {
+    authored_call_intrinsic(program, call).or_else(|| match call {
+        StaticArgumentCall::Expression(_, call) => {
+            classify_expression_call_intrinsic(program, call)
+        }
+        StaticArgumentCall::Statement(call) => classify_statement_call_intrinsic(program, call),
+    })
+}
+
+/// Select the operand contract from the exact operation, independently of an
+/// operand's representation category. Applied maps can arrive as structural
+/// type references, so testing only for a Conformance symbol loses this rule.
+pub(crate) fn validate_declaration_operands(
+    program: &dyn crate::CheckingInput,
+    call: StaticArgumentCall<'_>,
+) -> Result<(), diagnostics::Diagnostic> {
+    if static_call_intrinsic(program, call)
+        == Some(AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection)
+        && call
+            .arguments(program.typed_program())
+            .iter()
+            .any(|argument| !typed_trees::product_operand::is_declaration_operand(argument))
+    {
+        return Err(diagnostics::Diagnostic::error(
+            "provider selection operands must name bare declarations, not applied types, conformance applications, values or projections",
+        ));
+    }
+    Ok(())
+}
+
+/// Typing can finalize a declaration operation before executable checking,
+/// notably target-provider defaults. Consume that exact occurrence rather
+/// than rediscovering its enclosing declaration or receiver spelling. This
+/// identity describes operands; Build activation still owes its own admission.
+pub fn authored_call_intrinsic(
+    program: &dyn crate::CheckingInput,
+    call: StaticArgumentCall<'_>,
+) -> Option<AuthoredDeclarationSelectionIntrinsic> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+    };
+    let selections = program.authored_declaration_selections();
+    let selection = match call {
+        StaticArgumentCall::Expression(expression, _) => program
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .filter_map(|occurrence| selections.get(occurrence))
+            .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call),
+        StaticArgumentCall::Statement(call) => {
+            return call
+                .authored_call_selection
+                .and_then(|occurrence| selections.get(occurrence))
+                .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call)
+                .and_then(|selection| match selection.target() {
+                    AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic) => Some(intrinsic),
+                    _ => None,
+                });
+        }
+    };
+    let mut occurrences = selection;
+    let selection = occurrences.next()?;
+    if occurrences.next().is_some() {
+        return None;
+    }
+    match selection.target() {
+        AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic) => Some(intrinsic),
+        _ => None,
     }
 }
 

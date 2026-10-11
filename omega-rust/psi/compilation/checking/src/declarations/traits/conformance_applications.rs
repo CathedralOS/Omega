@@ -6,6 +6,9 @@
 //! Call admission separately checks every selected region in its retained
 //! lexical owner, including unused conformance parameters. Region-erased type
 //! agreement cannot establish that those operands were declared by the caller.
+//! Build declaration descriptions are not conformance instances: their own
+//! telescopes remain open until an occurrence selects a checked application.
+//! They must remain bare names, and never gain executable conformance authority.
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
@@ -30,11 +33,11 @@ pub fn validate_conformance_applications(
     {
         diagnostics.extend(failures);
     }
-    for (_, expression) in program.expression_table.iter_expressions() {
+    for (handle, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call_arguments(
                 program,
-                StaticArgumentCall::Expression(call),
+                StaticArgumentCall::Expression(handle, call),
                 &mut diagnostics,
             );
         }
@@ -64,15 +67,18 @@ fn validate_call_arguments(
     call: StaticArgumentCall<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let declarations = match crate::compiler_operations::static_argument_role(program, call) {
-        StaticArgumentRole::DeclarationDescription => program.product_declarations(),
-        StaticArgumentRole::ValueDependency => program,
+    let role = crate::compiler_operations::static_argument_role(program, call);
+    let declarations = if role == StaticArgumentRole::DeclarationDescription {
+        program.product_declarations()
+    } else {
+        program
     };
     validate_arguments(
         declarations,
         program,
         call.lexical_owner(program.typed_program()),
         call.arguments(program.typed_program()),
+        role,
         diagnostics,
     );
 }
@@ -82,6 +88,7 @@ fn validate_arguments(
     lexical_program: &dyn crate::CheckingInput,
     lexical_owner: SymbolHandle,
     arguments: &[StaticMachineArgument],
+    role: StaticArgumentRole,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for argument in arguments {
@@ -89,6 +96,15 @@ fn validate_arguments(
             program.symbols.get(argument.symbol).kind,
             SymbolKind::Conformance
         ) {
+            if role == StaticArgumentRole::DeclarationDescription {
+                if argument.application.is_some() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "Build declaration operand `{}` names a conformance application; name its declaration without arguments",
+                        argument.display_name(),
+                    )));
+                }
+                continue;
+            }
             if let Err(diagnostic) = close_conformance_application(program, argument) {
                 diagnostics.push(diagnostic);
             }
@@ -104,6 +120,7 @@ fn validate_arguments(
                 lexical_program,
                 lexical_owner,
                 &application.arguments,
+                role,
                 diagnostics,
             );
         }

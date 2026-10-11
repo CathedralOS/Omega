@@ -2766,6 +2766,11 @@ crash and native exit behavior.
     `targets/runtime_family_callback_requirement_conjunction_exit` and
     `targets/runtime_family_generic_callback_forwarding_exit` running with
     their non-first-member precondition and effect-ceiling rejection controls.
+    `fail/targets/family_callback_first_member_guarantee_only_rejected` is
+    incorrectly accepted by public `--check`; the saved `80bdb14533e` producer
+    also accepts it. Complete portable callback refinement must check every
+    member's demanded guarantee, not only the first member's. Preserve the
+    authored refusal; the earlier harness's missing-entry failure hid this gap.
     Keep `targets/runtime_family_generic_nominal_callback_conjunction_exit`,
     `targets/runtime_family_nested_nominal_callback_conjunction_exit` and
     `targets/runtime_family_deep_nominal_callback_variance_exit` running;
@@ -2823,9 +2828,12 @@ crash and native exit behavior.
     type/const telescopes are checked without admitting runtime value operands;
     a differently applied selected provider must still reject. Executable
     requirement preparation checks closure after complete scope substitution.
-    Region-bearing Binding admission still needs occurrence scopes through
-    source inventory and requirement preparation, source-level qualification of
-    complete provider region-slot correspondence, and propagation of checked
+    `pending/providers/occurrence_region_binding_exit` must read 37 through
+    `omega run --both`; its current refusal is `closed requirement needs a
+    retained exact region application`. Region-bearing Binding admission needs
+    occurrence scopes through source inventory and requirement preparation,
+    source-level qualification of complete provider region-slot correspondence,
+    and propagation of checked
     receiving applications and region arguments through canonical candidates and
     receiving installation. The classifier and provider
     eligibility remain fail-closed until those associations exist. Build selects

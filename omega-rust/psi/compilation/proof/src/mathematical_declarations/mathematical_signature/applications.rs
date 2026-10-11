@@ -48,8 +48,9 @@ impl Elaborator<'_> {
         let mut applications = Vec::with_capacity(calls.len());
         for (expression, call) in calls {
             self.span = Some(self.program.expression_table.source_span(expression));
-            let retained_owner = typed_trees::references::StaticArgumentCall::Expression(&call)
-                .lexical_owner(self.program);
+            let retained_owner =
+                typed_trees::references::StaticArgumentCall::Expression(expression, &call)
+                    .lexical_owner(self.program);
             self.source_owner = if retained_owner.is_valid() {
                 retained_owner
             } else {

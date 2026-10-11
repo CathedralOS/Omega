@@ -5,6 +5,16 @@ use crate::expression::StaticMachineArgument;
 use crate::typed_trees::TypedTrees;
 use symbols::JoinedPath;
 
+/// A product description names a declaration, not an applied type, value or
+/// evidence projection. Checking and later path resolution share this shape.
+pub fn is_declaration_operand(argument: &StaticMachineArgument) -> bool {
+    !argument.type_reference.is_valid()
+        && argument.application.is_none()
+        && argument.const_literal.is_none()
+        && argument.evidence_projection.is_none()
+        && !argument.path.is_empty()
+}
+
 /// Resolve the declaration a Build operand path names: subject position joins
 /// boundaries and top-level requirement machines, while non-subject position
 /// joins data declarations and non-generic conformances. A path that fails the
@@ -17,12 +27,7 @@ pub fn resolve_product_operand(
     subject: bool,
 ) -> Option<symbols::SymbolHandle> {
     let program = typed.product_declarations();
-    if argument.type_reference.is_valid()
-        || argument.application.is_some()
-        || argument.const_literal.is_some()
-        || argument.evidence_projection.is_some()
-        || argument.path.is_empty()
-    {
+    if !is_declaration_operand(argument) {
         return None;
     }
     let path = argument.path.joined_path();

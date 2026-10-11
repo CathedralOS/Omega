@@ -95,7 +95,7 @@ pub(super) fn validate(
         return;
     }
     let executable = match call {
-        StaticArgumentCall::Expression(call) => call.target_symbol,
+        StaticArgumentCall::Expression(_, call) => call.target_symbol,
         StaticArgumentCall::Statement(call) => call.target_symbol,
     };
     let scope = if let Some(application) = program.closed_requirement_application(executable) {
@@ -113,7 +113,7 @@ pub(super) fn validate(
         context
             .and_then(|(machine, state)| {
                 let (receiver, operands) = match call {
-                    StaticArgumentCall::Expression(call) => (
+                    StaticArgumentCall::Expression(_, call) => (
                         crate::machine_calls::calls::dynamic_requirement::expression_trait_receiver(
                             program,
                             call.receiver,

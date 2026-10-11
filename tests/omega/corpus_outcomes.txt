@@ -6146,3 +6146,7 @@ fail/calls/callback_shared_program_excluded_trap rejected 24191ms expected @eee9
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in machine `PointHandler::visit` (Terminal machine 2) at crash terminator in block 12
 	the selected composition retains crash cause Trap through machine `PointHandler::visit` (Terminal machine 2) declared here
+fail/providers/applied_provider_declaration_operand rejected 568ms expected @80bdb14533eb+wt
+	provider selection operands must name bare declarations, not applied types, conformance applications, values or projections
+fail/traits/ordinary_selection_name_missing_conformance_region rejected 376ms expected @80bdb14533eb+wt
+	generic conformance `ReadingMap` has 1 erased lifetime parameter(s), but this application supplies none and no unique ordinary borrow constraint is available; write the lifetime argument explicitly

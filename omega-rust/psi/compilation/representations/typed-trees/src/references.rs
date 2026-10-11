@@ -31,7 +31,9 @@ pub enum StaticArgumentRole {
 
 #[derive(Clone, Copy)]
 pub enum StaticArgumentCall<'call> {
-    Expression(&'call TableCallExpression),
+    /// The occurrence owns the call's selection ledger independently of the
+    /// static application and its eventual executable target.
+    Expression(ExpressionHandle, &'call TableCallExpression),
     Statement(&'call crate::statement::TableCall),
 }
 
@@ -39,7 +41,7 @@ impl<'call> StaticArgumentCall<'call> {
     /// Retained source operands, or zero while no application has been recorded.
     pub fn application(&self) -> crate::static_applications::StaticMachineApplicationHandle {
         match self {
-            Self::Expression(call) => call.authored_machine_application,
+            Self::Expression(_, call) => call.authored_machine_application,
             Self::Statement(call) => call.authored_machine_application,
         }
     }
@@ -54,7 +56,7 @@ impl<'call> StaticArgumentCall<'call> {
                 .registration_operation;
         }
         match self {
-            Self::Expression(call) => call.target_symbol,
+            Self::Expression(_, call) => call.target_symbol,
             Self::Statement(call) => call.target_symbol,
         }
     }
@@ -82,7 +84,7 @@ impl<'call> StaticArgumentCall<'call> {
                 .static_machine_application_arguments(application);
         }
         match self {
-            Self::Expression(call) => &call.machine_arguments,
+            Self::Expression(_, call) => &call.machine_arguments,
             Self::Statement(call) => &call.machine_arguments,
         }
     }
@@ -1163,7 +1165,7 @@ pub fn visit_expression(
             }
         }
         ExpressionNode::Call(call) => {
-            visit_call_expression(program, retained, call);
+            visit_call_expression(program, retained, expression, call);
         }
         ExpressionNode::Indexed(indexed) => {
             visit_expression(program, retained, indexed.collection);
@@ -1232,6 +1234,7 @@ fn visit_name_path(
 fn visit_call_expression(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
+    expression: ExpressionHandle,
     call: &TableCallExpression,
 ) {
     visit_symbol(retained, call.target_symbol);
@@ -1259,8 +1262,8 @@ fn visit_call_expression(
         visit_symbol(retained, dispatch.requirement);
         visit_symbol(retained, dispatch.declaring_trait);
     }
-    if retained.call_arguments(program, StaticArgumentCall::Expression(call)) {
-        for argument in StaticArgumentCall::Expression(call).arguments(program) {
+    if retained.call_arguments(program, StaticArgumentCall::Expression(expression, call)) {
+        for argument in StaticArgumentCall::Expression(expression, call).arguments(program) {
             visit_static_argument(program, retained, argument);
         }
         visit_static_machine_bindings(program, retained, call.authored_machine_application);

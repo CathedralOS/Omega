@@ -1,0 +1,1 @@
+provider selection operands must name bare declarations

@@ -106,10 +106,7 @@ pub(super) fn admitted_build_declaration_call(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
-        AuthoredDeclarationSelectionTarget,
-    };
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
     let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
@@ -156,14 +153,10 @@ pub(super) fn admitted_build_declaration_call(
     {
         return false;
     }
-    let mut selections = program
-        .expression_table
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
-        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call);
-    selections.next().is_some_and(|selection| {
-        selection.target() == AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic)
-    }) && selections.next().is_none()
+    crate::compiler_operations::authored_call_intrinsic(
+        program,
+        typed_trees::references::StaticArgumentCall::Expression(expression, call),
+    ) == Some(intrinsic)
 }
 
 fn has_inferred_value_return(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
