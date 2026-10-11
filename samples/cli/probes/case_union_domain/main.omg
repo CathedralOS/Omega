@@ -15,6 +15,6 @@ machine Main::main(main: &mut Main) {
             Command::Interactive -> matched(main)
         }
     }
-    state matched(main: &mut Main) -> i32 { 40 }
-    state missed(main: &mut Main) -> i32 { 0 }
+    state matched(main: &mut Main) { let value: i32 = 40; }
+    state missed(main: &mut Main) { let value: i32 = 0; }
 }

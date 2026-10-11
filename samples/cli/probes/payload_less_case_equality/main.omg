@@ -9,16 +9,16 @@ machine Main::main(main: &mut Main) {
         (true) -> held(main, hit)
         _ -> swapped(main)
     }
-    state held(main: &mut Main, was_none: bool) -> i32 {
+    state held(main: &mut Main, was_none: bool) {
         main.cmd = Command::None;
         let now_none: bool = main.cmd == Command::None;
-        match now_none {
+        let value: i32 = match now_none {
             (true) -> 10
             _ -> 20
         } + match was_none {
             (true) -> 3
             _ -> 4
-        }
+        };
     }
-    state swapped(main: &mut Main) -> i32 { 0 }
+    state swapped(main: &mut Main) { let value: i32 = 0; }
 }
