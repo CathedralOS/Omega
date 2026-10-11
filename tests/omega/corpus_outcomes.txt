@@ -5138,3 +5138,6 @@ pass/borrows/runtime_computed_shared_view_reborrow_exit checked 3762ms check-tar
 fail/borrows/reborrowed_call_view_keeps_backing_loan rejected 539ms expected @0dc6368bf7c8
 	statement 2 mutates `main.bytes[1]` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 run/calls/fixed_dividend_across_console_calls checked 6881ms check-target:macos_arm64 @20d50fee2e55
+fail/slices/noncopy_array_view_keeps_backing_loan rejected 572ms expected @6d312ec7d5ba
+	statement 1 mutates `main.entries[1].value` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+pass/slices/runtime_borrowed_noncopy_array_argument_exit checked 3845ms check-target:macos_arm64 @6d312ec7d5ba
