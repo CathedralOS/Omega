@@ -306,66 +306,6 @@ fn primitive_leaf_type_reference(
     Some(leaf)
 }
 
-/// Literal path segments keep their exact source identity; fields reject an
-/// erased or domain-constrained declaration; a runtime element names its
-/// selector's retained coordinate.
-pub(in crate::execution::terminal_unit) fn checked_unit_path(
-    program: &dyn ::validation::CheckingInput,
-    selectors: &super::selectors::TargetSelectors,
-    segments: &[facts::PlaceSegment],
-) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
-    segments
-        .iter()
-        .map(|segment| match segment {
-            facts::PlaceSegment::Index { expression } => selectors.runtime_segment(*expression),
-            facts::PlaceSegment::FixedIndex { index } => Some(
-                CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
-            ),
-            facts::PlaceSegment::Field { symbol } => {
-                let field = super::super::types::terminal_field_declaration(program, *symbol)?;
-                if field.relevance.is_erased()
-                    || !validation::field_domains::domain_constraint_symbols(
-                        program,
-                        field.type_reference,
-                    )
-                    .is_empty()
-                {
-                    return None;
-                }
-                Some(CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
-                ))
-            }
-            facts::PlaceSegment::Case { variant } => {
-                if !variant.is_valid() {
-                    return None;
-                }
-                let mut cases = program
-                    .data_definitions()
-                    .iter()
-                    .flat_map(|owner| program.data_members(owner))
-                    .filter_map(|member| match member {
-                        DataMember::Variant(case) if case.symbol == *variant => Some(case),
-                        _ => None,
-                    });
-                let case = cases.next()?;
-                cases.next().is_none().then(|| {
-                    CheckedUnitStructuralPathSegment::Case(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            case.identity,
-                            case.name.clone(),
-                        ),
-                    )
-                })
-            }
-            _ => None,
-        })
-        .collect()
-}
-
 /// The scalar-binding closure both store custody proofs share: the binding
 /// must close over exactly the primitive parameters and the immutable
 /// primitive locals declared before its statement — nothing missing,

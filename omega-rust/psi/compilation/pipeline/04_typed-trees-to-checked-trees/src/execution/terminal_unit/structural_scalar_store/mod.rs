@@ -48,7 +48,7 @@ use destination::{Destination, Root, StoreRoots, exact_relevant_field, plain_rec
 pub(in crate::execution::terminal_unit) use value::AssignmentSource;
 
 pub(in crate::execution::terminal_unit) use primitive::{
-    checked_unit_path, primitive_local_before, scalar_custody_is_exact,
+    primitive_local_before, scalar_custody_is_exact,
 };
 pub(in crate::execution::terminal_unit) use selectors::TargetSelectors;
 

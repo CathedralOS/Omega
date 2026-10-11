@@ -7,7 +7,6 @@
 
 use super::exact_build_prelude_data;
 use language_semantics::declaration_selection::BuildOperation;
-use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 
