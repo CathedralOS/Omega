@@ -3,6 +3,7 @@ use super::{
     TransitionGuardNode, TransitionTargetNode, is_arm_pattern_marker, structural_call_machine_name,
     term_contains,
 };
+use std::sync::Arc;
 use typed_trees::types::TypeReferenceHandle;
 
 mod integer_predicates;
@@ -202,29 +203,33 @@ pub(super) struct StructuralJudge<'program> {
     // declaration frame separate from the machine's dependency identity.
     declaration_state: SymbolHandle,
     premise_facts: Vec<ExpressionHandle>,
-    normal_results: Vec<(ExpressionHandle, StructuralTerm)>,
+    // Term-bearing fact vectors are Arc-shared so the per-leaf judge clone
+    // (one per recognized case-arm path) costs refcount bumps instead of
+    // deep StructuralTerm copies; writers go through Arc::make_mut and pay
+    // one copy only for the field they actually change.
+    normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
     capture_sequence: usize,
-    pub(super) normal_guarantees: Vec<(StructuralTerm, StructuralTerm)>,
+    pub(super) normal_guarantees: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
     // Producer identity comes only from the captured public result contract.
     // Selected branch equalities remain ordinary normal-path proof facts.
-    captured_result_equations: Vec<(StructuralTerm, StructuralTerm)>,
+    captured_result_equations: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
     resolve_applications: bool,
     runtime_body_values: bool,
     case_facts_only: bool,
-    pub(super) substitutions: Vec<(String, StructuralTerm)>,
+    pub(super) substitutions: Arc<Vec<(String, StructuralTerm)>>,
     /// Application REWRITES (`add_zero_right(prev) -> prev`): hypothesis
     /// equations with an application side orient REDUCING -- the inductive
     /// hypothesis rewrites the self-application away instead of expanding a
     /// variable into it, which also serves asymmetric goals.
-    rewrites: Vec<(StructuralTerm, StructuralTerm)>,
+    rewrites: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
     // Tag predicates are not value equations: even a payload-free case may
     // have common fields. Retain exact classifier identities while ordinary
     // argument substitution acts only on the observed subject.
-    case_facts: Vec<(StructuralTerm, SymbolHandle, SymbolHandle)>,
+    case_facts: Arc<Vec<(StructuralTerm, SymbolHandle, SymbolHandle)>>,
     // Keep raw, application-free equations separate from the legacy value
     // normalizer, which can unfold a name-selected call before storing it.
     // Copying its substitutions would already have lost callable identity.
-    case_substitutions: Vec<(String, StructuralTerm)>,
+    case_substitutions: Arc<Vec<(String, StructuralTerm)>>,
     pub(super) hypotheses_contradictory: bool,
     ring_licenses: Vec<RingLicense>,
     /// Tier-2: paired add/mul licenses with a conformed distributivity law.
@@ -239,17 +244,17 @@ impl Clone for StructuralJudge<'_> {
             machine_symbol: self.machine_symbol,
             declaration_state: self.declaration_state,
             premise_facts: self.premise_facts.clone(),
-            normal_results: self.normal_results.clone(),
+            normal_results: Arc::clone(&self.normal_results),
             capture_sequence: self.capture_sequence,
-            normal_guarantees: self.normal_guarantees.clone(),
-            captured_result_equations: self.captured_result_equations.clone(),
+            normal_guarantees: Arc::clone(&self.normal_guarantees),
+            captured_result_equations: Arc::clone(&self.captured_result_equations),
             resolve_applications: self.resolve_applications,
             runtime_body_values: self.runtime_body_values,
             case_facts_only: self.case_facts_only,
-            substitutions: self.substitutions.clone(),
-            rewrites: self.rewrites.clone(),
-            case_facts: self.case_facts.clone(),
-            case_substitutions: self.case_substitutions.clone(),
+            substitutions: Arc::clone(&self.substitutions),
+            rewrites: Arc::clone(&self.rewrites),
+            case_facts: Arc::clone(&self.case_facts),
+            case_substitutions: Arc::clone(&self.case_substitutions),
             hypotheses_contradictory: self.hypotheses_contradictory,
             ring_licenses: self.ring_licenses.clone(),
             semiring_licenses: self.semiring_licenses.clone(),
@@ -316,9 +321,9 @@ impl<'program> StructuralJudge<'program> {
     /// Tag preservation does not preserve scalar premises or payload equations.
     pub(super) fn restrict_to_case_facts(&mut self) {
         self.case_facts_only = true;
-        self.substitutions.clear();
-        self.rewrites.clear();
-        self.case_substitutions.clear();
+        self.substitutions = Arc::new(Vec::new());
+        self.rewrites = Arc::new(Vec::new());
+        self.case_substitutions = Arc::new(Vec::new());
         self.hypotheses_contradictory = false;
     }
 
@@ -357,17 +362,17 @@ impl<'program> StructuralJudge<'program> {
             machine_symbol: owner,
             declaration_state: SymbolHandle::invalid(),
             premise_facts: requires.to_vec(),
-            normal_results: Vec::new(),
+            normal_results: Arc::new(Vec::new()),
             capture_sequence: 0,
-            normal_guarantees: Vec::new(),
-            captured_result_equations: Vec::new(),
+            normal_guarantees: Arc::new(Vec::new()),
+            captured_result_equations: Arc::new(Vec::new()),
             resolve_applications,
             runtime_body_values: false,
             case_facts_only: false,
-            substitutions: Vec::new(),
-            rewrites: Vec::new(),
-            case_facts: Vec::new(),
-            case_substitutions: Vec::new(),
+            substitutions: Arc::new(Vec::new()),
+            rewrites: Arc::new(Vec::new()),
+            case_facts: Arc::new(Vec::new()),
+            case_substitutions: Arc::new(Vec::new()),
             hypotheses_contradictory: false,
             ring_licenses: program
                 .machine(owner)
@@ -535,7 +540,7 @@ impl<'program> StructuralJudge<'program> {
             let Some(subject) = self.declaration_term(binary.left) else {
                 return;
             };
-            self.case_facts
+            Arc::make_mut(&mut self.case_facts)
                 .push((subject.clone(), definition.symbol, variant.symbol));
             // A tag fact alone establishes a complete value only when there
             // are no common or payload fields. Other arm refinements retain
@@ -654,7 +659,7 @@ impl<'program> StructuralJudge<'program> {
                 _,
             ) => {
                 if !term_contains(&right, &left) {
-                    self.rewrites.push((left, right));
+                    Arc::make_mut(&mut self.rewrites).push((left, right));
                 }
             }
             (
@@ -666,16 +671,16 @@ impl<'program> StructuralJudge<'program> {
                 | StructuralTerm::ScalarBinary { .. },
             ) => {
                 if !term_contains(&left, &right) {
-                    self.rewrites.push((right, left));
+                    Arc::make_mut(&mut self.rewrites).push((right, left));
                 }
             }
             (StructuralTerm::Variable(name), _) => {
                 if left != right {
-                    self.substitutions.push((name.clone(), right));
+                    Arc::make_mut(&mut self.substitutions).push((name.clone(), right));
                 }
             }
             (_, StructuralTerm::Variable(name)) => {
-                self.substitutions.push((name.clone(), left));
+                Arc::make_mut(&mut self.substitutions).push((name.clone(), left));
             }
             _ => {}
         }
@@ -1955,7 +1960,7 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(super) fn intake_case_guarantee(&mut self, guarantee: &CaseGuarantee) {
-        self.case_facts
+        Arc::make_mut(&mut self.case_facts)
             .push((guarantee.subject.clone(), guarantee.data, guarantee.case));
     }
 
@@ -2012,7 +2017,7 @@ impl<'program> StructuralJudge<'program> {
         ) {
             return StructuralJudgment::Unknown;
         }
-        for (known_subject, known_data, known_case) in &self.case_facts {
+        for (known_subject, known_data, known_case) in self.case_facts.iter() {
             if *known_data == data_symbol
                 && self.resolve_case_subject(known_subject.clone(), 0).as_ref() == Some(&subject)
             {
@@ -2048,12 +2053,12 @@ impl<'program> StructuralJudge<'program> {
             (StructuralTerm::Variable(name), _)
                 if left != right && !term_contains(&right, &left) =>
             {
-                self.case_substitutions.push((name.clone(), right));
+                Arc::make_mut(&mut self.case_substitutions).push((name.clone(), right));
             }
             (_, StructuralTerm::Variable(name))
                 if left != right && !term_contains(&left, &right) =>
             {
-                self.case_substitutions.push((name.clone(), left));
+                Arc::make_mut(&mut self.case_substitutions).push((name.clone(), left));
             }
             (
                 StructuralTerm::Constructor {
@@ -2311,7 +2316,7 @@ impl<'program> StructuralJudge<'program> {
             for _depth in 0..2 {
                 let mut next: Vec<Vec<StructuralTerm>> = Vec::new();
                 for current in &frontier {
-                    for (pattern, replacement) in &self.rewrites {
+                    for (pattern, replacement) in self.rewrites.iter() {
                         for (from, to) in [(pattern, replacement), (replacement, pattern)] {
                             let mut from_addends = Vec::new();
                             additive_addends(from, op, &mut from_addends);
@@ -2384,7 +2389,7 @@ impl<'program> StructuralJudge<'program> {
             scales.extend(atoms.into_iter().map(|atom| vec![atom]));
             let mut hypothesis_polys: Vec<(Vec<Vec<StructuralTerm>>, Vec<Vec<StructuralTerm>>)> =
                 Vec::new();
-            for (pattern, replacement) in &self.rewrites {
+            for (pattern, replacement) in self.rewrites.iter() {
                 if let (Some(mut hl), Some(mut hr)) = (
                     polynomial_normal_form(pattern, license),
                     polynomial_normal_form(replacement, license),

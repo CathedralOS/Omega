@@ -148,7 +148,7 @@ pub(crate) fn recognize_guarded_structural_value_arms(
                 case_hypotheses: Vec::new(),
                 case_equations: Vec::new(),
                 citations: Vec::new(),
-                normal_guarantees: outcome.judge.normal_guarantees.clone(),
+                normal_guarantees: outcome.judge.normal_guarantees.to_vec(),
                 value: outcome.value,
             });
         }
@@ -949,7 +949,7 @@ fn finalize_structural_case_arm(
         case_hypotheses,
         case_equations,
         citations,
-        normal_guarantees: judge.normal_guarantees.clone(),
+        normal_guarantees: judge.normal_guarantees.to_vec(),
         value,
     }
 }
@@ -971,8 +971,7 @@ pub(super) fn structural_arm_judge<'program>(
             constructor.clone(),
             0,
         );
-        arm_judge
-            .substitutions
+        std::sync::Arc::make_mut(&mut arm_judge.substitutions)
             .insert(0, (subject.clone(), constructor.clone()));
     }
     // The supplied judge owns the exact invocation premises. Re-importing the

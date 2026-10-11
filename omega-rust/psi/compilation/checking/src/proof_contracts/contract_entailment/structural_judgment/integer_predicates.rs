@@ -134,7 +134,7 @@ impl StructuralJudge<'_> {
         };
         let goal_operations = 0..observations.operations.len();
         let mut comparisons = Vec::new();
-        for (predicate, truth) in &self.rewrites {
+        for (predicate, truth) in self.rewrites.iter() {
             let truth = self.resolve(truth.clone());
             let StructuralTerm::Constructor { data, case, fields } = truth.semantic_value() else {
                 continue;

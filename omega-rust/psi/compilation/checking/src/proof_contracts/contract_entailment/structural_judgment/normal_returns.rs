@@ -42,7 +42,7 @@ impl<'program> StructuralJudge<'program> {
     pub(in crate::proof_contracts::contract_entailment) fn completed_expression_values(
         &self,
     ) -> &[(ExpressionHandle, StructuralTerm)] {
-        &self.normal_results
+        self.normal_results.as_slice()
     }
 
     /// Projection demands carried by this exact completed result's public
@@ -57,7 +57,7 @@ impl<'program> StructuralJudge<'program> {
             _ => (value, None),
         };
         let mut paths = Vec::new();
-        for (left, right) in &self.captured_result_equations {
+        for (left, right) in self.captured_result_equations.iter() {
             for term in [left, right] {
                 let StructuralTerm::Projection { subject, path } = term else {
                     continue;
@@ -147,7 +147,7 @@ impl<'program> StructuralJudge<'program> {
         ) {
             return value;
         }
-        for (left, right) in &self.captured_result_equations {
+        for (left, right) in self.captured_result_equations.iter() {
             for (pattern, replacement) in [(left, right), (right, left)] {
                 if pattern == &value
                     && replacement != &value
@@ -530,7 +530,7 @@ impl<'program> StructuralJudge<'program> {
         // Retire a prior evaluation of this static node. Repeated edges are
         // distinct invocations; saved earlier values already retain their own
         // capture sequence and equations in the caller environment.
-        self.normal_results
+        std::sync::Arc::make_mut(&mut self.normal_results)
             .retain(|(source, _)| *source != expression);
         let mut children_to_evaluate = Vec::new();
         let namespace_receiver = program
@@ -694,7 +694,8 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn assume_normal_equation(&mut self, left: StructuralTerm, right: StructuralTerm) {
-        self.normal_guarantees.push((left.clone(), right.clone()));
+        std::sync::Arc::make_mut(&mut self.normal_guarantees)
+            .push((left.clone(), right.clone()));
         self.intake_equation(left, right, 0);
     }
 
@@ -966,11 +967,12 @@ impl<'program> StructuralJudge<'program> {
                 owner_symbol(&owner),
             );
         }
-        self.normal_results.push((expression, captured));
+        std::sync::Arc::make_mut(&mut self.normal_results).push((expression, captured));
         for (left, right) in equations {
-            self.captured_result_equations
+            std::sync::Arc::make_mut(&mut self.captured_result_equations)
                 .push((left.clone(), right.clone()));
-            self.normal_guarantees.push((left.clone(), right.clone()));
+            std::sync::Arc::make_mut(&mut self.normal_guarantees)
+                .push((left.clone(), right.clone()));
             self.intake_equation(left, right, 0);
         }
         for guarantee in &case_guarantees {
@@ -981,11 +983,9 @@ impl<'program> StructuralJudge<'program> {
 
 impl NormalReturnPath<'_> {
     fn at_expression(mut self, expression: ExpressionHandle) -> Self {
-        self.judge
-            .normal_results
+        std::sync::Arc::make_mut(&mut self.judge.normal_results)
             .retain(|(source, _)| *source != expression);
-        self.judge
-            .normal_results
+        std::sync::Arc::make_mut(&mut self.judge.normal_results)
             .push((expression, self.value.clone()));
         self
     }

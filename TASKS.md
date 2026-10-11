@@ -167,11 +167,13 @@ helper that passes does not close an item.
   `nominal_cleanup_machine_for_type` scanned ~1,260 machines per call).
   Landed so far: denotational-candidacy and cleanup-owner memos plus the
   owner→cleanup-machine index (`2434d11413`, 113s→~39s on a quiet Linux
-  box) and the selected-application carrier verdict memo keyed on
-  (caller, target, declared result, arity) (~39s→~32s). Residual cost is
-  repeated `StructuralTerm` reconstruction across the 1,921 case-arm
-  leaves — leaf-level judge reuse or term interning is the next leg —
-  then restore the pinned order of magnitude and repin the rows.
+  box), the selected-application carrier verdict memo keyed on
+  (caller, target, declared result, arity) (~39s→~32s), and Arc-shared
+  judge fact vectors so per-leaf judge clones stop deep-copying
+  `StructuralTerm` lists (~32s→~26s). Residual cost is repeated
+  subject/term resolution inside each leaf — term interning or a
+  resolved-subject memo is the next leg — then restore the pinned
+  order of magnitude and repin the rows.
 
 - **DEPENDENT-STATE-PARAM-HOIST.** (new-scope) Restore the authored dependent
   maximum on state parameters so the transition-argument route is reachable

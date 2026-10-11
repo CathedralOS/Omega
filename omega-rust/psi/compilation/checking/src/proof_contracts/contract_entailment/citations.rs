@@ -620,8 +620,7 @@ pub(crate) fn intake_citation_for_edge(
         // intake -- intake_equation orients application sides REDUCING,
         // which is exactly backwards for a binder the obligation must see
         // through).
-        judge
-            .substitutions
+        std::sync::Arc::make_mut(&mut judge.substitutions)
             .insert(0, (binder.to_owned(), call_term));
     }
 }
