@@ -673,7 +673,7 @@ pub(crate) fn validate_binding(
         .checked_entry
         .receiver_eligibility()
         .ok_or_else(invalid)?;
-    let terminal = artifact
+    artifact
         .fragment_replay
         .as_ref()
         .map(|replay| replay.terminal_module())
