@@ -3069,25 +3069,6 @@ crash and native exit behavior.
   artifact still rejects, and the usage string and the lookup agree
   on the accepted name form.
 
-- **ALPHA-BOOTSTRAP-TARGET-PANIC.** (new-scope) `omega --check
-  --target alpha_bootstrap <root.omg>` panics the compiler:
-  `internal error: entered unreachable code:
-  alpha_bootstrap has no Rust native realization` at
-  `omega-rust/omega/compilation/backend/target/src/target_profile.rs:489`.
-  `alpha_bootstrap` is an accepted, documented target name (the
-  unknown-target error at `target_profile.rs:379` lists it), and the
-  code comment at `native_target()` says selection rejects it through
-  `NativeTarget::from_omega_target_name` "before any caller reaches
-  native planning" — the `--target` CLI path reaches `native_target()`
-  without that guard. Reproduced on EVERY target-resolving command
-  (`--check`, `run`, `inspect-terminal --machine`, `audit packages
-  --target`): any trivial `main.omg` panics the whole `omega-compile`
-  thread instead of rejecting with a legible diagnostic. Acceptance:
-  `--target alpha_bootstrap` exits with a legible "target not
-  realizable by this compiler" diagnostic (exit 1), never panics, on
-  every command surface that resolves target names; the guard lives
-  at CLI/target-selection, not in `native_target()`.
-
 ## Lowering simplification
 
 Owner ruling 2026-10-04: stage 05 is cut down to a mechanical lowering of

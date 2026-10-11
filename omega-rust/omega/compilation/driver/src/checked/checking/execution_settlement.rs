@@ -37,9 +37,19 @@ pub(crate) fn check_selected_execution(
     )?;
     let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
     let build_config = &computed_build_config.config;
-    let selected_native_target = selected_target_profile
-        .map(target::TargetProfile::native_target)
-        .unwrap_or_else(target::NativeTarget::host);
+    // Selection accepts every canonical profile spelling, including profiles
+    // this compiler does not natively realize (alpha_bootstrap); reject those
+    // legibly at the first point native planning demands a `NativeTarget`,
+    // matching the build-continuation guard.
+    let selected_native_target = match selected_target_profile {
+        Some(profile) => profile.native_realization().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "native realization for target profile `{}` is not implemented",
+                profile.target_name(),
+            ))]
+        })?,
+        None => target::NativeTarget::host(),
+    };
     let mut boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
             &typed,
@@ -56,7 +66,7 @@ pub(crate) fn check_selected_execution(
         provider_planning::calling_policy_plans::close_outbound_callback_materializations(
             &typed,
             &mut boundary_calling_plan_realizations,
-            profile.native_target(),
+            selected_native_target,
             &build_config.opaque_representation_selections,
             package_inputs,
         )?;
@@ -104,9 +114,7 @@ pub(crate) fn check_selected_execution(
                 &typed,
                 source::DependencyScope::Product,
             ),
-            selected_target_profile
-                .map(target::TargetProfile::native_target)
-                .unwrap_or_else(target::NativeTarget::host),
+            selected_native_target,
             opaque_representation_selections,
             &operator_selections,
             &selected_provider_plan_facts,
