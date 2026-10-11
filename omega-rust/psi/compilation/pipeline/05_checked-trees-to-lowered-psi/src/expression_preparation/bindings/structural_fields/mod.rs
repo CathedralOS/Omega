@@ -24,6 +24,7 @@ use super::{
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::expressions::LoweredElementPathSegment;
 use semantic_vocabulary::StructuralCaseId;
 
 mod case_observation;
@@ -819,6 +820,15 @@ pub(crate) fn resolve_sequence_projection(
     Ok(Some((source, path, field.id, carrier)))
 }
 
+/// Declared collection geometry and its independent live descriptor extent.
+pub(crate) struct IndexedElementObservation {
+    pub(crate) source: PlaceId,
+    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
+    pub(crate) element_path: Vec<CheckedUnitStructuralPathSegment>,
+    pub(crate) scalar_type: ScalarType,
+    pub(crate) extent: Option<Box<LoweredDirectExpression>>,
+}
+
 /// Resolve an ordered scalar read from its established storage home. Root
 /// location does not choose a different projection grammar. Readable reference
 /// crossings come from declarations, while each runtime marker retains the
@@ -830,33 +840,18 @@ pub(crate) fn resolve_indexed_element(
     structural_type: StructuralTypeId,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-) -> Result<
-    (
-        PlaceId,
-        Vec<terminal_psi::StructuralPathSegment>,
-        Vec<CheckedUnitStructuralPathSegment>,
-        ScalarType,
-    ),
-    LoweringError,
-> {
+) -> Result<IndexedElementObservation, LoweringError> {
     let projection =
         observation_paths::explicit_path(identities, structural_type, path, fields.declarations())?;
-    let element = match &projection
+    let (element, live_extent) = match &projection
         .declaration
         .ok_or(LoweringError::Unsupported(
             "indexed observation lost its collection carrier",
         ))?
         .shape
     {
-        StructuralTypeShape::FixedArray { element, .. } => *element,
-        StructuralTypeShape::ElementView { element, .. } if projection.segments.is_empty() => {
-            *element
-        }
-        StructuralTypeShape::ElementView { .. } => {
-            return unsupported(
-                "projected element view read requires an established descriptor home",
-            );
-        }
+        StructuralTypeShape::FixedArray { element, .. } => (*element, false),
+        StructuralTypeShape::ElementView { element, .. } => (*element, true),
         _ => return unsupported("indexed observation requires an element collection"),
     };
     let element_projection =
@@ -882,7 +877,32 @@ pub(crate) fn resolve_indexed_element(
     .collect::<Result<Vec<_>, _>>()?;
     // Keep selected-case geometry on the original read. Copying the collection
     // would duplicate affine element siblings just to observe a scalar leaf.
-    Ok((source, path, element_path, scalar_type))
+    // A descriptor is already established at this exact projected home. Read
+    // its count before indexing its backing; neither a whole parameter nor an
+    // unrelated view-local registry supplies the extent of a nested field.
+    let extent = if live_extent {
+        Some(Box::new(LoweredDirectExpression::ElementViewLength {
+            source,
+            path: path
+                .iter()
+                .cloned()
+                .map(LoweredElementPathSegment::Static)
+                .collect(),
+            access: StructuralAccess::SharedBorrow,
+            scalar_type: crate::emission::scalar_types::terminal_scalar_type(
+                typed_trees::types::PrimitiveType::U64,
+            )?,
+        }))
+    } else {
+        None
+    };
+    Ok(IndexedElementObservation {
+        source,
+        path,
+        element_path,
+        scalar_type,
+        extent,
+    })
 }
 
 /// Resolve each declared projection independently; no source arrangement grants

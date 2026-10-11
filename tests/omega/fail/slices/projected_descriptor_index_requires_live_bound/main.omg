@@ -1,0 +1,9 @@
+data Cell { value: i32; }
+data Window { cells: &[Cell]; }
+data Envelope { window: Window; }
+
+machine read(envelope: &Envelope, position: u64) -> i32 {
+    envelope.window.cells[position].value
+}
+
+machine main() {}

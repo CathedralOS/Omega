@@ -1,7 +1,7 @@
 //! Borrowed joins whose runtime carrier is the referent's address.
 //!
-//! Shared joins admit primitive scalars, service binding leaves and plain records
-//! through static projections. Exclusive joins admit the same plain referents,
+//! Shared joins admit primitive scalars, service binding leaves and aggregate storage
+//! through static projections. Exclusive joins admit the same referents,
 //! whole or statically projected, while transferring the exact incoming
 //! mutable or write-only permission. Neither carrier copies the referent.
 //! A shared or mutable bounded byte owner loan (`owner_loans`) is carried as its
@@ -13,8 +13,11 @@
 //! This is a type rule, not producer evidence. Each stage independently replays
 //! the sources, type, access and origin custody. Exclusive name availability
 //! and shared-loan origin pinning remain separate receiving checks. Carrying
-//! an address grants no readable authority to a write-only loan. Referents
-//! containing loans or descriptors remain unsupported.
+//! an address grants no readable authority to a write-only loan. Stored reference
+//! and view fields stay in the referent: borrowing its address neither copies
+//! those descriptors nor relocates their backing. Psi checks their lifetimes;
+//! native transport uses the same address regardless of the contents. Top-level
+//! views and reference carriers keep their distinct descriptor transport.
 
 #[cfg(test)]
 mod tests;
@@ -22,9 +25,8 @@ mod tests;
 use crate::abstract_operations::structural_type_catalog::unique_structural_type;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 /// Whether this block parameter is carried as the address of its referent.
@@ -34,11 +36,11 @@ pub fn is_address_join<'a>(
     lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
 ) -> bool {
     super::owner_loans::is_bounded_owner_loan(parameter, lookup)
-        || is_plain_address_join(parameter, lookup)
+        || is_unqualified_address_join(parameter, lookup)
 }
 
-/// Unqualified address loans over plain referents, including existing bindings.
-fn is_plain_address_join<'a>(
+/// Unqualified address loans, independent of the referent's stored children.
+fn is_unqualified_address_join<'a>(
     parameter: &StructuralParameterDeclaration,
     lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
 ) -> bool {
@@ -50,7 +52,17 @@ fn is_plain_address_join<'a>(
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
-        && is_plain_referent(parameter.structural_type, lookup, &mut Vec::new())
+        && lookup(parameter.structural_type).is_some_and(|declaration| {
+            matches!(
+                declaration.shape,
+                StructuralTypeShape::PrimitiveScalar(_)
+                    | StructuralTypeShape::BindingCarrier
+                    | StructuralTypeShape::Record { .. }
+                    | StructuralTypeShape::FixedArray { .. }
+                    | StructuralTypeShape::Sum { .. }
+                    | StructuralTypeShape::Mixed { .. }
+            )
+        })
 }
 
 /// [`is_address_join`] over a declaration slice whose identities are unique.
@@ -247,100 +259,4 @@ pub fn referent_type<'a>(
         current = next;
     }
     payload_fields.is_none().then_some(current.id)
-}
-
-/// A primitive scalar, or an aggregate built only from owned scalar storage.
-/// Fixed arrays retain their backing storage exactly like nested records;
-/// they do not introduce a loan or descriptor into the borrowed referent.
-/// Case tags and owned payloads likewise remain in that backing storage. All
-/// alternatives must be plain: the address transport cannot depend on which
-/// case happens to be active when an edge is taken.
-/// `active` rejects malformed recursive catalogs, including array cycles.
-fn is_plain_referent<'a>(
-    identity: StructuralTypeId,
-    lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
-    active: &mut Vec<StructuralTypeId>,
-) -> bool {
-    if active.contains(&identity) {
-        return false;
-    }
-    let Some(declaration) = lookup(identity) else {
-        return false;
-    };
-    active.push(identity);
-    let plain = match &declaration.shape {
-        StructuralTypeShape::PrimitiveScalar(_) => true,
-        // Address transport preserves an established binding occurrence. This
-        // says nothing about construction or zero validity of its authority.
-        StructuralTypeShape::BindingCarrier => true,
-        // Empty records still have a borrowed address carrier. No payload
-        // bytes are copied, and the join retains its place and loan custody.
-        StructuralTypeShape::Record { fields, .. } => plain_fields(fields, lookup, active),
-        StructuralTypeShape::FixedArray { element, .. } => {
-            is_plain_referent(*element, lookup, active)
-        }
-        StructuralTypeShape::Sum { cases } => {
-            !cases.is_empty()
-                && cases
-                    .iter()
-                    .all(|case| plain_fields(&case.fields, lookup, active))
-        }
-        StructuralTypeShape::Mixed { fields, cases } => {
-            plain_fields(fields, lookup, active)
-                && !cases.is_empty()
-                && cases
-                    .iter()
-                    .all(|case| plain_fields(&case.fields, lookup, active))
-        }
-        StructuralTypeShape::Reference { .. }
-        | StructuralTypeShape::ByteSequence(_)
-        | StructuralTypeShape::ElementView { .. } => false,
-    };
-    active.pop();
-    plain
-}
-
-fn plain_fields<'a>(
-    fields: &[StructuralFieldDeclaration],
-    lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
-    active: &mut Vec<StructuralTypeId>,
-) -> bool {
-    fields.iter().all(|field| {
-        // Erased members retain semantic identity, but add neither storage nor
-        // a runtime loan to the referent. Transporting its address does not
-        // materialize them; referent_type still rejects projecting into them.
-        if field.relevance.is_erased() {
-            return true;
-        }
-        match &field.field_type {
-            StructuralFieldType::Scalar(_)
-            | StructuralFieldType::Atomic(_)
-            | StructuralFieldType::RefinedScalar(_)
-            | StructuralFieldType::BoundedInteger(_)
-            | StructuralFieldType::IeeeFloat(_) => true,
-            StructuralFieldType::Structural(child) => is_plain_referent(*child, lookup, active),
-            // A bounded owned byte field is payload at a fixed offset inside
-            // the referent, so transporting the referent's address transports
-            // it the way it transports a scalar leaf. It is neither a loan nor
-            // a descriptor, which is what this classification excludes, and
-            // the join still copies nothing. Terminal verification admits the
-            // same field in a mutable record loan.
-            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
-            | StructuralFieldType::PredicateByteSequence {
-                carrier: ByteSequenceCarrier::BoundedOwned { .. },
-                ..
-            } => true,
-            // A borrowed or bounded VIEW is a referent pointer the join would
-            // have to relocate rather than payload it addresses through, and an
-            // erased field has no runtime carrier to project at all.
-            StructuralFieldType::ByteSequence(
-                terminal_psi::byte_sequence_view_carrier_pattern!(),
-            )
-            | StructuralFieldType::PredicateByteSequence {
-                carrier: terminal_psi::byte_sequence_view_carrier_pattern!(),
-                ..
-            }
-            | StructuralFieldType::Erased { .. } => false,
-        }
-    })
 }

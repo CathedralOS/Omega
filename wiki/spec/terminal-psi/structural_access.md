@@ -112,8 +112,15 @@ each leaf's declared ceiling, and every crossing still requires live,
 unsuspended custody. All normal returns restore the exact incoming leaf roster,
 including formation identity, carrier path, origin and immediate parent; an
 equal-typed replacement is not restoration. Locally formed children must end
-before return. This machine-call rule does not admit borrowed reference-bearing
-block transport or reference-valued host-entry parameters.
+before return. Borrowed block transport still requires its checked leaf-roster
+and origin relation; address transport alone supplies neither. Reference-valued
+host-entry parameters remain outside this executable slice.
+
+A borrowed aggregate travels by its original storage address even when it
+contains view descriptors. An owned aggregate transports the stored descriptor
+words, not the backing contents. Scalar element observations retain the full
+record/array projection to each descriptor and its own live extent before the
+selector; a sibling's count or an element type cannot prove the index bound.
 
 Native reference values carry an address word (eight bytes on the supported
 64-bit targets), including reference leaves inside records. A call captures

@@ -140,8 +140,8 @@ pub(crate) enum LoweredDirectExpression {
         /// Every read lowering synthesizes leaves this false.
         bound_decided: bool,
     },
-    /// Read one scalar of a runtime-selected fixed-array element: `path`
-    /// resolves from `source` to the array itself and `index` is the runtime
+    /// Read one scalar of a runtime-selected collection element: `path`
+    /// resolves from `source` to the array or descriptor and `index` is the runtime
     /// `u64` selector, evaluated first and then spelled as the read's
     /// `RuntimeIndex` segment. `element_path` is empty for a primitive
     /// element; for a record element it follows the selector down to one

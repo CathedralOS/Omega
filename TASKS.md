@@ -593,6 +593,11 @@ defines the complete product bar.
     `pass/expressions/borrow_carrying_data_field_exit`,
     `pass/borrows/stored_reference_projection_exit`,
     `pass/borrows/nested_reference_crossings_exit`,
+    `pass/collections/runtime_{projected_element_descriptor,owned_descriptor_parameter}_read_exit`
+    (0; projected views keep their live extent and backing through borrowed
+    and owned record arrivals), with
+    `fail/slices/projected_descriptor_index_requires_live_bound` and
+    `fail/borrows/projected_descriptor_retains_backing_loan`,
     `pass/borrows/runtime_reference_array_pressure_exit` (70; call-free
     frames must preserve allocated link-register writes as well as call effects),
     `pass/collections/runtime_whole_array_value_copy_exit` (70),

@@ -667,8 +667,11 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             // this declaration walk expose each pointer crossing.
             let (source, structural_type) =
                 structural_fields.observation_source(*root, structural_locals, view_locals)?;
-            let (source, path, explicit_path, scalar_type) =
+            let observation =
                 crate::expression_preparation::bindings::structural_fields::resolve_indexed_element(identities, structural_fields, source, structural_type, path, &geometry)?;
+            let crate::expression_preparation::bindings::structural_fields::IndexedElementObservation {
+                source, path, element_path: explicit_path, scalar_type, extent,
+            } = observation;
             if scalar_type != terminal_scalar_type(*primitive_type)? {
                 return unsupported("indexed read changes its declared scalar carrier");
             }
@@ -710,28 +713,15 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     _ => unsupported("indexed read has an unsupported projection"),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            match whole_carrier {
-                Some((_, ViewCarrier::Elements { .. })) => {
-                    Ok(LoweredDirectExpression::ElementViewRead {
-                        source,
-                        index,
-                        // The outer selector keeps the descriptor's live extent;
-                        // descendants keep their own declaration-driven bounds.
-                        path: element_path,
-                        scalar_type,
-                        bound_decided,
-                    })
-                }
-                _ => Ok(LoweredDirectExpression::IndexedPrimitiveRead {
-                    source,
-                    path,
-                    index,
-                    extent: None,
-                    element_path,
-                    scalar_type,
-                    bound_decided,
-                }),
-            }
+            Ok(LoweredDirectExpression::IndexedPrimitiveRead {
+                source,
+                path,
+                index,
+                extent,
+                element_path,
+                scalar_type,
+                bound_decided,
+            })
         }
         // The source place is lowered at its declared carrier -- every
         // declared-type check of that read still applies -- and the view

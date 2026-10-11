@@ -5169,3 +5169,9 @@ pass/arithmetic/reused_fixed_integer_operands_exit checked 6754ms check-target:m
 pass/arithmetic/reused_masked_shift_count_exit checked 6620ms check-target:macos_arm64 @56b53faa47a8
 fail/borrow/static_byte_state_loan_cannot_write rejected 2527ms expected @14d037e0837c+wt
 	machine `main` state `damage` assignment cannot write `bytes` because it is not mutable in this state (if `bytes` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/projected_descriptor_retains_backing_loan rejected 571ms expected @f76abd8ea830+wt
+	statement 2 mutates `cells[1].value` while local borrow `envelope` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/slices/projected_descriptor_index_requires_live_bound rejected 570ms expected @f76abd8ea830+wt
+	cannot prove index `position` is within unknown slice length of `envelope.window.cells` in read::entry
+pass/collections/runtime_owned_descriptor_parameter_read_exit checked 3978ms check-target:macos_arm64 @f76abd8ea830+wt
+pass/collections/runtime_projected_element_descriptor_read_exit checked 3982ms check-target:macos_arm64 @f76abd8ea830+wt
