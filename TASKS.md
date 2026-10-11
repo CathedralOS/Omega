@@ -2609,10 +2609,15 @@ crash and native exit behavior.
     **X86-FMA-PROVIDER-TRANSPORT**. With
     `omega::language::core::float_operations` imported, f32/f64 arithmetic
     and comparison in local, field and guard positions run natively and in
-    Terminal on macOS ARM64. Without the import, the unchanged
-    `tests/omega/pending/arithmetic/float_computation_no_route` stops in
-    checking at "statement sequence: local data: mutable primitive local:
-    storage initializer". Preserve declared operator selection; no
+    Terminal on macOS ARM64. Comparison builtins now admit: the six IEEE
+    relations ride `IeeeFloatArithmeticOperation::Compare` ordinals 61-66
+    with x86-64 and AArch64 selected forms and the host evaluator, so the
+    pending canary clears its missing `Float::equal` boundary target and
+    stops at the pre-existing program-entry acceptance wall that also
+    blocks every entry-bound fixture on this host. Without the import, the
+    unchanged `tests/omega/pending/arithmetic/float_computation_no_route`
+    stops in checking at "statement sequence: local data: mutable primitive
+    local: storage initializer". Preserve declared operator selection; no
     spelling-based fallback.
   - **Receiver-bearing requirements.** Complete a member-call witness through
     borrowed-field argument planning, provider signature refinement and native
