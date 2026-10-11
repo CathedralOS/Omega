@@ -1,0 +1,5 @@
+use b::main;
+
+pub machine va() -> i32 {
+    vb()
+}

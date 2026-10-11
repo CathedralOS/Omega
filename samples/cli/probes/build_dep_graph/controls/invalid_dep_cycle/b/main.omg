@@ -1,0 +1,5 @@
+use a2::main;
+
+pub machine vb() -> i32 {
+    va()
+}
