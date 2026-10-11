@@ -2752,11 +2752,14 @@ crash and native exit behavior.
     uncalled finite coordinates. Complete tuple identity and the original
     choosing declaration must survive receiving installation; forbidden integer
     and Boolean tuples, crossed tuples and unconstrained forwarding must reject.
-    Preserve `providers/inherited_applied_binding_{dispatch,forwarded_value,finite_family}_exit`
+    Preserve `providers/inherited_applied_binding_{dispatch,forwarded_value,finite_family,borrowed_result}_exit`
     through both engines, including unused requirements, borrowed forwarding,
     outer type arguments and local const tuples. Wrong receiver applications
-    and unused property/const obligations must reject. Region-bearing receiver
-    identities still need retained exact application joins; the current
+    and unused property/const obligations must reject. Invocation-lifetime
+    results retain their exact input loan and access; shared-to-mutable calls,
+    unrelated returned sources and live-source writes must reject.
+    Region-bearing receiver identities still need retained exact application
+    joins; the current
     Binding classifier refuses them rather than using erased carrier matching.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.

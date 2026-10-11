@@ -5302,3 +5302,10 @@ fail/traits/explicit_implementation_region_mismatch rejected 53ms expected @5449
 	trait `Invalid` parent `Uses` cannot bind implementation `Reader`: `SelectedReading<<structural type>>` must select a complete `Reading` implementation with the instantiated trait arguments
 pass/traits/implementation_argument_region_mapping checked 566ms @5449698b9b02
 pass/traits/runtime_explicit_implementation_arguments_exit checked 2834ms check-target:macos_arm64 @5449698b9b02
+pass/providers/inherited_applied_binding_borrowed_result_exit checked 2785ms check-target:macos_arm64 @e259521ddc2d+wt
+fail/providers/applied_binding_borrowed_result_wrong_source rejected 439ms expected @e259521ddc2d+wt
+	machine `invalid` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
+fail/providers/applied_binding_mutable_result_live_source_write rejected 430ms expected @e259521ddc2d+wt
+	statement 1 mutates `value` while local borrow `borrowed` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/providers/applied_binding_mutable_result_shared_source rejected 220ms expected @e259521ddc2d+wt
+	argument `value` for state `borrow_mut` is declared `&mut` (`&mut i32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding

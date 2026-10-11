@@ -1,0 +1,10 @@
+use omega::language::core::binding;
+
+pub boundary trait Parent<Value> {
+    machine borrow_mut<'source>(value: &'source mut Value) -> &'source mut Value;
+}
+
+machine invalid<'source>(parent: &Binding<Parent<i32>>, value: &'source i32)
+    -> &'source mut i32 reaches Parent {
+    parent.borrow_mut(value)
+}

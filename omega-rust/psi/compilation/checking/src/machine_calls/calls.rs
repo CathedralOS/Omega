@@ -326,16 +326,23 @@ pub(crate) fn callee_entry_contract(
 }
 
 /// A boundary or requirement call targets the trait's declared signature
-/// symbol rather than a machine-body state. Its declared result is exact
-/// evidence only for a closed signature: trait- or requirement-level `Type`
-/// parameters name declaration-local types, so those calls stay unresolved
-/// rather than inventing a caller-side argument.
+/// symbol rather than a machine-body state. A retained closed application owns
+/// its already-substituted signature, even when the authored trait has `Type`
+/// parameters. Invocation lifetimes remain universal; this carrier query does
+/// not establish which caller loan supplies the result. Without that exact row,
+/// declaration-local `Type` parameters keep the raw result unresolved rather
+/// than inventing an application from its expected destination.
 fn requirement_call_result_type(
     program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     if !target.is_valid() {
         return None;
+    }
+    if let Some(application) = program.closed_requirement_application(target) {
+        let signature = application.signature;
+        return (signature.type_parameters.is_empty() && signature.return_type.is_valid())
+            .then_some(signature.return_type);
     }
     let parent = program.symbols.get(target).parent;
     let definition = program.trait_definition_by_symbol(parent)?;

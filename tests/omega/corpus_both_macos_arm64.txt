@@ -812,3 +812,4 @@ pass/providers/inherited_applied_binding_finite_family_exit built 2780ms exit:0 
 pass/providers/inherited_applied_binding_forwarded_value_exit built 2656ms exit:0 interpreter-exit:0 interpreter:agrees @344ec0329ba8+wt
 pass/providers/runtime_result_domain_requirement_overload_exit built 3600ms exit:70 interpreter-exit:70 interpreter:agrees @344ec0329ba8+wt
 pass/traits/runtime_explicit_implementation_arguments_exit built 2830ms exit:0 interpreter-exit:0 interpreter:agrees @5449698b9b02
+pass/providers/inherited_applied_binding_borrowed_result_exit built 2919ms exit:0 interpreter-exit:0 interpreter:agrees @e259521ddc2d+wt
