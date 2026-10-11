@@ -67,3 +67,20 @@ Independent reviewer approved bounds/injectivity math, scalar field proof
 repair fences and empty-array physical custody reasoning at source55430a67b2;
 execution acceptance remains separate from review. Prior initial checkpoint is
 preserved as evidence/EVIDENCE_original_checkpoint.txt and is historical.
+
+Current-main continuation (source candidate5342061805bf0d0a0ea46d30effde4919724296d):
+Rebased on95344cda99e5495abf785d38e7b78289ab02cbed. Product build passes.
+Computed fixed-array scalar call repair is reviewed and passes observed native0
+and Terminal0, with distinct writes7/9 and intermediate/final backing reads.
+Overlap negative control still rejects. Mutable package update/resume now pass;
+full consumer native execution is active. Above readonly execution observations
+remain historical until the current metadata/compiler snapshot is requalified.
+
+At candidate 5342061805bf0d0a0ea46d30effde4919724296d on base 95344cda99:
+Mutable check: exit 0, compiled 26 source files.
+Mutable native: exit 73; native exit 73, expected 73.
+Mutable --both: exit 73; native exit 73; interp exit: 73, expected 73.
+Intended invalid control: exit 1; cannot prove read_checked requires offset < backing.len.
+These are separate actual commands preserved in sibling evidence logs.
+Later fetched main 2f145503f24ecc1cac43588dc1c593dc069f9e7d changes scalar-call
+lowering; rebase/requalification is required before publication.

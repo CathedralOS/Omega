@@ -23,3 +23,7 @@ Changed-file rustfmt--check exit0. Crate cargo fmt--check reports existing
 statement_sequence.rs import formatting on base95344cda99; retained unmodified.
 
 After-repair overlap control: exit1, receives items as both mutable and read-only; exact same diagnostic as baseline.
+
+Strict crate Clippy exit101,234 diagnostics; 242 cited source sites all have their source line present in base95344cda99. Source attribution only; clean-base Clippy was not independently run. Full diagnostics remain /tmp/w100-computed-array-clippy.log.
+
+Product check: mbx check -p omega with CARGO_PROFILE_DEV_OPT_LEVEL=1, exit0; see /tmp/w100-computed-array-product-check.log.
