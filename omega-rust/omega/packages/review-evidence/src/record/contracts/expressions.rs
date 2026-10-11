@@ -369,6 +369,22 @@ pub enum PackageReviewContractExpression {
         operator: PackageReviewContractUnaryOperator,
         operand: Box<PackageReviewContractExpression>,
     },
+    /// One checked value dispatch. The subject is evaluated once; arms keep
+    /// authored first-match order and only the selected arm's value is the
+    /// contract identity. Pattern structure stays expression-level: each
+    /// tested alternative is an exact projected value, `None` is the
+    /// wildcard.
+    Match {
+        subject: Box<PackageReviewContractExpression>,
+        arms: Vec<PackageReviewMatchArm>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewMatchArm {
+    /// `None` is the wildcard arm.
+    pub(crate) pattern: Option<PackageReviewContractExpression>,
+    pub(crate) value: PackageReviewContractExpression,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

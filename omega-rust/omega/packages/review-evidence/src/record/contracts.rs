@@ -19,8 +19,8 @@ pub(crate) use expressions::{
     PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
     PackageReviewContractExpression, PackageReviewContractKind,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
-    PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewOperatorCoordinate,
-    PackageReviewOperatorRealization, PackageReviewReferenceAccess,
+    PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewMatchArm,
+    PackageReviewOperatorCoordinate, PackageReviewOperatorRealization, PackageReviewReferenceAccess,
 };
 
 pub(crate) use propositions::{

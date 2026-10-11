@@ -384,6 +384,22 @@ pub(super) fn encode_contract_expression_body(
                 encode_contract_expression(encoder, operand)
             })?;
         }
+        PackageReviewContractExpression::Match { subject, arms } => {
+            encoder.tag("match", 24);
+            encoder.field("subject", |encoder| {
+                encode_contract_expression(encoder, subject)
+            })?;
+            encoder.field("arms", |encoder| {
+                encoder.sequence(arms, |encoder, arm| {
+                    encoder.field("pattern", |encoder| {
+                        encoder.option(arm.pattern.as_ref(), encode_contract_expression)
+                    })?;
+                    encoder.field("value", |encoder| {
+                        encode_contract_expression(encoder, &arm.value)
+                    })
+                })
+            })?;
+        }
     }
     Ok(())
 }

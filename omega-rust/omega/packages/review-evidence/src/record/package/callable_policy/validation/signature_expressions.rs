@@ -146,6 +146,15 @@ pub(in crate::record) fn expression(
             expression(right, scope, nesting + 1)?;
         }
         Expression::Unary { operand, .. } => expression(operand, scope, nesting + 1)?,
+        Expression::Match { subject, arms } => {
+            expression(subject, scope, nesting + 1)?;
+            for arm in arms {
+                if let Some(pattern) = &arm.pattern {
+                    expression(pattern, scope, nesting + 1)?;
+                }
+                expression(&arm.value, scope, nesting + 1)?;
+            }
+        }
     }
     Ok(())
 }

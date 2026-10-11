@@ -13,7 +13,7 @@ use super::casts::project_contract_cast;
 use super::names::project_contract_name_expression;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
-use crate::record::PackageReviewContractExpression;
+use crate::record::{PackageReviewContractExpression, PackageReviewMatchArm};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -73,10 +73,26 @@ pub(crate) fn project_contract_expression_with_substitutions(
             "reviewed {} `{}` contains a semantic NaN leaf without a supported canonical package-review contract expression",
             context.subject_kind, context.subject_name
         ))]),
-        ExpressionNode::Match(_) => Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contains value dispatch without a supported canonical package-review contract expression",
-            context.subject_kind, context.subject_name
-        ))]),
+        ExpressionNode::Match(dispatch) => {
+            let subject = child(dispatch.subject)?;
+            let mut arms = Vec::new();
+            for arm in compilation.expression_table.match_arms(dispatch.arms) {
+                let pattern = match arm.pattern {
+                    typed_trees::expression::MatchPattern::Value(pattern) => {
+                        Some(child(pattern)?)
+                    }
+                    typed_trees::expression::MatchPattern::Wildcard => None,
+                };
+                arms.push(PackageReviewMatchArm {
+                    pattern,
+                    value: child(arm.value)?,
+                });
+            }
+            Ok(PackageReviewContractExpression::Match {
+                subject: Box::new(subject),
+                arms,
+            })
+        }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Float(_)

@@ -11,7 +11,8 @@ use crate::record::{
     PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
     PackageReviewContractExpression, PackageReviewContractKind,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
-    PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
+    PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewMatchArm,
+    PackageReviewReferenceAccess,
 };
 use symbols::BuiltinFunction;
 
@@ -125,6 +126,15 @@ pub(in crate::encoding::recovery) fn expression(
             },
             23 => Expression::CollectionCapacity {
                 collection: reader.boxed(expression)?,
+            },
+            24 => Expression::Match {
+                subject: reader.boxed(expression)?,
+                arms: reader.sequence(2, |reader| {
+                    Ok(PackageReviewMatchArm {
+                        pattern: reader.option(expression)?,
+                        value: expression(reader)?,
+                    })
+                })?,
             },
         }))
     })
