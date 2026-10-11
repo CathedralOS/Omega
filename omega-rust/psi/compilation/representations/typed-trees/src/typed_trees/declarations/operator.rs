@@ -19,9 +19,9 @@ mod type_matching;
 
 pub use applications::{
     ClosedOperatorApplicationArgument, ClosedOperatorRealizationApplication,
-    SymbolicOperatorTypeApplicationArgument, closed_indexed_operator_application_for_operands,
-    closed_operator_application_for_operands, closed_operator_realization_application,
-    symbolic_operator_type_application_for_operands,
+    SymbolicOperatorTypeApplicationArgument, canonical_closed_operator_realization_bytes,
+    closed_indexed_operator_application_for_operands, closed_operator_application_for_operands,
+    closed_operator_realization_application, symbolic_operator_type_application_for_operands,
 };
 pub use indexing::{
     builtin_index_read_is_spelled, resolve_indexed_spelling_for_operands,

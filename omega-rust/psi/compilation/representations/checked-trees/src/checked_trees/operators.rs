@@ -9,7 +9,9 @@ use crate::{CheckedValueOrigin, CrashCause};
 mod application_operands;
 mod comparisons;
 mod selected_float_comparison_execution;
-pub use application_operands::CheckedBoundaryApplicationOperands;
+pub use application_operands::{
+    CheckedBoundaryApplicationOperands, checked_operator_application_matches_realization,
+};
 pub use selected_float_comparison_execution::CheckedSelectedFloatComparisonExecution;
 pub type CheckedOperatorUseHandle = arena::Handle<CheckedOperatorUseFact>;
 use arena::{Arena, Handle, HandleSpan};

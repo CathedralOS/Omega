@@ -149,3 +149,67 @@ impl CheckedOperatorFacts {
         })
     }
 }
+
+/// Compare one checked D29 use demand with one independently retained closed
+/// realization by semantic identity rather than private type-table handles.
+///
+/// The comparison is checked-side vocabulary: the demand is a checked fact
+/// and the realization is retained typed structure, so the join lives beside
+/// its checked operand types rather than inside checking.
+pub fn checked_operator_application_matches_realization(
+    program: &TypedTrees,
+    demand: &crate::CheckedBoundaryOperatorApplicationDemand,
+    realization: &typed_trees::operator::ClosedOperatorRealizationApplication,
+) -> bool {
+    demand.requirement_symbol == realization.requirement_symbol
+        && demand.arguments.len() == realization.arguments.len()
+        && demand
+            .arguments
+            .iter()
+            .zip(&realization.arguments)
+            .enumerate()
+            .all(
+                |(ordinal, (demand_argument, realization))| match (demand_argument, realization) {
+                    (
+                        crate::CheckedBoundaryOperatorApplicationArgument::Type {
+                            binder_owner,
+                            binder_ordinal,
+                            binder_symbol,
+                            type_reference,
+                        },
+                        typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+                            binder_symbol: realization_binder,
+                            type_reference: realization_type,
+                        },
+                    ) => {
+                        *binder_owner == demand.requirement_symbol
+                            && usize::try_from(*binder_ordinal).ok() == Some(ordinal)
+                            && *binder_symbol == *realization_binder
+                            && program.package_qualified_type_identity(*type_reference)
+                                == program.package_qualified_type_identity(*realization_type)
+                    }
+                    (
+                        crate::CheckedBoundaryOperatorApplicationArgument::Const {
+                            binder_owner,
+                            binder_ordinal,
+                            binder_symbol,
+                            declared_carrier,
+                            value,
+                        },
+                        typed_trees::operator::ClosedOperatorApplicationArgument::Const {
+                            binder_symbol: realization_binder,
+                            declared_carrier: realization_carrier,
+                            value: realization_value,
+                        },
+                    ) => {
+                        *binder_owner == demand.requirement_symbol
+                            && usize::try_from(*binder_ordinal).ok() == Some(ordinal)
+                            && *binder_symbol == *realization_binder
+                            && program.package_qualified_type_identity(*declared_carrier)
+                                == program.package_qualified_type_identity(*realization_carrier)
+                            && value == realization_value
+                    }
+                    _ => false,
+                },
+            )
+}

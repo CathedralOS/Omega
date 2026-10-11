@@ -317,7 +317,7 @@ fn selected_operator_provider_evidence(
             operator.symbol,
             |realization| {
                 demanded_application.is_none_or(|application| {
-                    validation::checked_operator_application_matches_realization(
+                    checked_trees::operators::checked_operator_application_matches_realization(
                         checked,
                         application,
                         realization,

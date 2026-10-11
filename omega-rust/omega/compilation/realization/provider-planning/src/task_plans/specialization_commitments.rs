@@ -215,16 +215,17 @@ impl ExactSpecializationEncoder {
             }
             self.digest(application.commitment.as_bytes());
         }
-        let operator_realizations = validation::canonical_closed_operator_realization_bytes(
-            &program.typed,
-            specialization.instance,
-            &specialization.operator_realizations,
-        )
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "task specialization has invalid retained operator realizations: {error}"
-            ))]
-        })?;
+        let operator_realizations =
+            checked_trees::typed_trees::operator::canonical_closed_operator_realization_bytes(
+                &program.typed,
+                specialization.instance,
+                &specialization.operator_realizations,
+            )
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "task specialization has invalid retained operator realizations: {error}"
+                ))]
+            })?;
         self.bytes(&operator_realizations);
         Ok(())
     }
