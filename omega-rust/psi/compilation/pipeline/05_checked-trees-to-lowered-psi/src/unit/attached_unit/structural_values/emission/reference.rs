@@ -148,10 +148,7 @@ impl Emission<'_, '_, '_> {
             )?;
             let place = carrier.id;
             self.temporary_places.push(carrier);
-            if let Some(continuation) = continuation {
-                self.complete_value(identities, place, None, continuation)?;
-            }
-            return Ok(place);
+            return self.completed(identities, place, continuation);
         }
 
         unsupported("reference destination is neither its carrier nor referent")

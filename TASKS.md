@@ -3321,22 +3321,21 @@ of a check the same flow already performed, not the check itself.
 
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
-  corpus and focused native cohort. The targeted 56-case qualification with
-  producer `8ec8362fcf0` has 30 checked, 17 rejected and nine incomplete.
-  Completion-role nomination clears 23 of 42 formerly blocked valid cases;
-  the other 19 reach later obligations, lowering and native-catalog failures.
-  The zero-range control still rejects without its intended fragment. Keep
-  closed Console catalog identity with **PIPELINE-ARCHITECTURE-ENFORCEMENT**.
-  Attribute the remaining original 113-case cohort outside this selection and
-  the two excluded float materialization timeouts before full qualification.
-  Inferred generic results retain their original fresh application graph rather
-  than leaving a second open graph in the const-substitution interval. Keep
+  corpus and focused native cohort. The original 113-case cohort at fixed
+  producer `8ec8362fcf0` has 34 checked, 69 rejected and ten incomplete;
+  25 invalid controls reject without their intended fragment, none is accepted.
+  The two excluded float cases now have one checked and one timeout at 360s
+  on that producer. Attribute these remaining reds on the integrated compiler
+  before full qualification; fixed-producer evidence is not latest-main
+  acceptance. Keep closed Console catalog identity with
+  **PIPELINE-ARCHITECTURE-ENFORCEMENT**. Include owned projected locals through
+  returns and constructor captures, sibling mutations and independent result
+  regions; continuation transport must retain both storage root and field path.
+  Keep
   computed indices, renamed/permuted binders and independent result regions in
   qualification; private implementation summaries cannot supply missing abstract
-  termination promises. At producer `3a83ceff2dc8`, eight valid cases check and
-  eight invalid controls retain their intended refusals; six host-native/Terminal
-  cases agree on authored exits, including computed indices at 70. This bounded
-  cohort does not replace full-corpus acceptance.
+  termination promises. Bounded operator, algebra-law and computed-index
+  execution does not replace full-corpus acceptance.
   No selected invalid fixture was accepted. Do not repin these refusals. Include
   `runtime_computed_backing_reference_copy_exit`, `runtime_boundary_range_view_exit`
   and their escape/conflicting-write controls; unchosen backing homes must not

@@ -18,7 +18,16 @@ impl Emission<'_, '_, '_> {
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         if let Some(continuation) = continuation {
-            self.complete_value(identities, place, None, continuation)?;
+            self.complete_value(
+                identities,
+                StructuralArgument {
+                    place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+                None,
+                continuation,
+            )?;
         }
         Ok(place)
     }
@@ -26,7 +35,7 @@ impl Emission<'_, '_, '_> {
     pub(super) fn complete_value(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        selected: PlaceId,
+        selected: StructuralArgument,
         projection: Option<&ProjectedMove>,
         continuation: &ValueContinuation,
     ) -> Result<(), LoweringError> {
@@ -40,7 +49,10 @@ impl Emission<'_, '_, '_> {
         // Plain-affine contents have no cleanup, making it a trivial discard,
         // and the join frontier is identical on every incoming path.
         let displaced = (!self.sources.is_empty()
-            && !self.sources.iter().any(|source| source.place == selected))
+            && !self
+                .sources
+                .iter()
+                .any(|source| source.place == selected.place))
         .then(|| self.first_candidate())
         .flatten();
         let displaced_place = displaced.map(|position| self.owners[position].value.place);
@@ -51,13 +63,13 @@ impl Emission<'_, '_, '_> {
         let removed = self.first_candidate().or_else(|| {
             self.owners
                 .iter()
-                .position(|owner| owner.value.place == selected)
+                .position(|owner| owner.value.place == selected.place)
         });
         let mut unselected = self
             .sources
             .iter()
             .map(|source| source.place)
-            .filter(|place| *place != selected && Some(*place) != displaced_place);
+            .filter(|place| *place != selected.place && Some(*place) != displaced_place);
         let mut structural_arguments = Vec::new();
         for (position, owner) in self.owners.iter().enumerate() {
             if Some(position) == removed {
@@ -104,20 +116,6 @@ impl Emission<'_, '_, '_> {
         if unselected.next().is_some() {
             return unsupported("owned selection has untransported residual candidates");
         }
-        let selected_path = projection
-            .map(|projected| {
-                projected.lowered_path(identities, self.type_ids, self.structural_types)
-            })
-            .transpose()?
-            .unwrap_or_default();
-        structural_arguments.push(StructuralArgument {
-            place: selected,
-            path: selected_path,
-            access: StructuralAccess::Owned,
-        });
-        if structural_arguments.len() != continuation.structural_parameters.len() {
-            return unsupported("structural value has unequal residual ownership at its join");
-        }
         // A projected move keeps the root's untouched structural complement
         // owned on this same edge. Reconstruction against the checked root
         // type yields the exact residual schedule in positional order; the
@@ -128,7 +126,7 @@ impl Emission<'_, '_, '_> {
                 // root type, so the selected place must be that whole root.
                 // An aliased root holds no storage of its own and has no
                 // residual schedule to derive here.
-                if projected.root != selected
+                if projected.root != selected.place
                     || projected.path.is_empty()
                     || !projected.root_path.is_empty()
                 {
@@ -151,7 +149,7 @@ impl Emission<'_, '_, '_> {
                 .iter()
                 .map(|residual| {
                     Ok(terminal_psi::StructuralAffineDiscard {
-                        place: selected,
+                        place: selected.place,
                         path: lower_static_argument_path(
                             identities,
                             &residual.path,
@@ -166,6 +164,10 @@ impl Emission<'_, '_, '_> {
             None => Vec::new(),
         };
         let mut trivial_affine_discards = Vec::new();
+        structural_arguments.push(selected);
+        if structural_arguments.len() != continuation.structural_parameters.len() {
+            return unsupported("structural value has unequal residual ownership at its join");
+        }
         if let Some(place) = displaced_place {
             trivial_affine_discards.push(place);
         }

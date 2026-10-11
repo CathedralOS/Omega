@@ -458,21 +458,15 @@ pub(crate) fn emit(
             loan,
         )?
     } else {
-        let place = emission.value(identities, *value, None)?;
-        // A moved place is materialized into the result binding; a copied
-        // parameter is already a fresh operation result.
-        if emission.sources.is_empty()
-            && let CheckedStructuralValueKind::Place(argument) =
-                &structural_values(checked).nodes.get(*value).kind
-            && emission.copied_parameter(argument)?.is_none()
-            && !matches!(
-                argument.source,
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
-            )
-        {
-            emission.materialize_place(identities, place, *value)?
+        let first_new_place = *emission.next_place;
+        let source = emission.value(identities, *value, None)?;
+        // Existing storage needs an arrival owned by this binding; fresh
+        // producers already published one. Use the same allocation frontier
+        // as constructor capture, independent of the source expression shape.
+        if source.place.get() < first_new_place {
+            emission.materialize_place(identities, source, *value)?
         } else {
-            place
+            source.place
         }
     };
     // Private arm producers are not authored result ordinals. Publish exactly
@@ -553,7 +547,7 @@ fn prepare_owners(
     structural_types: &[StructuralTypeDeclaration],
     evaluation: &argument_evaluation::Evaluation,
     operations: &OperationBuffer,
-    result_source: Option<PlaceId>,
+    result_source: Option<&StructuralArgument>,
 ) -> Result<Vec<argument_evaluation::StructuralValueOwner>, LoweringError> {
     // An ordinary whole move has its own result slot and exact claim transport.
     // Only its complement is a survivor roster. Do not classify the moved
@@ -572,9 +566,10 @@ fn prepare_owners(
         })
     };
     let outside_survivor_frontier = |argument: &StructuralArgument| {
-        (result_source == Some(argument.place) || consumed(argument.place))
-            && argument.path.is_empty()
-            && argument.access == StructuralAccess::Owned
+        argument.access == StructuralAccess::Owned
+            && (result_source.is_some_and(|source| {
+                source.place == argument.place && argument.path.starts_with(&source.path)
+            }) || (consumed(argument.place) && argument.path.is_empty()))
     };
     let source_parameters =
         checked.state_parameters(crate::declarations::state_declaration(checked, state)?.1);
@@ -674,7 +669,10 @@ fn prepare_owners(
         // Anonymous completed operands have no authored symbol to query.
         // Actual whole-owned consumption retires their unique emitted home,
         // just as it does named homes; borrowing or a child transfer does not.
-        if result_source == Some(owner.value.place) || consumed(owner.value.place) {
+        if result_source
+            .is_some_and(|source| source.place == owner.value.place && source.path.is_empty())
+            || consumed(owner.value.place)
+        {
             continue;
         }
         if available(owner.symbol, owner.statement)? {
@@ -1246,7 +1244,8 @@ impl Emission<'_, '_, '_> {
         let parent_reference = std::mem::replace(&mut self.type_reference, reference);
         let result = self
             .value(identities, value, None)
-            .and_then(|place| {
+            .and_then(|argument| {
+                let place = argument.place;
                 if !self.completion_claims.is_empty()
                     && self.operations.operations.iter().any(|operation| {
                         operation.id.get() >= first_new_operation
@@ -1263,25 +1262,16 @@ impl Emission<'_, '_, '_> {
                         &self.direct_establishments,
                     )?;
                 }
-                Ok(place)
+                Ok(argument)
             })
-            .and_then(|place| {
-                self.retain_checked_memberships(identities, place, node.qualification_decisions)
+            .and_then(|argument| {
+                self.retain_checked_memberships(identities, argument, node.qualification_decisions)
             });
         self.type_reference = parent_reference;
         self.sources = sources;
         self.owners = owners;
-        result.and_then(|place| {
-            self.capture_operand(
-                identities,
-                StructuralArgument {
-                    place,
-                    path: Vec::new(),
-                    access: StructuralAccess::Owned,
-                },
-                node.expression,
-                first_new_place,
-            )
+        result.and_then(|argument| {
+            self.capture_operand(identities, argument, node.expression, first_new_place)
         })
     }
 
@@ -1325,15 +1315,18 @@ impl Emission<'_, '_, '_> {
         self.values.truncate(source_count);
     }
 
+    /// A produced operand retains its storage coordinate through value
+    /// completion. Existing locals can name a subtree; only a fresh result
+    /// or completed join is necessarily a whole place.
     pub(super) fn value(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
         value: CheckedStructuralValueHandle,
         continuation: Option<&ValueContinuation>,
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<StructuralArgument, LoweringError> {
         let node = self.structural_value_node(value);
-        match node.kind {
+        let place = match node.kind {
             // A borrowed `&[T]` view lowers to `EstablishElementView` and a
             // `&mut [T]` view to `EstablishMutableElementView`: the collection
             // argument resolves against the current locals and signature
@@ -1431,12 +1424,17 @@ impl Emission<'_, '_, '_> {
                     argument
                         .path
                         .extend(lower_structural_path(identities, &path)?);
-                    return self.copied_leaf_place(
+                    let place = self.copied_leaf_place(
                         identities,
                         &argument,
                         node.qualification_decisions,
                         continuation,
-                    );
+                    )?;
+                    return Ok(StructuralArgument {
+                        place,
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    });
                 }
                 // A projection always needs an ownership edge for its kept
                 // subtree and residual complement. At a value root there is
@@ -1461,7 +1459,16 @@ impl Emission<'_, '_, '_> {
                         "projected selection root is absent from its receipt sources",
                     );
                 }
-                self.complete_value(identities, projected.root, Some(&projected), continuation)?;
+                let selected = StructuralArgument {
+                    place: projected.root,
+                    path: projected.lowered_path(
+                        identities,
+                        self.type_ids,
+                        self.structural_types,
+                    )?,
+                    access: StructuralAccess::Owned,
+                };
+                self.complete_value(identities, selected, Some(&projected), continuation)?;
                 if is_root {
                     self.record_root_continuation(continuation);
                 }
@@ -1614,31 +1621,36 @@ impl Emission<'_, '_, '_> {
                     let (declaration, _) = crate::emission::structural_byte_sequence_store::emit_owned_literal(identities, bytes, self.structural_type, qualifications, self.structural_types, self.temporary_places, self.next_place, self.next_value, &mut self.calls.next_obligation_identity, self.operations)?;
                     let place = declaration.id;
                     self.temporary_places.push(declaration);
-                    if let Some(continuation) = continuation {
-                        self.complete_value(identities, place, None, continuation)?;
-                    }
-                    return Ok(place);
+                    self.completed(identities, place, continuation)?;
+                    return Ok(StructuralArgument { place, path: Vec::new(), access: StructuralAccess::Owned });
                 }
                 if let Some(source) = self.copied_parameter(&argument)? {
-                    return self.copied_leaf_place(
+                    let place = self.copied_leaf_place(
                         identities,
                         &source,
                         node.qualification_decisions,
                         continuation,
-                    );
+                    )?;
+                    return Ok(StructuralArgument {
+                        place,
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    });
                 }
                 if self.sources.is_empty() && continuation.is_none() {
-                    // An ordinary constructor consumes this whole source place,
-                    // including a sum's active case. Source replay already checks
-                    // its exact owned transfer. Only a selected value needs the
-                    // per-arm source receipt and continuation handled below.
+                    // Ordinary uses consume the source's exact storage coordinate,
+                    // including a previously bound projected alias. Only a selected
+                    // value needs the receipt and continuation handled below.
                     if let Some(place) = self.parameter_source(&argument)? {
-                        return Ok(place);
+                        return Ok(StructuralArgument {
+                            place,
+                            path: Vec::new(),
+                            access: StructuralAccess::Owned,
+                        });
                     }
                     return self
                         .structural_bindings()
-                        .owned_argument(identities, &argument)
-                        .map(|binding| binding.place);
+                        .owned_argument(identities, &argument);
                 }
                 if !argument.path.is_empty()
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
@@ -1652,25 +1664,33 @@ impl Emission<'_, '_, '_> {
                         &self.evaluation.structural_locals,
                         facts::PlaceRoot::Symbol(*symbol),
                     )
-                    .map(|local| local.argument.place)
-                    .or(self.parameter_source(&argument)?)
+                    .map(|local| local.argument.clone())
+                    .or(self
+                        .parameter_source(&argument)?
+                        .map(|place| StructuralArgument {
+                            place,
+                            path: Vec::new(),
+                            access: StructuralAccess::Owned,
+                        }))
                     .ok_or(LoweringError::Unsupported(
                         "owned selection local place missing",
                     ))?,
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         ..
-                    } => self
-                        .parameter_source(&argument)?
-                        .ok_or(LoweringError::Unsupported(
-                            "owned selection parameter place missing",
-                        ))?,
+                    } => StructuralArgument {
+                        place: self.parameter_source(&argument)?.ok_or(
+                            LoweringError::Unsupported("owned selection parameter place missing"),
+                        )?,
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    },
                     _ => {
                         return unsupported(
                             "owned selection requires an established structural local or parameter",
                         );
                     }
                 };
-                if !self.source_at(selected).is_some() {
+                if !self.source_at(selected.place).is_some() {
                     return unsupported("owned selection place is absent from its receipt sources");
                 }
                 let continuation = continuation.ok_or(LoweringError::Unsupported(
@@ -1744,7 +1764,12 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
                 self.dispatch(identities, node.expression, subject, arms, continuation)
             }
-        }
+        }?;
+        Ok(StructuralArgument {
+            place,
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        })
     }
 
     fn first_candidate(&self) -> Option<usize> {
@@ -1753,7 +1778,7 @@ impl Emission<'_, '_, '_> {
             .position(|owner| self.source_at(owner.value.place).is_some())
     }
 
-    /// Whole-value assignment uses ordinary owned edge transport. Returning the
+    /// Value assignment uses ordinary owned edge transport. Returning the
     /// source place directly would alias unrestricted records instead of copying
     /// their backing, and would republish an earlier result's declaration.
     /// The existing block binder copies unrestricted payloads and transfers
@@ -1761,7 +1786,7 @@ impl Emission<'_, '_, '_> {
     fn materialize_place(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        source: PlaceId,
+        source: StructuralArgument,
         value: CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
         let node = structural_values(self.checked).nodes.get(value);
@@ -1794,7 +1819,7 @@ impl Emission<'_, '_, '_> {
                 self.structural_types,
                 self.evaluation,
                 self.operations,
-                Some(source),
+                Some(&source),
             )?;
         }
         let mut remaining_owners = self.owners.clone();
@@ -1808,7 +1833,11 @@ impl Emission<'_, '_, '_> {
             self.temporary_places
                 .push(block_parameter_declaration(target, block, position));
             structural_parameters.push(self.transported_parameter(
-                owner.value.place,
+                &StructuralArgument {
+                    place: owner.value.place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
                 target,
                 position,
                 owner.value.structural_type,
@@ -1820,7 +1849,7 @@ impl Emission<'_, '_, '_> {
         let position = u32::try_from(structural_parameters.len())
             .map_err(|_| LoweringError::Unsupported("owned move parameter count exceeds u32"))?;
         structural_parameters.push(self.transported_parameter(
-            source,
+            &source,
             place,
             position,
             self.structural_type,
@@ -1840,7 +1869,7 @@ impl Emission<'_, '_, '_> {
             pass_through,
             residuals: Vec::new(),
         };
-        self.complete_value(identities, source, None, &continuation)?;
+        self.complete_value(identities, source.clone(), None, &continuation)?;
         self.arrival_claims.push((place, source_claims));
         self.start(block);
         if self.multiplicity != StructuralMultiplicity::Unrestricted {
@@ -1848,7 +1877,9 @@ impl Emission<'_, '_, '_> {
                 |crate::expression_preparation::bindings::StructuralLocalBinding {
                      argument,
                      ..
-                 }| argument.place != source,
+                 }| {
+                    argument.place != source.place || !argument.path.starts_with(&source.path)
+                },
             );
         }
         if self.multiplicity == StructuralMultiplicity::Affine {
@@ -1998,7 +2029,7 @@ impl Emission<'_, '_, '_> {
             // consumes nothing, so there is no custody edge to join.
             return Ok(place);
         };
-        self.complete_value(identities, place, None, continuation)?;
+        self.completed(identities, place, Some(continuation))?;
         Ok(continuation.place)
     }
 

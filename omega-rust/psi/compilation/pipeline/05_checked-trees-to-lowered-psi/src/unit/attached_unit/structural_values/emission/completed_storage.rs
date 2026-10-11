@@ -7,30 +7,36 @@ use super::{
 };
 
 impl Emission<'_, '_, '_> {
-    /// A private whole-value edge changes storage identity, not membership.
+    /// A private value edge changes storage identity, not membership.
     /// Carry the actual source declaration into its new parameter instead of
     /// erasing predicates or treating a receiver annotation as evidence.
     pub(super) fn transported_parameter(
         &self,
-        source: PlaceId,
+        source: &StructuralArgument,
         place: PlaceId,
         position: u32,
         structural_type: semantic_vocabulary::StructuralTypeId,
         multiplicity: StructuralMultiplicity,
     ) -> Result<StructuralParameterDeclaration, LoweringError> {
+        let (qualifications, projected_qualifications) = self
+            .completed_memberships(source.place)
+            .ok_or(LoweringError::Unsupported(
+            "owned transport has no source membership declaration",
+        ))?;
         let (qualifications, projected_qualifications) =
-            self.completed_memberships(source)
-                .ok_or(LoweringError::Unsupported(
-                    "owned transport has no source membership declaration",
-                ))?;
+            terminal_psi::StructuralPathQualification::select(
+                qualifications,
+                projected_qualifications,
+                &source.path,
+            );
         Ok(StructuralParameterDeclaration {
             place,
             position,
             structural_type,
             multiplicity,
             access: StructuralAccess::Owned,
-            qualifications: qualifications.to_vec(),
-            projected_qualifications: projected_qualifications.to_vec(),
+            qualifications,
+            projected_qualifications,
         })
     }
 
@@ -146,9 +152,9 @@ impl Emission<'_, '_, '_> {
     pub(super) fn retain_checked_memberships(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        place: PlaceId,
+        source: StructuralArgument,
         decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<StructuralArgument, LoweringError> {
         let memberships = self
             .checked
             .facts
@@ -159,13 +165,18 @@ impl Emission<'_, '_, '_> {
                 "operand membership decisions are stale",
             ))?;
         if memberships.is_empty() {
-            return Ok(place);
+            return Ok(source);
         }
-        let (qualifications, _) =
-            self.completed_memberships(place)
-                .ok_or(LoweringError::Unsupported(
-                    "completed operand membership source is missing",
-                ))?;
+        let (qualifications, projected_qualifications) = self
+            .completed_memberships(source.place)
+            .ok_or(LoweringError::Unsupported(
+            "completed operand membership source is missing",
+        ))?;
+        let (qualifications, _) = terminal_psi::StructuralPathQualification::select(
+            qualifications,
+            projected_qualifications,
+            &source.path,
+        );
         let mut missing = false;
         for decision in memberships {
             let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
@@ -176,21 +187,17 @@ impl Emission<'_, '_, '_> {
             missing |= !qualifications.contains(&domain);
         }
         if !missing {
-            return Ok(place);
+            return Ok(source);
         }
         if self.multiplicity != StructuralMultiplicity::Unrestricted {
             return unsupported("affine operand must retain its checked membership roster");
         }
-        self.copied_leaf_place(
-            identities,
-            &StructuralArgument {
+        self.copied_leaf_place(identities, &source, decisions, None)
+            .map(|place| StructuralArgument {
                 place,
                 path: Vec::new(),
                 access: StructuralAccess::Owned,
-            },
-            decisions,
-            None,
-        )
+            })
     }
 }
 
