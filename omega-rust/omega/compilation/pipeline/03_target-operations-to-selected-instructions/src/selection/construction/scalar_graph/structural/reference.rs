@@ -33,26 +33,45 @@ pub(super) fn establish(
     // pointer. Begin at the carrier's home: resolving its payload here first
     // would make the first geometry load reinterpret element bytes as a pointer.
     // Inline ABI fragments receive a home through the ordinary address owner.
-    let mut input = place_pointer(builder, row, address.place, 0)?;
-    for (offset, indices) in address.descriptor_offsets {
+    // An element referent rides on its view's backing pointer like a borrowed
+    // element call argument does; it owns no slot of its own.
+    let view_referent = crate::selection::established_view_input::element_view_type(
+        source,
+        address.place,
+    )
+    .is_some()
+        || crate::selection::established_view_input::view_type(source, address.place).is_some();
+    let mut input = if view_referent {
+        super::view_element_pointer(source, builder, row, address.place, 0)?
+    } else {
+        place_pointer(builder, row, address.place, 0)?
+    };
+    // The view's own descriptor word is already resolved by the view's backing
+    // machinery; replaying its stored word here would read element bytes as a
+    // pointer. Later descriptor crossings still load their stored words.
+    for (offset, indices) in address
+        .descriptor_offsets
+        .iter()
+        .skip(usize::from(view_referent))
+    {
         input = super::runtime_address::scale(
             builder,
             row,
             address.place,
-            offset,
+            *offset,
             input,
-            &address.indices[indices],
+            &address.indices[indices.clone()],
         )?;
-        let loaded = transport_register(builder, result.place, offset)?;
+        let loaded = transport_register(builder, result.place, *offset)?;
         memory(
             builder,
             row,
             address.place,
-            offset,
+            *offset,
             8,
             SelectedMemoryAccessRole::ReadPlace,
         )?;
-        builder.emit_load64(offset, input, loaded, provenance(row))?;
+        builder.emit_load64(*offset, input, loaded, provenance(row))?;
         input = loaded;
     }
     input = super::runtime_address::scale(
