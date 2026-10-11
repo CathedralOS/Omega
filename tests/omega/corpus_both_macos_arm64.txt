@@ -781,3 +781,4 @@ pass/targets/selected_family_exclusion_closure_exit built 3024ms exit:0 interpre
 pass/borrows/runtime_boundary_range_view_exit built 4390ms exit:0 interpreter-exit:0 interpreter:agrees @88115f7f7964
 pass/borrows/runtime_computed_shared_view_reborrow_exit built 3976ms exit:0 interpreter-exit:0 interpreter:agrees @0dc6368bf7c8
 pass/slices/runtime_borrowed_noncopy_array_argument_exit built 3728ms exit:0 interpreter-exit:0 interpreter:agrees @6d312ec7d5ba
+pass/slices/runtime_namespace_range_contract_exit built 3713ms exit:0 interpreter-exit:0 interpreter:agrees @be968c2c6bfb

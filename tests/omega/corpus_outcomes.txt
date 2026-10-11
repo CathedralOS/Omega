@@ -5144,3 +5144,6 @@ pass/slices/runtime_borrowed_noncopy_array_argument_exit checked 3845ms check-ta
 fail/control_flow/linear_result_repeated_successor_arguments rejected 1001ms expected @c24b141cb29b+wt
 	linear value `receipt` was already transferred or consumed; it cannot be moved here
 pass/control_flow/runtime_copy_result_conditional_successor_reuse_exit checked 6783ms check-target:linux_x86_64 @c24b141cb29b+wt
+pass/slices/runtime_namespace_range_contract_exit checked 3789ms check-target:macos_arm64 @be968c2c6bfb
+fail/slices/namespace_range_keeps_bounds rejected 279ms expected @be968c2c6bfb
+	machine `Main::main` state `main` value call to `Views::middle` violates required fact `start <= end && end <= bytes.len`: the instantiated fact is structurally false
