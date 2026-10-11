@@ -139,6 +139,54 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
+- **RANKED-BORROWED-RECORD-CYCLE.** (new-scope) Restore the ranked
+  `terminates by` proof for a state cycle carrying a borrowed record.
+  `pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit` checked
+  at `64c766216f02+wt` (native exit 70, four bound targets) and now rejects at
+  source checking: "cannot prove the `terminates by` ranking for machine
+  drain". The machine `drain(remaining: u32, tally: &mut Tally)` requires
+  `remaining <= 5` and loops `true -> step(remaining - 1, tally)` — a computed
+  decrement argument into a state that borrows the record. The fixture was
+  authored in 66ff12673e when the structural Unit control route retired, so
+  the regression window is the recent ranked-arrival work on that path
+  (`b0f640d4a6` carrying computed public results into ranked arrivals,
+  `a9ae30e1c3` retaining integer quotient equations across completed
+  arrivals). Reproduce with
+  `python tools/corpus_gate.py --filter runtime_ranked_state_cycle_borrowed_record`.
+  Bisect inside that window, restore the arrival's rank evidence for a
+  borrowed `&mut` record carrier, and repin the golden row from
+  `regressed-from:checked` back to `checked` when the proof returns.
+
+- **FLOAT-PAYLOAD-COMPILE-TIME.** (new-scope) Remove the ~28x source-checking
+  slowdown on the float case-payload cohort.
+  `pass/control_flow/runtime_{float_payload_snapshot_after_case_replacement,projected_float_case_payload,root_float_case_payload}_exit`
+  checked in 4.0–5.0s at `a800cc9ab970`; on a quiet Linux box the same
+  fixtures now run 137.7s (raised-cap measurement), over the 120s corpus
+  wedge and so recording `timeout`. None of the fixtures carries a
+  `terminates by` clause, so this is not the ranked-arrival path; all three
+  build `macos_arm64` ProgramEntry bindings over float case payloads.
+  Bisect from `a800cc9ab970` to find the blowup — the unqualified
+  float-materialization timeouts under **TYPED-FROZEN-BEFORE-CHECKING** may be
+  this cohort — then restore the checking time to its pinned order of
+  magnitude and repin the rows.
+
+- **DEPENDENT-STATE-PARAM-HOIST.** (new-scope) Restore the authored dependent
+  maximum on state parameters so the transition-argument route is reachable
+  again. `fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`
+  pin the "satisfies dependent parameter" rejection at the transition
+  argument; both now reject earlier on a synthesized local: "machine
+  `Main::main` state `read`/`deeper` local data `__hoist_30` declares a range
+  whose bound is not a constant integer expression ... A dependent maximum
+  (`[0..=<parameter>.<field>]` on a subject parameter) is supported on
+  machine STATE PARAMETERS". The fixtures declare exactly that supported
+  shape (`i: u32 [0..=main.count]` on the state parameter, `main.count`
+  carrying an enforced literal range), but the hoist lowers the range onto a
+  local data item whose provenance the dependent-maximum gate cannot see, so
+  the supported shape is rejected as a plain non-constant bound and the
+  authored route below is dead. Carry state-parameter provenance through the
+  hoist (or admit the supported dependent maximum on the lowered local), then
+  re-pin the fixtures' `expected.txt` to the authored fragment.
+
 - **REFERENCE-CUSTODY-JOIN-SCALING.** (new-scope) Investigate and remove
   avoidable compilation cost in reference-custody joins without weakening their
   semantics. The former `custody-join-build-cost` escalation is engineering
