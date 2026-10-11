@@ -21,6 +21,7 @@ mod borrowed_storage;
 mod buffered_output;
 pub(super) mod clock;
 mod descriptor_io;
+mod descriptor_mode;
 mod numeric;
 mod standard_input;
 
@@ -148,14 +149,21 @@ pub(super) fn bind<'host>(
                         .map_err(TerminalRuntimeError::Binding)?;
                     continue;
                 }
-                let Some(adapter) = descriptor_io::DescriptorIoImport::admit(
+                if let Some(adapter) = descriptor_io::DescriptorIoImport::admit(
                     program,
                     declaration,
                     binding,
                     provisions.map_or(&[], TerminalRuntimeProvisions::borrowed_storage_layouts),
                     input.as_ref().cloned(),
                     output.clone(),
-                )?
+                )? {
+                    instance
+                        .bind_import(*slot, adapter)
+                        .map_err(TerminalRuntimeError::Binding)?;
+                    continue;
+                }
+                let Some(adapter) =
+                    descriptor_mode::DescriptorModeImport::admit(declaration, binding)?
                 else {
                     return Err(TerminalRuntimeError::missing(
                         "runtime-host-import-bindings",
