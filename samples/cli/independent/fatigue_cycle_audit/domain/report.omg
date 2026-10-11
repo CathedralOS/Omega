@@ -1,0 +1,59 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+use domain::cycles;
+
+pub data Report {}
+
+// Fixed-width decimal columns avoid floating projection and preserve exact
+// rational numerators. Every reachable number is below 10000.
+machine Report::number(console: &mut Binding<Console>, number: u64 in Wrapping) reaches Console {
+    console.write_byte(((number / 1000) % 10 + 48) as i32);
+    console.write_byte(((number / 100) % 10 + 48) as i32);
+    console.write_byte(((number / 10) % 10 + 48) as i32);
+    console.write_byte((number % 10 + 48) as i32);
+}
+
+machine Report::write(console: &mut Binding<Console>, audit: &mut Audit) reaches Console {
+    console.write_line("range,half_units,damage_numerator,damage_denominator,cumulative_numerator");
+    audit.index = 0;
+    audit.current = 0;
+    transition { _ -> loop(console, audit) }
+    state loop(console: &mut Binding<Console>, audit: &mut Audit) {
+        transition audit.index < audit.cycle_count && audit.index < 16 { true -> row(console, audit) false -> total(console, audit) }
+    }
+    state row(console: &mut Binding<Console>, audit: &mut Audit) {
+        audit.range = audit.ranges[audit.index];
+        audit.weight = audit.weights[audit.index];
+        audit.middle = audit.range * audit.weight;
+        transition audit.exponent == 2 { true -> square(console, audit) false -> emit(console, audit) }
+    }
+    state square(console: &mut Binding<Console>, audit: &mut Audit) {
+        audit.middle = audit.middle * audit.range;
+        transition { _ -> emit(console, audit) }
+    }
+    state emit(console: &mut Binding<Console>, audit: &mut Audit) {
+        audit.current = audit.current + audit.middle;
+        Report::number(console, audit.range);
+        console.write_byte(44);
+        Report::number(console, audit.weight);
+        console.write_byte(44);
+        Report::number(console, audit.middle);
+        console.write_byte(44);
+        Report::number(console, audit.denominator);
+        console.write_byte(44);
+        Report::number(console, audit.current);
+        console.write_byte(10);
+        transition audit.index < 16 { true -> next(console, audit) false -> total(console, audit) }
+    }
+    state next(console: &mut Binding<Console>, audit: &mut Audit) {
+        audit.index = audit.index + 1;
+        transition { _ -> loop(console, audit) }
+    }
+    state total(console: &mut Binding<Console>, audit: &mut Audit) {
+        console.write("total,");
+        Report::number(console, audit.total);
+        console.write_byte(44);
+        Report::number(console, audit.denominator);
+        console.write_byte(10);
+    }
+}
