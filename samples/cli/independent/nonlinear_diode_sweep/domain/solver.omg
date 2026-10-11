@@ -76,10 +76,12 @@ machine solve(circuit: &Circuit, solver: &mut Solver, source: f64,
         voltage: f64) {
         solver.lower = solver.previous_voltage;
         solver.upper = voltage;
+        solver.width = solver.scan_step;
         transition { _ -> bisect(circuit, solver, budget) }
     }
     state bisect(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
-        solver.width = solver.upper - solver.lower;
+        // Carry the nominal interval width through exact binary halvings.
+        // Subtracting nearly equal endpoints loses relative diagnostic accuracy.
         let half: f64 = solver.width * 0.5;
         solver.voltage = solver.lower + half;
         solver.current = diode_current(circuit, solver.voltage);
@@ -103,6 +105,7 @@ machine solve(circuit: &Circuit, solver: &mut Solver, source: f64,
     }
     state exhausted(solver: &mut Solver) { solver.status = 2; }
     state narrow(circuit: &Circuit, solver: &mut Solver, budget: i32 in Wrapping) {
+        solver.width = solver.width * 0.5;
         transition solver.residual < 0.0 {
             true -> move_lower(circuit, solver, budget)
             false -> move_upper(circuit, solver, budget)
