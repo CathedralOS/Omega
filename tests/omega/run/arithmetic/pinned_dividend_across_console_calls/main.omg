@@ -21,4 +21,3 @@ machine digits(console: &mut Binding<Console>, value: i32) reaches Console invok
     console.write_byte(((magnitude / 10) % 10 + 48) as i32);
     console.write_byte((magnitude % 10 + 48) as i32);
 }
-

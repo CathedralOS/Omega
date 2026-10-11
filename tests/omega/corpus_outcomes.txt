@@ -5154,3 +5154,4 @@ fail/ownership/owned_state_immutable_field_store rejected 356ms expected @c24b14
 pass/calls/runtime_owned_state_scalar_field_store_exit checked 6601ms check-target:macos_arm64 @c24b141cb29b+wt
 pass/calls/runtime_exact_division_call_span_exit checked 5333ms check-target:macos_arm64 @6301348b6fe2
 pass/calls/runtime_wrapping_division_call_span_exit checked 5323ms check-target:macos_arm64 @6301348b6fe2
+run/arithmetic/pinned_dividend_across_console_calls checked 6751ms check-target:macos_arm64 @9d9e2c34aa73

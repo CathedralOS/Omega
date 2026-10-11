@@ -1158,3 +1158,4 @@ run/calls/fixed_dividend_across_console_calls built 7037ms exit:0 stdout:match @
 pass/calls/runtime_owned_state_scalar_field_store_exit built 6228ms exit:70 @c24b141cb29b+wt
 pass/calls/runtime_exact_division_call_span_exit built 6259ms exit:70 stdout:match @6301348b6fe2
 pass/calls/runtime_wrapping_division_call_span_exit built 5427ms exit:70 stdout:match @6301348b6fe2
+run/arithmetic/pinned_dividend_across_console_calls built 6649ms exit:0 stdout:match @9d9e2c34aa73
