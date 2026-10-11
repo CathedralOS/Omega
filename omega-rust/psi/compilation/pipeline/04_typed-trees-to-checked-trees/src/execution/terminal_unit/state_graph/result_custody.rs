@@ -481,7 +481,24 @@ pub(super) fn account(
                         // A stored RHS likewise transferred its custody into
                         // the receiving home before the selected exit.
                         if !complete_partition && occurrence_end.is_none() && !stored {
-                            return None;
+                            // An expression-rooted temporary has no named
+                            // local occurrence to rebind and no local
+                            // disposal permit a selected exit could honor:
+                            // the call it was formed for already consumed
+                            // its custody in-sequence. The nested schedule
+                            // may emit its establishment after that call,
+                            // so scan every operation for the consuming
+                            // argument rather than only consumers.
+                            let consumed_by_forming_call = !result_local.is_valid()
+                                && operations.iter().any(|consumer| {
+                                    consumer.call_structural_arguments().iter().any(|argument| {
+                                        argument.source_structural_result_binding_ordinal()
+                                            == Some(result.binding_ordinal)
+                                    })
+                                });
+                            if !consumed_by_forming_call {
+                                return None;
+                            }
                         }
                         closed_sum_all_reference_returns = cases.iter().all(|case| {
                             let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
