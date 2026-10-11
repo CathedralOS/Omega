@@ -220,6 +220,7 @@ pub(crate) fn check_selected_execution(
         selected_target_profile,
         provider_request.boundary_calling_plan_realizations,
         package_inputs,
+        |program, definition| validation::data_requires_establishment(program, definition),
     )?;
     // Check the common source before asking which declarations this product
     // realizes. In particular, a missing portable family contract is not a

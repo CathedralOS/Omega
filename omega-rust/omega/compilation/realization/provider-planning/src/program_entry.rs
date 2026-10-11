@@ -39,7 +39,28 @@ pub struct SelectedProgramEntry<'config> {
 /// ProgramEntry settlement. The Build does not observe a realized target, so
 /// a query may name any recognized target's slot; each is a row keyed by
 /// that target.
-pub struct ProductEntryQueryCompatibility;
+///
+/// Whether a data declaration's all-zero image is a valid value is a checking
+/// judgment — the zero-admission proof replay is checking machinery, so the
+/// judgment is supplied by the driving stage that owns the checking edge
+/// rather than called across the realization boundary.
+pub struct ProductEntryQueryCompatibility {
+    requires_establishment:
+        fn(&TypedTrees, &checked_trees::typed_trees::data::DataDefinition) -> bool,
+}
+
+impl ProductEntryQueryCompatibility {
+    pub fn new(
+        requires_establishment: fn(
+            &TypedTrees,
+            &checked_trees::typed_trees::data::DataDefinition,
+        ) -> bool,
+    ) -> Self {
+        Self {
+            requires_establishment,
+        }
+    }
+}
 
 impl checked_interpreter::ProductEntryCompatibility for ProductEntryQueryCompatibility {
     fn validate_entry(
@@ -63,15 +84,19 @@ impl checked_interpreter::ProductEntryCompatibility for ProductEntryQueryCompati
         let slot = required.program_entry().ok_or_else(|| {
             format!("root slot `{slot}` does not have a supported ProgramEntry signature")
         })?;
-        validate_program_entry_source_compatibility(typed, declaration, slot).map_err(
-            |diagnostics| {
-                diagnostics
-                    .into_iter()
-                    .map(|diagnostic| diagnostic.message)
-                    .collect::<Vec<_>>()
-                    .join("; ")
-            },
+        validate_program_entry_source_compatibility(
+            typed,
+            declaration,
+            slot,
+            self.requires_establishment,
         )
+        .map_err(|diagnostics| {
+            diagnostics
+                .into_iter()
+                .map(|diagnostic| diagnostic.message)
+                .collect::<Vec<_>>()
+                .join("; ")
+        })
     }
 }
 
@@ -199,6 +224,10 @@ fn validate_program_entry_source_compatibility(
     typed: &TypedTrees,
     declaration: checked_interpreter::ProductEntryDeclaration<'_>,
     slot: target::ProgramEntrySlotDeclaration,
+    requires_establishment: fn(
+        &TypedTrees,
+        &checked_trees::typed_trees::data::DataDefinition,
+    ) -> bool,
 ) -> Result<(), Vec<Diagnostic>> {
     let machine_name = declaration.name;
     let Some(entry) = declaration.entry else {
@@ -223,7 +252,7 @@ fn validate_program_entry_source_compatibility(
     let context = provisioned_entry_context_from_parameters(typed, machine_name, parameters)
         .map_err(|diagnostic| vec![diagnostic])?;
     if let Some(context) = &context
-        && validation::data_requires_establishment(typed, context.definition)
+        && requires_establishment(typed, context.definition)
     {
         diagnostics.push(Diagnostic::error(format!(
             "entry machine `{machine_name}` requests a provisioned `{}` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly",
@@ -399,6 +428,10 @@ fn provisioned_entry_context_from_parameters<'program>(
 fn validate_selected_program_entry_shape(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
+    requires_establishment: fn(
+        &TypedTrees,
+        &checked_trees::typed_trees::data::DataDefinition,
+    ) -> bool,
 ) -> Result<SelectedEntryDeclaration, Vec<Diagnostic>> {
     let machine_name = selected.machine_name;
     // Description issuance only needs an interface. Final admission still
@@ -416,6 +449,7 @@ fn validate_selected_program_entry_shape(
         typed,
         checked_interpreter::ProductEntryDeclaration::from_machine(typed, machine),
         selected.slot,
+        requires_establishment,
     )?;
     let parameters = typed.state_parameters(entry);
     let context =
@@ -661,6 +695,10 @@ fn check_unrequested_program_entry_rows(
     typed: &TypedTrees,
     root_bindings: &[RootBinding],
     selected_profile: Option<target::TargetProfile>,
+    requires_establishment: fn(
+        &TypedTrees,
+        &checked_trees::typed_trees::data::DataDefinition,
+    ) -> bool,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     for binding in root_bindings {
@@ -706,6 +744,7 @@ fn check_unrequested_program_entry_rows(
                 machine_symbol,
                 slot,
             },
+            requires_establishment,
         ) {
             diagnostics.append(&mut rejected);
         }
@@ -727,9 +766,18 @@ pub fn select_compiler_program_entry(
     selected_profile: Option<target::TargetProfile>,
     realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+    requires_establishment: fn(
+        &TypedTrees,
+        &checked_trees::typed_trees::data::DataDefinition,
+    ) -> bool,
 ) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
     let selected = selected_program_entry_machine(root_bindings, selected_profile)?;
-    check_unrequested_program_entry_rows(typed, root_bindings, selected_profile)?;
+    check_unrequested_program_entry_rows(
+        typed,
+        root_bindings,
+        selected_profile,
+        requires_establishment,
+    )?;
     let Some(mut selected) = selected else {
         return Ok(None);
     };
@@ -757,7 +805,8 @@ pub fn select_compiler_program_entry(
             })?;
         selected.machine_symbol = member.machine;
     }
-    let source_signature = validate_selected_program_entry_shape(typed, selected)?;
+    let source_signature =
+        validate_selected_program_entry_shape(typed, selected, requires_establishment)?;
     // Only an exact selected target activates an entry. Resolve its physical
     // contract's accepted package role here, never from the host or a caller-
     // chosen binding for another target. Calling-plan validation still rejoins
