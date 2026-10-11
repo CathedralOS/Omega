@@ -1,0 +1,23 @@
+// Bounded-text concatenation on the `+` operator: `main.text =
+// main.text + "c"` extends a `[u8; 16] in Utf8` field in place across
+// iterations — immutable literal storage creates no disposal debt at
+// the join.
+domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+data Main {
+    text: [u8; 16] in Utf8;
+    count: u64 in Wrapping;
+}
+machine Main::main(main: &mut Main) {
+    main.count = 0;
+    transition { _ -> write(main) }
+    state write(main: &mut Main) {
+        main.text = "ab";
+        main.text = main.text + "c";
+        main.count = main.count + 1;
+        transition main.count < 3 {
+            true -> write(main)
+            _ -> done(main)
+        }
+    }
+    state done(main: &mut Main) { }
+}
