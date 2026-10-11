@@ -1,0 +1,33 @@
+// A subslice passed around a state cycle retains every incoming storage root.
+// Guarded reads observe the progressively shortened view, including a cut
+// initial argument and a literal-backed argument to the same machine.
+use omega_language_std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; bytes: [u8; 4]; }
+machine sum(bytes: &[u8]) -> i32 in Wrapping {
+    transition { _ -> scan(bytes, 0) }
+    state scan(bytes: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
+        transition bytes.len > 0 {
+            true -> observe(bytes[0], bytes[1..], total)
+            false -> (total)
+        }
+    }
+    state observe(head: u8, tail: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
+        transition { _ -> relay(tail, total + (head as i32 in Wrapping)) }
+    }
+    state relay(tail: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
+        transition { _ -> scan(tail, total) }
+    }
+}
+machine Main::main(main: &mut Main) reaches Console {
+    main.bytes = [1, 2, 3, 4];
+    let whole: i32 in Wrapping = sum(&main.bytes);
+    let cut: i32 in Wrapping = sum(&main.bytes[1..]);
+    let literal: i32 in Wrapping = sum("AB");
+    transition whole == 10 && cut == 9 && literal == 131 {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

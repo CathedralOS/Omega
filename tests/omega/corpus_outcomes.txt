@@ -5147,3 +5147,5 @@ pass/control_flow/runtime_copy_result_conditional_successor_reuse_exit checked 6
 pass/slices/runtime_namespace_range_contract_exit checked 3789ms check-target:macos_arm64 @be968c2c6bfb
 fail/slices/namespace_range_keeps_bounds rejected 279ms expected @be968c2c6bfb
 	machine `Main::main` state `main` value call to `Views::middle` violates required fact `start <= end && end <= bytes.len`: the instantiated fact is structurally false
+pass/arithmetic/call_surviving_return_exit checked 6760ms check-target:macos_arm64 @30ec6a20142f+wt
+pass/slices/runtime_cut_byte_view_cycle_exit checked 5877ms check-target:macos_arm64 @30ec6a20142f+wt

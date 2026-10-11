@@ -63,8 +63,9 @@ pub(super) fn own_view_root(source: &LegalizedScalarFunction, place: PlaceId) ->
 /// block-parameter view, or a view cut from one) yields the union of roots the
 /// incoming edges bind to that parameter.
 ///
-/// Projected binding paths, an incoming edge that binds nothing, and bound
-/// places whose own backing is again dynamic all fail closed. Source
+/// Projected binding paths, an incoming edge that binds nothing, and backing
+/// graphs with no retained storage root all fail closed. Dynamic cuts follow
+/// their source bindings with the same cycle traversal as unsliced arrivals. Source
 /// admission and independent replay share this enumeration, so both either
 /// emit identical root rows or both reject.
 pub(super) fn view_backing_roots(
@@ -104,7 +105,8 @@ pub(super) fn view_backing_roots(
 }
 
 /// The distinct roots every incoming edge binds to block parameter
-/// `parameter`. A bound byte-view place contributes its own retained root; a
+/// `parameter`. A bound byte-view place contributes its retained root, or follows
+/// its cut source when that root arrives dynamically; a
 /// bound un-sliced parameter or literal contributes itself with `extent`, the
 /// checked length the access's operand already carries. A bound argument that
 /// is itself a block parameter contributes the roots its own incoming edges
@@ -169,10 +171,20 @@ fn bound_view_roots_recurse(
         if let Some(bound_view) = views.iter().find(|view| view.place == place) {
             // A bound subslice contributes its own root bound: its bytes sit at
             // `O + i` inside `root`, so the honest reach is `0 .. root_length`.
-            return bound_view
-                .root
-                .map(|root| vec![(root, bound_view.root_length)])
-                .ok_or_else(|| SelectedInstructionError::custody());
+            return match bound_view.root {
+                Some(root) => Ok(vec![(root, bound_view.root_length)]),
+                // A cut does not acquire a new storage root. Follow its
+                // retained source bindings just as an unsliced arrival does;
+                // the shared explored set closes state-loop cycles without
+                // dropping roots contributed by other incoming edges.
+                None => transitive_view_roots(
+                    source,
+                    views,
+                    bound_view.source,
+                    bound_view.root_length,
+                    explored,
+                ),
+            };
         }
         let kind = contract
             .structural_place(place)
