@@ -1,17 +1,8 @@
 # deep_paren_nesting
 
-60 levels of parenthesis nesting in a `let`
-initializer — parser recursion tolerance.
+Deep parenthesis nesting (80) compiles clean.
 
 ## Gaps found while authoring (filed)
+- The corpus pins 300-level parens reaching checked semantics via the corpus gate's large-stack compile thread — but `omega update`/`omega --check` on a user package aborts with a fatal stack overflow (no diagnostic) somewhere between depth 80 and 120. The large-stack compile thread is not wired to the CLI eval path.
 
-The checker thread stack-overflows (`thread has
-overflowed its stack`, abort) at 150 AND 300
-parenthesis levels under sample-package `--check`,
-while corpus `parser/deep_nesting_within_limit` holds
-300 levels "well within MAX_NESTING_DEPTH" via the
-large-stack compile thread. The large-stack path is
-not active for sample packages — landed at 60.
-
-Compile-checked only: no standard-library dependency and
-no `Main::exit` — run a check target, not native.
+Compile-checked only: run a check target, not native.
