@@ -62,7 +62,7 @@ pub(crate) fn check_selected_execution(
     // capture it, rather than changing their predecessor after Psi checking.
     // Layout and policy evaluation consume typed structure; checked callback
     // authority is still bound only after the language judgment below.
-    if let Some(profile) = selected_target_profile {
+    if selected_target_profile.is_some() {
         provider_planning::calling_policy_plans::close_outbound_callback_materializations(
             &typed,
             &mut boundary_calling_plan_realizations,
