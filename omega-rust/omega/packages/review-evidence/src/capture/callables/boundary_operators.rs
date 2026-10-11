@@ -140,8 +140,8 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
                     .iter()
                     .filter(|specialization| specialization.instance == machine.symbol)
                     .any(|specialization| {
-                        validation::machine_specialization_matches_template_identity(
-                            compilation.checking_input,
+                        typed_trees::machine_specialization_matches_template_identity(
+                            &compilation.typed,
                             specialization,
                             plan.identity_text(*machine_identity),
                             *machine_package_identity,

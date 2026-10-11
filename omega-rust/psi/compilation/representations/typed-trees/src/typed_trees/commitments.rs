@@ -193,3 +193,24 @@ pub struct StaticRequirementDispatch {
     pub realization_machine: symbols::SymbolHandle,
     pub realization_state: symbols::SymbolHandle,
 }
+
+/// Whether `specialization` was made from the template that a ProviderPlan's
+/// split checked-adapter identity names. The recorded identity is
+/// `<declaration>|<callable identity>`; the declaration half derives from the
+/// template symbol alone and contains no `|`, so the join compares the
+/// template's package and the recorded callable half.
+pub fn machine_specialization_matches_template_identity(
+    typed: &crate::TypedTrees,
+    specialization: &MachineSpecialization,
+    machine_identity: &str,
+    machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+) -> bool {
+    typed
+        .symbols
+        .symbol_package_identity(specialization.template)
+        == machine_package_identity
+        && specialization
+            .normalized_template_identity
+            .split_once('|')
+            .is_some_and(|(_, callable)| callable == machine_identity)
+}

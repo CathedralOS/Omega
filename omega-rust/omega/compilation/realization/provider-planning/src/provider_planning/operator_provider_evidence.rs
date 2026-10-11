@@ -536,8 +536,8 @@ pub fn specialized_provider_machines<'checked>(
         .machine_specializations
         .iter()
         .filter(|specialization| {
-            validation::machine_specialization_matches_template_identity(
-                checked,
+            typed_trees::machine_specialization_matches_template_identity(
+                &checked.typed,
                 specialization,
                 machine_identity,
                 machine_package_identity,

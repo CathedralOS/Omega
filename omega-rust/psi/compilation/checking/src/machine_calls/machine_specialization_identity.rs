@@ -17,12 +17,10 @@ pub fn machine_specialization_matches_template_identity(
     machine_identity: &str,
     machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
 ) -> bool {
-    typed
-        .symbols
-        .symbol_package_identity(specialization.template)
-        == machine_package_identity
-        && specialization
-            .normalized_template_identity
-            .split_once('|')
-            .is_some_and(|(_, callable)| callable == machine_identity)
+    typed_trees::machine_specialization_matches_template_identity(
+        typed.typed_program(),
+        specialization,
+        machine_identity,
+        machine_package_identity,
+    )
 }

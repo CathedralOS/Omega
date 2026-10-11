@@ -47,5 +47,5 @@ pub use typed_trees::{
     PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations,
     PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind,
     PlanLaidTargetLayout, ProgramIdentity, TypedTreeRoots, TypedTreeTables, TypedTrees,
-    closed_conformance_applications_of,
+    closed_conformance_applications_of, machine_specialization_matches_template_identity,
 };
