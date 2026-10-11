@@ -45,19 +45,7 @@ impl Builder<'_, '_> {
             if !unequal {
                 return Some(membership);
             }
-            let operands = self.plans.operands.insert_many([membership]);
-            return Some(self.insert(
-                PrimitiveType::Bool,
-                CheckedScalarComputationKind::Apply {
-                    source_expression: expression,
-                    expression: CheckedScalarExpression::Boolean(Box::new(
-                        CheckedBooleanExpression::Not(Box::new(
-                            CheckedBooleanExpression::Parameter { position: 0 },
-                        )),
-                    )),
-                    operands,
-                },
-            ));
+            return Some(self.boolean_negation(membership, expression));
         }
         let (left_type, left) = self.enum_operand(binary.left)?;
         let (right_type, right) = self.enum_operand(binary.right)?;
@@ -115,19 +103,7 @@ impl Builder<'_, '_> {
             if !unequal {
                 return Some(membership);
             }
-            let operands = self.plans.operands.insert_many([membership]);
-            return Some(self.insert(
-                PrimitiveType::Bool,
-                CheckedScalarComputationKind::Apply {
-                    source_expression: expression,
-                    expression: CheckedScalarExpression::Boolean(Box::new(
-                        CheckedBooleanExpression::Not(Box::new(
-                            CheckedBooleanExpression::Parameter { position: 0 },
-                        )),
-                    )),
-                    operands,
-                },
-            ));
+            return Some(self.boolean_negation(membership, expression));
         }
         let mut chain = None;
         for case in &cases {

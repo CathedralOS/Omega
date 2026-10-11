@@ -289,6 +289,29 @@ impl Builder<'_, '_> {
         )
     }
 
+    /// The boolean `!` applied to a checked operand: one Apply node whose
+    /// only operand is the value just appended. Enum-equality negation and
+    /// the ordinary logical-not path share this insertion.
+    pub(super) fn boolean_negation(
+        &mut self,
+        operand: CheckedScalarComputationHandle,
+        source_expression: ExpressionHandle,
+    ) -> CheckedScalarComputationHandle {
+        let operands = self.plans.operands.insert_many([operand]);
+        self.insert(
+            PrimitiveType::Bool,
+            CheckedScalarComputationKind::Apply {
+                source_expression,
+                expression: CheckedScalarExpression::Boolean(Box::new(
+                    CheckedBooleanExpression::Not(Box::new(
+                        CheckedBooleanExpression::Parameter { position: 0 },
+                    )),
+                )),
+                operands,
+            },
+        )
+    }
+
     /// A cast to the same carrier leaves its payload unchanged, whether
     /// it selects an arithmetic policy or changes predicate-only facts. Forward
     /// its already-checked operand through ordinary computation building; a
@@ -701,19 +724,7 @@ impl Builder<'_, '_> {
                     && operator_is_builtin(self.operators, expression) =>
             {
                 let operand = self.expression(unary.operand, PrimitiveType::Bool)?;
-                let operands = self.plans.operands.insert_many([operand]);
-                Some(self.insert(
-                    PrimitiveType::Bool,
-                    CheckedScalarComputationKind::Apply {
-                        source_expression: expression,
-                        expression: CheckedScalarExpression::Boolean(Box::new(
-                            CheckedBooleanExpression::Not(Box::new(
-                                CheckedBooleanExpression::Parameter { position: 0 },
-                            )),
-                        )),
-                        operands,
-                    },
-                ))
+                Some(self.boolean_negation(operand, expression))
             }
             ExpressionNode::Binary(binary)
                 if expected_type == PrimitiveType::Bool
