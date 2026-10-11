@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 1.35, "load1_start": 0.88, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 3.82, "load1_start": 3.79, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -129,10 +129,8 @@ pass/calls/callback_private_materialization rejected 3809ms @3eebfe9c3de
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/caller_result_binding_mutable_loan_exit built 1040ms exit:70 @2d8ed253669f+wt
 pass/calls/caller_structural_result_indexed_borrow_exit built 1814ms exit:171 @bd26d3a01ac1
-pass/calls/case_arm_payload_receiver_arg rejected 868ms @2d8ed253669f+wt
-	terminal-artifact production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
-pass/calls/case_scrutinee_param_clone_exit rejected 819ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
+pass/calls/case_arm_payload_receiver_arg built 10984ms exit:70 @26de5dbf218d
+pass/calls/case_scrutinee_param_clone_exit built 10291ms exit:0 @26de5dbf218d
 pass/calls/case_scrutinee_self_dispatch_exit built 1055ms exit:0 @2d8ed253669f+wt
 pass/calls/constant_result_requires_argument_accepted built 853ms @2d8ed253669f+wt
 pass/calls/copy_projection_from_borrowed_receiver built 966ms exit:70 @2d8ed253669f+wt
@@ -214,8 +212,7 @@ pass/calls/runtime_nested_completed_operands_then_shared_borrow_exit built 7590m
 pass/calls/runtime_nested_value_call_guard_exit built 4782ms exit:70 @233d30cb1ceb
 pass/calls/runtime_option_value_call_exit built 1177ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit built 1085ms exit:70 @2d8ed253669f+wt
-pass/calls/runtime_owned_parameter_primitive_borrow_exit rejected 6878ms @527bb17dc5
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
+pass/calls/runtime_owned_parameter_primitive_borrow_exit built 8269ms exit:0 @26de5dbf218d
 pass/calls/runtime_owned_state_scalar_field_store_exit built 6228ms exit:70 @c24b141cb29b+wt
 pass/calls/runtime_param_receiver_second_instance_exit built 1243ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_qualified_tail_recursion_exit built 1001ms exit:70 @2d8ed253669f+wt
@@ -356,8 +353,7 @@ pass/control_flow/affine_call_result_state_transfer_exit rejected 5088ms @527bb1
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
 pass/control_flow/arm_pattern_rest_optout_exit built 1097ms exit:70 @9baafc0ace88
 pass/control_flow/borrowed_state_argument built 1139ms exit:5 @9baafc0ace88
-pass/control_flow/case_arm_payload_receiver_call rejected 819ms @2d8ed253669f+wt
-	terminal-artifact production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
+pass/control_flow/case_arm_payload_receiver_call built 10280ms exit:70 @26de5dbf218d
 pass/control_flow/case_arm_scalar_payload_arguments_exit built 1222ms exit:70 @2d8ed253669f+wt
 pass/control_flow/case_pattern_rename_waive_exit built 1080ms exit:70 @9baafc0ace88
 pass/control_flow/composite_state_parameter built 936ms @2d8ed253669f+wt
