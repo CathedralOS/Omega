@@ -1,0 +1,3 @@
+trait Drawable<Sprite, Canvas> {
+    machine draw(sprite: &Sprite, canvas: &mut Canvas);
+}
