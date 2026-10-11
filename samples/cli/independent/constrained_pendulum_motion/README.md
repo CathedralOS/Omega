@@ -63,7 +63,7 @@ From the repository root, using an exact verified compiler as `$OMEGA`:
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 project=samples/cli/independent/constrained_pendulum_motion
 "$OMEGA" update --project "$project" --target linux_x86_64
-# Inspect omega.review and accept only the required decisions; resume once.
+# Inspect build/package-manager/review-linux_x86_64.txt; resolve required decisions.
 "$OMEGA" update --resume --project "$project"
 "$OMEGA" --check "$project/main.omg"
 "$OMEGA" run "$project/main.omg" < "$project/data/released.stdin"
