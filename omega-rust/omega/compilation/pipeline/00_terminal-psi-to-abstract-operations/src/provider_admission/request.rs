@@ -71,6 +71,7 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub target: target::NativeTarget,
     pub program_entry: crate::NativeProgramEntrySettlement<'request>,
     pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
+    pub checked_adapters: &'request [crate::SelectedProviderAdapter],
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'execution>],
     pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],

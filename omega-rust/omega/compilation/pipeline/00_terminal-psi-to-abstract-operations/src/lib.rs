@@ -83,5 +83,5 @@ pub use optimization::{
     VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
     VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
 };
-pub(crate) use provider_installation::SelectedProviderAdapter;
+pub use provider_installation::SelectedProviderAdapter;
 pub use provider_installation::{AdmittedProviderInstallation, ProviderInstallationError};

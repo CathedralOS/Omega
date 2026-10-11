@@ -16,6 +16,8 @@ use diagnostics::Diagnostic;
 /// canonical artifact. Completed callback bodies arrive in placement order;
 /// neither their cardinality nor their identity is trusted.
 pub struct TerminalNativeProposalRequest<'input> {
+    pub provider_declarations:
+        Vec<crate::provider_admission::NativeProviderPlanDeclaration<'input>>,
     pub target_profile: Option<target::TargetProfile>,
     pub family_realizations: Vec<SelectedFamilyRealizationSource>,
     pub boundaries: crate::BoundaryApplicationSettlement<'input>,
@@ -153,6 +155,11 @@ pub fn project_terminal_native_realization_proposal(
         request.boundaries.selected_provider_plans,
         &request.family_realizations,
     )?;
+    let checked_adapters = crate::provider_admission::retain_selected_provider_adapters(
+        &selected,
+        &request.provider_declarations,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
     let demanded_intrinsics =
         crate::provider_admission::demanded_boundary_identities(terminal_module)?;
     let builtin_proposals =
@@ -210,6 +217,7 @@ pub fn project_terminal_native_realization_proposal(
         request.optimizations,
         TerminalNativeProviders {
             selection: selected,
+            checked_adapters,
             external_bindings: external_binding_rows,
             compiler_builtins: builtin_proposals,
             x86_scalar_fma: request.x86_scalar_fma_provider,

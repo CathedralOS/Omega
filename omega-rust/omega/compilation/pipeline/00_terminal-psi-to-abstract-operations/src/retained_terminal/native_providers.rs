@@ -50,6 +50,7 @@ impl PreparedRetainedNativeProviders<'_> {
                 target: proposal.native_target(),
                 program_entry: proposal.program_entry().as_settlement(),
                 selected_provider_plans: &proposal.providers().selection,
+                checked_adapters: &proposal.providers().checked_adapters,
                 external_binding_rows: proposal.providers().external_bindings.as_slice(),
                 settlements,
                 compiler_builtins: &self.compiler_builtins,

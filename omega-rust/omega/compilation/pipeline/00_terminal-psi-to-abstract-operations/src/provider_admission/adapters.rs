@@ -1,71 +1,63 @@
-use std::collections::BTreeSet;
+//! Carry checked provider choices without reconstructing their owner from code.
+//!
+//! Source custody qualifies whole plans before release. The selected closure
+//! remains authoritative for specialization and family aliases; this projection
+//! preserves those joins rather than rewriting selected rows. Native admission
+//! selects its executable subset without rebuilding this producer's output. Neither a
+//! display label nor sharing one realizing machine merges selecting declarations.
 
 use crate::SelectedProviderAdapter;
-use effects::provider_plan::ProviderBinding;
+use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
-/// Project only checked, in-artifact provider adapters from the selected
-/// provider closure. External bindings continue through provider-execution
-/// settlements; they must never be reinterpreted as checked Omega machines.
-pub(crate) fn project_selected_provider_adapters(
-    selected: &effects::SelectedProviderPlanFacts,
-    terminal: &abstract_operations::AbstractOperationPlan,
-) -> Result<Vec<SelectedProviderAdapter>, String> {
-    let relevant_requirements = terminal
-        .provider_candidates
-        .iter()
-        .map(|candidate| {
-            terminal
-                .identities
-                .text(candidate.requirement_identity)
-                .unwrap_or_default()
-        })
-        .collect::<BTreeSet<_>>();
-    project_selected_provider_adapters_for_requirements(selected, &relevant_requirements)
+/// Transient source-normalized owner beside its exact whole selected plan.
+/// External/intrinsic-only plans need no checked selecting declaration.
+pub struct NativeProviderPlanDeclaration<'input> {
+    pub plan: &'input ProviderPlan,
+    pub provider_declaration: Option<String>,
 }
 
-pub(crate) fn project_selected_provider_adapters_for_requirements(
+pub(crate) fn retain_selected_provider_adapters(
     selected: &effects::SelectedProviderPlanFacts,
-    relevant_requirements: &BTreeSet<&str>,
+    declarations: &[NativeProviderPlanDeclaration<'_>],
 ) -> Result<Vec<SelectedProviderAdapter>, String> {
-    fn project(
-        plan: &effects::provider_plan::ProviderPlan,
-        relevant_requirements: &BTreeSet<&str>,
-        requirement_identity: &str,
-        machine_identity: &str,
-        machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-        adapters: &mut Vec<SelectedProviderAdapter>,
-    ) -> Result<(), String> {
-        if !relevant_requirements.contains(requirement_identity) {
-            return Ok(());
-        }
-        if plan.provider_type.is_empty() {
-            return Err(format!(
-                "selected ProviderPlan `{}` has a checked adapter but no exact provider type identity",
-                plan.name
-            ));
-        }
-        if requirement_identity.is_empty() || machine_identity.is_empty() {
-            return Err(format!(
-                "selected ProviderPlan `{}` has an incomplete checked-adapter identity",
-                plan.name
-            ));
-        }
-        if machine_package_identity != plan.origin_package_identity {
-            return Err(format!(
-                "selected checked adapter `{machine_identity}` for ProviderPlan `{}` drifted from the plan's exact origin package",
-                plan.name
-            ));
-        }
-        adapters.push(SelectedProviderAdapter {
-            requirement_identity: requirement_identity.to_owned(),
-            provider_identity: plan.provider_type.clone(),
-            machine_identity: machine_identity.to_owned(),
-        });
-        Ok(())
+    if selected.plans().len() != declarations.len()
+        || selected.plans().iter().any(|plan| {
+            declarations
+                .iter()
+                .filter(|declaration| declaration.plan == plan)
+                .count()
+                != 1
+        })
+    {
+        return Err(
+            "native provider declaration roster differs from the complete selected plans".into(),
+        );
     }
+    project_complete_adapters(selected, |plan| {
+        let mut matches = declarations
+            .iter()
+            .filter(|declaration| declaration.plan == plan);
+        let declaration = matches
+            .next()
+            .ok_or("native selected plan has no declaration custody")?;
+        if matches.next().is_some() {
+            return Err("native selected plan has competing declaration custody".into());
+        }
+        declaration
+            .provider_declaration
+            .clone()
+            .filter(|owner| !owner.is_empty())
+            .ok_or_else(|| "native checked provider plan has no exact selecting declaration".into())
+    })
+}
 
+fn project_complete_adapters(
+    selected: &effects::SelectedProviderPlanFacts,
+    mut declaration: impl FnMut(&ProviderPlan) -> Result<String, String>,
+) -> Result<Vec<SelectedProviderAdapter>, String> {
     let mut adapters = Vec::new();
     for plan in selected.plans() {
+        let mut owner = None;
         for row in &plan.rows {
             let ProviderBinding::CheckedAdapter {
                 machine_identity,
@@ -74,51 +66,45 @@ pub(crate) fn project_selected_provider_adapters_for_requirements(
             else {
                 continue;
             };
-            // A template-keyed selected row serves its closed requirement
-            // instances through the specialized provider instances the
-            // roster retains. A row the roster never rebinds keeps its own
-            // exact identity.
-            let specialized = selected
-                .specialized_requirement_rows_for_row(
-                    plan.report_fingerprint(),
-                    &row.requirement_identity,
-                )
-                .collect::<Vec<_>>();
-            if specialized.is_empty() {
-                project(
-                    plan,
-                    relevant_requirements,
-                    &row.requirement_identity,
-                    plan.identity_text(*machine_identity),
-                    *machine_package_identity,
-                    &mut adapters,
-                )?;
-            } else {
-                for specialization in specialized {
-                    project(
-                        plan,
-                        relevant_requirements,
-                        &specialization.requirement_identity,
-                        &specialization.machine_identity,
-                        *machine_package_identity,
-                        &mut adapters,
-                    )?;
+            if plan.provider_type.is_empty()
+                || row.requirement_identity.is_empty()
+                || plan.identity_text(*machine_identity).is_empty()
+                || *machine_package_identity != plan.origin_package_identity
+            {
+                return Err(format!(
+                    "selected ProviderPlan `{}` has incomplete checked-adapter custody",
+                    plan.name
+                ));
+            }
+            let owner = match &owner {
+                Some(owner) => owner,
+                None => owner.insert(declaration(plan)?),
+            };
+            for requirement in selected.selected_row_requirement_identities(
+                plan.report_fingerprint(),
+                &row.requirement_identity,
+            ) {
+                let machine = selected
+                    .specialized_requirement_row(requirement)
+                    .map_or_else(
+                        || plan.identity_text(*machine_identity),
+                        |specialization| specialization.machine_identity.as_str(),
+                    );
+                if machine.is_empty() {
+                    return Err("selected checked realization has an empty machine identity".into());
                 }
+                adapters.push(SelectedProviderAdapter {
+                    provider_declaration: owner.clone(),
+                    provider_plan_digest: plan.identity_digest(),
+                    selected_requirement_identity: row.requirement_identity.clone(),
+                    requirement_identity: requirement.to_owned(),
+                    provider_identity: plan.provider_type.clone(),
+                    machine_identity: machine.to_owned(),
+                });
             }
         }
     }
-    adapters.sort_by(|left, right| {
-        (
-            &left.requirement_identity,
-            &left.provider_identity,
-            &left.machine_identity,
-        )
-            .cmp(&(
-                &right.requirement_identity,
-                &right.provider_identity,
-                &right.machine_identity,
-            ))
-    });
+    adapters.sort_by(|left, right| left.requirement_identity.cmp(&right.requirement_identity));
     if let Some(duplicate) = adapters
         .windows(2)
         .find(|rows| rows[0].requirement_identity == rows[1].requirement_identity)

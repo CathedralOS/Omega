@@ -48,6 +48,18 @@ impl CheckedCompilation {
         let execution = self.execution();
         let providers = self.providers();
         Ok(TerminalNativeProposalRequest {
+            provider_declarations: execution.selected_provider_provenance.iter().map(|retained| {
+                let typed = &execution.program.typed;
+                let provider_declaration = retained.provider.provider_type.map(|symbol| {
+                    typed.exact_owner_nominal_identity(symbol, self.sources().exact_toolchain_sources())
+                        .and_then(|identity| typed.type_identity_text(identity))
+                        .ok_or_else(|| vec![Diagnostic::error("native provider selection lost its exact declaration owner")])
+                }).transpose()?;
+                Ok(terminal_psi_to_abstract_operations::provider_admission::NativeProviderPlanDeclaration {
+                    plan: &retained.plan,
+                    provider_declaration,
+                })
+            }).collect::<Result<Vec<_>, Vec<Diagnostic>>>()?,
             family_realizations: self.selected_family_realizations()?,
             target_profile: execution.selected_target_profile,
             boundaries: BoundaryApplicationSettlement {

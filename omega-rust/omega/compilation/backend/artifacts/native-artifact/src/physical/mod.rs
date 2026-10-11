@@ -302,11 +302,14 @@ pub(crate) enum BoundaryTraitSettlementRole {
     /// internal call into its selected checked-machine candidate. The
     /// retained object call-stack row names the owner operation and the
     /// callee machine; the selected Terminal conformance row rejoins the
-    /// exact provider and candidate identities. An in-module provider call
+    /// exact choosing declaration, provider and candidate identities. The
+    /// physical parent commits that declaration even when code is shared.
+    /// An in-module provider call
     /// crosses no external boundary and carries no external execution
     /// binding, so this role retains none.
     InstalledProviderInternalCall {
         boundary: BoundaryMachineId,
+        provider_declaration: String,
         provider_identity: String,
         candidate_identity: String,
         call: BoundaryInternalCallCustody,

@@ -163,6 +163,10 @@ impl NativeExecutionScope {
                                         == Some(row.requirement_identity.as_str())
                                         && plan.identities.text(candidate.provider_identity)
                                             == Some(row.provider_identity.as_str())
+                                        && plan
+                                            .identities
+                                            .text(candidate.provider_declaration.identity())
+                                            == Some(row.provider_declaration.as_str())
                                         && plan.identities.text(candidate.candidate_identity)
                                             == Some(row.machine_identity.as_str())
                                 })

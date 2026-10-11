@@ -214,8 +214,8 @@ pub(crate) fn admitted_provider_settlement_identity(
 
 /// Strong identity for one installed provider boundary call realized as a
 /// resolved internal call into its selected checked-machine candidate. The
-/// hash binds the boundary coordinate, the conformance row's provider and
-/// candidate identities, and the complete retained call-stack custody —
+/// hash binds the boundary coordinate, the exact choosing declaration, the
+/// provider label and candidate identity, and complete call-stack custody —
 /// owner, callee machine, call-field offset, and the frame or caller-live
 /// bytes its record family carries — so no coordinate can be substituted
 /// underneath this parent identity.
@@ -226,12 +226,13 @@ pub(crate) fn installed_provider_internal_call_identity(
     selected_plan_digest: NativeSelectedProviderPlanDigest,
     target: NativeTarget,
     boundary: BoundaryMachineId,
+    provider_declaration: &str,
     provider_identity: &str,
     candidate_identity: &str,
     call: &BoundaryInternalCallCustody,
 ) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.d41-boundary-trait-settlement.sha256.v5\0",
+        b"omega.d41-boundary-trait-settlement.sha256.v6\0",
     );
     digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
@@ -239,6 +240,7 @@ pub(crate) fn installed_provider_internal_call_identity(
     hash_target(&mut digest, target);
     digest.byte(4); // InstalledProviderInternalCall role.
     digest.raw(&boundary.get().to_le_bytes());
+    hash_bytes(&mut digest, provider_declaration.as_bytes());
     hash_bytes(&mut digest, provider_identity.as_bytes());
     hash_bytes(&mut digest, candidate_identity.as_bytes());
     hash_internal_call_custody(&mut digest, call);

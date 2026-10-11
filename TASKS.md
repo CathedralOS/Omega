@@ -2712,9 +2712,9 @@ crash and native exit behavior.
     Build evaluation. Unrelated providers introduce no demand. Provider-default
     declarations remain distinct from runtime invocation dependencies.
     Externalize these in-process proposals and every target's entry backing in
-    the source-free Build companion. Native provider installation still needs
-    exact selecting-declaration custody rather than its current display-label
-    projection; colliding native selections must refuse, not merge owners. Preserve
+    the source-free Build companion. Preserve exact choosing-declaration custody
+    through native installation and physical call origins; colliding native
+    selections must refuse, not merge owners. Preserve
     `targets/portable_family_entry_installations_exit` (four selected outcomes
     from one unchanged Terminal artifact) and
     `targets/selected_family_exclusion_closure_exit` through both engines;

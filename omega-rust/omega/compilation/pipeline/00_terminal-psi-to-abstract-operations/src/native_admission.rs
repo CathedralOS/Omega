@@ -51,16 +51,11 @@ pub fn admit_native_realization<'request>(
         &[],
     )
     .map_err(artifact_lowering_error)?;
-    let adapters = crate::provider_admission::project_selected_provider_adapters(
-        request.providers.selected_provider_plans,
-        input.plan(),
-    )
-    .map_err(|error| realization_error("selected checked-provider projection", error))?;
     let input = input
         .select_target_execution(
             artifact,
             request.providers.program_entry.source().target_slot().owner,
-            &adapters,
+            request.providers.checked_adapters,
         )
         .map_err(|error| realization_error("execution scope", error))?
         .bind_selected_family_realizations(artifact, request.providers.selected_provider_plans)
@@ -154,6 +149,7 @@ pub fn admit_native_realization<'request>(
         target: request.providers.target,
         program_entry: request.providers.program_entry,
         selected_provider_plans: request.providers.selected_provider_plans,
+        checked_adapters: request.providers.checked_adapters,
         external_binding_rows: request.providers.external_binding_rows,
         settlements: &settlements,
         compiler_builtins: &compiler_builtins,

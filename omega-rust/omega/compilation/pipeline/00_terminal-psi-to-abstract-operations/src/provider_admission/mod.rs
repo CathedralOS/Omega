@@ -12,7 +12,8 @@
 //! preparation never replaces independent native admission.
 
 mod adapters;
-pub(crate) use adapters::project_selected_provider_adapters;
+pub use adapters::NativeProviderPlanDeclaration;
+pub(crate) use adapters::retain_selected_provider_adapters;
 mod callback_arguments;
 mod compiler_builtins;
 mod diagnostics;

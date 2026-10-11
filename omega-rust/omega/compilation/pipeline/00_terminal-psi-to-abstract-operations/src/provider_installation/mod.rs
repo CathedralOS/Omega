@@ -21,6 +21,12 @@ use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralAr
 /// artifact view before returning the private-field carrier used by execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProviderAdapter {
+    /// Selecting declaration, independently of the realizing callable.
+    pub provider_declaration: String,
+    /// Full originating plan identity; report fingerprints cannot select it.
+    pub provider_plan_digest: effects::provider_plan::ProviderPlanDigest,
+    /// Original row before specialization or target-family aliasing.
+    pub selected_requirement_identity: String,
     pub requirement_identity: String,
     pub provider_identity: String,
     pub machine_identity: String,

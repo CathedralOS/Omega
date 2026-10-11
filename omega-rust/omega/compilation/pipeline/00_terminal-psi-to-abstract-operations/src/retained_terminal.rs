@@ -25,6 +25,9 @@ pub use boundary_applications::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeProviders {
     pub selection: effects::SelectedProviderPlanFacts,
+    /// Declaration-qualified complete row projection, including closed
+    /// requirements and family aliases. This is policy, not installation.
+    pub checked_adapters: Vec<crate::SelectedProviderAdapter>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
     /// Build-admitted AVX+FMA3 provider, joined to x86 FMA demand by planning.

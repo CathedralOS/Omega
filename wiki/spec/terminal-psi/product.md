@@ -68,6 +68,13 @@ each complete provider plan; a plan's display label and optional managed package
 are not sufficient to recover a toolchain source owner. Proof-only foreign loan
 rows carry ContractEvidence rather than Callable role: their schema owner creates
 no provider demand, and receiving execution cannot install or invoke those rows.
+The in-process native proposal retains complete declaration-qualified checked
+choices, their full originating plan digest and original row, and closed
+specialization/family coordinates. Lowering consumes that projection once;
+scope and installation match its choosing declaration against canonical candidates.
+Shared physical code does not merge choices: native call custody rejoins the
+exact installed conformance rather than inferring a provider from the callee.
+Its physical settlement retains and commits the exact choosing declaration.
 
 Source-produced machine bodies retain a portable checked declaration identity:
 exact-owner callable and initial state, contract commitment, and optional

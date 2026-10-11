@@ -46,6 +46,7 @@ pub(crate) fn admit_provider_installation_with_projection(
             .filter(|row| row.requirement_identity == requirement_identity)
             .map(|row| {
                 (
+                    row.provider_declaration.as_str(),
                     row.provider_identity.as_str(),
                     row.machine_identity.as_str(),
                 )
@@ -57,10 +58,15 @@ pub(crate) fn admit_provider_installation_with_projection(
         let exact = candidates
             .iter()
             .filter(|candidate| {
-                selected_rows.iter().any(|(provider, machine)| {
-                    plan.identities.text(candidate.provider_identity) == Some(*provider)
-                        && plan.identities.text(candidate.candidate_identity) == Some(*machine)
-                })
+                selected_rows
+                    .iter()
+                    .any(|(declaration, provider, machine)| {
+                        plan.identities
+                            .text(candidate.provider_declaration.identity())
+                            == Some(*declaration)
+                            && plan.identities.text(candidate.provider_identity) == Some(*provider)
+                            && plan.identities.text(candidate.candidate_identity) == Some(*machine)
+                    })
             })
             .collect::<Vec<_>>();
         let [candidate] = exact.as_slice() else {

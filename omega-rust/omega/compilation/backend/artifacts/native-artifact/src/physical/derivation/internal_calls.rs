@@ -34,7 +34,7 @@ use target::{Architecture, NativeTarget, TargetProfile};
 use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
 
-mod family_custody;
+mod call_custody;
 
 /// One retained call-stack row a boundary call's emitted internal call can
 /// rejoin; the variants mirror the caller's record families exactly.
@@ -225,15 +225,52 @@ pub(crate) fn derive_boundary_internal_call_child(
             Err("selected boundary internal call rejoins duplicate call custody")
         };
     };
+    let record = call_custody::rejoin(
+        fragment_publication.ok_or("selected boundary internal call lacks fragment custody")?,
+        occurrence,
+        call.target(),
+        call.text_offset(),
+    )?;
+    if record.claim_transfers
+        != completion_receipts
+            .iter()
+            .map(|receipt| terminal_psi::ClaimTransfer {
+                claim: receipt.claim,
+                argument_index: receipt.argument_index,
+                path: receipt.path.clone(),
+            })
+            .collect::<Vec<_>>()
+    {
+        return Err("selected boundary internal call changed its completion transfers");
+    }
     let selection = if let Some(plan) = selected_plan {
         // A provider and a target family carry distinct selection custody.
         // The shared physical call transport grants neither kind of authority.
+        // Code sharing is not choosing-declaration equality. Rejoin the exact
+        // installed origin retained by ordinary call lowering, not a search
+        // for whichever catalog conformance happens to name this body.
+        let legalized_operations::NativeCallOrigin::InstalledProvider {
+            boundary: selected_boundary,
+            provider,
+            completion_receipts: retained_receipts,
+            ..
+        } = &record.source
+        else {
+            return Err("installed provider internal call lost its exact selected origin");
+        };
+        if selected_boundary != boundary
+            || provider.boundary != *boundary
+            || provider.candidate != call.target()
+            || retained_receipts != completion_receipts
+        {
+            return Err(
+                "installed provider internal call changed its selection or completion custody",
+            );
+        }
         let conformances = module
             .provider_candidates
             .iter()
-            .filter(|conformance| {
-                conformance.boundary == *boundary && conformance.candidate == call.target()
-            })
+            .filter(|conformance| *conformance == provider)
             .collect::<Vec<_>>();
         let [conformance] = conformances.as_slice() else {
             return Err("installed provider internal call cannot rejoin one provider conformance");
@@ -243,12 +280,6 @@ pub(crate) fn derive_boundary_internal_call_child(
         }
         InternalCallSelection::Provider { conformance, plan }
     } else {
-        let record = family_custody::rejoin(
-            fragment_publication.ok_or("target-family internal call lacks fragment custody")?,
-            occurrence,
-            call.target(),
-            call.text_offset(),
-        )?;
         let legalized_operations::NativeCallOrigin::TargetFamily {
             boundary: selected_boundary,
             member: selected_member,
@@ -262,15 +293,6 @@ pub(crate) fn derive_boundary_internal_call_child(
         if selected_boundary != boundary
             || *selected_member != call.target()
             || retained_receipts != completion_receipts
-            || record.claim_transfers
-                != retained_receipts
-                    .iter()
-                    .map(|receipt| terminal_psi::ClaimTransfer {
-                        claim: receipt.claim,
-                        argument_index: receipt.argument_index,
-                        path: receipt.path.clone(),
-                    })
-                    .collect::<Vec<_>>()
         {
             return Err("target-family internal call changed its head or completion custody");
         }
@@ -366,12 +388,17 @@ pub(crate) fn derive_boundary_internal_call_child(
     };
     let parent = match selection {
         InternalCallSelection::Provider { conformance, plan } => {
+            let provider_declaration = module
+                .identities
+                .text(conformance.provider_declaration.identity())
+                .ok_or("installed provider physical identity lost its choosing declaration")?;
             let parent_identity = installed_provider_internal_call_identity(
                 occurrence,
                 requirement_identity,
                 plan.plan_digest(),
                 target,
                 *boundary,
+                provider_declaration,
                 module
                     .identities
                     .text(conformance.provider_identity)
@@ -384,6 +411,7 @@ pub(crate) fn derive_boundary_internal_call_child(
             );
             let role = BoundaryTraitSettlementRole::InstalledProviderInternalCall {
                 boundary: *boundary,
+                provider_declaration: provider_declaration.to_owned(),
                 provider_identity: module
                     .identities
                     .text(conformance.provider_identity)
