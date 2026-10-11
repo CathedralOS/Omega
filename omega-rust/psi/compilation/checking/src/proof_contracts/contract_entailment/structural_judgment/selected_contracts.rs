@@ -5,8 +5,8 @@
 //! establishes the selected entry premises before importing any equation.
 
 use super::super::specification_calls::{
-    SelectedCallContract, owner_contracts, owner_name, owner_parameters, owner_symbol,
-    selected_call_contract_for_parameters, selected_contract_by_symbol,
+    SelectedCallContract, owner_contracts, owner_name, owner_parameters, owner_return_type,
+    owner_symbol, selected_call_contract_for_parameters, selected_contract_by_symbol,
 };
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use symbols::SymbolHandle;
@@ -73,20 +73,57 @@ impl StructuralJudge<'_> {
             return None;
         }
         let program = self.program;
-        let owner = selected_contract_by_symbol(program, *target)?;
+        let key = (
+            self.machine_symbol,
+            *target,
+            *result_type,
+            arguments.len(),
+        );
+        let memos = crate::frozen_program::frozen_program_memos(program);
+        if let Some(memos) = memos
+            && let Ok(carriers) = memos.selected_application_carriers.lock()
+            && let Some(verdict) = carriers.get(&key).copied()
+        {
+            return self.rebuild_selected_carrier(verdict);
+        }
+        let verdict =
+            self.admit_selected_application_carrier(*target, *result_type, arguments.len());
+        if let Some(memos) = memos
+            && let Ok(mut carriers) = memos.selected_application_carriers.lock()
+        {
+            carriers.insert(key, verdict);
+        }
+        self.rebuild_selected_carrier(verdict)
+    }
+
+    /// The program-fixed admission behind one selected carrier: ownership,
+    /// parameter eligibility, callee independence and declared-carrier
+    /// matching. Case-arm leaves re-consult the same applications, so the
+    /// verdict is memoized on its (caller, target, result, arity) identity.
+    fn admit_selected_application_carrier(
+        &self,
+        target: symbols::SymbolHandle,
+        result_type: typed_trees::types::TypeReferenceHandle,
+        arguments_len: usize,
+    ) -> crate::frozen_program::SelectedCarrierVerdict {
+        use crate::frozen_program::SelectedCarrierVerdict as Verdict;
+        let program = self.program;
+        let Some(owner) = selected_contract_by_symbol(program, target) else {
+            return Verdict::NoCarrier;
+        };
         let parameters = owner_parameters(program, &owner);
-        if parameters.len() != arguments.len()
+        if parameters.len() != arguments_len
             || parameters.iter().any(|parameter| {
                 parameter.is_mutable
                     || crate::reference_shell(program, parameter.type_reference).is_some()
             })
         {
-            return None;
+            return Verdict::NoCarrier;
         }
         let declared_result = match owner {
             SelectedCallContract::Concrete(machine, state) => {
                 if !independent_callee(program, self.machine_symbol, machine.symbol) {
-                    return None;
+                    return Verdict::NoCarrier;
                 }
                 let plans = crate::operand_call_plans(program, None);
                 if crate::machine_calls::denotational_calls::checked_value_call_candidate(
@@ -94,43 +131,80 @@ impl StructuralJudge<'_> {
                 )
                 .is_err()
                 {
-                    return None;
+                    return Verdict::NoCarrier;
                 }
                 state.return_type
             }
             SelectedCallContract::Signature(_) | SelectedCallContract::DynamicSlot { .. } => {
                 // Public interface selection does not itself establish that
                 // an abstract invocation has an observation-free denotation.
-                return None;
+                return Verdict::NoCarrier;
             }
             SelectedCallContract::Operator(operator) => {
                 if !crate::machine_calls::denotational_calls::selected_operator_has_closed_value_denotation(
                     program, operator,
                 ) {
-                    let (machine, state) = crate::machine_calls::denotational_calls::selected_operator_authored_body(
-                        program, operator,
-                    )?;
+                    let Some((machine, state)) =
+                        crate::machine_calls::denotational_calls::selected_operator_authored_body(
+                            program, operator,
+                        )
+                    else {
+                        return Verdict::NoCarrier;
+                    };
                     if !independent_callee(program, self.machine_symbol, operator.symbol) {
-                        return None;
+                        return Verdict::NoCarrier;
                     }
                     let plans = crate::operand_call_plans(program, None);
-                    crate::machine_calls::denotational_calls::checked_value_call_candidate(
+                    if crate::machine_calls::denotational_calls::checked_value_call_candidate(
                         program, machine, state, &plans.0, &plans.1,
-                    ).ok()?;
+                    )
+                    .is_err()
+                    {
+                        return Verdict::NoCarrier;
+                    }
                 }
                 operator.return_type
             }
         };
-        if !crate::declared_carriers_match(program, *result_type, declared_result)
-            || program.arithmetic_domain_for_type_reference(*result_type)
+        if !crate::declared_carriers_match(program, result_type, declared_result)
+            || program.arithmetic_domain_for_type_reference(result_type)
                 != program.arithmetic_domain_for_type_reference(declared_result)
         {
-            return None;
+            return Verdict::NoCarrier;
         }
+        match owner {
+            SelectedCallContract::Concrete(machine, state) => {
+                Verdict::Concrete(machine.symbol, state.symbol)
+            }
+            SelectedCallContract::Operator(operator) => Verdict::Operator(operator.symbol),
+            _ => Verdict::NoCarrier,
+        }
+    }
+
+    /// Rebuild a memoized carrier from the program tables its verdict names;
+    /// the admitted parameter and declared-result rows come back from the
+    /// same owner accessors the admission path used.
+    fn rebuild_selected_carrier(
+        &self,
+        verdict: crate::frozen_program::SelectedCarrierVerdict,
+    ) -> Option<SelectedApplicationCarrier<'_>> {
+        use crate::frozen_program::SelectedCarrierVerdict as Verdict;
+        let program = self.program;
+        let owner = match verdict {
+            Verdict::Concrete(machine_symbol, state_symbol) => {
+                let machine = program.machine(machine_symbol)?;
+                let state = program.state_in_machine(machine, state_symbol)?;
+                SelectedCallContract::Concrete(machine, state)
+            }
+            Verdict::Operator(symbol) => SelectedCallContract::Operator(
+                typed_trees::operator::declaration_by_symbol(program, symbol)?,
+            ),
+            Verdict::NoCarrier => return None,
+        };
         Some(SelectedApplicationCarrier {
+            parameters: owner_parameters(program, &owner),
+            result_type: owner_return_type(&owner),
             owner,
-            parameters,
-            result_type: declared_result,
         })
     }
 

@@ -374,11 +374,37 @@ pub struct CheckingMemos {
     pub(crate) nominal_cleanup_machine_index: OnceLock<
         Arc<symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>>,
     >,
+    /// One selected-application carrier verdict per (caller machine,
+    /// application target, declared result, arity); each consultation
+    /// re-derives program-fixed ownership, parameter eligibility, callee
+    /// independence and carrier matching, which case-arm leaf judging
+    /// repeats for the same applications.
+    pub(crate) selected_application_carriers: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                symbols::SymbolHandle,
+                typed_trees::types::TypeReferenceHandle,
+                usize,
+            ),
+            SelectedCarrierVerdict,
+        >,
+    >,
     pub(crate) data_fields: OnceLock<Arc<DataFieldIndex>>,
     pub(crate) contract_occurrences:
         OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,
     pub(crate) bound_maps:
         OnceLock<Arc<crate::proof_contracts::immutable_integer_bounds::BoundMaps>>,
+}
+
+/// A rebuildable selected-application carrier verdict: the owner and declared
+/// result are re-derived from the program tables these symbols name, so the
+/// memo stores no `'program` borrows.
+#[derive(Clone, Copy)]
+pub(crate) enum SelectedCarrierVerdict {
+    Concrete(symbols::SymbolHandle, symbols::SymbolHandle),
+    Operator(symbols::SymbolHandle),
+    NoCarrier,
 }
 
 /// The reusable memos explicitly carried by a frozen checking input.

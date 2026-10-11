@@ -160,15 +160,18 @@ helper that passes does not close an item.
 - **FLOAT-PAYLOAD-COMPILE-TIME.** (new-scope) Remove the ~28x source-checking
   slowdown on the float case-payload cohort.
   `pass/control_flow/runtime_{float_payload_snapshot_after_case_replacement,projected_float_case_payload,root_float_case_payload}_exit`
-  checked in 4.0–5.0s at `a800cc9ab970`; on a quiet Linux box the same
-  fixtures now run 137.7s (raised-cap measurement), over the 120s corpus
-  wedge and so recording `timeout`. None of the fixtures carries a
-  `terminates by` clause, so this is not the ranked-arrival path; all three
-  build `macos_arm64` ProgramEntry bindings over float case payloads.
-  Bisect from `a800cc9ab970` to find the blowup — the unqualified
-  float-materialization timeouts under **TYPED-FROZEN-BEFORE-CHECKING** may be
-  this cohort — then restore the checking time to its pinned order of
-  magnitude and repin the rows.
+  checked in 4.0–5.0s at `a800cc9ab970` and ballooned to ~113–137s from
+  `ab81d5d531` onward: the spec-call admission series made per-leaf
+  structural judgment re-derive program-fixed verdicts
+  (`checked_value_call_candidate` queried 1.6M times on 138 unique pairs;
+  `nominal_cleanup_machine_for_type` scanned ~1,260 machines per call).
+  Landed so far: denotational-candidacy and cleanup-owner memos plus the
+  owner→cleanup-machine index (`2434d11413`, 113s→~39s on a quiet Linux
+  box) and the selected-application carrier verdict memo keyed on
+  (caller, target, declared result, arity) (~39s→~32s). Residual cost is
+  repeated `StructuralTerm` reconstruction across the 1,921 case-arm
+  leaves — leaf-level judge reuse or term interning is the next leg —
+  then restore the pinned order of magnitude and repin the rows.
 
 - **DEPENDENT-STATE-PARAM-HOIST.** (new-scope) Restore the authored dependent
   maximum on state parameters so the transition-argument route is reachable
