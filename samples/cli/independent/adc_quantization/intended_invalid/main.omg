@@ -1,0 +1,7 @@
+// Complete source-invalid control: division by the constant zero is forbidden.
+use omega_language_std::console;
+machine main() reaches Console {
+    let denominator: i64 = 0;
+    let code: i64 = 7 / denominator;
+    Console::exit_process(0);
+}
