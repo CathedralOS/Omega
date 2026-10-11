@@ -243,12 +243,30 @@ impl CallTransfers<'_> {
                 self.computation(*left) + self.computation(*right)
             }
             crate::cast_or_qualification_triple_pattern!(operand, ..) => self.computation(*operand),
-            CheckedScalarComputationKind::CaseMembership { subject, .. } => match subject {
-                CheckedScalarComputationStructuralArgument::Place(argument) => {
-                    self.argument_evaluation(argument)
-                }
-                CheckedScalarComputationStructuralArgument::Case(case) => self.case(case),
-            },
+            CheckedScalarComputationKind::CaseMembership {
+                subject,
+                receiver_value,
+                ..
+            } => {
+                let observation = match subject {
+                    CheckedScalarComputationStructuralArgument::Place(argument) => {
+                        self.argument_evaluation(argument)
+                    }
+                    CheckedScalarComputationStructuralArgument::Case(case) => self.case(case),
+                };
+                observation
+                    + if receiver_value.is_valid() {
+                        self.structural(
+                            *receiver_value,
+                            self.values
+                                .structural_values
+                                .calls_for_root(*receiver_value)
+                                .unwrap_or(&[]),
+                        )
+                    } else {
+                        0
+                    }
+            }
             CheckedScalarComputationKind::StructuralField {
                 subject,
                 receiver_value,

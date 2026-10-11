@@ -237,6 +237,9 @@ pub enum CheckedScalarComputationKind {
     /// Observe an established structural operand without consuming its owner.
     CaseMembership {
         source_expression: typed_trees::expression::ExpressionHandle,
+        /// Complete evaluated enum owner, established once before tag observation.
+        /// Invalid for an existing place or a direct case constructor.
+        receiver_value: super::structural_values::CheckedStructuralValueHandle,
         subject: CheckedScalarComputationStructuralArgument,
         case: SymbolHandle,
     },

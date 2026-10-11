@@ -229,7 +229,17 @@ fn collect_reachable_nodes(
         }
         visited.push(handle);
         match &plans.nodes.get(handle).kind {
-            CheckedScalarComputationKind::CaseMembership { subject, .. } => {
+            CheckedScalarComputationKind::CaseMembership {
+                subject,
+                receiver_value,
+                ..
+            } => {
+                if receiver_value.is_valid() {
+                    if !structural_roots.contains(receiver_value) {
+                        structural_roots.push(*receiver_value);
+                    }
+                    pending.extend(structural_dependencies(checked, *receiver_value)?.scalars);
+                }
                 pending.extend(
                     operand_fields(checked, subject)?
                         .iter()

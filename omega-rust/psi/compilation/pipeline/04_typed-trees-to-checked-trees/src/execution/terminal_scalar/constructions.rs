@@ -80,8 +80,9 @@ pub(crate) fn retain_shapes(
         match &plans.nodes.get(handle).kind {
             CheckedScalarComputationKind::CaseMembership {
                 subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(_),
+                receiver_value,
                 ..
-            } => {}
+            } if !receiver_value.is_valid() => {}
             CheckedScalarComputationKind::CaseMembership {
                 subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                 ..
@@ -101,7 +102,8 @@ pub(crate) fn retain_shapes(
                     super::super::terminal_unit::scalar_operand_shapes(program, *operand_type)?,
                 )?;
             }
-            CheckedScalarComputationKind::StructuralField { receiver_value, .. } => {
+            CheckedScalarComputationKind::StructuralField { receiver_value, .. }
+            | CheckedScalarComputationKind::CaseMembership { receiver_value, .. } => {
                 if !receiver_value.is_valid() {
                     continue;
                 }

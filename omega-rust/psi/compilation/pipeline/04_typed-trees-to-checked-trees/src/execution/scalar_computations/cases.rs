@@ -46,6 +46,7 @@ impl Builder<'_, '_> {
             return Some(self.insert(
                 PrimitiveType::Bool,
                 CheckedScalarComputationKind::CaseMembership {
+                    receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
                     source_expression: expression,
                     subject: CheckedScalarComputationStructuralArgument::Place(subject),
                     case,
@@ -60,6 +61,7 @@ impl Builder<'_, '_> {
         Some(self.insert(
             PrimitiveType::Bool,
             CheckedScalarComputationKind::CaseMembership {
+                receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
                 source_expression: expression,
                 subject: CheckedScalarComputationStructuralArgument::Case(constructor),
                 case,

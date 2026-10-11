@@ -554,10 +554,11 @@ impl<'a> Expansion<'a> {
                 target,
                 site,
             )?,
-            CheckedScalarComputationKind::CaseMembership { subject, case, .. } => self
+            CheckedScalarComputationKind::CaseMembership { subject, case, receiver_value, .. } => self
                 .case_membership(
                     identities,
                     &subject,
+                    receiver_value,
                     case,
                     input_types,
                     target,

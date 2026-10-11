@@ -30,6 +30,8 @@ use checked_trees::data::DataMember;
 use checked_trees::{CheckedScalarCaseConstruction, CheckedScalarComputationStructuralArgument};
 use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
 
+mod observed_values;
+
 #[derive(Clone)]
 pub(crate) struct Slot {
     pub(super) expression: checked_trees::expression::ExpressionHandle,
@@ -38,6 +40,10 @@ pub(crate) struct Slot {
     pub(crate) multiplicity: StructuralMultiplicity,
     pub(crate) case: StructuralCaseId,
     cases: Vec<(symbols::SymbolHandle, StructuralCaseId)>,
+    receiver: Option<(
+        checked_trees::CheckedStructuralValueHandle,
+        crate::scalar_lowering::branch_states::structural_values::Storage,
+    )>,
     pub(crate) fields: Vec<ReservedField>,
 }
 
@@ -91,6 +97,17 @@ pub(crate) fn prepare(
     let roots = plans.roots_in_machines(machines);
     let mut slots: Vec<Slot> = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
+        if let Some(slot) = observed_values::reserve(
+            identities,
+            checked,
+            &plans.nodes.get(handle).kind,
+            types,
+            &slots,
+            next_place,
+        )? {
+            slots.push(slot);
+        }
+
         for subject in constructions(checked, &plans.nodes.get(handle).kind)? {
             if slots
                 .iter()
@@ -218,6 +235,7 @@ pub(crate) fn reserve(
         multiplicity,
         case: case.id,
         cases: case_bindings,
+        receiver: None,
         fields: field_bindings,
     })
 }
@@ -227,6 +245,9 @@ impl Slot {
         &self,
         values: &[ValueDeclaration],
     ) -> Result<Construction, LoweringError> {
+        if self.receiver.is_some() {
+            return unsupported("an observed enum result is not a case constructor");
+        }
         if values.len() != self.fields.len() {
             return unsupported("case construction lost its completed field roster");
         }
@@ -259,6 +280,16 @@ pub(crate) fn type_roots(
     let roots = plans.roots_in_machines(machines);
     let mut types = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
+        if let CheckedScalarComputationKind::CaseMembership { receiver_value, .. } =
+            &plans.nodes.get(handle).kind
+            && receiver_value.is_valid()
+        {
+            let root = observed_values::unique_root(checked, *receiver_value)?;
+            let identity = checked.normalized_type_identity(root.type_reference);
+            if !types.contains(&identity) {
+                types.push(identity);
+            }
+        }
         for subject in constructions(checked, &plans.nodes.get(handle).kind)? {
             let identity = checked.normalized_type_identity(subject.type_reference);
             if !types.contains(&identity) {
@@ -302,17 +333,32 @@ fn constructions<'a>(
 }
 
 impl Expansion<'_> {
+    // The tag observation retains its complete receiver beside its ordinary coordinates.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn case_membership(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
         subject: &CheckedScalarComputationStructuralArgument,
+        receiver_value: checked_trees::CheckedStructuralValueHandle,
         observed_case: symbols::SymbolHandle,
         input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
+        if receiver_value.is_valid() {
+            return observed_values::lower(
+                self,
+                identities,
+                receiver_value,
+                observed_case,
+                input_types,
+                target,
+                site,
+            );
+        }
+
         let subject = match subject {
             CheckedScalarComputationStructuralArgument::Case(subject) => subject,
             CheckedScalarComputationStructuralArgument::Place(argument) => {

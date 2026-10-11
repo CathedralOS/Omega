@@ -39,6 +39,26 @@ impl Builder<'_, '_> {
             return None;
         }
         let unequal = binary.operator == BinaryOperator::NotEqual;
+        if let Some(membership) =
+            self.computed_enum_case_membership(expression, binary.left, binary.right)
+        {
+            if !unequal {
+                return Some(membership);
+            }
+            let operands = self.plans.operands.insert_many([membership]);
+            return Some(self.insert(
+                PrimitiveType::Bool,
+                CheckedScalarComputationKind::Apply {
+                    source_expression: expression,
+                    expression: CheckedScalarExpression::Boolean(Box::new(
+                        CheckedBooleanExpression::Not(Box::new(
+                            CheckedBooleanExpression::Parameter { position: 0 },
+                        )),
+                    )),
+                    operands,
+                },
+            ));
+        }
         let (left_type, left) = self.enum_operand(binary.left)?;
         let (right_type, right) = self.enum_operand(binary.right)?;
         let left_owner =
@@ -86,6 +106,7 @@ impl Builder<'_, '_> {
             let membership = self.insert(
                 PrimitiveType::Bool,
                 CheckedScalarComputationKind::CaseMembership {
+                    receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
                     source_expression: expression,
                     subject,
                     case,
@@ -172,12 +193,72 @@ impl Builder<'_, '_> {
             _ => self.insert(
                 PrimitiveType::Bool,
                 CheckedScalarComputationKind::CaseMembership {
+                    receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
                     source_expression: expression,
                     subject: subject.clone(),
                     case,
                 },
             ),
         }
+    }
+
+    /// One computed, unrestricted payload-free enum compared with a literal
+    /// case. Retain the complete ordinary call result; observing its tag is
+    /// neither permission to replay the call nor to invent a scalar enum lane.
+    fn computed_enum_case_membership(
+        &mut self,
+        source_expression: ExpressionHandle,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let (expression, literal) = if self.program.expression_table.call_node(left).is_some() {
+            (left, right)
+        } else if self.program.expression_table.call_node(right).is_some() {
+            (right, left)
+        } else {
+            return None;
+        };
+        let constructor = self.case_construction(literal)?;
+        if !constructor.fields.is_empty() {
+            return None;
+        }
+        let call = self.program.expression_table.call_node(expression)?;
+        let target = validation::call_target_symbol(self.program, call);
+        let returned = validation::call_target_return_type(self.program, target)?;
+        if self.program.normalized_type_identity(returned)
+            != self
+                .program
+                .normalized_type_identity(constructor.type_reference)
+            || self.program.type_multiplicity(returned)
+                != language_semantics::Multiplicity::Unrestricted
+        {
+            return None;
+        }
+        let owner =
+            crate::values::scalar::structural_fields::structural_data(self.program, returned)?;
+        let members = self.program.data_members(owner);
+        if DataDefinition::shape_kind_from_members(members) != DataShapeKind::Enum
+            || members.is_empty()
+            || !members.iter().all(|member| {
+                member
+                    .as_variant()
+                    .is_some_and(|variant| self.program.data_payload_fields(variant).is_empty())
+            })
+        {
+            return None;
+        }
+        let receiver_value = self.retain_structural_argument(expression, returned)?;
+        Some(self.insert(PrimitiveType::Bool, CheckedScalarComputationKind::CaseMembership {
+            source_expression,
+            receiver_value,
+            subject: CheckedScalarComputationStructuralArgument::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+                path: Vec::new(),
+                type_identity: self.program.normalized_type_identity(returned),
+                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+            }),
+            case: constructor.case,
+        }))
     }
 
     fn enum_operand(
