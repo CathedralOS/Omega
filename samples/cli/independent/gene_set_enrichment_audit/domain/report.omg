@@ -5,14 +5,25 @@ use domain::sets;
 pub machine number(value: u64 in Wrapping) reaches Console
 invokes Console;
 {
-    transition value >= 10 { true -> prefix(value) false -> digit(value) }
-    state prefix(value: u64 in Wrapping) {
-        number(value / 10);
-        Console::write_byte((value % 10 + 48) as i32);
+    transition { _ -> scale(value, 1) }
+    state scale(value: u64 in Wrapping, divisor: u64 in Wrapping)
+        requires divisor > 0;
+    {
+        transition value / divisor >= 10 {
+            true -> scale(value, divisor * 10)
+            false -> emit(value, divisor)
+        }
     }
-    state digit(value: u64 in Wrapping) {
-        Console::write_byte((value + 48) as i32);
+    state emit(value: u64 in Wrapping, divisor: u64 in Wrapping)
+        requires divisor > 0;
+    {
+        Console::write_byte(((value / divisor) % 10 + 48) as i32);
+        transition divisor > 1 {
+            true -> emit(value, divisor / 10)
+            false -> done()
+        }
     }
+    state done() { }
 }
 
 pub machine fraction(value: Fraction) reaches Console
