@@ -4,7 +4,10 @@ use omega::language::core::float_operations;
 
 // Signed micro-units, ten decimal digits. No text format or math dependency.
 // Saturating conversion is explicit; the model inputs keep values below 1000.
-pub machine print_micro(console: &mut Binding<Console>, value: f64) reaches Console {
+pub machine print_micro(console: &mut Binding<Console>, value: f64)
+reaches Console
+invokes console;
+{
     let landed: i32 in Saturating = I32::from_f64(value * 1000000.0);
     let integer: i32 in Wrapping = landed as i32 in Wrapping;
     transition integer < 0 {
