@@ -1,0 +1,1 @@
+compiled 14 source file(s) from tests/omega/pass/contracts/shared_field_current_arithmetic/main.omg; wrote_output=false

@@ -1,0 +1,1 @@
+compiled 16 source file(s) from /tmp/w100-field-proof/main.omg; wrote_output=false

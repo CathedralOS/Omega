@@ -36,7 +36,8 @@ machine Main::main(context: &mut Main) reaches Console {
     let invalid_layout_rejected: bool = is_invalid(invalid_layout_read);
     let empty_read: ReadResult = try_read(&zero, &empty, 0, 0);
     let outside: ReadResult = try_read(&backing, &layout, 2, 0);
-    transition empty_read { ReadResult::Invalid -> outside_check(context, &backing, &layout, &swapped, outside, invalid_layout_rejected && checked_last == 6 && full_valid && full_mutable && empty_valid && empty_mutable && overflow_rejected) ReadResult::Ok { value } -> bad(context) }
+    let backing_view: &[i32] = &backing[..];
+    transition empty_read { ReadResult::Invalid -> outside_check(context, backing_view, &layout, &swapped, outside, invalid_layout_rejected && checked_last == 6 && full_valid && full_mutable && empty_valid && empty_mutable && overflow_rejected) ReadResult::Ok { value } -> bad(context) }
     state outside_check(context: &mut Main, backing: &[i32], layout: &Layout2, swapped: &Layout2, outside: ReadResult, valid: bool) {
         transition outside { ReadResult::Invalid -> entries(context, backing, layout, swapped, valid) ReadResult::Ok { value } -> bad(context) }
     }
