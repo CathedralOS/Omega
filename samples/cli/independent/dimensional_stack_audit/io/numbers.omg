@@ -1,0 +1,90 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+pub data Input [copy] { value: i32 in Saturating; valid: bool; }
+// One signed decimal token terminated by LF or EOF, at most five digits.
+// Whitespace, CR, empty lines, embedded signs and overflow-shaped tokens reject.
+pub machine read_integer(console: &mut Binding<Console>, input: &mut Input) reaches Console
+invokes console;
+blocks;
+crashes Trap
+{
+    input.value = 0;
+    input.valid = false;
+    transition { _ -> scan(console, input, 0, false, false) }
+    state scan(console: &mut Binding<Console>, input: &mut Input, digits: u32, negative: bool, started: bool) {
+        let byte: ByteRead = block console.read_byte();
+        transition byte {
+            ByteRead::Eof -> finish(input, digits, negative)
+            ByteRead::Byte { value } -> classify(console, input, digits, negative, started, value)
+        }
+    }
+    state classify(console: &mut Binding<Console>, input: &mut Input, digits: u32, negative: bool, started: bool, byte: i32) {
+        transition byte == 10 {
+            true -> finish(input, digits, negative)
+            false -> sign(console, input, digits, negative, started, byte)
+        }
+    }
+    state sign(console: &mut Binding<Console>, input: &mut Input, digits: u32, negative: bool, started: bool, byte: i32) {
+        transition byte == 45 && started == false {
+            true -> scan(console, input, digits, true, true)
+            false -> digit(console, input, digits, negative, byte)
+        }
+    }
+    state digit(console: &mut Binding<Console>, input: &mut Input, digits: u32, negative: bool, byte: i32) {
+        transition byte >= 48 && byte <= 57 && digits < 5 {
+            true -> append(console, input, digits, negative, byte)
+            false -> done()
+        }
+    }
+    state append(console: &mut Binding<Console>, input: &mut Input, digits: u32, negative: bool, byte: i32)
+    requires digits < 5 {
+        input.value = input.value * 10 + (byte as i32 in Saturating) - 48;
+        transition { _ -> scan(console, input, digits + 1, negative, true) }
+    }
+    state finish(input: &mut Input, digits: u32, negative: bool) {
+        transition digits > 0 { true -> signed(input, negative) false -> done() }
+    }
+    state signed(input: &mut Input, negative: bool) {
+        input.valid = true;
+        transition negative { true -> negate(input) false -> done() }
+    }
+    state negate(input: &mut Input) { input.value = 0 - input.value; }
+    state done() { }
+}
+// Decimal rendering uses byte output, avoiding any invented UTF-8 obligations.
+pub machine write_integer(console: &mut Binding<Console>, value: i32 in Saturating) reaches Console
+invokes console;
+{
+    transition value == -2147483648 {
+        true -> minimum(console)
+        false -> sign(console, value)
+    }
+    state minimum(console: &mut Binding<Console>) { console.write_line("-2147483648"); }
+    state sign(console: &mut Binding<Console>, value: i32 in Saturating) {
+        transition value < 0 { true -> negative(console, value) false -> positive(console, value) }
+    }
+    state negative(console: &mut Binding<Console>, value: i32 in Saturating) {
+        console.write_byte(45);
+        transition { _ -> positive(console, 0 - value) }
+    }
+    state positive(console: &mut Binding<Console>, value: i32 in Saturating) {
+        transition { _ -> digit(console, value, 1000000000, false) }
+    }
+    state digit(console: &mut Binding<Console>, value: i32 in Saturating, divisor: i32 in Saturating, started: bool)
+    requires divisor > 0 {
+        let character: i32 in Saturating = value / divisor;
+        transition character > 0 || started || divisor == 1 {
+            true -> emit(console, value, divisor, character)
+            false -> next(console, value, divisor, false)
+        }
+    }
+    state emit(console: &mut Binding<Console>, value: i32 in Saturating, divisor: i32 in Saturating, character: i32 in Saturating)
+    requires divisor > 0 {
+        console.write_byte((character + 48) as i32);
+        transition { _ -> next(console, value % divisor, divisor, true) }
+    }
+    state next(console: &mut Binding<Console>, value: i32 in Saturating, divisor: i32 in Saturating, started: bool) {
+        transition divisor >= 10 { true -> digit(console, value, divisor / 10, started) false -> newline(console) }
+    }
+    state newline(console: &mut Binding<Console>) { console.write_byte(10); }
+}
