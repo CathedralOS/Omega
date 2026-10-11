@@ -14,7 +14,9 @@ use semantic_vocabulary::{ScalarType, ValueId};
 
 use super::RuntimeSplitError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::runtime_spill::{control, require_dominated_uses};
+use crate::rewrites::runtime_spill::{
+    control, next_instruction_id, next_register_id, require_dominated_uses,
+};
 
 pub(super) struct Admission {
     pub block_index: usize,
@@ -339,29 +341,9 @@ pub(super) fn charge(
 }
 
 pub(super) fn next_instruction(function: &SelectedFunction) -> Result<u32, RuntimeSplitError> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| {
-            block
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id.0)
-                .chain([control(&block.terminator).0.id.0])
-        })
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or(RuntimeSplitError::IdentityOverflow)
+    next_instruction_id(function).ok_or(RuntimeSplitError::IdentityOverflow)
 }
 
 pub(super) fn next_register(function: &SelectedFunction) -> Result<u32, RuntimeSplitError> {
-    function
-        .virtual_registers
-        .iter()
-        .map(|value| value.id.0)
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or(RuntimeSplitError::IdentityOverflow)
+    next_register_id(function).ok_or(RuntimeSplitError::IdentityOverflow)
 }

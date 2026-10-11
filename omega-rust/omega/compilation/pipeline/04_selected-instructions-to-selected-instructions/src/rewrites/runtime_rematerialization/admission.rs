@@ -12,7 +12,9 @@ use semantic_vocabulary::{IntegerValue, ScalarType, ValueId};
 
 use super::RuntimeRematerializationError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::runtime_spill::{control, require_dominated_uses};
+use crate::rewrites::runtime_spill::{
+    control, next_instruction_id, next_register_id, require_dominated_uses,
+};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -256,28 +258,10 @@ pub(super) fn admit<'source>(
         crate::RuntimeSpillError::SourceMismatch => RuntimeRematerializationError::SourceMismatch,
         _ => RuntimeRematerializationError::UnsupportedUse,
     })?;
-    let first_instruction = function
-        .blocks
-        .iter()
-        .flat_map(|block| {
-            block
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id.0)
-                .chain([control(&block.terminator).0.id.0])
-        })
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
-    let first_register = function
-        .virtual_registers
-        .iter()
-        .map(|value| value.id.0)
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
+    let first_instruction =
+        next_instruction_id(function).ok_or(RuntimeRematerializationError::IdentityOverflow)?;
+    let first_register =
+        next_register_id(function).ok_or(RuntimeRematerializationError::IdentityOverflow)?;
     Ok(Admission {
         function,
         use_blocks,

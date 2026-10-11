@@ -437,6 +437,38 @@ pub(crate) fn control(
 /// The same projection for operand substitution. Successor edges and their
 /// transports stay untouched; only the instruction's operand registers change.
 /// Shared with the runtime-rematerialization recovery rewrite.
+/// Fresh identity cursors for rewrite-inserted rows: one past the highest
+/// instruction id anywhere in the function (terminators included) and one
+/// past the highest virtual register id. Shared with the runtime-split and
+/// runtime-rematerialization recovery rewrites, which attach their own
+/// identity-overflow error.
+pub(crate) fn next_instruction_id(function: &SelectedFunction) -> Option<u32> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            block
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id.0)
+                .chain([control(&block.terminator).0.id.0])
+        })
+        .max()
+        .unwrap_or(0)
+        .checked_add(1)
+}
+
+/// The register twin of [`next_instruction_id`].
+pub(crate) fn next_register_id(function: &SelectedFunction) -> Option<u32> {
+    function
+        .virtual_registers
+        .iter()
+        .map(|value| value.id.0)
+        .max()
+        .unwrap_or(0)
+        .checked_add(1)
+}
+
 pub(crate) fn control_mut(
     terminator: &mut selected_instructions::SelectedTerminator,
 ) -> &mut selected_instructions::SelectedInstruction {
@@ -1445,28 +1477,10 @@ pub(super) fn derive_runtime_spill<'source>(
         return Err(RuntimeSpillError::WorkBudgetExceeded);
     }
     require_dominated_uses(function, block_index, &use_blocks)?;
-    let first_instruction = function
-        .blocks
-        .iter()
-        .flat_map(|block| {
-            block
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id.0)
-                .chain([control(&block.terminator).0.id.0])
-        })
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or(RuntimeSpillError::IdentityOverflow)?;
-    let first_register = function
-        .virtual_registers
-        .iter()
-        .map(|value| value.id.0)
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or(RuntimeSpillError::IdentityOverflow)?;
+    let first_instruction =
+        next_instruction_id(function).ok_or(RuntimeSpillError::IdentityOverflow)?;
+    let first_register =
+        next_register_id(function).ok_or(RuntimeSpillError::IdentityOverflow)?;
     // A unit implicitly used anywhere in the function can be live through a
     // shared span without appearing in the span's own effects: backward unit
     // liveness keeps it resident at every interior point, so a view
