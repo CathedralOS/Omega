@@ -1,0 +1,70 @@
+use omega_language_std::console;
+use domain::balance;
+// Decimal emission uses the standard Console byte provider, with no foreign
+// formatter. Fixed divisor descent covers all bounded application results.
+pub machine number(value: i64 in Wrapping) reaches Console
+invokes Console;
+{
+    transition value < 0 {
+        true -> negative(value)
+        _ -> digits(value, 1000000000, false)
+    }
+    state negative(value: i64 in Wrapping) {
+        Console::write_byte(45);
+        transition { _ -> digits(0 - value, 1000000000, false) }
+    }
+    state digits(value: i64 in Wrapping, divisor: i64 in Wrapping, begun: bool) {
+        transition divisor > 0 {
+            true -> emit(value, divisor, begun)
+            _ -> done()
+        }
+    }
+    state done() { }
+    state emit(value: i64 in Wrapping, divisor: i64 in Wrapping, begun: bool)
+    requires divisor > 0
+    {
+        let digit: i64 in Wrapping = value / divisor % 10;
+        transition digit != 0 || begun || divisor == 1 {
+            true -> write_digit(value, divisor, digit)
+            _ -> digits(value, divisor / 10, false)
+        }
+    }
+    state write_digit(value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
+    requires divisor > 0
+    {
+        Console::write_byte(((digit + 48) as i32));
+        transition { _ -> digits(value, divisor / 10, true) }
+    }
+}
+pub machine report(frame: &Frame, result: &Balance) reaches Console
+invokes Console;
+{
+    Console::write("loads=");
+    number(frame.values[0] as i64 in Wrapping); Console::write(",");
+    number(frame.values[1] as i64 in Wrapping); Console::write(",");
+    number(frame.values[2] as i64 in Wrapping); Console::write(",");
+    number(frame.values[3] as i64 in Wrapping);
+    Console::write(" force="); number(result.force);
+    Console::write(" moments="); number(result.moment_x); Console::write(","); number(result.moment_y);
+    Console::write(" residuals="); number(result.force_residual); Console::write(","); number(result.x_residual); Console::write(","); number(result.y_residual);
+    transition result.force > 0 && result.status != 1 && result.status != 2 {
+        true -> position(result)
+        _ -> decision(result)
+    }
+    state position(result: &Balance) {
+        Console::write(" cop_mm="); number(result.moment_x); Console::write("/"); number(result.force);
+        Console::write(","); number(result.moment_y); Console::write("/"); number(result.force);
+        transition { _ -> decision(result) }
+    }
+    state decision(result: &Balance) {
+        transition result.status {
+            0 -> label(" SUPPORTED")
+            1 -> label(" INVALID_NEGATIVE_LOAD")
+            2 -> label(" INVALID_SATURATED_CELL")
+            3 -> label(" INVALID_ZERO_FORCE")
+            4 -> label(" INVALID_EQUILIBRIUM")
+            _ -> label(" OUTSIDE_SUPPORT")
+        }
+    }
+    state label(text: &[u8]) { Console::write_line(text); }
+}
