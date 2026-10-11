@@ -110,7 +110,7 @@ export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 # then use the documented update --resume workflow. Do not retry a denial.
 "$OMEGA" --check "$sample/main.omg"
 "$OMEGA" "$sample/main.omg"
-python3 -B "$sample/validation/verify.py" --executable "$sample/build/linux_x86_64/omega-program"
+python3 -B "$sample/validation/verify.py" --executable "$sample/build/omega-program"
 "$OMEGA" run --both --keep "$sample/main.omg" < "$sample/data/repeats.stdin"
 "$OMEGA" --check "$sample/intended_invalid/main.omg"
 ```
