@@ -1,7 +1,6 @@
 //! Task start selections and activation targets.
 
 use crate::{fnv1a::Fnv1a, task_plans::entry_report_fingerprint};
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use symbols::JoinedPath;
 use task_plans::TaskStartOperation;

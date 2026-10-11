@@ -1576,7 +1576,6 @@ dependencies = [
  "target",
  "task-plans",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
 ]
 

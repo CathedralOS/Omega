@@ -1,7 +1,6 @@
 //! Task machine suspension, blocking and the selected runtime provider.
 
 use crate::task_plans::start_selections::TaskStartSelection;
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use task_plans::{SelectedTaskRuntimeProviderFact, TaskRuntimeId, TaskStartOperation};
 

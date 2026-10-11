@@ -28,7 +28,7 @@
 //! demand.
 
 use super::carry_crossings::{exact_activation_wide_carry, validate_activation_carry_crossing};
-use checked_trees::{CheckedTrees, SuspensionCrossingStorage};
+use checked_trees::SuspensionCrossingStorage;
 use diagnostics::Diagnostic;
 use language_semantics::{CarryPolicy, MachineSupplyMode};
 use layout::TypeLayout;

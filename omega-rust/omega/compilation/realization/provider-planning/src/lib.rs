@@ -8,7 +8,10 @@
 //! plans; it does not define their domain model. Exact grants are resolved by
 //! backend provider evidence, independently of compiler trust reporting.
 //! Checked-tree and package-input custody dependencies remain a transitional
-//! realization bridge, not a completed Terminal-only handoff.
+//! realization bridge, not a completed Terminal-only handoff: typed vocabulary
+//! reaches this crate only through `checked_trees` re-exports, and
+//! `source_guards` fails the build if a source-input dependency edge or a
+//! facade-free typed spelling returns.
 //!
 //! Start at `provider_settlement.rs` for typed candidate derivation and selection,
 //! then `provider_planning.rs` for checked-program binding;
@@ -31,6 +34,8 @@ pub use provider_identity::{
 mod provider_planning;
 mod provider_settlement;
 pub mod service_schema;
+#[cfg(test)]
+mod source_guards;
 pub mod target_machines;
 pub mod task_plans;
 pub mod x86_fma_plan_association;

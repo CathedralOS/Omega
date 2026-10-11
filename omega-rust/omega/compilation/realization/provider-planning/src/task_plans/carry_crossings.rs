@@ -1,7 +1,6 @@
 //! Activation carry crossings, their validation, and the plan-facing
 //! crossing/carry values translated from the exact checked carry facts.
 
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use task_plans::{

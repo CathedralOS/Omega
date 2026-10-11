@@ -2900,10 +2900,6 @@ crash and native exit behavior.
     provenance here. Move their per-target realization to Omega,
     keeping source-semantic contracts and all authored candidates in Psi. Every
     family body and Build row is checked even when `--target` excludes it.
-  - Remove `provider-planning`'s `typed-trees`, `validation` and
-    `typed-trees-to-checked-trees` dependencies
-    (`omega-rust/omega/compilation/realization/provider-planning/Cargo.toml`)
-    and enforce the layering boundary.
   - Product constants requiring selected-provider evaluation now reject with
     `unimplemented: portable provider-dependent constant recipes`. Retain exact
     symbolic applications and their dependencies through the shared Psi program,

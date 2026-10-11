@@ -26,7 +26,6 @@ use crate::task_plans::specialization_commitments::{
 };
 use crate::task_plans::stack_graphs::task_call_graph;
 use crate::task_plans::start_selections::{exact_task_activation_target, task_start_selections};
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
 use target::{Architecture, NativeTarget, ObjectFormat};
