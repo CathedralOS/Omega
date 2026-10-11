@@ -389,8 +389,20 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                                 && actual_qualifications == qualifications
                         )).count() == 1
                 }
-                AbstractOperation::ByteSequenceLength { .. }
-                | AbstractOperation::ByteSequenceWrite { .. }
+                AbstractOperation::ByteSequenceLength { .. } => {
+                    byte_operation_retained(operation, targeted)
+                        || bounded_view_length_is_static(
+                            abstracted,
+                            current
+                                .optimized_target()
+                                .optimized()
+                                .plan()
+                                .structural_types
+                                .as_slice(),
+                            operation,
+                        )
+                }
+                AbstractOperation::ByteSequenceWrite { .. }
                 | abstract_operations::byte_read_predicate_equal_pattern!(..)
                 | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
                 AbstractOperation::EstablishElementView { .. }
@@ -621,6 +633,52 @@ fn ieee_literal_retained<'operation>(
         result: retained_result, value: retained_value, ..
     }) if retained_result == result && retained_value == value)
         && matching.next().is_none()
+}
+
+/// A `ByteSequenceLength` on a bounded byte view realizes as its statically
+/// known capacity: the fold emits no scalar definition row, so retention
+/// admits the statically-known carrier directly. Only arrival parameters and
+/// literal establishments name the carrier here — view-produced places and
+/// non-empty source paths still require their exact retained row.
+fn bounded_view_length_is_static(
+    abstracted: &AbstractFunction,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    operation: &AbstractOperation,
+) -> bool {
+    let AbstractOperation::ByteSequenceLength { source, .. } = operation else {
+        return false;
+    };
+    if !source.path.is_empty() {
+        return false;
+    }
+    let Some(root) = abstracted
+        .arrival_parameter(source.place)
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            abstracted.operations.iter().find_map(|operation| {
+                let AbstractOperation::EstablishByteSequenceLiteral {
+                    place,
+                    structural_type,
+                    ..
+                } = operation
+                else {
+                    return None;
+                };
+                (place.id == source.place).then_some(structural_type.id)
+            })
+        })
+    else {
+        return false;
+    };
+    structural_types.iter().any(|declaration| {
+        declaration.id == root
+            && matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                )
+            )
+    })
 }
 
 /// Restrict publication to the Unit graph's unique byte-operation membership.
