@@ -436,10 +436,12 @@ impl<'program> Coordinate<'program> {
         self.through_carrier(program, carrier, &prefix)
     }
 
-    /// Read this exact declared field from the completed actual. The shared
-    /// normal-return owner handles formals, constructors, saved values and
-    /// produced results. Source declaration bounds and arithmetic formation
-    /// are established here; the destination's requirements supply no facts.
+    /// Transport this exact declared field through the completed actual.
+    /// Owned projections carry captured values; a reference boundary carries
+    /// only its binding identity. The edge owner independently preserves the
+    /// referent path against writes before using its current coordinate.
+    /// The normal-return owner never projects a captured referent from a
+    /// descriptor, and destination requirements supply no facts here.
     pub(super) fn field_actual(
         &self,
         program: &'program dyn crate::CheckingInput,
@@ -449,51 +451,88 @@ impl<'program> Coordinate<'program> {
         expression: ExpressionHandle,
     ) -> Option<Polynomial> {
         use super::super::completed_values::{
-            CompletedValueSource, completed_value_projection_sources, expression_statement_index,
+            CompletedValueSource, completed_value_observations, expression_statement_index,
         };
         let statement_index = expression_statement_index(program, state, expression)?;
         let reference =
             crate::expression_result_type_reference(program, machine, state, expression)?;
         let path = self.location(program).path;
-        let sources = completed_value_projection_sources(
+        let mut projected_type = reference;
+        let mut completed_path_length = path.len();
+        for (index, segment) in path.iter().enumerate() {
+            if crate::reference_shell(program, projected_type).is_some() {
+                completed_path_length = index;
+                break;
+            }
+            projected_type = crate::value_custody::places::project_type_reference_from_segments(
+                program,
+                projected_type,
+                std::slice::from_ref(segment),
+            )?;
+        }
+        let (completed_path, referent_path) = path.split_at(completed_path_length);
+        // A completed borrow may also carry an observed referent value. Ask
+        // for both evidence classes in one normal-return observation; never
+        // turn descriptor identity into permission to extract that value.
+        let mut demands = vec![path.clone()];
+        if !referent_path.is_empty() {
+            demands.push(completed_path.to_vec());
+        }
+        let projections = completed_value_observations(
             program,
             machine,
             state,
             statement_index,
             expression,
             reference,
-            &path,
+            &demands,
         )?;
-        for source in sources {
-            match source {
-                CompletedValueSource::Parameter { symbol, path } => {
-                    let location = super::RankSubjectCoordinate {
-                        parameter: symbol,
-                        path,
-                    };
-                    let Some(coordinate) =
-                        Self::at_coordinate(program, state, &location, CoordinateKind::Field)
-                    else {
-                        continue;
-                    };
-                    if engine.install_hypotheses(coordinate.field_comparisons(program)) {
-                        return Some(coordinate.value());
+        for projection in projections {
+            let suffix = if projection.path == path {
+                &[][..]
+            } else if projection.path == completed_path {
+                referent_path
+            } else {
+                continue;
+            };
+            for source in projection.sources {
+                match source {
+                    CompletedValueSource::Parameter { symbol, mut path } => {
+                        // Equality of the completed descriptor conserves this
+                        // declared suffix, not a scalar snapshot of its contents.
+                        path.extend_from_slice(suffix);
+                        let location = super::RankSubjectCoordinate {
+                            parameter: symbol,
+                            path,
+                        };
+                        let Some(coordinate) =
+                            Self::at_coordinate(program, state, &location, CoordinateKind::Field)
+                        else {
+                            continue;
+                        };
+                        if engine.install_hypotheses(coordinate.field_comparisons(program)) {
+                            return Some(coordinate.value());
+                        }
                     }
-                }
-                CompletedValueSource::Expression(source) => {
-                    if super::meanings::install_nonpolynomial_terms(
-                        program, machine, state, engine, source, 0,
-                    )
-                    .is_none()
-                        || super::meanings::builtin(program, machine, state, source, 0).is_none()
-                    {
-                        continue;
-                    }
-                    let Some(value) = engine.normalize(source) else {
-                        continue;
-                    };
-                    if endpoint_lands_under(engine, program, machine, state, source, &value) {
-                        return Some(value);
+                    CompletedValueSource::Expression(source) => {
+                        if !suffix.is_empty() {
+                            continue;
+                        }
+                        if super::meanings::install_nonpolynomial_terms(
+                            program, machine, state, engine, source, 0,
+                        )
+                        .is_none()
+                            || super::meanings::builtin(program, machine, state, source, 0)
+                                .is_none()
+                        {
+                            continue;
+                        }
+                        let Some(value) = engine.normalize(source) else {
+                            continue;
+                        };
+                        if endpoint_lands_under(engine, program, machine, state, source, &value) {
+                            return Some(value);
+                        }
                     }
                 }
             }

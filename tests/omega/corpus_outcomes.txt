@@ -2635,8 +2635,8 @@ fail/termination/rank_range_endpoint_intervening_write rejected 255ms expected @
 	terminating machine Main::walk: cannot prove rank range `0..=limit + 1` for the rank produced by the selected view
 fail/termination/rank_range_excludes_floor rejected 251ms expected @c08960bee2b1+wt
 	terminating machine Main::walk: cannot prove rank range `1..=limit` for the rank produced by the selected view
-fail/termination/rank_range_record_stepped_copy_stale rejected 656ms expected @2d8ed253669f
-	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
+fail/termination/rank_range_record_stepped_copy_stale rejected 476ms expected @4aa233110d5+wt
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `s` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/termination/rank_range_subject_intervening_write rejected 225ms expected @c08960bee2b1+wt
 	terminating machine Main::walk: cannot prove rank range `0..=limit + 1` for the rank produced by the selected view
 fail/termination/requirement_witness_rejected rejected 1ms expected @d83ae44b78cd
@@ -2659,6 +2659,8 @@ fail/termination/selected_requirement_rank_prefix_write rejected 482ms expected 
 	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
 fail/termination/stale_state_rank_premise_rejected rejected 184ms expected @68fba6a896c8+wt
 	machine call cycle: `Main::count`, `Main::next` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/stored_reference_endpoint_referent_write rejected 432ms expected @4aa233110d5+wt
+	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
 fail/termination/stored_reference_endpoint_reseat rejected 775ms expected @81dd8ed2ed3
 	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
 fail/termination/unproved_state_rank_arrival_rejected rejected 345ms expected @68fba6a896c8+wt

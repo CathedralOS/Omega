@@ -291,31 +291,6 @@ pub(super) fn expression_statement_index(
     owners.next().is_none().then_some(owner)
 }
 
-pub(super) fn completed_value_projection_sources(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
-    expression: ExpressionHandle,
-    reference: TypeReferenceHandle,
-    path: &[PlaceSegment],
-) -> Option<Vec<CompletedValueSource>> {
-    crate::value_custody::places::project_type_reference_from_segments(program, reference, path)?;
-    completed_value_observations(
-        program,
-        machine,
-        state,
-        statement_index,
-        expression,
-        reference,
-        &[path.to_vec()],
-    )?
-    .into_iter()
-    .find(|projection| projection.path == path)
-    .map(|projection| projection.sources)
-    .filter(|sources| !sources.is_empty())
-}
-
 /// Execute the normal-return owner once. Explicit demands and paths actually
 /// observed by constructors/public result equations share one query. Unknown
 /// aggregate roots remain terminal obligations beside their known leaves.

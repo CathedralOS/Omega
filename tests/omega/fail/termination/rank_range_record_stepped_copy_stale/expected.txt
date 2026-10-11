@@ -1,1 +1,1 @@
-cannot prove rank range `0..=5` for the rank produced by the selected view
+cannot prove strict rank decrease on a recurrent arrival

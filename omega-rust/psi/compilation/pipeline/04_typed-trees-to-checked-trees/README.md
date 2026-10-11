@@ -344,6 +344,14 @@ records can establish a role directly from their field dependencies in the
 computed tier. All fields contribute, independent of constructor order. A
 unique dependency or the already-authored rank subject selects a candidate role,
 not a value equality; every eligible incoming proposal must agree.
+Reference hops conserve the completed descriptor's exact binding and declared
+referent suffix under the edge owner's independent write preservation. They do
+not extract captured referent values from descriptors. Observed owned leaves
+and conserved bindings come from the same normal-return observation, without
+weakening that owner's reference fence. Endpoint reseating and referent writes
+still reject. The runtime witness is `omega run --both
+tests/omega/pass/termination/runtime_stored_exclusive_endpoint_exit/main.omg`;
+its std program-entry dependency separately needs accepted Build review.
 Each demanded record role must have one immutable owned
 formal of the exact nominal type in both source and destination; duplicated
 record roles need independent field-copy equality evidence. Root-template and
