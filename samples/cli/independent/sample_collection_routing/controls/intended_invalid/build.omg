@@ -1,0 +1,3 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "sample_collection_routing_invalid_bounds");
+}

@@ -1,0 +1,2 @@
+# Fixtures are byte-exact protocol inputs, including intentional CRLF and EOF.
+data/*.stdin -text -diff
