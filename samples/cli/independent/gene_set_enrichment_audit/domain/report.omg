@@ -1,0 +1,56 @@
+use omega_language_std::console;
+use domain::exact;
+use domain::sets;
+
+pub machine number(value: u64 in Wrapping) reaches Console
+invokes Console;
+{
+    transition value >= 10 { true -> prefix(value) false -> digit(value) }
+    state prefix(value: u64 in Wrapping) {
+        number(value / 10);
+        Console::write_byte((value % 10 + 48) as i32);
+    }
+    state digit(value: u64 in Wrapping) {
+        Console::write_byte((value + 48) as i32);
+    }
+}
+
+pub machine fraction(value: Fraction) reaches Console
+invokes Console;
+{
+    number(value.numerator); Console::write("/"); number(value.denominator);
+}
+
+pub machine membership(mask: u64 in Wrapping) reaches Console
+invokes Console;
+{
+    transition { _ -> step(mask, 0) }
+    state step(mask: u64 in Wrapping, gene: u64 in Wrapping) {
+        transition gene < 10 { true -> inspect(mask, gene)
+ false -> done()
+ }
+    }
+    state inspect(mask: u64 in Wrapping, gene: u64 in Wrapping) {
+        transition member(mask, gene) { true -> emit(mask, gene)
+ false -> step(mask, gene + 1)
+ }
+    }
+    state emit(mask: u64 in Wrapping, gene: u64 in Wrapping) {
+        Console::write_byte((gene + 65) as i32);
+        transition { _ -> step(mask, gene + 1) }
+    }
+    state done() { }
+}
+
+pub machine result(identifier: u64 in Wrapping, annotated: u64 in Wrapping, hits: u64 in Wrapping, probability: Fraction, adjusted: Fraction, rank: u64 in Wrapping) reaches Console
+invokes Console;
+{
+    Console::write("set="); number(identifier);
+    Console::write(" K="); number(size(annotated));
+    Console::write(" hits="); number(size(hits));
+    Console::write(" p="); fraction(probability);
+    Console::write(" q="); fraction(adjusted);
+    Console::write(" rank="); number(rank);
+    Console::write(" members="); membership(annotated);
+    Console::write(" overlap="); membership(hits); Console::write_line("");
+}

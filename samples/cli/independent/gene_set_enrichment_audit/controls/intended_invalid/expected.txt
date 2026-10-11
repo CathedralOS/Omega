@@ -1,0 +1,3 @@
+value call to `Slice::index` violates required fact
+index < items.len
+structurally false
