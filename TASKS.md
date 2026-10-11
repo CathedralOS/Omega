@@ -1309,17 +1309,22 @@ defines the complete product bar.
     source-lifetime repairs and its remote denies writes: do not advance the
     gitlink.
 
-  Compiler-side frontier:
-  - The unpublished application checkpoint migrates 105 Build calls in 28
-    files; its 17-package/37-edge layout remains the acceptance baseline.
+  Integration frontier:
+  - The published gitlink `43d56a7` and application remote main `964ea1c`
+    contain the same source tree, including retired Build receiver calls.
+    With compiler `fd8672848bf`, ordinary fresh offline
     `omega update --project samples/apps/squalr/squalr-tests --target
-    linux_x86_64` reaches source checking and rejects `&self` at
-    `squalr-engine-api/src/commands/command_invocation.omg:53`. The lock was
-    restored exactly. Continue machine/state declaration and call migration
-    under **STATIC-MACHINE-MIGRATION**, then perform fresh ordinary review;
-    never enable implicit receivers or transplant approvals. Repository write
-    access is required before publishing the application and updating the
-    gitlink. Source checking is not native acceptance.
+    linux_x86_64` rejects dependency requests before application checking:
+    they must use a static Build call with the root machine's first parameter
+    as the first operand. Preserve the historical lock before fresh review;
+    its text Git content/tree mismatch is not repaired by editing the lock.
+    The unpublished checkpoint's 105 Build-call migrations in 28 files still
+    need publication, followed by machine/state declarations and calls under
+    **STATIC-MACHINE-MIGRATION**. Keep the 17-package/37-edge layout, never
+    enable implicit receivers or transplant approvals. The available account
+    has read but no push access to Squalr; application publication requires
+    repository write access before updating the gitlink. Source checking is
+    not native acceptance.
   - Unverified: the earlier result-store stop in stage 04
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/call_results.rs`
     (`EnginePrivilegedState` task slots holding `Binding<WaitWake>`); empty
