@@ -98,8 +98,14 @@ remain on the arithmetic instruction. This replaces the prior source-equality
 recognizers for division, multiplication and shifts. No home-assignment rejection,
 proof rule, provider authority or runtime output check was weakened. Incoming
 main's separate stage05 recovery changes were preserved without editing them.
-Reviewed repair SHA-256:
+Reviewed initial repair SHA-256:
 `428714a51e0597fdd203923ff0a5aa081357c181e1b9967f70d911b5134ed487`.
+
+The later integration on main `592fcca655158cbccbd93b30a68067eb3bcfcccf`
+preserves four incoming x86 result-copy hunks alongside this input transport.
+Independent review confirmed these are the only changes from the initially
+reviewed file. The merged source SHA-256 is
+`88e387b800db0a7e4bef2e5301f4f2669c82ec2008217914e93ae2bc5b5753e9`.
 
 ## Execution evidence and regression gates
 
@@ -164,3 +170,13 @@ failed with Git (-9); successful reads showed the retained ticket absent. This
 was advisory coordination failure, not permission denial or known scope conflict.
 The original unique assignment remained locally recorded. Publication uses only
 the normal main-only landing queue, with no remote worker branch.
+
+Landing diagnostics isolated Git (-9) to fetching the independent coordination
+history; kernel OOM-kill counters increased during those attempts. The stable
+`tools/coordination.py` reachability-cache helper retained an already verified
+coordination commit as a local negotiation hint. The next normal status fetch
+completed in under a second, and normal claim/release calls succeeded. This
+local hint changes no remote reservation, admission, custody or publication
+guard. The bundle retains commands and trace evidence. These source records
+describe pre-publication checkpoints; the final bundle records the actual
+publication and Library-transfer outcome separately.
