@@ -167,7 +167,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 && let Some((home, structural_type)) = bindings.captured_storage_home(*root)?
             {
                 return captured_sequence_length(
-                    identities,
                     bindings,
                     &home,
                     structural_type,
@@ -1082,7 +1081,6 @@ fn lower_checked_boolean_expression_with_parameters(
 /// captured prefix. The storage declaration selects the existing descriptor
 /// observation operation; the actual's source expression is not replayed.
 fn captured_sequence_length(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     bindings: &crate::expression_preparation::bindings::ScalarBindings,
     home: &terminal_psi::StructuralArgument,
     structural_type: StructuralTypeId,

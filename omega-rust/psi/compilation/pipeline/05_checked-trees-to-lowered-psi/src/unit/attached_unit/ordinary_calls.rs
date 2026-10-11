@@ -213,12 +213,11 @@ pub(super) fn prepare(
         &terminal_scalar_values,
         &terminal_arguments,
         structural_types,
-        |identities, argument, _| {
+        |argument, _| {
             if call_byte_places.contains(&argument.place) {
                 Ok(Vec::new())
             } else {
                 structural_crash_route_argument_prefix(
-                    identities,
                     argument,
                     parameters,
                     local_places,
@@ -279,7 +278,6 @@ pub(crate) fn prepare_crash_continuations(
     terminal_arguments: &[StructuralArgument],
     structural_types: &[StructuralTypeDeclaration],
     mut prefix: impl FnMut(
-        &mut terminal_psi::TerminalIdentityTableBuilder,
         &StructuralArgument,
         usize,
     ) -> Result<
@@ -351,7 +349,7 @@ pub(crate) fn prepare_crash_continuations(
                 return Ok(None);
             };
             let argument = &terminal_arguments[index];
-            Ok(Some((argument.place, prefix(identities, argument, index)?)))
+            Ok(Some((argument.place, prefix(argument, index)?)))
         })?;
     }
     Ok(crash_continuations)

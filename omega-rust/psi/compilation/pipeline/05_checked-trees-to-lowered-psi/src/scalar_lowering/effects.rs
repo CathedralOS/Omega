@@ -263,13 +263,13 @@ pub(crate) fn emit(
                         let crash_continuations = crate::unit::attached_unit::ordinary_calls::prepare_crash_continuations(
                             identities, signature.call_target(), crash_routes, &arguments,
                             &structural_arguments, calls.structural_types,
-                            |identities, argument, ordinal| {
+                            |argument, ordinal| {
                                 if argument.path.is_empty() { return Ok(Vec::new()); }
                                 let root_type = call.structural_arguments[ordinal].root_type.ok_or(
                                     LoweringError::Unsupported("expression call crash argument lost its root carrier"),
                                 )?;
                                 crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
-                                    identities, argument, root_type, calls.structural_types,
+                                    argument, root_type, calls.structural_types,
                                 )
                             },
                         )?;

@@ -279,7 +279,7 @@ fn emit_direct_call_operation(
             crash_values,
             &structural_arguments,
             call_emission.structural_types,
-            |identities, argument, index| {
+            |argument, index| {
                 if argument.path.is_empty() {
                     return Ok(Vec::new());
                 }
@@ -289,7 +289,6 @@ fn emit_direct_call_operation(
                     ),
                 )?;
                 crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
-                    identities,
                     argument,
                     root_type,
                     call_emission.structural_types,
