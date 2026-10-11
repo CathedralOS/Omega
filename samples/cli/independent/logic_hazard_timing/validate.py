@@ -53,10 +53,12 @@ records[-1]['okay'] = records[-1]['okay'] and b'delay' in rejection.stderr and a
 summary = dict(binary=str(binary), binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
                base=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
                uid=os.getuid() if hasattr(os,'getuid') else None,
-               host=os.uname()._asdict() if hasattr(os,'uname') else {},
+               host=dict(zip(('system','node','release','version','machine'),os.uname())) if hasattr(os,'uname') else {},
                resources={'rust_build_jobs':4,'omega_execution_concurrency':1,'cgroup_memory_bytes':17179869184,'cpu_quota_cores':4},
                sources={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()
-                        for p in sorted(ROOT.rglob('*')) if p.is_file() and 'build' not in p.relative_to(ROOT).parts},
+                        for p in sorted(ROOT.rglob('*')) if p.is_file()
+                        and not {'build','__pycache__'}.intersection(p.relative_to(ROOT).parts)
+                        and p.name != 'omega.lock'},
                records=records)
 (out/'results.json').write_text(json.dumps(summary,indent=2)+'\n')
 raise SystemExit(0 if all(r['okay'] for r in records) else 1)

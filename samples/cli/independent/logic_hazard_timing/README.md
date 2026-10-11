@@ -48,8 +48,8 @@ python3 samples/cli/independent/logic_hazard_timing/reference.py
 python3 samples/cli/independent/logic_hazard_timing/validate.py --omega "$OMEGA"
 ```
 
-Prepare `invalid/` with the same reviewed update workflow before validation.
-Its complete separate entrypoint calls `positive_delay(0)` in violation of a
+Check `invalid/main.omg` directly; checking reports the obligation before
+requiring an accepted deployable entry. Its complete separate entrypoint calls `positive_delay(0)` in violation of a
 positive-delay precondition. Validation requires that intended diagnostic;
 unrelated compilation refusal is not accepted as evidence.
 
