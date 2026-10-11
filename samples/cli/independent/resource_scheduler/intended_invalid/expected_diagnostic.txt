@@ -1,1 +1,1 @@
-outside
+constant initializer literal does not satisfy its declared integer range

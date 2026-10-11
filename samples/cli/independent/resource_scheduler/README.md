@@ -123,3 +123,11 @@ are local, ignored artifacts. Run one Rust build and one Omega execution at a
 time; this validation consumer also executes every input sequentially. Any
 custody failure caused by a synthetic sandbox root must be retried through the
 approved per-command execution context, without changing ownership or guards.
+
+## Review checkpoint
+
+See `validation/STATUS.md` for the recorded acceptance frontier. The package
+candidate checked, but the std capability review requires explicit approval;
+native and Terminal validation remain blocked. Frozen `.stdout` files are
+expected results, not observed execution output. Verify the distinct negative
+source check with `validation/check_rejection.py` and the saved command prefix.
