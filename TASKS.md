@@ -2725,8 +2725,10 @@ crash and native exit behavior.
     freeze authored selections and admit the exact Build entry before effects,
     then incorporate generated source and finish product checks.
   - A `CompileRequest` now executes Build and completes authored/generated
-    typing once before target settlement. Package batch compilation still
-    enters separate checked activations; move it onto the shared invocation.
+    typing once before target settlement. Package batch compilation borrows
+    one invocation across targets — `compile_accepted_project` adopts a
+    caller-owned `PackageBuildSession` instead of opening a fresh activation
+    per target, so sponsors, staging and the pure-Build store span the batch.
     Keep separate Build/Product purposes, current-pass logical charges and
     invocation-owned staging; captured outputs publish without repeating effects.
 
