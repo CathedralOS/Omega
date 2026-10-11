@@ -5,6 +5,11 @@
 //! and Terminal candidate emission. They do not replace declaration custody:
 //! grouping/provenance retain exact provider symbols, packages and normalized
 //! callable identities, which independent replay must still rejoin.
+//!
+//! Plans belong to authored satisfaction declarations, not the executable
+//! instances specialization mints from them. All requirement schema kinds use
+//! that ownership rule; the closed-requirement roster retains and joins every
+//! executable tuple separately, without inflating original schema coverage.
 
 use crate::ProviderPlanningContext;
 use crate::provider_planning::operator_provider_evidence::{
@@ -34,7 +39,9 @@ pub(crate) fn derive_provider_plans(
     // transitional settlement derives only the requested realization's rows;
     // semantic declaration queries must never perform that selection for us.
     for machine in typed.machines() {
-        if !crate::target_machines::realizes_machine(context, machine, selected_target) {
+        if !is_authored_provider_machine(typed, machine)
+            || !crate::target_machines::realizes_machine(context, machine, selected_target)
+        {
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
@@ -377,17 +384,8 @@ fn derive_top_level_requirement_plans(
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
-        if !crate::target_machines::realizes_machine(context, machine, selected_target) {
-            continue;
-        }
-        // A specialization instance is minted from its authored template,
-        // not authored as a provider: the generic provider template derives
-        // the selected plan, and the selected-requirement specialization
-        // roster joins each closed requirement instance to it.
-        if typed
-            .machine_specializations
-            .iter()
-            .any(|receipt| receipt.instance == machine.symbol)
+        if !is_authored_provider_machine(typed, machine)
+            || !crate::target_machines::realizes_machine(context, machine, selected_target)
         {
             continue;
         }
@@ -562,7 +560,9 @@ fn derive_boundary_operator_plans(
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
-        if !crate::target_machines::realizes_machine(context, machine, selected_target) {
+        if !is_authored_provider_machine(typed, machine)
+            || !crate::target_machines::realizes_machine(context, machine, selected_target)
+        {
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
@@ -714,6 +714,19 @@ impl DraftRowBinding {
             },
         }
     }
+}
+
+/// Specialization preserves satisfaction edges for checking the concrete body,
+/// but does not author another provider declaration. Select the template once;
+/// exact specialization receipts join its closed bodies after plan selection.
+fn is_authored_provider_machine(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
+) -> bool {
+    !typed
+        .machine_specializations
+        .iter()
+        .any(|receipt| receipt.instance == machine.symbol)
 }
 
 /// The checked-adapter provider binding a machine supplies through its own
