@@ -791,3 +791,4 @@ pass/targets/runtime_target_named_provider_defaults_exit built 2763ms exit:0 int
 pass/targets/runtime_target_provider_build_override_exit built 2624ms exit:0 interpreter-exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6121c00e4546+wt
 pass/collections/runtime_owned_descriptor_parameter_read_exit built 3991ms exit:0 interpreter-exit:0 interpreter:agrees @f76abd8ea830+wt
 pass/collections/runtime_projected_element_descriptor_read_exit built 3991ms exit:0 interpreter-exit:0 interpreter:agrees @f76abd8ea830+wt
+pass/terminal_psi/debug_identity_complete_module built 16278ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @b952ce87db95

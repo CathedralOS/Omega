@@ -32,7 +32,7 @@ use crate::machine_lowering::machine_dispatch::{
     TerminalMachineSelection, lower_selected_machine, select_terminal_machine,
 };
 use crate::machine_lowering::reborrow_handoffs::retain_admitted_reborrow_root_handoffs;
-use crate::producer_result::{DebugPublication, LoweredSelectedMachine};
+use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::proofs::evidence_lowering::lower_and_install_evidence_artifacts;
 use crate::retention::placed_view_inputs::retain_selected_placed_view_inputs;
 use crate::retention::{
@@ -56,7 +56,7 @@ pub fn lower_machine(
     // every durable index resolves in the module that owns it.
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let selection = select_terminal_machine(checked, machine)?;
-    let mut lowered = lower_terminal_selection(
+    let (mut lowered, completion) = lower_terminal_selection(
         &mut identities,
         checked,
         selection,
@@ -78,6 +78,30 @@ pub fn lower_machine(
     )
     .map_err(LoweringError::Unsupported)?;
     lowered.semantic_module.identities = identities.build();
+    // Debug identity binds the whole semantic module, including retained
+    // boundary/callback applications and the final interned identity table.
+    // Construct it only after those producers finish; stamping the body's
+    // earlier table prefix makes even a constant entry's companion stale.
+    lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
+        && completion.debug == DebugPublication::FromCheckedPlan
+    {
+        let live_states = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(selection.machine)
+            .map(attached_unit::unit_graph_live_states)
+            .transpose()?;
+        checked
+            .facts
+            .flow
+            .terminal_debug
+            .for_machine(selection.machine)
+            .map(|plan| build_debug_map(plan, &lowered.semantic_module, live_states.as_deref()))
+            .transpose()?
+    } else {
+        None
+    };
     Ok(lowered)
 }
 
@@ -186,7 +210,7 @@ fn lower_terminal_selection(
     selection: &checked_trees::CheckedTerminalMachineSelection,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     boundary_roots: &[symbols::SymbolHandle],
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<(LoweredPsi, LoweringCompletion), LoweringError> {
     let LoweredSelectedMachine {
         terminal: mut lowered,
         completion,
@@ -302,25 +326,5 @@ fn lower_terminal_selection(
     crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
         &mut lowered.semantic_module,
     );
-    lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
-        && completion.debug == DebugPublication::FromCheckedPlan
-    {
-        let live_states = checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_for_machine(selection.machine)
-            .map(attached_unit::unit_graph_live_states)
-            .transpose()?;
-        checked
-            .facts
-            .flow
-            .terminal_debug
-            .for_machine(selection.machine)
-            .map(|plan| build_debug_map(plan, &lowered.semantic_module, live_states.as_deref()))
-            .transpose()?
-    } else {
-        None
-    };
-    Ok(lowered)
+    Ok((lowered, completion))
 }

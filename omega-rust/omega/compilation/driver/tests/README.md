@@ -138,6 +138,13 @@ Do not add per-feature Rust test files to this directory. The crate sets
 target would link the whole compiler again. `support/` holds the package-input
 helpers the runner uses.
 
+An optional `expected_terminal_inspections.txt` lists qualified machine names,
+one per line, optionally followed by `debug` to require a debug companion.
+After checking succeeds, the corpus selects each through the public inspection
+producer and reloads its canonical artifact. Debug companions
+must retain the same program identity; changing that identity must reject at
+external ingress. This tests inspection without requiring a native program entry.
+
 ## Running a fixture through the CLI
 
 The corpus constructs its package inputs explicitly. Its native result does

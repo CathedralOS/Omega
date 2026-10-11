@@ -144,6 +144,8 @@ mod fixture_package_inputs;
 mod output_oracles;
 #[path = "support/terminal_execution.rs"]
 mod terminal_execution;
+#[path = "support/terminal_inspection.rs"]
+mod terminal_inspection;
 use fixture_package_inputs::{
     fixture_build_snapshot, repo_root, reviewed_repository_fixture_package_inputs,
     sealed_fixture_staging,
@@ -1757,6 +1759,14 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                 Err(errors) => errors.push(error),
             }
         }
+    }
+    if outcome.is_ok() && fixture_dir.join(terminal_inspection::ORACLE).exists() {
+        outcome = terminal_inspection::inspect(main, &fixture_dir);
+        facts.push(if outcome.is_ok() {
+            "terminal-inspections:match".to_owned()
+        } else {
+            "terminal-inspections:failed".to_owned()
+        });
     }
     let errors: &[diagnostics::Diagnostic] =
         outcome.as_ref().err().map(Vec::as_slice).unwrap_or(&[]);

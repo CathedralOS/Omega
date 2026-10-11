@@ -4558,6 +4558,7 @@ pass/targets/unreached_foreign_body_caller_exit rejected 21085ms check-target:ma
 	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
 pass/tasks/task_runtime_machine_selection_compile checked 309ms @e95f2c8d09cf+wt
 pass/terminal_psi/content_custody_exit checked 301ms @2d8ed253669f
+pass/terminal_psi/debug_identity_complete_module checked 14466ms check-target:macos_arm64 terminal-inspections:match @66642de6ac9e+wt
 pass/terminal_psi/integer_control_contract checked 735ms @2d8ed253669f
 pass/terminal_psi/member_crash_contract_boundary checked 323ms @2d8ed253669f
 pass/terminal_psi/portable_contract_component checked 466ms check-target:linux_x86_64 @2d8ed253669f
