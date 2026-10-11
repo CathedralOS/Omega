@@ -1778,6 +1778,39 @@ defines the complete product bar.
   Coordinate library suffix migration with
   **CANONICALIZE-SCALAR-RANGE-CONTRACTS** without weakening these obligations.
 
+- **SCALAR-SLOT-REAL-CALL-OWNERSHIP.** (new-scope) Claim real machine calls
+  nested in a statement's scalar operand positions; today they reach the
+  outer-call roster unowned and the statement is declined. Reproduce:
+  `omega update` then `omega run` on
+  `samples/cli/arithmetic/sensor_min_max` writes
+  `main.banded = clamp(main.hi, 0.0, 25.0)`, where `clamp` desugars to
+  nested `min`/`max` scalar computations that
+  `operators/float_shorthand_calls.rs` then binds to real float-semantics
+  machines — two `FlowCallFact`s at one `statement_index`, and
+  `execution/terminal_unit/control/call_occurrences/traced.rs` bails at
+  "outer calls: duplicate statement call". The claim walk covers
+  structural operands (`Operand::Call`) only; scalar-computation call
+  expressions enumerate as scalar expression rows, never as owned nested
+  calls — the same wall z12 diagnosed checker-side as "scalar-slot real
+  calls never claimed -> outer-roster duplicate". The language intends
+  the composition: scalar computations explicitly "compose inside
+  operands and call arguments" (`symbols::BuiltinFunction::is_scalar_computation`),
+  and bound shorthand calls are ordinary machines once selected. Extend
+  ownership so a real machine call inside the outer call's scalar operand
+  expressions is claimed by that outer call (or is minted as one owned
+  call), preserving once-only evaluation and authored operand order.
+  Acceptance: `sensor_min_max` runs natively on linux_x86_64 with its
+  documented exit 33 oracle, and sibling outer-roster samples re-drive
+  past their prior phase where the phase shares this root cause
+  (`dyn_generic_requirement` "outer calls: structural operands",
+  `linear_ack_arms` "outer calls: ordered statement call",
+  `nonzero_divisor` "structural field store: pure source: scalar
+  expression row", `float_builtins` "statement sequence: call: flow
+  call"); corpus `calls/`, `float/` and `providers/` stay unchanged.
+  Family: **ONE-CALL-LOWERING** under
+  **PIPELINE-ARCHITECTURE-ENFORCEMENT**; the sample pin stays with
+  **SAMPLE-CORPUS**.
+
 ## Universal interpreter cutover
 
 Move executable Omega computation to one Psi-owned core consuming Terminal
