@@ -1,0 +1,38 @@
+// Runtime grayscale analysis. No dependency on shared numeric algorithms.
+// Expected exit: 2 (EOF from the generic sample harness is invalid input).
+// Expected output contains: ERROR invalid image:
+use domain::input;
+use domain::regions;
+use domain::output;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let mut image: Image;
+    let valid: bool = block read_image(&main.console, &mut image);
+    transition valid {
+        true -> analyze(main, &mut image)
+        false -> invalid(main)
+    }
+    state analyze(main: &mut Main, image: &mut Image) {
+        let complete: bool = label_regions(image);
+        transition complete {
+            true -> report(main, image)
+            false -> internal(main)
+        }
+    }
+    state report(main: &mut Main, image: &Image) {
+        render(&main.console, image);
+        main.console.exit_process(0);
+    }
+    state invalid(main: &mut Main) {
+        main.console.write_line("ERROR invalid image: width height 1..8, threshold 0..255, connectivity 4 or 8, exact pixels 0..255");
+        main.console.exit_process(2);
+    }
+    state internal(main: &mut Main) {
+        main.console.write_line("ERROR internal capacity invariant");
+        main.console.exit_process(3);
+    }
+}
