@@ -1820,6 +1820,7 @@ pass/parameters/byte_store_root_after_scalar_formal_exit checked 12305ms check-t
 pass/parameters/shared_and_mut_borrow_params_compile checked 1610ms @a9ae30e1c334+wt
 pass/parser/deep_nesting_within_limit checked 1780ms @a9ae30e1c334+wt
 pass/parser/invariant_is_an_identifier checked 1626ms @a9ae30e1c334+wt
+pass/parser/move_named_state_transition_exit checked 7030ms check-target:macos_arm64 @379893891e38
 pass/progress/provider_receiver_progress_installation checked 11034ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/proofs/accepted_axiom_cited_exit checked 11306ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/accumulator_guarantee_exit checked 11353ms check-target:macos_arm64 @a9ae30e1c334+wt

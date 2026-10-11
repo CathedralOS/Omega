@@ -331,7 +331,7 @@ fn take_unary_prefix<'tokens, 'source>(
             input.take_punctuation(PunctuationKind::Minus, "-")?,
         )));
     }
-    if input.at_contextual("move") {
+    if input.at_contextual_then_name("move") {
         return Ok(Some((UnaryPrefix::Move, input.take_contextual("move")?)));
     }
     Ok(None)

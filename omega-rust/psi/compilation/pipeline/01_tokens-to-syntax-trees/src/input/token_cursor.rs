@@ -446,6 +446,15 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         })
     }
 
+    /// A contextual prefix such as `move value` applies only to a following
+    /// name; `move(...)` stays an ordinary call of a declaration named `move`.
+    pub(crate) fn at_contextual_then_name(&self, name: &str) -> bool {
+        self.at_contextual(name)
+            && skip_non_semantic_tokens(&self.tokens[1..])
+                .first()
+                .is_some_and(is_identifier_token_for_parser)
+    }
+
     pub(crate) fn at_name_like(&self) -> bool {
         self.tokens
             .first()
