@@ -42,6 +42,10 @@ that every sample is currently supported.
 Samples should read like code someone might write. If a sample exposes a small
 missing compiler behavior, pin that behavior in `tests/omega/` with the smallest
 feature-shaped program, then come back to the sample.
+The same outcome owner carries those compiler repairs and the complete sample
+through acceptance and authorized landing. A compiler stage or overlapping file
+does not create a worker dependency. Group related samples only by a demonstrated
+shared capability or root cause, preserving each sample's frozen oracle and controls.
 
 The corpus is migrating from temporary `main`/`Main::main` discovery to explicit
 entry-slot bindings. A sample may still exercise that unfinished migration path,

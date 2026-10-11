@@ -53,6 +53,10 @@ dependencies before the first repair. Own the outcome through the program
 running; when the next missing stage appears, that stage is the next step of
 the same assignment. Intermediate code checkpoints are fine; the assignment
 ends when the capability's acceptance passes, not merely one customer subcase.
+For sample-driven work, retain the complete application and necessary compiler
+repairs in this outcome under [scope and escalation](../../../AGENTS.md#scope-and-escalation).
+Group related witnesses by a demonstrated common capability or root cause;
+pipeline stages and shared paths do not create worker dependencies.
 For development-health work, stop at the agreed usable workflow rather than
 collecting every hotspot or expanding test matrices.
 
@@ -143,6 +147,9 @@ seconds-to-minutes; prefer it to chaining per-crate nextest suites as the first
 regression signal. `--jev` on the same run gives the advisory record-safety
 verdict before any `--record`. Include affected crate and integration
 checks. Reuse successful results on unchanged inputs, including at landing.
+Qualify on a fixed recorded revision. Main advancing does not invalidate every
+check: apply [main-change validation](../../../tools/testing.md#main-change-validation)
+to the actual changed inputs, retaining the exact-SHA landing receipt requirement.
 
 Before landing, challenge the assumptions that make this change correct, even
 when working alone. For each assumption the change's correctness depends on,
@@ -204,7 +211,9 @@ entry-to-operation route, and the orchestration requirement above.
 Give each worker a distinct question or edit responsibility. Independent review
 challenges assumptions and checks correctness.
 
-The coordinator owns board updates from returned evidence. Worker evidence
+For contributor assignments, the coordinator owns board updates from returned
+evidence. An authorized end-to-end owner carries its assigned publication through
+normal landing; retain any explicitly required independent review. Worker evidence
 reaches the board through `python tools/claims.py note --ticket <ticket>
 --text <finding>` on its claim ticket plus the session report.
 

@@ -40,6 +40,30 @@ scoped change: retain the command, revision, and evidence, and report them witho
 repairing them in the same task. New or unexplained failures in affected behavior
 must be resolved before landing. Do not repeat broad suites to attribute one test.
 
+### Main-change validation
+
+Qualify the outcome on a fixed recorded revision, with source/oracle hashes,
+compiler binary identity and producer revision, toolchain, target and relevant
+environment/resources. Keep frozen expected results and refusal controls intact.
+After main advances, compare the incoming changes against those recorded inputs:
+
+- Resolve ordinary Git text conflicts while preserving both outcomes' intent.
+  Unrelated changes do not require repeating unaffected checks.
+- Changes to exercised compiler semantics, libraries, runtime, source readers,
+  fixtures or execution environment require the affected checks again. A compiler
+  repair must be validated with a compiler built from the repaired candidate;
+  an older binary cannot establish the repair's behavior.
+- An unchanged sample may reuse a verified binary and its recorded checks when
+  the governing inputs remain unchanged. This establishes the recorded producer's
+  behavior, not the behavior of an untested newer compiler.
+
+Record why evidence remains applicable to the integrated candidate; a new SHA
+alone is not a full-baseline requirement. Independent review required by the
+assignment covers the final integrated tree. After every rebase, obtain the
+normal exact-SHA, workspace-aware [landing receipt](landing.md#verify-the-build-before-publishing),
+even when behavioral evidence is reusable. New or unexplained affected failures
+still block landing; required authority, custody, digest and golden gates remain.
+
 
 ## Running one test
 

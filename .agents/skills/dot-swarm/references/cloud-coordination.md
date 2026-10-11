@@ -25,7 +25,8 @@ executor build slots block continuation and final acceptance.
 
 An authorized advance continues automatically through required tests, commit/push,
 verified ancestry and cleanup. Bounded report turns provide observability; they
-do not introduce routine parent sign-off or a separate reviewer.
+do not introduce routine parent sign-off or a separate reviewer. Independent
+review required by the user or assignment remains mandatory.
 
 Runtime completion is not a landed advance. Final acceptance binds before/after
 program observations, authored native/interpreter result, scoped tests/negatives,
@@ -35,8 +36,10 @@ reuse needs unchanged reviewed inputs/environment and explicit justification.
 
 Admit only a bounded two-session canary first: two currently red real programs
 with distinct outcomes and eligible hosts. Shared implementation paths are allowed. Declare a dependency
-and exact handoff only when the actual producer/consumer or shared-file closure
-requires it; independent assignments use an empty dependency list. Required
+and exact handoff only for an actual separately assigned producer prerequisite
+or same-outcome transfer; shared-file closure alone does not require it.
+Independent assignments use an empty dependency list. A coherent sample and its
+compiler repairs retain one integration DRI across stages. Required
 digest and golden updates remain part of the actual ownership review. Admit five, then
 ten only after every outcome in the prior stage satisfies that same contract
 without user rescue. Keep independent executors' build slots independent and

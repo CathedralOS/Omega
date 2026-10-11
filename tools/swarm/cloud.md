@@ -6,7 +6,8 @@ checks as `recovery.py`. It has no network client, daemon, provider endpoint,
 credentials, permission bypass, worker launcher or resource deleter. The coordinator executes the emitted tool requests through the runtime it actually
 has. An authorized advance runs through required tests, commit/push, verified
 ancestry and cleanup. Bounded report turns continue automatically under that
-authority; no routine parent sign-off or separate reviewer is required.
+authority; report turns do not add routine parent sign-off or a separate reviewer.
+Independent review required by the user or assignment remains mandatory.
 `launch.py`'s legacy Devin transport and manifests are unchanged; this controller
 is the portable dot/cloud tool adapter, not an alternate claims registry.
 
@@ -127,10 +128,13 @@ Prepare a single follow-up with parameters
 then reserve it through `dispatch-step`. Its `runtime_arguments` map to actual
 `threadId`, `model`, `thinking`, and a generated concise prompt. The prompt binds
 operation/execution IDs, reads current main/claims and executor/process/recovery
-state, selects a prospective frontend defect and asks for its authored oracle,
+state, retains an already-authorized outcome or scouts a prospective frontend
+defect within the authorized lane and asks for its authored oracle,
 controls and next gate. This turn performs no builds, source edits, claim
 mutations or publication, and preserves held work/approval fences. Implementation
-is the separately authorized next objective after actual readiness and selected
+retains the assignment's review and publication scope; preflight adds no authority
+or separate reviewer/sign-off requirement. Historical claim IDs are not live fences.
+Implementation is the separately authorized next objective after actual readiness and selected
 contract admission. Do not silently expand preflight into a full advance cycle.
 
 One thread receives one preflight assignment and one message intent. Failed or
@@ -809,7 +813,8 @@ pilot outcome follows. This tooling increment executes no live pilot.
 ## Staged trial gates
 
 The parent selects and reproduces two **currently red real programs**, with
-distinct real outcomes and disjoint, eligible implementation/test ownership.
+distinct real outcomes, one DRI per outcome and eligible executors. Implementation
+and test paths may overlap; admission checks outcome ownership, not file fences.
 Review the complete producer/consumer closure, including required digest and
 golden updates, before admission. Independent assignments declare
 `"dependencies":[]`; admission does not require a shared-file change or a
@@ -822,10 +827,16 @@ B is its designated digest integration owner, B reads A's site and declares
 the actual digest edge A → B. B waits for A's exact verified candidate and
 bilateral handoff before implementation continuation, independently revalidates
 the citing entries and records the digest; both may run bounded preflight
-turns first. A live peer's digest ownership still blocks that scope. Select
+turns first. A live peer's claim to the same digest outcome still requires a
+handoff or contribution under its integration DRI; shared digest paths alone
+do not block a distinct outcome. Select
 independent eligible work when available rather than inventing a digest change
 solely to test the controller. Deterministic dependency tests exercise handoff
 and same-outcome rejection without inventing dependencies from shared paths.
+This example applies only when separate producer and digest integration owners
+are actually assigned. A coherent sample-driven compiler outcome keeps its needed
+repairs, digest/golden updates and acceptance under one integration DRI; do not
+split it into stage workers or manufacture a handoff to fit this example.
 
 Bound manifests to exactly 2, then exactly 5, then exactly 10 assignments.
 Admit 5 only with `previous` naming an accepted 2-session batch; admit 10 only

@@ -1265,6 +1265,10 @@ class PreflightDispatchTests(unittest.TestCase):
         arguments=request['runtime_arguments']
         self.assertEqual({k:arguments[k] for k in ('threadId','model','thinking')},dict(threadId='existing-omega5',model='gpt-6.1-sol',thinking='medium'))
         self.assertIn(request['execution_id'],arguments['prompt']);self.assertIn('No builds, source edits',arguments['prompt'])
+        self.assertIn('Retain the authorized outcome',arguments['prompt'])
+        self.assertIn('required independent review',arguments['prompt'])
+        self.assertIn('Implementation requires separate authorization',arguments['prompt'])
+        self.assertNotIn('6f99ec9',arguments['prompt'])
         row=self.store.load()['cloud']['assignments'][value['id']]
         self.assertIsNone(row['environment']);self.assertIsNone(row['generation']);self.assertNotIn('acceptance',row)
         self.assertEqual(next(row for row in cloud.plan(self.store.load())['assignments'] if row['assignment']==value['id'])['action'],'read_reconcile')

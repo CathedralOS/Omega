@@ -172,6 +172,12 @@ are byte-sensitive.
 - Every active outcome has one directly responsible individual (DRI), recorded
   in its live claim. The DRI owns acceptance and integration across stages.
   Parked work remains available for a DRI when its dependency or priority changes.
+- A sample-driven compiler outcome includes the complete application and the
+  compiler repairs needed for its acceptance. Keep one integration DRI through
+  source, native/Terminal execution, invalid controls and publication. Group
+  samples by a demonstrated shared capability or root cause, not shared files
+  or pipeline stages; do not manufacture worker dependencies for these stages.
+  Actual external prerequisites and already-owned outcomes retain their gates.
 - Keep a short assignment record in the claim note or session handoff: outcome,
   acceptance, current failure, next necessary action and dependencies. Reread it
   after context compaction and before changing direction. A checkpoint is not
@@ -205,6 +211,11 @@ are byte-sensitive.
 - One DRI per outcome; contributors may share implementation paths in isolated
   worktrees. Assignments carry acceptance, governing design, dependencies and
   an integration owner. Keep distinct outcomes rather than partitioning files.
+- State publication and review responsibility in the assignment. An authorized
+  end-to-end owner completes normal landing; a contributor returns its candidate
+  to the integration DRI. Read-only review/scouting does not authorize writes or
+  publication. User-required independent review remains required; a bounded
+  report turn does not itself add another approval or reviewer gate.
 - Workers report through `python tools/claims.py note --ticket` and the
   session report; the coordinator integrates its workers' board updates,
   without claiming the board or blocking other sessions' updates. A slice

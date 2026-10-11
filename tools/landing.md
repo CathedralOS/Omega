@@ -140,6 +140,12 @@ changes are checked. Compiler advancement uses the
 change-scoped validation policy in [tools/testing.md](testing.md); a fresh full baseline is not a
 publication prerequisite. Reuse evidence for unchanged inputs after rebasing,
 and rerun checks whose inputs changed.
+Apply [main-change validation](testing.md#main-change-validation) to the recorded
+qualification revision; ordinary Git conflicts are expected integration work,
+not a prohibition on overlapping edits. Preserve incoming behavior and required
+independent review of the final tree. If affected integration checks cannot fit
+the remaining lease, release, finish them outside the queue and rejoin; do not
+waive checks or repeatedly start cold builds inside the reservation.
 
 Do preparation and initial checks before enqueueing. Finish integration and
 publication within the remaining lease, or rejoin with a new ticket. The deadline

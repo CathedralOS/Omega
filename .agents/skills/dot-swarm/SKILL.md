@@ -192,7 +192,11 @@ Use `mbx` when present and record revision, command, host, exit, and counts.
 Run one host build at a time; the shared computer is not six independent VMs.
 
 Workers never edit board files or publish independently unless explicitly
-assigned that responsibility. Keep commits semantically whole and follow the
+assigned that responsibility. This is the contributor default: an explicitly
+authorized end-to-end outcome owner carries normal publication through landing,
+while the coordinator integrates contributor candidates and board evidence.
+Retain the assignment's required independent review; report turns add no approval
+gate. Keep commits semantically whole and follow the
 repository's current commit conventions. Format changed code before committing;
 report superseded changes instead of landing duplicates. A source checkpoint may
 be reported before a long gate finishes, but an unrun/unfinished gate never

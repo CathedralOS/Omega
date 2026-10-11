@@ -30,6 +30,9 @@ DRI; contributors use specifically delegated sub-outcomes, not competing parent 
 `--path` accepts repeated, comma/whitespace-separated files or directories.
 These are estimates, not edit permissions. Necessary scope can expand without
 releasing ownership. Boards remain shared: claim their items, not board-file paths.
+Keep coherent sample and compiler repairs under the same integration DRI.
+Shared paths or successive compiler stages do not require separate claims or
+worker handoffs; a real external producer dependency or same-outcome transfer does.
 
 ## Lifetime and evidence
 

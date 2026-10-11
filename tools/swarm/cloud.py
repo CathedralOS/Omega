@@ -122,11 +122,13 @@ def admit_preflight(record, value):
 def preflight_prompt(operation, execution_id):
     return ("Read AGENTS.md and the current /advance skill. Read-only preflight/scouting on current main: inspect claims, "
         "actual executor/environment/generation, resource limits, processes, recovery operations and build-slot state. "
-        "Report actual evidence and approval/authority blockers; preserve them. Choose one next unclaimed frontend resolution "
-        "defect and state its authored oracle, refusal controls and next gate. No builds, source edits, claim mutations or "
-        "publication this turn. Preserve held work and excluded reference-binding claim 6f99ec9. Stop with a preflight report "
-        "acknowledging operation " + operation + " / execution " + execution_id + ". Next authorized objective: /advance "
-        "with independent review and normal landing after actual readiness and selected-contract admission.")
+        "Report actual evidence and approval/authority blockers; preserve them. Retain the authorized outcome if one is "
+        "already held; otherwise scout an unclaimed defect within the authorized frontend resolution lane. State its "
+        "authored oracle, refusal controls and next gate. No builds, source edits, claim mutations or "
+        "publication this turn. Preserve held work and actual live ownership. Stop with a preflight report "
+        "acknowledging operation " + operation + " / execution " + execution_id + ". Implementation requires separate "
+        "authorization, actual readiness and selected-contract admission. Retain the assignment's required independent "
+        "review and publication scope; this inspection adds neither authority nor a reviewer or sign-off gate.")
 
 
 def preflight_intent(record, row, action, operation, parameters):

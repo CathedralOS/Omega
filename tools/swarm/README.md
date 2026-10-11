@@ -134,7 +134,11 @@ keeps changing); treat claim presence alone as "assigned", not "running".
 
 A local wave runs the same protocol from one machine without Devin sessions:
 the coordinator spawns one agent per `.codex/worktrees/<wave>-<task>` worktree
-and each agent claims, works, lands, and releases exactly like a cloud session.
+and each authorized end-to-end owner claims, works, lands, and releases exactly
+like a cloud session. Contributor and read-only assignments retain their narrower
+scope: the integration DRI lands contributor work, and review/scouting does not
+authorize publication. Declare publication and required review responsibility
+before dispatch under [AGENTS.md](../../AGENTS.md#delegation).
 `worktree_status.py` is the local wave's `status`/`report` equivalent. At
 drain, collect worker evidence notes first: `python3 tools/claims.py notes`
 lists findings workers attached to their claim tickets; fold what they
