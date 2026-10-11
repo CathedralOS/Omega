@@ -555,8 +555,6 @@ fn recover_over(
         }) else {
             break;
         };
-        let fixed_use_conflict =
-            matches!(failure, crate::RegisterHomeError::NoCommonCandidate { .. });
         let mut roster: Vec<(usize, VirtualRegisterId)> = candidates(selected.plan(), pressured)
             .into_iter()
             .filter(|entry| !tried.contains(entry))
@@ -573,141 +571,151 @@ fn recover_over(
             environment,
             budget,
         )?;
-        let mut failed_crossing = None;
-        let rewrite =
+        // Preserve the already-admitted after-definition split. The narrower
+        // integer fixed-use copy is an optional refinement for a value-local
+        // empty domain; unsupported shapes keep the ordinary rematerialize/spill
+        // route, including Boolean and floating-point values admitted there.
+        let before_use = if split.is_none() {
             if let crate::RegisterHomeError::NoCommonCandidate { function, register } = &failure {
-                // A value with no common view needs a shorter constrained segment,
-                // not a pressure victim. This copy ends only one fixed-use lifetime;
-                // the original cyclic/edge-carried value keeps every other use.
-                RuntimeSpillStepRewrite::Split(
-                    ValidatedRuntimeSplit::before_fixed_use(
-                        &selected,
-                        *function,
-                        VirtualRegisterId(*register),
-                        environment,
-                        budget,
-                    )
-                    .map_err(RuntimeSpillAllocationError::Split)?,
-                )
-            } else if let Some((candidate, split)) = split {
-                tried.insert(candidate);
-                RuntimeSpillStepRewrite::Split(split)
-            } else {
-                let Some(position) = candidate_position(
-                    &failure,
-                    &roster,
-                    |(function, register)| {
-                        domain
-                            .as_ref()
-                            .is_some_and(|domain| domain.relief(*function, *register) > 0)
-                    },
-                    |(function, register)| {
-                        domain
-                            .as_ref()
-                            .map_or(0, |domain| domain.relief(*function, *register))
-                    },
-                ) else {
-                    break;
-                };
-                let (function, register) = roster.remove(position);
-                tried.insert((function, register));
-                // The cost decision: regenerating one pure immediate materialization
-                // per use is strictly cheaper than private storage plus reload pairs,
-                // so rematerialization is attempted first. Its admission failure does
-                // not commit the step; spilling the same victim remains the fallback.
-                let rewrite = match rematerialize_selected_runtime_value(
+                match ValidatedRuntimeSplit::before_fixed_use(
                     &selected,
-                    function,
-                    register,
+                    *function,
+                    VirtualRegisterId(*register),
                     environment,
                     budget,
                 ) {
-                    Ok(rewrite) => RuntimeSpillStepRewrite::Rematerialization(rewrite),
-                    Err(_) => {
-                        // The call-surviving shape first: where a clobber-set-reduced
-                        // view of the victim's class survives every unit written
-                        // inside a flexible-use span, the still-open reload reaches
-                        // across the call — or any other unit-writing instruction —
-                        // and the allocator proves whether that surviving, most often
-                        // callee-saved, home is actually free. Only an assignment
-                        // that succeeds commits the step, ending recovery one reload
-                        // pair earlier; anything else falls back to the bounded
-                        // shape, so a committed step never strands an unhomeable
-                        // interval. Each candidate's fresh analyses and final
-                        // home assignment establish whether it can commit.
-                        if let Ok(crossing) = spill_selected_runtime_value_with_span_policy(
-                            &selected,
-                            function,
-                            register,
+                    Ok(split) => Some(split),
+                    Err(error) if error.is_inadmissible() => None,
+                    Err(error) => return Err(RuntimeSpillAllocationError::Split(error)),
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let used_before_use = before_use.is_some();
+        let mut failed_crossing = None;
+        let rewrite = if let Some(split) = before_use {
+            RuntimeSpillStepRewrite::Split(split)
+        } else if let Some((candidate, split)) = split {
+            tried.insert(candidate);
+            RuntimeSpillStepRewrite::Split(split)
+        } else {
+            let Some(position) = candidate_position(
+                &failure,
+                &roster,
+                |(function, register)| {
+                    domain
+                        .as_ref()
+                        .is_some_and(|domain| domain.relief(*function, *register) > 0)
+                },
+                |(function, register)| {
+                    domain
+                        .as_ref()
+                        .map_or(0, |domain| domain.relief(*function, *register))
+                },
+            ) else {
+                break;
+            };
+            let (function, register) = roster.remove(position);
+            tried.insert((function, register));
+            // The cost decision: regenerating one pure immediate materialization
+            // per use is strictly cheaper than private storage plus reload pairs,
+            // so rematerialization is attempted first. Its admission failure does
+            // not commit the step; spilling the same victim remains the fallback.
+            let rewrite = match rematerialize_selected_runtime_value(
+                &selected,
+                function,
+                register,
+                environment,
+                budget,
+            ) {
+                Ok(rewrite) => RuntimeSpillStepRewrite::Rematerialization(rewrite),
+                Err(_) => {
+                    // The call-surviving shape first: where a clobber-set-reduced
+                    // view of the victim's class survives every unit written
+                    // inside a flexible-use span, the still-open reload reaches
+                    // across the call — or any other unit-writing instruction —
+                    // and the allocator proves whether that surviving, most often
+                    // callee-saved, home is actually free. Only an assignment
+                    // that succeeds commits the step, ending recovery one reload
+                    // pair earlier; anything else falls back to the bounded
+                    // shape, so a committed step never strands an unhomeable
+                    // interval. Each candidate's fresh analyses and final
+                    // home assignment establish whether it can commit.
+                    if let Ok(crossing) = spill_selected_runtime_value_with_span_policy(
+                        &selected,
+                        function,
+                        register,
+                        environment,
+                        budget,
+                        RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                    ) {
+                        let probe = analyze(
                             environment,
-                            budget,
-                            RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                            source.allocator_availability(),
+                            &selected,
+                            &current_liveness,
+                            &current_ranges,
+                            &current_legality,
+                            &SelectedProgramRef::new(&crossing),
+                        )?;
+                        match assign_reusing(
+                            environment,
+                            &probe.ranges,
+                            &probe.legality,
+                            Some(&mut home_reuse),
                         ) {
-                            let probe = analyze(
-                                environment,
-                                source.allocator_availability(),
-                                &selected,
-                                &current_liveness,
-                                &current_ranges,
-                                &current_legality,
-                                &SelectedProgramRef::new(&crossing),
-                            )?;
-                            match assign_reusing(
-                                environment,
-                                &probe.ranges,
-                                &probe.legality,
-                                Some(&mut home_reuse),
-                            ) {
-                                Ok(homes) => {
-                                    let rewrite = RuntimeSpillStepRewrite::Spill(crossing);
-                                    recorded.push(rewrite.transformation());
-                                    let manifest = project_recovery_manifest(
-                                        &base,
-                                        &recorded,
-                                        &probe.ranges,
-                                        &probe.legality,
-                                        &homes,
-                                    )?;
-                                    let result = RuntimeSpillAllocation {
-                                        source,
-                                        last: RuntimeSpillStep { rewrite },
-                                        facts: probe,
-                                        homes,
-                                        manifest,
-                                    };
-                                    return Ok(result);
-                                }
-                                Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => {
-                                    failed_crossing = Some(SpillPressureProbe {
-                                        rewrite: crossing,
-                                        facts: probe,
-                                        failure: error,
-                                    });
-                                }
-                                // A crossing proposal can expose another function's
-                                // fixed-use conflict. Do not commit it or treat that
-                                // conflict as pressure; try the bounded spill first.
-                                Err(crate::RegisterHomeError::NoCommonCandidate { .. }) => {}
-                                Err(error) => {
-                                    return Err(RuntimeSpillAllocationError::Homes(error));
-                                }
+                            Ok(homes) => {
+                                let rewrite = RuntimeSpillStepRewrite::Spill(crossing);
+                                recorded.push(rewrite.transformation());
+                                let manifest = project_recovery_manifest(
+                                    &base,
+                                    &recorded,
+                                    &probe.ranges,
+                                    &probe.legality,
+                                    &homes,
+                                )?;
+                                let result = RuntimeSpillAllocation {
+                                    source,
+                                    last: RuntimeSpillStep { rewrite },
+                                    facts: probe,
+                                    homes,
+                                    manifest,
+                                };
+                                return Ok(result);
+                            }
+                            Err(
+                                error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
+                                | crate::RegisterHomeError::NoCommonCandidate { .. }),
+                            ) => {
+                                failed_crossing = Some(SpillPressureProbe {
+                                    rewrite: crossing,
+                                    facts: probe,
+                                    failure: error,
+                                });
+                            }
+                            Err(error) => {
+                                return Err(RuntimeSpillAllocationError::Homes(error));
                             }
                         }
-                        match spill_selected_runtime_value(
-                            &selected,
-                            function,
-                            register,
-                            environment,
-                            budget,
-                        ) {
-                            Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
-                            Err(error) if inadmissible(&error) => continue,
-                            Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
-                        }
                     }
-                };
-                rewrite
+                    match spill_selected_runtime_value(
+                        &selected,
+                        function,
+                        register,
+                        environment,
+                        budget,
+                    ) {
+                        Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
+                        Err(error) if inadmissible(&error) => continue,
+                        Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
+                    }
+                }
             };
+            rewrite
+        };
         let reused_pressure = match &rewrite {
             RuntimeSpillStepRewrite::Spill(bounded) => {
                 failed_crossing.and_then(|probe| probe.reuse_for(bounded))
@@ -734,7 +742,7 @@ fn recover_over(
             );
             (facts, homes)
         };
-        if fixed_use_conflict || !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {
+        if used_before_use || !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {
             retire_minted(
                 &mut tried,
                 pressured,
