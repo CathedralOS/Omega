@@ -5666,6 +5666,8 @@ fail/tasks/task_runtime_selected_provider_missing rejected 1678ms expected @a9ae
 	TaskRuntime boundary slot has no retained selected provider plan
 fail/termination/bounded_distance_inverted rejected 3261ms unexpected @a9ae30e1c334+wt
 	terminal-artifact production requires one exact selected program entry
+fail/termination/bounded_distance_moving_call_bound rejected 4018ms expected @d988854a6e10+wt
+	machine call cycle: `first`, `second` -- rank range membership, pinned endpoints, or nonincrease is unproven at a call site; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/bounded_distance_stalled_cursor_exit_state rejected 1563ms expected @a9ae30e1c334+wt
 	terminating machine fill: cannot prove strict rank decrease on a recurrent arrival: the transition from `fill` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/termination/bounded_distance_suffix_needs_callee_progress rejected 4552ms expected @a9ae30e1c334+wt

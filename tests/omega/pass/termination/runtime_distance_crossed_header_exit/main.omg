@@ -18,6 +18,25 @@ terminates by cursor -> Nat::IncreasingTo(8);
     }
 }
 
+// A call component keeps the bound's value, not its name or formal ordinal.
+machine count_via_peer(cursor: u64, limit: u64)
+terminates by (cursor, limit) -> Nat::BoundedDistance;
+-> u64 {
+    transition cursor < limit {
+        true -> peer(limit, cursor + 1)
+        false -> cursor
+    }
+}
+
+machine peer(ceiling: u64, position: u64)
+terminates by (position, ceiling) -> Nat::BoundedDistance;
+-> u64 {
+    transition position < ceiling {
+        true -> count_via_peer(position + 1, ceiling)
+        false -> position
+    }
+}
+
 machine main() crashes Trap {
     let progressing: u64 = count_to(3, 5);
     let crossed: u64 = count_to(9, 5);
@@ -25,9 +44,12 @@ machine main() crashes Trap {
     let constant_progressing: u32 = count_to_eight(3);
     let constant_crossed: u32 = count_to_eight(9);
     let constant_maximum: u32 = count_to_eight(4294967295);
+    let joint_progressing: u64 = count_via_peer(3, 8);
+    let joint_crossed: u64 = count_via_peer(9, 5);
     transition progressing == 5 && crossed == 9 && maximum == 18446744073709551615
         && constant_progressing == 8 && constant_crossed == 9
-        && constant_maximum == 4294967295 {
+        && constant_maximum == 4294967295
+        && joint_progressing == 8 && joint_crossed == 9 {
         true -> done()
         false -> bad()
     }

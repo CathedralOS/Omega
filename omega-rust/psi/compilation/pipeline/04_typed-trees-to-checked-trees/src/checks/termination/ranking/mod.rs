@@ -56,15 +56,6 @@ pub(super) struct InvertedDistance {
     pub(super) corrected: String,
 }
 
-/// Which subject orientation the distance prover should read from a
-/// two-subject ranking tuple: the declared `(lower, upper)`, or the swapped
-/// probe used to recognize an inverted bounded distance.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum DistanceOrientation {
-    Declared,
-    Swapped,
-}
-
 /// The ranked subjects a `terminates by` clause threads into the edge provers: a
 /// single decreasing value, or the two-subject bounded distance whose subjects
 /// bind in order to `Nat::BoundedDistance`'s `(lower, upper)` parameters.
@@ -182,31 +173,6 @@ pub(super) fn machine_decrease_outcome_with(
         }
     }
 
-    let adjacency = graph::machine_adjacency(program, machine);
-    let components = graph::strongly_connected_components(&adjacency);
-
-    // Slice-tail decrease probes build the whole-program bound index; share
-    // the lazily-filled cell across every cyclic component probe.
-    let mut bound_lookup = None;
-    let mut proven_with = |orientation: DistanceOrientation| {
-        components
-            .iter()
-            .filter(|component| graph::component_is_cyclic(&adjacency, component))
-            .all(|component| {
-                component_has_proven_decrease(
-                    program,
-                    machine,
-                    &adjacency,
-                    component,
-                    measure,
-                    &order,
-                    orientation,
-                    call_frames,
-                    &mut bound_lookup,
-                )
-            })
-    };
-
     if matches!(
         order,
         RankingOrder::NatDescending | RankingOrder::BoundedDistance | RankingOrder::IncreasingTo(_)
@@ -224,17 +190,50 @@ pub(super) fn machine_decrease_outcome_with(
     // cannot supply a second scalar arrival route.
     let structural_order = matches!(order, RankingOrder::Lexicographic(_))
         || validation::proof_only_classification(program).is_proof_machine(program, machine);
-    if structural_order && proven_with(DistanceOrientation::Declared) {
-        return DecreaseOutcome::Proven(None);
+    if structural_order {
+        let adjacency = graph::machine_adjacency(program, machine);
+        let components = graph::strongly_connected_components(&adjacency);
+        // Slice-tail proofs share one lazily prepared bound index. Scalar
+        // admission and its diagnostics never rebuild this structural graph.
+        let mut bound_lookup = None;
+        if components
+            .iter()
+            .filter(|component| graph::component_is_cyclic(&adjacency, component))
+            .all(|component| {
+                component_has_proven_decrease(
+                    program,
+                    machine,
+                    &adjacency,
+                    component,
+                    measure,
+                    &order,
+                    call_frames,
+                    &mut bound_lookup,
+                )
+            })
+        {
+            return DecreaseOutcome::Proven(None);
+        }
     }
 
-    // An unproven bounded-distance tuple is probed with its subjects swapped:
-    // when the swapped distance proves on every cyclic edge, the clause is the
-    // named bounded distance written backwards, and the diagnostic can point
-    // at the right shape.
+    // Diagnose inversion with the same complete arrival judgment that admits
+    // a scalar witness, not the structural source-pattern prover. This is a
+    // proposed correction only: no swapped coordinates are retained as the
+    // authored witness or supplied to call-component selection.
     if let DecreaseMeasure::Distance { lower, upper } = measure
         && matches!(order, RankingOrder::BoundedDistance)
-        && proven_with(DistanceOrientation::Swapped)
+        && ranges::admit_relational_decrease(
+            program,
+            machine,
+            &order,
+            DecreaseMeasure::Distance {
+                lower: upper,
+                upper: lower,
+            },
+            call_frames,
+            &mut |_| true,
+        )
+        .is_ok()
     {
         return DecreaseOutcome::InvertedDistance(InvertedDistance {
             declared: format!(
@@ -315,7 +314,6 @@ fn component_has_proven_decrease<'p>(
     component: &[usize],
     measure: DecreaseMeasure,
     order: &RankingOrder,
-    orientation: DistanceOrientation,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
@@ -325,17 +323,6 @@ fn component_has_proven_decrease<'p>(
         return false;
     }
 
-    // The swapped orientation (the inverted-clause probe) asks every prover
-    // the same question of the distance written the other way around.
-    let measure = match (orientation, measure) {
-        (DistanceOrientation::Swapped, DecreaseMeasure::Distance { lower, upper }) => {
-            DecreaseMeasure::Distance {
-                lower: upper,
-                upper: lower,
-            }
-        }
-        _ => measure,
-    };
     // A direct self-loop on a single-state component can use the full set of
     // supported orders. Genuine multi-state cycles are proven edge-by-edge with
     // the Nat-descending prover, which is the order whose decrease is defined

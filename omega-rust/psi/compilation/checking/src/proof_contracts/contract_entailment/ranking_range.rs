@@ -317,6 +317,10 @@ pub enum RankingRangeMeasure {
         subject: ExpressionHandle,
         measure: symbols::SymbolHandle,
     },
+    /// Natural distance to a fixed upper coordinate. Without an authored
+    /// range, entry formation also permits lower > upper; the raw difference
+    /// therefore is not an arrival invariant. Recurrent edges establish its
+    /// nonnegativity and preserve the upper coordinate independently.
     Distance {
         lower: ExpressionHandle,
         upper: ExpressionHandle,
@@ -1219,7 +1223,15 @@ fn prove_edge(
                 &ceiling,
                 range.end_inclusive,
             ));
-        } else if !clamped {
+        } else if !matches!(
+            measure,
+            RankingRangeMeasure::IncreasingTo { .. } | RankingRangeMeasure::Distance { .. }
+        ) {
+            // Unranged distance entry formation permits a cursor already past
+            // its bound. Its natural rank does not establish raw upper-lower
+            // nonnegativity. Assuming that here contradicts an inverted loop's
+            // guard and vacuously proves its recursive edge; every such edge
+            // must instead establish the raw distance under its own guards.
             comparisons.push((
                 BinaryOperator::GreaterOrEqual,
                 rank.clone(),
@@ -1398,7 +1410,8 @@ fn prove_edge(
     let next_floor = inductive_judgment::apply_argument_map(&floor, &substitutions)?;
     let next_ceiling = inductive_judgment::apply_argument_map(&ceiling, &substitutions)?;
     let pinned_view_bound = match measure {
-        RankingRangeMeasure::IncreasingTo { limit, .. } => {
+        RankingRangeMeasure::IncreasingTo { limit, .. }
+        | RankingRangeMeasure::Distance { upper: limit, .. } => {
             let bound = engine.normalize(limit)?;
             let next = inductive_judgment::apply_argument_map(&bound, &substitutions)?;
             Some((bound, next))
@@ -1406,8 +1419,7 @@ fn prove_edge(
         RankingRangeMeasure::Single(_)
         | RankingRangeMeasure::Computed { .. }
         | RankingRangeMeasure::SliceLength(_)
-        | RankingRangeMeasure::Field { .. }
-        | RankingRangeMeasure::Distance { .. } => None,
+        | RankingRangeMeasure::Field { .. } => None,
     };
     for (operator, left, right) in auxiliary
         .iter()

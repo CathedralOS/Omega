@@ -3342,12 +3342,14 @@ of a check the same flow already performed, not the check itself.
   producer `8ec8362fcf0` has 34 checked, 69 rejected and ten incomplete;
   25 negative controls lack their intended fragment; that old harness also
   masked source acceptance behind a native missing-entry refusal. The focused
-  ten-control gate on the integrated compiler exposes three source acceptances:
-  `shared_subslice_state_cannot_lend_mutable`,
-  `family_callback_first_member_guarantee_only_rejected` and
-  `bounded_distance_inverted`. Public source checks confirm them. Attribute
-  the slice formation and ranking judgments here; keep portable callback
-  refinement with **PSI-TARGET-FAMILIES**. Entry-bearing native refusals and
+  source-acceptance frontier remains
+  `shared_subslice_state_cannot_lend_mutable` and
+  `family_callback_first_member_guarantee_only_rejected`. Attribute
+  contextual slice formation here; keep portable callback refinement with
+  **PSI-TARGET-FAMILIES**. Full qualification must retain the inverted-distance
+  refusal, fixed bounded-distance upper coordinates across state and call
+  arrivals, crossed entry cursors and renamed/permuted call-component binders.
+  Entry-bearing native refusals and
   sponsored Build controls must retain their intended diagnostics without
   replaying the accepted source compilation.
   The two excluded float cases now have one checked and one timeout at 360s
