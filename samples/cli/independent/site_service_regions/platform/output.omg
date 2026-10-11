@@ -16,11 +16,10 @@ invokes Console;
     state collect(value: i64 in Saturating, output: &mut Digits) {
         transition output.count < 20 {
             true -> remainder(value, output, value % 10)
-            false -> done()
+            false -> failed()
         }
     }
     state remainder(value: i64 in Saturating, output: &mut Digits, digit: i64 in Saturating)
-    requires output.count < 20 && digit >= -9 && digit <= 9
     {
         transition digit < 0 {
             true -> store(value, output, 0 - digit)
@@ -28,10 +27,18 @@ invokes Console;
         }
     }
     state store(value: i64 in Saturating, output: &mut Digits, digit: i64 in Saturating)
-    requires output.count < 20 && digit >= 0 && digit <= 9
     {
-        output.bytes[output.count] = (digit + 48) as i32;
-        output.count = output.count + 1;
+        let count: u64 = output.count;
+        transition count < 20 && digit >= 0 && digit <= 9 {
+            true -> write_stored(value, output, digit, count)
+            false -> failed()
+        }
+    }
+    state write_stored(value: i64 in Saturating, output: &mut Digits, digit: i64 in Saturating, index: u64)
+    requires index < 20 && digit >= 0 && digit <= 9
+    {
+        output.bytes[index] = (digit + 48) as i32;
+        output.count = index + 1;
         transition value / 10 == 0 {
             true -> emit_digits(output, output.count)
             false -> collect(value / 10, output)
@@ -49,6 +56,7 @@ invokes Console;
         Console::write_byte(output.bytes[index]);
         transition { _ -> emit_digits(output, index) }
     }
+    state failed() { Console::write_line("FORMAT_FAILED"); Console::exit_process(70); }
     state done() { }
 }
 // Emit nearest integer micro-units, with ties away from zero. All geometry
