@@ -5340,3 +5340,5 @@ pass/traits/conformance_unused_lifetime_scope_exit checked 2609ms check-target:m
 fail/atomics/stored_reference_non_atomic_shared_store rejected 223ms expected @36591ba7905e+wt
 	machine `reject` state `entry` assignment cannot write `packet` because it is not mutable in this state (if `packet` is undeclared -- a typo -- no such field or local exists)
 pass/atomics/runtime_stored_reference_atomic_events_exit checked 2680ms check-target:macos_arm64 @36591ba7905e+wt
+pass/calls/callback_borrowed_scalar_entry checked 5939ms check-target:macos_arm64 @09084c02ea24
+pass/calls/callback_scalar_loan_permutation checked 6007ms check-target:macos_arm64 @09084c02ea24
