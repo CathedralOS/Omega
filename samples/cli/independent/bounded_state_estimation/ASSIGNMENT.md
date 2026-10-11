@@ -1,20 +1,26 @@
-IND06 owns this directory and its complete implementation. Dependencies on
-active workers: none. Base: 30ec6a20142f4e79e236c20912455939df40ea96;
-branch ind06-bounded-state; original checkout preserved.
+IND06 owns this application and all private algebra, update policy, input,
+formatting, reference calculations and fixtures. Active-worker dependencies: none.
+Original base: 30ec6a20142f4e79e236c20912455939df40ea96. Integrated main:
+0e909a42c7. Original candidate b8d93e978836661e2cc316bb4365d588ace3d794
+and its approval/rejection evidence are preserved outside this source directory.
 
-Acceptance requires exact-rational frozen trajectories, missing observations,
-positive semidefinite/symmetric covariance, singular updates, malformed input,
-complete separate source rejection, native output and Terminal comparison.
+Acceptance demonstrated on Linux x86_64: source check, 16 native fixture
+outputs/exits with frozen rational oracles, symmetry/PSD checks, 16 agreeing
+Terminal termination comparisons, and the separate exact invalid-index rejection.
+The native image and complete command/output receipts are in build/validation.
+Expected values and tolerances were frozen before execution and were not changed.
 
-Current frontier: automatic approval review rejected package-review resume
-because the existing std dependency requires 285 policy decisions, including
-process/filesystem dangerous capabilities. No acceptance lock was persisted.
-Native and Terminal execution are pending this approval. The independent invalid
-index control rejected with its frozen exact diagnostic. Application checking
-reaches the required dependency-owned program-entry acceptance gate.
+The application exposed a current-main lowering gap: named boundary-requirement
+uses below structural initializers were absent from checked selection discovery.
+A bounded repair replaces that owner's partial child roster with the canonical
+expression traversal. The compiler regression tests record and array initializers.
+No provider, permission, update policy or source admission guard was weakened.
 
-Next action: obtain approval for the concrete std package policy, refresh/read
-its review for this candidate, accept those decisions, resume, and run validate.py.
+Remaining integration frontier: independent review supplied by the parent,
+then coordinated main-only publication and exact remote-main verification.
+This candidate is validated but not yet landed. The host-local acceptance lock
+is intentionally ignored under repository policy.
 
-Claims attempt returned exit 3, uncertain mutation, ticket
-10cd1ddc6ce14dc89384447fb731e264; inspect before any retry.
+Claims coordination returned exit 3 on both ordinary and documented longer
+status reads. Registration was not confirmed. The earlier uncertain ticket is
+10cd1ddc6ce14dc89384447fb731e264; inspect before retrying its mutation.

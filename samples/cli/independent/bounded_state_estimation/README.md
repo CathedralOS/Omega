@@ -1,10 +1,15 @@
 # Bounded position and velocity estimation
 
-Validation is pending package-policy approval. The separate invalid control
-matched its exact rejection; application checking reaches the dependency-owned
-entry-binding gate. Native and Terminal execution have not occurred: automatic
-approval review rejected std policy acceptance (285 decisions, including process
-and filesystem capabilities). See `ASSIGNMENT.md`; no acceptance lock exists.
+Validated on Linux x86_64: source checking succeeds, all 16 frozen fixtures
+match native outputs and exits, and all 16 Terminal comparisons agree on
+termination. Covariance symmetry and positive-semidefinite checks pass, including
+missing observations and perfect measurements. The separate invalid project
+rejects with its exact covariance-index diagnostic. Package acceptance is stored
+in an ignored host-local lock; another checkout performs its own review.
+
+This sample exposed missing boundary-requirement selection below structural
+initializers. The checking owner now uses the existing canonical expression
+traversal; a focused corpus fixture covers record and array initializers.
 
 IND06 is an independent, two-dimensional linear Gaussian state estimator.
 All algebra, prediction, scalar observation updates, parsing and formatting
