@@ -5487,3 +5487,6 @@ pass/float/runtime_absolute_return_sum_exit checked 145583ms check-target:linux_
 pass/float/runtime_absolute_shared_call_operands_exit checked 142230ms check-target:linux_x86_64 @e977d51d9986
 pass/float/runtime_nested_float_min_max_exit checked 143720ms check-target:linux_x86_64 @e977d51d9986
 pass/float/runtime_resultless_law_equality_custody_exit checked 143939ms check-target:linux_x86_64 @e977d51d9986
+fail/providers/applied_entry_nested_binding_wrong_receiver rejected 5932ms expected @c61d64ccecc5+wt
+	selected ProgramEntry Binding field `Main::session::parent` requires a selected Fused provider for boundary `Parent`
+pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt

@@ -185,6 +185,7 @@ impl TypedTrees {
             declaration,
             crate::trait_definition::TraitApplicationArguments {
                 lexical_owner,
+                enclosing_data_applications: &[],
                 arguments: trait_arguments,
                 lifetimes: &[],
             },

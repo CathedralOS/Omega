@@ -66,6 +66,7 @@ pub fn from_typed_instance(
                 // This legacy schema entry admits only region-free receivers.
                 // An occurrence-owned applied view must precede region-bearing selection.
                 lexical_owner: symbols::SymbolHandle::invalid(),
+                enclosing_data_applications: &[],
                 arguments: boundary_arguments,
                 lifetimes: &[],
             },

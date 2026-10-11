@@ -145,6 +145,7 @@ pub(crate) fn validate_equivalence_selection(
             trait_definition,
             typed_trees::trait_definition::TraitApplicationArguments {
                 lexical_owner: definition.symbol,
+                enclosing_data_applications: &[],
                 arguments: selection_arguments,
                 lifetimes: &[],
             },

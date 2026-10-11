@@ -60,6 +60,7 @@ impl ExactServiceCarrier {
                 // Region-bearing carriers still require occurrence custody;
                 // the classifier refuses them before this view is produced.
                 lexical_owner: SymbolHandle::invalid(),
+                enclosing_data_applications: &[],
                 arguments: self.arguments(program),
                 lifetimes: &[],
             },

@@ -3,7 +3,7 @@
 //! scopes. Ordinary erased type identity remains available for layout; this
 //! local key judges complete application equality and never grants a loan.
 
-use super::{AppliedTraitScope, TraitDefinition};
+use super::AppliedTraitScope;
 use crate::TypedTrees;
 use crate::data::TypeParameterKind;
 use crate::name::Identifier;
@@ -15,17 +15,20 @@ use crate::type_identity::{
 use symbols::SymbolHandle;
 
 #[derive(Clone)]
-pub(crate) struct AppliedTraitRegionScope {
+pub(crate) struct AppliedDeclarationRegionScope {
     declaration: SymbolHandle,
     lifetimes: Vec<(String, String)>,
 }
 
-impl AppliedTraitRegionScope {
-    pub(super) fn new(declaration: &TraitDefinition, arguments: &[Identifier]) -> Self {
+impl AppliedDeclarationRegionScope {
+    pub(super) fn new(
+        declaration: SymbolHandle,
+        parameters: &[Identifier],
+        arguments: &[Identifier],
+    ) -> Self {
         Self {
-            declaration: declaration.symbol,
-            lifetimes: declaration
-                .lifetime_parameters
+            declaration,
+            lifetimes: parameters
                 .iter()
                 .zip(arguments)
                 .map(|(parameter, argument)| {
@@ -103,41 +106,47 @@ impl AppliedTraitScope<'_> {
         program: &TypedTrees,
         use_scopes: impl FnOnce(&[AppliedTypeIdentityScope<'_>]) -> Result,
     ) -> Result {
-        let arguments =
-            self.substitution_scope_starts
-                .iter()
-                .enumerate()
-                .map(|(ordinal, start)| {
-                    let end = self
-                        .substitution_scope_starts
-                        .get(ordinal + 1)
-                        .copied()
-                        .unwrap_or(self.substitutions.len());
-                    self.substitutions[*start..end]
-                        .iter()
-                        .map(|(parameter, argument)| {
-                            let is_type = program
-                                .trait_definition_by_symbol(self.region_scopes[ordinal].declaration)
-                                .is_some_and(|declaration| {
-                                    program.trait_type_parameters(declaration).iter().any(
-                                        |binder| {
-                                            binder.symbol == *parameter
-                                                && binder.kind == TypeParameterKind::Type
-                                        },
+        let arguments = self
+            .substitution_scope_starts
+            .iter()
+            .enumerate()
+            .map(|(ordinal, start)| {
+                let end = self
+                    .substitution_scope_starts
+                    .get(ordinal + 1)
+                    .copied()
+                    .unwrap_or(self.substitutions.len());
+                self.substitutions[*start..end]
+                    .iter()
+                    .map(|(parameter, argument)| {
+                        let is_type = program
+                            .trait_definition_by_symbol(self.region_scopes[ordinal].declaration)
+                            .map(|declaration| program.trait_type_parameters(declaration))
+                            .or_else(|| {
+                                program
+                                    .data_definition_by_symbol(
+                                        self.region_scopes[ordinal].declaration,
                                     )
-                                });
-                            (
-                                *parameter,
-                                if is_type {
-                                    IndexIdentityArgument::TypeArgument(*argument)
-                                } else {
-                                    IndexIdentityArgument::TypeReference(*argument)
-                                },
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
+                                    .map(|declaration| program.data_type_parameters(declaration))
+                            })
+                            .is_some_and(|parameters| {
+                                parameters.iter().any(|binder| {
+                                    binder.symbol == *parameter
+                                        && binder.kind == TypeParameterKind::Type
+                                })
+                            });
+                        (
+                            *parameter,
+                            if is_type {
+                                IndexIdentityArgument::TypeArgument(*argument)
+                            } else {
+                                IndexIdentityArgument::TypeReference(*argument)
+                            },
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
         let scopes = self
             .region_scopes
             .iter()

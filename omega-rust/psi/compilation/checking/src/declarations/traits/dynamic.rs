@@ -247,6 +247,7 @@ pub fn collect_dynamic_slot_demands(
                 selector_definition,
                 typed_trees::trait_definition::TraitApplicationArguments {
                     lexical_owner: selection.machine,
+                    enclosing_data_applications: &[],
                     arguments: selector_arguments,
                     lifetimes: &[],
                 },
@@ -795,6 +796,7 @@ pub(crate) fn receiver_trait_scope<'program>(
             program.trait_definition_by_symbol(*base_symbol)?,
             typed_trees::trait_definition::TraitApplicationArguments {
                 lexical_owner,
+                enclosing_data_applications: &[],
                 arguments: program
                     .type_reference_table
                     .type_reference_handles(*arguments),
@@ -810,6 +812,7 @@ pub(crate) fn receiver_trait_scope<'program>(
             program.trait_definition_by_symbol(*base_symbol)?,
             typed_trees::trait_definition::TraitApplicationArguments {
                 lexical_owner,
+                enclosing_data_applications: &[],
                 arguments: program
                     .type_reference_table
                     .type_reference_handles(*arguments),

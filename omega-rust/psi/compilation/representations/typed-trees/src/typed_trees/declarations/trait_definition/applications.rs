@@ -14,7 +14,8 @@ use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
 mod regions;
-use regions::AppliedTraitRegionScope;
+use regions::AppliedDeclarationRegionScope;
+mod enclosing;
 
 impl TypedTrees {
     /// Source-owned application roots shared by logical signature preparation
@@ -63,6 +64,9 @@ impl TypedTrees {
 #[derive(Clone, Copy)]
 pub struct TraitApplicationArguments<'arguments> {
     pub lexical_owner: SymbolHandle,
+    /// Exact outer-to-inner record applications containing this occurrence.
+    /// A bare declaration cannot stand in for its caller's supplied regions.
+    pub enclosing_data_applications: &'arguments [TypeReferenceHandle],
     pub arguments: &'arguments [TypeReferenceHandle],
     pub lifetimes: &'arguments [Identifier],
 }
@@ -158,7 +162,7 @@ pub struct AppliedTraitScope<'program> {
     /// belong to outer telescopes, not to the telescope replacing them.
     pub substitution_scope_starts: Vec<usize>,
     pub argument_owner: SymbolHandle,
-    region_scopes: Vec<AppliedTraitRegionScope>,
+    region_scopes: Vec<AppliedDeclarationRegionScope>,
 }
 
 impl<'program> AppliedTraitScope<'program> {
@@ -184,6 +188,7 @@ impl<'program> AppliedTraitScope<'program> {
             declaration,
             TraitApplicationArguments {
                 lexical_owner: conformance.symbol,
+                enclosing_data_applications: &[],
                 arguments: program
                     .type_reference_table
                     .type_reference_handles(conformance.arguments),
@@ -217,6 +222,7 @@ impl<'program> AppliedTraitScope<'program> {
             declaration,
             TraitApplicationArguments {
                 lexical_owner: owner,
+                enclosing_data_applications: &[],
                 arguments: program
                     .type_reference_table
                     .type_reference_handles(conformance.arguments),
@@ -231,22 +237,36 @@ impl<'program> AppliedTraitScope<'program> {
         application: TraitApplicationArguments<'_>,
     ) -> Option<Self> {
         let parameters = program.trait_type_parameters(declaration);
-        (parameters.len() == application.arguments.len()
-            && declaration.lifetime_parameters.len() == application.lifetimes.len())
-        .then(|| Self {
+        if parameters.len() != application.arguments.len()
+            || declaration.lifetime_parameters.len() != application.lifetimes.len()
+        {
+            return None;
+        }
+        let mut scope = Self {
             declaration,
-            substitutions: parameters
+            substitutions: Vec::new(),
+            substitution_scope_starts: Vec::new(),
+            argument_owner: application.lexical_owner,
+            region_scopes: Vec::new(),
+        };
+        for reference in application.enclosing_data_applications {
+            enclosing::append_data_application(program, *reference, &mut scope)?;
+        }
+        scope
+            .substitution_scope_starts
+            .push(scope.substitutions.len());
+        scope.substitutions.extend(
+            parameters
                 .iter()
                 .zip(application.arguments)
-                .map(|(parameter, argument)| (parameter.symbol, *argument))
-                .collect(),
-            substitution_scope_starts: vec![0],
-            argument_owner: application.lexical_owner,
-            region_scopes: vec![AppliedTraitRegionScope::new(
-                declaration,
-                application.lifetimes,
-            )],
-        })
+                .map(|(parameter, argument)| (parameter.symbol, *argument)),
+        );
+        scope.region_scopes.push(AppliedDeclarationRegionScope::new(
+            declaration.symbol,
+            &declaration.lifetime_parameters,
+            application.lifetimes,
+        ));
+        Some(scope)
     }
 
     /// An authored trait contract keeps its own parameters rigid and open.
@@ -256,7 +276,11 @@ impl<'program> AppliedTraitScope<'program> {
             substitutions: Vec::new(),
             substitution_scope_starts: vec![0],
             argument_owner: declaration.symbol,
-            region_scopes: vec![AppliedTraitRegionScope::new(declaration, &[])],
+            region_scopes: vec![AppliedDeclarationRegionScope::new(
+                declaration.symbol,
+                &declaration.lifetime_parameters,
+                &[],
+            )],
         }
     }
 
@@ -456,6 +480,7 @@ impl<'program> AppliedTraitScope<'program> {
                 declaration,
                 TraitApplicationArguments {
                     lexical_owner: self.argument_owner,
+                    enclosing_data_applications: &[],
                     arguments: program
                         .type_reference_table
                         .type_reference_handles(parent.arguments),

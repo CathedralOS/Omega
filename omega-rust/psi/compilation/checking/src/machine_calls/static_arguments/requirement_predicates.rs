@@ -104,6 +104,7 @@ pub(super) fn validate(
             owner,
             typed_trees::trait_definition::TraitApplicationArguments {
                 lexical_owner: call.lexical_owner(program),
+                enclosing_data_applications: &[],
                 arguments: application.trait_arguments,
                 lifetimes: &[],
             },

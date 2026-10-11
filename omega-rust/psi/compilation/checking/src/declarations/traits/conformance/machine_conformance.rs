@@ -743,6 +743,7 @@ fn validate_machine_single_requirement(
         trait_definition,
         typed_trees::trait_definition::TraitApplicationArguments {
             lexical_owner: machine.symbol,
+            enclosing_data_applications: &[],
             arguments: explicit_type_arguments,
             lifetimes: &lifetimes,
         },

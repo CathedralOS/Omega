@@ -76,6 +76,7 @@ pub(crate) fn dynamic_selector_call<'program>(
         selector_definition,
         typed_trees::trait_definition::TraitApplicationArguments {
             lexical_owner: machine.symbol,
+            enclosing_data_applications: &[],
             arguments: selector_arguments,
             lifetimes: &[],
         },

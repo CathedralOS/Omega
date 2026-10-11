@@ -70,6 +70,7 @@ pub fn validate_authored_static_arguments(
             owner,
             typed_trees::trait_definition::TraitApplicationArguments {
                 lexical_owner: source.lexical_owner,
+                enclosing_data_applications: &[],
                 arguments: application.trait_arguments,
                 lifetimes: &[],
             },

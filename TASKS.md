@@ -2759,10 +2759,17 @@ crash and native exit behavior.
     Preserve `build/explicit_lifetime_entry_context_exit` through both engines:
     ordinary entry contexts use their retained closed data applications, without
     bypassing mutable access or ZII eligibility. This storage correspondence is
-    not a portable region identity. Region-bearing Binding receiver identities
-    still need exact application joins and indexed named-provider family
-    coverage; the current classifier refuses rather than using erased carrier
-    matching. Build selects the provider declaration, not a runtime caller region.
+    not a portable region identity. Preserve
+    `providers/applied_entry_nested_binding_context_exit` through both engines
+    and its wrong-receiver rejection control: applied data storage must retain
+    closed trait-contract operands, and direct/nested field discovery must carry
+    the enclosing data applications into selection and establishment.
+    Region-bearing Binding admission still needs occurrence scopes through
+    source inventory and requirement preparation, checked provider region-slot
+    correspondence and application-plus-requirement joins through canonical
+    candidates and receiving installation. The classifier and provider
+    eligibility remain fail-closed until those associations exist. Build selects
+    the provider declaration, not a runtime caller region.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.
 

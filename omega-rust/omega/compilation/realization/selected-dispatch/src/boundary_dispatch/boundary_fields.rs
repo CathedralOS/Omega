@@ -55,6 +55,7 @@ impl BoundaryField {
             declaration,
             typed_trees::trait_definition::TraitApplicationArguments {
                 lexical_owner: symbols::SymbolHandle::invalid(),
+                enclosing_data_applications: &[],
                 arguments,
                 lifetimes: &[],
             },

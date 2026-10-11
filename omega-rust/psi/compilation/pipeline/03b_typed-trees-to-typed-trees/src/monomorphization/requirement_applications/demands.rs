@@ -21,14 +21,10 @@ pub(super) fn collect(program: &TypedTrees) -> Vec<Demand> {
         // Executable preparation still needs closed operands. Inspect the
         // supplying telescope, not inherited binder leaves that its complete
         // scope will resolve. Region-bearing admission remains fail-closed.
-        let root_end = root
-            .substitution_scope_starts
-            .get(1)
-            .copied()
-            .unwrap_or(root.substitutions.len());
-        let arguments = root.substitutions[..root_end]
+        let arguments = program
+            .trait_type_parameters(root.declaration)
             .iter()
-            .map(|(_, argument)| *argument)
+            .map(|parameter| root.parameter_argument(program, parameter.symbol))
             .collect::<Vec<_>>();
         if !root.declaration.lifetime_parameters.is_empty()
             || program

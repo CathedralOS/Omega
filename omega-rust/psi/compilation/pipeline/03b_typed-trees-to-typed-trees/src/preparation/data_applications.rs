@@ -336,6 +336,11 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 {
                     return false;
                 }
+                if let Some(declaration) = program.trait_definition_by_symbol(*symbol)
+                    && !program.trait_type_parameters(declaration).is_empty()
+                {
+                    return false;
+                }
             }
             TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
             TypeReferenceNode::Constrained {
@@ -375,14 +380,36 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 arguments,
                 ..
             } => {
-                let Some(data) = program.unique_data_definition_by_symbol(*base_symbol) else {
+                // A nominal application's static operands can themselves be
+                // applied traits. They describe its closed contract, not a
+                // second stored data value. Closure must follow either exact
+                // declaration telescope rather than treating every Generic
+                // node as a data constructor.
+                let telescope = program
+                    .unique_data_definition_by_symbol(*base_symbol)
+                    .map(|data| {
+                        (
+                            program.data_type_parameters(data).len(),
+                            data.lifetime_parameters.len(),
+                        )
+                    })
+                    .or_else(|| {
+                        program
+                            .trait_definition_by_symbol(*base_symbol)
+                            .map(|declaration| {
+                                (
+                                    program.trait_type_parameters(declaration).len(),
+                                    declaration.lifetime_parameters.len(),
+                                )
+                            })
+                    });
+                let Some((parameter_count, lifetime_count)) = telescope else {
                     return false;
                 };
                 let arguments = program
                     .type_reference_table
                     .type_reference_handles(*arguments);
-                if program.data_type_parameters(data).len() != arguments.len()
-                    || data.lifetime_parameters.len() != lifetime_arguments.len()
+                if parameter_count != arguments.len() || lifetime_count != lifetime_arguments.len()
                 {
                     return false;
                 }

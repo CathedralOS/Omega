@@ -23,9 +23,10 @@ use typed_trees::data::{DataDefinition, DataField};
 pub(crate) fn has_fused_selection(
     checked: &CheckedTrees,
     selected: &[SelectedProviderReviewProvenance],
-    carrier: typed_trees::service::ExactServiceCarrier,
+    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+    arguments: &[typed_trees::types::TypeReferenceHandle],
 ) -> bool {
-    let Some(schema) = carrier_schema(checked, &[], carrier) else {
+    let Some(schema) = carrier_schema(checked, &[], application, arguments) else {
         return false;
     };
     selected.iter().any(|candidate| {
@@ -37,13 +38,14 @@ pub(crate) fn has_fused_selection(
 fn carrier_schema(
     checked: &CheckedTrees,
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
-    carrier: typed_trees::service::ExactServiceCarrier,
+    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+    arguments: &[typed_trees::types::TypeReferenceHandle],
 ) -> Option<effects::provider_plan::ServiceSchema> {
     provider_planning::service_schema::from_typed_application(
         provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
         calling_plans,
-        carrier.application(checked)?,
-        carrier.arguments(checked),
+        application.clone(),
+        arguments,
     )
 }
 

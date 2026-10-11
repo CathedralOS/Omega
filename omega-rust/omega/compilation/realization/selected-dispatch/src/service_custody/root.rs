@@ -16,7 +16,42 @@ use super::{
 };
 use checked_trees::{CheckedUnitStructuralFieldPlan, CheckedUnitStructuralTypePlan};
 use typed_trees::service::ExactServiceCarrier;
+use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+struct ServiceFieldApplication<'program> {
+    field: &'program DataField,
+    carrier: ExactServiceCarrier,
+    application: AppliedTraitScope<'program>,
+    path: Vec<String>,
+}
+
+#[derive(Clone, Copy)]
+struct ServiceFieldSource<'program> {
+    definition: &'program DataDefinition,
+    reference: TypeReferenceHandle,
+    lexical_owner: symbols::SymbolHandle,
+}
+
+impl<'program> ServiceFieldSource<'program> {
+    fn entry(
+        checked: &'program CheckedTrees,
+        context: &provider_planning::program_entry::ProvisionedEntryContext<'program>,
+        lexical_owner: symbols::SymbolHandle,
+    ) -> Option<Self> {
+        let TypeReferenceNode::Reference { referee, .. } = checked
+            .type_reference_table
+            .type_reference(context.parameter.type_reference)
+        else {
+            return None;
+        };
+        Some(Self {
+            definition: context.definition,
+            reference: *referee,
+            lexical_owner,
+        })
+    }
+}
 
 /// The boundary requirement of every `Binding<R>` carrier on the provisioned
 /// context record of ProgramEntry machine `machine_symbol`, in authored route
@@ -41,19 +76,23 @@ pub fn program_entry_service_requirements(
     else {
         return Vec::new();
     };
+    let Some(source) = ServiceFieldSource::entry(checked, &context, machine.symbol) else {
+        return Vec::new();
+    };
     let mut service_fields = Vec::new();
     let mut invalid_shapes = Vec::new();
     collect_service_fields(
         checked,
         context.definition,
-        context.definition,
+        source,
+        &mut Vec::new(),
         &mut Vec::new(),
         &mut service_fields,
         &mut invalid_shapes,
     );
     service_fields
         .into_iter()
-        .map(|(_field, carrier, _route)| carrier.requirement)
+        .map(|field| field.carrier.requirement)
         .collect()
 }
 
@@ -76,18 +115,27 @@ pub(crate) fn program_entry_has_unsettled_service_fields(
     else {
         return false;
     };
+    let Some(source) = ServiceFieldSource::entry(checked, &context, machine.symbol) else {
+        return false;
+    };
     let mut fields = Vec::new();
     collect_service_fields(
         checked,
         context.definition,
-        context.definition,
+        source,
+        &mut Vec::new(),
         &mut Vec::new(),
         &mut fields,
         &mut Vec::new(),
     );
-    fields
-        .iter()
-        .any(|(_, carrier, _)| !super::has_fused_selection(checked, selected, *carrier))
+    fields.iter().any(|field| {
+        !super::has_fused_selection(
+            checked,
+            selected,
+            &field.application,
+            field.carrier.arguments(checked),
+        )
+    })
 }
 
 pub(crate) fn derive_fused_program_entry_establishments(
@@ -146,6 +194,12 @@ pub(crate) fn derive_fused_program_entry_establishments(
     }
     let receiver_parameter = context.parameter;
     let owner = context.definition;
+    let source_fields =
+        ServiceFieldSource::entry(checked, &context, machine.symbol).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "selected ProgramEntry lost its context application",
+            )]
+        })?;
     if checked.normalized_type_identity_text(receiver_parameter.type_reference)
         != source
             .identities()
@@ -161,7 +215,8 @@ pub(crate) fn derive_fused_program_entry_establishments(
     collect_service_fields(
         checked,
         owner,
-        owner,
+        source_fields,
+        &mut Vec::new(),
         &mut Vec::new(),
         &mut service_fields,
         &mut diagnostics,
@@ -178,8 +233,14 @@ pub(crate) fn derive_fused_program_entry_establishments(
     // Unsettled fields leave the derivation instead of diagnosing; every other
     // establishment check still applies to the fields that keep a selection.
     if permit_unsettled {
-        service_fields
-            .retain(|(_, carrier, _path)| super::has_fused_selection(checked, selected, *carrier));
+        service_fields.retain(|field| {
+            super::has_fused_selection(
+                checked,
+                selected,
+                &field.application,
+                field.carrier.arguments(checked),
+            )
+        });
         if service_fields.is_empty() {
             return Ok(Vec::new());
         }
@@ -188,13 +249,18 @@ pub(crate) fn derive_fused_program_entry_establishments(
     // Psi retains every logical carrier without a provider decision. This
     // realization currently supports only Fused entry establishment; missing
     // or Independent selection cannot authorize zero-payload storage.
-    for (_field, carrier, path) in &service_fields {
-        if !super::has_fused_selection(checked, selected, *carrier) {
+    for field in &service_fields {
+        if !super::has_fused_selection(
+            checked,
+            selected,
+            &field.application,
+            field.carrier.arguments(checked),
+        ) {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry Binding field `{}::{}` requires a selected Fused provider for boundary `{}`",
                 owner.name,
-                path.join("::"),
-                checked.symbols.display_path(carrier.requirement, "::"),
+                field.path.join("::"),
+                checked.symbols.display_path(field.carrier.requirement, "::"),
             )));
         }
     }
@@ -313,7 +379,13 @@ pub(crate) fn derive_fused_program_entry_establishments(
     };
 
     let mut rows = Vec::new();
-    for (field, carrier, field_path) in service_fields {
+    for ServiceFieldApplication {
+        field,
+        carrier,
+        application,
+        path: field_path,
+    } in service_fields
+    {
         let field_identity = data_field_identity(field);
         let checked_field = match checked_field_for_path(
             &checked.facts.flow.terminal_unit_effects.structural_types,
@@ -355,7 +427,12 @@ pub(crate) fn derive_fused_program_entry_establishments(
             )));
             continue;
         }
-        let Some(schema) = super::carrier_schema(checked, calling_plans, carrier) else {
+        let Some(schema) = super::carrier_schema(
+            checked,
+            calling_plans,
+            &application,
+            carrier.arguments(checked),
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry Binding field `{}::{}` cannot reconstruct its schema",
                 owner.name,
@@ -432,20 +509,22 @@ pub(crate) fn derive_fused_program_entry_establishments(
 }
 
 /// Collect every authored bound-service field on the receiver's record-field
-/// tree. A service carrier contributes one (field, carrier, route) triple at
-/// whatever depth nested record fields place it; a plain nested-record field
-/// only extends the route through its own members. Nested `data` definitions
+/// tree. Each carrier retains its field, applied scope and route at whatever
+/// depth nested records place it. A plain record extends both the field route
+/// and the enclosing application scopes through its members. Nested `data` definitions
 /// rejoin exactly like the eligibility walk — nominal, non-generic, and free
 /// of authored `where` facts — so both sides discover the same roster.
 fn collect_service_fields<'a>(
     checked: &'a CheckedTrees,
     owner: &DataDefinition,
-    source: &'a DataDefinition,
+    source: ServiceFieldSource<'a>,
+    enclosing_data_applications: &mut Vec<TypeReferenceHandle>,
     field_path: &mut Vec<String>,
-    service_fields: &mut Vec<(&'a DataField, ExactServiceCarrier, Vec<String>)>,
+    service_fields: &mut Vec<ServiceFieldApplication<'a>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for member in checked.data_members(source) {
+    enclosing_data_applications.push(source.reference);
+    for member in checked.data_members(source.definition) {
         let Some(field) = member.as_field() else {
             continue;
         };
@@ -455,8 +534,34 @@ fn collect_service_fields<'a>(
             field.type_reference,
         ) {
             Ok(Some(carrier)) => {
+                let Some(application) = checked
+                    .trait_definition_by_symbol(carrier.requirement)
+                    .and_then(|declaration| {
+                        AppliedTraitScope::new(
+                            checked,
+                            declaration,
+                            TraitApplicationArguments {
+                                lexical_owner: source.lexical_owner,
+                                enclosing_data_applications,
+                                arguments: carrier.arguments(checked),
+                                lifetimes: &[],
+                            },
+                        )
+                    })
+                else {
+                    diagnostics.push(Diagnostic::error(format!(
+                            "selected ProgramEntry field `{}::{}` lost its exact enclosing data application",
+                            owner.name, field_identity,
+                        )));
+                    continue;
+                };
                 field_path.push(field_identity);
-                service_fields.push((field, carrier, field_path.clone()));
+                service_fields.push(ServiceFieldApplication {
+                    field,
+                    carrier,
+                    application,
+                    path: field_path.clone(),
+                });
                 field_path.pop();
             }
             Ok(None) => {
@@ -467,7 +572,12 @@ fn collect_service_fields<'a>(
                 collect_service_fields(
                     checked,
                     owner,
-                    nested,
+                    ServiceFieldSource {
+                        definition: nested,
+                        reference: field.type_reference,
+                        lexical_owner: source.lexical_owner,
+                    },
+                    enclosing_data_applications,
                     field_path,
                     service_fields,
                     diagnostics,
@@ -485,6 +595,7 @@ fn collect_service_fields<'a>(
             }
         }
     }
+    enclosing_data_applications.pop();
 }
 
 /// The nested source data definition a record field names, under the same

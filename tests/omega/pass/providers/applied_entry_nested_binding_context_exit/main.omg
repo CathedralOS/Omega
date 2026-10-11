@@ -1,0 +1,40 @@
+// Expected exit: 0. One descendant supplies direct and nested ancestor fields
+// beneath the entry's applied data telescope. The record and activation use
+// different region names; a borrowed helper must preserve the same selection.
+use omega::language::core::binding;
+
+pub boundary trait Parent<Value> { machine read() -> i32; }
+pub boundary trait Child: Parent<u64> { machine choose() -> i32; }
+
+ChildMap satisfies Child {
+    Parent::read = read;
+    Child::choose = choose;
+}
+machine read() -> i32 { 37 }
+machine choose() -> i32 { 19 }
+
+data TargetProviders {}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
+
+data Session { parent: Binding<Parent<u64>>; }
+data Main<'record> {
+    parent: Binding<Parent<u64>>;
+    session: Session;
+}
+
+machine observed<'borrow>(parent: &'borrow Binding<Parent<u64>>) -> i32 reaches Parent {
+    parent.read()
+}
+machine Main::main<'activation>(main: &'activation mut Main<'activation>)
+reaches Child + Parent crashes Trap {
+    let direct: i32 = observed(&main.parent);
+    let nested: i32 = observed(&main.session.parent);
+    let chosen: i32 = Child::choose();
+    transition direct == 37 && nested == 37 && chosen == 19 {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

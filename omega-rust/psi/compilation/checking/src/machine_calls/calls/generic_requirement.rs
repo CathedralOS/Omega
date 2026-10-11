@@ -158,6 +158,7 @@ pub(super) fn named_conformance_requirement<'program>(
         carrier,
         typed_trees::trait_definition::TraitApplicationArguments {
             lexical_owner: machine.symbol,
+            enclosing_data_applications: &[],
             arguments: &bound.arguments,
             lifetimes: &[],
         },
