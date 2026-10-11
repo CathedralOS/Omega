@@ -1,3 +1,36 @@
+Final changed-input qualification
+
+Implementation checkpoint: df0ed5971b7df39a4ad0d245e20155d9a60793b3.
+Validation base: 78ef135821951a7b93aa97fd58ea2ffd660cd600.
+Both complete consumers refreshed successfully with zero source changes,
+then checked26 files each. Native/Terminal outcomes: readonly41/41, mutable73/73.
+Separate invalid source rejected (exit1) at read_checked: offset < backing.len.
+Focused source gate exit0:9 fixtures,4 checked/5 rejected, all expected fragments.
+Focused native+Terminal gate exit0:2 built fixtures, native0/0 and Terminal0/0.
+Exact commands, exits, elapsed seconds: evidence/w100-borrowed-gates.json.
+Full stdout/stderr, verdict documents and zero-move reports are sibling logs.
+Product build and runner build passed; scoped3compiler-package+omega check
+passed in24.35s. The four repair files and mathematical oracles are unchanged.
+
+Intended publication base: 1f467fff02801f86dd45b3cace62c010f58376ef.
+Later fc4a398 changes only pure Build store lifetime across review rounds;
+independent review confirmed exact admitted-input guards remain in place.
+NF01 Build declarations generate no sources/outputs and are unchanged. This
+patch caches neither checked consumer products nor execution outputs. Reuse
+78ef execution evidence; take a fresh exact-candidate scoped package-manager
+and omega check after rebase. No publication is claimed before queue confirmation.
+Initial queue metadata push rejected GH007 (author-email privacy); retry using
+the candidate's accepted noreply identity succeeded. Cancelled own waiting ticket
+4f65e0ef661148bf90ae070a028d9f46 before requalifying changed descriptor inputs.
+No active NF01 queue ticket remains at this receipt checkpoint.
+
+Resource measurement: evidence/w100-borrowed-resources.json. CPU quota4,
+visible5, memory limit17179869184 bytes, no OOM or OOM-kill events. One Rust
+build and one Omega process maximum; all corpus execution uses jobs1.
+
+The following earlier receipt preserves the frozen oracles, API rationale,
+compiler-gap provenance, exact command spelling, and prior checkpoint history.
+
 NF01 reusable rank-two shape/layout contract — execution receipt
 
 Validation base: 6121c00e4546376e663d396e443a4f20ee4d77f4.

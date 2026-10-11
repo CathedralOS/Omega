@@ -83,8 +83,8 @@ Workflow is in [AGENTS.md](AGENTS.md), live assignments in the
   `samples/cli/scientific/w100/`. Reuse preserved candidate sources and frozen
   mathematical oracles; the integration owner implements all required
   interfaces without active-worker prerequisites. Current frontier: integrate
-  the preserved NF02 named additive accuracy policy, add actual nonfinite and
-  invalid-tolerance consumer controls, and qualify its floating provider imports
+  the preserved NF02 named additive accuracy policy, qualify its existing
+  nonfinite and invalid-tolerance controls, and qualify floating provider imports
   on current main. Then connect descriptor-backed moments and remaining kernels
   to the shared layout and numeric policy. Preserve unrelated work and land
   coherent qualified chunks through the normal queue. Candidate preservation in
