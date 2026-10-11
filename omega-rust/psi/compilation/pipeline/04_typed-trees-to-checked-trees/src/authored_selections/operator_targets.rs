@@ -287,7 +287,15 @@ pub(crate) fn checked_operator_target_for_occurrence(
     occurrence: AuthoredDeclarationSelectionOccurrenceId,
     owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> Option<AuthoredSelectionResolutionTarget> {
-    checked_operator_target(program, facts, expression, node, owner_index).or_else(|| {
+    let is_rooted = |candidate| {
+        owner_index.is_none_or(|owners| owners.contains_expression(candidate))
+            || facts
+                .operators
+                .uses
+                .iter()
+                .any(|(_, use_fact)| use_fact.expression == candidate)
+    };
+    let copied_target = || {
         program
             .expression_table
             .iter_expressions()
@@ -298,10 +306,22 @@ pub(crate) fn checked_operator_target_for_occurrence(
                     .authored_selection_occurrences(*candidate)
                     .any(|retained| retained == occurrence)
             })
+            .filter(|(candidate, _)| is_rooted(*candidate))
             .find_map(|(candidate, candidate_node)| {
                 checked_operator_target(program, facts, candidate, candidate_node, owner_index)
             })
-    })
+    };
+    // Specialization leaves detached contract copies in the arena. Their
+    // concrete operand symbols do not grant a new meaning to the authored
+    // occurrence. Carry its rooted selection instead; rooted copies still
+    // resolve independently and the ledger checks that they agree.
+    if !is_rooted(expression) {
+        copied_target()
+            .or_else(|| checked_operator_target(program, facts, expression, node, owner_index))
+    } else {
+        checked_operator_target(program, facts, expression, node, owner_index)
+            .or_else(copied_target)
+    }
 }
 
 fn checked_operator_expression_is_intrinsic_primitive(

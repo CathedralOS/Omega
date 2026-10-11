@@ -177,3 +177,8 @@ pass/float/float_saturating_arithmetic_exit built 89142ms exit:77 interpreter-ex
 pass/float/guarded_scalar_state_contract_exit built 93676ms exit:0 interpreter-exit:0 interpreter:agrees @8e62b89228ab+wt
 pass/float/live_division_operand_across_call_exit built 5931ms exit:0 interpreter-exit:0 interpreter:agrees @8e62b89228ab
 pass/float/live_float_parameter_across_call_exit built 89521ms exit:0 interpreter-exit:0 interpreter:agrees @8e62b89228ab
+# Rooted selection and detached-copy controls; four corpus jobs.
+pass/float/named_provider_directed_divide_exit built 75156ms exit:70 interpreter-exit:70 interpreter:agrees @a5e687e6c77f+wt
+pass/float/named_provider_multiply_then_add_exit built 72535ms exit:70 interpreter-exit:70 interpreter:agrees @a5e687e6c77f+wt
+pass/generics/runtime_selected_operator_body_exit built 5941ms exit:3 interpreter-exit:3 interpreter:agrees @a5e687e6c77f+wt
+pass/traits/equatable_implementation_selection_exit built 5640ms exit:70 interpreter-exit:70 interpreter:agrees @a5e687e6c77f+wt

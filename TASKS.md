@@ -2629,8 +2629,8 @@ crash and native exit behavior.
     does not retain the Build's provider choice; this closes with
     **PROVIDER-SELECTION-AFTER-TERMINAL**.
 
-  Acceptance: `float/named_provider_directed_divide_exit` and the
-  `pending/arithmetic/float_computation_no_route` matrix execute natively.
+  Acceptance: the `pending/arithmetic/float_computation_no_route` matrix
+  executes natively.
   Recover and execute the deleted customers from `089bd3290c`:
   `specialized_{boundary,fixed}_operator_physical_custody` and
   `specialized_{structural_fixed,mixed_structural_fixed}_operator_hosted_native`,

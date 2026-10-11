@@ -153,6 +153,12 @@ impl OwnerEnvironmentIndex {
             .collect()
     }
 
+    /// Whether source roots or the supplied checked contracts reach this
+    /// exact expression, independently of retained detached arena copies.
+    pub fn contains_expression(&self, expression: ExpressionHandle) -> bool {
+        self.index.entries.contains_key(&expression)
+    }
+
     fn environments(&self, expression: ExpressionHandle) -> Option<Vec<TypeEnvironment>> {
         let index = &self.index;
         index
