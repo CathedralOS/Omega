@@ -32,7 +32,7 @@ requires owner < 8
 pub machine shared(partition: &Partition, owner: u64, rival: u64) -> bool
 requires owner < 8 && rival < 8
 {
-    transition { _ -> edge(partition, owner, rival, 0) }
+    transition owner == rival { true -> (false) false -> edge(partition, owner, rival, 0) }
     state edge(partition: &Partition, owner: u64, rival: u64, index: u64) -> bool
     requires owner < 8 && rival < 8
     {
