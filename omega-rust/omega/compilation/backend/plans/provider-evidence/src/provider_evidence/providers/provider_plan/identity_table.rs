@@ -70,4 +70,11 @@ impl ProviderIdentityTable {
             .map(AsRef::as_ref)
             .unwrap_or_default()
     }
+
+    /// Every interned text in mint order. Codecs serialize this roster so a
+    /// decoder rebuilds an id-for-id identical table rather than re-minting
+    /// ids in its own traversal order.
+    pub fn texts(&self) -> impl Iterator<Item = &str> {
+        self.texts.iter().map(AsRef::as_ref)
+    }
 }

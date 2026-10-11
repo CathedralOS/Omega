@@ -29,7 +29,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
 // Schemas retain exact applied receiver rosters. Older records cannot license
 // an inherited view by omitting its application and complete requirements.
-const RECORD_VERSION: u16 = 7;
+const RECORD_VERSION: u16 = 8;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -462,6 +462,16 @@ fn recover_service_method(
 }
 
 fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
+    // The identity table rides the wire as a roster ahead of every field that
+    // points into it: recovery re-mints the texts in order so a decoded schema
+    // holds the same ids, not merely the same texts.
+    crate::codec_bytes::push_encoded(
+        out,
+        (schema.identities.texts().count() as u64).to_le_bytes(),
+    );
+    for text in schema.identities.texts() {
+        encode_string(text, out);
+    }
     encode_string(schema.identity_text(schema.trait_name), out);
     encode_optional(
         schema.trait_package_identity.as_ref(),
@@ -497,6 +507,13 @@ fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
 
 fn recover_service_schema(cursor: &mut ObservationCursor<'_>) -> Option<ServiceSchema> {
     let mut identities = ProviderIdentityTable::default();
+    let identity_count = cursor.u64()?;
+    if identity_count > RECORD_SEQUENCES_LIMIT {
+        return None;
+    }
+    for _ in 0..identity_count {
+        identities.intern(cursor_string(cursor)?);
+    }
     Some(ServiceSchema {
         trait_name: identities.intern(cursor_string(cursor)?),
         trait_package_identity: recover_optional(cursor, recover_identity)?,
