@@ -34,7 +34,7 @@ for case in manifest["cases"]:
     comparison = "not_requested"
     if options.mode == "both":
         comparison = "declined" if b"DECLINED" in result.stderr else "reported"
-        equal = equal and comparison != "declined" and b"AGREEMENT" in result.stderr
+        equal = equal and comparison != "declined" and f"interp exit: {case['exit']}".encode() in result.stderr
     records.append({"name":name,"command":command,"exit":result.returncode,"expected_exit":case["exit"],"stdout_matches":result.stdout==expected,"comparison":comparison,"pass":equal})
     print(name, "PASS" if equal else "FAIL", "exit",result.returncode,flush=True)
     (output/"results.json").write_text(json.dumps(records,indent=2)+"\n")

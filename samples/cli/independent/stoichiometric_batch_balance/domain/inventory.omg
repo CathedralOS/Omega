@@ -1,5 +1,5 @@
-module batch_inventory;
-use batch_model;
+module domain::inventory;
+use domain::model;
 
 machine minimum(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
     transition left < right { true -> left false -> right }

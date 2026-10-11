@@ -1,5 +1,5 @@
-module batch_balance;
-use batch_model;
+module domain::balance;
+use domain::model;
 
 // All arithmetic is bounded independently of machine representation: atoms
 // <=16, coefficients <=8, and each elemental side <=256. Wrapping carriers

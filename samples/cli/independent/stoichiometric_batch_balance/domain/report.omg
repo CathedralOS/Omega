@@ -1,4 +1,4 @@
-module batch_report;
+module domain::report;
 use omega_language_std::console;
 use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
