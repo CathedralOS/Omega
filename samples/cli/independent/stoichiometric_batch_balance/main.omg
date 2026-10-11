@@ -1,4 +1,7 @@
 // Entire input, solve, batch and report workflow runs in Omega.
+// The generic sample harness closes stdin; this is the empty-input control.
+// Expected exit: 64.
+// Expected output contains: INVALID_INPUT
 use omega_language_std::console;
 use omega::language::core::binding;
 use domain::model;
