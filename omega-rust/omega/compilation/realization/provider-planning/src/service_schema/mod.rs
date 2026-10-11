@@ -56,8 +56,6 @@ pub fn from_typed_instance(
     if !trait_definition.is_boundary || !context.contains(trait_definition.symbol) {
         return None;
     }
-    let mut methods = Vec::new();
-    let mut identities = ProviderIdentityTable::default();
     let root = if boundary_arguments.is_empty() {
         AppliedTraitScope::abstract_scope(trait_definition)
     } else {
@@ -73,6 +71,25 @@ pub fn from_typed_instance(
             },
         )?
     };
+    from_typed_application(context, calling_plans, root, boundary_arguments)
+}
+
+/// Reify an occurrence-owned application without discarding its simultaneous
+/// type and region scopes. Build still chooses a declaration; this query keeps
+/// the application that source checking supplied, and grants no selection.
+pub fn from_typed_application(
+    context: ProviderPlanningContext<'_>,
+    calling_plans: &[BoundaryCallingPlanRealization],
+    root: AppliedTraitScope<'_>,
+    boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
+) -> Option<ServiceSchema> {
+    let program = context.typed;
+    let trait_definition = root.declaration;
+    if !trait_definition.is_boundary || !context.contains(trait_definition.symbol) {
+        return None;
+    }
+    let mut methods = Vec::new();
+    let mut identities = ProviderIdentityTable::default();
     let scopes = applied_receivers::collect_scopes(program, root)?;
     for scope in scopes.iter().rev() {
         collect_service_methods(

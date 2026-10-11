@@ -5,11 +5,12 @@
 
 use super::{AppliedTraitScope, TraitDefinition};
 use crate::TypedTrees;
-use crate::name::Identifier;
 use crate::data::TypeParameterKind;
+use crate::name::Identifier;
 use crate::type_identity::{
     AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
     applied_lifetime_identity, applied_type_identity, local_trait_application_identity,
+    portable_applied_lifetime_identity, portable_applied_type_identity,
 };
 use symbols::SymbolHandle;
 
@@ -36,6 +37,65 @@ impl AppliedTraitRegionScope {
 }
 
 impl AppliedTraitScope<'_> {
+    /// Publish an actual in its supplying scope, before the simultaneous
+    /// telescope whose parameter it replaces. This retains reference access,
+    /// nominal phantom regions and the complete inherited substitution route.
+    pub fn portable_parameter_identity(
+        &self,
+        program: &TypedTrees,
+        parameter: SymbolHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        let (reference, outer) = self.parameter_application(parameter)?;
+        self.with_identity_scopes(program, |scopes| {
+            portable_applied_type_identity(
+                program,
+                reference,
+                self.argument_owner,
+                &scopes[..outer],
+            )
+        })
+    }
+
+    /// Public lifetime operands participate even when no method mentions them.
+    /// An inherited region is resolved through each edge, never recaptured by
+    /// a similarly spelled binder in the receiving trait.
+    pub fn portable_lifetime_arguments(
+        &self,
+        program: &TypedTrees,
+    ) -> Option<Vec<NormalizedTypeIdentity>> {
+        self.with_identity_scopes(program, |scopes| {
+            self.declaration
+                .lifetime_parameters
+                .iter()
+                .map(|parameter| {
+                    portable_applied_lifetime_identity(
+                        program,
+                        parameter.as_str(),
+                        self.argument_owner,
+                        scopes,
+                    )
+                })
+                .collect()
+        })
+    }
+
+    fn parameter_application(
+        &self,
+        parameter: SymbolHandle,
+    ) -> Option<(crate::types::TypeReferenceHandle, usize)> {
+        let (ordinal, (_, reference)) = self
+            .substitutions
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, (binder, _))| *binder == parameter)?;
+        let outer = self
+            .substitution_scope_starts
+            .partition_point(|start| *start <= ordinal)
+            .checked_sub(1)?;
+        Some((*reference, outer))
+    }
+
     /// Borrow the complete substitution route without manufacturing type nodes
     /// or flattening an inherited operand into the receiving telescope.
     pub fn with_identity_scopes<Result>(
@@ -99,25 +159,11 @@ impl AppliedTraitScope<'_> {
                 .trait_type_parameters(self.declaration)
                 .iter()
                 .map(|parameter| {
-                    let Some((ordinal, (_, reference))) = self
-                        .substitutions
-                        .iter()
-                        .enumerate()
-                        .rev()
-                        .find(|(_, (binder, _))| *binder == parameter.symbol)
+                    let Some((reference, scope)) = self.parameter_application(parameter.symbol)
                     else {
                         return program.normalized_nominal_type_identity(parameter.symbol);
                     };
-                    let scope = self
-                        .substitution_scope_starts
-                        .partition_point(|start| *start <= ordinal)
-                        .saturating_sub(1);
-                    applied_type_identity(
-                        program,
-                        *reference,
-                        self.argument_owner,
-                        &scopes[..scope],
-                    )
+                    applied_type_identity(program, reference, self.argument_owner, &scopes[..scope])
                 })
                 .collect::<Option<Vec<_>>>()?;
             let lifetimes = self

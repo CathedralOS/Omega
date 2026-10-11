@@ -2,6 +2,7 @@
 //! admitting a static lifetime operand. An unused region still needs a lexical
 //! declaration; searching only the type's reference leaves would miss it.
 
+use super::constraint_identity::{atom, compound};
 use crate::TypedTrees;
 use symbols::SymbolHandle;
 
@@ -10,6 +11,51 @@ use symbols::SymbolHandle;
 pub struct LifetimeParameterIdentity {
     pub declaration: SymbolHandle,
     pub ordinal: usize,
+}
+
+/// Project an already resolved region into declaration-relative coordinates.
+/// A callable owner needs its overload identity, not just its path. Package
+/// custody and declaration kind remain independent of binder spelling; a local
+/// arena coordinate is never written into this projection.
+pub(super) fn portable_lifetime_parameter_identity(
+    program: &TypedTrees,
+    region: LifetimeParameterIdentity,
+) -> Option<String> {
+    let owner = region.declaration;
+    let (kind, declaration) = if let Some(machine) = program.machine_by_symbol(owner) {
+        ("machine", program.machine_callable_identity_text(machine)?)
+    } else if let Some((declaration, requirement)) = program.trait_machine_signature(owner) {
+        (
+            "requirement",
+            program.trait_requirement_callable_identity_text(declaration, requirement),
+        )
+    } else if program.conformance_by_symbol(owner).is_some() {
+        ("implementation", program.symbols.display_path(owner, "::"))
+    } else if let Some(declaration) = program.trait_definition_by_symbol(owner) {
+        ("trait", program.trait_declaration_path(declaration))
+    } else if program.data_definition_by_symbol(owner).is_some() {
+        ("data", program.symbols.display_path(owner, "::"))
+    } else {
+        // An unjoined static-machine contract has no portable declaration
+        // coordinate yet. A same-spelled source path cannot supply one.
+        return None;
+    };
+    if declaration.is_empty() {
+        return None;
+    }
+    let coordinate = super::identity_context::TypeIdentityContext {
+        qualification: super::TypeIdentityQualification::PackageQualified,
+        ..Default::default()
+    }
+    .qualify_non_binder_name(program, owner, declaration);
+    Some(compound(
+        "region",
+        [
+            atom("kind", kind),
+            atom("declaration", &coordinate),
+            atom("ordinal", &region.ordinal.to_string()),
+        ],
+    ))
 }
 
 /// Resolve a captured region through simultaneous applications without turning

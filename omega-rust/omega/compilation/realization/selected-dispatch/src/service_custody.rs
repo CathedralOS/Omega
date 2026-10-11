@@ -39,10 +39,10 @@ fn carrier_schema(
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     carrier: typed_trees::service::ExactServiceCarrier,
 ) -> Option<effects::provider_plan::ServiceSchema> {
-    provider_planning::service_schema::from_typed_instance(
+    provider_planning::service_schema::from_typed_application(
         provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
         calling_plans,
-        checked.trait_definition_by_symbol(carrier.requirement)?,
+        carrier.application(checked)?,
         carrier.arguments(checked),
     )
 }

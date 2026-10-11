@@ -230,10 +230,13 @@ fn derive_named_provider_plans(
             let arguments = typed
                 .type_reference_table
                 .type_reference_handles(implementation.arguments);
-            let schema = crate::service_schema::from_typed_instance(
+            let schema = crate::service_schema::from_typed_application(
                 context,
                 calling_plans,
-                definition,
+                checked_trees::typed_trees::trait_definition::AppliedTraitScope::from_conformance(
+                    typed,
+                    implementation,
+                )?,
                 arguments,
             )?;
             let provider_type = typed.symbols.display_path(implementation.symbol, "::");

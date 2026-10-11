@@ -49,19 +49,17 @@ fn selected_service_plan_for_carrier<'plans>(
     selected_plans: &'plans effects::SelectedProviderPlanFacts,
     carrier: typed_trees::service::ExactServiceCarrier,
 ) -> Option<&'plans effects::provider_plan::ProviderPlan> {
-    let schema = typed
-        .trait_definition_by_symbol(carrier.requirement)
-        .and_then(|definition| {
-            provider_planning::service_schema::from_typed_instance(
-                provider_planning::ProviderPlanningContext::new(
-                    typed,
-                    source::DependencyScope::Product,
-                ),
-                calling_plans,
-                definition,
-                carrier.arguments(typed),
-            )
-        })?;
+    let schema = carrier.application(typed).and_then(|application| {
+        provider_planning::service_schema::from_typed_application(
+            provider_planning::ProviderPlanningContext::new(
+                typed,
+                source::DependencyScope::Product,
+            ),
+            calling_plans,
+            application,
+            carrier.arguments(typed),
+        )
+    })?;
     let mut matching = selected_plans
         .plans()
         .iter()

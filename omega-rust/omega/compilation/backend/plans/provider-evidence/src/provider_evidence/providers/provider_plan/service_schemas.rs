@@ -67,7 +67,7 @@ pub struct ServiceSchema {
     /// Complete applied receiver views owned by this one whole schema. The
     /// first view is the selected root; the remainder are inherited views,
     /// never independently selected provider plans. Empty on non-trait slots
-    /// and when parent lifetime substitutions are not retained.
+    /// and when a complete application cannot be retained.
     pub receiver_applications: Vec<ServiceReceiverApplication>,
     /// One entry per trait machine, in declaration order.
     pub methods: Vec<ServiceMethod>,
@@ -82,6 +82,9 @@ pub struct ServiceReceiverApplication {
     pub trait_name: ProviderIdentityId,
     pub trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub argument_identities: Vec<ProviderIdentityId>,
+    /// Complete declaration-relative region operands, including phantom ones.
+    /// These identities are not runtime carriers and grant no borrowing rights.
+    pub lifetime_argument_identities: Vec<ProviderIdentityId>,
     pub requirement_identities: Vec<ProviderIdentityId>,
 }
 
@@ -98,6 +101,12 @@ impl ServiceReceiverApplication {
                 &self.argument_identities,
                 left,
                 &other.argument_identities,
+                right,
+            )
+            && identity_sequence_eq(
+                &self.lifetime_argument_identities,
+                left,
+                &other.lifetime_argument_identities,
                 right,
             )
             && identity_sequence_eq(
@@ -326,6 +335,7 @@ impl ServiceSchema {
                 || application
                     .argument_identities
                     .iter()
+                    .chain(&application.lifetime_argument_identities)
                     .any(|identity| self.identity_text(*identity).is_empty())
             {
                 return Err("receiver application has an absent or foreign identity");
@@ -356,6 +366,12 @@ impl ServiceSchema {
                             &previous.argument_identities,
                             &self.identities,
                             &application.argument_identities,
+                            &self.identities,
+                        )
+                        && identity_sequence_eq(
+                            &previous.lifetime_argument_identities,
+                            &self.identities,
+                            &application.lifetime_argument_identities,
                             &self.identities,
                         )
                 })

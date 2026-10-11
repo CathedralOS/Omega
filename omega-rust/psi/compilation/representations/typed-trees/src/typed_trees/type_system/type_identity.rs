@@ -97,6 +97,40 @@ pub fn applied_type_identity(
     lexical_owner: SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_type_identity(
+        program,
+        reference,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+    )
+}
+
+/// Exact application identity for publication. Nominals retain package owners;
+/// regions retain their supplying declaration kind, overload and ordinal.
+/// This is not a loan, provider admission, or a generic coverage theorem.
+pub fn portable_applied_type_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_type_identity(
+        program,
+        reference,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::PackageQualified,
+    )
+}
+
+fn qualified_applied_type_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    qualification: TypeIdentityQualification,
+) -> Option<NormalizedTypeIdentity> {
     let invalid = Cell::new(false);
     let identity = normalize_type_reference(
         program,
@@ -104,6 +138,7 @@ pub fn applied_type_identity(
         &TypeIdentityContext {
             application_scopes: scopes,
             application_owner: lexical_owner,
+            qualification,
             invalid_application: Some(&invalid),
             invalid_index_argument: Some(&invalid),
             ..TypeIdentityContext::default()
@@ -121,10 +156,44 @@ pub fn applied_lifetime_identity(
     lexical_owner: SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_lifetime_identity(
+        program,
+        name,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+    )
+}
+
+/// Publish one resolved region through the same simultaneous scopes as its
+/// containing argument, including unused public lifetime operands.
+pub fn portable_applied_lifetime_identity(
+    program: &TypedTrees,
+    name: &str,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_lifetime_identity(
+        program,
+        name,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::PackageQualified,
+    )
+}
+
+fn qualified_applied_lifetime_identity(
+    program: &TypedTrees,
+    name: &str,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    qualification: TypeIdentityQualification,
+) -> Option<NormalizedTypeIdentity> {
     let invalid = Cell::new(false);
     let identity = TypeIdentityContext {
         application_scopes: scopes,
         application_owner: lexical_owner,
+        qualification,
         invalid_application: Some(&invalid),
         ..TypeIdentityContext::default()
     }

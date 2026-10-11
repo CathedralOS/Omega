@@ -29,7 +29,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
 // Schemas retain exact applied receiver rosters. Older records cannot license
 // an inherited view by omitting its application and complete requirements.
-const RECORD_VERSION: u16 = 8;
+const RECORD_VERSION: u16 = 9;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -491,6 +491,7 @@ fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
         );
         for roster in [
             &application.argument_identities,
+            &application.lifetime_argument_identities,
             &application.requirement_identities,
         ] {
             crate::codec_bytes::push_encoded(out, (roster.len() as u64).to_le_bytes());
@@ -522,6 +523,9 @@ fn recover_service_schema(cursor: &mut ObservationCursor<'_>) -> Option<ServiceS
                 trait_name: identities.intern(cursor_string(cursor)?),
                 trait_package_identity: recover_optional(cursor, recover_identity)?,
                 argument_identities: cursor_vec(cursor, |cursor| {
+                    Some(identities.intern(cursor_string(cursor)?))
+                })?,
+                lifetime_argument_identities: cursor_vec(cursor, |cursor| {
                     Some(identities.intern(cursor_string(cursor)?))
                 })?,
                 requirement_identities: cursor_vec(cursor, |cursor| {
@@ -898,6 +902,7 @@ mod tests {
                 trait_name,
                 trait_package_identity: None,
                 argument_identities: vec![u32_type_identity],
+                lifetime_argument_identities: Vec::new(),
                 requirement_identities: vec![alpha, beta, requirement_identity],
             }],
             identities,

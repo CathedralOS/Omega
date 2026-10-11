@@ -105,6 +105,19 @@ impl TypeIdentityContext<'_> {
             name,
             self.application_scopes,
         ) {
+            if self.qualification == TypeIdentityQualification::PackageQualified {
+                if let Some(identity) =
+                    super::lifetime_parameters::portable_lifetime_parameter_identity(
+                        program, region,
+                    )
+                {
+                    return identity;
+                }
+                if let Some(invalid) = self.invalid_application {
+                    invalid.set(true);
+                }
+                return "unresolved-region".to_owned();
+            }
             return compound(
                 "region",
                 [
@@ -545,7 +558,16 @@ pub(crate) fn normalize_type_reference(
             std::iter::once(normalize_type_reference(program, *referee, context)).chain(
                 context.invalid_application.map(|_| {
                     lifetime.as_ref().map_or_else(
-                        || "elided-region".to_owned(),
+                        || {
+                            if context.qualification == TypeIdentityQualification::PackageQualified
+                                && let Some(invalid) = context.invalid_application
+                            {
+                                // Portable applications need the resolved
+                                // region, not an inference placeholder.
+                                invalid.set(true);
+                            }
+                            "elided-region".to_owned()
+                        },
                         |lifetime| context.lifetime(program, lifetime.as_str()),
                     )
                 }),

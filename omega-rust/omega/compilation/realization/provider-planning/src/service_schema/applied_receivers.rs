@@ -7,7 +7,6 @@
 //! the digest commits to them without turning an annotation into authority.
 
 use checked_trees::typed_trees::trait_definition::AppliedTraitScope;
-use checked_trees::typed_trees::type_identity::TypeIdentityQualification;
 use effects::provider_plan::{ProviderIdentityTable, ServiceReceiverApplication};
 
 pub(super) fn collect_scopes<'program>(
@@ -36,31 +35,25 @@ pub(super) fn receiver_applications(
     scopes: &[AppliedTraitScope<'_>],
     identities: &mut ProviderIdentityTable,
 ) -> Option<Vec<ServiceReceiverApplication>> {
-    if scopes
-        .iter()
-        .any(|scope| !scope.declaration.lifetime_parameters.is_empty())
-    {
-        // Parent lifetime substitutions are not retained by provider maps yet.
-        // Absence cannot license ancestor selection. Exact-root admission still
-        // uses the existing whole schema and its independent obligations.
-        return Some(Vec::new());
-    }
     let mut applications = Vec::new();
     for scope in scopes.iter().filter(|scope| scope.declaration.is_boundary) {
         let mut argument_identities = Vec::new();
         for parameter in program.trait_type_parameters(scope.declaration) {
-            let Some(identity) = scope.region_free_parameter_identity(
-                program,
-                parameter.symbol,
-                TypeIdentityQualification::PackageQualified,
-            ) else {
-                // A lifetime-free trait can still receive a region-bearing
-                // type argument. Keep the whole schema, but do not license
-                // ancestor selection using its erased carrier identity.
+            let Some(identity) = scope.portable_parameter_identity(program, parameter.symbol)
+            else {
+                // A legacy caller may not supply occurrence custody. Retain no
+                // receiver view rather than license an erased-carrier join.
                 return Some(Vec::new());
             };
             argument_identities.push(identities.intern(&program.type_identity_text(identity)?));
         }
+        let Some(lifetimes) = scope.portable_lifetime_arguments(program) else {
+            return Some(Vec::new());
+        };
+        let lifetime_argument_identities = lifetimes
+            .iter()
+            .map(|identity| Some(identities.intern(&program.type_identity_text(*identity)?)))
+            .collect::<Option<Vec<_>>>()?;
         let mut requirement_identities = Vec::new();
         scope.visit(program, &mut |declaring| {
             for signature in program.trait_machine_signatures(declaring.declaration) {
@@ -81,6 +74,7 @@ pub(super) fn receiver_applications(
                 .symbols
                 .symbol_package_identity(scope.declaration.symbol),
             argument_identities,
+            lifetime_argument_identities,
             requirement_identities,
         });
     }
