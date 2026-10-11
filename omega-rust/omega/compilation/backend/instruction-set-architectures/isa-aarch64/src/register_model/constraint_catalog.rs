@@ -161,60 +161,62 @@ pub fn aarch64_register_constraint_catalog(
     );
     let aapcs = convention("aapcs64");
     let darwin = convention("darwin-aapcs64");
+    // Catalog rows share a handful of implicit-unit tails; these builders mint
+    // each recurring tail so a row states only its id, key and operands.
+    let instruction_row = |id: RegisterConstraintId,
+                           key: RegisterConstraintKey,
+                           operands: Vec<RegisterOperandConstraint>| {
+        RegisterInstructionConstraint {
+            id,
+            key,
+            operands,
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        }
+    };
+    let nzcv_defining_row = |id, key, operands| RegisterInstructionConstraint {
+        implicit_defs: view("nzcv").units.clone(),
+        ..instruction_row(id, key, operands)
+    };
+    let nzcv_clobbering_row = |id, key, operands| RegisterInstructionConstraint {
+        clobbers: view("nzcv").units.clone(),
+        ..instruction_row(id, key, operands)
+    };
+    let return_row = |id, key, operands| RegisterInstructionConstraint {
+        implicit_uses: return_uses.clone(),
+        implicit_defs: pc_units.clone(),
+        ..instruction_row(id, key, operands)
+    };
+    let jump_row = |id, key, operands| RegisterInstructionConstraint {
+        implicit_uses: pc_units.clone(),
+        implicit_defs: pc_units.clone(),
+        ..instruction_row(id, key, operands)
+    };
+    let sp_use_row = |id, key, operands| RegisterInstructionConstraint {
+        implicit_uses: view("sp").units.clone(),
+        ..instruction_row(id, key, operands)
+    };
+    let call_row = |id, key, operands, convention: &PreservationConvention| {
+        RegisterInstructionConstraint {
+            implicit_uses: call_uses.clone(),
+            implicit_defs: call_defs.clone(),
+            clobbers: call_clobbers(convention),
+            ..instruction_row(id, key, operands)
+        }
+    };
 
     let mut constraints = vec![
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(0),
-            key: crate::AARCH64_CRASH,
-            operands: Vec::new(),
-            implicit_uses: view("pc").units.clone(),
-            implicit_defs: view("pc").units.clone(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(0),
-            key: AARCH64_AAPCS64_CALL,
-            operands: call_operands(),
-            implicit_uses: call_uses.clone(),
-            implicit_defs: call_defs.clone(),
-            clobbers: call_clobbers(aapcs),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(1),
-            key: AARCH64_DARWIN_CALL,
-            operands: call_operands(),
-            implicit_uses: call_uses.clone(),
-            implicit_defs: call_defs.clone(),
-            clobbers: call_clobbers(darwin),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(17),
-            key: AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
-            operands: vec![
+        jump_row(RegisterConstraintId(0), crate::AARCH64_CRASH, Vec::new()),
+        call_row(RegisterConstraintId(0), AARCH64_AAPCS64_CALL, call_operands(), aapcs),
+        call_row(RegisterConstraintId(1), AARCH64_DARWIN_CALL, call_operands(), darwin),
+        call_row(RegisterConstraintId(17), AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, vec![
                 fixed(0, RegisterOperandAccess::Use, "x0"),
                 fixed(1, RegisterOperandAccess::Use, "x1"),
                 fixed(2, RegisterOperandAccess::Def, "x0"),
-            ],
-            implicit_uses: call_uses.clone(),
-            implicit_defs: call_defs.clone(),
-            clobbers: call_clobbers(aapcs),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(2),
-            key: AARCH64_AAPCS64_RETURN,
-            operands: vec![fixed(0, RegisterOperandAccess::Use, "x0")],
-            implicit_uses: return_uses.clone(),
-            implicit_defs: pc_units.clone(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(3),
-            key: AARCH64_DARWIN_RETURN,
-            operands: vec![fixed(0, RegisterOperandAccess::Use, "x0")],
-            implicit_uses: return_uses.clone(),
-            implicit_defs: pc_units.clone(),
-            clobbers: Vec::new(),
-        },
+            ], aapcs),
+        return_row(RegisterConstraintId(2), AARCH64_AAPCS64_RETURN, vec![fixed(0, RegisterOperandAccess::Use, "x0")]),
+        return_row(RegisterConstraintId(3), AARCH64_DARWIN_RETURN, vec![fixed(0, RegisterOperandAccess::Use, "x0")]),
         RegisterInstructionConstraint {
             id: RegisterConstraintId(4),
             key: AARCH64_LINUX_SYSTEM_CALL,
@@ -245,22 +247,8 @@ pub fn aarch64_register_constraint_catalog(
             implicit_defs: Vec::new(),
             clobbers: complement(&all_units, &common_fixed, &[]),
         },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(6),
-            key: AARCH64_MATERIALIZE_I64,
-            operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(6),
-            key: AARCH64_BYTE_LITERAL_IMAGE_ADDRESS,
-            operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
+        instruction_row(RegisterConstraintId(6), AARCH64_MATERIALIZE_I64, vec![allocatable(0, RegisterOperandAccess::Def, GPR64)]),
+        instruction_row(RegisterConstraintId(6), AARCH64_BYTE_LITERAL_IMAGE_ADDRESS, vec![allocatable(0, RegisterOperandAccess::Def, GPR64)]),
         RegisterInstructionConstraint {
             id: RegisterConstraintId(6),
             key: AARCH64_MATERIALIZE_BOOLEAN,
@@ -269,25 +257,11 @@ pub fn aarch64_register_constraint_catalog(
             implicit_defs: Vec::new(),
             clobbers: Vec::new(),
         },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(7),
-            key: AARCH64_COPY_I64,
-            operands: vec![
+        instruction_row(RegisterConstraintId(7), AARCH64_COPY_I64, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Def, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(8),
-            key: AARCH64_COMPARE_I64_ZERO,
-            operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
-            implicit_uses: Vec::new(),
-            implicit_defs: view("nzcv").units.clone(),
-            clobbers: Vec::new(),
-        },
+            ]),
+        nzcv_defining_row(RegisterConstraintId(8), AARCH64_COMPARE_I64_ZERO, vec![allocatable(0, RegisterOperandAccess::Use, GPR64)]),
         RegisterInstructionConstraint {
             id: RegisterConstraintId(9),
             key: AARCH64_CONDITIONAL_BRANCH,
@@ -302,79 +276,30 @@ pub fn aarch64_register_constraint_catalog(
             implicit_defs: view("pc").units.clone(),
             clobbers: Vec::new(),
         },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(10),
-            key: AARCH64_ADD_I64,
-            operands: vec![
+        instruction_row(RegisterConstraintId(10), AARCH64_ADD_I64, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
                 allocatable(2, RegisterOperandAccess::Def, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(11),
-            key: AARCH64_ADD_I64_IMMEDIATE,
-            operands: vec![
+            ]),
+        instruction_row(RegisterConstraintId(11), AARCH64_ADD_I64_IMMEDIATE, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Def, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(12),
-            key: AARCH64_SUBTRACT_I64,
-            operands: vec![
+            ]),
+        instruction_row(RegisterConstraintId(12), AARCH64_SUBTRACT_I64, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
                 allocatable(2, RegisterOperandAccess::Def, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(13),
-            key: AARCH64_SUBTRACT_I64_IMMEDIATE,
-            operands: vec![
+            ]),
+        instruction_row(RegisterConstraintId(13), AARCH64_SUBTRACT_I64_IMMEDIATE, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Def, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(16),
-            key: AARCH64_COMPARE_I64,
-            operands: vec![
+            ]),
+        nzcv_defining_row(RegisterConstraintId(16), AARCH64_COMPARE_I64, vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
-            ],
-            implicit_uses: Vec::new(),
-            implicit_defs: view("nzcv").units.clone(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(18),
-            key: AARCH64_COMPARE_I64_IMMEDIATE,
-            operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
-            implicit_uses: Vec::new(),
-            implicit_defs: view("nzcv").units.clone(),
-            clobbers: Vec::new(),
-        },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(14),
-            key: AARCH64_AAPCS64_RETURN_UNIT,
-            operands: Vec::new(),
-            implicit_uses: return_uses.clone(),
-            implicit_defs: pc_units.clone(),
-            clobbers: Vec::new(),
-        },
+            ]),
+        nzcv_defining_row(RegisterConstraintId(18), AARCH64_COMPARE_I64_IMMEDIATE, vec![allocatable(0, RegisterOperandAccess::Use, GPR64)]),
+        return_row(RegisterConstraintId(14), AARCH64_AAPCS64_RETURN_UNIT, Vec::new()),
         RegisterInstructionConstraint {
             id: RegisterConstraintId(15),
             key: AARCH64_DARWIN_RETURN_UNIT,
@@ -383,39 +308,18 @@ pub fn aarch64_register_constraint_catalog(
             implicit_defs: pc_units.clone(),
             clobbers: Vec::new(),
         },
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(0),
-            key: AARCH64_JUMP,
-            operands: Vec::new(),
-            implicit_uses: view("pc").units.clone(),
-            implicit_defs: view("pc").units.clone(),
-            clobbers: Vec::new(),
-        },
+        jump_row(RegisterConstraintId(0), AARCH64_JUMP, Vec::new()),
     ];
 
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_LOAD64,
-        operands: vec![
+    constraints.push(instruction_row(RegisterConstraintId(0), AARCH64_LOAD64, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Def, GPR64),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_LOAD8_INDEXED,
-        operands: vec![
+        ]));
+    constraints.push(instruction_row(RegisterConstraintId(0), AARCH64_LOAD8_INDEXED, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
+        ]));
     for (key, result_access) in [
         (AARCH64_STORE, RegisterOperandAccess::Use),
         (AARCH64_ADDRESS_OFFSET, RegisterOperandAccess::Def),
@@ -434,25 +338,11 @@ pub fn aarch64_register_constraint_catalog(
     }
     let mut store_address = allocatable(1, RegisterOperandAccess::Def, GPR64);
     store_address.early_clobber = true;
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_STORE64,
-        operands: vec![
+    constraints.push(sp_use_row(RegisterConstraintId(0), AARCH64_STORE64, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             store_address,
-        ],
-        implicit_uses: view("sp").units.clone(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_FRAME_ADDRESS,
-        operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
-        implicit_uses: view("sp").units.clone(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
+        ]));
+    constraints.push(sp_use_row(RegisterConstraintId(0), AARCH64_FRAME_ADDRESS, vec![allocatable(0, RegisterOperandAccess::Def, GPR64)]));
     let scalar_call = constraints
         .iter()
         .find(|row| row.key == AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64)
@@ -635,10 +525,7 @@ pub fn aarch64_register_constraint_catalog(
             clobbers: Vec::new(),
         });
     }
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_COPY_BYTES,
-        operands: (0..5)
+    constraints.push(nzcv_clobbering_row(RegisterConstraintId(0), AARCH64_COPY_BYTES, (0..5)
             .map(|operand| {
                 let mut row = allocatable(
                     operand,
@@ -652,17 +539,10 @@ pub fn aarch64_register_constraint_catalog(
                 row.early_clobber = operand >= 3;
                 row
             })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("nzcv").units.clone(),
-    });
+            .collect()));
     // The zero fill reads its preserved destination/count inputs on every
     // iteration; the cursor is written before the count guard reads them.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_ZERO_BYTES,
-        operands: (0..3)
+    constraints.push(nzcv_clobbering_row(RegisterConstraintId(0), AARCH64_ZERO_BYTES, (0..3)
             .map(|operand| {
                 let mut row = allocatable(
                     operand,
@@ -676,11 +556,7 @@ pub fn aarch64_register_constraint_catalog(
                 row.early_clobber = operand >= 2;
                 row
             })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("nzcv").units.clone(),
-    });
+            .collect()));
     // Scalar codecs carry the actual byte footprint. Every working home is
     // early-clobber, so neither input nor another scratch home can alias it.
     for (key, input_count) in [
@@ -713,10 +589,7 @@ pub fn aarch64_register_constraint_catalog(
     // The scan reads its preserved base/count inputs while the loop cursors
     // are written before any input home is consumed; the verdict operand is
     // the only lasting definition. Flags fall to the compare/branch pairs.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_SCAN_BYTE_SEQUENCE,
-        operands: (0..5)
+    constraints.push(nzcv_clobbering_row(RegisterConstraintId(0), AARCH64_SCAN_BYTE_SEQUENCE, (0..5)
             .map(|operand| {
                 let mut row = allocatable(
                     operand,
@@ -730,18 +603,11 @@ pub fn aarch64_register_constraint_catalog(
                 row.early_clobber = operand >= 2;
                 row
             })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("nzcv").units.clone(),
-    });
+            .collect()));
     // The compare reads its four preserved inputs while the cursors are
     // written before any input home is consumed; the verdict operand is the
     // only lasting definition. Flags fall to the compare/branch pairs.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_COMPARE_BYTE_SEQUENCES,
-        operands: (0..8)
+    constraints.push(nzcv_clobbering_row(RegisterConstraintId(0), AARCH64_COMPARE_BYTE_SEQUENCES, (0..8)
             .map(|operand| {
                 let mut row = allocatable(
                     operand,
@@ -755,11 +621,7 @@ pub fn aarch64_register_constraint_catalog(
                 row.early_clobber = operand >= 4;
                 row
             })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: view("nzcv").units.clone(),
-    });
+            .collect()));
     for (key, load) in [(AARCH64_LOAD_PACKED, true), (AARCH64_STORE_PACKED, false)] {
         let mut result = allocatable(
             1,
@@ -786,22 +648,12 @@ pub fn aarch64_register_constraint_catalog(
             clobbers: Vec::new(),
         });
     }
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_SATURATING_SUBTRACT_UNSIGNED,
-        operands: vec![
+    constraints.push(nzcv_defining_row(RegisterConstraintId(0), AARCH64_SATURATING_SUBTRACT_UNSIGNED, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: view("nzcv").units.clone(),
-        clobbers: Vec::new(),
-    });
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_REMAINDER_I64,
-        operands: vec![
+        ]));
+    constraints.push(instruction_row(RegisterConstraintId(0), AARCH64_REMAINDER_I64, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             {
@@ -809,27 +661,13 @@ pub fn aarch64_register_constraint_catalog(
                 output.early_clobber = true;
                 output
             },
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_DIVIDE_I64,
-        operands: vec![
+        ]));
+    constraints.push(instruction_row(RegisterConstraintId(0), AARCH64_DIVIDE_I64, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_REMAINDER_U64,
-        operands: vec![
+        ]));
+    constraints.push(instruction_row(RegisterConstraintId(0), AARCH64_REMAINDER_U64, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             {
@@ -837,62 +675,30 @@ pub fn aarch64_register_constraint_catalog(
                 output.early_clobber = true;
                 output
             },
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_DIVIDE_U64,
-        operands: vec![
+        ]));
+    constraints.push(instruction_row(RegisterConstraintId(0), AARCH64_DIVIDE_U64, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_MULTIPLY_I64,
-        operands: vec![
+        ]));
+    constraints.push(instruction_row(RegisterConstraintId(0), AARCH64_MULTIPLY_I64, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
+        ]));
     // LSLV/LSRV/ASRV are ordinary three-address register forms: the count
     // operand supplies its own low-six-bit reduction, so no operand is
     // pinned or early-clobbered and no flags are touched.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_SHIFT_I64,
-        operands: vec![
+    constraints.push(instruction_row(RegisterConstraintId(0), AARCH64_SHIFT_I64, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    });
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_SATURATING_ADD_U64,
-        operands: vec![
+        ]));
+    constraints.push(nzcv_defining_row(RegisterConstraintId(0), AARCH64_SATURATING_ADD_U64, vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
             allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: view("nzcv").units.clone(),
-        clobbers: Vec::new(),
-    });
+        ]));
     // The clamped saturating forms clamp through a bound scratch (operand 3);
     // the multiplications hold the product's high half there instead. Both
     // outputs are early-clobber: liveness admits independent early outputs
