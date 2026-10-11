@@ -26,7 +26,9 @@ pub(crate) use intrinsic_review::{
     ResolvedAcceptedSemanticBinding, resolve_accepted_service_binding,
     retain_selected_compiler_intrinsic_review_identities,
 };
-pub use provider_binding::{ProviderBindingRequest, bind_checked_providers};
+pub use provider_binding::{
+    CheckedProviderProgram, ProviderBindingRequest, bind_checked_providers,
+};
 
 pub(crate) use service_custody::derive_fused_program_entry_establishments;
 pub use service_custody::program_entry_service_requirements;

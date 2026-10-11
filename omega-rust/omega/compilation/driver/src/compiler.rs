@@ -8,9 +8,14 @@
 use crate::checked::{
     check_product_source, prepare_checked_source, prepare_product_source, run_on_compile_thread,
 };
-use crate::execution_settlement::settle_product_target;
+use crate::execution_settlement::{
+    SelectedProviderCustody, install_selected_target, select_product_providers,
+};
 use crate::native::produce_native_product;
-use crate::terminal::{TerminalProductRequest, produce_retained_terminal_artifacts};
+use crate::terminal::{
+    TerminalProductRequest, TerminalProductionView, finish_terminal_application,
+    produce_retained_terminal_artifacts,
+};
 use crate::{
     CheckedCompilation, CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome,
 };
@@ -104,16 +109,22 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
     })
 }
 
-/// Settle one target against shared checked source without starting production.
+/// Select one target's providers against shared checked source without
+/// starting production or installation. The custody record is what Terminal
+/// production reads before the selected execution settles beside the artifact.
 fn prepare_target(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,
     source: &CheckedProductSource,
-) -> Result<(CheckedCompilation, PathBuf, CompilationProduct), Vec<Diagnostic>> {
+) -> Result<(PendingRealization, PathBuf, CompilationProduct), Vec<Diagnostic>> {
     let root_path = shared.root_path.clone();
-    let checked = settle_product_target(source, target.profile(), target.package_inputs(), false)
-        .result
-        .map_err(CompileFailure::into_diagnostics)?;
+    let custody = select_product_providers(source, target.profile(), target.package_inputs())?;
+    let realization = PendingRealization::Selection {
+        custody,
+        retained_checks: source.retained_checks.clone(),
+        package_inputs: target.package_inputs().cloned(),
+        permit_unsettled_fused_service_fields: false,
+    };
 
     let product = match shared.requested_product {
         RequestedCompileProduct::Check => CompilationProduct::Check,
@@ -124,7 +135,7 @@ fn prepare_target(
             CompilationProduct::Native(target.into_native_product_request())
         }
     };
-    Ok((checked, root_path, product))
+    Ok((realization, root_path, product))
 }
 
 /// The remaining work after source checking. Native authority has no meaning
@@ -158,7 +169,11 @@ pub fn finish_compilation(
     root_path: PathBuf,
     requested: CompilationProduct,
 ) -> Result<CompileReport, CompilationProductError> {
-    finish_compilations(vec![Ok((checked, root_path, requested))])
+    finish_compilations(vec![Ok((
+        PendingRealization::Installed(checked),
+        root_path,
+        requested,
+    ))])
         .into_iter()
         .next()
         .ok_or_else(|| {
@@ -175,42 +190,140 @@ struct PendingProduct {
     rollback: optimization_core::OptimizationRollbackSettlement,
 }
 
+/// How a target's checked compilation arrives at realization: a fresh
+/// selection custody the invocation installs after Terminal production, or an
+/// already-installed product the package route sealed itself.
+enum PendingRealization {
+    Selection {
+        custody: SelectedProviderCustody,
+        retained_checks: compilation_products::RetainedCompilationChecks,
+        package_inputs: Option<package_compilation::PackageCompilationInputs>,
+        permit_unsettled_fused_service_fields: bool,
+    },
+    Installed(CheckedCompilation),
+}
+
+impl PendingRealization {
+    fn view(&mut self) -> TerminalProductionView<'_> {
+        match self {
+            Self::Selection { custody, .. } => TerminalProductionView::Selection(custody),
+            Self::Installed(checked) => TerminalProductionView::Installed(checked),
+        }
+    }
+
+    fn build(&self) -> &compilation_products::ComputedBuildConfig {
+        match self {
+            Self::Selection { custody, .. } => &*custody.build,
+            Self::Installed(checked) => checked.build(),
+        }
+    }
+
+    fn install(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+        match self {
+            Self::Installed(checked) => Ok(checked),
+            Self::Selection {
+                custody,
+                retained_checks,
+                package_inputs,
+                permit_unsettled_fused_service_fields,
+            } => install_selected_target(
+                custody,
+                retained_checks,
+                package_inputs.as_ref(),
+                permit_unsettled_fused_service_fields,
+            ),
+        }
+    }
+}
+
+/// The settled optimization rollback production consumes before installation
+/// completes. Identical derivation to `prepare_product`'s post-install settle —
+/// the build rows it reads are shared custody either way.
+fn settle_product_rollback(
+    requested: &CompilationProduct,
+    build: &compilation_products::ComputedBuildConfig,
+) -> optimization_core::OptimizationRollbackSettlement {
+    let default_rollback = crate::OptimizationRollback::default();
+    let rollback = match requested {
+        CompilationProduct::Check => &default_rollback,
+        CompilationProduct::Terminal(rollback) => rollback,
+        CompilationProduct::Native(request) => &request.optimization_rollback,
+    };
+    rollback.settle(&build.config.settings.optimizations)
+}
+
 /// Keep ordering and refusal local to each target while sharing portable work.
+/// Selection settles first; the target-neutral artifact is produced for the
+/// complete roster before any target's installation consumes it.
 fn finish_compilations(
     requests: Vec<
-        Result<(CheckedCompilation, PathBuf, CompilationProduct), CompilationProductError>,
+        Result<(PendingRealization, PathBuf, CompilationProduct), CompilationProductError>,
     >,
 ) -> Vec<Result<CompileReport, CompilationProductError>> {
     let mut outcomes: Vec<_> = (0..requests.len()).map(|_| None).collect();
     let mut pending = Vec::new();
     for (request_index, request) in requests.into_iter().enumerate() {
-        let prepared = request
-            .and_then(|(checked, root, requested)| prepare_product(checked, root, requested));
-        match prepared {
-            Ok(product) => {
-                if let CheckedProductReport::Complete(report) = product.settlement {
-                    outcomes[request_index] = Some(Ok(report));
+        match request {
+            Err(error) => outcomes[request_index] = Some(Err(error)),
+            Ok((realization, root, requested)) => {
+                if matches!(requested, CompilationProduct::Check) {
+                    // Check products produce nothing: install now, keep the
+                    // report, and never join the production roster.
+                    let prepared = realization
+                        .install()
+                        .map_err(CompilationProductError::Production)
+                        .and_then(|checked| prepare_product(checked, root.clone(), requested));
+                    match prepared {
+                        Ok(product) => {
+                            if let CheckedProductReport::Complete(report) = product.settlement {
+                                outcomes[request_index] = Some(Ok(report));
+                            } else {
+                                let rollback = product.rollback;
+                                pending.push((
+                                    request_index,
+                                    PendingRealization::Installed(product.checked),
+                                    root,
+                                    product.requested,
+                                    rollback,
+                                ));
+                            }
+                        }
+                        Err(error) => outcomes[request_index] = Some(Err(error)),
+                    }
                 } else {
-                    pending.push((request_index, product));
+                    let rollback = settle_product_rollback(&requested, realization.build());
+                    pending.push((request_index, realization, root, requested, rollback));
                 }
             }
-            Err(error) => outcomes[request_index] = Some(Err(error)),
         }
     }
     let terminals = produce_retained_terminal_artifacts(
         pending
             .iter_mut()
-            .map(|(_, product)| TerminalProductRequest {
-                checked: &mut product.checked,
-                selections: product.rollback.effective(),
+            .map(|(_, realization, _, _, rollback)| TerminalProductRequest {
+                view: realization.view(),
+                selections: rollback.effective(),
             })
             .collect(),
     );
-    for ((request_index, product), terminal) in pending.into_iter().zip(terminals) {
+    for ((request_index, realization, root, requested, rollback), terminal) in
+        pending.into_iter().zip(terminals)
+    {
         outcomes[request_index] = Some(
             terminal
                 .map_err(CompilationProductError::Production)
-                .and_then(|terminal| finish_product(product, terminal)),
+                .and_then(|produced| {
+                    let checked =
+                        realization.install().map_err(CompilationProductError::Production)?;
+                    let product = prepare_product(checked, root, requested)?;
+                    let terminal = finish_terminal_application(
+                        &product.checked,
+                        produced,
+                        rollback.effective(),
+                    )
+                    .map_err(CompilationProductError::Production)?;
+                    finish_product(product, terminal)
+                }),
         );
     }
     outcomes

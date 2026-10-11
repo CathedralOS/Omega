@@ -1,29 +1,62 @@
-//! Join each target's per-target realization against the invocation's
-//! immutable checked source: provider installation, program-entry selection
-//! and selected dispatch. This is the Omega-00 join — it consumes the Psi
-//! facade's sealed checked product and Build rows; provider selection owns
-//! target choices, never another Psi checking pass.
+//! Join each target's provider selection against the invocation's immutable
+//! checked source, then realize the canonical artifact and the selected
+//! execution beside it. Selection is the Omega-00 join's producing half — it
+//! consumes the Psi facade's sealed checked product and Build rows; provider
+//! selection owns target choices, never another Psi checking pass. The
+//! installation half runs after Terminal production: the target-neutral
+//! artifact exists before the selected-execution rewrites that consume it.
 
 use crate::checked::CheckedCompilation;
 use crate::checked::checking::{attribute_diagnostics, timed};
-use artifacts::compile_timings::EXECUTION_SETTLEMENT;
+use artifacts::compile_timings::{CompileTimings, EXECUTION_SETTLEMENT};
 use compilation_products::{
-    CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource, CompileFailure,
+    BuildAdmission, CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource,
+    CompileFailure, RetainedCompilationChecks,
 };
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use selected_dispatch::{
-    ProviderBindingRequest, SelectedExecutionRequest, bind_checked_providers,
-    settle_selected_execution,
+    CheckedProviderProgram, ProviderBindingRequest, SelectedExecutionRequest,
+    bind_checked_providers, settle_selected_execution,
 };
 use std::sync::Arc;
 
-pub(crate) fn settle_checked_execution(
+/// One target's complete provider selection beside the shared source custody.
+/// Terminal production reads this record to mint the target-neutral artifact;
+/// installation consumes it with the artifact to settle the selected
+/// execution. None of its fields re-enter checking or rewrite the program.
+pub(crate) struct SelectedProviderCustody {
+    pub(crate) checked: CheckedProviderProgram,
+    pub(crate) settlement: provider_planning::ProviderSettlement,
+    pub(crate) selected_provider_provenance:
+        Vec<provider_planning::SelectedProviderReviewProvenance>,
+    pub(crate) selected_program_entry:
+        Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
+    pub(crate) selected_target_profile: Option<target::TargetProfile>,
+    pub(crate) x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    pub(crate) build: Arc<compilation_products::ComputedBuildConfig>,
+    pub(crate) build_admission: BuildAdmission,
+    pub(crate) provider_defaults:
+        Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
+    pub(crate) product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
+    pub(crate) sources: Arc<package_compilation::CheckedSourceCustody>,
+    pub(crate) timings: CompileTimings,
+}
+
+fn select_checked_providers(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
-    permit_unsettled_fused_service_fields: bool,
-) -> Result<CheckedCompilationInputs, Vec<Diagnostic>> {
+) -> Result<
+    (
+        CheckedProviderProgram,
+        provider_planning::ProviderSettlement,
+        Vec<provider_planning::SelectedProviderReviewProvenance>,
+        Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
+        Option<target::AdmittedX86ScalarFmaProvider>,
+    ),
+    Vec<Diagnostic>,
+> {
     let typed = &source.program.typed;
     let build_config = &source.computed_build_config.config;
     let selected_native_target = selected_target_profile
@@ -50,7 +83,6 @@ pub(crate) fn settle_checked_execution(
             package_inputs,
         )?;
     }
-    let opaque_representation_selections = &build_config.opaque_representation_selections;
     let x86_scalar_fma_provider = build_config
         .settings
         .x86_deployment_claim
@@ -105,63 +137,156 @@ pub(crate) fn settle_checked_execution(
             authored_root_grants: &build_config.grants,
         },
     )?;
-    let settled = settle_selected_execution(
+    Ok((
         checked,
-        SelectedExecutionRequest {
-            calling_plans: &providers.boundary_calling_plan_realizations,
-            selected_program_entry,
-            selected_target_profile,
-            package_inputs,
-            x86_scalar_fma_provider,
-            permit_unsettled_fused_service_fields,
-            selected_provider_provenance,
-            opaque_representation_selections,
-        },
-    )?;
-    Ok(CheckedCompilationInputs {
-        settled,
+        providers,
+        selected_provider_provenance,
+        selected_program_entry,
+        x86_scalar_fma_provider,
+    ))
+}
+
+/// Select this target's provider custody without starting installation.
+/// The returned record carries everything Terminal production and the
+/// selected-execution settle read; it has no production or admission side.
+pub(crate) fn select_product_providers(
+    source: &CheckedProductSource,
+    selected_target_profile: Option<target::TargetProfile>,
+    package_inputs: Option<&PackageCompilationInputs>,
+) -> Result<SelectedProviderCustody, Vec<Diagnostic>> {
+    let mut timings = source.timings.clone();
+    let selection = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
+        select_checked_providers(source, selected_target_profile, package_inputs)
+    });
+    let selection = selection.map_err(|mut diagnostics| {
+        if let Some(sources) = source.program.typed.symbols.source_map().as_deref() {
+            attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+        }
+        diagnostics
+    })?;
+    let (checked, settlement, provenance, entry, x86) = selection;
+    Ok(SelectedProviderCustody {
+        checked,
+        settlement,
+        selected_provider_provenance: provenance,
+        selected_program_entry: entry,
+        selected_target_profile,
+        x86_scalar_fma_provider: x86,
         build: Arc::clone(&source.computed_build_config),
         build_admission: source.admission.clone().for_target(selected_target_profile),
         provider_defaults: Arc::clone(&source.provider_defaults),
-        providers,
         product_selection: source.product_selection.clone(),
+        sources: Arc::clone(&source.sources),
+        timings,
     })
 }
 
+/// Install one already-selected execution against its produced artifact
+/// custody. Installation never reruns selection or checking; the artifact
+/// beside this record is what later joins read.
+pub(crate) fn install_selected_target(
+    selection: SelectedProviderCustody,
+    retained_checks: RetainedCompilationChecks,
+    package_inputs: Option<&PackageCompilationInputs>,
+    permit_unsettled_fused_service_fields: bool,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    let source_map = selection.checked.program.typed.symbols.source_map();
+    let SelectedProviderCustody {
+        checked,
+        settlement,
+        selected_provider_provenance,
+        selected_program_entry,
+        selected_target_profile,
+        x86_scalar_fma_provider,
+        build,
+        build_admission,
+        provider_defaults,
+        product_selection,
+        sources,
+        mut timings,
+    } = selection;
+    let settled = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
+        settle_selected_execution(
+            checked,
+            SelectedExecutionRequest {
+                calling_plans: &settlement.boundary_calling_plan_realizations,
+                selected_program_entry,
+                selected_target_profile,
+                package_inputs,
+                x86_scalar_fma_provider,
+                permit_unsettled_fused_service_fields,
+                selected_provider_provenance,
+                opaque_representation_selections: &build
+                    .config
+                    .opaque_representation_selections,
+            },
+        )
+    });
+    settled
+        .map(|settled| {
+            CheckedCompilation::from_settled_execution(
+                CheckedCompilationInputs {
+                    settled,
+                    build,
+                    build_admission,
+                    provider_defaults,
+                    providers: settlement,
+                    product_selection,
+                },
+                sources,
+                timings,
+            )
+            .with_settled_checks(retained_checks)
+        })
+        .map_err(|mut diagnostics| {
+            if let Some(sources) = source_map.as_deref() {
+                attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+            }
+            diagnostics
+        })
+}
+
+/// Install one selected target and wrap the outcome for check-only callers.
+fn install_product_target(
+    source: &CheckedProductSource,
+    selection: SelectedProviderCustody,
+    package_inputs: Option<&PackageCompilationInputs>,
+    permit_unsettled_fused_service_fields: bool,
+) -> CheckedCompileOutcome {
+    let independent_components = source.computed_build_config.independent_components();
+    let result = install_selected_target(
+        selection,
+        source.retained_checks.clone(),
+        package_inputs,
+        permit_unsettled_fused_service_fields,
+    );
+    CheckedCompileOutcome {
+        prepared_source: None,
+        result: result.map_err(CompileFailure::from),
+        independent_components,
+    }
+}
+
 /// Bind one target to shared checked source, never a resumable frontend.
+/// Build-time and check-only callers settle selection and installation in one
+/// pass; the product route produces the canonical artifact between them.
 pub(crate) fn settle_product_target(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     permit_unsettled_fused_service_fields: bool,
 ) -> CheckedCompileOutcome {
-    let independent_components = source.computed_build_config.independent_components();
-    let mut timings = source.timings.clone();
-    let result = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
-        settle_checked_execution(
+    match select_product_providers(source, selected_target_profile, package_inputs) {
+        Ok(selection) => install_product_target(
             source,
-            selected_target_profile,
+            selection,
             package_inputs,
             permit_unsettled_fused_service_fields,
-        )
-    });
-    let result = result.map(|execution| {
-        CheckedCompilation::from_settled_execution(
-            execution,
-            std::sync::Arc::clone(&source.sources),
-            timings,
-        )
-        .with_settled_checks(source.retained_checks.clone())
-    });
-    let result = result.map_err(|mut diagnostics| {
-        if let Some(sources) = source.program.typed.symbols.source_map().as_deref() {
-            attribute_diagnostics(&mut diagnostics, sources, package_inputs);
-        }
-        diagnostics
-    });
-    CheckedCompileOutcome {
-        prepared_source: None,
-        result: result.map_err(CompileFailure::from),
-        independent_components,
+        ),
+        Err(diagnostics) => CheckedCompileOutcome {
+            prepared_source: None,
+            result: Err(CompileFailure::from(diagnostics)),
+            independent_components: source.computed_build_config.independent_components(),
+        },
     }
 }

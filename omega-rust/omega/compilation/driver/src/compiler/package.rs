@@ -23,9 +23,9 @@ pub fn retained_terminal_artifact_from_checked_package(
 ) -> Result<(RetainedTerminalArtifact, CompileTimings), Vec<Diagnostic>> {
     crate::checked::run_on_compile_thread(move || {
         let selections = rollback.settle(&checked.build().config.settings.optimizations);
-        let retained = crate::terminal::produce_retained_terminal_artifacts(vec![
+        let produced = crate::terminal::produce_retained_terminal_artifacts(vec![
             crate::terminal::TerminalProductRequest {
-                checked: &mut checked,
+                view: crate::terminal::TerminalProductionView::Installed(&mut checked),
                 selections: selections.effective(),
             },
         ])
@@ -36,6 +36,8 @@ pub fn retained_terminal_artifact_from_checked_package(
                 "Terminal production lost its package outcome",
             )]
         })??;
+        let retained =
+            crate::terminal::finish_terminal_application(&checked, produced, selections.effective())?;
         Ok((retained, std::mem::take(checked.timings_mut())))
     })
 }
