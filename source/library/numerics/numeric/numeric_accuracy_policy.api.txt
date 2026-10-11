@@ -1,7 +1,10 @@
 NF02 reconciled interface checkpoint (base 03e477fa424a9e6a2db7f49e17bf896ab3f76b48)
 Module: numeric::numeric_accuracy_policy
-NF01 proposal: package numerics exports numeric::numeric_accuracy_policy;
-package entrance imports this module. NF02 does not edit shared metadata.
+NF01 accepted integration: package numerics loads numeric::numeric_accuracy_policy.
+Consumers import exact declarations, for example:
+  use numerics::numeric::numeric_accuracy_policy::AccuracyComparison;
+A named module import does not flatten its declarations. Shared metadata was
+updated by NF01; NF02 did not edit it in the preserved worker candidate.
 
 NumericClass [copy]: Finite, PositiveZero, NegativeZero,
                     PositiveInfinity, NegativeInfinity, NaN
@@ -91,3 +94,7 @@ Exact discriminating dyadic examples (not executions):
     additive bound=0.5, difference=1 -> rejected;
     symmetric scaled difference=0.5 -> Close.
 All operands and tolerance bounds here are exactly representable in both formats.
+
+Current integration qualification and exact revisions are in
+samples/cli/scientific/w100/nf02_numeric_accuracy_policy/EVIDENCE.txt.
+The branch references above describe the preserved original handoff.

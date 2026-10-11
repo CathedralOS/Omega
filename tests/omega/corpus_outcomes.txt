@@ -5194,6 +5194,7 @@ pass/borrows/runtime_guarded_local_byte_loan_exit checked 8586ms check-target:li
 pass/borrows/runtime_mixed_static_dynamic_loan_header_exit checked 6595ms check-target:linux_x86_64 @a7846c335879
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit checked 12817ms check-target:linux_x86_64 @a7846c335879
 fail/operators/result_domain_operator_family_wrong_signature rejected 4710ms expected @ad018194f55c
+	machine `wrong` does not match one exact overload of operator requirement `I8::from_f32`; its entry parameter and result types must equal one declared requirement signature
 pass/operators/result_domain_operator_family_conversion_exit checked 74681ms check-target:macos_arm64 @ad018194f55c
 pass/structural/computed_enum_case_guard_effects_exit checked 5286ms check-target:macos_arm64 @ad018194f55c
 pass/structural/computed_enum_equality_guard_exit checked 5285ms check-target:macos_arm64 @ad018194f55c

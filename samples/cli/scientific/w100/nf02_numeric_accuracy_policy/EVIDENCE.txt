@@ -58,3 +58,16 @@ OOM-kill. Resource snapshot: w100-nf02-enum-resources.json.
 One Rust build and one Omega execution maximum per executor; corpus jobs1.
 Strict Clippy was not run for this chunk; no clean Clippy pass is claimed.
 Final exact-candidate landing verification and normal publication are pending.
+
+Final source non-recording replay at3ef0634 (only owned golden diagnostic dirty):
+exit0/103.475s,10fixtures3checked7expectedreject, zero structural/performance
+moves, wrong reasons, lost successes, or oracle failures. Full verdict and
+zero-move JSON retained. Previous replay exit1/97.501s was a missing diagnostic
+continuation in the copied new golden row, not a compiler outcome failure;
+that entire record was restored from the original temporary recording. All
+pre-existing golden bytes remain unchanged. Runtime corpus recording already
+qualified three fixtures. Current main advanced to5d0c62d461a3853d225d930d6b3ecf6b485291cc;
+rebase and changed-input requalification are pending before queue entry.
+Earlier classification source command at a805:
+timeout180s target/debug/omega --check samples/cli/scientific/w100/nf02_numeric_accuracy_policy/classification/main.omg
+Its log records29 checkedfiles/exit0; it was not timed by the receipt wrapper.
