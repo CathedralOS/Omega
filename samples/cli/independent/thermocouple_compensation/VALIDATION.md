@@ -230,3 +230,32 @@ Authentication was restored through the normal configured GitHub account;
 historical credential failures above are not current integration blockers.
 Publication uses the documented main-only FIFO helper, with no worker branch or
 direct main push.
+
+## Provider identity refresh
+
+Main's `2e6b6f887e5` changes the provider/schema digest domain to v3, retains
+the ordinary Console root receiver roster, and advances the compiled review
+cache record format. These paths reach this application even though it has no
+applied-parent ambiguity, phantom arguments, or region-erasure case. The CLI134
+observations above remain historical evidence, not current-provider compatibility
+evidence. Its approved candidate `93eee04d41d32518c632f6f206dc52fffee1872d`
+and the prior accepted artifacts are preserved separately.
+
+The current-provider qualification builds one fresh optimized CLI against the
+integrated main, refreshes the package through ordinary `omega update --project
+samples/cli/independent/thermocouple_compensation --target linux_x86_64`, and
+retains the generated review and actual source/capability differences. Pending
+decisions require inspection before normal resume; denied acceptance is never
+retried. No expectation or compiler safeguard is changed for compatibility.
+It then runs the complete source check, produces one fresh native artifact and
+verifies all 29 frozen cases, repeats the exact intended bounds rejection, and
+compares native/Terminal on `curved_hot` and `continuity_threshold`. The previous
+12/5 compiler corpus remains semantic regression evidence for unchanged repairs;
+the new runs separately establish the current provider and accepted-artifact
+boundary. Affected provider, type and package crates receive fresh Rust checks
+and Clippy, followed by the exact final-head landing receipt.
+
+The integrated deliverable records the actual base, compiler and executable
+hashes, commands, exits, review outcome and transfer verification. Those
+observations remain separate from immutable source and expected files while
+package snapshots and runtime qualification are in progress.
