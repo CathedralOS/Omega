@@ -17,5 +17,7 @@ function: repeated fixed uses and intervening call clobbers cannot share one
 home. Recovery shortens only that named original runtime value through the
 existing admitted spill rewrite. Pressure scoring, finite victim retirement,
 semantic rewrite validation and final allocation checks remain in force.
-This covers recovery-internal empty domains; direct allocation routes retain
-their existing typed refusal for a standalone empty-domain failure.
+The failure was independently reproduced and repaired before integration.
+Stable main subsequently landed a general interval-home recovery capability;
+this candidate uses that existing facility and carries no duplicate compiler
+change. Native and Terminal still must match the unchanged authored oracle.
