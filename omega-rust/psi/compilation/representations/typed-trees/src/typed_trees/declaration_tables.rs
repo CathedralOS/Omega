@@ -7,6 +7,32 @@ use arena::{Handle, HandleSpan};
 use symbols::JoinedPath;
 
 impl TypedTrees {
+    /// Semantic containment is not necessarily symbol allocation containment.
+    /// Owned conformance rows are allocated as root machines, but capture the
+    /// selecting declaration's telescope. Referenced machines capture nothing
+    /// from a map that merely selects them. Executable copies use the same
+    /// authored relationship; diagnostic qualified names establish no scope.
+    pub fn declaration_scope_parent(&self, owner: symbols::SymbolHandle) -> symbols::SymbolHandle {
+        let owner = self.lifetime_declaration_owner(owner);
+        if !owner.is_valid() {
+            return owner;
+        }
+        let mut selecting = self.conformances().iter().filter(|conformance| {
+            conformance
+                .rows
+                .iter()
+                .any(|row| row.source.owns_realization() && row.realization_machine == owner)
+        });
+        if let Some(conformance) = selecting.next() {
+            return if selecting.next().is_none() {
+                conformance.symbol
+            } else {
+                symbols::SymbolHandle::invalid()
+            };
+        }
+        self.symbols.get(owner).parent
+    }
+
     /// Executable copying does not create new authored lifetime binders.
     /// Cyclic or malformed specialization custody has no declaration owner.
     pub fn lifetime_declaration_owner(

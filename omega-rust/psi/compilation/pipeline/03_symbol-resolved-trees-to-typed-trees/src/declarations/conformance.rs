@@ -124,11 +124,14 @@ pub(crate) fn lower_conformance(
             )
         })?;
     // Inline/default realization machines close over the conformance
-    // name's telescope. Publish that telescope as the machine template's
-    // own generic surface as well, so ordinary specialization can clone
+    // name's type telescope. Publish that telescope as the machine template's
+    // generic surface as well, so ordinary specialization can clone
     // and substitute the selected row instead of leaving family symbols
     // such as `Element` in executable checked code. Referenced external
-    // machines keep their independently declared telescope.
+    // machines keep their independently declared telescope. Regions instead
+    // retain lexical capture through the exact owned-row association: copying
+    // them into the invocation telescope would erase local binders and make
+    // captured coordinates fresh.
     let realization_machines = conformance
         .rows
         .iter()
@@ -137,7 +140,6 @@ pub(crate) fn lower_conformance(
         .collect::<Vec<_>>();
     for machine in lowerer.typed_trees.machines_mut() {
         if realization_machines.contains(&machine.symbol) {
-            machine.lifetime_parameters = conformance.lifetime_parameters.clone();
             machine.type_parameters = conformance.type_parameters;
         }
     }

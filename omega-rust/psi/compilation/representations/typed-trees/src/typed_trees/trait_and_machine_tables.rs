@@ -274,6 +274,19 @@ impl TypedTrees {
     ) -> (Vec<data::TypeParameter>, Vec<crate::name::Identifier>) {
         let mut type_parameters = self.machine_type_parameters(machine).to_vec();
         let mut lifetime_parameters = machine.lifetime_parameters.clone();
+        // A named map's owned row captures its public regions. They are
+        // visible during formation, not fresh binders of each invocation.
+        let mut enclosing = self.declaration_scope_parent(machine.symbol);
+        while enclosing.is_valid() {
+            if let Some(conformance) = self.conformance_by_symbol(enclosing) {
+                for parameter in &conformance.lifetime_parameters {
+                    if !lifetime_parameters.contains(parameter) {
+                        lifetime_parameters.push(parameter.clone());
+                    }
+                }
+            }
+            enclosing = self.declaration_scope_parent(enclosing);
+        }
         if let Some(attached_data) = &machine.attached_data
             && let Some(definition) = self.data_definition_by_name(attached_data)
         {

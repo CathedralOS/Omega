@@ -6090,3 +6090,9 @@ pass/collections/runtime_offset_view_case_observation_exit checked 2717ms check-
 pass/domains/runtime_selected_nested_field_domain_exit checked 2724ms check-target:macos_arm64 @1e469c9b15bb
 pass/text/runtime_qualified_owner_view_open_exit checked 3079ms check-target:macos_arm64 @b7075f98d14c+wt
 pass/calls/owned_overaligned_local_call checked 5291ms check-target:macos_arm64 @6d4927c3710+wt
+fail/traits/external_row_does_not_capture_map_region rejected 223ms expected @21c44dfab69b
+	machine `read` state `entry` parameter `context` uses undeclared lifetime `'storage'; declare it in the owner's generic parameter list
+fail/traits/owned_row_captured_region_not_invocation rejected 353ms expected @21c44dfab69b
+	machine `Reader::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: fresh invocation lifetime telescope is not universally refined
+pass/traits/default_row_captured_invocation_regions_exit checked 2765ms check-target:macos_arm64 @21c44dfab69b
+pass/traits/default_row_domain_region_scopes checked 485ms @21c44dfab69b

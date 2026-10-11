@@ -2825,7 +2825,14 @@ crash and native exit behavior.
     correspondence and application-plus-requirement joins through canonical
     candidates and receiving installation. The classifier and provider
     eligibility remain fail-closed until those associations exist. Build selects
-    the provider declaration, not a runtime caller region.
+    the provider declaration, not a runtime caller region. Preserve
+    `traits/default_row_captured_invocation_regions_exit` through both engines:
+    owned rows capture their map's regions without replacing their fresh member
+    telescope, including unused binders; external selected rows capture no map
+    scope. Default substitution still needs exact supplying-operand custody:
+    `pending/traits/default_row_shadowed_captured_operand` must check when a
+    captured phantom region and an unused invocation binder share a spelling.
+    Its `omega --check main.omg` refusal reproduces on `75a8abc59f7`.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.
 

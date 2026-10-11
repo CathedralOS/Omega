@@ -213,18 +213,19 @@ fn attach_conformance_parameter_scopes(program: &mut SymbolResolvedTrees) {
                     .filter(|row| row.source.owns_realization())
                     .filter_map(|row| row.provisional_realization_ordinal)
                     .collect::<Vec<_>>(),
-                conformance.lifetime_parameters.clone(),
                 conformance.type_parameters,
             )
         })
         .collect::<Vec<_>>();
     let mut ordinal = 0usize;
     program.machines.for_each_mut(|machine| {
-        if let Some((_, lifetimes, parameters)) = scopes
+        if let Some((_, parameters)) = scopes
             .iter()
-            .find(|(realizations, _, _)| realizations.contains(&ordinal))
+            .find(|(realizations, _)| realizations.contains(&ordinal))
         {
-            machine.lifetime_parameters = lifetimes.clone();
+            // Invocation lifetimes belong to the authored row. The map's
+            // regions are captured through its exact row association, never
+            // substituted for the row's own (possibly unused) telescope.
             machine.type_parameters = *parameters;
         }
         ordinal += 1;

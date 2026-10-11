@@ -86,7 +86,7 @@ fn captured_type_parameters(
     let mut captured = Vec::new();
     // Start outside the queried telescope. A requirement-local Type is
     // selected together with this invocation, not a captured environment.
-    let mut owner = program.symbols.get(signature).parent;
+    let mut owner = program.declaration_scope_parent(signature);
     while owner.is_valid() {
         let parameters = if let Some(contract) = program.retained_static_machine_contract(owner) {
             program.state_signature_type_parameters(contract.signature())
@@ -107,7 +107,7 @@ fn captured_type_parameters(
             matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
                 .then_some(parameter.symbol)
         }));
-        owner = program.symbols.get(owner).parent;
+        owner = program.declaration_scope_parent(owner);
     }
     captured
 }
@@ -352,7 +352,7 @@ pub(super) fn captured_lifetimes(
                     .map(|contract| &contract.signature().lifetime_parameters)
             });
         scopes.push((owner, parameters));
-        owner = program.lifetime_declaration_owner(program.symbols.get(owner).parent);
+        owner = program.lifetime_declaration_owner(program.declaration_scope_parent(owner));
     }
     scopes
         .into_iter()

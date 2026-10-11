@@ -138,7 +138,7 @@ pub fn lifetime_parameter_identity(
                 ordinal,
             });
         }
-        owner = program.lifetime_declaration_owner(program.symbols.get(owner).parent);
+        owner = program.lifetime_declaration_owner(program.declaration_scope_parent(owner));
     }
     None
 }
