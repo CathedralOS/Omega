@@ -5235,3 +5235,16 @@ run/calls/resultless_scalar_parameters checked 4770ms check-target:macos_arm64 @
 run/calls/table_report_call_survival checked 9157ms check-target:linux_x86_64 @b4606c96d11a
 run/contained_health_loop_command_branch checked 287ms @4e4bfed13aee+wt
 run/nested_mut_alias_assignment_return checked 783ms check-target:macos_arm64 @2d8ed253669f
+pass/traits/runtime_dyn_array_result_exit checked 2959ms check-target:macos_arm64 @1a78955bfb8c
+pass/traits/runtime_dyn_guarded_result_exit checked 3050ms check-target:macos_arm64 @1a78955bfb8c
+pass/traits/runtime_dyn_linear_result_exit checked 3010ms check-target:macos_arm64 @1a78955bfb8c
+pass/traits/runtime_dyn_nested_result_exit checked 3012ms check-target:macos_arm64 @1a78955bfb8c
+pass/traits/runtime_dyn_structural_result_exit checked 2854ms check-target:macos_arm64 @1a78955bfb8c
+fail/traits/dyn_structural_result_contract_mismatch rejected 485ms expected @1a78955bfb8c
+	cannot prove ensures contract for exit from Wrong::make at statement 0: result.value == 7
+fail/traits/dyn_structural_result_missing_disposition rejected 515ms expected @1a78955bfb8c
+	linear value `token` reaches scope exit without being consumed or transferred
+fail/traits/dyn_structural_result_reuse_input rejected 362ms expected @1a78955bfb8c
+	cannot use `token` in machine `probe` state `entry` (statement 3) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
+fail/traits/dyn_structural_result_unpromised_domain rejected 514ms expected @1a78955bfb8c
+	cannot prove requires contract for call consume from probe: Factory.dyn Factory::make(Plain as dyn Factory) in Token::Issued

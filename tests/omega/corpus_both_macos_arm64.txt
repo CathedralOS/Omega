@@ -799,3 +799,8 @@ pass/collections/runtime_owned_descriptor_parameter_read_exit built 3991ms exit:
 pass/collections/runtime_projected_element_descriptor_read_exit built 3991ms exit:0 interpreter-exit:0 interpreter:agrees @f76abd8ea830+wt
 pass/terminal_psi/debug_identity_complete_module built 16278ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @b952ce87db95
 run/calls/resultless_scalar_parameters built 4480ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @10b02229ff8b
+pass/traits/runtime_dyn_array_result_exit built 2971ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
+pass/traits/runtime_dyn_guarded_result_exit built 2710ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
+pass/traits/runtime_dyn_linear_result_exit built 2736ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
+pass/traits/runtime_dyn_nested_result_exit built 2701ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
+pass/traits/runtime_dyn_structural_result_exit built 2661ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
