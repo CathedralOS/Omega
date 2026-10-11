@@ -107,6 +107,9 @@ fn value(
         ScopedArithmeticValue::Term(term) => {
             ScopedArithmeticValue::Term(expression(term, substitutions, remaining, depth)?)
         }
+        ScopedArithmeticValue::CollectionLength(term) => ScopedArithmeticValue::CollectionLength(
+            expression(term, substitutions, remaining, depth)?,
+        ),
         ScopedArithmeticValue::AdmittedIntegerRemainder(term) => {
             ScopedArithmeticValue::AdmittedIntegerRemainder(expression(
                 term,

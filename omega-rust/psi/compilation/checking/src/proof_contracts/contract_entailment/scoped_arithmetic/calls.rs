@@ -1,4 +1,4 @@
-//! Published scalar guarantees under a call occurrence's simultaneous roster.
+//! Published result guarantees under a call occurrence's simultaneous roster.
 //!
 //! Specification call formation has already discharged the selected requires.
 //! This transport reads only independently checked published ensures, never a
@@ -22,6 +22,8 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 
+mod collections;
+
 pub(super) struct ScopedCalls<'program> {
     program: &'program dyn crate::CheckingInput,
     context: SymbolHandle,
@@ -29,6 +31,7 @@ pub(super) struct ScopedCalls<'program> {
     depth: usize,
     scopes: Vec<(ScopedArithmeticExpression, ScopedArithmeticExpression)>,
     guarantees: Vec<ScopedArithmeticHypothesis>,
+    lengths: Vec<(ScopedArithmeticExpression, ScopedArithmeticValue)>,
 }
 
 impl<'program> ScopedCalls<'program> {
@@ -47,6 +50,7 @@ impl<'program> ScopedCalls<'program> {
             depth: 0,
             scopes: Vec::new(),
             guarantees: Vec::new(),
+            lengths: Vec::new(),
         }
     }
 
@@ -58,6 +62,7 @@ impl<'program> ScopedCalls<'program> {
     pub(super) fn value(&mut self, value: &ScopedArithmeticValue) -> Option<ScopedArithmeticValue> {
         self.step()?;
         Some(match value {
+            ScopedArithmeticValue::CollectionLength(term) => self.collection_length(term)?,
             ScopedArithmeticValue::Term(term) => {
                 ScopedArithmeticValue::Term(self.expression(term)?)
             }
@@ -253,57 +258,7 @@ impl<'program> ScopedCalls<'program> {
                         });
                     }
                 }
-                let guarantees: Vec<_> = owner_contracts(self.program, &owner)
-                    .filter(|contract| {
-                        contract.kind == SignatureContractKind::Ensures
-                            && contract.binding.is_none()
-                    })
-                    .flat_map(|contract| self.program.proof_facts.span_or_empty(contract.facts))
-                    .filter_map(|fact| match fact {
-                        ProofFact::Expression(expression) => Some(*expression),
-                        _ => None,
-                    })
-                    .collect();
-                for guarantee in guarantees {
-                    let builtin = match owner {
-                        SelectedCallContract::Concrete(machine, state) => {
-                            crate::has_builtin_bound_expression_meaning(
-                                self.program,
-                                machine,
-                                Some(state),
-                                guarantee,
-                            )
-                        }
-                        SelectedCallContract::Signature(signature)
-                        | SelectedCallContract::DynamicSlot { signature, .. } => {
-                            crate::has_builtin_parameter_bound_expression_meaning(
-                                self.program,
-                                signature.symbol,
-                                parameters,
-                                guarantee,
-                            )
-                        }
-                        SelectedCallContract::Operator(operator) => {
-                            crate::has_builtin_parameter_bound_expression_meaning(
-                                self.program,
-                                operator.symbol,
-                                parameters,
-                                guarantee,
-                            )
-                        }
-                    };
-                    if builtin {
-                        let proposition = self.expression(&ScopedArithmeticExpression {
-                            owner: owner_symbol(&owner),
-                            expression: guarantee,
-                            bindings: bindings.clone(),
-                        })?;
-                        self.guarantees.push(ScopedArithmeticHypothesis {
-                            proposition,
-                            holds: true,
-                        });
-                    }
-                }
+                self.transport_guarantees(owner, &bindings, None)?;
             }
             prepared.bindings.push(ScopedArithmeticBinding {
                 binder: ScopedArithmeticBinder::Occurrence(expression),
@@ -312,6 +267,68 @@ impl<'program> ScopedCalls<'program> {
         }
         self.scopes[scope].1 = prepared.clone();
         Some(prepared)
+    }
+
+    fn transport_guarantees(
+        &mut self,
+        owner: SelectedCallContract<'program>,
+        bindings: &[ScopedArithmeticBinding],
+        result_length: Option<&ScopedArithmeticValue>,
+    ) -> Option<()> {
+        let parameters = owner_parameters(self.program, &owner);
+        let guarantees: Vec<_> = owner_contracts(self.program, &owner)
+            .filter(|contract| {
+                contract.kind == SignatureContractKind::Ensures && contract.binding.is_none()
+            })
+            .flat_map(|contract| self.program.proof_facts.span_or_empty(contract.facts))
+            .filter_map(|fact| match fact {
+                ProofFact::Expression(expression) => Some(*expression),
+                _ => None,
+            })
+            .collect();
+        for guarantee in guarantees {
+            let builtin = match owner {
+                SelectedCallContract::Concrete(machine, state) => {
+                    crate::has_builtin_bound_expression_meaning(
+                        self.program,
+                        machine,
+                        Some(state),
+                        guarantee,
+                    )
+                }
+                SelectedCallContract::Signature(signature)
+                | SelectedCallContract::DynamicSlot { signature, .. } => {
+                    crate::has_builtin_parameter_bound_expression_meaning(
+                        self.program,
+                        signature.symbol,
+                        parameters,
+                        guarantee,
+                    )
+                }
+                SelectedCallContract::Operator(operator) => {
+                    crate::has_builtin_parameter_bound_expression_meaning(
+                        self.program,
+                        operator.symbol,
+                        parameters,
+                        guarantee,
+                    )
+                }
+            };
+            if builtin {
+                let mut roster = bindings.to_vec();
+                self.bind_length_projections(owner, guarantee, result_length, &mut roster)?;
+                let proposition = self.expression(&ScopedArithmeticExpression {
+                    owner: owner_symbol(&owner),
+                    expression: guarantee,
+                    bindings: roster,
+                })?;
+                self.guarantees.push(ScopedArithmeticHypothesis {
+                    proposition,
+                    holds: true,
+                });
+            }
+        }
+        Some(())
     }
 
     fn postorder(

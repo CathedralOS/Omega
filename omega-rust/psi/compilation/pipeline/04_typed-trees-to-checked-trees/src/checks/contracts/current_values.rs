@@ -5,7 +5,6 @@
 use crate::checks::current_scalar_values::CurrentScalarValues;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{StatementNode, TransitionTargetHandle};
-use validation::{ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticValue};
 
 /// Current-state proof only. The exit owner separately requires exact incoming
 /// origins for every immutable invocation formal named by the guarantee.
@@ -22,7 +21,7 @@ pub(crate) fn proves_exit(
     else {
         return false;
     };
-    let Some(values) = CurrentScalarValues::at(
+    let Some(mut values) = CurrentScalarValues::at(
         program,
         machine,
         state,
@@ -30,9 +29,6 @@ pub(crate) fn proves_exit(
         exit.transition_target,
         frames,
     ) else {
-        return false;
-    };
-    let Some(mut goal) = values.current(expression) else {
         return false;
     };
     let returned = match program
@@ -53,13 +49,9 @@ pub(crate) fn proves_exit(
         }
         _ => return false,
     };
-    let Some(returned) = values.current(returned) else {
+    let Some(goal) = values.postcondition(expression, returned) else {
         return false;
     };
-    goal.bindings.push(ScopedArithmeticBinding {
-        binder: ScopedArithmeticBinder::Result,
-        value: ScopedArithmeticValue::Term(returned),
-    });
     values.proves(program, machine, &goal)
 }
 

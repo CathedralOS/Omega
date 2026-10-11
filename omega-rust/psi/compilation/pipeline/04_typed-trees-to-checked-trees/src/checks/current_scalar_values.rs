@@ -1,4 +1,4 @@
-//! Current scalar values across ordinary statement transfers.
+//! Current scalar values and descriptor measures across statement transfers.
 //!
 //! A hypothesis captures its input roster when it is established. Assignment
 //! captures the RHS under that roster before replacing its destination; later
@@ -13,7 +13,9 @@
 //! Each `bytes.len` occurrence binds as an exact projection of that value, so a
 //! `requires index < bytes.len` and a guard over the same loan relate. A
 //! mutable loan of a qualified fixed byte array is a bounded owner whose live
-//! length moves with its stores, and has no such value.
+//! length moves with its stores, and has no such value. Local descriptors use
+//! the same replacement and effect retirement as scalar bindings; their
+//! captured measures survive endpoint stores, never descriptor replacement.
 use crate::checks::unsigned;
 use crate::values::scalar::structural_fields;
 use numerics::arithmetic::ArithmeticDomain;
@@ -27,6 +29,8 @@ use validation::{
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
 };
 
+mod collections;
+
 #[derive(Clone)]
 struct Binding {
     symbol: SymbolHandle,
@@ -34,12 +38,20 @@ struct Binding {
     value: Option<ScopedArithmeticValue>,
 }
 
-/// One collection parameter whose length cannot change in this activation.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LengthSubject {
+    Storage(SymbolHandle),
+    Result(SymbolHandle),
+}
+
+/// A captured descriptor observation, not the capacity of its backing owner.
 #[derive(Clone)]
 struct Length {
-    collection: SymbolHandle,
+    subject: LengthSubject,
+    name: String,
+    stable: bool,
     type_reference: TypeReferenceHandle,
-    value: ScopedArithmeticValue,
+    value: Option<ScopedArithmeticValue>,
 }
 
 pub(crate) struct CurrentScalarValues<'program> {
@@ -92,14 +104,16 @@ impl<'program> CurrentScalarValues<'program> {
             })
             .filter_map(|parameter| {
                 Some(Length {
-                    collection: parameter.symbol,
+                    subject: LengthSubject::Storage(parameter.symbol),
+                    name: parameter.name.to_string(),
+                    stable: true,
                     type_reference: parameter.type_reference,
-                    value: fixed_length(program, parameter.type_reference, || {
+                    value: Some(fixed_length(program, parameter.type_reference, || {
                         format!(
                             "state:{:?}:parameter:{:?}:length",
                             state.symbol, parameter.symbol
                         )
-                    })?,
+                    })?),
                 })
             })
             .collect();
@@ -165,6 +179,12 @@ impl<'program> CurrentScalarValues<'program> {
                 StatementNode::LocalData(local) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
                     let value = values.capture(program, machine, state, local.initial_value);
+                    values.capture_collection(
+                        local.symbol,
+                        local.name.as_str(),
+                        local.type_reference,
+                        local.initial_value,
+                    );
                     if exact_integer(program, local.type_reference).is_some() {
                         values.current.push(Binding {
                             symbol: local.symbol,
@@ -186,6 +206,21 @@ impl<'program> CurrentScalarValues<'program> {
                             .find(|binding| binding.symbol == name.symbol)
                     {
                         binding.value = value;
+                    } else if let ExpressionNode::Name(name) =
+                        program.expression_table.expression(assignment.target)
+                        && name.symbol == name.head_symbol
+                        && let Some(length) = values
+                            .lengths
+                            .iter()
+                            .find(|length| length.subject == LengthSubject::Storage(name.symbol))
+                            .cloned()
+                    {
+                        values.capture_collection(
+                            name.symbol,
+                            &length.name,
+                            length.type_reference,
+                            assignment.value,
+                        );
                     } else {
                         values.invalidate_operand_writes(
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
@@ -259,6 +294,17 @@ impl<'program> CurrentScalarValues<'program> {
                     .any(|path| validation::frame_paths_overlap(path, &binding.name))
             }) {
                 binding.value = None;
+            }
+        }
+        for length in &mut self.lengths {
+            if !length.stable
+                && paths.as_ref().is_none_or(|paths| {
+                    paths
+                        .iter()
+                        .any(|path| validation::frame_paths_overlap(path, &length.name))
+                })
+            {
+                length.value = None;
             }
         }
     }
@@ -408,8 +454,8 @@ impl<'program> CurrentScalarValues<'program> {
     pub(crate) fn initial_length(&self, collection: SymbolHandle) -> Option<ScopedArithmeticValue> {
         self.lengths
             .iter()
-            .find(|length| length.collection == collection)
-            .map(|length| length.value.clone())
+            .find(|length| length.subject == LengthSubject::Storage(collection))
+            .and_then(|length| length.value.clone())
     }
     pub(crate) fn current(
         &self,
@@ -460,18 +506,15 @@ impl<'program> CurrentScalarValues<'program> {
                     callee,
                     state,
                     parameter.symbol,
-                ) && let Some(name) = self.program.expression_table.name_path_node(*argument)
-                    && name.symbol == name.head_symbol
-                    && let Some(length) = self
-                        .lengths
-                        .iter()
-                        .find(|length| length.collection == name.symbol)
+                ) && let Some(value) = self.collection_length(*argument, 0)
                     && fixed_length(self.program, parameter.type_reference, String::new).is_some()
                 {
                     lengths.push(Length {
-                        collection: parameter.symbol,
+                        subject: LengthSubject::Storage(parameter.symbol),
+                        name: parameter.name.to_string(),
+                        stable: true,
                         type_reference: parameter.type_reference,
-                        value: length.value.clone(),
+                        value: Some(value),
                     });
                 }
                 continue;
@@ -611,20 +654,26 @@ fn length_occurrence<'lengths>(
     lengths: &'lengths [Length],
 ) -> Option<&'lengths Length> {
     let member = program.expression_table.member_node(expression)?;
-    let name = program.expression_table.name_path_node(member.receiver)?;
-    if !name.symbol.is_valid()
-        || name.symbol != name.head_symbol
-        || program
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
+    let subject =
+        if let Some((owner, _)) = validation::reserved_result_owner(program, member.receiver) {
+            LengthSubject::Result(owner)
+        } else {
+            let name = program.expression_table.name_path_node(member.receiver)?;
+            if !name.symbol.is_valid()
+                || name.symbol != name.head_symbol
+                || program
+                    .expression_table
+                    .name_path_members(name.members)
+                    .len()
+                    != 1
+            {
+                return None;
+            }
+            LengthSubject::Storage(name.symbol)
+        };
     let length = lengths
         .iter()
-        .find(|length| length.collection == name.symbol)?;
+        .find(|length| length.subject == subject && length.value.is_some())?;
     (validation::collection_operations::collection_measure_member(
         program,
         member,
@@ -778,7 +827,7 @@ fn scoped(
             ExpressionNode::Integer(_) => {}
             ExpressionNode::Member(_) => {
                 let value = length_occurrence(program, expression, lengths)
-                    .map(|length| length.value.clone())
+                    .and_then(|length| length.value.clone())
                     .or_else(|| field_occurrence(program, machine, state, expression))?;
                 projections.push(ScopedArithmeticBinding {
                     binder: ScopedArithmeticBinder::Occurrence(expression),
@@ -819,6 +868,7 @@ fn charge(value: &ScopedArithmeticValue, budget: &mut usize, depth: usize) -> Op
     }
     match value {
         ScopedArithmeticValue::Term(term)
+        | ScopedArithmeticValue::CollectionLength(term)
         | ScopedArithmeticValue::AdmittedIntegerRemainder(term) => {
             for binding in &term.bindings {
                 charge(&binding.value, budget, depth + 1)?;

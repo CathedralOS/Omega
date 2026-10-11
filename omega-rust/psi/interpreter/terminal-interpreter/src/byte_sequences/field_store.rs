@@ -187,14 +187,26 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?
             .immutable()?
             .clone();
+        if !view.matches_descriptor_home(source_value) {
+            return Err(malformed());
+        }
         match destination_field {
             Some(destination_field) => {
                 self.structural_byte_sequence_fields
                     .insert(destination_field, view);
             }
             None => {
-                self.byte_sequence_values
-                    .insert(*destination, ByteSequenceBinding::Immutable(view));
+                // Replacing a descriptor transfers its observed window, not
+                // its old storage identity. Rehome only the descriptor; its
+                // backing and captured extent remain those of the source.
+                let home = self
+                    .structural_values
+                    .get(destination)
+                    .ok_or_else(malformed)?;
+                self.byte_sequence_values.insert(
+                    *destination,
+                    ByteSequenceBinding::Immutable(view.with_descriptor_home(home.clone())),
+                );
             }
         }
         Ok(())

@@ -446,8 +446,13 @@ helper that passes does not close an item.
     it must run once in the selected arm and never in the unselected arm.
     Preserve captured operand snapshots through generic cloning and later
     effects (`runtime_declared_open_range_preserves_operand_snapshot_exit`).
-    Imported `Slice::range` still needs admitted executable realization and
-    returned extent guarantees. Preserve
+    Imported `Slice::range` still needs admitted executable realization. Keep
+    `pass/slices/runtime_returned_range_extent_contract_exit` and
+    `pass/slices/runtime_forwarded_range_extent_snapshot_exit` at exit 0:
+    checked returned-length guarantees must discharge downstream nonempty
+    calls without fresh guards, survive endpoint stores and forwarding, and
+    retire on descriptor replacement. Wrong returned descriptors must reject.
+    Preserve
     `pass/borrows/runtime_boundary_range_view_exit`: named and anonymous
     checked-provider results must retain the actual descriptor and backing
     loan in native and Terminal execution; overlapping backing mutation must

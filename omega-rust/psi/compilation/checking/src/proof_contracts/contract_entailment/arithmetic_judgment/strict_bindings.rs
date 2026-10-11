@@ -150,6 +150,9 @@ impl<'program> Engine<'program> {
             ScopedArithmeticValue::Term(term) => {
                 self.with_scoped_expression(term, |engine| engine.normalize(term.expression))?
             }
+            // Collection observations must be prepared by the selected-call
+            // owner. A descriptor is not an integer source expression.
+            ScopedArithmeticValue::CollectionLength(_) => return None,
             ScopedArithmeticValue::AdmittedIntegerRemainder(term) => {
                 self.with_scoped_expression(term, |engine| {
                     // This occurrence was admitted by the caller's selected-value

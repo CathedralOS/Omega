@@ -134,6 +134,9 @@ fn captured_contract_proven(
     // public guarantees. It must run before the source-replay fence: a call
     // result need not be repeatable to establish this occurrence's requirement.
     // Use the retained authored fact, not a replay of its substituted syntax.
+    // The current roster retains descriptor measures and endpoint snapshots;
+    // its whole-operand write fence declines when an earlier operand could
+    // replace them. It is therefore a capture proof, not a source fallback.
     if let typed_trees::domain::ProofFact::Expression(required) =
         program.proof_facts.get(contract.fact)
         && let Some((machine, caller_state)) =
@@ -145,14 +148,15 @@ fn captured_contract_proven(
             call.statement_index,
             call.call_ordinal,
         )
-        && validation::selected_value_call_requirement_entailed(
-            program,
-            machine,
-            caller_state,
-            call.statement_index,
-            site,
-            *required,
-        )
+        && (super::super::current_values::proves_call(program, state, call, *required, frames)
+            || validation::selected_value_call_requirement_entailed(
+                program,
+                machine,
+                caller_state,
+                call.statement_index,
+                site,
+                *required,
+            ))
     {
         return true;
     }

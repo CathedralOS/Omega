@@ -60,6 +60,11 @@ pub enum ScopedArithmeticValue {
     },
     /// A term read under its own roster before it stands for the binder.
     Term(ScopedArithmeticExpression),
+    /// The length observation of a captured collection result. Its source
+    /// roster supplies actual values, not permission to replay a callee body.
+    /// Call preparation binds independently published guarantees to a private
+    /// observation identity before the integer engine can consume this value.
+    CollectionLength(ScopedArithmeticExpression),
     /// One exact integer remainder whose caller independently established
     /// selected builtin meaning, fixed-carrier formation and source custody.
     /// This marker grants only the existing mathematical remainder
