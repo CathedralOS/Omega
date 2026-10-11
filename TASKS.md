@@ -1583,9 +1583,10 @@ defines the complete product bar.
     `3531aaa098`, `e0a884138f`, `2ef59d385a`, `c4d2776b1f`, `c5621e66ac`,
     `fc0fc2dcab`, `c5688363ec`, `f1d6e31013`, `9e3355b562`, `db4f9f9140`,
     `2858366bdb`, samples `24d91ed906` / `7917a536d4`, library `c1303f89d4`,
-    plus follow-ups. Record original/current spelling, owning position and
-    restoration or reason for retention, including bare fields whose bounds
-    were removed because inferred loop bounds made execution pass. A suffix
+    plus follow-ups. Reconcile the audited library declaration groups beside
+    their runtime witnesses; inventory the remaining original/current spelling,
+    owning position and restoration or reason for retention, including bare
+    fields whose bounds were removed because inferred loop bounds made execution pass. A suffix
     grep or passing replacement does not establish preservation.
   - Field/case propositions through construction, nonliteral and indexed
     writes, reads, calls, state joins, mutable recasts (the
@@ -1623,6 +1624,11 @@ defines the complete product bar.
     as controls for captured state arguments and invalidated bound observations.
   Canonical controls to keep: `pass/collections/runtime_argmax_index_exit`,
   `pass/time/runtime_duration_core_exit`,
+  `pass/time/runtime_duration_units_and_scaling_exit`,
+  `pass/time/runtime_checked_time_arith_exit` and
+  `fail/time/{instant_constant_unnormalized,system_time_constant_unnormalized,instant_mutation_leaves_invalid_return}`
+  (initializer facts survive bare local carriers; normalized timestamps retain
+  construction and mutation obligations through data predicates),
   `pass/constants/runtime_predicate_constant_materialization_exit` and the
   `fail/constants/unused_*_predicate_constant`, `unused_*_default_domain_constant`
   and `predicate_constant_*` controls (ordinary materialization never grants

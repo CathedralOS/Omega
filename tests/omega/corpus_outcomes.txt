@@ -6169,3 +6169,10 @@ pass/targets/runtime_family_callback_guarantee_conjunction_exit checked 2751ms c
 pass/borrow/runtime_write_only_captured_record_copy_exit checked 4227ms check-target:macos_arm64 @2e62c6e27183+wt
 pass/borrow/runtime_write_only_indexed_record_copy_exit checked 4227ms check-target:macos_arm64 @2e62c6e27183+wt
 pass/borrow/runtime_write_only_sum_copy_exit checked 4097ms check-target:macos_arm64 @2e62c6e27183+wt
+pass/time/runtime_duration_units_and_scaling_exit checked 6659ms check-target:macos_arm64 @2ed2725134e877372235f00d3ce5c1602f59468c
+fail/time/instant_constant_unnormalized rejected 33ms expected @2ed2725134e877372235f00d3ce5c1602f59468c
+	constant `INVALID` is invalid: data constant `Instant` violates its default-domain predicate
+fail/time/instant_mutation_leaves_invalid_return rejected 1111ms expected @2ed2725134e877372235f00d3ce5c1602f59468c
+	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/time/system_time_constant_unnormalized rejected 35ms expected @2ed2725134e877372235f00d3ce5c1602f59468c
+	constant `INVALID` is invalid: data constant `SystemTime` violates its default-domain predicate

@@ -858,3 +858,5 @@ pass/traits/applied_nominal_callback_proposition_contract checked 448ms @8ef927c
 pass/borrow/runtime_write_only_captured_record_copy_exit built 4330ms exit:0 interpreter-exit:0 interpreter:agrees @2e62c6e27183+wt
 pass/borrow/runtime_write_only_indexed_record_copy_exit built 4415ms exit:0 interpreter-exit:0 interpreter:agrees @2e62c6e27183+wt
 pass/borrow/runtime_write_only_sum_copy_exit built 4218ms exit:0 interpreter-exit:0 interpreter:agrees @2e62c6e27183+wt
+pass/time/runtime_checked_time_arith_exit built 8597ms exit:70 interpreter-exit:70 interpreter:agrees @2ed2725134e877372235f00d3ce5c1602f59468c
+pass/time/runtime_duration_units_and_scaling_exit built 6621ms exit:0 interpreter-exit:0 interpreter:agrees @2ed2725134e877372235f00d3ce5c1602f59468c
