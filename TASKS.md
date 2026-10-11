@@ -2912,11 +2912,15 @@ crash and native exit behavior.
     materialization, task activation, component progress, x86 FMA associations
     and fused entry establishments. Logical Binding shapes now remain independent
     of provider mode; entry establishment still joins source schema and selected
-    provenance there. The joins still consume `source.program.typed` through
-    checked custody and run before Terminal production: convert their inputs
-    to Terminal Psi plus that target's Build rows, keeping source-semantic
-    contracts and all authored candidates in Psi. Every family body and Build
-    row is checked even when `--target` excludes it.
+    provenance there. Settlement now splits at provider selection: the
+    canonical terminal artifact is produced from the selection custody before
+    any target's selected-execution install runs. The install-phase joins
+    (selected dispatch, task activation, component progress, intrinsic review,
+    fused entry establishments) still read the typed program and checked
+    records: convert their inputs to Terminal Psi plus that target's Build
+    rows, keeping source-semantic contracts and all authored candidates in
+    Psi. Every family body and Build row is checked even when `--target`
+    excludes it.
   - Product constants requiring selected-provider evaluation now reject with
     `unimplemented: portable provider-dependent constant recipes`. Retain exact
     symbolic applications and their dependencies through the shared Psi program,
