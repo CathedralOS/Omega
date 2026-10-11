@@ -1,5 +1,9 @@
 # Validation protocol and provenance
 
+This file preserves authoring and prior-candidate history. The current integration
+qualification is summarized at the end; exact final commit and publication identities
+are carried by the separate integrated Library deliverable.
+
 This candidate was authored independently on `samples/new016`, in the isolated
 worktree `/workspace/Omega/.codex/worktrees/new016`, based on current fetched main
 `8fef9837644713285aa9ed9eee42b46cd3bd1da8`. The starting checkout was preserved.
@@ -178,3 +182,51 @@ The sum of polynomial term magnitudes is bounded by 700 mV; a conservative
 2e-11 difference-error bound is below the midpoint margin of 5e-10. Separate
 continuity controls preserve exact rejection at either sign and acceptance at
 9e-9, without changing the original or derivative expected results.
+
+## Current main integration qualification
+
+The repaired application and all frozen fixtures are unchanged during integration
+onto main `363b7fafcf942e59fcdc68051552a69eb59777db`. The qualified CLI is
+SHA-256 `13412b027f4ef8deb6e0b9a06d15248b945ee36963b263600565c0fe6aec329b`,
+built at candidate `1aae9ad77f3c16f9c6792d4a43c992f0706545c2` on main
+`4b5eb415f13ec0ecc49c9a8f39dd990f4063553e`. Its recorded check passed; the
+retained native ELF
+`af15af0e9cae34d808a21cfc3d581a3ac991c53755568d85b6b312c7b893a847`
+passed all 23 original and six supplemental cases. Independent review reran all
+29 against the downloaded or retained executable and immutable expectations.
+The bounds control rejected with exactly one intended diagnostic. Four final
+host native/Terminal comparisons passed: `curved_hot`,
+`derivative_zero_roundoff`, `continuity_threshold`, and
+`continuity_max_permitted`.
+
+The scoped compiler corpus built and executed all 12 native controls with their
+declared exits and output assertions. The checked leg accepted four valid sources
+and rejected the Trap-coverage control with its expected cause. Both gates exited
+1 solely for the two new unrecorded controls; native observations also recorded
+two faster timings. There were zero oracle failures, wrong-reason rejections,
+lost successes, or infrastructure errors. Only the two new Boolean and floating
+call-result controls are subsequently registered; incoming golden records remain
+byte-for-byte preserved.
+
+Incoming floating-store, slice-descriptor and package-discovery changes were
+reviewed by exact dependencies and selected branches. The application has no
+floating structural mutation, inline slice recast, or new descriptor operand.
+Its existing Std byte-view paths retain their behavior. The decimal controls'
+ordinary whole-array views retain identical selected operation fields. Accepted
+bound package validation is unchanged. Evidence and 225 unchanged-file hashes
+are in `new016-incoming-main-reuse-review.md` and its JSON record. This supports
+reuse of the qualified binary's scoped observations under `tools/testing.md`;
+it does not claim that binary includes newer main changes or that a full release
+baseline was executed. Fresh integrated Rust checks, Clippy outcomes and the
+exact-head landing receipt accompany the final deliverable.
+
+The independent integration review also caught an inadmissible integer split
+discarding main's already admitted Boolean split and floating spill recovery.
+The repair prefers the existing admitted split, treats the new before-use split
+as optional, and preserves main's fallback for inadmissible candidates. Complete
+Boolean and floating source controls, exits and stdout were frozen before their
+first execution. Compiler safeguards and numerical expectations were retained.
+Authentication was restored through the normal configured GitHub account;
+historical credential failures above are not current integration blockers.
+Publication uses the documented main-only FIFO helper, with no worker branch or
+direct main push.

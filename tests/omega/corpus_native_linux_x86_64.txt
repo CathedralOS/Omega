@@ -1175,3 +1175,6 @@ pass/slices/fixed_array_slice_state_arguments_exit built 9847ms exit:70 stdout:m
 pass/register_allocation/fixed_uses_across_hosted_clobbers_exit built 10473ms exit:0 stdout:match stderr:match @650ad856cea9+wt
 pass/float/requirement_nested_record_arithmetic_exit built 128668ms exit:70 stdout:match @ddde64811628+wt
 pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit built 15446ms exit:70 stdout:match @ddde64811628+wt
+# context: {"cpus": 5, "jobs": "1", "load1_end": 1.79, "load1_start": 0.53, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/calls/runtime_boolean_result_across_console_exit built 16813ms exit:70 stdout:match @b342aa09cb97+wt
+pass/calls/runtime_float_result_across_call_exit built 151268ms exit:70 stdout:match @b342aa09cb97+wt

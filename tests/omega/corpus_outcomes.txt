@@ -5207,3 +5207,6 @@ fail/float/requirement_record_field_trapping_requires_coverage rejected 28753ms 
 	`multiply(value, 2.0)` in machine `packet` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 pass/float/requirement_nested_record_arithmetic_exit checked 110803ms check-target:macos_arm64 @ddde64811628+wt
 pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit checked 12468ms check-target:macos_arm64 @ddde64811628+wt
+# context: {"cpus": 5, "jobs": "1", "load1_end": 1.27, "load1_start": 1.79, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/calls/runtime_boolean_result_across_console_exit checked 11911ms check-target:macos_arm64 @b342aa09cb97+wt
+pass/calls/runtime_float_result_across_call_exit checked 121629ms check-target:macos_arm64 @b342aa09cb97+wt
