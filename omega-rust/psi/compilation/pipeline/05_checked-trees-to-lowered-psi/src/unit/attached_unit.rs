@@ -121,7 +121,9 @@ use providers::checked_unit_provider_candidates;
 /// The one closure assembly request. `plans` is the Unit roster the closure
 /// resolves bodies and shapes from; `entry` is the exact machine the closure
 /// begins at; `unit_roots` are its explicit Unit roots (the entry first for
-/// an ordinary closure, empty for a scalar entry); `scalar_entry` marks a scalar machine that borrows the same real callee
+/// an ordinary closure, empty for a scalar entry or an independent family
+/// head). A family head closes every member through the callee catalog without
+/// inventing an executable body. `scalar_entry` marks a scalar machine that borrows the same real callee
 /// catalog without a synthetic Unit caller.
 #[derive(Clone, Copy)]
 pub(crate) struct UnitClosureRequest<'a> {
@@ -195,7 +197,7 @@ pub(crate) fn lower_unit_closure(
         scalar_entry,
     } = *request;
     let ordinary_entry = unit_roots.first().copied();
-    if !scalar_entry && ordinary_entry != Some(entry) {
+    if !scalar_entry && ordinary_entry.is_some_and(|root| root != entry) {
         return unsupported("ordinary Unit closure must begin with its exact entry");
     }
 
@@ -540,9 +542,9 @@ pub(crate) fn lower_unit_closure(
             operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             identities: identities.snapshot(),
-            // Operation bodies are emitted first; a scalar entry may follow
-            // its helpers. Preserve the selected source owner, not roster order.
-            entry: lookup_machine_id(&machine_ids, entry)?,
+            // The root may be a bodyless portable contract. Every family body
+            // stays in the catalog; no target member stands in for its head.
+            entry: target_families::callable(entry, &machine_ids, &lowered_boundary_parameters)?,
             structural_types,
             structural_referents,
             structural_domains,

@@ -45,8 +45,12 @@ pub fn admit_native_realization<'request>(
     artifact: &CanonicalTerminalArtifact,
     request: &NativeAdmissionRequest<'request>,
 ) -> Result<AdmittedNativeRealization<'request>, Vec<Diagnostic>> {
-    let input =
-        VerifiedNativeArtifactInput::prepare(artifact, &[]).map_err(artifact_lowering_error)?;
+    let input = VerifiedNativeArtifactInput::prepare(
+        artifact,
+        request.providers.program_entry.source().target_slot().owner,
+        &[],
+    )
+    .map_err(artifact_lowering_error)?;
     let adapters = crate::provider_admission::project_selected_provider_adapters(
         request.providers.selected_provider_plans,
         input.plan(),

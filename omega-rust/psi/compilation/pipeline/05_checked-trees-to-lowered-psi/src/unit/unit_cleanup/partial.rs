@@ -41,7 +41,10 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         .semantic_module
         .machines
         .iter_mut()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .find(|machine| {
+            terminal_psi::TargetMachineCallable::Machine(machine.id)
+                == lowered.semantic_module.entry
+        })
         .ok_or(LoweringError::Unsupported(
             "partial affine Unit entry machine was not lowered",
         ))?;

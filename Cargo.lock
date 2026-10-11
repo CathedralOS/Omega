@@ -107,6 +107,7 @@ dependencies = [
  "function-identity",
  "semantic-vocabulary",
  "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -560,6 +561,7 @@ dependencies = [
  "source",
  "symbols",
  "target",
+ "terminal-installation",
  "terminal-psi",
 ]
 
@@ -748,6 +750,7 @@ dependencies = [
  "task-plans",
  "terminal-codec",
  "terminal-fuel",
+ "terminal-installation",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
@@ -998,6 +1001,7 @@ dependencies = [
  "numerics",
  "proof-admission",
  "semantic-vocabulary",
+ "source",
  "symbols",
  "terminal-codec",
  "terminal-psi",
@@ -2130,6 +2134,7 @@ dependencies = [
  "optimization",
  "psi-terminal-production",
  "source",
+ "target",
  "terminal-codec",
  "terminal-psi",
  "trust-model",
@@ -2224,6 +2229,8 @@ dependencies = [
  "semantic-vocabulary",
  "source",
  "symbols",
+ "target",
+ "terminal-installation",
  "terminal-psi",
  "typed-trees",
  "typed-trees-to-checked-trees",

@@ -2675,16 +2675,22 @@ crash and native exit behavior.
     both engines (`tools/corpus_gate.py --both
     --filter <fixture>`).
     Provider-default declaration operations must remain distinct from runtime
-    invocation dependencies. Publish target-default effects in
-    the source-free Build companion and prove distinct tagged realizations
-    consume one unchanged Terminal artifact.
+    invocation dependencies. Publish every target's defaults and entry backing
+    in the source-free Build companion; receivers must select the exact row
+    without checked source or another Build evaluation. Preserve
+    `targets/portable_family_entry_installations_exit` (four selected outcomes
+    from one unchanged Terminal artifact) and
+    `targets/selected_family_exclusion_closure_exit` through both engines;
+    selected traps and actual service invocations must still reject exclusions.
+    Distinct tagged native realizations and target-dependent provider rows
+    remain to be demonstrated from that same artifact and companion.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.
 
   Acceptance: keep `fail/targets/sibling_body_type_error_rejected` and
-  `pass/targets/target_machine_gating_exit` (70). Add a fixture whose target
-  bodies return distinct results, realized from one Terminal artifact, with
-  same-target sibling calls. Invalid unrealized bodies and duplicate family
+  `pass/targets/target_machine_gating_exit` (70). Preserve distinct results and
+  same-target sibling calls across installations of one Terminal artifact.
+  Invalid unrealized bodies and duplicate family
   members reject; a missing called body fails only the affected realization.
 
 - **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per

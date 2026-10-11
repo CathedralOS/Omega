@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Reference identity edges are independent of demanded storage shapes.
-        123
+        // The portable root names a callable, including a bodyless family head.
+        124
     }
 }

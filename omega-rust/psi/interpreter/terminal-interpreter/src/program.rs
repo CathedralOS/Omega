@@ -9,6 +9,9 @@
 //! catalogs, rather than copying a second runtime representation. Each execution
 //! may attach an admitted target-layout overlay; its small record replacement
 //! table borrows the same canonical catalog owner and preserves artifact identity.
+//! The portable root likewise remains canonical: every installed invocation
+//! resolves its exact retained executable through artifact-bound target selections,
+//! and descriptions, capability preflight, and entry custody use that same choice.
 //!
 //! Per the embedding contract (wiki/spec/build/embedding.md), a Program is
 //! immutable admitted Psi plus descriptions and execution metadata; instances
@@ -17,7 +20,7 @@
 //! filesystem, and creates no global runtime or thread — compilation remains
 //! the separate upstream authority that produced the bytes.
 
-use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError, malformed};
+use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError};
 mod declarations;
 pub(crate) use declarations::ProgramDeclarations;
 
@@ -44,6 +47,35 @@ pub(crate) struct AdmittedTerminalProgram<'artifact> {
 }
 
 impl AdmittedTerminalProgram<'_> {
+    /// Resolve this invocation's executable root without changing canonical
+    /// storage. Catalog selection identifies a retained body; it grants no
+    /// input backing, provider authority, or result issuance.
+    pub(crate) fn resolve_entry(
+        &self,
+        installation: Option<&crate::effects::TerminalRuntimeSupplies>,
+    ) -> Result<MachineId, TerminalInterpretError> {
+        if installation.is_some_and(|installation| installation.terminal_psi != self.identity) {
+            return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
+        }
+        let root = self.catalogs.entry;
+        let selected = installation.and_then(|installation| installation.target_machines.as_ref());
+        let machine = match selected {
+            Some(selected) => selected
+                .entry(self.identity, root)
+                .map_err(TerminalInterpretError::TargetMachineSelection)?,
+            None => match root {
+                terminal_psi::TargetMachineCallable::Machine(machine) => machine,
+                terminal_psi::TargetMachineCallable::Boundary(_) => {
+                    return Err(TerminalInterpretError::TargetMachineSelectionMissing(root));
+                }
+            },
+        };
+        self.machines()
+            .get(&machine)
+            .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
+        Ok(machine)
+    }
+
     fn validate_layout_selection(
         &self,
         installation: Option<&crate::effects::TerminalRuntimeSupplies>,
@@ -178,27 +210,60 @@ impl std::fmt::Debug for TerminalProgram<'_> {
 /// The exact admitted entry input/result contract. It grants no host backing,
 /// entry qualification, or effect authority; drivers must supply those inputs.
 pub struct TerminalProgramEntry<'program> {
+    /// The installed retained body, not the artifact's portable callable root.
+    pub machine: MachineId,
     pub scalar_parameters: &'program [terminal_psi::ValueDeclaration],
     pub structural_parameters: &'program [terminal_psi::StructuralParameterDeclaration],
-    pub placed_view_inputs: &'program [terminal_psi::TerminalPlacedViewInput],
+    placed_view_inputs: &'program [terminal_psi::TerminalPlacedViewInput],
     pub result: &'program terminal_psi::TerminalMachineResult,
 }
 
+impl TerminalProgramEntry<'_> {
+    /// Borrow only this exact executable entry's placed-view custody demands.
+    /// Other retained target bodies are not this invocation's input contract.
+    pub fn placed_view_inputs(
+        &self,
+    ) -> impl Iterator<Item = &terminal_psi::TerminalPlacedViewInput> {
+        self.placed_view_inputs
+            .iter()
+            .filter(move |row| row.machine == self.machine)
+    }
+}
+
 impl<'artifact> TerminalProgram<'artifact> {
-    /// Describe the exact admitted entry instead of reconstructing it from
-    /// source or provisioning values by a source-name convention.
     /// The retained canonical module every public view derives from.
     pub fn module(&self) -> &TerminalModule {
         &self.program.catalogs
     }
 
+    /// Describe an ordinary concrete root without an installation. A portable
+    /// family root remains uninstalled and cannot masquerade as one member.
     pub fn entry(&self) -> Result<TerminalProgramEntry<'_>, TerminalInterpretError> {
+        self.describe_entry(self.program.resolve_entry(None)?)
+    }
+
+    /// Describe the executable selected under this exact artifact's installation.
+    /// This is the same root resolution used by capability preflight and startup;
+    /// observing the contract supplies neither input custody nor host authority.
+    pub fn entry_installed(
+        &self,
+        installation: &crate::effects::TerminalRuntimeSupplies,
+    ) -> Result<TerminalProgramEntry<'_>, TerminalInterpretError> {
+        self.program.validate_layout_selection(Some(installation))?;
+        self.describe_entry(self.program.resolve_entry(Some(installation))?)
+    }
+
+    fn describe_entry(
+        &self,
+        entry: MachineId,
+    ) -> Result<TerminalProgramEntry<'_>, TerminalInterpretError> {
         let machine = self
             .program
             .machines()
-            .get(&self.program.catalogs.entry)
-            .ok_or_else(malformed)?;
+            .get(&entry)
+            .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
         Ok(TerminalProgramEntry {
+            machine: entry,
             scalar_parameters: &machine.parameters,
             structural_parameters: &machine.structural_parameters,
             placed_view_inputs: &self.program.catalogs.placed_view_inputs,

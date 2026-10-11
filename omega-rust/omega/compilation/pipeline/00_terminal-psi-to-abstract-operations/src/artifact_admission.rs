@@ -37,9 +37,14 @@ pub fn lower_artifact(
     lower_decoded_artifact(&module)
 }
 
-/// Validate and lower one decoded canonical module.
+/// Lower an ordinary concrete-root module without target installation.
+/// A portable family root needs target-aware native preparation; no absent
+/// executable entry is installed as a substitute for that selection.
 pub(crate) fn lower_decoded_artifact(
     module: &terminal_psi::TerminalModule,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    native::lower_decoded_native_module(module)
+    let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry else {
+        return Err(ArtifactLoweringError::TargetSelectionRequired);
+    };
+    native::lower_decoded_native_module(module, entry, None)
 }

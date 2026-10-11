@@ -34,13 +34,29 @@ pub fn prepare_program_entry_receipt(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
     source_signature_identity: [u8; 32],
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     optimized_lowered: &LoweredPsi,
 ) -> Result<CheckedProgramEntryTerminalReceipt, ProgramEntryTerminalReceiptError> {
+    // The receipt names one exact source member, while the immutable module
+    // can be rooted at its independent portable family contract. Declaration
+    // identity, not roster position or display spelling, rejoins that member.
+    let declaration_identity = checked
+        .exact_owner_nominal_identity(selection.machine, exact_toolchain_sources)
+        .and_then(|identity| checked.type_identity_text(identity))
+        .ok_or(ProgramEntryTerminalReceiptError::MissingEntryDeclaration)?;
     let entry_matches = optimized_lowered
         .semantic_module
         .machines
         .iter()
-        .filter(|machine| machine.id == optimized_lowered.semantic_module.entry)
+        .filter(|machine| {
+            machine.declaration.as_ref().is_some_and(|declaration| {
+                optimized_lowered
+                    .semantic_module
+                    .identities
+                    .text(declaration.machine.identity())
+                    == Some(declaration_identity.as_str())
+            })
+        })
         .collect::<Vec<_>>();
     let [entry] = entry_matches.as_slice() else {
         return Err(ProgramEntryTerminalReceiptError::TerminalEntryMultiplicity(
@@ -56,14 +72,18 @@ pub fn prepare_program_entry_receipt(
         .ok_or(ProgramEntryTerminalReceiptError::MissingEntryDeclaration)?;
     let identity = terminal_psi_identity(&optimized_lowered.semantic_module)
         .map_err(ProgramEntryTerminalReceiptError::TerminalIdentity)?;
-    let receiver_eligibility =
-        receiver_eligibility::derive(checked, selection, &optimized_lowered.semantic_module);
+    let receiver_eligibility = receiver_eligibility::derive(
+        checked,
+        selection,
+        entry.id,
+        &optimized_lowered.semantic_module,
+    );
     Ok(CheckedProgramEntryTerminalReceipt::new(
         source_signature_identity,
         selection.name.clone(),
         declaration.machine.clone(),
         identity,
-        optimized_lowered.semantic_module.entry,
+        entry.id,
         receiver_eligibility,
     ))
 }

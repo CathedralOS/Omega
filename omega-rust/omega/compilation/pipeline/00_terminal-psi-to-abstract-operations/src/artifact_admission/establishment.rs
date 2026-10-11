@@ -47,8 +47,9 @@ fn referent_overlaps(
 /// Join each direct-entry placed-view roster row to one supplied provider
 /// establishment and return the bound set in roster order.
 ///
-/// Only rows on the module's entry machine are entry inputs; a row on any
-/// other machine declares a call-bound input whose custody arrives through
+/// Only rows on the installed entry machine are entry inputs; unrealized
+/// siblings of its portable family remain declarations, not host inputs.
+/// A row on any other machine declares a call-bound input whose custody arrives through
 /// its caller, a route the executable input boundary does not carry — such
 /// modules keep failing closed beside the establishment-less entrance. The
 /// interpreter additionally checks each exclusive referent against the
@@ -56,13 +57,23 @@ fn referent_overlaps(
 /// channel, so establishments are the only live carriers to check.
 pub(super) fn establish_native_placed_view_inputs(
     module: &TerminalModule,
+    entry: semantic_vocabulary::MachineId,
     establishments: &[TerminalPlacedViewEstablishment],
 ) -> Result<Vec<TerminalPlacedViewEstablishment>, ArtifactLoweringError> {
-    if module
-        .placed_view_inputs
-        .iter()
-        .any(|row| row.machine != module.entry)
-    {
+    let root_family = module.target_machine_families.iter().find(|family| {
+        matches!(
+            module.entry,
+            terminal_psi::TargetMachineCallable::Boundary(_)
+        ) && family.canonical == module.entry
+    });
+    if module.placed_view_inputs.iter().any(|row| {
+        row.machine != entry
+            && !root_family.is_some_and(|family| {
+                family.members.iter().any(|member| {
+                    member.callable == terminal_psi::TargetMachineCallable::Machine(row.machine)
+                })
+            })
+    }) {
         // A subordinate input is bound by its call, not by the executable's
         // host: this input boundary cannot carry it and there is nothing to
         // answer it with yet.
@@ -71,7 +82,7 @@ pub(super) fn establish_native_placed_view_inputs(
     let entry_rows = module
         .placed_view_inputs
         .iter()
-        .filter(|row| row.machine == module.entry)
+        .filter(|row| row.machine == entry)
         .collect::<Vec<_>>();
     // Every supply must answer one declared entry row exactly; custody the
     // artifact never demanded cannot be bound at its input boundary.

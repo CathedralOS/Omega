@@ -36,6 +36,44 @@ impl FragmentReplay {
     pub(crate) fn terminal_module(&self) -> &terminal_psi::TerminalModule {
         self.0.verified_input().context().module()
     }
+
+    pub(crate) fn target_machine_selections(
+        &self,
+    ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
+        self.0.verified_input().target_machine_selections()
+    }
+
+    /// Join the retained executable input and its admitted deployment to the
+    /// immutable portable root. Absence describes a targetless input, not a
+    /// missing member to substitute; the object owner permits only exact
+    /// ordinary roots in that case.
+    pub(crate) fn selected_terminal_entry(
+        &self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        entry: semantic_vocabulary::MachineId,
+        native_target: target::NativeTarget,
+    ) -> Result<Option<semantic_vocabulary::MachineId>, &'static str> {
+        let identity = artifact.view().identity();
+        let input = self.0.verified_input();
+        if input.plan().psi != identity
+            || input.context().module() != artifact.semantic_module()
+            || input.plan().entry != entry
+        {
+            return Err("native object entry differs from its admitted executable input");
+        }
+        let Some(selections) = input.target_machine_selections() else {
+            return Ok(None);
+        };
+        let profile = target::TargetProfile::from_canonical_target_name(selections.target())
+            .map_err(|_| "native object entry has an unknown admitted deployment tag")?;
+        if profile.native_realization() != Some(native_target) {
+            return Err("native object target differs from its admitted deployment profile");
+        }
+        selections
+            .entry(identity, artifact.semantic_module().entry)
+            .map(Some)
+            .map_err(|_| "native object entry has no executable member at its admitted deployment")
+    }
 }
 
 // Object value equality does not admit evidence. Publication always reconstructs

@@ -52,7 +52,14 @@ pub fn validate_native_program_entry_settlement(
     {
         return Err(NativeProgramEntrySettlementError::TerminalPsiSubstitution);
     }
-    if module.entry != checked_entry.terminal_entry() {
+    let selections = terminal_installation::admit_target_machine_selections(
+        artifact.view(),
+        slot.owner.target_name(),
+    );
+    let entry = selections
+        .entry(artifact.view().identity(), module.entry)
+        .map_err(|error| NativeProgramEntrySettlementError::TargetFamily(error.to_string()))?;
+    if entry != checked_entry.terminal_entry() {
         return Err(NativeProgramEntrySettlementError::TerminalEntrySubstitution);
     }
     let entry_count = module
@@ -73,6 +80,7 @@ pub fn validate_native_program_entry_settlement(
     validate_receiver_eligibility(module, checked_entry, program_entry)?;
     service_establishment::validate_terminal_rows(
         module,
+        entry,
         program_entry,
         checked_entry.receiver_eligibility(),
     )?;
@@ -127,7 +135,7 @@ fn validate_receiver_eligibility(
             return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
         }
         let entry = module
-            .machine(module.entry)
+            .machine(checked_entry.terminal_entry())
             .ok_or(NativeProgramEntrySettlementError::ReceiverEligibilityDrift)?;
         let mut declarations = module
             .structural_types

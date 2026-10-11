@@ -128,13 +128,13 @@ pub(crate) fn lower_proposition_vocabulary(
             continue;
         };
         let mut binder_arguments = Vec::new();
-        let mut belongs_to_selected_machine = true;
+        let mut belongs_to_emitted_bodies = true;
         for argument in &application.binder_arguments {
             let evidence_projection = if let Some(projection) = &argument.evidence_projection {
                 let index = usize::try_from(projection.term.arena_index() - 1)
                     .expect("arena indices fit the host address space");
                 let Some(term) = term_ids.get(index).copied().flatten() else {
-                    belongs_to_selected_machine = false;
+                    belongs_to_emitted_bodies = false;
                     break;
                 };
                 Some(evidence_projection_identity(
@@ -149,7 +149,7 @@ pub(crate) fn lower_proposition_vocabulary(
                 evidence_projection,
             });
         }
-        if !belongs_to_selected_machine {
+        if !belongs_to_emitted_bodies {
             continue;
         }
         applications.push(PropositionApplicationIdentity {
@@ -199,21 +199,29 @@ pub(crate) struct LoweredEvidenceTermIds {
 
 pub(crate) fn lower_evidence_term_ids(
     checked: &CheckedTrees,
-    selected_machine: symbols::SymbolHandle,
+    source_machine_ids: &[(symbols::SymbolHandle, MachineId)],
 ) -> Result<LoweredEvidenceTermIds, LoweringError> {
     let mut parents = (0..checked.facts.proof.evidence_terms.len()).collect::<Vec<_>>();
-    let guarded_terms = selected_guarded_evidence_terms(checked, selected_machine);
+    let guarded_terms = source_machine_ids
+        .iter()
+        .flat_map(|(machine, _)| selected_guarded_evidence_terms(checked, *machine))
+        .collect::<BTreeSet<_>>();
+    let body_position = |machine| {
+        source_machine_ids
+            .iter()
+            .position(|(source, _)| *source == machine)
+    };
     let invocations = checked
         .facts
         .proof
         .proof_output_calls
         .iter()
         .filter_map(|(_, invocation)| {
-            (invocation.caller_machine_symbol == selected_machine).then_some(invocation)
+            body_position(invocation.caller_machine_symbol).map(|_| invocation)
         })
         .collect::<Vec<_>>();
     for (_, forwarding) in checked.facts.proof.evidence_forwardings.iter() {
-        if forwarding.machine_symbol != selected_machine {
+        if body_position(forwarding.machine_symbol).is_none() {
             continue;
         }
         if let checked_trees::EvidenceAssignmentSource::Forwarded { term: source } =
@@ -245,29 +253,32 @@ pub(crate) fn lower_evidence_term_ids(
         }
     }
 
-    let mut roots = BTreeMap::<usize, (u8, usize)>::new();
+    let mut roots = BTreeMap::<usize, (usize, u8, usize)>::new();
     for (handle, term) in checked.facts.proof.evidence_terms.iter() {
-        if term.owner
-            != (checked_trees::ContractProofFactOwner::Machine {
-                machine_symbol: selected_machine,
-            })
-        {
+        let checked_trees::ContractProofFactOwner::Machine { machine_symbol } = term.owner else {
             continue;
-        }
+        };
+        let Some(machine_position) = body_position(machine_symbol) else {
+            continue;
+        };
         let index = usize::try_from(handle.arena_index() - 1)
             .expect("arena indices fit the host address space");
         let root = evidence_term_root(&mut parents, index);
         let lane_key = match term.kind {
-            checked_trees::ContractProofFactKind::Requires => (0_u8, term.lane_position),
+            checked_trees::ContractProofFactKind::Requires => {
+                (machine_position, 0_u8, term.lane_position)
+            }
             checked_trees::ContractProofFactKind::Ensures
                 if guarded_terms.contains(
                     &usize::try_from(handle.arena_index() - 1)
                         .expect("arena indices fit the host address space"),
                 ) =>
             {
-                (2_u8, term.lane_position)
+                (machine_position, 2_u8, term.lane_position)
             }
-            checked_trees::ContractProofFactKind::Ensures => (1_u8, term.lane_position),
+            checked_trees::ContractProofFactKind::Ensures => {
+                (machine_position, 1_u8, term.lane_position)
+            }
         };
         roots
             .entry(root)
@@ -276,13 +287,15 @@ pub(crate) fn lower_evidence_term_ids(
     }
     let mut package_identity_position = 0_usize;
     for invocation in invocations {
+        let machine_position = body_position(invocation.caller_machine_symbol)
+            .expect("retained proof-output caller belongs to an emitted body");
         for argument in &invocation.evidence_arguments {
             let index = usize::try_from(argument.source.arena_index() - 1)
                 .expect("arena indices fit the host address space");
             let root = evidence_term_root(&mut parents, index);
             roots
                 .entry(root)
-                .or_insert((3_u8, package_identity_position));
+                .or_insert((machine_position, 3_u8, package_identity_position));
             package_identity_position = package_identity_position
                 .checked_add(1)
                 .expect("proof-output identity order fits usize");
@@ -301,7 +314,7 @@ pub(crate) fn lower_evidence_term_ids(
                 let root = evidence_term_root(&mut parents, index);
                 roots
                     .entry(root)
-                    .or_insert((3_u8, package_identity_position));
+                    .or_insert((machine_position, 3_u8, package_identity_position));
                 package_identity_position = package_identity_position
                     .checked_add(1)
                     .expect("proof-output identity order fits usize");
@@ -340,7 +353,6 @@ pub(crate) fn lower_evidence_term_ids(
 pub(crate) fn lower_evidence_terms(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    _selected_machine: symbols::SymbolHandle,
     declaration_ids: &[(symbols::SymbolHandle, PropositionId)],
     applications: &[PropositionApplicationIdentity],
     term_ids: Vec<Option<EvidenceTermId>>,

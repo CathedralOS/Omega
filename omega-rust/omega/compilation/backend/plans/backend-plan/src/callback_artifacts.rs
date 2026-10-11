@@ -16,7 +16,10 @@ impl TerminalCallbackThunkArtifact {
     pub fn new(artifact: terminal_codec::CanonicalTerminalArtifact) -> Result<Self, &'static str> {
         let module = artifact.semantic_module();
         // Callees may be present too; the artifact's entry is the callback.
-        let Some(machine) = module.machine(module.entry) else {
+        let Some(machine) = (match module.entry {
+            terminal_psi::TargetMachineCallable::Machine(entry) => module.machine(entry),
+            terminal_psi::TargetMachineCallable::Boundary(_) => None,
+        }) else {
             return Err("Terminal callback thunk artifact does not contain its entry machine");
         };
         if machine.declaration.is_none() {
@@ -130,10 +133,12 @@ pub fn validate_callback_thunk_joins(
             .map(|ordinal| &module.callback_applications[ordinal])
             .ok_or("callback thunk has no portable application")?;
         let body = thunk.artifact().semantic_module();
-        let declaration = body
-            .machine(body.entry)
-            .and_then(|machine| machine.declaration.as_ref())
-            .ok_or("callback thunk has no entry declaration")?;
+        let declaration = match body.entry {
+            terminal_psi::TargetMachineCallable::Machine(entry) => body.machine(entry),
+            terminal_psi::TargetMachineCallable::Boundary(_) => None,
+        }
+        .and_then(|machine| machine.declaration.as_ref())
+        .ok_or("callback thunk has no entry declaration")?;
         let expected_function = function_identity::MachineFunctionIdentity::callback_thunk(
             caller.identity(),
             occurrence.placement_index(),

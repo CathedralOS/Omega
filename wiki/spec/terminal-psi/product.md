@@ -29,6 +29,14 @@ or obligations has a closed static identity. Author-declared hardware geometry
 remains semantic; target-selected layout, ABI classes, registers, storage regions,
 and instructions are later realization facts.
 
+The portable root names either one concrete machine or an independent
+target-family contract. A family contract has no executable body: the receiving
+installation resolves its exact tagged member from the retained catalog before
+creating execution state or a native plan. The root, every member, and the
+canonical semantic identity remain unchanged across installations. Selection
+establishes catalog membership only; entry backing, provider authority and
+checked source-entry correspondence remain separate admission obligations.
+
 Selected boundary-operator applications belong to these portable semantics.
 Each demand names its Terminal operation, exact-owner requirement identity,
 overload coordinate and declaration-ordered closed type/constant arguments.

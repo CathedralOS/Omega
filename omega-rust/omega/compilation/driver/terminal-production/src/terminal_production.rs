@@ -44,6 +44,7 @@ impl<'a> TerminalProductionRequest<'a> {
     ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
         let TerminalProductionCustody {
             entry_identity,
+            entry_machine,
             behavior_exclusions,
             timings,
         } = custody;
@@ -56,6 +57,7 @@ impl<'a> TerminalProductionRequest<'a> {
         .produce(
             psi_terminal_production::TerminalProductionCustody {
                 entry_identity,
+                entry_machine,
                 admission: behavior_exclusions.as_ref().map(|policy| {
                     policy as &dyn psi_terminal_production::TerminalCompositionAdmission
                 }),

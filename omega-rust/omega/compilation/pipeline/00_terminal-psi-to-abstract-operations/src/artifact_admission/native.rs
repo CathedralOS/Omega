@@ -19,15 +19,25 @@ pub struct VerifiedNativeArtifactInput {
 }
 
 impl VerifiedNativeArtifactInput {
-    /// Replay the complete canonical artifact, admit its sealed proof, lower
-    /// its abstract plan, and bind the supplied direct-entry placed-view loans.
-    /// Both cached preparation and direct realization use this same operation.
+    /// Resolve the portable entry for this exact deployment, lower its
+    /// executable projection, and bind supplied direct-entry placed-view loans.
+    /// Canonical semantics remain unchanged and no executable plan exists with
+    /// an unresolved entry. Selection supplies no provider or backing authority.
     pub fn prepare(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
+        profile: target::TargetProfile,
         establishments: &[TerminalPlacedViewEstablishment],
     ) -> Result<Self, ArtifactLoweringError> {
         let module = artifact.semantic_module();
-        super::lower_decoded_artifact(module)?.try_into_native_input(establishments)
+        let selections = terminal_installation::admit_target_machine_selections(
+            artifact.view(),
+            profile.target_name(),
+        );
+        let entry = selections
+            .entry(artifact.view().identity(), module.entry)
+            .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
+        lower_decoded_native_module(module, entry, Some(selections))?
+            .try_into_native_input(establishments)
     }
 
     pub fn plan(&self) -> &AbstractOperationPlan {
@@ -53,6 +63,14 @@ impl VerifiedNativeArtifactInput {
             artifact.view(),
             profile.target_name(),
         );
+        let entry = selections
+            .entry(artifact.view().identity(), artifact.semantic_module().entry)
+            .map_err(|error| crate::NativeExecutionScopeError::TargetFamily(error.to_string()))?;
+        if entry != input.plan().entry {
+            return Err(crate::NativeExecutionScopeError::TargetFamily(
+                "native entry preparation and deployment selection disagree".to_owned(),
+            ));
+        }
         let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
             .map_err(|error| crate::NativeExecutionScopeError::TargetLayout(error.to_string()))?;
         if !layouts.resolved_records().is_empty() {
@@ -249,6 +267,7 @@ impl AdmittedNativeArtifact {
     ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
         let placed_view_establishments = super::establishment::establish_native_placed_view_inputs(
             self.context().module(),
+            self.plan().entry,
             establishments,
         )?;
         Ok(VerifiedNativeArtifactInput {
@@ -260,14 +279,16 @@ impl AdmittedNativeArtifact {
 
 pub(super) fn lower_decoded_native_module(
     module: &terminal_psi::TerminalModule,
+    entry: semantic_vocabulary::MachineId,
+    selections: Option<terminal_installation::AdmittedTargetMachineSelections>,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    let plan = lower_decoded_module(module).map_err(ArtifactLoweringError::Lowering)?;
+    let plan = lower_decoded_module(module, entry).map_err(ArtifactLoweringError::Lowering)?;
     let context = retain_optimization_context(module);
     Ok(AdmittedNativeArtifact {
         optimization_input: VerifiedPsiOptimizationInput {
             plan,
             context,
-            target_machine_selections: None,
+            target_machine_selections: selections,
             target_layout_selections: None,
             target_family_realizations: Vec::new(),
         },

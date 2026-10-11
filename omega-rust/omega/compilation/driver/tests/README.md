@@ -52,6 +52,30 @@ publication. A same-target native refusal records unchecked without running Buil
 again. The check golden's canonical target and a different runtime target are
 distinct program inputs and each owns one production.
 
+An optional `expected_terminal_targets.txt` requests exact target installations
+against one retained Terminal artifact. Each nonempty line contains one unique
+target tag followed by a decimal i32 exit or `trap`, for example:
+
+```text
+macos_arm64 0
+windows_x86_64 trap
+```
+
+The check leg produces one Terminal semantic artifact; the native leg borrows
+its already-retained artifact before publication. Each row calls the public
+Terminal runtime without recompilation, providers, a receiver, input, a clock,
+or domain-exit delegation. A fixture requiring those provisions refuses rather
+than receiving fabricated authority. The runner records `terminal-target.<tag>`,
+checks unchanged semantic bytes, identity and canonical module storage after each
+installation, and records `terminal-targets:match` only when every row agrees.
+Malformed oracles and checked/built rows with missing or mismatched observations
+cannot be blessed by `--record`.
+
+`pass/targets/portable_family_entry_installations_exit` pins portable family-root
+installation: Windows traps while the other authored targets return Unit. This
+is not acceptance of the complete Build companion or a grant of backing authority
+from family catalog membership.
+
 `--checked-interpreter` explicitly selects the checked-tree source oracle instead
 of Terminal. It uses the same reviewed fixture inputs, selected entry and
 provisioned receiver, but owns its independent checked compilation rather than

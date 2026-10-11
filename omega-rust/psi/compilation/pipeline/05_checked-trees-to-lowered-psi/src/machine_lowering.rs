@@ -217,22 +217,24 @@ fn lower_terminal_selection(
         &lowered.source_call_occurrences,
         &mut lowered.semantic_module,
     )?;
-    retain_selected_placed_view_inputs(
-        identities,
-        checked,
-        selection.machine,
-        lowered.semantic_module.entry,
-        &mut lowered.semantic_module,
-    )?;
-    reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
-        identities,
-        checked,
-        selection.machine,
-        lowered.semantic_module.entry,
-        &lowered.source_call_occurrences,
-        &lowered.semantic_module.machines,
-        &mut lowered.semantic_module.reborrow_restored_call_uses,
-    )?;
+    for (source_machine, terminal_machine) in &source_machine_ids {
+        retain_selected_placed_view_inputs(
+            identities,
+            checked,
+            *source_machine,
+            *terminal_machine,
+            &mut lowered.semantic_module,
+        )?;
+        reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
+            identities,
+            checked,
+            *source_machine,
+            *terminal_machine,
+            &lowered.source_call_occurrences,
+            &lowered.semantic_module.machines,
+            &mut lowered.semantic_module.reborrow_restored_call_uses,
+        )?;
+    }
     suspension_call_plan::retain_suspension_call_plans(
         identities,
         checked,
@@ -279,7 +281,7 @@ fn lower_terminal_selection(
         &mut lowered.semantic_module,
     )?;
     retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
-    lower_and_install_evidence_artifacts(identities, checked, selection.machine, &mut lowered)?;
+    lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)?;
     // Proof-only quotient correspondence rows join module identity before
     // validation; a nonempty table is then refused by the execution gate below
     // until executable quotient lowering exists.

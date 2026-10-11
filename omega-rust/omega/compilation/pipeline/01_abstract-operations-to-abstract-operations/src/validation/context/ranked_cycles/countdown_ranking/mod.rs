@@ -34,7 +34,7 @@ pub(super) fn rederive_exact_certificates(
         let machine = components
             .components
             .first()
-            .map_or(module.entry, |component| component.id.machine);
+            .map_or(unit.entry, |component| component.id.machine);
         return Err(
             OptimizationUnitValidationError::RankedCycleRankingEvidenceMismatch { machine },
         );

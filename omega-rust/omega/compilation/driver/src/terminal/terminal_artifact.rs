@@ -77,7 +77,34 @@ pub(crate) fn produce_retained_terminal_artifact(
 ) -> Result<ProducedRetainedTerminal, Vec<Diagnostic>> {
     let selected_program_entry = checked.admit_terminal_production()?;
     let entry_machine_symbol = selected_program_entry.machine_symbol();
+    // Only an independent contract head is a portable root. A legacy
+    // member-backed catalog's canonical body is not an alias for whichever
+    // concrete entry the Build selected.
+    let portable_entry_symbol = checked
+        .execution()
+        .program
+        .typed
+        .target_machine_families
+        .iter()
+        .find(|family| {
+            (family.canonical == entry_machine_symbol
+                || family
+                    .members
+                    .iter()
+                    .any(|member| member.machine == entry_machine_symbol))
+                && checked
+                    .execution()
+                    .program
+                    .typed
+                    .machine_by_symbol(family.canonical)
+                    .is_some_and(|machine| machine.target_family_interface)
+        })
+        .map_or(entry_machine_symbol, |family| family.canonical);
     let source_signature_identity = selected_program_entry.source_signature().identity().bytes();
+    let entry_target_profile = selected_program_entry
+        .source_signature()
+        .target_slot()
+        .owner;
     // The accumulator steps out of the checked record across the measured
     // legs below so each closure may borrow the record while it is timed; it
     // rejoins the record once the product is produced and admitted.
@@ -99,14 +126,18 @@ pub(crate) fn produce_retained_terminal_artifact(
     let produced = terminal_production::TerminalProductionRequest {
         checked: &checked.execution().program,
         exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
-        machine: terminal_production::TerminalMachineSelection::Symbol(entry_machine_symbol),
+        machine: terminal_production::TerminalMachineSelection::Symbol(portable_entry_symbol),
         optimization_selections: psi_optimizations.selections().clone(),
     }
     .produce(TerminalProductionCustody {
         entry_identity: Some(source_signature_identity),
+        entry_machine: Some(terminal_production::TerminalMachineSelection::Symbol(
+            entry_machine_symbol,
+        )),
         behavior_exclusions: terminal_production::TerminalBehaviorExclusions::new(
             checked.build().config.behavior_exclusions.as_slice(),
             &checked.execution().selected_provider_plan_facts,
+            entry_target_profile,
         ),
         timings: &mut stage_timings,
     });

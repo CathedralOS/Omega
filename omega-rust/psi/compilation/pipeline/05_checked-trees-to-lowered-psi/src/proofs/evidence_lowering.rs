@@ -24,70 +24,90 @@ use crate::proofs::evidence_lowering::proof_output_calls::lower_proof_output_cal
 pub(crate) fn lower_and_install_evidence_artifacts(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
+    source_machine_ids: &[(symbols::SymbolHandle, semantic_vocabulary::MachineId)],
     lowered: &mut LoweredPsi,
 ) -> Result<(), LoweringError> {
-    let evidence_term_ids = lower_evidence_term_ids(checked, machine)?;
+    for (position, (source, terminal)) in source_machine_ids.iter().enumerate() {
+        if source_machine_ids[..position]
+            .iter()
+            .any(|(previous_source, previous_terminal)| {
+                previous_source == source || previous_terminal == terminal
+            })
+        {
+            return unsupported("evidence body mapping repeats a source or terminal machine");
+        }
+        if lowered.semantic_module.machine(*terminal).is_none() {
+            return unsupported("evidence body mapping names an absent terminal machine");
+        }
+    }
+    // Checked handles, including forwarded aliases, share one namespace across
+    // the emitted bodies. Per-body allocation would collide or lose vocabulary.
+    let evidence_term_ids = lower_evidence_term_ids(checked, source_machine_ids)?;
     let (declarations, applications, declaration_ids) =
         lower_proposition_vocabulary(identities, checked, &evidence_term_ids.term_ids)?;
     let evidence_terms = lower_evidence_terms(
         identities,
         checked,
-        machine,
         &declaration_ids,
         &applications,
         evidence_term_ids.term_ids,
     )?;
-    let outcome_specific_ensures = outcome_specific_ensure_rows(
-        identities,
-        checked,
-        machine,
-        lowered.semantic_module.entry,
-        &lowered.semantic_module,
-        &evidence_terms.term_ids,
-        &evidence_terms.declarations,
-    )?;
-    let evidence_contract_lanes = lower_evidence_contract_lanes(
-        checked,
-        machine,
-        lowered.semantic_module.entry,
-        &evidence_terms.term_ids,
-    )?;
-    let proof_output_calls = lower_proof_output_calls(
-        identities,
-        checked,
-        machine,
-        lowered.semantic_module.entry,
-        &lowered.semantic_module,
-        &lowered.source_call_occurrences,
-        &evidence_terms.term_ids,
-        &declarations,
-        &applications,
-    )?;
-    lower_outcome_specific_call_evidence(
-        identities,
-        checked,
-        machine,
-        lowered,
-        &evidence_terms.term_ids,
-        &declarations,
-        &applications,
-        &evidence_terms.declarations,
-    )?;
+    let mut evidence_contract_lanes = Vec::new();
+    let mut proof_output_calls = Vec::new();
+    for &(machine, terminal_machine) in source_machine_ids {
+        let outcome_specific_ensures = outcome_specific_ensure_rows(
+            identities,
+            checked,
+            machine,
+            terminal_machine,
+            &lowered.semantic_module,
+            &evidence_terms.term_ids,
+            &evidence_terms.declarations,
+        )?;
+        evidence_contract_lanes.extend(lower_evidence_contract_lanes(
+            checked,
+            machine,
+            terminal_machine,
+            &evidence_terms.term_ids,
+        )?);
+        proof_output_calls.extend(lower_proof_output_calls(
+            identities,
+            checked,
+            machine,
+            terminal_machine,
+            &lowered.semantic_module,
+            &lowered.source_call_occurrences,
+            &evidence_terms.term_ids,
+            &declarations,
+            &applications,
+        )?);
+        lower_outcome_specific_call_evidence(
+            identities,
+            checked,
+            machine,
+            lowered,
+            &evidence_terms.term_ids,
+            &declarations,
+            &applications,
+            &evidence_terms.declarations,
+        )?;
+        let body = lowered
+            .semantic_module
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == terminal_machine)
+            .ok_or(LoweringError::Unsupported(
+                "terminal body is absent while installing guarded guarantees",
+            ))?;
+        body.contract.outcome_specific_ensures = outcome_specific_ensures;
+    }
+    evidence_contract_lanes.sort_unstable();
+    proof_output_calls.sort_unstable();
     lowered.semantic_module.proposition_declarations = declarations;
     lowered.semantic_module.proposition_applications = applications;
     lowered.semantic_module.evidence_terms = evidence_terms.declarations;
     lowered.semantic_module.evidence_contract_lanes = evidence_contract_lanes;
     lowered.semantic_module.proof_output_calls = proof_output_calls;
-    let entry = lowered
-        .semantic_module
-        .machines
-        .iter_mut()
-        .find(|candidate| candidate.id == lowered.semantic_module.entry)
-        .ok_or(LoweringError::Unsupported(
-            "selected terminal machine is absent while installing guarded guarantees",
-        ))?;
-    entry.contract.outcome_specific_ensures = outcome_specific_ensures;
     Ok(())
 }
 

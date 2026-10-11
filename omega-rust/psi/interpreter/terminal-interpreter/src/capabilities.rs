@@ -59,24 +59,25 @@ pub(crate) fn check(
     program: &AdmittedTerminalProgram,
     installation: Option<&TerminalRuntimeSupplies>,
 ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
-    if installation.is_some_and(|installation| installation.terminal_psi != program.identity) {
-        return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
-    }
-    if installation
-        .and_then(|installation| installation.target_machines.as_ref())
-        .is_some_and(|selected| selected.terminal_psi() != program.identity)
-    {
-        return Err(TerminalInterpretError::TargetMachineSelectionIdentityMismatch);
-    }
+    let entry = program.resolve_entry(installation)?;
     let mut imports = BTreeSet::new();
     let mut missing_providers = BTreeSet::new();
     let mut external_completion = None;
     let mut external_demands = BTreeSet::new();
-    let mut pending = vec![program.catalogs.entry];
+    let mut pending = vec![entry];
     let mut visited = BTreeSet::new();
     while let Some(machine_id) = pending.pop() {
         if !visited.insert(machine_id) {
             continue;
+        }
+        if machine_id != entry
+            && program
+                .catalogs
+                .placed_view_inputs
+                .iter()
+                .any(|row| row.machine == machine_id)
+        {
+            return Err(TerminalInterpretError::PlacedViewInputsRequireCustody);
         }
         let machine = program.verified_machine(machine_id)?;
         let mut blocks = vec![machine.entry];
@@ -668,7 +669,7 @@ mod tests {
             .to_mut()
             .dynamic_dispatch
             .tables[0]
-            .rows[0] = Some(program.catalogs.entry);
+            .rows[0] = Some(program.resolve_entry(None).unwrap());
         let boundary = install_process_exit_caller(&mut program, 2);
         assert_eq!(
             check(&program, None),

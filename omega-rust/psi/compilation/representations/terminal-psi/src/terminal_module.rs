@@ -127,7 +127,10 @@ pub struct TerminalModule {
     /// `*identity` fields hold `TerminalIdentityIndex` handles into this
     /// table; the codec writes it once and decoding checks its entries once.
     pub identities: TerminalIdentityTable,
-    pub entry: MachineId,
+    /// Portable callable root. A target-family head is a contract, not an
+    /// executable representative: installation selects its exact tagged body
+    /// without changing this root or the canonical artifact.
+    pub entry: TargetMachineCallable,
     /// Canonical scalar membership vocabulary and explicit successor-edge coercions.
     pub scalar_qualifications: ScalarQualificationCatalog,
     /// Concrete target-neutral instantiated type shapes, ordered by `id`.
@@ -284,7 +287,7 @@ impl TerminalModule {
     pub fn for_entry(entry: MachineId) -> Self {
         Self {
             vocabulary_marker: VocabularyMarker::CURRENT,
-            entry,
+            entry: TargetMachineCallable::Machine(entry),
             identities: Default::default(),
             scalar_qualifications: Default::default(),
             structural_types: Vec::new(),

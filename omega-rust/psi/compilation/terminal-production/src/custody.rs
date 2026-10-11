@@ -50,5 +50,8 @@ impl ProducedTerminalArtifact {
 #[derive(Clone, Copy, Default)]
 pub struct TerminalProductionCustody<'a> {
     pub entry_identity: Option<[u8; 32]>,
+    /// Exact checked source member whose signature the companion retains.
+    /// This does not select or rewrite the portable semantic root.
+    pub entry_machine: Option<crate::TerminalMachineSelection<'a>>,
     pub admission: Option<&'a dyn crate::TerminalCompositionAdmission>,
 }

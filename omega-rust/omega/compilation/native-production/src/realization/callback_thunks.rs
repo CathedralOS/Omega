@@ -44,21 +44,30 @@ fn lower_callback_thunk(
     settlement: &NativeCallbackThunkSettlement<'_>,
 ) -> Result<CompilerPrivateMachineCodeFunction, Vec<Diagnostic>> {
     let artifact = settlement.artifact;
-    let input =
-        terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(artifact, &[])
-            .map_err(artifact_lowering_error)?
-            .select_target_execution(
-                artifact,
-                request
-                    .admission
-                    .providers
-                    .program_entry
-                    .source()
-                    .target_slot()
-                    .owner,
-                &[],
-            )
-            .map_err(|error| realization_error("callback thunk execution scope", error))?;
+    let input = terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
+        artifact,
+        request
+            .admission
+            .providers
+            .program_entry
+            .source()
+            .target_slot()
+            .owner,
+        &[],
+    )
+    .map_err(artifact_lowering_error)?
+    .select_target_execution(
+        artifact,
+        request
+            .admission
+            .providers
+            .program_entry
+            .source()
+            .target_slot()
+            .owner,
+        &[],
+    )
+    .map_err(|error| realization_error("callback thunk execution scope", error))?;
     let selections = request.optimization_selections.selections();
     let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
         input.into_optimization_input(),

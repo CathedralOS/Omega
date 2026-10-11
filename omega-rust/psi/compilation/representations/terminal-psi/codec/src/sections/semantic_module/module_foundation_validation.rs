@@ -204,6 +204,22 @@ fn validate_callback_registrars(module: &TerminalModule) -> Result<(), CodecErro
 fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
     use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
 
+    match module.entry {
+        TargetMachineCallable::Machine(machine) if module.machine(machine).is_some() => {}
+        head @ TargetMachineCallable::Boundary(boundary)
+            if module.target_machine_families.iter().any(|family| {
+                family.canonical == head
+                    && !family.members.iter().any(|member| member.callable == head)
+            }) && module
+                .boundary_machine(boundary)
+                .is_some_and(|declaration| {
+                    declaration.kind == semantic_vocabulary::BoundaryRequirementKind::Machine
+                }) => {}
+        _ => return malformed("portable entry has no retained machine or target-family head"),
+    }
+    // A family-root declaration is meaningful only with its complete checked
+    // catalog commitment below. An arbitrary bodyless boundary cannot become
+    // an executable entrance by receiving a target or an entry receipt.
     let mut owners = BTreeSet::new();
     for family in &module.target_machine_families {
         if family.head_contract == [0; 32] {

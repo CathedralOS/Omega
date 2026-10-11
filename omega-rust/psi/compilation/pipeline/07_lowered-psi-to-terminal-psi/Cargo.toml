@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+source = { path = "../../../foundation/source" }
 checked-trees = { path = "../../representations/checked-trees" }
 typed-trees = { path = "../../representations/typed-trees" }
 lowered-psi = { path = "../../representations/lowered-psi" }
@@ -19,4 +20,3 @@ numerics = { path = "../../../foundation/numerics" }
 lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 validation = { path = "../../checking" }
-

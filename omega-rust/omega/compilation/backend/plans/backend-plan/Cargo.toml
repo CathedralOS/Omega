@@ -9,6 +9,7 @@ name = "backend_plan"
 path = "src/lib.rs"
 
 [dependencies]
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 calling-conventions = { path = "../../calling-conventions" }
 function-identity = { path = "../../../../foundation/function-identity" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }

@@ -774,3 +774,6 @@ pass/targets/target_machine_gating_exit built 3646ms exit:70 interpreter-exit:70
 pass/operators/runtime_declared_open_range_evaluates_collection_once_exit built 3984ms exit:0 interpreter-exit:0 interpreter:agrees @ebe013852fbf
 pass/operators/runtime_declared_open_range_preserves_operand_snapshot_exit built 3996ms exit:0 interpreter-exit:0 interpreter:agrees @ebe013852fbf
 pass/modules/runtime_public_generic_dependency_exit built 3682ms exit:0 interpreter-exit:0 interpreter:agrees @eb7a93e71125
+# context: {"cpus": 10, "jobs": "2", "load1_end": 3.03, "load1_start": 3.03, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/targets/portable_family_entry_installations_exit built 3110ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:trap terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @8d22fd65fdd6+wt
+pass/targets/selected_family_exclusion_closure_exit built 3024ms exit:0 interpreter-exit:0 interpreter:agrees @8d22fd65fdd6+wt

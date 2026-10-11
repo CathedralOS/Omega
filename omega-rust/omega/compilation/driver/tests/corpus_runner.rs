@@ -13,6 +13,10 @@
 //! `tools/corpus_gate.py` diffs those records against the recorded
 //! golden so an agent's inner loop is one binary plus a corpus diff instead
 //! of a chain of per-crate assertion suites.
+//! An authored `expected_terminal_targets.txt` requests one Terminal semantic
+//! product on the check leg, or borrows the native leg's retained product.
+//! Every target installation uses that exact artifact without recompilation,
+//! canonical-root mutation, or fabricated runtime provisions.
 //!
 //! Running under nextest (`NEXTEST` is set by the harness) exits immediately
 //! so this target never executes the corpus as one opaque "test".
@@ -860,18 +864,44 @@ fn interpret_native_report(
             "native report retained no Terminal artifact",
         );
     };
-    let input = match fixture_input(fixture_dir) {
-        Ok(input) => input,
-        Err(error) => return terminal_execution::Observation::failure(error),
-    };
-    terminal_execution::interpret(
+    observe_retained_terminal(
         artifact,
         report.runtime_provisions(),
         Some(target),
         fixture_dir,
-        1_000_000,
-        input,
     )
+}
+
+/// Optional target installations reuse this exact product; ordinary interpreter
+/// observations remain selected by their existing leg, never by a refusal.
+fn observe_retained_terminal(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    provisions: Option<&compilation_products::TerminalRuntimeProvisions>,
+    target: Option<&str>,
+    fixture_dir: &Path,
+) -> terminal_execution::Observation {
+    let mut observation = if interpreter_leg() && !checked_interpreter_leg() {
+        match fixture_input(fixture_dir) {
+            Ok(input) => terminal_execution::interpret(
+                artifact,
+                provisions,
+                target,
+                fixture_dir,
+                1_000_000,
+                input,
+            ),
+            Err(error) => terminal_execution::Observation::failure(error),
+        }
+    } else {
+        terminal_execution::Observation::default()
+    };
+    if fixture_dir.join(terminal_execution::TARGET_ORACLE).exists() {
+        let installations =
+            terminal_execution::target_installations(artifact, fixture_dir, 1_000_000);
+        observation.facts.extend(installations.facts);
+        observation.diagnostics.extend(installations.diagnostics);
+    }
+    observation
 }
 
 /// With both legs, whether the native exit is this host's presentation of
@@ -1469,10 +1499,12 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         .to_string_lossy()
         .replace('\\', "/");
     let mut facts = Vec::new();
+    let terminal_target_oracle = fixture_dir.join(terminal_execution::TARGET_ORACLE).exists();
     // A host-specific oracle promises this host's physical presentation of
     // the exit status; it overrides the portable one in `tools/corpus_gate.py`.
     let runnable = tier == "run"
         || rel.ends_with("_exit")
+        || terminal_target_oracle
         || fixture_dir.join("expected_native_exit.txt").is_file()
         || fixture_dir.join("expected_stdout.txt").is_file()
         || fixture_dir.join("expected_stderr.txt").is_file()
@@ -1520,10 +1552,10 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         (_, _, Some((target, executes_here))) => {
             realized = true;
             let build_dir = unique_build_dir(sequence);
-            let interpretation = (!checked_interpreter_leg()
-                && interpreter_target.as_ref() == Some(target))
+            let interpretation = (terminal_target_oracle
+                || (!checked_interpreter_leg() && interpreter_target.as_ref() == Some(target)))
             .then(|| {
-                shared_interpreter_request = true;
+                shared_interpreter_request = !checked_interpreter_leg();
                 (fixture_dir.as_path(), &mut interpreter_observation)
             });
             let built = build_native_fixture(
@@ -1551,6 +1583,36 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             }
             let _ = fs::remove_dir_all(&build_dir);
             built.map(|_| ())
+        }
+        // An authored installation matrix observes one exact portable product,
+        // not separately compiled native products for its named target rows.
+        (_, _, _) if terminal_target_oracle => {
+            shared_interpreter_request = !checked_interpreter_leg();
+            let check_target = check_leg_realization_target(main);
+            let leg = produce_terminal_semantic(
+                main,
+                unique_build_dir(sequence),
+                check_target.clone(),
+                declared_rollback.as_ref(),
+            );
+            match leg {
+                Ok(leg) => {
+                    if let Some(receipt) = &leg.receipt {
+                        facts.push(format!("rollback:{}", space_free(receipt)));
+                    }
+                    if let Some(target) = &check_target {
+                        facts.push(format!("check-target:{target}"));
+                    }
+                    interpreter_observation = Some(observe_retained_terminal(
+                        leg.artifact.artifact(),
+                        None,
+                        interpreter_target.as_deref(),
+                        &fixture_dir,
+                    ));
+                    Ok(())
+                }
+                Err(errors) => Err(errors),
+            }
         }
         // A pass or run fixture that binds a program-entry root claims an
         // executable roster the targetless `Check` product never demands:
@@ -1618,6 +1680,14 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         );
     }
     let mut interpreter_diagnostics = Vec::new();
+    if terminal_target_oracle && (!interpreter_leg() || checked_interpreter_leg()) {
+        if let Some(observation) = interpreter_observation.take() {
+            facts.extend(observation.facts);
+            interpreter_diagnostics.extend(observation.diagnostics);
+        } else {
+            facts.push("terminal-targets:unchecked".to_owned());
+        }
+    }
     if interpreter_leg() && tier != "fail" && runnable {
         if checked_interpreter_leg() {
             facts.push("interpreter-engine:checked-tree".to_owned());
@@ -1649,7 +1719,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             )
         };
         facts.extend(observation.facts);
-        interpreter_diagnostics = observation.diagnostics;
+        interpreter_diagnostics.extend(observation.diagnostics);
         if let Some(agreement) = interpreter_agreement(&facts) {
             facts.push(agreement);
         }

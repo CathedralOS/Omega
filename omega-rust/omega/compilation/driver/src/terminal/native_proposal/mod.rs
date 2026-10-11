@@ -48,9 +48,14 @@ fn produce_callback_thunk_artifact(
     }
     .produce(TerminalProductionCustody {
         entry_identity: None,
+        entry_machine: None,
         behavior_exclusions: terminal_production::TerminalBehaviorExclusions::new(
             checked.build().config.behavior_exclusions.as_slice(),
             &checked.execution().selected_provider_plan_facts,
+            checked
+                .execution()
+                .selected_target_profile
+                .unwrap_or_else(target::TargetProfile::host),
         ),
         timings: &mut production_timings,
     })

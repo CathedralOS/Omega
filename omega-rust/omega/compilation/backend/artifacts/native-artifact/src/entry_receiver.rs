@@ -23,6 +23,48 @@ pub fn admit_executable_entry_receiver(
 ) -> Result<Option<ValidatedNativeProgramEntrySettlement>, Vec<Diagnostic>> {
     let plan = input.plan();
     let terminal = input.context().module();
+    let source_profile = program_entry.source().target_slot().owner;
+    if source_profile.native_realization() != Some(native_target) {
+        return Err(crate::native_artifact_error(
+            "ProgramEntry receiver provisioning",
+            "source-selected entry deployment does not own the native target",
+        ));
+    }
+    let selections = terminal_installation::admit_target_machine_selections(
+        artifact.view(),
+        source_profile.target_name(),
+    );
+    let selected_entry = selections
+        .entry(artifact.view().identity(), terminal.entry)
+        .map_err(|error| {
+            crate::native_artifact_error("ProgramEntry receiver provisioning", error)
+        })?;
+    if selected_entry != plan.entry
+        || plan.psi != artifact.view().identity()
+        || terminal != artifact.semantic_module()
+        || input
+            .optimization_input()
+            .target_machine_selections()
+            .is_some_and(|retained| retained != &selections)
+        || matches!(
+            terminal.entry,
+            terminal_psi::TargetMachineCallable::Boundary(_)
+        ) && (input
+            .optimization_input()
+            .target_machine_selections()
+            .is_none()
+            || program_entry.checked_entry.is_none())
+        || program_entry.checked_entry.is_some_and(|receipt| {
+            receipt.terminal_entry() != selected_entry
+                || receipt.source_signature_identity() != program_entry.source().identity().bytes()
+                || receipt.terminal_psi_identity() != artifact.view().identity()
+        })
+    {
+        return Err(crate::native_artifact_error(
+            "ProgramEntry receiver provisioning",
+            "native entry lost its exact source-selected Terminal member",
+        ));
+    }
     let placed_view_establishments = input.placed_view_establishments();
     // The provider establishments bound into the input are loans the emitted
     // entry boundary must carry for the invocation's duration. Only the
@@ -37,7 +79,7 @@ pub fn admit_executable_entry_receiver(
         program_entry_plan::ProgramEntryReceiverSignature::ProvisionedMutable { .. }
     );
     let lowered_entry = plan.function(plan.entry);
-    let terminal_entry = terminal.machine(terminal.entry);
+    let terminal_entry = terminal.machine(selected_entry);
     let lowered_attachment = lowered_entry.and_then(|function| function.attachment);
     let terminal_attachment = terminal_entry.and_then(|machine| machine.attachment);
     // Preserve declarations verbatim; an ordinary context has no attachment

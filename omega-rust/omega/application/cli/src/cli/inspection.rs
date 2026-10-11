@@ -30,9 +30,8 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
     let mut output = String::new();
     writeln!(
         output,
-        "terminal selected_machine={} entry=machine:{}",
-        selected_machine,
-        module.entry.get()
+        "terminal selected_machine={} entry={:?}",
+        selected_machine, module.entry
     )
     .expect("writing to a String cannot fail");
     for family in &module.target_machine_families {

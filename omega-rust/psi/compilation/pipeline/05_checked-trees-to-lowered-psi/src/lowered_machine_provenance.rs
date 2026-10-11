@@ -10,6 +10,7 @@ pub fn lowered_machine_provenance(
     checked: &CheckedTrees,
     lowered: &lowered_psi::LoweredPsi,
     entry_machine_symbol: symbols::SymbolHandle,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> TerminalMachineProvenance {
     let module = &lowered.semantic_module;
     let mut callee_by_operation = BTreeMap::new();
@@ -23,7 +24,24 @@ pub fn lowered_machine_provenance(
         }
     }
     let mut provenance = TerminalMachineProvenance::default();
-    name(&mut provenance, checked, module.entry, entry_machine_symbol);
+    let entry_identity = checked
+        .exact_owner_nominal_identity(entry_machine_symbol, exact_toolchain_sources)
+        .and_then(|identity| checked.type_identity_text(identity));
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| {
+            entry_identity.as_ref().is_some_and(|identity| {
+                machine.declaration.as_ref().is_some_and(|declaration| {
+                    module.identities.text(declaration.machine.identity())
+                        == Some(identity.as_str())
+                })
+            })
+        })
+        .map(|machine| machine.id);
+    if let Some(entry) = entry {
+        name(&mut provenance, checked, entry, entry_machine_symbol);
+    }
     for occurrence in &lowered.source_call_occurrences {
         if let Some(operation) = occurrence.terminal_site.operation()
             && let Some(callee) = callee_by_operation.get(&operation)
@@ -59,8 +77,8 @@ pub fn lowered_machine_provenance(
     }
     // Static call parents from the entry, so an unnamed helper can be
     // attributed through the named machine that reaches it.
-    let mut pending = std::collections::VecDeque::from([module.entry]);
-    let mut visited = std::collections::BTreeSet::from([module.entry]);
+    let mut pending = entry.into_iter().collect::<std::collections::VecDeque<_>>();
+    let mut visited = entry.into_iter().collect::<std::collections::BTreeSet<_>>();
     while let Some(current) = pending.pop_front() {
         let Some(machine) = module.machine(current) else {
             continue;

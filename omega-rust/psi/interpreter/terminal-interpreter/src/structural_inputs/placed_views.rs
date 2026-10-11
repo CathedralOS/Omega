@@ -13,7 +13,7 @@
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
-use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
+use semantic_vocabulary::{MachineId, StructuralDomainId, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::{StructuralAccess, TerminalModule, TerminalPlacedViewInput};
 
@@ -45,32 +45,23 @@ fn overlaps(left: &StructuralRuntimePlace, right: &StructuralRuntimePlace) -> bo
 
 /// Bind each direct-entry placed-view input to one supplied establishment.
 ///
-/// Only rows on the module's entry machine are entry inputs; a roster row on
-/// any other machine declares a call-bound input whose custody arrives through
-/// the caller, a route interpretation does not yet route — such modules keep
-/// failing closed. Every entry row must rejoin exactly one establishment; a
+/// Only rows on the installed executable entry are this invocation's inputs.
+/// Capability preflight rejects demanded subordinate call-bound inputs whose
+/// custody interpretation cannot yet route; unrelated retained target bodies
+/// impose no entry input demand. Every entry row must rejoin one establishment; a
 /// supply naming no declared entry row, or overlapping another exclusive
 /// referent or a structural argument, rejects before the entry machine runs.
 pub(crate) fn establish_placed_view_inputs(
     module: &TerminalModule,
+    entry: MachineId,
     establishments: &[TerminalPlacedViewEstablishment],
     structural_arguments: &[TerminalStructuralValue],
 ) -> Result<BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence>, TerminalInterpretError> {
     let entry_rows = module
         .placed_view_inputs
         .iter()
-        .filter(|row| row.machine == module.entry)
+        .filter(|row| row.machine == entry)
         .collect::<Vec<_>>();
-    if module
-        .placed_view_inputs
-        .iter()
-        .any(|row| row.machine != module.entry)
-    {
-        // A subordinate input is bound by its call, not by the host: this
-        // input boundary cannot carry it and there is nothing to answer it
-        // with yet.
-        return Err(TerminalInterpretError::PlacedViewInputsRequireCustody);
-    }
     // Every supply must answer one declared entry row exactly; custody the
     // artifact never demanded cannot be bound at its input boundary.
     let mut seen = std::collections::BTreeSet::new();

@@ -223,6 +223,60 @@ def oracle_failure(record: dict, detail: str, recordable: bool = None) -> dict:
             "recordable": recordable}
 
 
+def terminal_target_failures(records: list[dict], corpus: Path) -> list[dict]:
+    """One retained artifact must meet every authored target-installation row.
+
+    This oracle runs on every corpus leg, independently of native execution or
+    the selected interpreter engine. A checked/built row with missing or wrong
+    target observations cannot be recorded as an expected success.
+    """
+    failures = []
+    for record in records:
+        path = corpus / record["fixture"] / "expected_terminal_targets.txt"
+        if not path.exists():
+            continue
+        try:
+            expectations = {}
+            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                words = line.split()
+                if not words:
+                    continue
+                if len(words) != 2:
+                    raise ValueError(f"line {line_number} needs target and decimal exit or trap")
+                target, expected = words
+                if (not target or not target.isascii()
+                        or not all(character.isalnum() or character == "_" for character in target)
+                        or target in expectations):
+                    raise ValueError(f"line {line_number} has an invalid or duplicate target")
+                if expected != "trap":
+                    digits = expected.removeprefix("-")
+                    if not digits or not digits.isascii() or not digits.isdecimal():
+                        raise ValueError(f"line {line_number} needs decimal i32 exit or trap")
+                    code = int(expected)
+                    if not -(2 ** 31) <= code < 2 ** 31:
+                        raise ValueError(f"line {line_number} exit is outside i32")
+                    expected = str(code)
+                expectations[target] = expected
+            if not expectations:
+                raise ValueError("no target expectations")
+        except (OSError, UnicodeError, ValueError) as error:
+            failures.append(oracle_failure(
+                record, f"{record['fixture']}: invalid Terminal target expectation ({error})",
+                recordable=False))
+            continue
+        facts = record.get("facts", {})
+        mismatches = [f"{target} expected {expected}, observed {facts.get('terminal-target.' + target, 'missing')}"
+                      for target, expected in expectations.items()
+                      if facts.get("terminal-target." + target) != expected]
+        if (record["status"] not in corpus_records.SUCCESS_STATUSES
+                or facts.get("terminal-target-artifact") != "unchanged"
+                or facts.get("terminal-targets") != "match" or mismatches):
+            failures.append(oracle_failure(
+                record, f"{record['fixture']}: expected unchanged Terminal artifact with exact target outcomes; "
+                        f"observed {record['status']} {facts}; {'; '.join(mismatches)}"))
+    return failures
+
+
 def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list[dict]:
     """Check authored runtime oracles before comparing or recording observations.
 
@@ -1110,7 +1164,7 @@ def main() -> int:
         print(f"corpus_gate: {record['fixture']} unimplemented "
               f"{facts['migration-capability']} ({facts['migration-task']}, "
               f"{facts['migration-route']})")
-    failures = []
+    failures = terminal_target_failures(records, ROOT / "tests" / "omega")
     if options.native:
         failures.extend(native_exit_failures(records, ROOT / "tests" / "omega", target))
         failures.extend(execution_output_failures(

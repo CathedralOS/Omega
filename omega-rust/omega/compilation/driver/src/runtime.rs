@@ -128,8 +128,7 @@ pub fn execute(
     let artifact = request.artifact.view();
     let program = TerminalProgram::borrow(artifact);
     if let Some(provisions) = request.provisions
-        && (provisions.identity() != program.terminal_psi()
-            || provisions.entry() != artifact.module().entry)
+        && provisions.identity() != program.terminal_psi()
     {
         return Err(TerminalRuntimeError::InvalidProvision(
             "runtime provisions name another Terminal program or entry",
@@ -179,6 +178,17 @@ pub fn execute(
             target_layouts: target_layouts.as_ref(),
         })
         .map_err(TerminalRuntimeError::Requirements)?;
+    let installed_entry = program
+        .entry_installed(&installation)
+        .map_err(TerminalRuntimeError::Requirements)?;
+    if request
+        .provisions
+        .is_some_and(|provisions| provisions.entry() != installed_entry.machine)
+    {
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "runtime provisions name another installed executable entry",
+        ));
+    }
     let requirements = program
         .execution_requirements(Some(&installation))
         .map_err(TerminalRuntimeError::Requirements)?;
@@ -202,7 +212,7 @@ pub fn execute(
             "the host has not delegated exit of this isolated containing domain",
         ));
     }
-    let arrival = entry::establish(&program, request.provisions)?;
+    let arrival = entry::establish(&program, &installation, request.provisions)?;
     let inputs = arrival.inputs();
     let mut instance = program
         .instantiate_installed(&[], inputs, &installation)

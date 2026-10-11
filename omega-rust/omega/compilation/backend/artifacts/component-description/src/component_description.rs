@@ -566,16 +566,39 @@ pub(crate) fn requirement_contract_identity(requirement_identity: &str) -> [u8; 
     digest.finish()
 }
 
+/// Distinguishes a concrete root from a portable family head in exported labels.
+fn canonical_entry_label(entry: terminal_psi::TargetMachineCallable) -> String {
+    match entry {
+        terminal_psi::TargetMachineCallable::Machine(machine) => {
+            format!("machine:{}", machine.get())
+        }
+        terminal_psi::TargetMachineCallable::Boundary(boundary) => {
+            format!("boundary:{}", boundary.get())
+        }
+    }
+}
+
 /// Collision-resistant contract identity of the canonical entry export.
 ///
 /// The canonical entry never satisfies a demanded import — a demanded
 /// contract is a requirement contract — so its digest lives in its own
 /// domain and cannot collide with any [`requirement_contract_identity`]
 /// output.
-pub(crate) fn canonical_entry_contract_identity(entry: MachineId) -> [u8; 32] {
+pub(crate) fn canonical_entry_contract_identity(
+    entry: terminal_psi::TargetMachineCallable,
+) -> [u8; 32] {
     let mut digest =
         crate::digest_encoder::DomainDigestEncoder::new(CANONICAL_ENTRY_CONTRACT_DOMAIN);
-    digest.raw(&entry.get().to_le_bytes());
+    match entry {
+        terminal_psi::TargetMachineCallable::Machine(machine) => {
+            digest.raw(&[1]);
+            digest.raw(&machine.get().to_le_bytes());
+        }
+        terminal_psi::TargetMachineCallable::Boundary(boundary) => {
+            digest.raw(&[2]);
+            digest.raw(&boundary.get().to_le_bytes());
+        }
+    }
     digest.finish()
 }
 
@@ -862,7 +885,7 @@ pub(crate) fn derive_component_inventory(
     let mut entries = Vec::new();
     entries.push(ComponentEntry {
         kind: ComponentEntryKind::Canonical,
-        identity: format!("canonical-entry:{}", module.entry.get()),
+        identity: format!("canonical-entry:{}", canonical_entry_label(module.entry)),
         evidence: EntryEvidence::ModuleDerived,
     });
     for site in &module.suspension_call_sites {
@@ -915,7 +938,7 @@ pub(crate) fn derive_component_inventory(
     service_bounds.dedup();
 
     let mut export_contracts = vec![ExportContract {
-        identity: format!("export:canonical:{}", module.entry.get()),
+        identity: format!("export:canonical:{}", canonical_entry_label(module.entry)),
         contract_identity: canonical_entry_contract_identity(module.entry),
     }];
     // Every checked provider candidate the module retains is an exported

@@ -22,6 +22,7 @@ use terminal_psi::TerminalMachineProvenance;
 pub fn verify_entry_behavior_exclusions(
     authored: &[AuthoredBehaviorExclusion],
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
+    profile: target::TargetProfile,
     module: &terminal_psi::TerminalModule,
     provenance: &TerminalMachineProvenance,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -34,11 +35,20 @@ pub fn verify_entry_behavior_exclusions(
         // declares: nothing in it can invoke that service.
         return Ok(());
     }
+    // This is admission of a selected execution, not a rewrite of the
+    // portable root or a demand on every retained sibling's private body.
+    let entry = terminal_installation::resolve_target_machine_entry(module, profile.target_name())
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "behavior exclusion entry selection failed: {error}",
+            ))]
+        })?;
     let report = establish_behavior_exclusions(
         module,
-        &[module.entry],
+        &[entry],
         &exclusions,
         selected_provider_plans,
+        profile.target_name(),
     );
     match report.verdict() {
         BehaviorExclusionVerdict::Satisfied => Ok(()),

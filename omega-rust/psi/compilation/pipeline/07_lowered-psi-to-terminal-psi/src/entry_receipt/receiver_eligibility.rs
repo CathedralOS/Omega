@@ -23,6 +23,7 @@ use terminal_psi::{
 pub(super) fn derive(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
+    terminal_entry: semantic_vocabulary::MachineId,
     module: &TerminalModule,
 ) -> Option<CheckedProgramEntryReceiverEligibility> {
     let machine = checked.machine(selection.machine)?;
@@ -75,7 +76,7 @@ pub(super) fn derive(
         owned,
     )?;
     let identities = &module.identities;
-    let entry = module.machine(module.entry)?;
+    let entry = module.machine(terminal_entry)?;
     if entry.attachment.is_some() {
         return None;
     }

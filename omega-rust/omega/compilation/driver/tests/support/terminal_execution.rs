@@ -7,6 +7,172 @@ use compiler::runtime::{
 };
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 
+pub(super) const TARGET_ORACLE: &str = "expected_terminal_targets.txt";
+
+#[derive(Clone, Copy)]
+enum ExpectedTargetOutcome {
+    Exit(i32),
+    Trap,
+}
+
+fn target_expectations(
+    fixture_dir: &std::path::Path,
+) -> Result<Vec<(String, ExpectedTargetOutcome)>, String> {
+    let text = std::fs::read_to_string(fixture_dir.join(TARGET_ORACLE))
+        .map_err(|error| format!("cannot read {TARGET_ORACLE}: {error}"))?;
+    let mut expectations: Vec<(String, ExpectedTargetOutcome)> = Vec::new();
+    for (line_index, line) in text.lines().enumerate() {
+        let words = line.split_whitespace().collect::<Vec<_>>();
+        if words.is_empty() {
+            continue;
+        }
+        let [target, expected] = words.as_slice() else {
+            return Err(format!(
+                "{TARGET_ORACLE}: line {} needs target and decimal exit or trap",
+                line_index + 1
+            ));
+        };
+        if target.is_empty()
+            || !target
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+            || expectations
+                .iter()
+                .any(|(prior, _)| prior.as_str() == *target)
+        {
+            return Err(format!(
+                "{TARGET_ORACLE}: line {} has an invalid or duplicate target",
+                line_index + 1
+            ));
+        }
+        let outcome = if *expected == "trap" {
+            ExpectedTargetOutcome::Trap
+        } else {
+            let digits = expected.strip_prefix('-').unwrap_or(expected);
+            if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+                return Err(format!(
+                    "{TARGET_ORACLE}: line {} has no decimal i32 exit or trap",
+                    line_index + 1
+                ));
+            }
+            ExpectedTargetOutcome::Exit(expected.parse::<i32>().map_err(|_| {
+                format!(
+                    "{TARGET_ORACLE}: line {} exit is outside i32",
+                    line_index + 1
+                )
+            })?)
+        };
+        expectations.push(((*target).to_owned(), outcome));
+    }
+    if expectations.is_empty() {
+        return Err(format!("{TARGET_ORACLE}: no target expectations"));
+    }
+    Ok(expectations)
+}
+
+/// Install every authored target against one exact retained artifact. The
+/// receiving runtime supplies no providers, receiver, clock, input, or domain
+/// authority; fixtures needing those provisions refuse rather than fabricate
+/// them. Each install observes the artifact's unchanged semantic bytes,
+/// identity, and canonical module storage, not a newly compiled target cohort.
+pub(super) fn target_installations(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    fixture_dir: &std::path::Path,
+    fuel_allowance: u64,
+) -> Observation {
+    let expectations = match target_expectations(fixture_dir) {
+        Ok(expectations) => expectations,
+        Err(error) => {
+            return Observation {
+                facts: vec!["terminal-targets:invalid".to_owned()],
+                diagnostics: vec![error],
+            };
+        }
+    };
+    let semantic_bytes = artifact.semantic_bytes().to_vec();
+    let before = artifact.view();
+    let mut observation = Observation::default();
+    let mut matched = true;
+    let mut unchanged = true;
+    for (target, expected) in expectations {
+        let result = compiler::runtime::execute(TerminalRuntimeRequest {
+            artifact,
+            target: Some(&target),
+            provisions: None,
+            fuel_allowance,
+            domain_exit: TerminalDomainExitDelegation::Unprovided,
+            standard_input: None,
+            clock: None,
+        });
+        let (actual, matches) = match result {
+            Ok(result) => match result.status {
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => (
+                    "0".to_owned(),
+                    matches!(expected, ExpectedTargetOutcome::Exit(0)),
+                ),
+                TerminalExecutionStatus::ExternalCompletion(completion) => (
+                    completion.return_code.to_string(),
+                    matches!(expected, ExpectedTargetOutcome::Exit(code) if code == completion.return_code),
+                ),
+                TerminalExecutionStatus::Crashed(crash)
+                    if crash.cause == terminal_psi::CrashCause::Trap =>
+                {
+                    (
+                        "trap".to_owned(),
+                        matches!(expected, ExpectedTargetOutcome::Trap),
+                    )
+                }
+                status => {
+                    observation.diagnostics.push(format!(
+                        "Terminal target {target}: unsupported entry outcome {status:?}"
+                    ));
+                    ("unsupported".to_owned(), false)
+                }
+            },
+            Err(error) => {
+                observation
+                    .diagnostics
+                    .push(format!("Terminal target {target}: {error}"));
+                ("declined".to_owned(), false)
+            }
+        };
+        observation
+            .facts
+            .push(format!("terminal-target.{target}:{actual}"));
+        if !matches {
+            let expected = match expected {
+                ExpectedTargetOutcome::Exit(code) => code.to_string(),
+                ExpectedTargetOutcome::Trap => "trap".to_owned(),
+            };
+            observation.diagnostics.push(format!(
+                "Terminal target {target}: expected {expected}, observed {actual}"
+            ));
+            matched = false;
+        }
+        let after = artifact.view();
+        if semantic_bytes != artifact.semantic_bytes()
+            || before.identity() != after.identity()
+            || !std::ptr::eq(before.module(), after.module())
+        {
+            unchanged = false;
+            observation.diagnostics.push(format!("Terminal target {target}: installation changed canonical artifact storage or identity"));
+        }
+    }
+    observation.facts.push(format!(
+        "terminal-target-artifact:{}",
+        if unchanged { "unchanged" } else { "changed" }
+    ));
+    observation.facts.push(format!(
+        "terminal-targets:{}",
+        if matched && unchanged {
+            "match"
+        } else {
+            "differs"
+        }
+    ));
+    observation
+}
+
 #[derive(Default)]
 pub(super) struct Observation {
     pub facts: Vec<String>,

@@ -274,7 +274,9 @@ pub(super) fn retained_machines_with_roots(
 /// their named machine regardless of call reachability.
 fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     let mut roots = BTreeSet::new();
-    roots.insert(module.entry);
+    if let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry {
+        roots.insert(entry);
+    }
     roots.extend(module.target_machine_families.iter().flat_map(|family| {
         family
             .members

@@ -325,21 +325,20 @@ impl<'artifact> TerminalExecution<'artifact> {
         established_erased_fields: &[crate::structural_inputs::TerminalEstablishedErasedField],
         installation: Option<&TerminalRuntimeSupplies>,
     ) -> Result<Self, TerminalInterpretError> {
+        let current_machine = program.resolve_entry(installation)?;
         // A nonempty placed-view roster declares direct entry inputs whose
         // referent custody must be established beside the ordinary inputs: one
         // exact establishment per entry row lends the qualified backing for
         // the invocation's duration. A row left unsupplied, a supply that
-        // answers no declared row, and any roster row on a non-entry machine
-        // all fail closed rather than start the entry machine with a declared
-        // input unbound.
+        // answers no declared row both fail closed. Capability preflight has
+        // separately refused demanded subordinate placed-view inputs; another
+        // retained target's roster does not describe this invocation's backing.
         let placed_view_occurrences = establish_placed_view_inputs(
             &program.catalogs,
+            current_machine,
             placed_view_establishments,
             structural_arguments,
         )?;
-        if installation.is_some_and(|installation| installation.terminal_psi != program.identity) {
-            return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
-        }
         let local_structural_identities = LocalStructuralIdentities::new(
             program
                 .machines()
@@ -349,10 +348,9 @@ impl<'artifact> TerminalExecution<'artifact> {
         );
         let machine = program
             .machines()
-            .get(&program.catalogs.entry)
+            .get(&current_machine)
             .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
         let current = machine.entry;
-        let current_machine = program.catalogs.entry;
         if machine
             .parameters
             .iter()

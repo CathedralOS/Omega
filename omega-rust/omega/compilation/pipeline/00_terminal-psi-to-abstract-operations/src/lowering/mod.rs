@@ -13,18 +13,19 @@ pub use error::LoweringError;
 use machine::lower_machine;
 use terminal_psi::TerminalModule;
 
-/// Lower a decoded, structurally validated module, retaining its explicit
-/// control-flow and operation relationships.
+/// Lower a decoded module with its already installed executable entry,
+/// retaining canonical identity and all control-flow/operation relationships.
 pub(crate) fn lower_decoded_module(
     module: &TerminalModule,
+    entry: semantic_vocabulary::MachineId,
 ) -> Result<AbstractOperationPlan, LoweringError> {
     // Boundary crash contracts ride through `boundary_machines` unchanged.
     // Terminal verification already covered every caller continuation against
     // them; the realized provider body or builtin settlement commits the trap
     // natively, so no abstract operation needs a separate continuation lane.
     block_bindings::validate_structural_block_bindings(module)?;
-    if !module.machine(module.entry).is_some() {
-        return Err(LoweringError::VerifiedEntryMachineMissing(module.entry));
+    if !module.machine(entry).is_some() {
+        return Err(LoweringError::VerifiedEntryMachineMissing(entry));
     }
     let functions = module
         .machines
@@ -33,7 +34,7 @@ pub(crate) fn lower_decoded_module(
         .collect::<Result<Vec<_>, _>>()?;
     Ok(AbstractOperationPlan {
         psi: terminal_psi_identity(module).map_err(LoweringError::SemanticIdentity)?,
-        entry: module.entry,
+        entry,
         structural_types: abstract_operations::StructuralTypeCatalog::new(
             module.structural_types.clone(),
             module.structural_referents.clone(),

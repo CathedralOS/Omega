@@ -102,6 +102,40 @@ impl ObjectArtifact {
         self.entry
     }
 
+    /// Audit the immutable portable root against the actual installed entry.
+    /// The retained deployment selection came from native admission, not an
+    /// architecture-derived tag or a choice among otherwise valid members.
+    pub fn validate_terminal_entry(
+        &self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+    ) -> Result<(), &'static str> {
+        let identity = artifact.view().identity();
+        let module = artifact.semantic_module();
+        if self.psi != identity || module.machine(self.entry).is_none() {
+            return Err("native object entry has no exact Terminal body or identity");
+        }
+        let installed_entry = self
+            .fragment_replay
+            .as_ref()
+            .map(|replay| replay.selected_terminal_entry(artifact, self.entry, self.target))
+            .transpose()?
+            .flatten();
+        let selected_entry = if let Some(entry) = installed_entry {
+            entry
+        } else {
+            match module.entry {
+                terminal_psi::TargetMachineCallable::Machine(machine) => machine,
+                terminal_psi::TargetMachineCallable::Boundary(_) => {
+                    return Err("native family entry requires retained deployment selection");
+                }
+            }
+        };
+        if selected_entry != self.entry {
+            return Err("native object entry substituted the exact installed Terminal member");
+        }
+        Ok(())
+    }
+
     pub const fn object(&self) -> &ObjectPlan {
         &self.object
     }

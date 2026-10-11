@@ -53,6 +53,7 @@ impl<'a> TerminalProductionRequest<'a> {
     ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
         let TerminalProductionCustody {
             entry_identity,
+            entry_machine,
             admission,
         } = custody;
         let checked = self.checked;
@@ -62,7 +63,7 @@ impl<'a> TerminalProductionRequest<'a> {
             (Some(_), _) | (_, true) => Some(
                 observer
                     .record_result(TerminalProductionStage::MachineSelection, || {
-                        select_terminal_machine(checked, self.machine)
+                        select_terminal_machine(checked, entry_machine.unwrap_or(self.machine))
                     })
                     .map_err(TerminalArtifactProductionError::Lowering)?,
             ),
@@ -74,7 +75,12 @@ impl<'a> TerminalProductionRequest<'a> {
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         if let (Some(admission), Some(selection)) = (admission, entry_selection) {
-            let provenance = lowered_machine_provenance(checked, &lowered, selection.machine);
+            let provenance = lowered_machine_provenance(
+                checked,
+                &lowered,
+                selection.machine,
+                self.exact_toolchain_sources,
+            );
             admission
                 .admit(&lowered.semantic_module, &provenance)
                 .map_err(TerminalArtifactProductionError::Admission)?;
@@ -92,6 +98,7 @@ impl<'a> TerminalProductionRequest<'a> {
                             checked,
                             selection,
                             source_signature_identity,
+                            self.exact_toolchain_sources,
                             optimized.lowered(),
                         )
                     })

@@ -265,9 +265,7 @@ impl NativeArtifact {
             &self.physical_evidence_scope,
         )?;
         validate_ieee_float_fma_occurrences(module, &self.object, &self.selected_provider_plans)?;
-        if module.entry != self.object.entry() {
-            return Err("native artifact entry disagrees with canonical semantics");
-        }
+        self.object.validate_terminal_entry(&self.psi_artifact)?;
         if self.selected_provider_closure_report_identity == 0 {
             return Err("native artifact selected provider closure has the reserved zero identity");
         }

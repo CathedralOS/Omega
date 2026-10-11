@@ -45,6 +45,25 @@ pub struct AdmittedTargetMachineSelections {
 }
 
 impl AdmittedTargetMachineSelections {
+    /// Resolve a portable root in the same admitted artifact. This proves
+    /// catalog membership, not entry backing, effects or provider authority.
+    pub fn entry(
+        &self,
+        identity: TerminalPsiIdentity,
+        root: TargetMachineCallable,
+    ) -> Result<semantic_vocabulary::MachineId, TargetMachineSelectionError> {
+        if self.terminal_psi != identity {
+            return Err(TargetMachineSelectionError::TerminalIdentityMismatch);
+        }
+        match root {
+            TargetMachineCallable::Machine(machine) => Ok(machine),
+            head @ TargetMachineCallable::Boundary(_) => {
+                let member = self.member(head)?;
+                executable_entry(head, member, &self.target)
+            }
+        }
+    }
+
     pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
         self.terminal_psi
     }
@@ -75,9 +94,111 @@ impl AdmittedTargetMachineSelections {
     }
 }
 
+fn executable_entry(
+    head: TargetMachineCallable,
+    member: &TargetMachineSelection,
+    target: &str,
+) -> Result<semantic_vocabulary::MachineId, TargetMachineSelectionError> {
+    match (member.callable(), member.supply()) {
+        (
+            TargetMachineCallable::Machine(machine),
+            TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary,
+        ) => Ok(machine),
+        _ => Err(TargetMachineSelectionError::NonExecutableEntry {
+            head,
+            target: target.to_owned(),
+        }),
+    }
+}
+
+fn selected_member(
+    family: &terminal_psi::TargetMachineFamily,
+    target: &str,
+) -> Option<TargetMachineSelection> {
+    let member = borrowed_selected_member(family, target)?;
+    Some(TargetMachineSelection {
+        head: family.canonical,
+        callable: member.callable,
+        supply: member.supply,
+    })
+}
+
+fn borrowed_selected_member<'family>(
+    family: &'family terminal_psi::TargetMachineFamily,
+    target: &str,
+) -> Option<&'family terminal_psi::TargetMachineFamilyMember> {
+    let position = family
+        .members
+        .binary_search_by(|member| member.target.as_str().cmp(target))
+        .ok()?;
+    family.members.get(position)
+}
+
+/// Borrow an independent family's exact deployment member without creating
+/// identity-bound admission evidence. Ordinary callables and legacy canonical
+/// members preserve their own exact identity and return `None`. A demanded
+/// independent head with no member rejects; no host or representative fallback
+/// participates. The consumer still checks the member's supply and declaration.
+pub fn resolve_target_machine_member<'module>(
+    module: &'module terminal_psi::TerminalModule,
+    callable: TargetMachineCallable,
+    target: &str,
+) -> Result<Option<&'module terminal_psi::TargetMachineFamilyMember>, TargetMachineSelectionError> {
+    let Some(family) = module
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == callable)
+    else {
+        return Ok(None);
+    };
+    if family
+        .members
+        .iter()
+        .any(|member| member.callable == callable)
+    {
+        return Ok(None);
+    }
+    borrowed_selected_member(family, target)
+        .map(Some)
+        .ok_or_else(|| TargetMachineSelectionError::MissingMember {
+            head: callable,
+            target: target.to_owned(),
+        })
+}
+
+/// Resolve a producer-owned composition's root before canonical publication.
+/// The association is borrowed from this exact module and does not leave as
+/// identity-bound admission evidence. No serialization or verification replay
+/// is needed to apply product policy to the composition being produced.
+pub fn resolve_target_machine_entry(
+    module: &terminal_psi::TerminalModule,
+    target: &str,
+) -> Result<semantic_vocabulary::MachineId, TargetMachineSelectionError> {
+    match module.entry {
+        TargetMachineCallable::Machine(machine) => Ok(machine),
+        head @ TargetMachineCallable::Boundary(_) => {
+            let member = module
+                .target_machine_families
+                .iter()
+                .find(|family| family.canonical == head)
+                .and_then(|family| selected_member(family, target))
+                .ok_or_else(|| TargetMachineSelectionError::MissingMember {
+                    head,
+                    target: target.to_owned(),
+                })?;
+            executable_entry(head, &member, target)
+        }
+    }
+}
+
 /// An execution demand without a member at its exact deployment tag.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetMachineSelectionError {
+    TerminalIdentityMismatch,
+    NonExecutableEntry {
+        head: TargetMachineCallable,
+        target: String,
+    },
     MissingMember {
         head: TargetMachineCallable,
         target: String,
@@ -87,6 +208,13 @@ pub enum TargetMachineSelectionError {
 impl std::fmt::Display for TargetMachineSelectionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::TerminalIdentityMismatch => {
+                formatter.write_str("entry selection names a different Terminal artifact")
+            }
+            Self::NonExecutableEntry { head, target } => write!(
+                formatter,
+                "target family {head:?} has no executable entry for deployment tag `{target}`",
+            ),
             Self::MissingMember { head, target } => write!(
                 formatter,
                 "target family {head:?} has no member for deployment tag `{target}`"
@@ -109,18 +237,7 @@ pub fn admit_target_machine_selections(
         .module()
         .target_machine_families
         .iter()
-        .filter_map(|family| {
-            let position = family
-                .members
-                .binary_search_by(|member| member.target.as_str().cmp(target))
-                .ok()?;
-            let member = &family.members[position];
-            Some(TargetMachineSelection {
-                head: family.canonical,
-                callable: member.callable,
-                supply: member.supply,
-            })
-        })
+        .filter_map(|family| selected_member(family, target))
         .collect();
     AdmittedTargetMachineSelections {
         terminal_psi: artifact.identity(),

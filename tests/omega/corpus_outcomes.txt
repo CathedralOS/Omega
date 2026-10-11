@@ -5108,3 +5108,9 @@ fail/operators/declared_open_range_shared_collection_cannot_mutate rejected 289m
 fail/modules/private_generic_dependency rejected 1872ms expected @26d992089644
 	package `private_generic_dependency` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `values::Window::range$specialized$accfc01a22f6af21$0`
 pass/modules/runtime_public_generic_dependency_exit checked 3753ms check-target:macos_arm64 @26d992089644
+# context: {"cpus": 10, "jobs": "2", "load1_end": 2.95, "load1_start": 2.86, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+fail/targets/selected_family_exclusion_crash_rejected rejected 5121ms expected @8d22fd65fdd6+wt
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 6 at crash terminator in block 6
+pass/targets/portable_family_entry_installations_exit checked 2761ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:trap terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8d22fd65fdd6+wt
+pass/targets/selected_family_exclusion_closure_exit checked 2849ms check-target:macos_arm64 @8d22fd65fdd6+wt

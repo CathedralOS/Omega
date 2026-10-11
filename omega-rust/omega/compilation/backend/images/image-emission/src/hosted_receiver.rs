@@ -857,6 +857,30 @@ fn receiver_layout(
     let (function, target) = crate::function_fragments::replay::entry_source(artifact)?;
     let replay = artifact.fragment_replay.as_ref().ok_or_else(invalid)?;
     let terminal = replay.terminal_module();
+    let profile = source.target_slot().owner;
+    if profile.native_realization() != Some(artifact.target) {
+        return Err(invalid());
+    }
+    let terminal_identity =
+        terminal_codec::terminal_psi_identity(terminal).map_err(|_| invalid())?;
+    let selected_entry =
+        terminal_installation::resolve_target_machine_entry(terminal, profile.target_name())
+            .map_err(|_| invalid())?;
+    if let Some(selections) = replay.target_machine_selections() {
+        if selections.target() != profile.target_name()
+            || selections
+                .entry(terminal_identity, terminal.entry)
+                .map_err(|_| invalid())?
+                != selected_entry
+        {
+            return Err(invalid());
+        }
+    } else if matches!(
+        terminal.entry,
+        terminal_psi::TargetMachineCallable::Boundary(_)
+    ) {
+        return Err(invalid());
+    }
     let eligibility = checked_entry.receiver_eligibility().ok_or_else(invalid)?;
     let terminal_psi::CheckedProgramEntryReceiverProjection::Retained {
         terminal_self,
@@ -874,16 +898,15 @@ fn receiver_layout(
             .text(checked_entry.declaration().identity())
             != Some(source.declaration())
         || terminal
-            .machine(terminal.entry)
+            .machine(selected_entry)
             .and_then(|machine| machine.declaration.as_ref())
             .is_none_or(|declaration| {
                 terminal.identities.text(declaration.machine.identity())
                     != Some(source.declaration())
             })
-        || checked_entry.terminal_entry() != terminal.entry
+        || checked_entry.terminal_entry() != selected_entry
         || checked_entry.terminal_entry() != function.machine
-        || checked_entry.terminal_psi_identity()
-            != terminal_codec::terminal_psi_identity(terminal).map_err(|_| invalid())?
+        || checked_entry.terminal_psi_identity() != terminal_identity
         || source.receiver().source_position() != Some(source_position)
         || source.receiver().normalized_type_identity()
             != terminal
@@ -896,7 +919,7 @@ fn receiver_layout(
         return Err(invalid());
     };
     let terminal_parameter = terminal
-        .machine(terminal.entry)
+        .machine(selected_entry)
         .and_then(|machine| machine.structural_parameter(terminal_self));
     if terminal_parameter != Some(parameter) {
         return Err(invalid());

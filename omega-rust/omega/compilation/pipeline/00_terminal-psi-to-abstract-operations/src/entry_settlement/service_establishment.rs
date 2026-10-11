@@ -4,6 +4,7 @@ use super::{NativeProgramEntrySettlement, NativeProgramEntrySettlementError};
 
 pub(super) fn validate_terminal_rows(
     module: &terminal_psi::TerminalModule,
+    entry_machine: semantic_vocabulary::MachineId,
     settlement: NativeProgramEntrySettlement<'_>,
     eligibility: Option<&terminal_psi::CheckedProgramEntryReceiverEligibility>,
 ) -> Result<(), NativeProgramEntrySettlementError> {
@@ -20,7 +21,7 @@ pub(super) fn validate_terminal_rows(
     let entry_machines = module
         .machines
         .iter()
-        .filter(|machine| machine.id == module.entry)
+        .filter(|machine| machine.id == entry_machine)
         .collect::<Vec<_>>();
     let [entry] = entry_machines.as_slice() else {
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);

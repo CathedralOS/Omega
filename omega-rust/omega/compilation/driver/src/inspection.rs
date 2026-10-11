@@ -23,6 +23,7 @@ pub fn inspect_terminal(
     )
     .produce(TerminalProductionCustody {
         entry_identity: None,
+        entry_machine: None,
         behavior_exclusions: None,
         timings: &mut timings,
     })

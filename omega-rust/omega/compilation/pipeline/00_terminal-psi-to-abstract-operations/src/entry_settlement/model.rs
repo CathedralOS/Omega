@@ -284,6 +284,7 @@ impl ValidatedNativeProgramEntrySettlement {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeProgramEntrySettlementError {
+    TargetFamily(String),
     TargetDrift,
     CallingPlanPairingDrift,
     SourceSignatureSubstitution,
