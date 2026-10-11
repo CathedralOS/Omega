@@ -749,3 +749,61 @@ result may be shared without misclaiming per-target provenance.
 Until answered, the `BuildConfig`-is-global frontier on
 **BUILD-EVALUATES-ONCE** is owner-blocked at this partition; the authored-rows
 and unrequested-row retention work within the same bullet is not blocked.
+### Q14 - Do generated portable family heads resolve for consumers outside the declaring package?
+
+Named decision: `target-family-head-visibility`.
+
+**Customer:** application callers of target-dispatched library surfaces —
+`tests/omega/pass/filesystem/{dir_walk_wrappers_exit, wrapper_lock_metadata_exit,
+wrapper_open_with_exit, cross_linux_value_syscalls}` and any user program
+calling `Filesystem::read_dir_count`, `Filesystem::remove_dir_all`,
+`Filesystem::open_with`, `Filesystem::lock`, etc. Target-scoped impl machines
+(`pub linux_x86_64 machine Filesystem::read_dir_count`) are the authored
+per-target bodies of one capability; a neutral caller needs a portable name
+to reach them. The canonical head decls are already planned-but-disabled:
+`source/library/std/filesystem.omg:1214-1218` carries commented-out
+`machine Filesystem::read_dir_count` / `read_dir_nth` / `remove_dir_all`
+signatures.
+
+**Existing rules:** a target-scoped machine's symbol is spelled
+`<path>::<target>` (`02` lowering machine.rs:139) and is deliberately absent
+from the ambient attached-method roster — `02` scope.rs:89: "a target
+sibling is checked but never an ambient method of the realized program; its
+own target's bodies reach it through sibling binding"
+(`symbols/target_siblings.rs` retargets calls only inside same-target
+bodies). `02` `preparation/target_families.rs` generates a bodyless
+`target_family_interface` head owning the portable path for every non-build
+family. Owner commit `c18e63a7cb4d` ("reject data-qualified machine calls
+during checking") removed the leaf-spelling fallback that previously carried
+these calls — the removal is confirmed deliberate. Observed: the generated
+head resolves inside the std package itself (`Filesystem::read_dir_is_empty`
+calls `Filesystem::read_dir_nth` and std checks green), but the same spelling
+from a consumer package leaves `call.target_symbol` invalid and checking
+reports "does not resolve to a callable machine entry or requirement"
+(`psi/checking/.../target_resolution.rs:218`). Whether that asymmetry is an
+unintended visibility gap in the generated head or the intended boundary —
+consumers must name an authored canonical decl — is the open question.
+
+**Decision needed:** is a consumer package's call to an impl-only
+`Filesystem::<method>` supposed to resolve through the generated family head
+(head exists but is not reaching consumers — an implementation gap), or is
+the designed surface that impl-only methods are uncallable outside their own
+package until an author writes the canonical `machine Filesystem::<method>`
+head — making the ~7 fixtures that call impl names directly invalid surface
+to re-author or drop?
+
+1. **Recommended: make generated heads consumer-visible.** Treat the
+   family head as the portable callable its members imply — same-target
+   callers keep sibling dispatch and consumer callers bind the head, which
+   dispatches to the selected target's member. The commented-out decls at
+   `filesystem.omg:1214-1218` become the documented spelling of exactly what
+   the head already promises.
+2. **Require authored canonical heads.** Impl-only methods stay package-
+   internal; the portable surface exists only where a `machine
+   Filesystem::<method>` head is authored — uncomment or write the six
+   listed decls — and the impl-call fixtures are re-authored against the
+   authored names or retired as invalid surface.
+
+Until answered, the filesystem wrapper cluster (dir_walk, wrapper_lock,
+wrapper_open_with, cross_linux) is owner-blocked at head visibility; the
+born-pinned fixtures remain correctly rejected on the current rules.
