@@ -1196,10 +1196,6 @@ defines the complete product bar.
     `pass/proofs/proof_inductive_climbing_sum` and its unbounded negative.
 
   Native customers (under `tests/omega/pass`):
-  - Restore `traits/equatable_string_field_equality_exit`: `--check` rejects
-    its stored borrow for a missing complete normal-exit backing relation after
-    the computed-backing custody change. Keep its authored exit 70 and
-    `text/runtime_mixed_byte_field_equality_exit` on macOS ARM64.
   - `host/runtime_console_bounded_line_exit` and its
     `_{lf,full,partial_eof,middle_window}_exit` siblings: exits 20/13/34/22/70
     with exact stdout on macOS ARM64; remaining Windows and Linux.

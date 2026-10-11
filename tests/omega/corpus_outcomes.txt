@@ -5311,3 +5311,5 @@ fail/providers/applied_binding_mutable_result_live_source_write rejected 430ms e
 fail/providers/applied_binding_mutable_result_shared_source rejected 220ms expected @e259521ddc2d+wt
 	argument `value` for state `borrow_mut` is declared `&mut` (`&mut i32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 pass/borrows/runtime_stored_boolean_reference_exit checked 2644ms check-target:macos_arm64 @e6e0563889f4+wt
+fail/borrows/opaque_sibling_stored_view_local_escape rejected 429ms expected @d00cc8b447da+wt
+	machine `replace` stores a borrowed value without a complete normal-exit backing relation

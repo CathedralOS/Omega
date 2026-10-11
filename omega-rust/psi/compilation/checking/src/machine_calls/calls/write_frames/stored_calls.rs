@@ -147,18 +147,32 @@ fn destination_inventory(
             reference,
             true,
         )?;
-        // This query currently transports shared slots. An exclusive leaf is
-        // not silently dropped from an otherwise complete output inventory.
-        for leaf in &inventory.references {
+        // The write frontier also retains opaque data as an unknown region.
+        // That region is not a declared descriptor slot: its contents remain
+        // opaque to the ordinary write/exposure checks, independently of this
+        // normal-exit relation for publicly declared reference leaves. Rejoin
+        // its exact declaration before excluding it; an unresolved type or an
+        // actual reference to opaque storage still needs the slot relation.
+        for leaf in inventory.references {
             let leaf_type =
                 stored_origins::projected_storage_type(program, reference, &leaf.local_segments)?;
-            if !super::type_reference_is_reference(program, leaf_type)
-                || super::type_may_carry_write(program, leaf_type)
-            {
+            if !super::type_reference_is_reference(program, leaf_type) {
+                let leaf_type = program
+                    .type_reference_table
+                    .unconstrained_type_reference(leaf_type);
+                let (definition, _) = super::type_instantiation::DeclarationScopes::default()
+                    .definition(program, leaf_type, 0)?;
+                if definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque {
+                    return None;
+                }
+                continue;
+            }
+            // Exclusive slots are not silently omitted from a shared relation.
+            if super::type_may_carry_write(program, leaf_type) {
                 return None;
             }
+            leaves.push(leaf);
         }
-        leaves.extend(inventory.references);
     }
     Some(leaves)
 }
