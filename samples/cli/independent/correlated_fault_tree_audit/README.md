@@ -74,8 +74,9 @@ entry binding. It deliberately writes element 3 of a three-element array.
 The required rejection is `cannot prove index`, the documented collection bounds
 rule; package/custody/review rejection is a wrong-reason failure. See
 `wiki/spec/language/counts_and_addresses.md#bounds-and-lowering` for bounds obligations.
-Generated route logs and native products stay under ignored `build/`.
+Use `--output-dir /absolute/external/evidence` on validate.py to keep evolving route
+logs and native products outside the reviewed source tree. The default is ignored `build/`.
 
-Execution status: see [VALIDATION.md](VALIDATION.md). Package resume rejected source
-drift; application check/native/Terminal remain blocked, and this candidate has
-not landed. The separate intended-invalid bounds rejection passed.
+[VALIDATION.md](VALIDATION.md) preserves the first attempt and its recoverable
+source-drift error. The final source tree is frozen before a fresh proposal; new
+validation and integration evidence is recorded externally in the delivery bundle.

@@ -1,6 +1,9 @@
-# NEW100 validation record — blocked candidate
+# NEW100 first-attempt validation record
 
-This is a complete authored application candidate, not an accepted or landed workflow.
+This records the first attempt through c4014849, which was blocked and not landed.
+A subsequent explicitly authorized recovery freezes the final source tree, discards
+the stale proposal through the documented command, and inspects a fresh proposal.
+Final validation/integration evidence is recorded externally in the delivery bundle.
 No Rust or standard-library source changes are included.
 
 Compiler base: `c24b141cb29b311e92de0a75b9609ec37e9bf28a` (main-only fetch).

@@ -4,9 +4,10 @@ import argparse,hashlib,json,os,re,shutil,subprocess,time
 parser=argparse.ArgumentParser()
 parser.add_argument('--omega',required=True)
 parser.add_argument('--route',choices=['check','native','terminal','invalid'],required=True)
+parser.add_argument('--output-dir',type=Path,help='Evidence root outside reviewed source tree')
 arguments=parser.parse_args()
 project=Path(__file__).resolve().parent
-output=project/'build'/arguments.route
+output=(arguments.output_dir.resolve() if arguments.output_dir else project/'build')/arguments.route
 output.mkdir(parents=True,exist_ok=True)
 environment=os.environ.copy()
 repository=project.parents[3]
