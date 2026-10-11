@@ -139,9 +139,20 @@ fn collect_target_argument_accesses(
             ) {
                 return None;
             }
-            let reference = collection.expression_type_reference(*argument)?;
-            validation::reference_shell(program, reference)?;
             let formal = validation::reference_shell(program, parameter.type_reference)?;
+            let reference = collection.expression_type_reference(*argument)?;
+            // A reference binding forwards its loan; a place lent as a whole
+            // slice view does too. Its storage backs the formal's descriptor
+            // through the invocation, so its read is the live borrow, not a
+            // copied observation that ends during operand evaluation.
+            if validation::reference_shell(program, reference).is_none()
+                && !(validation::slice_view_shell(program, parameter.type_reference, &[]).is_some()
+                    && crate::semantic::calls::view_argument_names_existing_place(
+                        program, *argument,
+                    ))
+            {
+                return None;
+            }
             Some(match formal.access {
                 language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
                 language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
