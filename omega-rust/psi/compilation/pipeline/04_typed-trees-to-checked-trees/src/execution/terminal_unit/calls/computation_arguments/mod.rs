@@ -848,30 +848,10 @@ fn rejoin_computation_accesses(
     ) {
         return None;
     }
-    for (access_ordinal, actual) in borrow
-        .argument_accesses
-        .span_or_empty(source.accesses)
-        .iter()
-        .enumerate()
-    {
-        if actual.kind.is_exclusive()
-            && actual.end_before_access.is_none()
-            && borrow
-                .argument_accesses
-                .span_or_empty(source.accesses)
-                .iter()
-                .filter(|candidate| {
-                    candidate.root == actual.root
-                        && !candidate
-                            .end_before_access
-                            .is_some_and(|end| end <= access_ordinal)
-                })
-                .count()
-                != 1
-        {
-            return None;
-        }
-    }
+    // Replay the exact ordered access roster here. Spatial compatibility is
+    // owned by checks::borrows for every call, including computation calls.
+    // Counting a root's simultaneous accesses loses their captured paths and
+    // rejects valid disjoint field loans; do not re-decide that judgment here.
     Some(())
 }
 

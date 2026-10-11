@@ -1,0 +1,36 @@
+module numeric_distinct;
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::float_operations;
+
+pub data Counter { calls: u32 in Wrapping; }
+pub data Main { console: Binding<Console>; counter: Counter; }
+
+machine step(counter: &mut Counter, value: i32) -> f64 {
+    counter.calls = counter.calls + 1u32;
+    F64::from_i32(value)
+}
+
+pub machine Main::main(application: &mut Main) reaches Console
+invokes Console;
+blocks;
+crashes Trap
+{
+    transition block application.console.read_byte() {
+        ByteRead::Byte { value } -> observe(application, value)
+        _ -> bad(application)
+    }
+    state observe(application: &mut Main, value: i32) {
+        let observed: f64 = min(step(&mut application.counter, value), step(&mut application.counter, value));
+        let converted: i32 in Saturating = I32::from_f64(observed);
+        transition converted == 65 && application.counter.calls == 2u32 {
+            true -> done(application)
+            false -> bad(application)
+        }
+    }
+    state done(application: &mut Main) {
+        application.console.write_line("minimum=65 calls=2");
+        application.console.exit_process(0);
+    }
+    state bad(application: &mut Main) { application.console.exit_process(3); }
+}

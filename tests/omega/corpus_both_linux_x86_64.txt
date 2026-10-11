@@ -131,7 +131,6 @@ pass/arithmetic/runtime_exact_left_shift_bounds_exit built 67394ms exit:0 interp
 pass/modules/public_constant_array_computed_extent_body_exit built 92483ms exit:7 interpreter-exit:7 interpreter:agrees @af9b942fa09e+wt
 pass/modules/selected_constant_array_alias_computed_extent_exit built 50076ms exit:7 interpreter-exit:7 interpreter:agrees @af9b942fa09e+wt
 pass/slices/runtime_predicate_qualified_scalar_copy_exit built 45704ms exit:0 interpreter-exit:0 interpreter:agrees @846ed632561f+wt
-run/calls/fixed_dividend_across_console_calls built 7421ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @20d50fee2e55
 pass/control_flow/runtime_copy_result_conditional_successor_reuse_exit built 5201ms exit:0 interpreter-exit:0 interpreter:agrees @c24b141cb29b+wt
 pass/arithmetic/runtime_reused_division_inputs_exit built 5837ms exit:0 interpreter-exit:0 interpreter:agrees @8137b080400c+wt
 pass/arithmetic/call_surviving_return_exit built 6890ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @30ec6a20142f+wt
@@ -203,3 +202,13 @@ run/arithmetic/fixed_integer_operand_after_pressure built 5695ms exit:70 stdout:
 run/arithmetic/fixed_integer_operand_join built 5232ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @3c6fd126c67d
 pass/calls/terminal_call_acknowledgements built 7563ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @1ade44fe20d0+wt
 pass/calls/terminal_call_acknowledgements_declarations checked 1304ms @1ade44fe20d0+wt
+pass/calls/runtime_numeric_operand_order_exit built 6965ms exit:0 interpreter-exit:0 interpreter:agrees @a15293788ba4
+pass/calls/runtime_numeric_operand_single_evaluation_exit built 5825ms exit:0 interpreter-exit:0 interpreter:agrees @a15293788ba4
+pass/collections/runtime_indexed_assignment_selector_snapshot_exit built 6720ms exit:0 interpreter-exit:0 interpreter:agrees @a15293788ba4
+run/borrows/conditional_disjoint_field_loans_exit built 9395ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a15293788ba4
+run/calls/fixed_dividend_across_console_calls built 8495ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a15293788ba4
+run/calls/runtime_float_distinct_operand_calls_exit built 122262ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @16ed47526a08
+run/calls/runtime_float_normalized_operand_single_evaluation_exit built 111135ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @16ed47526a08
+run/providers/module_named_float_conversion_family_exit built 98477ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @16ed47526a08
+run/stores/runtime_float_indexed_call_result_exit built 94679ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a15293788ba4
+run/stores/runtime_float_store_selector_snapshot_exit built 121925ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a15293788ba4

@@ -1,0 +1,1 @@
+receives `application.left` as both mutable and read-only

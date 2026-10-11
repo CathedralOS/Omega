@@ -804,6 +804,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "ind19-spectrum-validation"
+version = "0.1.0"
+dependencies = [
+ "build-declarations",
+ "compilation-products",
+ "compiler",
+ "diagnostics",
+ "effects",
+ "image-emission",
+ "mimalloc",
+ "package-compilation",
+ "semantic-vocabulary",
+ "source-files-to-tokens",
+ "symbols",
+ "syntax-trees",
+ "target",
+ "terminal-interpreter",
+ "terminal-psi",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+]
+
+[[package]]
 name = "installation-evidence"
 version = "0.1.0"
 dependencies = [

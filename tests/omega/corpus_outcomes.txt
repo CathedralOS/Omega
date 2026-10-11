@@ -952,8 +952,6 @@ fail/collections/element_view_read_requires_live_extent rejected 364ms expected 
 	cannot prove index `row` is within unknown slice length of `rows` in read::entry
 fail/collections/empty_record_array_index_rejected rejected 257ms expected @3e847a410959+wt
 	cannot prove index `0` is within length 0
-fail/collections/fixed_array_write_out_of_bounds_after_mutation rejected 430ms expected @3ff24ec6504a+wt
-	cannot prove index `index` is within length 2
 fail/collections/fixed_array_write_rejects_element_domain rejected 438ms expected @3ff24ec6504a+wt
 	cannot prove default-domain field requirement for return from corrupt at statement 1: bytes requires [u8; N]::Ascii
 fail/collections/fixed_vec_push_without_room rejected 216ms expected @c08960bee2b1+wt
@@ -3625,8 +3623,6 @@ pass/calls/runtime_nested_constructor_child_snapshots_exit checked 1221ms check-
 pass/calls/runtime_nested_local_field_store_exit checked 1769ms check-target:macos_arm64 @1da616075c39+wt
 pass/calls/runtime_nested_receiver_guard_exit checked 803ms check-target:macos_arm64 @ac942fdbba24
 pass/calls/runtime_nested_value_call_guard_exit checked 7580ms check-target:macos_arm64 @2b2f058c0e38+wt
-pass/calls/runtime_numeric_operand_order_exit checked 5942ms check-target:macos_arm64 @8c190f8c0e66+wt
-pass/calls/runtime_numeric_operand_single_evaluation_exit checked 5269ms check-target:macos_arm64 @8c190f8c0e66+wt
 pass/calls/runtime_option_value_call_exit checked 1531ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 1299ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_owned_mutable_state_parameter_exit checked 829ms check-target:macos_arm64 @cba4afbf6f2f+wt
@@ -3778,7 +3774,6 @@ pass/collections/runtime_fixed_vec_round_trip_exit checked 1036ms check-target:m
 pass/collections/runtime_frame_indexed_param_read_exit checked 1240ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_guarded_computed_index_exit checked 1952ms check-target:macos_arm64 @98f54226c10c
 pass/collections/runtime_hoisted_index_write_exit checked 1866ms check-target:macos_arm64 @cba4ef8c9ab1
-pass/collections/runtime_indexed_assignment_selector_snapshot_exit checked 1698ms check-target:macos_arm64 @86ae3811c141+wt
 pass/collections/runtime_indexed_boolean_field_guard_exit checked 1882ms check-target:macos_arm64 @bea382792161+wt
 pass/collections/runtime_indexed_bounded_element_read_exit checked 1219ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_indexed_bounded_field_local_exit checked 1782ms check-target:macos_arm64 @bea382792161+wt
@@ -5266,7 +5261,6 @@ run/borrows/shared_recast_borrow checked 894ms check-target:macos_arm64 @a3bac00
 run/borrows/shared_record_loan_member_read checked 3057ms check-target:macos_arm64 @2d8ed253669f
 run/borrows/shared_runtime_index_borrow checked 3050ms check-target:macos_arm64 @2d8ed253669f
 run/borrows/transition_shared_borrow checked 604ms check-target:macos_arm64 @4e4bfed13aee+wt
-run/calls/fixed_dividend_across_console_calls checked 6881ms check-target:macos_arm64 @20d50fee2e55
 run/calls/resultless_scalar_parameters checked 4770ms check-target:macos_arm64 @10b02229ff8b
 run/calls/table_report_call_survival checked 9157ms check-target:linux_x86_64 @b4606c96d11a
 run/contained_health_loop_command_branch checked 287ms @4e4bfed13aee+wt
@@ -5456,3 +5450,19 @@ fail/calls/terminal_call_redundant_block rejected 2829ms expected @1ade44fe20d0+
 	call to `ready` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
 fail/calls/terminal_call_reversed_markers rejected 1ms expected @1ade44fe20d0+wt
 	tests/omega/fail/calls/terminal_call_reversed_markers/main.omg:3:29: call acknowledgements use canonical order `suspend block`, never `block suspend`
+fail/borrows/conditional_overlapping_field_loans rejected 4727ms expected @16ed47526a08
+	state `split` receives `application.left` as both mutable and read-only
+fail/collections/fixed_array_write_out_of_bounds_after_mutation rejected 1217ms expected @16ed47526a08
+	cannot prove index `__hoist_14` is within length 2
+fail/providers/module_operator_satisfier_signature_mismatch rejected 3782ms expected @16ed47526a08
+	machine `Supplier::wrong` does not match one exact overload of operator requirement `Conversion::read`; its entry parameter and result types must equal one declared requirement signature
+pass/calls/runtime_numeric_operand_order_exit checked 7294ms check-target:macos_arm64 @16ed47526a08
+pass/calls/runtime_numeric_operand_single_evaluation_exit checked 5196ms check-target:macos_arm64 @16ed47526a08
+pass/collections/runtime_indexed_assignment_selector_snapshot_exit checked 6313ms check-target:macos_arm64 @16ed47526a08
+run/borrows/conditional_disjoint_field_loans_exit checked 8442ms check-target:linux_x86_64 @16ed47526a08
+run/calls/fixed_dividend_across_console_calls checked 8916ms check-target:macos_arm64 @16ed47526a08
+run/calls/runtime_float_distinct_operand_calls_exit checked 103811ms check-target:linux_x86_64 @16ed47526a08
+run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 95931ms check-target:linux_x86_64 @16ed47526a08
+run/providers/module_named_float_conversion_family_exit checked 79121ms check-target:macos_arm64 @16ed47526a08
+run/stores/runtime_float_indexed_call_result_exit checked 90790ms check-target:linux_x86_64 @16ed47526a08
+run/stores/runtime_float_store_selector_snapshot_exit checked 96305ms check-target:linux_x86_64 @16ed47526a08

@@ -1,0 +1,16 @@
+module mismatch_probe;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub data Conversion {}
+pub boundary operator Conversion::read(value: i32) -> i32;
+pub boundary operator Conversion::read(value: f64) -> f64;
+data Supplier {}
+// Presence of an overloaded family cannot authorize this bool signature.
+machine Supplier::wrong(value: bool) -> bool satisfies Conversion::read { value }
+pub data Main { console: Binding<Console>; }
+pub machine Main::main(application: &mut Main) reaches Console
+invokes Console;
+{
+    application.console.exit_process(0);
+}

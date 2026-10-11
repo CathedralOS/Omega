@@ -252,6 +252,26 @@ impl Builder<'_, '_> {
         primitive_type: PrimitiveType,
         kind: CheckedScalarComputationKind,
     ) -> CheckedScalarComputationHandle {
+        // Normalization can share one authored invocation across operands.
+        // Its captured call identity owns evaluation and cleanup, regardless
+        // of the result carrier or callee kind. Reuse that invocation's node;
+        // equal-looking independently authored calls have different facts.
+        if let CheckedScalarComputationKind::Call {
+            source_call,
+            callee,
+            ..
+        } = &kind
+            && source_call.is_valid()
+            && let Some((handle, _)) = self.plans.nodes.iter().find(|(_, node)| {
+                node.primitive_type == primitive_type
+                    && matches!(&node.kind, CheckedScalarComputationKind::Call {
+                        source_call: previous, callee: previous_callee, ..
+                    } if previous == source_call
+                        && previous_callee.called_signature() == callee.called_signature())
+            })
+        {
+            return handle;
+        }
         self.plans.nodes.append(CheckedScalarComputation {
             value_source: ExpressionHandle::invalid(),
             authored_root: ExpressionHandle::invalid(),

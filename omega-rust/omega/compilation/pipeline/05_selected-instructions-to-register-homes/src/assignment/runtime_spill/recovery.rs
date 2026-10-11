@@ -237,16 +237,18 @@ impl<'ranges> FailedDomain<'ranges> {
             crate::RegisterHomeError::NoCompatibleHome { function, register } => {
                 (*function, *register, false)
             }
-            crate::RegisterHomeError::NoCommonCandidate { function, register } => {
-                (*function, *register, true)
-            }
+            crate::RegisterHomeError::NoCommonCandidate { function, register }
+            | crate::RegisterHomeError::UnresolvedEntryTransitions {
+                function, register, ..
+            } => (*function, *register, true),
             _ => return None,
         };
         let function_ranges = ranges.plan().functions.get(function)?;
         let mut domain = Self::in_function(function, function_ranges, VirtualRegisterId(register));
         if intrinsic {
-            // Empty point-domain intersection belongs to this value itself.
-            // Spilling neighbours cannot change its pinned uses or clobbers.
+            // Empty point-domain intersections and retained entry transitions
+            // belong to this exact source value. Spilling neighbours cannot
+            // change its pinned uses, clobbers or preservation obligation.
             domain.members = std::collections::BTreeSet::from([VirtualRegisterId(register)]);
             domain.intrinsic = true;
         }
@@ -364,7 +366,10 @@ fn candidate_position(
 ) -> Option<usize> {
     let (function, register) = match failure {
         crate::RegisterHomeError::NoCompatibleHome { function, register } => (function, register),
-        crate::RegisterHomeError::NoCommonCandidate { function, register } => {
+        crate::RegisterHomeError::NoCommonCandidate { function, register }
+        | crate::RegisterHomeError::UnresolvedEntryTransitions {
+            function, register, ..
+        } => {
             return roster
                 .iter()
                 .position(|candidate| *candidate == (*function, VirtualRegisterId(*register)));
@@ -547,7 +552,8 @@ fn recover_over(
         }
         Err(
             error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
-            | crate::RegisterHomeError::NoCommonCandidate { .. }),
+            | crate::RegisterHomeError::NoCommonCandidate { .. }
+            | crate::RegisterHomeError::UnresolvedEntryTransitions { .. }),
         ) => error,
         Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
     };
@@ -714,7 +720,10 @@ fn recover_over(
                             }
                             Err(
                                 error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
-                                | crate::RegisterHomeError::NoCommonCandidate { .. }),
+                                | crate::RegisterHomeError::NoCommonCandidate { .. }
+                                | crate::RegisterHomeError::UnresolvedEntryTransitions {
+                                    ..
+                                }),
                             ) => {
                                 failed_crossing = Some(SpillPressureProbe {
                                     rewrite: crossing,
@@ -797,7 +806,8 @@ fn recover_over(
             }
             Err(
                 error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
-                | crate::RegisterHomeError::NoCommonCandidate { .. }),
+                | crate::RegisterHomeError::NoCommonCandidate { .. }
+                | crate::RegisterHomeError::UnresolvedEntryTransitions { .. }),
             ) => {
                 failure = error;
                 current_ranges = facts.ranges;

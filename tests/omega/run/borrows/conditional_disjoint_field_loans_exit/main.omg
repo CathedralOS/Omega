@@ -1,0 +1,41 @@
+module split_guard;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub data Cell { value: i32 in Wrapping; }
+pub data Main { console: Binding<Console>; left: Cell; right: Cell; }
+
+machine split(source: &Cell, destination: &mut Cell) -> bool {
+    destination.value = source.value + 1;
+    destination.value == 66
+}
+
+pub machine Main::main(application: &mut Main) reaches Console
+invokes Console;
+blocks;
+crashes Trap
+{
+    transition block application.console.read_byte() {
+        ByteRead::Byte { value } -> initialize(application, value)
+        _ -> failure(application)
+    }
+    state initialize(application: &mut Main, value: i32) {
+        application.left.value = value as i32 in Wrapping;
+        // Simultaneous shared/exclusive sibling loans have one root and disjoint paths.
+        transition split(&application.left, &mut application.right) {
+            true -> confirm(application)
+            false -> failure(application)
+        }
+    }
+    state confirm(application: &mut Main) {
+        transition application.right.value == 66 {
+            true -> success(application)
+            false -> failure(application)
+        }
+    }
+    state success(application: &mut Main) {
+        application.console.write_line("split loans observed");
+        application.console.exit_process(0);
+    }
+    state failure(application: &mut Main) { application.console.exit_process(3); }
+}
