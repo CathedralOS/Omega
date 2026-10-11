@@ -1,0 +1,5 @@
+use kit1::main;
+use kit2::main;
+machine entry() -> i32 {
+    v() + w()
+}
