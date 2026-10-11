@@ -80,14 +80,34 @@ pub(crate) fn selected_policy_machine<'program>(
 ) -> Result<&'program checked_trees::typed_trees::machine::Machine, String> {
     let bindings = trait_type_bindings(typed, boundary, boundary_arguments);
     let selected = policy_static_argument(typed, policy_argument, &bindings)?;
-    let application =
-        validation::conformance_applications::close_conformance_application(typed, &selected)
-            .map_err(|diagnostic| {
-                format!("calling policy implementation cannot be closed: {diagnostic:?}")
-            })?;
-    if application.trait_definition != calling_policy.symbol
-        || !application.trait_arguments.is_empty()
-    {
+    // Settlement runs on the admitted program: the conformance application's
+    // arity, kind and carrier obligations already passed checking, so the
+    // realization join needs only the conformance's exact trait and rows.
+    let Some(conformance) = typed.conformance_by_symbol(selected.symbol) else {
+        return Err(format!(
+            "static argument `{}` does not name a package-scoped conformance",
+            selected.display_name()
+        ));
+    };
+    let trait_definition = typed
+        .trait_definition_by_symbol(conformance.trait_symbol)
+        .or_else(|| {
+            typed
+                .traits()
+                .iter()
+                .find(|definition| definition.name == conformance.trait_name)
+        })
+        .ok_or_else(|| {
+            format!(
+                "conformance `{}` names unresolved trait `{}`",
+                conformance
+                    .alias
+                    .as_ref()
+                    .map_or("<unnamed-conformance>", |name| name.as_str()),
+                conformance.trait_name
+            )
+        })?;
+    if trait_definition.symbol != calling_policy.symbol || !conformance.arguments.is_empty() {
         return Err(
             "calling policy must explicitly select a complete CallingPolicy implementation"
                 .to_owned(),
@@ -100,7 +120,7 @@ pub(crate) fn selected_policy_machine<'program>(
     if requirement.name.as_str() != "plan" {
         return Err("CallingPolicy has no canonical plan requirement".to_owned());
     }
-    let rows = application
+    let rows = conformance
         .rows
         .iter()
         .filter(|row| {
