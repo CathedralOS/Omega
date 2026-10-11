@@ -1,3 +1,11 @@
+//! Declaration visibility and authored selection authority.
+//!
+//! Generated machine instances remain private implementation declarations.
+//! Selecting an application, however, selects its authored template's public
+//! surface, not the compiler-generated name. Selection checks follow retained
+//! specialization custody; ordinary declaration/reflection queries keep the
+//! private instance visibility. Neither query grants a body or dependency.
+
 use symbols::{SymbolHandle, SymbolKind};
 
 use crate::TypedTrees;
@@ -52,6 +60,52 @@ pub fn owning_machine_is_retained(program: &TypedTrees, symbol: SymbolHandle) ->
         current = entry.parent;
     }
     true
+}
+
+/// Visibility of the declaration an authored callable application selects.
+/// A state inherits its machine's visibility. Specialization retains the exact
+/// template identity; a generated name, signature resemblance or source span
+/// cannot substitute for that association. Missing or cyclic custody closes
+/// nothing, and a private template remains private for every application.
+pub fn authored_selection_visibility(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<DeclarationVisibility> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    let mut declaration = symbol;
+    if program.symbols.get(declaration).kind == SymbolKind::State {
+        declaration = program.symbols.get(declaration).parent;
+    }
+    if !declaration.is_valid() {
+        return None;
+    }
+    if program.symbols.get(declaration).kind != SymbolKind::Machine {
+        return declaration_visibility(program, symbol);
+    }
+    for _ in 0..=program.machine_specializations.len() {
+        let mut origins = program
+            .machine_specializations
+            .iter()
+            .filter(|specialization| specialization.instance == declaration);
+        let Some(origin) = origins.next() else {
+            return declaration_visibility(program, declaration);
+        };
+        if origins.next().is_some() {
+            return None;
+        }
+        if origin.template == declaration {
+            return declaration_visibility(program, declaration);
+        }
+        if !origin.template.is_valid()
+            || program.symbols.get(origin.template).kind != SymbolKind::Machine
+        {
+            return None;
+        }
+        declaration = origin.template;
+    }
+    None
 }
 
 /// Resolve declaration visibility independently of executable root membership.

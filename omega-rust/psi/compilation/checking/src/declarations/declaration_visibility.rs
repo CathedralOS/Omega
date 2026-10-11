@@ -51,9 +51,10 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
         if !typed_trees::visibility::requires_declaration_visibility(symbol_kind) {
             continue;
         }
-        let Some(visibility) =
-            typed_trees::visibility::declaration_visibility(program.product_declarations(), symbol)
-        else {
+        let Some(visibility) = typed_trees::visibility::authored_selection_visibility(
+            program.product_declarations(),
+            symbol,
+        ) else {
             diagnostics.push(
                 Diagnostic::error(format!(
                     "public interface selects {:?} `{}` without retained declaration visibility",
