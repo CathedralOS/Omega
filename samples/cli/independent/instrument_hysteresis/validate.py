@@ -8,6 +8,9 @@ from pathlib import Path
 import re
 import subprocess
 import time
+import sys
+# Reference imports must not mutate the accepted package source tree.
+sys.dont_write_bytecode = True
 from reference import oracle
 ROOT = Path(__file__).resolve().parent
 REPOSITORY = ROOT.parents[3]
