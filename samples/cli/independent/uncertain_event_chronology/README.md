@@ -60,27 +60,91 @@ input/stdout/exit bytes and both frozen ledgers while retaining the original
 reference source unchanged. Two separately frozen supplemental cases exercise
 EOF without LF and the unconstrained 1000-assignment upper limit (44 total).
 
-From the repository root, using the compiler built from the recorded base:
+From the repository root on Linux x86-64, using the compiler at the recorded
+qualification revision and this origin's accepted package graph:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-python3 samples/cli/independent/uncertain_event_chronology/validation/verify_frozen.py
-sha256sum -c samples/cli/independent/uncertain_event_chronology/validation/oracle-freeze.sha256
-python3 samples/cli/independent/uncertain_event_chronology/validation/validate.py --omega target/debug/omega --route check
-# Review packages through the documented update/review/resume workflow first.
-target/debug/omega update --project samples/cli/independent/uncertain_event_chronology --target linux_x86_64
-target/debug/omega --target linux_x86_64 samples/cli/independent/uncertain_event_chronology/main.omg
+APP=samples/cli/independent/uncertain_event_chronology
+CLI=target/debug/omega
+python3 -B "$APP/validation/verify_frozen.py"
+sha256sum -c "$APP/validation/oracle-freeze.sha256"
+python3 -B "$APP/validation/validate.py" --omega "$CLI" --route check
+"$CLI" --target linux_x86_64 "$APP/main.omg"
 # Use the executable path printed by successful compilation:
-python3 samples/cli/independent/uncertain_event_chronology/validation/validate.py --omega target/debug/omega --route native --executable <published-path>
-python3 samples/cli/independent/uncertain_event_chronology/validation/validate.py --omega target/debug/omega --route terminal
-python3 samples/cli/independent/uncertain_event_chronology/validation/validate.py --omega target/debug/omega --route invalid
+python3 -B "$APP/validation/validate.py" --omega "$CLI" --route native --executable <published-path>
+python3 -B "$APP/validation/validate.py" --omega "$CLI" --route invalid
 ```
 
+Package preparation must already be accepted for this exact origin. An ordinary
+`omega update --project "$APP" --target linux_x86_64` can refresh source/compiler
+identity only when all accepted meanings are unchanged and there are zero new
+decision rows. Stop on pending authority or denial. Archived locks are evidence;
+do not transplant them, repeat the original acceptance, reconstruct grants, or replace a held
+package operation with a direct compiler route.
+Another consumer path or executor must complete its own normal package review
+and explicit admission before running either route. The original accepted record
+and this correction do not authorize that consumer; no new admission is performed
+by these validation scripts.
+
+For CLI host execution and termination comparison, omit `--target`:
+
+```sh
+"$CLI" run --both --keep "$APP/main.omg" < "$APP/data/compatible/input.txt"
+python3 -B "$APP/validation/validate.py" --omega "$CLI" --route host-comparison
+```
+
+An explicit target makes `run` compile-only, even with `--both`. The corrected
+host command replays finite stdin independently to native and Terminal execution,
+but CLI stdout/stderr contain the native program streams. `interp exit: N`
+reports Terminal termination agreement only. The host-comparison verifier checks
+native stdout against the oracle and requires that positive Terminal exit report;
+`DECLINED`, missing agreement, divergence and interpretation failures cannot pass.
+It does not claim to capture or compare Terminal stdout.
+
+Exact direct Terminal streams use the supported public SDK route below. Build
+one Omega CLI, retain its successful Cargo JSON, and link the private sponsor to
+that build's public artifacts (`mbx` is the repository's documented Cargo wrapper;
+use Cargo when it is unavailable):
+
+```sh
+mkdir -p "$APP/build/validation"
+mbx build -p omega --message-format=json > "$APP/build/validation/omega-build.jsonl"
+python3 -B "$APP/validation/link_terminal.py" "$APP/build/validation/omega-build.jsonl" "$PWD" "$APP/build/validation/terminal-sdk"
+python3 -B "$APP/validation/validate.py" --route terminal --terminal-sponsor "$APP/build/validation/terminal-sdk"
+```
+
+`terminal_sdk.rs` is the unchanged sponsor source used for the qualified 44-case
+SDK observations. It prepares this accepted origin through the package manager,
+compiles once, and consumes the retained native product's Terminal artifact and
+exact runtime provisions. Each frozen case receives a fresh finite input stream,
+host clock snapshot, isolated domain and ordinary 10,000,000 fuel budget.
+`provider_proposal` remains `None`; no checked-tree fallback or reconstructed
+permission exists. The Terminal verifier uses a fresh output directory, requires
+all 44 ordered captures, and checks exact Terminal stdout, empty stderr and exits.
+The link receipt records source, CLI, dependency hashes and the exact rustc command.
+
+The actual qualified producer remains
+`c8e86802f4cf9fe814d04ece273a9fb2062ba0f1`. Later integrated callback and ordinary-byte
+reuse was independently reviewed; it is not a final-main execution claim. The
+original 44 native and 44 direct SDK observations and their exact provenance are
+preserved in the original version 5 Library packet. On resuming reproduction,
+the original accepted-origin lock had been removed with the landed worktree.
+The corrected host command was attempted with the qualified CLI and frozen
+compatible input, and stopped at missing accepted ProgramEntry authority (exit
+200). This is a reproduction blocker, not Terminal runtime success. No evidence
+lock was restored and no acceptance was repeated.
+Read-only diagnosis confirmed the recreated path and source context match the
+original origin. Its `omega.lock` and `build/package-manager/pending` are absent.
+Ordinary transaction recovery can complete an existing pending journal, which is
+unavailable here; cached historical source bytes supply no accepted policy. The
+verified original packet preserves this origin's lock and all 285 unchanged
+decision meanings as evidence, without making them replacement authority.
+
 Exactly one Rust build and one Omega invocation run at a time. Linux x86-64 is
-the declared target; no other target is claimed. Terminal validation explicitly
-rejects `DECLINED` as agreement. Reports and observed stdout/stderr go under
-ignored `build/validation/`; final evidence records actual supported/blocked
-routes, compiler/base identities and commands.
+the declared target; no other target is claimed. Reports and observed streams go
+under ignored `build/validation/`; evidence records supported and blocked routes,
+compiler/base identities and commands.
 
 The separate `controls/intended_invalid/main.omg` is a complete source program
 that indexes event 3 in a three-element array. Its authored intended rejection
