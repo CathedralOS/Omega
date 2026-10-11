@@ -5214,3 +5214,10 @@ pass/calls/runtime_float_result_across_call_exit checked 121629ms check-target:m
 fail/float/state_arrival_ieee_predicate_unsatisfied rejected 17950ms expected @69b706459738+wt
 	cannot prove requires contract for call bounded from Main::main: main.value == main.value && main.value >= 0.0 && main.value < 1000.0 (needs fact `value == value && value >= 0.0 && value < 1000.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 pass/float/state_arrival_ieee_predicates checked 82022ms check-target:macos_arm64 @69b706459738+wt
+# ADD17 fixed-byte loan qualification: Linux x86-64, one corpus job.
+fail/borrows/byte_array_state_loan_wrong_extent rejected 1633ms expected @059a98d14555
+	argument `bytes` for state `observe` expects `&[u8; 4]`, got `named value`
+pass/collections/runtime_fixed_byte_view_dynamic_state_loan_exit checked 7811ms check-target:macos_arm64 @059a98d14555
+pass/collections/runtime_fixed_byte_view_dynamic_state_shared_loan_exit checked 6992ms check-target:macos_arm64 @059a98d14555
+# ADD17 restricted-scalar composition control, one corpus job.
+pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit checked 6465ms check-target:macos_arm64 @fbc2344df662

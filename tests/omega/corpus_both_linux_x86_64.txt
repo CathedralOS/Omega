@@ -154,3 +154,12 @@ pass/structural/computed_enum_case_guard_effects_exit built 5246ms exit:0 interp
 pass/structural/computed_enum_equality_guard_exit built 5267ms exit:0 interpreter-exit:0 interpreter:agrees @ad018194f55c
 # NEW031 scoped evidence; jobs=1, Linux x86_64; detailed context in sample validation logs.
 pass/float/state_arrival_ieee_predicates built 75910ms exit:70 interpreter-exit:70 interpreter:agrees @69b706459738+wt
+# ADD17 fixed-byte loan qualification: Linux x86-64, one corpus job.
+pass/collections/borrowed_byte_array_state_reads_exit built 8167ms exit:70 interpreter-exit:70 interpreter:agrees @059a98d14555
+pass/collections/borrowed_byte_array_state_writes_exit built 6764ms exit:70 interpreter-exit:70 interpreter:agrees @059a98d14555
+pass/collections/runtime_bounded_byte_reference_forward_exit built 7093ms exit:70 interpreter-exit:70 interpreter:agrees @059a98d14555
+pass/collections/runtime_bounded_byte_reference_read_exit built 6789ms exit:70 interpreter-exit:70 interpreter:agrees @059a98d14555
+pass/collections/runtime_fixed_byte_view_dynamic_state_loan_exit built 6769ms exit:70 interpreter-exit:70 interpreter:agrees @059a98d14555
+pass/collections/runtime_fixed_byte_view_dynamic_state_shared_loan_exit built 7120ms exit:70 interpreter-exit:70 interpreter:agrees @059a98d14555
+# ADD17 restricted-scalar composition control, one corpus job.
+pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit built 6740ms exit:70 interpreter-exit:70 interpreter:agrees @fbc2344df662
