@@ -807,3 +807,41 @@ to re-author or drop?
 Until answered, the filesystem wrapper cluster (dir_walk, wrapper_lock,
 wrapper_open_with, cross_linux) is owner-blocked at head visibility; the
 born-pinned fixtures remain correctly rejected on the current rules.
+
+### Q15 - May shared-fragment publication admit claim-returning structural results?
+
+Named decision: `shared-fragment-structural-claims`.
+
+A machine returning a structural value whose result carries a claim binding —
+`ReturnStructural { returned_claims: [StructuralResultClaimBinding { claim,
+path }] }` — is refused by shared-fragment admission
+(`image-emission/function_fragments/source/aggregate_results.rs:206`): the
+predicate requires `returned_claims.is_empty()`, and the target-IR
+terminator `TargetControlTerminator::ReturnStructural` retains only
+`psi_edge`, `source`, and `cleanup_actions` — there is no claims counterpart
+to verify a non-empty roster against. Two pass/borrows fixtures ride this
+wall (`linear_call_result_shared_observation_exit`,
+`linear_owner_materialized_shared_reference_exit`): a callee returns an
+observation/reference whose claim moves to the caller, and the function is
+rejected at `admit()` with "unaccounted operation" even though every
+lowering and selection step succeeded.
+
+**Decision needed:** is the shared-fragment admission boundary meant to
+cover claim-returning structural results — extending the target return
+terminator (or its call-plan/claim plumbing) with a claims counterpart the
+accounting can rejoin — or is it deliberate that claim-returning functions
+stay out of shared-fragment publication, in which case the two fixtures are
+invalid surface for that artifact path?
+
+1. **Recommended: plumb the claims through.** A returned claim is still
+   runtime-realized (the claim moves to the caller's roster); give the
+   target terminator a claims binding the accounting can match exactly,
+   parallel to the `cleanup_actions` roster it already verifies.
+2. **Keep the boundary.** Claim-returning structural results remain outside
+   shared-fragment publication by design; the fixtures are re-authored to
+   return claims via a different surface or accepted as permanently
+   rejected on this artifact path.
+
+Until answered, the two borrows fixtures remain correctly rejected: no
+sound predicate relaxation exists — claims simply have no retained
+counterpart to verify.
