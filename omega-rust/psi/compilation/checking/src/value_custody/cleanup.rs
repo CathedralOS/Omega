@@ -327,23 +327,14 @@ pub fn nominal_cleanup_machine_for_type<'program>(
         ..TypeIdentityRequest::ordinary(reference)
     });
     let mut selected = None;
-    for machine in program.machines() {
-        let Some(candidate_owner) = nominal_cleanup_owner(program, machine.symbol) else {
+    let Some(candidates) = nominal_cleanup_candidates(program).get(&owner).cloned()
+    else {
+        return None;
+    };
+    for candidate in candidates {
+        let Some(machine) = program.machine(candidate) else {
             continue;
         };
-        if candidate_owner != owner {
-            let Some(origin) = program
-                .unique_data_definition_by_symbol(candidate_owner)
-                .and_then(|data| data.generic_instance)
-            else {
-                continue;
-            };
-            if !matches!(program.type_reference_table.type_reference(origin),
-                TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == owner)
-            {
-                continue;
-            }
-        }
         let Some(state) = program.machine_states(machine).first() else {
             continue;
         };
@@ -362,6 +353,49 @@ pub fn nominal_cleanup_machine_for_type<'program>(
         selected = Some(machine);
     }
     selected
+}
+
+/// Effective owner -> cleanup machine symbols, computed once per program.
+/// A machine qualifies for `owner` when its own cleanup owner is `owner`, or
+/// when that owner's origin specializes the generic `owner` base.
+fn nominal_cleanup_candidates(
+    program: &dyn crate::CheckingInput,
+) -> std::sync::Arc<
+    symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>,
+> {
+    crate::frozen_program::frozen_memo(
+        program,
+        |memos| &memos.nominal_cleanup_machine_index,
+        || {
+            let mut index: symbols::SymbolKeyMap<
+                symbols::SymbolHandle,
+                Vec<symbols::SymbolHandle>,
+            > = Default::default();
+            for machine in program.machines() {
+                let Some(candidate_owner) = nominal_cleanup_owner(program, machine.symbol)
+                else {
+                    continue;
+                };
+                index
+                    .entry(candidate_owner)
+                    .or_default()
+                    .push(machine.symbol);
+                if let Some(origin) = program
+                    .unique_data_definition_by_symbol(candidate_owner)
+                    .and_then(|data| data.generic_instance)
+                    && let TypeReferenceNode::Generic { base_symbol, .. } =
+                        program.type_reference_table.type_reference(origin)
+                    && *base_symbol != candidate_owner
+                {
+                    index
+                        .entry(*base_symbol)
+                        .or_default()
+                        .push(machine.symbol);
+                }
+            }
+            index
+        },
+    )
 }
 
 /// The first reserved cleanup machine, in program order, that

@@ -368,6 +368,12 @@ pub struct CheckingMemos {
     /// consumers that probe every machine share each declaration's walk once.
     pub(crate) nominal_cleanup_owners:
         Mutex<symbols::SymbolMap<Option<symbols::SymbolHandle>>>,
+    /// Effective owner -> cleanup machine candidates, built once: a machine
+    /// binds under its direct cleanup owner and under the generic base of
+    /// that owner's origin, so consumers stop scanning every machine.
+    pub(crate) nominal_cleanup_machine_index: OnceLock<
+        Arc<symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>>,
+    >,
     pub(crate) data_fields: OnceLock<Arc<DataFieldIndex>>,
     pub(crate) contract_occurrences:
         OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,
