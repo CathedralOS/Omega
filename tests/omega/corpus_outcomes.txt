@@ -5152,3 +5152,5 @@ pass/slices/runtime_cut_byte_view_cycle_exit checked 5877ms check-target:macos_a
 fail/ownership/owned_state_immutable_field_store rejected 356ms expected @c24b141cb29b+wt
 	machine `unchanged` state `update` assignment cannot write `counter` because it is not mutable in this state (if `counter` is undeclared -- a typo -- no such field or local exists)
 pass/calls/runtime_owned_state_scalar_field_store_exit checked 6601ms check-target:macos_arm64 @c24b141cb29b+wt
+pass/calls/runtime_exact_division_call_span_exit checked 5333ms check-target:macos_arm64 @6301348b6fe2
+pass/calls/runtime_wrapping_division_call_span_exit checked 5323ms check-target:macos_arm64 @6301348b6fe2

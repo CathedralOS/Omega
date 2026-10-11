@@ -121,3 +121,5 @@ pass/arithmetic/runtime_reused_division_inputs_exit built 5837ms exit:0 interpre
 pass/arithmetic/call_surviving_return_exit built 6890ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @30ec6a20142f+wt
 pass/slices/runtime_cut_byte_view_cycle_exit built 6139ms exit:70 interpreter-exit:70 interpreter:agrees @30ec6a20142f+wt
 pass/calls/runtime_owned_state_scalar_field_store_exit built 5907ms exit:70 interpreter-exit:70 interpreter:agrees @c24b141cb29b+wt
+pass/calls/runtime_exact_division_call_span_exit built 5514ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @6301348b6fe2
+pass/calls/runtime_wrapping_division_call_span_exit built 5417ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @6301348b6fe2
