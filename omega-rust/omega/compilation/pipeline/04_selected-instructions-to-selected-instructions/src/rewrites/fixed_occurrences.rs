@@ -157,16 +157,15 @@ pub fn materialize_selected_fixed_occurrences(
             .checked_mul(function.boundary_settlements.len())
             .ok_or(FixedOccurrencesError::IdentityOverflow)?;
         // Charge each work domain separately. Instruction scans do not search
-        // the register roster. Each operand performs at most two binary
-        // lookups (reference preparation and prepared occurrence), while
-        // each transport names at most two registers. One sorted roster is
-        // shared by preparation and materialization.
+        // the register roster. Each operand performs one binary lookup;
+        // its prepared slot retains the result and fixed-component membership.
+        // Four additional operand steps cover retaining and consuming those
+        // slots, and two instruction scans cover their construction/validation.
+        // Each transport names at most two registers. Tie closure runs once.
         let steps = super::function_scan(function)
-            .and_then(|scan| scan.checked_mul(8))
+            .and_then(|scan| scan.checked_mul(10))
             .and_then(|steps| {
-                steps.checked_add(
-                    operand_count.checked_mul(register_depth.checked_mul(2)?.checked_add(12)?)?,
-                )
+                steps.checked_add(operand_count.checked_mul(register_depth.checked_add(16)?)?)
             })
             .and_then(|steps| {
                 steps.checked_add(
@@ -181,7 +180,7 @@ pub fn materialize_selected_fixed_occurrences(
                         .checked_mul(register_depth.checked_mul(4)?.checked_add(12)?)?,
                 )
             })
-            .and_then(|steps| steps.checked_add(tie_steps.checked_mul(2)?))
+            .and_then(|steps| steps.checked_add(tie_steps))
             .and_then(|steps| steps.checked_add(settlement_steps))
             .and_then(|steps| steps.checked_add(source.selected_plan().functions.len()))
             .ok_or(FixedOccurrencesError::IdentityOverflow)?;
@@ -238,6 +237,7 @@ fn rewrite_function(
         .checked_add(1)
         .ok_or(FixedOccurrencesError::IdentityOverflow)?;
     let occurrences = local_occurrence_registers(function)?;
+    let mut prepared_instructions = occurrences.instructions.iter();
     let mut registers = function.virtual_registers.clone();
     for block in &mut function.blocks {
         let original = std::mem::take(&mut block.instructions);
@@ -251,6 +251,9 @@ fn rewrite_function(
                 &mut instruction,
                 &mut registers,
                 &occurrences,
+                prepared_instructions
+                    .next()
+                    .ok_or(FixedOccurrencesError::SourceMismatch)?,
                 row,
                 &mut next_register,
                 &mut next_instruction,
@@ -274,6 +277,9 @@ fn rewrite_function(
             control_mut(&mut block.terminator),
             &mut registers,
             &occurrences,
+            prepared_instructions
+                .next()
+                .ok_or(FixedOccurrencesError::SourceMismatch)?,
             row,
             &mut next_register,
             &mut next_instruction,
@@ -283,6 +289,9 @@ fn rewrite_function(
         }
         block.instructions.extend(before);
     }
+    if prepared_instructions.next().is_some() {
+        return Err(FixedOccurrencesError::SourceMismatch);
+    }
     function.virtual_registers = registers;
     Ok(())
 }
@@ -291,22 +300,29 @@ fn materialize(
     instruction: &mut SelectedInstruction,
     registers: &mut Vec<VirtualRegister>,
     occurrences: &OccurrencePlan,
+    prepared: &PreparedInstruction,
     row: &RegisterInstructionConstraint,
     next_register: &mut u32,
     next_instruction: &mut u32,
 ) -> Result<(Vec<SelectedInstruction>, Vec<SelectedInstruction>), FixedOccurrencesError> {
-    let local = fixed_component(instruction)?;
+    // Match the original occurrence before inserting any copies. Prepared
+    // slots index the stable source roster, never the growing register vector.
+    if instruction.id != prepared.id || instruction.operands.len() != prepared.operands.len() {
+        return Err(FixedOccurrencesError::SourceMismatch);
+    }
     let mut before = Vec::new();
     let mut after = Vec::new();
-    for (operand, local) in instruction.operands.iter_mut().zip(local) {
-        if !local {
+    for (operand, roster_index) in instruction.operands.iter_mut().zip(&prepared.operands) {
+        let Some(roster_index) = *roster_index else {
             continue;
-        }
-        let roster_index = occurrences
+        };
+        let occurrence = occurrences
             .registers
-            .binary_search_by_key(&operand.virtual_register, |entry| entry.id)
-            .map_err(|_| FixedOccurrencesError::SourceMismatch)?;
-        let occurrence = &occurrences.registers[roster_index];
+            .get(roster_index)
+            .ok_or(FixedOccurrencesError::SourceMismatch)?;
+        if occurrence.id != operand.virtual_register {
+            return Err(FixedOccurrencesError::SourceMismatch);
+        }
         if occurrence.instruction_local {
             continue;
         }
@@ -412,6 +428,15 @@ fn take_identity(next: &mut u32) -> Result<u32, FixedOccurrencesError> {
 /// mistaken for an occurrence carrier.
 struct OccurrencePlan {
     registers: Vec<PreparedOccurrenceRegister>,
+    instructions: Vec<PreparedInstruction>,
+}
+
+struct PreparedInstruction {
+    id: SelectedInstructionId,
+    // One slot per original operand. Only fixed-component members need a
+    // materialization lookup; all operands still participate in local-carrier
+    // analysis. The sorted register roster keeps these indices stable.
+    operands: Vec<Option<usize>>,
 }
 
 struct PreparedOccurrenceRegister {
@@ -439,6 +464,7 @@ fn local_occurrence_registers(
         })
         .collect();
     roster.sort_unstable_by_key(|entry| entry.0);
+    let mut instructions = Vec::new();
     for (block_index, block) in function.blocks.iter().enumerate() {
         for successor in selected_instructions::terminator_successors(&block.terminator) {
             let mut escape = |register| {
@@ -468,10 +494,12 @@ fn local_occurrence_registers(
             .enumerate()
         {
             let components = fixed_component(instruction)?;
+            let mut prepared_operands = Vec::with_capacity(instruction.operands.len());
             for (operand_index, operand) in instruction.operands.iter().enumerate() {
                 let index = roster
                     .binary_search_by_key(&operand.virtual_register, |entry| entry.0)
                     .map_err(|_| FixedOccurrencesError::SourceMismatch)?;
+                prepared_operands.push(components[operand_index].then_some(index));
                 if roster[index].2.len() < 4 {
                     roster[index].2.push((
                         block_index,
@@ -483,6 +511,10 @@ fn local_occurrence_registers(
                     ));
                 }
             }
+            instructions.push(PreparedInstruction {
+                id: instruction.id,
+                operands: prepared_operands,
+            });
             destructive_prefix += usize::from(!transport_kind(instruction.kind));
         }
     }
@@ -541,7 +573,10 @@ fn local_occurrence_registers(
                 .instruction_local = true;
         }
     }
-    Ok(OccurrencePlan { registers })
+    Ok(OccurrencePlan {
+        registers,
+        instructions,
+    })
 }
 
 fn transport_kind(kind: SelectedInstructionKind) -> bool {
