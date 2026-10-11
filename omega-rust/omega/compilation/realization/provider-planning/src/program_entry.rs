@@ -223,7 +223,7 @@ fn validate_program_entry_source_compatibility(
     let context = provisioned_entry_context_from_parameters(typed, machine_name, parameters)
         .map_err(|diagnostic| vec![diagnostic])?;
     if let Some(context) = &context
-        && typed_trees_to_checked_trees::data_requires_establishment(typed, context.definition)
+        && validation::data_requires_establishment(typed, context.definition)
     {
         diagnostics.push(Diagnostic::error(format!(
             "entry machine `{machine_name}` requests a provisioned `{}` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly",

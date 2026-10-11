@@ -1552,7 +1552,6 @@ dependencies = [
  "terminal-installation",
  "terminal-psi",
  "typed-trees",
- "typed-trees-to-checked-trees",
  "validation",
 ]
 
