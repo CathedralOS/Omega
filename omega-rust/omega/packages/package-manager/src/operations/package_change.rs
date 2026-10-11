@@ -14,8 +14,8 @@ use crate::resolution::graph::{
     ResolvedPackageSourceClosure,
 };
 use crate::review::{
-    CandidateCompilation, CandidateSourcePreparation, CompilerIssuedPackageReviewSet,
-    PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyResolution,
+    CandidateCompilation, CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits,
+    PackagePolicyChangeSet, PackagePolicyResolution, PackageSourceBindings,
     PackageSourceVerificationPhase, compare_package_policy_changes,
     compile_resolved_package_reviews_reusing, verify_transitive_source_custody,
 };
@@ -115,11 +115,9 @@ impl PackageChangeReview {
     }
 }
 
-/// The same candidate review, retaining binding-independent source preparation
-/// in the caller's store. A command reviewing several targets of this resolved
-/// closure prepares each package once.
-/// The same caller-owned session covers all of those targets and later automatic
-/// review rounds, independently of whether source preparation can be retained.
+/// Review a candidate using the closure's resolved source bindings. The same
+/// session owns compiler reuse, staging and sponsors across targets and review
+/// rounds; each occurrence still admits its own authority.
 /// A caller-selected snapshot applies only to the root and is rechecked in
 /// both discovery and final review. The command owner retains that selection
 /// across pending review; this operation grants no output publication authority.
@@ -129,7 +127,7 @@ pub fn review_package_change_reusing(
     accepted: Option<&PackageLockTarget>,
     session: &mut PackageBuildSession,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    preparation: &mut CandidateSourcePreparation,
+    source_bindings: &mut PackageSourceBindings,
 ) -> Result<PackageChangeReview, PackageChangeError> {
     if accepted.is_some_and(|accepted| accepted.target() != target) {
         return Err(PackageChangeError::Comparison(
@@ -147,7 +145,7 @@ pub fn review_package_change_reusing(
         },
         SemanticBindingReview::Discover,
         session,
-        preparation,
+        source_bindings,
     )
     .map_err(PackageChangeError::Compilation)?;
     verify_compiler_identity(compiler_identity)?;

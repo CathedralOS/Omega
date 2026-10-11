@@ -226,23 +226,14 @@ It uses one preliminary compiler review only to discover supported
 package-owned semantic surfaces, then recompiles with exact consumer-scoped
 bindings. Only that final review may proceed to policy comparison and admission;
 the discovery pass is neither policy nor evidence that an audit occurred.
-The two passes share per-package immutable parse checkpoints, not checked reviews.
-Discovery requests a source-output slot on the ordinary `CheckedCompileRequest`;
-the compiler clears it before validation and publishes preparation only on success.
-The final pass consumes each checkpoint only after fresh source-custody checks
-and exact compiler-input matching. It still assembles current dependency-generated
-sources, executes builds, checks bindings, and uses the invocation's shared
-sponsors. Retaining a checkpoint copies parsed storage for the discovery child;
-the final child can consume that storage. This avoids repeated base discovery,
-lexing and parsing, not final checking or all source copying.
-`CandidateSourcePreparation` moves that checkpoint store into the caller, so
-one resolved closure's unchanged packages prepare once across passes and across
-every exact target a command reviews (`review_package_change_reusing`,
-`compile_resolved_package_reviews_reusing`, and the install/update/inspect
-target loops). Slots are keyed by each package's prepared entry root, and every
-pass still runs its own custody verification, build evaluation, target
-selection, semantic bindings, and generated-source custody; only the
-binding-independent parse frontier is shared.
+The passes share one compiler session. It retains prepared source, completed
+Pure Builds and exact language judgments; package review owns source bindings,
+dependency order, occurrence consent and sponsor accounts, not compiler caches.
+Each activation still validates custody, selections, generated inputs and grants.
+A matching prior judgment lends checked storage only after fresh admission.
+`PackageSourceBindings` records resolved roots by package position; it is not a
+frontend checkpoint table. The command's `PackageBuildSession` persists across
+review rounds and targets, so sponsors are not replenished per target.
 Each returned package review also exposes borrowed access to its complete typed
 `PackagePolicyBaseline`, projected from that same final checked source and
 target. The closure retains at most 64 MiB in aggregate canonical policy

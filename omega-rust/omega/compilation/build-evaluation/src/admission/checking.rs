@@ -137,10 +137,14 @@ pub(crate) fn prepare_checked_build(
         },
     )?;
     let psi_compiler::CheckedSource {
-        program: mut checked,
+        program: checked,
         retained,
         ..
     } = outcome;
+    // Build installs execution-specific comparison facts in its own view;
+    // the shared language judgment stays unchanged for other activations.
+    let mut checked =
+        std::sync::Arc::try_unwrap(checked).unwrap_or_else(|shared| (*shared).clone());
     selected_dispatch::settle_selected_comparison_execution(
         &mut checked,
         source::DependencyScope::Build,

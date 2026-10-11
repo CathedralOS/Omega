@@ -14,6 +14,7 @@ pub(crate) fn check_product_source(
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
     reuse: SettledCheckReuse,
+    selections: &mut psi_compiler::ProductSelections,
 ) -> Result<CheckedProductSource, Vec<Diagnostic>> {
     let PreparedProductSource {
         typed,
@@ -116,7 +117,7 @@ pub(crate) fn check_product_source(
         provider_defaults,
         retained,
         selection: product_selection,
-    } = outcome.select_product(roots)?;
+    } = selections.select(outcome, roots)?;
     let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
     let accepted_template_classifications =
         trust_model::AcceptedTemplateClassifications::capture(&program);

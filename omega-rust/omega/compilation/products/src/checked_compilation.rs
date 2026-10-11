@@ -21,14 +21,9 @@ mod terminal;
 
 pub use report::CheckedProductReport;
 
-/// Invocation-local language judgments retained for the next review pass of
-/// this occurrence. Build and Product are independent checked programs; neither
-/// judgment carries provider selection, executor resources or consent.
-///
-/// `occurrences` holds each dependency occurrence's pair in the same custody,
-/// indexed by graph position and purpose slot. Dependency checks settle inside
-/// their own package occurrence, so they cannot share the root's pair without
-/// confusing which occurrence's input the judgment describes.
+/// Invocation-local language judgments retained by the compiler session. Build
+/// and Product are independent checked programs; neither judgment carries
+/// provider selection, executor resources or consent.
 #[derive(Debug, Clone, Default)]
 pub struct RetainedCompilationChecks {
     pub build: Option<psi_compiler::RetainedCheck>,
@@ -45,7 +40,6 @@ pub struct RetainedCompilationChecks {
     /// that converges with an earlier one. An exact-input match takes that
     /// earlier judgment; authority admission still runs per invocation.
     pub sibling_product_checks: Vec<psi_compiler::RetainedCheck>,
-    pub occurrences: Vec<Option<RetainedCompilationChecks>>,
 }
 
 /// Whole stage products supplied when sealing a checked compilation, each as

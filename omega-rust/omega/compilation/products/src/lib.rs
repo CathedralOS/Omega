@@ -62,7 +62,7 @@ pub use native_artifact::{
 pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationComponent};
 pub use native_artifact::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 pub use optimization_core::OptimizationRollbackReceipt;
-pub use package_build::{PackageBuildOutcome, PreparedPackageBuild};
+pub use package_build::PreparedPackageBuild;
 pub use package_compilation::RetainedBuildOutputs;
 pub use prepared_build::{
     BuiltTypedProgram, CheckedProductSource, PreparedBuild, PreparedProductSource,

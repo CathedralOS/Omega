@@ -38,14 +38,15 @@ It assembles, resolves, executes Build and completes authored/generated typing
 once. [Prepared source products](../products/src/prepared_build.rs) carry that
 checked prefix and sealed source custody, not a cache keyed by target inputs.
 Provider settlement borrows those owners and cannot mutate checked metadata.
-Package review enters the same operations
-with its own admitted activation; the package batch caller still needs to move
-onto this shared request. Native production consumes each
+Package review enters the same operations with its own admitted activation.
+Its compiler session shares checked storage, and package targets finish through
+the common Terminal batch. Source completion still needs convergence with the
+whole-program request. Native production consumes each
 target's retained Terminal artifact without a second scheduling pass. Product
 reports belong to their product owners; [package.rs](src/compiler/package.rs)
 sequences package custody admission and Terminal production.
 
-Checked-only consumers supply one `CheckedCompileRequest` to `compile_to_checked`.
+Checked-only consumers supply `CheckedCompileRequest` to `CompilationSession::check`.
 Package inputs, build staging and session sponsors are request
 data, not alternate compilation entrypoints. The request enters the same prepared
 source continuation used by production and target batches.
@@ -122,19 +123,16 @@ than clone-rebuilding scratch. Any mutation does not reseal evidence, and
 downstream reconstruction remains mandatory. `into_program` consumes the result and discards its compilation
 evidence.
 
-Candidate discovery calls `compile_checked(request)` for one owned
-`CheckedCompileOutcome`: the verdict, optional reusable source, and
-independent-component discovery. The request contains inputs only, including
-an optional `prepared_source` and `retain_prepared_source` intent; there are no
-mutable output slots or separate prepared-compilation entrypoints. Reusable
-source publishes only on success, while evaluated selections and sponsored Build
-usage survive a later settlement rejection so review can publish the missing
-component descriptions and account for the rejected attempt. `compile_to_checked`
-is the verdict-only projection of this same operation.
-Root paths and immutable package inputs must still match. Reuse shares source
-loading, parsing and exact-input typed preparation, never checked semantics or
-Build authority; every child still performs custody admission and subsequent
-checking. Retained preparation is invocation-local, not a persistent cache.
+Candidate discovery calls `CompilationSession::check(request)` for the verdict
+and independent-component discovery. The session owns source frontiers, Pure
+Build values, exact language judgments and Product root selections; callers
+carry none of those caches. Root paths and immutable package inputs must match,
+and every activation admits current custody, grants, selections and sponsor
+charges. Evaluated selections survive a later settlement rejection so review
+can supply component descriptions and account for the rejected attempt.
+Successful language judgments share checked storage, not authority. All reuse
+is invocation-local. Package targets finish together through `finish_compilation`
+so equal checked programs produce Terminal Psi once before native realization.
 
 [Native product preparation](src/native.rs) produces the same retained
 Terminal product as Terminal-only compilation, then consumes it through

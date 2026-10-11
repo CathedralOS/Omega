@@ -8,8 +8,8 @@ mod identity;
 pub(crate) use identity::compiler_input_identity;
 
 use crate::build_session::{
-    PackageBuildSession, PackageSourcePreparation, PreparedPackageSource,
-    dependency_first_package_order, publish_checked_component, reconcile_build_inputs,
+    PackageBuildSession, dependency_first_package_order, publish_checked_component,
+    reconcile_build_inputs,
 };
 use crate::declarations::{DependencyPurpose, PackageKey, purpose_slot};
 use crate::lock::{PackageCheckedContext, PackageLockTarget, PackageOccurrenceRoster};
@@ -37,9 +37,6 @@ pub(super) struct AcceptedCompilationRequest<'request> {
     pub snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
     pub verify: bool,
     pub timings: bool,
-    /// The previous target's retained language judgments: an equal settled
-    /// input takes that judgment instead of checking again.
-    pub settled_check_reuse: compiler::SettledCheckReuse,
 }
 
 struct OccurrenceProducts {
@@ -66,7 +63,6 @@ fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
 pub(super) fn compile_accepted_project(
     request: AcceptedCompilationRequest<'_>,
     session: &mut PackageBuildSession,
-    preparation: &mut PackageSourcePreparation,
 ) -> Result<CheckedCompilation, Error> {
     let root = request.closure.source_closure().graph().root();
     let compiler_identity = compiler_input_identity().map_err(|error| failure(root, error))?;
@@ -74,9 +70,7 @@ pub(super) fn compile_accepted_project(
         identity::require_current_acceptance(request.closure, accepted, compiler_identity)
             .map_err(|error| failure(root, error))?;
     }
-    preparation.size_for(request.closure.source_closure());
-    preparation.pure_build_compilation = session.pure_build_compilation();
-    let result = compile_occurrences(&request, session, preparation);
+    let result = compile_occurrences(&request, session);
     // Loaded Rust identity is immutable; the external library is not. Reject
     // edits during compilation instead of labeling mixed inputs as accepted.
     result.and_then(|checked| {
@@ -94,7 +88,6 @@ pub(super) fn compile_accepted_project(
 fn compile_occurrences(
     request: &AcceptedCompilationRequest<'_>,
     session: &mut PackageBuildSession,
-    preparation: &mut PackageSourcePreparation,
 ) -> Result<CheckedCompilation, Error> {
     let closure = request.closure.source_closure();
     let graph = closure.graph();
@@ -121,20 +114,6 @@ fn compile_occurrences(
     let mut products: Vec<[Option<OccurrenceProducts>; 2]> =
         graph.packages().iter().map(|_| [None, None]).collect();
     let mut checked_root = None;
-    // Each dependency occurrence's retained Build/Product pair, keyed like
-    // `products` by graph position and purpose slot, chains to the next
-    // target's equal settled input. The root's pair stays in the shared
-    // judgment and is not recorded here.
-    let mut occurrence_retained: Vec<Option<compilation_products::RetainedCompilationChecks>> =
-        std::iter::repeat_with(|| None)
-            .take(graph.packages().len() * 2)
-            .collect();
-    // Sibling rows of this one invocation may project the exact same Build
-    // program; an equal-input match takes the earlier judgment instead of
-    // repeating the whole-program check. Retained checks enter the pool only
-    // after their row's own admission and execution, so a row can never
-    // consume a judgment that has not yet been made.
-    let mut sibling_build_checks = Vec::new();
 
     for key in dependency_first_package_order(closure) {
         let position = graph
@@ -205,12 +184,6 @@ fn compile_occurrences(
                     errors,
                 })?;
             let is_root = &key == root && purpose.is_product();
-            let occurrence_prior = request
-                .settled_check_reuse
-                .prior
-                .occurrences
-                .get(position * 2 + purpose_slot(purpose))
-                .and_then(|slot| slot.as_ref());
             let entry = if is_root {
                 request.entry.to_path_buf()
             } else {
@@ -234,60 +207,29 @@ fn compile_occurrences(
             .unwrap_or_else(|| {
                 build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
             });
-            let prepared_source = match preparation.slots[position].take() {
-                Some(slot) if slot.entry_root == entry => Some(slot.prepared),
-                _ => None,
+            let compile_request = CheckedCompileRequest {
+                package_inputs: Some(inputs),
+                build_execution_profile: execution_profile,
+                build_dir: Some(session.create_occurrence_directory(
+                    &key,
+                    custody.resolution(),
+                    purpose,
+                )?),
+                filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
+                evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
+                build_snapshot: Some(snapshot),
+                restricted_build_grants: checkpoint.as_ref().map(|checkpoint| {
+                    Box::new(checkpoint.grants(
+                        key.identity(),
+                        context,
+                        closure.dependency_path(&key),
+                    )) as Box<dyn compiler::RestrictedBuildGrants>
+                }),
+                collect_timings: request.timings,
+                ..CheckedCompileRequest::new(&entry, Some(target.target_name()))
             };
-            let outcome = compiler::prepare_package_build(
-                CheckedCompileRequest {
-                    prepared_source,
-                    retain_prepared_source: true,
-                    package_inputs: Some(inputs),
-                    build_execution_profile: execution_profile,
-                    build_dir: Some(session.create_occurrence_directory(
-                        &key,
-                        custody.resolution(),
-                        purpose,
-                    )?),
-                    filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
-                    evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
-                    build_snapshot: Some(snapshot),
-                    restricted_build_grants: checkpoint.as_ref().map(|checkpoint| {
-                        Box::new(checkpoint.grants(
-                            key.identity(),
-                            context,
-                            closure.dependency_path(&key),
-                        )) as Box<dyn compiler::RestrictedBuildGrants>
-                    }),
-                    collect_timings: request.timings,
-                    // Each occurrence's Build judgment chains across targets
-                    // like the root's Product judgment; an equal settled
-                    // input takes the prior judgment instead of checking
-                    // again. Admission and execution stay per occurrence.
-                    settled_check_reuse: compiler::SettledCheckReuse {
-                        prior: compilation_products::RetainedCompilationChecks {
-                            build: if is_root {
-                                request.settled_check_reuse.prior.build.clone()
-                            } else {
-                                occurrence_prior.and_then(|prior| prior.build.clone())
-                            },
-                            sibling_build_checks: sibling_build_checks.clone(),
-                            ..compilation_products::RetainedCompilationChecks::default()
-                        },
-                        retain: request.settled_check_reuse.retain,
-                    },
-                    ..CheckedCompileRequest::new(&entry, Some(target.target_name()))
-                },
-                Some(&preparation.pure_build_compilation),
-            );
-            preparation.slots[position] =
-                outcome
-                    .prepared_source
-                    .map(|prepared| PreparedPackageSource {
-                        entry_root: entry,
-                        prepared,
-                    });
-            let prepared = outcome.result.map_err(|failure| Error::Compilation {
+            let outcome = session.compiler.prepare_build(compile_request);
+            let prepared = outcome.map_err(|failure| Error::Compilation {
                 package: key.clone(),
                 diagnostics: failure.into_diagnostics(),
             })?;
@@ -297,8 +239,7 @@ fn compile_occurrences(
                 prepared.build().independent_components().selections,
                 graph,
                 &mut products,
-                &request.settled_check_reuse,
-                &mut occurrence_retained,
+                &mut session.compiler,
             )?;
             let prepared = prepared
                 .with_independent_component_descriptions(descriptions)
@@ -307,24 +248,12 @@ fn compile_occurrences(
                     errors,
                 })?;
             if is_root {
-                let outcome = compiler::check_prepared_package_build(
-                    prepared,
-                    request.settled_check_reuse.clone(),
-                );
+                let outcome = session.compiler.check_build(prepared);
                 checked_root = Some(outcome.result.map_err(|failure| Error::Compilation {
                     package: key.clone(),
                     diagnostics: failure.into_diagnostics(),
                 })?);
             } else {
-                let retained_build_check = prepared.retained_build_check().cloned();
-                if let Some(build) = retained_build_check.clone() {
-                    sibling_build_checks.push(build);
-                }
-                occurrence_retained[position * 2 + purpose_slot(purpose)] = retained_build_check
-                    .map(|build| compilation_products::RetainedCompilationChecks {
-                        build: Some(build),
-                        ..compilation_products::RetainedCompilationChecks::default()
-                    });
                 products[position][purpose_slot(purpose)] = Some(OccurrenceProducts {
                     generated: prepared.generated_source_bundle().clone(),
                     prepared: Some(prepared),
@@ -340,13 +269,7 @@ fn compile_occurrences(
             }
         }
     }
-    let checked = checked_root
-        .ok_or_else(|| failure(root, "ordinary compilation produced no checked root"))?;
-    // Publish the dependency occurrences' retained judgments beside the
-    // root's so the next target's equal settled inputs can take them.
-    let mut settled_checks = checked.settled_checks().clone();
-    settled_checks.occurrences = occurrence_retained;
-    Ok(checked.with_settled_checks(settled_checks))
+    checked_root.ok_or_else(|| failure(root, "ordinary compilation produced no checked root"))
 }
 
 fn selected_component_descriptions(
@@ -355,13 +278,9 @@ fn selected_component_descriptions(
     selections: Vec<compilation_products::IndependentComponentSelection>,
     graph: &crate::resolution::graph::ResolvedPackageClosure,
     products: &mut [[Option<OccurrenceProducts>; 2]],
-    settled_check_reuse: &compiler::SettledCheckReuse,
-    occurrence_retained: &mut [Option<compilation_products::RetainedCompilationChecks>],
+    compilation: &mut compiler::CompilationSession,
 ) -> Result<Vec<IndependentComponentDescription>, Error> {
     let mut descriptions = Vec::new();
-    // Components share the invocation's product judgments: the request pool
-    // (earlier targets) plus every component checked so far this pass.
-    let mut sibling_product_checks = settled_check_reuse.prior.sibling_product_checks.clone();
     for selection in selections {
         let Some(component) = selection.component else {
             continue;
@@ -400,39 +319,13 @@ fn selected_component_descriptions(
                     "independent component continuation was already consumed",
                 )
             })?;
-            let checked = compiler::check_prepared_package_build(
-                prepared,
-                compiler::SettledCheckReuse {
-                    prior: compilation_products::RetainedCompilationChecks {
-                        product: settled_check_reuse
-                            .prior
-                            .occurrences
-                            .get(position * 2 + purpose_slot(purpose))
-                            .and_then(|slot| slot.as_ref())
-                            .and_then(|prior| prior.product.clone()),
-                        // Sibling component checks from this same invocation
-                        // plus the request's earlier product judgments: an
-                        // exact-input match takes that judgment instead of
-                        // repeating the whole-program check.
-                        sibling_product_checks: sibling_product_checks.clone(),
-                        ..compilation_products::RetainedCompilationChecks::default()
-                    },
-                    retain: settled_check_reuse.retain,
-                },
-            )
-            .result
-            .map_err(|failure| Error::Compilation {
-                package: consumer.clone(),
-                diagnostics: failure.into_diagnostics(),
-            })?;
-            // The checked component's own retained judgments replace whatever
-            // its earlier Build custody captured, and join the sibling pool
-            // for components whose settled programs arrive equal later.
-            if let Some(product) = checked.settled_checks().product.clone() {
-                sibling_product_checks.push(product);
-            }
-            occurrence_retained[position * 2 + purpose_slot(purpose)] =
-                Some(checked.settled_checks().clone());
+            let checked = compilation
+                .check_build(prepared)
+                .result
+                .map_err(|failure| Error::Compilation {
+                    package: consumer.clone(),
+                    diagnostics: failure.into_diagnostics(),
+                })?;
             products.description =
                 Some(publish_checked_component(checked).map_err(|diagnostics| {
                     Error::Compilation {

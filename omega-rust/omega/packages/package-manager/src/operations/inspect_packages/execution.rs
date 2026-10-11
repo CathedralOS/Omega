@@ -10,8 +10,8 @@ use crate::resolution::graph::{
 };
 use crate::review::SemanticBindingReview;
 use crate::review::{
-    CandidateCompilation, CandidateSourcePreparation, CompilerIssuedPackageReviewSet,
-    PackagePolicyChangeLimits, PackagePolicyChangeSet, compare_package_policy_changes,
+    CandidateCompilation, CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits,
+    PackagePolicyChangeSet, PackageSourceBindings, compare_package_policy_changes,
     compile_resolved_package_reviews_reusing,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
@@ -50,8 +50,8 @@ pub(super) fn inspect<Storage: Borrow<SourceResolver>>(
     let targets = select_targets(requested_targets, accepted.as_ref())?;
     let storage = open_storage(transaction.project_root());
     // One locked closure serves every requested target; binding-independent
-    // source preparation happens once and each target still checks fresh.
-    let mut preparation = CandidateSourcePreparation::new();
+    // bindings are retained while the compiler session owns reusable checking.
+    let mut source_bindings = PackageSourceBindings::new();
     let mut outcome = PackageInspectionOutcome {
         report: String::new(),
         complete: true,
@@ -68,7 +68,7 @@ pub(super) fn inspect<Storage: Borrow<SourceResolver>>(
                 offline,
                 root_build_snapshot,
                 session,
-                &mut preparation,
+                &mut source_bindings,
             ),
             Err(error) => Err(failure(error)),
         };
@@ -155,7 +155,7 @@ fn check(
     offline: bool,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     session: &mut PackageBuildSession,
-    preparation: &mut CandidateSourcePreparation,
+    source_bindings: &mut PackageSourceBindings,
 ) -> Result<
     (
         CanonicalSourceClosureSubject,
@@ -206,7 +206,7 @@ fn check(
         },
         SemanticBindingReview::Discover,
         session,
-        preparation,
+        source_bindings,
     )
     .map_err(failure)?;
     let changes = compare_package_policy_changes(

@@ -7,8 +7,8 @@ pub(crate) use source_checking::check_product_source;
 
 pub use compilation_products::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
-    IndependentComponentDiscovery, IndependentComponentSelection, PackageBuildOutcome,
-    PreparedCheckedSource, PreparedPackageBuild, SettledCheckReuse,
+    IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
+    PreparedPackageBuild, SettledCheckReuse,
 };
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 
@@ -16,42 +16,13 @@ use artifacts::compile_timings::{
     BUILD_AND_CHECKED_CONTINUATION, CompileTimings, StageMeta, counters,
 };
 use compilation_products::{
-    CheckedExecutionRequest, CompileFailure, PreparedBuild,
-    PreparedProductSource, PreparedSourceFrontier, TypedCompilationFrontier,
+    CheckedExecutionRequest, CompileFailure, PreparedBuild, PreparedProductSource,
+    PreparedSourceFrontier, TypedCompilationFrontier,
 };
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use package_compilation::source_assembly::ImmutableSourceParseCheckpoint;
 use std::path::Path;
-
-/// Run the owned request on the compiler stack and return its whole outcome.
-/// Early failures retain no source frontier or Build observations.
-pub fn compile_checked(request: CheckedCompileRequest) -> CheckedCompileOutcome {
-    compile_checked_with_build_owner(request, None)
-}
-
-/// Compile another consumer of this explicit compilation's completed Pure
-/// Builds. Fresh requests without this owner cannot import another invocation's
-/// results. Both entries run the same custody/admission/checking pipeline.
-pub fn compile_checked_reusing_builds(
-    request: CheckedCompileRequest,
-    owner: &build_evaluation::PureBuildCompilation,
-) -> CheckedCompileOutcome {
-    compile_checked_with_build_owner(request, Some(owner.clone()))
-}
-
-fn compile_checked_with_build_owner(
-    request: CheckedCompileRequest,
-    owner: Option<build_evaluation::PureBuildCompilation>,
-) -> CheckedCompileOutcome {
-    counters::record_checked_compilation();
-    compile_thread::run_on_compile_thread(move || compile_checked_worker(request, owner))
-        .unwrap_or_else(|diagnostics| CheckedCompileOutcome {
-            result: Err(diagnostics),
-            prepared_source: None,
-            independent_components: IndependentComponentDiscovery::default(),
-        })
-}
 
 /// Psi 00-01 through package-owned source preparation, then retain the result.
 pub(crate) fn prepare_checked_source(
@@ -123,36 +94,12 @@ fn prepare_typed_frontier(
     Ok((frontier, timings))
 }
 
-/// Compile through checked Psi without backend lowering or native output.
-/// Use `compile_checked` to retain preparation and rejection observations.
-pub fn compile_to_checked(
+pub(super) fn prepare_package_build_worker(
     request: CheckedCompileRequest,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    compile_checked(request)
-        .result
-        .map_err(CompileFailure::into_diagnostics)
-}
-
-/// Execute one dependency Build under the same admission and source custody as
-/// ordinary compilation, retaining its generated handoff and typed continuation.
-/// No final product check or review is performed. A required dependency product
-/// consumes this result through `check_prepared_package_build`, never a replay.
-pub fn prepare_package_build(
-    request: CheckedCompileRequest,
-    owner: Option<&build_evaluation::PureBuildCompilation>,
-) -> PackageBuildOutcome {
-    let owner = owner.cloned();
-    compile_thread::run_on_compile_thread(move || prepare_package_build_worker(request, owner))
-        .unwrap_or_else(|diagnostics| PackageBuildOutcome {
-            result: Err(diagnostics),
-            prepared_source: None,
-        })
-}
-
-fn prepare_package_build_worker(
-    request: CheckedCompileRequest,
-    owner: Option<build_evaluation::PureBuildCompilation>,
-) -> Result<PackageBuildOutcome, CompileFailure> {
+    source: PreparedCheckedSource,
+    reuse: SettledCheckReuse,
+    owner: &build_evaluation::PureBuildCompilation,
+) -> Result<PreparedPackageBuild, CompileFailure> {
     let selected_target =
         target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -161,14 +108,6 @@ fn prepare_package_build_worker(
             "dependency Build preparation requires package source custody",
         )]
     })?;
-    let source = match request.prepared_source {
-        Some(source) => source,
-        None => prepare_checked_source(
-            &request.root_path,
-            Some(inputs.source_inputs()),
-            request.collect_timings,
-        )?,
-    };
     let child = CheckedExecutionRequest {
         selected_target_profile: Some(selected_target),
         build_execution_profile: request
@@ -187,12 +126,11 @@ fn prepare_package_build_worker(
         optimization_rollback: request.optimization_rollback.clone(),
         restricted_build_grants: request.restricted_build_grants,
         permit_unsettled_fused_service_fields: false,
-        settled_check_reuse: request.settled_check_reuse,
+        settled_check_reuse: reuse,
     };
-    let prepared_source = request.retain_prepared_source.then(|| source.clone());
-    let prepared = prepare_build_source(&request.root_path, source, child, owner.as_ref())?;
+    let prepared = prepare_build_source(&request.root_path, source, child, Some(owner))?;
     let base_sources = prepared.built.base_sources.clone();
-    let result = PreparedPackageBuild::seal(
+    PreparedPackageBuild::seal(
         request.root_path,
         selected_target,
         inputs.clone(),
@@ -202,45 +140,17 @@ fn prepare_package_build_worker(
     .map_err(|mut diagnostics| {
         attribute_diagnostics(&mut diagnostics, &base_sources, Some(&inputs));
         CompileFailure::from(diagnostics)
-    });
-    let prepared_source = result.as_ref().ok().and(prepared_source);
-    Ok(PackageBuildOutcome {
-        result,
-        prepared_source,
-    })
-}
-
-/// Complete a genuinely requested dependency product using its completed Build.
-/// Source custody is revalidated when checking seals the product; no Build grant
-/// or sponsor is recreated and no authored Build effect executes a second time.
-pub fn check_prepared_package_build(
-    build: PreparedPackageBuild,
-    settled_check_reuse: SettledCheckReuse,
-) -> CheckedCompileOutcome {
-    counters::record_checked_compilation();
-    compile_thread::run_on_compile_thread(move || {
-        let (_root_path, target, inputs, rollback, prepared) = build.into_continuation();
-        Ok::<_, CompileFailure>(check_completed_build(
-            prepared,
-            Some(target),
-            Some(&inputs),
-            &rollback,
-            false,
-            settled_check_reuse,
-        ))
-    })
-    .unwrap_or_else(|diagnostics| CheckedCompileOutcome {
-        result: Err(diagnostics),
-        prepared_source: None,
-        independent_components: IndependentComponentDiscovery::default(),
     })
 }
 
 /// The checked request's feed-forward route. Settlement and source-sealing
 /// failures retain completed Build observations beside the rejected outcome.
-fn compile_checked_worker(
+pub(super) fn compile_checked_worker(
     request: CheckedCompileRequest,
-    pure_build_compilation: Option<build_evaluation::PureBuildCompilation>,
+    prepared: PreparedCheckedSource,
+    reuse: SettledCheckReuse,
+    pure_build_compilation: &build_evaluation::PureBuildCompilation,
+    selections: &mut psi_compiler::ProductSelections,
 ) -> Result<CheckedCompileOutcome, CompileFailure> {
     // Target admission precedes source loading, including for fresh requests.
     let selected_target_profile = request
@@ -249,17 +159,6 @@ fn compile_checked_worker(
         .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
         .transpose()
         .map_err(|diagnostic| vec![diagnostic])?;
-    let prepared = match request.prepared_source {
-        Some(prepared) => prepared,
-        None => prepare_checked_source(
-            &request.root_path,
-            request
-                .package_inputs
-                .as_ref()
-                .map(PackageCompilationInputs::source_inputs),
-            request.collect_timings,
-        )?,
-    };
     let package_inputs = request.package_inputs.as_ref();
     let child = CheckedExecutionRequest {
         selected_target_profile,
@@ -279,30 +178,27 @@ fn compile_checked_worker(
         optimization_rollback: request.optimization_rollback.clone(),
         restricted_build_grants: request.restricted_build_grants,
         permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
-        settled_check_reuse: request.settled_check_reuse,
+        settled_check_reuse: reuse,
     };
-    let retained_source = request.retain_prepared_source.then(|| prepared.clone());
-    let mut outcome = check_prepared_source(
+    check_prepared_source(
         &request.root_path,
         prepared,
         child,
-        pure_build_compilation.as_ref(),
-    )?;
-    if outcome.result.is_ok() {
-        outcome.prepared_source = retained_source;
-    }
-    Ok(outcome)
+        Some(pure_build_compilation),
+        selections,
+    )
 }
 
 /// One source-to-checked route for product compilation and package review.
 /// A product batch shares its completed source prefix. Sponsored review
 /// activations admit fresh and may consume an exactly matched completed Pure Build. Failures
-/// after Build retain its discovery observations, but never a reusable source.
+/// after Build retain discovery observations, never output or execution authority.
 pub(crate) fn check_prepared_source(
     root_path: &Path,
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
+    selections: &mut psi_compiler::ProductSelections,
 ) -> Result<CheckedCompileOutcome, CompileFailure> {
     let selected_target_profile = child.selected_target_profile;
     let package_inputs = child.package_inputs;
@@ -318,6 +214,7 @@ pub(crate) fn check_prepared_source(
         &rollback,
         permit_unsettled_fused_service_fields,
         settled_check_reuse,
+        selections,
     ))
 }
 
@@ -396,20 +293,27 @@ fn complete_prepared_build(
     })
 }
 
-fn check_completed_build(
+pub(super) fn check_completed_build(
     prepared: PreparedBuild,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
     permit_unsettled_fused_service_fields: bool,
     settled_check_reuse: SettledCheckReuse,
+    selections: &mut psi_compiler::ProductSelections,
 ) -> CheckedCompileOutcome {
     let independent_components = prepared
         .built
         .computed_build_config
         .independent_components();
     match complete_prepared_build(prepared, package_inputs).and_then(|source| {
-        check_product_source(source, package_inputs, rollback, settled_check_reuse)
+        check_product_source(
+            source,
+            package_inputs,
+            rollback,
+            settled_check_reuse,
+            selections,
+        )
     }) {
         Ok(source) => crate::execution_settlement::settle_product_target(
             &source,
@@ -418,7 +322,6 @@ fn check_completed_build(
             permit_unsettled_fused_service_fields,
         ),
         Err(diagnostics) => CheckedCompileOutcome {
-            prepared_source: None,
             result: Err(CompileFailure::from(diagnostics)),
             independent_components,
         },

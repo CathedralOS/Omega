@@ -8,32 +8,23 @@ const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
 /// infrastructure, not a compiler stage or request mode.
 /// Thread creation failures return diagnostics; worker panics keep their payload.
 pub fn run_on_compile_thread<T, Failure>(
-    work: impl FnOnce() -> Result<T, Failure> + Send + 'static,
+    work: impl FnOnce() -> Result<T, Failure> + Send,
 ) -> Result<T, Failure>
 where
-    T: Send + 'static,
-    Failure: From<Vec<Diagnostic>> + Send + 'static,
+    T: Send,
+    Failure: From<Vec<Diagnostic>> + Send,
 {
-    finish_compile_thread(
+    std::thread::scope(|scope| {
         std::thread::Builder::new()
             .name("omega-compile".to_owned())
             .stack_size(COMPILE_STACK_SIZE)
-            .spawn(work),
-    )
-}
-
-fn finish_compile_thread<T, Failure>(
-    spawned: std::io::Result<std::thread::JoinHandle<Result<T, Failure>>>,
-) -> Result<T, Failure>
-where
-    Failure: From<Vec<Diagnostic>>,
-{
-    spawned
-        .map_err(|error| {
-            Failure::from(vec![Diagnostic::error(format!(
-                "failed to spawn compiler thread: {error}"
-            ))])
-        })?
-        .join()
-        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+            .spawn_scoped(scope, work)
+            .map_err(|error| {
+                Failure::from(vec![Diagnostic::error(format!(
+                    "failed to spawn compiler thread: {error}"
+                ))])
+            })?
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    })
 }

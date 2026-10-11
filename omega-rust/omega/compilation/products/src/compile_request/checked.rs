@@ -10,8 +10,8 @@ use std::path::Path;
 use target::TargetProfile;
 
 /// Inputs to checked compilation, without native publication authority. Source
-/// reuse is input only: every activation independently admits its package custody,
-/// Build sponsors and occurrence-bound restricted consent.
+/// preparation belongs to the compiler session: every activation independently
+/// admits its package custody, Build sponsors and occurrence-bound consent.
 pub struct CheckedCompileRequest {
     pub root_path: std::path::PathBuf,
     /// `None` preserves targetless semantic checking.
@@ -27,9 +27,6 @@ pub struct CheckedCompileRequest {
     /// Captured immutable source and required sealed outputs for this activation.
     pub build_snapshot: Option<BuildSnapshotRequest>,
     pub optimization_rollback: OptimizationRollback,
-    pub prepared_source: Option<crate::PreparedCheckedSource>,
-    /// Return preparation only after successful checking.
-    pub retain_prepared_source: bool,
     /// `None` reports restricted requests without executing them. Private
     /// issued snapshot/staging work projects none and continues normally.
     pub restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
@@ -38,16 +35,10 @@ pub struct CheckedCompileRequest {
     /// Discovery leaves unsettled fields unestablished; the bound recompile must
     /// derive or diagnose them under its own inputs.
     pub permit_unsettled_fused_service_fields: bool,
-    /// An earlier settled judgment of this occurrence to take when settlement
-    /// arrives at an equal input, and whether to retain this one for later.
-    pub settled_check_reuse: SettledCheckReuse,
 }
 
-/// Package review's two passes compile one occurrence twice; the bound pass
-/// hands the discovery pass's Build and Product judgments back separately. A
-/// multi-target request chains the same custody across its target loop: each
-/// target hands the previous target's judgments forward, so equal settled
-/// inputs share one check. Ordinary compiles retain neither and check afresh.
+/// Compiler-owned prior language judgments. Psi matches complete inputs before
+/// reuse; these records cannot carry executor resources or package consent.
 #[derive(Debug, Clone, Default)]
 pub struct SettledCheckReuse {
     pub prior: RetainedCompilationChecks,
@@ -66,12 +57,9 @@ impl CheckedCompileRequest {
             evaluation_sponsor: None,
             build_snapshot: None,
             optimization_rollback: OptimizationRollback::default(),
-            prepared_source: None,
-            retain_prepared_source: false,
             restricted_build_grants: None,
             collect_timings: false,
             permit_unsettled_fused_service_fields: false,
-            settled_check_reuse: SettledCheckReuse::default(),
         }
     }
 }

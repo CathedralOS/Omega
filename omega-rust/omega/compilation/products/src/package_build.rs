@@ -5,7 +5,7 @@
 //! consumers. If an actual independent product is requested, its retained typed
 //! continuation proceeds to final checking without executing the Build again.
 
-use crate::{CompileFailure, ComputedBuildConfig, PreparedBuild};
+use crate::{ComputedBuildConfig, PreparedBuild};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::{
@@ -14,13 +14,6 @@ use package_compilation::{
 };
 use std::path::PathBuf;
 use target::TargetProfile;
-
-#[must_use]
-pub struct PackageBuildOutcome {
-    pub result: Result<PreparedPackageBuild, CompileFailure>,
-    /// Retained source preparation belongs to this invocation, not its acceptance.
-    pub prepared_source: Option<crate::PreparedCheckedSource>,
-}
 
 pub struct PreparedPackageBuild {
     root_path: PathBuf,

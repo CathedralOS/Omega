@@ -64,8 +64,9 @@ pub fn lower_typed_trees(
     preparation: TypedPreparation,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees_reusing(program, preparation, None, request, None, false)
-        .map(|outcome| outcome.checked)
+    lower_typed_trees_reusing(program, preparation, None, request, None, false).map(|outcome| {
+        std::sync::Arc::try_unwrap(outcome.checked).unwrap_or_else(|shared| (*shared).clone())
+    })
 }
 
 /// One language judgment kept with the exact input it judged. Only this module
@@ -85,6 +86,13 @@ pub struct RetainedCheck {
 }
 
 impl RetainedCheck {
+    /// Identity of an already-issued language judgment, not semantic equality
+    /// or permission to skip admission. Invocation owners use it only to avoid
+    /// retaining the same immutable result twice.
+    pub fn same_judgment(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.checked, &other.checked)
+    }
+
     /// Whether this judgment was computed for `program` under `admission`.
     /// Preparation is a pure function of the typed program and its admission
     /// inputs, so an equal pair reproduces this judgment's preparation and
@@ -102,7 +110,7 @@ impl RetainedCheck {
 /// judgment when retention was asked for, and whether an equal prior supplied
 /// it instead of a check.
 pub struct CheckingOutcome {
-    pub checked: CheckedTrees,
+    pub checked: std::sync::Arc<CheckedTrees>,
     pub retained: Option<RetainedCheck>,
     pub took_prior: bool,
 }
@@ -117,7 +125,7 @@ pub fn reuse_retained_check(
     request: &CheckingRequest<'_>,
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
-    let checked = (*prior.checked).clone();
+    let checked = prior.checked.clone();
     let retained = retain.then(|| prior.clone());
     admit_declaration_authority(&checked, request)?;
     Ok(CheckingOutcome {
@@ -154,7 +162,7 @@ pub fn lower_typed_trees_reusing(
     });
     let took_prior = equal_prior.is_some();
     let (checked, retained) = match equal_prior {
-        Some(prior) => ((*prior.checked).clone(), retain.then(|| prior.clone())),
+        Some(prior) => (prior.checked.clone(), retain.then(|| prior.clone())),
         None => {
             let input = retained_input.map(|(preparation_input, preparation_admission)| {
                 (
@@ -164,12 +172,12 @@ pub fn lower_typed_trees_reusing(
                     opaque_property_receipts.clone(),
                 )
             });
-            let checked = check_program(
+            let checked = std::sync::Arc::new(check_program(
                 program,
                 admits_pending_inputs,
                 mathematics,
                 opaque_property_receipts,
-            )?;
+            )?);
             let retained = input.map(
                 |(preparation_input, preparation_admission, program, opaque_property_receipts)| {
                     RetainedCheck {
@@ -178,7 +186,7 @@ pub fn lower_typed_trees_reusing(
                         program,
                         admits_pending_inputs,
                         opaque_property_receipts,
-                        checked: std::sync::Arc::new(checked.clone()),
+                        checked: checked.clone(),
                     }
                 },
             );

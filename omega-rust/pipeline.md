@@ -129,8 +129,15 @@ publication. Package assembly supplies admitted frontiers and discovers imports
 from the returned syntax; generated extension units preserve separate forests.
 Build role projection and dependency editing use the same Psi parsing entrance,
 not independent lexer/parser pipelines.
-Package-manager batches also retain separate
-checked activations. These are unfinished ownership moves, not the intended route:
+The compiler's invocation owns prepared sources, completed Pure Builds and
+exact prior language judgments across package targets and review rounds.
+Package callers supply source custody and fresh grants, not frontend or proof
+cache slots. A reused language judgment lends its checked arenas; equal Product
+root selections share the pruning output. Package native requests complete as
+one roster through the same Terminal producer as standalone requests.
+Package-manager batches still assemble separate Build/Product continuations
+and return checked activations to their callers. These are unfinished ownership
+moves, not the intended route:
 
 | Input → output | Owner |
 | --- | --- |

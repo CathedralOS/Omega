@@ -81,11 +81,14 @@ fn check_inspection_sources(
     )
     .map_err(InspectTerminalError::Preparation)?;
     let Some(prepared) = prepared else {
-        return compiler::compile_to_checked(CheckedCompileRequest::new(
-            &request.root_path,
-            request.target_name.as_deref(),
-        ))
-        .map_err(InspectTerminalError::Diagnostics);
+        return compiler::CompilationSession::default()
+            .check(CheckedCompileRequest::new(
+                &request.root_path,
+                request.target_name.as_deref(),
+            ))
+            .result
+            .map_err(|failure| failure.into_diagnostics())
+            .map_err(InspectTerminalError::Diagnostics);
     };
     let build_dir = CompileOptions {
         root_path: request.root_path.clone(),

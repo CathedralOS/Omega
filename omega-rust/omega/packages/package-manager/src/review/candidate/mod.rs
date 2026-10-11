@@ -11,7 +11,7 @@ mod semantic_bindings;
 
 pub(crate) use commitments::build_observation_commitment;
 pub(crate) use compilation::{
-    CandidateCompilation, CandidateSourcePreparation, SemanticBindingReview,
+    CandidateCompilation, PackageSourceBindings, SemanticBindingReview,
     compile_resolved_package_reviews_reusing,
 };
 pub(crate) use custody::verify_transitive_source_custody;

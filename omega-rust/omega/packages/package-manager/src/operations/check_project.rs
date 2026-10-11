@@ -3,7 +3,7 @@
 use super::accepted_compilation::{AcceptedCompilationRequest, compile_accepted_project};
 use super::prepare_project::PreparedProjectTarget;
 use super::{PrepareLocalProjectError, PreparedLocalProject};
-use crate::build_session::{PackageBuildSession, PackageSourcePreparation};
+use crate::build_session::PackageBuildSession;
 use crate::review::CompileResolvedPackageReviewsError;
 use compiler::CompileReport;
 use diagnostics::Diagnostic;
@@ -143,10 +143,8 @@ pub fn check_prepared_local_project_for_inspection(
             snapshot: None,
             verify: true,
             timings: false,
-            settled_check_reuse: compiler::SettledCheckReuse::default(),
         },
         &mut session,
-        &mut PackageSourcePreparation::for_closure(&source_closure),
     );
     session.dispose(result)
 }
@@ -177,17 +175,10 @@ pub fn check_prepared_local_project_for_targets(
         timings,
     } = request;
     let (entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
-    let mut preparation = PackageSourcePreparation::for_closure(&source_closure);
-    // Psi judges each target's settled product independently, but a target
-    // whose settlement arrives at an equal program takes the previous
-    // target's language judgment instead of checking again. Only a target
-    // with successors retains its own judgment for them.
     let targets: Vec<_> = prepared_targets
         .into_iter()
         .filter(|target| target_profiles.contains(&target.profile))
         .collect();
-    let mut retained_checks = compilation_products::RetainedCompilationChecks::default();
-    let target_count = targets.len();
     // The whole batch borrows one invocation: sponsors, staging and the pure
     // Build store persist across targets rather than replenishing per check.
     let mut session = match PackageBuildSession::create(&build_dir) {
@@ -210,8 +201,7 @@ pub fn check_prepared_local_project_for_targets(
     };
     let outcomes = targets
         .into_iter()
-        .enumerate()
-        .map(|(index, prepared_target)| {
+        .map(|prepared_target| {
             let profile = prepared_target.profile;
             let result = check_one_prepared_target(
                 prepared_target,
@@ -221,9 +211,6 @@ pub fn check_prepared_local_project_for_targets(
                 verify,
                 timings,
                 &mut session,
-                &mut preparation,
-                &mut retained_checks,
-                index + 1 < target_count,
             );
             CheckedProjectTargetOutcome {
                 target: profile,
@@ -251,9 +238,6 @@ fn check_one_prepared_target(
     verify: bool,
     timings: bool,
     session: &mut PackageBuildSession,
-    preparation: &mut PackageSourcePreparation,
-    retained_checks: &mut compilation_products::RetainedCompilationChecks,
-    retain_for_successors: bool,
 ) -> Result<CompileReport, CheckPreparedLocalProjectError> {
     let profile = prepared_target.profile;
     let accepted_target = prepared_target
@@ -267,37 +251,16 @@ fn check_one_prepared_target(
             snapshot: build_snapshot,
             verify,
             timings,
-            settled_check_reuse: compiler::SettledCheckReuse {
-                prior: retained_checks.clone(),
-                retain: retain_for_successors,
-            },
         },
         session,
-        preparation,
     )
     .map_err(CheckPreparedLocalProjectError::Review)?;
-    // A successful check replaces the retained judgments for the next
-    // target; a failed one leaves the prior judgment untouched. Every
-    // target's retained product judgment also joins the request pool so a
-    // later target converging with any earlier input can take it.
-    let mut next_checks = checked.settled_checks().clone();
-    if let Some(product) = next_checks.product.clone() {
-        next_checks
-            .sibling_product_checks
-            .append(&mut retained_checks.sibling_product_checks);
-        next_checks.sibling_product_checks.push(product);
-    } else {
-        std::mem::swap(
-            &mut next_checks.sibling_product_checks,
-            &mut retained_checks.sibling_product_checks,
-        );
-    }
-    *retained_checks = next_checks;
-    compiler::finish_compilation(
+    compiler::finish_compilation(vec![(
         checked,
         entry_path.to_path_buf(),
         compiler::CompilationProduct::Check,
-    )
+    )])
+    .into_single()
     .map_err(|error| match error {
         compiler::CompilationProductError::TrustAdmission(diagnostics) => {
             CheckPreparedLocalProjectError::TrustAdmission(diagnostics)

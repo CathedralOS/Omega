@@ -3,7 +3,7 @@
 //! text record per fixture to stdout (format below): pass and run fixtures go through
 //! `compiler::compile` with a `Check` product (run fixtures are compile-
 //! checked only — the suite's execution leg is not reproduced here), fail
-//! fixtures through `compile_to_checked` with reviewed repository package
+//! fixtures through the compiler session with reviewed repository package
 //! inputs, continuing that checked compilation to native production only when
 //! their own Build declares an entry. Source acceptance never restarts compilation
 //! or demands an entry invented by the harness. A pass or run
@@ -129,7 +129,7 @@
 
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, OptimizationRollback,
-    RequestedCompileProduct, compile_to_checked,
+    RequestedCompileProduct,
 };
 use std::path::{Path, PathBuf};
 use std::{env, fs, process};
@@ -768,7 +768,10 @@ fn interpret_checked_fixture(
         if let Some(rollback) = rollback {
             request.optimization_rollback = rollback.clone();
         }
-        compile_to_checked(request)
+        compiler::CompilationSession::default()
+            .check(request)
+            .result
+            .map_err(|failure| failure.into_diagnostics())
     };
     let checked = compile_checked();
     let _ = fs::remove_dir_all(&build_dir);
@@ -1279,19 +1282,24 @@ fn check_fail_fixture(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(vec![diagnostics::Diagnostic::error(error.to_string())]),
     }
-    let mut result = compile_to_checked(request).and_then(|checked| {
-        if let Some(native_product) = native_product {
-            compiler::finish_compilation(
-                checked,
-                prepared.root_path,
-                compiler::CompilationProduct::Native(native_product),
-            )
-            .map(|_| ())
-            .map_err(compiler::CompilationProductError::into_diagnostics)
-        } else {
-            Ok(())
-        }
-    });
+    let mut result = compiler::CompilationSession::default()
+        .check(request)
+        .result
+        .map_err(|failure| failure.into_diagnostics())
+        .and_then(|checked| {
+            if let Some(native_product) = native_product {
+                compiler::finish_compilation(vec![(
+                    checked,
+                    prepared.root_path,
+                    compiler::CompilationProduct::Native(native_product),
+                )])
+                .into_single()
+                .map(|_| ())
+                .map_err(compiler::CompilationProductError::into_diagnostics)
+            } else {
+                Ok(())
+            }
+        });
     for output in absent_outputs {
         if build_dir.join(&output).try_exists().map_err(|error| {
             vec![diagnostics::Diagnostic::error(format!(

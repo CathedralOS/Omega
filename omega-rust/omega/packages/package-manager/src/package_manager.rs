@@ -22,7 +22,7 @@ use crate::resolution::graph::{
     GitResolutionOptions, PackageSourceClosureLimits,
     resolve_staged_external_local_project_closure,
 };
-use crate::review::{CandidateSourcePreparation, CompileResolvedPackageReviewsError};
+use crate::review::{CompileResolvedPackageReviewsError, PackageSourceBindings};
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
@@ -220,12 +220,9 @@ pub fn execute_package_command(
             "candidate sources or dependency graph changed since the proposal; discard it and review a fresh candidate",
         ));
     }
-    // One closure serves every requested target's review; binding-independent
-    // source preparation happens once and each target still checks fresh.
-    // The session's pure Build store carries over review rounds so a resumed
-    // request does not re-execute an evaluation this invocation already ran.
-    let mut preparation = CandidateSourcePreparation::for_closure(&closure);
-    preparation.pure_build_compilation = session.pure_build_compilation();
+    // One closure serves every target's review. The compiler session retains
+    // shared source and language judgments; each review admits authority fresh.
+    let mut source_bindings = PackageSourceBindings::for_closure(&closure);
     let mut reviews = Vec::new();
     for target in &targets {
         reviews.push(
@@ -235,7 +232,7 @@ pub fn execute_package_command(
                 accepted.as_ref().and_then(|lock| lock.target(*target)),
                 session,
                 build_snapshot.as_ref(),
-                &mut preparation,
+                &mut source_bindings,
             )
             .map_err(failure)?,
         );

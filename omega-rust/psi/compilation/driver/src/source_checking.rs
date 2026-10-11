@@ -33,16 +33,17 @@ pub struct CheckRequest<'request> {
 
 /// Successful language judgment, before optional whole-product root selection.
 pub struct CheckedSource {
-    pub program: checked_trees::CheckedTrees,
+    pub program: Arc<checked_trees::CheckedTrees>,
     pub retained: Option<RetainedCheck>,
     pub reused: bool,
 }
 
 /// Shared source product with the exact optional root-selection evidence.
+#[derive(Clone)]
 pub struct SelectedCheckedSource {
     pub program: Arc<checked_trees::CheckedTrees>,
     pub provider_defaults:
-        Vec<build_time_evaluation::provider_declarations::TargetProviderDefaults>,
+        Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub retained: Option<RetainedCheck>,
     pub selection: Option<CheckedTreeProductSelection>,
 }
@@ -109,15 +110,54 @@ impl CheckedSource {
                     source::DependencyScope::Product,
                 ),
             )?;
-        let (program, selection) = typed_trees_to_checked_trees::select_checked_tree_product(
-            Arc::new(self.program),
-            roots,
-        )?;
+        let (program, selection) =
+            typed_trees_to_checked_trees::select_checked_tree_product(self.program, roots)?;
         Ok(SelectedCheckedSource {
             program,
-            provider_defaults,
+            provider_defaults: provider_defaults.into(),
             retained: self.retained,
             selection,
         })
+    }
+}
+
+/// Invocation-owned Product selections over already-shared checked programs.
+/// Root pruning is a transform, not a new judgment. Equal roots of the same
+/// immutable input retain its one output rather than cloning and pruning it
+/// once per realization. Authority admission happens before this operation.
+#[derive(Default)]
+pub struct ProductSelections {
+    entries: Vec<SelectedProduct>,
+}
+
+struct SelectedProduct {
+    input: Arc<checked_trees::CheckedTrees>,
+    roots: Option<Vec<symbols::SymbolHandle>>,
+    output: SelectedCheckedSource,
+}
+
+impl ProductSelections {
+    pub fn select(
+        &mut self,
+        checked: CheckedSource,
+        roots: Option<Vec<symbols::SymbolHandle>>,
+    ) -> Result<SelectedCheckedSource, Vec<Diagnostic>> {
+        if let Some(prior) = self
+            .entries
+            .iter()
+            .find(|prior| Arc::ptr_eq(&prior.input, &checked.program) && prior.roots == roots)
+        {
+            let mut selected = prior.output.clone();
+            selected.retained = checked.retained;
+            return Ok(selected);
+        }
+        let input = checked.program.clone();
+        let output = checked.select_product(roots.clone())?;
+        self.entries.push(SelectedProduct {
+            input,
+            roots,
+            output: output.clone(),
+        });
+        Ok(output)
     }
 }

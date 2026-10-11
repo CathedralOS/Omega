@@ -15,8 +15,8 @@ pub(crate) use audit::{
 };
 pub use candidate::CompileResolvedPackageReviewsError;
 pub(crate) use candidate::{
-    CandidateCompilation, CandidateSourcePreparation, CompilerIssuedPackageReview,
-    CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase, SemanticBindingReview,
+    CandidateCompilation, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
+    PackageSourceBindings, PackageSourceVerificationPhase, SemanticBindingReview,
     compile_resolved_package_reviews_reusing,
 };
 pub(crate) use compare::{

@@ -19,7 +19,7 @@ use crate::review::timings;
 use artifacts::compile_timings::counters;
 use package_pass::{CompiledPackageReviews, TargetEntryDiscovery};
 
-pub(crate) use crate::build_session::PackageSourcePreparation as CandidateSourcePreparation;
+pub(crate) use crate::build_session::PackageSourceBindings;
 
 /// How this invocation obtains consumer-scoped semantic bindings.
 /// Explicit input is checked as supplied; it does not trigger discovery or admission.
@@ -50,11 +50,10 @@ pub(crate) struct CandidateCompilation<'request, 'closure> {
 
 impl<'request, 'closure> CandidateCompilation<'request, 'closure> {}
 
-/// The same candidate review under an explicit [`CandidateCompilation`],
-/// retaining binding-independent source preparation in the caller's store. A
-/// command reviewing several targets of one resolved closure prepares each
-/// package once; changed sources and selections still reject through the
-/// ordinary custody and checkpoint checks. Inspection must not derive policy
+/// Review an explicit [`CandidateCompilation`] with resolved source bindings.
+/// The compiler session owns source preparation and exact language judgments;
+/// changed sources and selections still reject through the ordinary custody
+/// and checkpoint checks. Inspection must not derive policy
 /// from a broader input view than the invocation it is reviewing.
 /// The invocation's owner lends the same session to every target and round;
 /// this operation neither reserves a new sponsor nor disposes that owner.
@@ -62,10 +61,11 @@ pub(crate) fn compile_resolved_package_reviews_reusing(
     candidate: CandidateCompilation<'_, '_>,
     bindings: SemanticBindingReview<'_>,
     session: &mut PackageBuildSession,
-    preparation: &mut CandidateSourcePreparation,
+    source_bindings: &mut PackageSourceBindings,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     session.require_open()?;
-    compile_candidate(candidate, bindings, session, preparation).map(|compiled| compiled.reviews)
+    compile_candidate(candidate, bindings, session, source_bindings)
+        .map(|compiled| compiled.reviews)
 }
 
 /// The one candidate route every review and check entry runs;
@@ -74,16 +74,16 @@ fn compile_candidate(
     candidate: CandidateCompilation<'_, '_>,
     bindings: SemanticBindingReview<'_>,
     session: &mut PackageBuildSession,
-    preparation: &mut CandidateSourcePreparation,
+    source_bindings: &mut PackageSourceBindings,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let CandidateCompilation {
         target_closure,
         root_build_snapshot,
         restricted_build_checkpoint,
     } = candidate;
-    let _requested = timings::requested(preparation.collect_timings);
+    let _requested = timings::requested(source_bindings.collect_timings);
     let _stage = timings::stage("candidate_compilation");
-    preparation.size_for(target_closure.source_closure());
+    source_bindings.size_for(target_closure.source_closure());
     if let SemanticBindingReview::Explicit(inputs) = bindings {
         let _pass = timings::subject_stage(|| {
             format!(
@@ -105,7 +105,7 @@ fn compile_candidate(
                 restricted_build_checkpoint,
                 TargetEntryDiscovery::Disabled,
                 None,
-                preparation,
+                source_bindings,
             )
         });
     }
@@ -130,7 +130,7 @@ fn compile_candidate(
                 restricted_build_checkpoint,
                 TargetEntryDiscovery::Dependencies,
                 None,
-                preparation,
+                source_bindings,
             )
         })?
     };
@@ -167,7 +167,7 @@ fn compile_candidate(
             restricted_build_checkpoint,
             TargetEntryDiscovery::Disabled,
             Some(&preliminary),
-            preparation,
+            source_bindings,
         )
     })
 }
@@ -215,7 +215,7 @@ fn compile_pass(
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     discovery: TargetEntryDiscovery,
     prior: Option<&CompiledPackageReviews>,
-    preparation: &mut CandidateSourcePreparation,
+    source_bindings: &mut PackageSourceBindings,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let execution_profile = target::TargetProfile::host_if_supported();
@@ -245,6 +245,6 @@ fn compile_pass(
         restricted_build_checkpoint,
         discovery,
         prior,
-        preparation,
+        source_bindings,
     )
 }

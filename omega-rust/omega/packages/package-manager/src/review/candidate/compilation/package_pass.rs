@@ -40,8 +40,7 @@ use package_compilation::{
 };
 use std::collections::BTreeMap;
 
-use super::CandidateSourcePreparation;
-use crate::build_session::PreparedPackageSource;
+use super::PackageSourceBindings;
 
 pub(super) struct CompiledPackageReviews {
     pub(super) reviews: CompilerIssuedPackageReviewSet,
@@ -179,7 +178,7 @@ pub(super) fn compile_dependency_closure(
     // a reuse candidate for an occurrence that now arrives at exactly its
     // inputs; anything else compiles fresh.
     prior: Option<&CompiledPackageReviews>,
-    preparation: &mut CandidateSourcePreparation,
+    source_bindings: &mut PackageSourceBindings,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     if execution_profile.is_none()
@@ -221,7 +220,7 @@ pub(super) fn compile_dependency_closure(
             restricted_build_checkpoint,
             discovery,
             prior,
-            preparation,
+            source_bindings,
             &dependency_inputs,
             &fresh_components,
         ) {
@@ -249,7 +248,7 @@ fn run_closure_pass(
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     discovery: TargetEntryDiscovery,
     prior: Option<&CompiledPackageReviews>,
-    preparation: &mut CandidateSourcePreparation,
+    source_bindings: &mut PackageSourceBindings,
     dependency_inputs: &[[Option<OccurrenceBuildInputs>; 2]],
     fresh_components: &std::collections::BTreeSet<(
         semantic_vocabulary::PackageKeyIdentity,
@@ -266,7 +265,7 @@ fn run_closure_pass(
         restricted_build_checkpoint,
         discovery,
         prior,
-        preparation,
+        source_bindings,
         dependency_inputs,
         fresh_components,
         reviews: Vec::with_capacity(roster.occurrence_count()),
@@ -343,7 +342,7 @@ struct ClosurePass<'pass> {
     restricted_build_checkpoint: Option<&'pass RestrictedBuildCheckpoint>,
     discovery: TargetEntryDiscovery,
     prior: Option<&'pass CompiledPackageReviews>,
-    preparation: &'pass mut CandidateSourcePreparation,
+    source_bindings: &'pass mut PackageSourceBindings,
     /// Named build inputs reconciled across every incoming edge, by graph
     /// position and purpose slot.
     dependency_inputs: &'pass [[Option<OccurrenceBuildInputs>; 2]],
@@ -428,7 +427,7 @@ impl ClosurePass<'_> {
         } = *occurrence;
         let closure = self.closure;
         let inputs = scope
-            .compilation_inputs_reusing(&mut self.preparation.root_bindings[position])
+            .compilation_inputs_reusing(&mut self.source_bindings.root_bindings[position])
             .and_then(|inputs| inputs.with_compilation_purpose(purpose))
             .map_err(
                 |errors| CompileResolvedPackageReviewsError::CompilationInputs {
@@ -784,35 +783,6 @@ impl ClosurePass<'_> {
         Ok(true)
     }
 
-    /// The separate Build and Product judgments this occurrence may take or keep.
-    /// The discovery pass keeps them because a bound pass recompiles every
-    /// occurrence its discovered bindings touch; that pass hands back the
-    /// judgments of the same occurrence. Psi takes each only when settlement
-    /// under the bound pass's bindings arrives at an equal typed program, so
-    /// the bindings still decide everything after the language judgment.
-    fn settled_check_reuse(
-        &self,
-        position: usize,
-        purpose: DependencyPurpose,
-    ) -> compiler::SettledCheckReuse {
-        let prior = self
-            .prior
-            .and_then(|prior| {
-                prior.occurrences.iter().find(|occurrence| {
-                    occurrence.position == position && occurrence.purpose == purpose
-                })
-            })
-            .and_then(|occurrence| match &occurrence.checked {
-                OccurrenceCompile::Checked(checked) => Some(checked.settled_checks().clone()),
-                OccurrenceCompile::Cached(_) => None,
-            })
-            .unwrap_or_default();
-        compiler::SettledCheckReuse {
-            prior,
-            retain: self.discovery == TargetEntryDiscovery::Dependencies,
-        }
-    }
-
     /// Compile the occurrence under its assembled inputs, retrying once with
     /// published component descriptions when the component-closure fence
     /// rejects unanswered `Independent` selections. Returns the checked
@@ -829,7 +799,6 @@ impl ClosurePass<'_> {
         let PackageOccurrence {
             key,
             custody,
-            position,
             purpose,
             checked_target,
             ..
@@ -841,7 +810,7 @@ impl ClosurePass<'_> {
         let target = checked_target.target_name();
         let entry = assembled.entry.as_path();
         let build_snapshot = &assembled.build_snapshot;
-        let mut request = CheckedCompileRequest {
+        let request = CheckedCompileRequest {
             build_execution_profile: execution_profile,
             build_dir: Some(self.session.create_occurrence_directory(
                 key,
@@ -863,32 +832,16 @@ impl ClosurePass<'_> {
                 ))
                     as Box<dyn package_compilation::build_execution::RestrictedBuildGrants>
             }),
-            collect_timings: self.preparation.collect_timings,
+            collect_timings: self.source_bindings.collect_timings,
             // A discovery pass admits an entry whose `Service` fields still
             // lack their selection: this pass's whole product is the
             // nomination that supplies it.
             permit_unsettled_fused_service_fields: discovery == TargetEntryDiscovery::Dependencies,
-            settled_check_reuse: self.settled_check_reuse(position, purpose),
             ..CheckedCompileRequest::new(entry, Some(target))
         };
-        // A populated slot supplies only this package's binding-independent
-        // parse frontier; the child still runs custody, build execution, and
-        // checking, and the checkpoint is written back so a later pass or
-        // candidate of this same closure prepares it once. A slot recorded
-        // under another entry root belongs to a differently resolved package
-        // at this position; it is replaced rather than consumed.
-        request.prepared_source = match self.preparation.slots[position].take() {
-            Some(slot) if slot.entry_root == *entry => Some(slot.prepared),
-            _ => None,
-        };
-        request.retain_prepared_source = true;
-        let outcome = compiler::compile_checked_reusing_builds(
-            request,
-            &self.preparation.pure_build_compilation,
-        );
+        let outcome = self.session.compiler.check(request);
         let CheckedCompileOutcome {
             result: checked,
-            prepared_source: mut retained,
             independent_components: component_discovery,
         } = outcome;
         let (checked, occurrence_inputs) = match checked {
@@ -941,20 +894,14 @@ impl ClosurePass<'_> {
                         ))
                             as Box<dyn package_compilation::build_execution::RestrictedBuildGrants>
                     }),
-                    collect_timings: self.preparation.collect_timings,
-                    retain_prepared_source: true,
+                    collect_timings: self.source_bindings.collect_timings,
                     // The retried discovery child keeps the same
                     // settlement tolerance as the rejected attempt.
                     permit_unsettled_fused_service_fields: discovery
                         == TargetEntryDiscovery::Dependencies,
-                    settled_check_reuse: self.settled_check_reuse(position, purpose),
                     ..CheckedCompileRequest::new(entry, Some(target))
                 };
-                let outcome = compiler::compile_checked_reusing_builds(
-                    request,
-                    &self.preparation.pure_build_compilation,
-                );
-                retained = outcome.prepared_source;
+                let outcome = self.session.compiler.check(request);
                 let checked = outcome.result.map_err(|failure| {
                     CompileResolvedPackageReviewsError::from_compilation(
                         key.clone(),
@@ -966,10 +913,6 @@ impl ClosurePass<'_> {
                 (checked, inputs)
             }
         };
-        self.preparation.slots[position] = retained.map(|prepared| PreparedPackageSource {
-            entry_root: entry.to_path_buf(),
-            prepared,
-        });
         Ok((checked, occurrence_inputs))
     }
 

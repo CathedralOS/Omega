@@ -68,6 +68,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                         target.package_inputs(),
                         target.optimization_rollback(),
                         SettledCheckReuse::default(),
+                        &mut psi_compiler::ProductSelections::default(),
                     )
                 })
             });
@@ -165,22 +166,42 @@ impl CompilationProductError {
 /// callers neither choose stage entrances nor assemble product reports.
 /// This consumes the checkpoint without repeating checking or Build effects.
 pub fn finish_compilation(
-    checked: CheckedCompilation,
-    root_path: PathBuf,
-    requested: CompilationProduct,
-) -> Result<CompileReport, CompilationProductError> {
-    finish_compilations(vec![Ok((
-        PendingRealization::Installed(checked),
-        root_path,
-        requested,
-    ))])
-        .into_iter()
-        .next()
-        .ok_or_else(|| {
+    requests: Vec<(CheckedCompilation, PathBuf, CompilationProduct)>,
+) -> CompilationResults {
+    CompilationResults(finish_compilations(
+        requests
+            .into_iter()
+            .map(|(checked, root, product)| {
+                Ok((PendingRealization::Installed(checked), root, product))
+            })
+            .collect(),
+    ))
+}
+
+/// Ordered completion results. One requested product is the one-element case,
+/// not a separate producer route.
+pub struct CompilationResults(Vec<Result<CompileReport, CompilationProductError>>);
+
+impl CompilationResults {
+    pub fn into_results(self) -> Vec<Result<CompileReport, CompilationProductError>> {
+        self.0
+    }
+
+    pub fn into_single(self) -> Result<CompileReport, CompilationProductError> {
+        if self.0.len() != 1 {
+            return Err(CompilationProductError::Production(vec![
+                Diagnostic::error(format!(
+                    "expected one compilation product, received {}",
+                    self.0.len()
+                )),
+            ]));
+        }
+        self.0.into_iter().next().ok_or_else(|| {
             CompilationProductError::Production(vec![Diagnostic::error(
                 "compilation lost its product outcome",
             )])
         })?
+    }
 }
 
 struct PendingProduct {
@@ -313,8 +334,9 @@ fn finish_compilations(
             terminal
                 .map_err(CompilationProductError::Production)
                 .and_then(|produced| {
-                    let checked =
-                        realization.install().map_err(CompilationProductError::Production)?;
+                    let checked = realization
+                        .install()
+                        .map_err(CompilationProductError::Production)?;
                     let product = prepare_product(checked, root, requested)?;
                     let terminal = finish_terminal_application(
                         &product.checked,

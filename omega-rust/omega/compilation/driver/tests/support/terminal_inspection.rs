@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use compiler::{CheckedCompileRequest, compile_to_checked};
+use compiler::CheckedCompileRequest;
 use diagnostics::Diagnostic;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError, DebugMapError};
 
@@ -46,7 +46,10 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
         let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
         request.package_inputs = prepared.package_inputs;
         request.build_snapshot = snapshot;
-        let checked = compile_to_checked(request)
+        let checked = compiler::CompilationSession::default()
+            .check(request)
+            .result
+            .map_err(|failure| failure.into_diagnostics())
             .map_err(|errors| format!("inspection {machine} checking: {errors:?}"))?;
         let artifact = compiler::inspection::inspect_terminal(checked, machine)
             .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;

@@ -29,8 +29,8 @@ mod source_parsing;
 mod terminal_production;
 
 pub use source_checking::{
-    CheckRequest, CheckedSource, CheckedTreeProductSelection, RetainedCheck, SelectedCheckedSource,
-    SourceAdmission,
+    CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductSelections, RetainedCheck,
+    SelectedCheckedSource, SourceAdmission,
 };
 pub use source_parsing::{ParsedText, SourceInput, SourceParseError, parse_text};
 

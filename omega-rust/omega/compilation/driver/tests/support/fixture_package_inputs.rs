@@ -39,7 +39,7 @@ use build_declarations::{
     BuildDeclaration, BuildDeclarationKind, DependencyPurpose, extract_build_declaration,
     is_dependency_call_name, project_build_entry_syntax, project_dependency_rows,
 };
-use compiler::{CheckedCompileRequest, compile_to_checked};
+use compiler::CheckedCompileRequest;
 use diagnostics::Diagnostic;
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
@@ -632,13 +632,16 @@ fn derive_program_entry_binding(
             "entry fixture inputs: {errors:?}"
         ))]
     })?;
-    let checked = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(inputs),
-        ..CheckedCompileRequest::new(
-            &standard_library_root.join(format!("targets/{target_name}/entry.omg")),
-            Some(target_name),
-        )
-    })?;
+    let checked = compiler::CompilationSession::default()
+        .check(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(
+                &standard_library_root.join(format!("targets/{target_name}/entry.omg")),
+                Some(target_name),
+            )
+        })
+        .result
+        .map_err(|failure| failure.into_diagnostics())?;
     checked
         .execution()
         .candidate_service_binding(
@@ -783,16 +786,19 @@ pub fn reviewed_repository_fixture_package_inputs(
     // Discovery runs the fixture's own build machine, so it needs the same
     // writable staging a real activation gets; the default beside the root
     // source is inside the sealed snapshot.
-    let preliminary = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(package_inputs.clone().with_semantic_role_discovery(true)),
-        permit_unsettled_fused_service_fields: true,
-        build_snapshot: fixture_build_snapshot(&root_path)?,
-        build_dir: Some(sealed_fixture_staging::fresh_staging_build_dir(
-            &repo_root(),
-            authored_project_root,
-        )),
-        ..CheckedCompileRequest::new(&root_path, target_name)
-    })?;
+    let preliminary = compiler::CompilationSession::default()
+        .check(CheckedCompileRequest {
+            package_inputs: Some(package_inputs.clone().with_semantic_role_discovery(true)),
+            permit_unsettled_fused_service_fields: true,
+            build_snapshot: fixture_build_snapshot(&root_path)?,
+            build_dir: Some(sealed_fixture_staging::fresh_staging_build_dir(
+                &repo_root(),
+                authored_project_root,
+            )),
+            ..CheckedCompileRequest::new(&root_path, target_name)
+        })
+        .result
+        .map_err(|failure| failure.into_diagnostics())?;
     for (owner, _) in package_inputs.packages() {
         let required =
             dangerous_service_acceptance::required_dangerous_services(&preliminary, owner);

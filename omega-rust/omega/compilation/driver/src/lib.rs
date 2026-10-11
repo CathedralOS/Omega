@@ -29,12 +29,10 @@ pub mod runtime;
 mod terminal;
 
 pub use crate::checked::{
-    CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
+    CheckedCompilation, CheckedCompileRequest, CompilationSession, IndependentComponentDiscovery,
     IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
-    PackageBuildOutcome, PreparedCheckedSource, PreparedPackageBuild, RestrictedBuildGrants,
-    SettledCheckReuse, check_prepared_package_build, checked_compilation_call_count,
-    compile_checked, compile_checked_reusing_builds, compile_to_checked, preliminary_check_totals,
-    prepare_package_build, settled_check_totals, source_assembly_invocation_count,
+    PreparedPackageBuild, RestrictedBuildGrants, checked_compilation_call_count,
+    preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
     typed_frontier_reuse_count,
 };
 pub use build_evaluation::BuildSnapshotRequest;
@@ -47,6 +45,8 @@ pub use compilation_products::{
     RetainedBuildOutputs, RetainedNativeArtifact,
 };
 pub use compiler::package::retained_terminal_artifact_from_checked_package;
-pub use compiler::{CompilationProduct, CompilationProductError, compile, finish_compilation};
+pub use compiler::{
+    CompilationProduct, CompilationProductError, CompilationResults, compile, finish_compilation,
+};
 pub use target::ExplicitTargetSet;
 pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;

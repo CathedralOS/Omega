@@ -2985,14 +2985,15 @@ crash and native exit behavior.
     static/executed provider-selection decoder and returns Product defaults
     before pruning, shared across targets outside Build admission. Join the
     remaining source/package assembly contracts to this facade.
-    Move the package-manager batch route
-    behind whole-program shared checked/Terminal storage and
-    retire its per-target typed copies. Remove `compile_checked_reusing_builds`
-    and package-manager's `CandidateSourcePreparation` as package invocations
-    move into the same shared stages; the per-target `PreparedBuilds` cache
-    and its input-key machinery are gone.
-  - Package review uses the same Psi parsing/resolution/typing operations; remove alternate
-    compile modes (`compile_to_checked` beside `compile`). Source preparation
+    Package batches now share checked/pruned and Terminal storage through
+    the compiler invocation; package-owned frontend/Pure Build/proof caches
+    and `compile_checked_reusing_builds` are removed. Still consolidate their
+    separate per-target source/Build/Product continuations: exact judgment
+    reuse is not one source completion. Preserve fresh occurrence admission
+    and charges without copying mutable typing state for each realization.
+  - Package review uses the compiler session's checked stop, with no
+    `compile_to_checked` wrapper. Unify this session and `CompileRequest`
+    into the same source-to-product request. Source preparation
     supplies stage 00; build-time evaluation, dynamic binding, const evaluation
     and semantic pruning belong inside stages 02–04. Carry discovery, grants,
     sponsors and snapshots in the owning stage inputs/outputs.

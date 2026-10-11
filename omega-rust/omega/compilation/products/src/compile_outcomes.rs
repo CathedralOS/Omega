@@ -89,7 +89,6 @@ impl CompilerRequestOutcome {
 #[must_use]
 pub struct CheckedCompileOutcome {
     pub result: Result<crate::CheckedCompilation, CompileFailure>,
-    pub prepared_source: Option<crate::PreparedCheckedSource>,
     pub independent_components: crate::IndependentComponentDiscovery,
 }
 

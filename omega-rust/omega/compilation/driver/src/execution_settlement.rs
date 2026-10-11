@@ -216,9 +216,7 @@ pub(crate) fn install_selected_target(
                 x86_scalar_fma_provider,
                 permit_unsettled_fused_service_fields,
                 selected_provider_provenance,
-                opaque_representation_selections: &build
-                    .config
-                    .opaque_representation_selections,
+                opaque_representation_selections: &build.config.opaque_representation_selections,
             },
         )
     });
@@ -261,7 +259,6 @@ fn install_product_target(
         permit_unsettled_fused_service_fields,
     );
     CheckedCompileOutcome {
-        prepared_source: None,
         result: result.map_err(CompileFailure::from),
         independent_components,
     }
@@ -284,7 +281,6 @@ pub(crate) fn settle_product_target(
             permit_unsettled_fused_service_fields,
         ),
         Err(diagnostics) => CheckedCompileOutcome {
-            prepared_source: None,
             result: Err(CompileFailure::from(diagnostics)),
             independent_components: source.computed_build_config.independent_components(),
         },

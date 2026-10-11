@@ -9,7 +9,7 @@ use super::accepted_compilation::{AcceptedCompilationRequest, compile_accepted_p
 
 use super::prepare_project::PreparedProjectTarget;
 use super::{PrepareLocalProjectError, PreparedLocalProject};
-use crate::build_session::{PackageBuildSession, PackageSourcePreparation};
+use crate::build_session::PackageBuildSession;
 use crate::declarations::PackageKey;
 use crate::review::CompileResolvedPackageReviewsError;
 use compiler::{CompileReport, OptimizationRollback};
@@ -198,17 +198,10 @@ pub fn compile_prepared_local_project_for_native_targets(
         timings,
     } = request;
     let (entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
-    let mut preparation = PackageSourcePreparation::for_closure(&source_closure);
-    // Psi judges each target's settled product independently, but a target
-    // whose settlement arrives at an equal program takes the previous
-    // target's language judgment instead of checking again. Only a target
-    // with successors retains its own judgment for them.
     let targets: Vec<_> = prepared_targets
         .into_iter()
         .filter(|target| target_profiles.contains(&target.profile))
         .collect();
-    let mut retained_checks = compilation_products::RetainedCompilationChecks::default();
-    let target_count = targets.len();
     // The whole batch borrows one invocation: sponsors, staging and the pure
     // Build store persist across targets rather than replenishing per compile.
     let mut session = match PackageBuildSession::create(&build_dir) {
@@ -229,12 +222,11 @@ pub fn compile_prepared_local_project_for_native_targets(
                 .collect();
         }
     };
-    let outcomes = targets
+    let prepared = targets
         .into_iter()
-        .enumerate()
-        .map(|(index, prepared_target)| {
+        .map(|prepared_target| {
             let profile = prepared_target.profile;
-            let result = compile_one_prepared_target(
+            let result = prepare_target_product(
                 prepared_target,
                 &source_closure,
                 &entry_path,
@@ -244,16 +236,43 @@ pub fn compile_prepared_local_project_for_native_targets(
                 receiving_terminal_authority_permission_policy.clone(),
                 timings,
                 &mut session,
-                &mut preparation,
-                &mut retained_checks,
-                index + 1 < target_count,
             );
-            CompiledProjectTargetOutcome {
-                target: profile,
-                result,
-            }
+            (profile, result)
         })
         .collect::<Vec<_>>();
+    // Complete the admitted roster together. The compiler owns grouping by
+    // checked program and Psi optimizations, then native realization per target.
+    let mut outcomes = Vec::with_capacity(prepared.len());
+    let mut products = Vec::new();
+    let mut positions = Vec::new();
+    for (target, result) in prepared {
+        let position = outcomes.len();
+        match result {
+            Ok(product) => {
+                positions.push((position, target));
+                products.push(product);
+                outcomes.push(CompiledProjectTargetOutcome {
+                    target,
+                    result: Err(CompilePreparedLocalProjectNativeError::Native(vec![
+                        Diagnostic::error("compiler did not return the requested target product"),
+                    ])),
+                });
+            }
+            Err(error) => outcomes.push(CompiledProjectTargetOutcome {
+                target,
+                result: Err(error),
+            }),
+        }
+    }
+    for ((position, target), result) in positions
+        .into_iter()
+        .zip(compiler::finish_compilation(products).into_results())
+    {
+        outcomes[position] = CompiledProjectTargetOutcome {
+            target,
+            result: result.map_err(product_failure),
+        };
+    }
     // Staging cleanup is disposal work, not a target outcome; the shared
     // Drop would otherwise swallow it silently.
     let _ = session.close();
@@ -267,7 +286,7 @@ pub fn compile_prepared_local_project_for_native_targets(
 /// rejects before its build effect executes or generated sources reach
 /// realization.
 #[allow(clippy::too_many_arguments)]
-fn compile_one_prepared_target(
+fn prepare_target_product(
     prepared_target: PreparedProjectTarget,
     source_closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
     entry_path: &Path,
@@ -277,10 +296,14 @@ fn compile_one_prepared_target(
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     timings: bool,
     session: &mut PackageBuildSession,
-    preparation: &mut PackageSourcePreparation,
-    retained_checks: &mut compilation_products::RetainedCompilationChecks,
-    retain_for_successors: bool,
-) -> Result<CompileReport, CompilePreparedLocalProjectNativeError> {
+) -> Result<
+    (
+        compiler::CheckedCompilation,
+        std::path::PathBuf,
+        compiler::CompilationProduct,
+    ),
+    CompilePreparedLocalProjectNativeError,
+> {
     let target_profile = prepared_target.profile;
     if source_closure.root_role() != crate::declarations::BuildDeclarationKind::Application {
         return Err(CompilePreparedLocalProjectNativeError::Review(
@@ -302,32 +325,10 @@ fn compile_one_prepared_target(
             snapshot: build_snapshot,
             verify: false,
             timings,
-            settled_check_reuse: compiler::SettledCheckReuse {
-                prior: retained_checks.clone(),
-                retain: retain_for_successors,
-            },
         },
         session,
-        preparation,
     )
     .map_err(CompilePreparedLocalProjectNativeError::Review)?;
-    // A successful check replaces the retained judgments for the next
-    // target; a failed one leaves the prior judgment untouched. Every
-    // target's retained product judgment also joins the request pool so a
-    // later target converging with any earlier input can take it.
-    let mut next_checks = checked.settled_checks().clone();
-    if let Some(product) = next_checks.product.clone() {
-        next_checks
-            .sibling_product_checks
-            .append(&mut retained_checks.sibling_product_checks);
-        next_checks.sibling_product_checks.push(product);
-    } else {
-        std::mem::swap(
-            &mut next_checks.sibling_product_checks,
-            &mut retained_checks.sibling_product_checks,
-        );
-    }
-    *retained_checks = next_checks;
     // Bind the permissions supplied by retained compilation inputs to this
     // root occurrence's consent before native production can consume them.
     // This projects only supplied permission meaning, not package review or
@@ -362,7 +363,7 @@ fn compile_one_prepared_target(
                 error,
             })?;
     }
-    compiler::finish_compilation(
+    Ok((
         checked,
         entry_path.to_path_buf(),
         compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
@@ -370,13 +371,18 @@ fn compile_one_prepared_target(
             terminal_authority_permission_policy: receiving_terminal_authority_permission_policy,
             optimization_rollback: optimization_rollback.clone(),
         }),
-    )
-    .map_err(|error| match error {
+    ))
+}
+
+fn product_failure(
+    error: compiler::CompilationProductError,
+) -> CompilePreparedLocalProjectNativeError {
+    match error {
         compiler::CompilationProductError::TrustAdmission(diagnostics) => {
             CompilePreparedLocalProjectNativeError::TrustAdmission(diagnostics)
         }
         compiler::CompilationProductError::Production(diagnostics) => {
             CompilePreparedLocalProjectNativeError::Native(diagnostics)
         }
-    })
+    }
 }

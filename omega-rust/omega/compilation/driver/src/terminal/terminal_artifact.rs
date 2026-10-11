@@ -82,7 +82,7 @@ struct TerminalEntry {
 }
 
 /// Invocation-local sharing, not a cache: source custody and checked arenas
-/// must be the same owners, not merely equal-looking programs. The small
+/// must identify the same checked owner and exact consumed source. The small
 /// target roster is grouped by direct scans; no source hashing or copying.
 pub(crate) fn produce_retained_terminal_artifacts(
     mut requests: Vec<TerminalProductRequest<'_>>,
@@ -133,7 +133,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
             let first_index = group[0];
             let first = &requests[first_index];
             program_pointer(&first.view) == program_pointer(&request.view)
-                && std::ptr::eq(first.view.sources(), request.view.sources())
+                && first.view.sources() == request.view.sources()
                 && first.selections.project_psi() == request.selections.project_psi()
         });
         if let Some(group) = group {
