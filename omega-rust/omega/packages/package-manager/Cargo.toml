@@ -36,11 +36,10 @@ filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }
 source = { path = "../../../psi/foundation/source" }
-source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
+psi-compiler = { path = "../../../psi/compilation/driver" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 tokens = { path = "../../../psi/compilation/representations/tokens" }
-tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 cap-std = "4.0.3"
 cap-fs-ext = "4.0.3"
 sha2 = "0.10.9"

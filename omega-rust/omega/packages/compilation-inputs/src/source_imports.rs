@@ -10,6 +10,7 @@ mod build_prelude;
 mod entry_contract_seed;
 mod frontier;
 mod generated;
+mod import_queue;
 mod package_selection;
 mod paths;
 mod project;
@@ -26,6 +27,7 @@ pub(crate) use frontier::{
 };
 pub(crate) use generated::{DependencyGeneratedSource, admit_dependency_generated_sources};
 pub use generated::{GeneratedSourceExtension, admit_generated_extension};
+pub(crate) use import_queue::ImportQueue;
 
 pub(crate) use package_selection::{
     ReconciledPackageImport, ReconciledPackageImportRequest, reconciled_package_import,

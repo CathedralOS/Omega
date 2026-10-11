@@ -2962,6 +2962,8 @@ crash and native exit behavior.
     driver, Build evaluator and product carriers no longer import stages
     02/03/03b/04. Psi owns preparation, retained-check matching, checking and
     Product pruning; shared projections/operator queries have semantic owners.
+    Source assembly, Build role projection and dependency editing now use Psi's
+    parsing facade; no package consumer imports the lexer/parser stages.
     Move source completion-role admission out of provider planning and join
     the remaining source/package assembly contracts to this facade.
     Move distinct entry roots, callbacks and the package-manager batch route
@@ -2970,7 +2972,7 @@ crash and native exit behavior.
     and package-manager's `CandidateSourcePreparation` as package invocations
     move into the same shared stages; the per-target `PreparedBuilds` cache
     and its input-key machinery are gone.
-  - Package review calls the same 00–03 prefix directly; remove alternate
+  - Package review uses the same Psi parsing/resolution/typing operations; remove alternate
     compile modes (`compile_to_checked` beside `compile`). Source preparation
     supplies stage 00; build-time evaluation, dynamic binding, const evaluation
     and semantic pruning belong inside stages 02–04. Carry discovery, grants,

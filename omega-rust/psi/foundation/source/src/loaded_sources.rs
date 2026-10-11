@@ -37,3 +37,12 @@ pub struct LoadedSources {
     pub sources: Arena<LoadedSource>,
     pub batch: HandleSpan<LoadedSource>,
 }
+
+impl FromIterator<LoadedSource> for LoadedSources {
+    fn from_iter<Inputs: IntoIterator<Item = LoadedSource>>(inputs: Inputs) -> Self {
+        let inputs = inputs.into_iter();
+        let mut sources = Arena::with_capacity(inputs.size_hint().0);
+        let batch = sources.insert_many(inputs);
+        Self { sources, batch }
+    }
+}

@@ -3,27 +3,25 @@
 //! `ImmutableSourceParseCheckpoint::prepare` discovers and parses immutable
 //! physical sources. `assemble` admits a child's inputs, appends dependency
 //! outputs, resolves deferred imports, and injects entry contracts and the Build
-//! prelude. Both use one ordered loading loop and the ordinary Psi 00/01 stages.
+//! prelude. Both discover ordered frontiers; the Psi facade owns their parsing.
 //! `GeneratedSourceExtension::parse` consumes the activation's admitted output
-//! through those same stages, preserving separate generated-unit forests.
+//! through that same facade, preserving separate generated-unit forests.
 //! No Build machine executes here; resolution and typing consume the result.
 
 use crate::PackageCompilationInputs;
 use crate::source_imports::{
-    GeneratedSourceExtension, PackageImportPhase, PendingPackageImport, ProjectSourceSelection,
-    SourceStorage, discover_imports, discover_imports_with_packages, discover_package_imports,
-    validate_package_source_frontier, validate_selected_build_role,
+    GeneratedSourceExtension, ImportQueue, PackageImportPhase, PendingPackageImport,
+    ProjectSourceSelection, SourceStorage, discover_imports, discover_imports_with_packages,
+    discover_package_imports, validate_package_source_frontier, validate_selected_build_role,
 };
-use artifacts::compile_timings::{CompileTimings, SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
+use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use diagnostics::Diagnostic;
-use source_files_to_tokens::{
-    ImportQueue, lex_sources, load_package_generated_source, load_sources,
-};
+use psi_compiler::{PsiCompilationObserver, PsiCompilationStage, SourceInput};
+use source::{LoadedSource, SourceId, SourceOrigin};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
-use tokens_to_syntax_trees::{parse_source_pages_from, parse_source_units, parse_sources};
 
 #[derive(Clone)]
 pub struct AssembledSyntax {
@@ -194,17 +192,21 @@ impl ImmutableSourceParseCheckpoint {
         if let Some(prelude) =
             crate::source_imports::prepare_build_prelude(&source_storage, self.build_source_id)
         {
-            let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
-                let sources = source_files_to_tokens::load_injected_source(
-                    "<build-prelude>",
-                    &prelude.source,
-                    source_storage.next_source_id(),
-                );
-                lex_sources(sources)
-            })?;
-            let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
-                parse_sources(lexed, &mut source_storage.syntax_trees)
-            })?;
+            let parsed = SourceInput::Retained(
+                [LoadedSource {
+                    source_id: SourceId(source_storage.next_source_id()),
+                    path: PathBuf::from("<build-prelude>"),
+                    source: Arc::from(prelude.source.as_str()),
+                    origin: Some(SourceOrigin::Toolchain),
+                    scope: source::DependencyScope::Product,
+                }]
+                .into_iter()
+                .collect(),
+            )
+            .append(
+                &mut source_storage.syntax_trees,
+                &mut ParsingTimings(timings),
+            )?;
             source_storage.extend(parsed)?;
             source_scoped_top_level_bindings = prelude.bindings;
         }
@@ -236,18 +238,21 @@ impl ImmutableSourceParseCheckpoint {
             // consumption-commitment re-read instead of a physical file.
             let codec_path = codec_root.join(".omega/generated/wire-codec.omg");
             let codec_source_id = source::SourceId(source_storage.next_source_id());
-            let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
-                let sources = source_files_to_tokens::load_package_generated_source(
-                    codec_path,
-                    &codec_source,
-                    codec_source_id.0,
-                    source::DependencyScope::Product,
-                );
-                lex_sources(sources)
-            })?;
-            let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
-                parse_sources(lexed, &mut source_storage.syntax_trees)
-            })?;
+            let parsed = SourceInput::Retained(
+                [LoadedSource {
+                    source_id: codec_source_id,
+                    path: codec_path,
+                    source: Arc::from(codec_source.as_str()),
+                    origin: Some(SourceOrigin::User),
+                    scope: source::DependencyScope::Product,
+                }]
+                .into_iter()
+                .collect(),
+            )
+            .append(
+                &mut source_storage.syntax_trees,
+                &mut ParsingTimings(timings),
+            )?;
             source_storage.extend(parsed)?;
             generated_source_custody.push((
                 codec_source_id,
@@ -313,7 +318,6 @@ impl GeneratedSourceExtension {
         timings: &mut CompileTimings,
     ) -> Result<(Arc<source::SourceMap>, Vec<SyntaxTrees>), Vec<Diagnostic>> {
         let (sources, custody) = self.into_source_inputs(base_sources)?;
-        let mut loaded = source::LoadedSources::default();
         let mut generated_sources = Vec::with_capacity(custody.len());
         for (source_id, _) in &custody {
             let source = sources.get(*source_id).ok_or_else(|| {
@@ -329,10 +333,8 @@ impl GeneratedSourceExtension {
                 scope: source.dependency_scope,
             });
         }
-        loaded.batch = loaded.sources.insert_many(generated_sources);
-        let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || lex_sources(loaded))?;
-        let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || parse_source_units(lexed))?;
-        let units = parsed.into_syntax_trees();
+        let units = SourceInput::Retained(generated_sources.into_iter().collect())
+            .into_units(&mut ParsingTimings(timings))?;
         Ok((sources, units))
     }
 }
@@ -359,17 +361,21 @@ fn append_dependency_generated_sources_to_storage(
             scope,
         } = entry;
         let source_id = source::SourceId(source_storage.next_source_id());
-        let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
-            lex_sources(load_package_generated_source(
-                logical_path,
-                text,
-                source_id.0,
+        let parsed = SourceInput::Retained(
+            [LoadedSource {
+                source_id,
+                path: logical_path,
+                source: Arc::from(text),
+                origin: Some(SourceOrigin::User),
                 scope,
-            ))
-        })?;
-        let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
-            parse_sources(lexed, &mut source_storage.syntax_trees)
-        })?;
+            }]
+            .into_iter()
+            .collect(),
+        )
+        .append(
+            &mut source_storage.syntax_trees,
+            &mut ParsingTimings(timings),
+        )?;
         let contract_custody = source_storage.toolchain_contract_custody();
         let discovered = discover_imports_with_packages(
             &parsed,
@@ -403,22 +409,15 @@ fn load_imports(
             }
             None => frontier,
         };
-        let first_source_id = source_storage.next_source_id();
-        let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
-            let sources = load_sources(frontier, first_source_id, &source_storage.filesystem)?;
-            lex_sources(sources)
-        })?;
-        let first_page_identity = u32::try_from(source_storage.syntax_trees.page_count())
-            .ok()
-            .and_then(|identity| identity.checked_add(1))
-            .ok_or_else(|| vec![Diagnostic::error("syntax page identity overflow")])?;
-        let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
-            parse_source_pages_from(lexed, first_page_identity)
-        })?;
-        let (syntax_pages, parsed) = parsed.into_parts();
-        for syntax_page in syntax_pages {
-            source_storage.syntax_trees.adopt_page(syntax_page);
+        let parsed = SourceInput::Files {
+            frontier,
+            first_source: source_storage.next_source_id(),
+            filesystem: &source_storage.filesystem,
         }
+        .append(
+            &mut source_storage.syntax_trees,
+            &mut ParsingTimings(timings),
+        )?;
         let contract_custody = source_storage.toolchain_contract_custody();
         let discovered = match package_inputs {
             Some(package_inputs) => {
@@ -444,4 +443,21 @@ fn load_imports(
         source_storage.extend(parsed)?;
     }
     Ok(retained_requests)
+}
+
+/// Observe Psi's source work using the package invocation's existing report.
+struct ParsingTimings<'timings>(&'timings mut CompileTimings);
+
+impl PsiCompilationObserver for ParsingTimings<'_> {
+    fn record_result<Value, Error>(
+        &mut self,
+        stage: PsiCompilationStage,
+        operation: impl FnOnce() -> Result<Value, Error>,
+    ) -> Result<Value, Error> {
+        let (name, input, output) = stage.observation_labels();
+        self.0.record_result(
+            StageMeta::new(name, input, output, TimingCategory::Pipeline),
+            operation,
+        )
+    }
 }

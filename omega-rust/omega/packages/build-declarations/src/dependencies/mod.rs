@@ -271,14 +271,13 @@ mod tests {
         DependencyRowError, is_dependency_call_name, project_dependency_rows,
     };
     use crate::{BuildDeclarationError, project_build_entry_syntax};
-    use source_files_to_tokens::Lexer;
     use syntax_trees::SyntaxTrees;
     use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
-    use tokens_to_syntax_trees::parse_syntax_trees;
 
     fn rows(source: &str) -> Result<(SyntaxTrees, Vec<DependencyRow>), DependencyRowError> {
-        let tokens = Lexer::new(source).tokenize().expect("lex build");
-        let syntax_trees = parse_syntax_trees(&tokens).expect("parse build");
+        let syntax_trees = psi_compiler::parse_text(source)
+            .expect("parse build")
+            .syntax;
         let build = project_build_entry_syntax(&syntax_trees).expect("valid build entry");
         project_dependency_rows(&syntax_trees, &build).map(|rows| (syntax_trees, rows))
     }
@@ -392,12 +391,11 @@ mod tests {
 
     #[test]
     fn rows_require_the_canonical_build_entry() {
-        let tokens = Lexer::new(
+        let syntax_trees = psi_compiler::parse_text(
             "machine helper() {\n    builder.depend(Source::Path { location: \"x\" });\n}\n",
         )
-        .tokenize()
-        .expect("lex");
-        let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+        .expect("parse")
+        .syntax;
         assert!(matches!(
             project_build_entry_syntax(&syntax_trees),
             Err(BuildDeclarationError::MissingBuildDeclaration)

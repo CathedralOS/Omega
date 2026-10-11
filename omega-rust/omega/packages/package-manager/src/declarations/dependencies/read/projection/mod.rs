@@ -6,9 +6,7 @@ use super::{
 };
 use crate::declarations::roles::convert_shared_declaration;
 use build_declarations as shared;
-use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 mod calls;
 mod declaration;
@@ -42,14 +40,16 @@ pub(crate) fn validate_static_dependency_source(
 }
 
 fn syntax_trees_for(source: &str) -> Result<SyntaxTrees, DependencyProjectionError> {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .map_err(|error| DependencyProjectionError::Lex {
-            message: error.message,
-        })?;
-    parse_syntax_trees(&tokens).map_err(|error| DependencyProjectionError::Parse {
-        message: error.message,
-    })
+    psi_compiler::parse_text(source)
+        .map(|parsed| parsed.syntax)
+        .map_err(|error| match error {
+            psi_compiler::SourceParseError::Lex { message } => {
+                DependencyProjectionError::Lex { message }
+            }
+            psi_compiler::SourceParseError::Parse { message } => {
+                DependencyProjectionError::Parse { message }
+            }
+        })
 }
 
 fn project_build_and_dependencies(

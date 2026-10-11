@@ -12,7 +12,6 @@ use crate::{
     BuildDeclarationKind, PackageDeclaration, ProjectName, WorkspaceDeclaration,
     WorkspaceMemberPath,
 };
-use source_files_to_tokens::Lexer;
 use std::fs;
 use std::path::{Path, PathBuf};
 use syntax_trees::SyntaxTrees;
@@ -20,7 +19,6 @@ use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{Item, StateHandle, StateParameterHandle};
 use syntax_trees::statement::{StatementHandle, StatementNode};
 use syntax_trees::types::TypeReferenceNode;
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 /// A validated role plus the exact syntax entry that established it.
 ///
@@ -106,16 +104,13 @@ pub fn extract_build_declaration(
 pub fn project_build_declaration_from_source(
     source: &str,
 ) -> Result<BuildDeclaration, BuildDeclarationError> {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .map_err(|error| BuildDeclarationError::Lex {
-            message: error.message,
-        })?;
-    let syntax_trees =
-        parse_syntax_trees(&tokens).map_err(|error| BuildDeclarationError::Parse {
-            message: error.message,
-        })?;
-    project_build_declaration_from_syntax_trees(&syntax_trees)
+    let parsed = psi_compiler::parse_text(source).map_err(|error| match error {
+        psi_compiler::SourceParseError::Lex { message } => BuildDeclarationError::Lex { message },
+        psi_compiler::SourceParseError::Parse { message } => {
+            BuildDeclarationError::Parse { message }
+        }
+    })?;
+    project_build_declaration_from_syntax_trees(&parsed.syntax)
 }
 
 /// Project only the role value from an already-parsed syntax tree.

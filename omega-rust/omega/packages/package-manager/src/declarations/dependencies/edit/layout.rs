@@ -3,11 +3,9 @@ use crate::declarations::dependencies::edit::{
 };
 use crate::declarations::dependencies::read::DependencyProjectionError;
 use build_declarations::DependencyOperation;
-use source_files_to_tokens::Lexer;
 use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
 use tokens::{PunctuationKind, TokenKind, TokenStream};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[derive(Debug)]
 pub(super) struct BuildLayout {
@@ -74,16 +72,17 @@ pub(super) struct DependencyRow {
 pub(super) fn discover_build_layout(
     source: &str,
 ) -> Result<Option<Option<BuildLayout>>, BuildDependencyEditError> {
-    let tokens = Lexer::new(source).tokenize().map_err(|error| {
-        BuildDependencyEditError::InvalidBuild(DependencyProjectionError::Lex {
-            message: error.message,
-        })
-    })?;
-    let syntax = parse_syntax_trees(&tokens).map_err(|error| {
-        BuildDependencyEditError::InvalidBuild(DependencyProjectionError::Parse {
-            message: error.message,
-        })
-    })?;
+    let psi_compiler::ParsedText { tokens, syntax } =
+        psi_compiler::parse_text(source).map_err(|error| {
+            BuildDependencyEditError::InvalidBuild(match error {
+                psi_compiler::SourceParseError::Lex { message } => {
+                    DependencyProjectionError::Lex { message }
+                }
+                psi_compiler::SourceParseError::Parse { message } => {
+                    DependencyProjectionError::Parse { message }
+                }
+            })
+        })?;
     let Some(build) = syntax.root_items().find_map(|item| match item {
         Item::Machine(machine) if machine.name.as_str() == BUILD_MACHINE_NAME => Some(machine),
         _ => None,

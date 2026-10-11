@@ -1,1 +1,2 @@
 omega_language_std
+declares no product dependency under that alias

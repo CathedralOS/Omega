@@ -154,9 +154,8 @@ name = "build-declarations"
 version = "0.1.0"
 dependencies = [
  "optimization-core",
- "source-files-to-tokens",
+ "psi-compiler",
  "syntax-trees",
- "tokens-to-syntax-trees",
 ]
 
 [[package]]
@@ -1328,16 +1327,14 @@ dependencies = [
  "flow-effects",
  "optimization-core",
  "platform-custody",
+ "psi-compiler",
  "semantic-vocabulary",
  "sha2",
  "source",
- "source-files-to-tokens",
  "symbols",
  "syntax-trees",
  "target",
  "terminal-psi",
- "tokens",
- "tokens-to-syntax-trees",
  "typed-trees",
 ]
 
@@ -1402,17 +1399,16 @@ dependencies = [
  "platform-custody",
  "proof-admission",
  "provider-planning",
+ "psi-compiler",
  "semantic-vocabulary",
  "sha2",
  "source",
- "source-files-to-tokens",
  "symbols",
  "syntax-trees",
  "target",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "tokens",
- "tokens-to-syntax-trees",
 ]
 
 [[package]]
@@ -1588,12 +1584,15 @@ dependencies = [
  "lowered-psi-to-terminal-psi",
  "optimization",
  "source",
+ "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
  "syntax-trees",
  "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
  "terminal-psi",
+ "tokens",
+ "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-checked-trees",
  "typed-trees-to-typed-trees",

@@ -8,7 +8,7 @@
 //! resolves through the ordinary `attached_machine_state_symbol` arm — so the
 //! missing piece is exactly the callee. This module synthesizes one ordinary
 //! checked machine per actually-called (schema, operation) pair as source
-//! text, and `assemble` injects it through the same `load_injected_source`
+//! text, and `assemble` injects it through the same Psi source-parsing
 //! path the build prelude uses, so the generated bodies are admitted by the
 //! real pipeline rather than constructed in any representation by hand
 //! ("codecs are ordinary checked library machines whose generated bodies are

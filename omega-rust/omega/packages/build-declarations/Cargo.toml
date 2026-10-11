@@ -7,6 +7,5 @@ version.workspace = true
 
 [dependencies]
 optimization-core = { path = "../../foundation/optimization-core" }
-source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
+psi-compiler = { path = "../../../psi/compilation/driver" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
-tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }

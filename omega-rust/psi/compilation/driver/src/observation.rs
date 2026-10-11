@@ -15,11 +15,13 @@ pub enum PsiCompilationStage {
     Publication,
     Resolution,
     Typing,
+    Lexing,
+    Parsing,
 }
 
 /// Stable name, input and output labels for each production leg, in
 /// `PsiCompilationStage` declaration order.
-const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 7] = [
+const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 9] = [
     (
         "terminal-production/machine-selection",
         "CheckedTrees",
@@ -43,6 +45,8 @@ const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 7] = [
     ),
     ("Stage 03", "SyntaxTrees", "SymbolResolvedTrees"),
     ("Stage 04", "SymbolResolvedTrees", "TypedTrees"),
+    ("Stage 01", "SourceFiles", "TokenStreams"),
+    ("Stage 02", "TokenStreams", "SyntaxTrees"),
 ];
 
 impl PsiCompilationStage {

@@ -10,12 +10,8 @@
 
 pub mod lexer;
 mod source_files;
-mod source_queue;
 
-pub use source_files::{
-    lex_sources, load_injected_source, load_package_generated_source, load_sources,
-};
-pub use source_queue::ImportQueue;
+pub use source_files::{lex_sources, load_sources};
 
 pub use lexer::Lexer;
 pub use lexer::lex_error::LexError;

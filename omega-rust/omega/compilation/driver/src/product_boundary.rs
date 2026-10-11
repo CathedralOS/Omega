@@ -104,3 +104,31 @@ fn product_consumers_do_not_assemble_source_stages() {
         );
     }
 }
+
+#[test]
+fn package_source_consumers_do_not_assemble_parser_stages() {
+    for manifest in [
+        include_str!("../../../packages/compilation-inputs/Cargo.toml"),
+        include_str!("../../../packages/build-declarations/Cargo.toml"),
+        include_str!("../../../packages/package-manager/Cargo.toml"),
+    ] {
+        for stage in ["00_source-files-to-tokens", "01_tokens-to-syntax-trees"] {
+            assert!(
+                !manifest.contains(stage),
+                "package consumer imports {stage}"
+            );
+        }
+    }
+    let assembly = include_str!("../../../packages/compilation-inputs/src/source_assembly.rs");
+    for operation in [
+        "lex_sources(",
+        "parse_sources(",
+        "parse_source_pages_from(",
+        ".adopt_page(",
+    ] {
+        assert!(
+            !assembly.contains(operation),
+            "package assembly owns {operation}"
+        );
+    }
+}

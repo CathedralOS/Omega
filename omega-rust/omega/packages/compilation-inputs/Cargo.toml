@@ -11,15 +11,13 @@ test-support = []
 [dependencies]
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 artifacts = { path = "../../foundation/artifacts" }
-tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 flow-effects = { path = "../../../psi/foundation/flow-effects" }
 optimization-core = { path = "../../foundation/optimization-core" }
 arena = { path = "../../../psi/foundation/arena" }
 symbols = { path = "../../../psi/foundation/symbols" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
-tokens = { path = "../../../psi/compilation/representations/tokens" }
-source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
+psi-compiler = { path = "../../../psi/compilation/driver" }
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }
 platform-custody = { path = "../../foundation/platform-custody" }

@@ -6,8 +6,6 @@ use crate::{
     PackageDeclaration, ProjectName, WorkspaceDeclaration, WorkspaceMemberPath,
     project_build_declaration_from_source,
 };
-use source_files_to_tokens::Lexer;
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn project(source: &str) -> Result<BuildDeclaration, BuildDeclarationError> {
     project_build_declaration_from_source(source)
@@ -20,8 +18,9 @@ fn source_and_syntax_apis_project_the_same_authoritative_role() {
             Build::application(builder, "omega_compiler");
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("lex fixture");
-    let trees = parse_syntax_trees(&tokens).expect("parse fixture");
+    let trees = psi_compiler::parse_text(source)
+        .expect("parse fixture")
+        .syntax;
     let syntax = project_build_declaration_syntax(&trees).expect("project syntax");
 
     assert_eq!(

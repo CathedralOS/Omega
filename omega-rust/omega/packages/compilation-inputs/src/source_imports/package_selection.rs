@@ -11,7 +11,6 @@ use diagnostics::Diagnostic;
 use source::DependencyScope;
 use std::path::{Path, PathBuf};
 use syntax_trees::identifier::Identifier;
-use tokens::{PunctuationKind, TokenKind};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ReconciledPackageImport {
@@ -66,9 +65,9 @@ impl MissingDependencyEdge {
             DependencyPurpose::Build => ("build_depend", "build_depend_as"),
         };
         Diagnostic::error(format!(
-            "import `{}` in {} names package {} as `{}`, but package {} declares no {} dependency under that alias -- declare `builder.{}(...)` or `builder.{}(\"{}\", ...)` in its build.omg to add that dependency edge for the {} scope",
-            self.authored_path,
+            "{}: import `{}` names package {} as `{}`, but package {} declares no {} dependency under that alias -- declare `Build::{}(builder, ...)` or `Build::{}(builder, \"{}\", ...)` in its build.omg to add that dependency edge for the {} scope",
             requesting_source.display(),
+            self.authored_path,
             self.package,
             self.alias,
             self.requester,
@@ -396,7 +395,7 @@ fn known_package_spelling(
     bundled_package_roster()
         .into_iter()
         .find(|(name, _)| default_alias_spelling(name) == first)
-        .map(|(name, root)| format!("`{name}` (bundled at {})", root.display()))
+        .map(|(name, _)| format!("`{name}` (bundled)"))
 }
 
 /// An implicit dependency alias preserves the canonical package name.
@@ -428,26 +427,13 @@ fn bundled_package_roster() -> Vec<(String, PathBuf)> {
     roster
 }
 
-/// The literal of the one direct `Build::package(builder, "kebab_name")` statement a
-/// package build entry must carry (build-declarations pins that canonical
-/// shape). This reads the spelling for a diagnostic; it does not evaluate the
-/// build machine or validate the declaration.
+/// Read the canonical role used for admission, for diagnostic suggestions only.
+/// Invalid or non-package Build sources do not contribute a suggestion.
 fn declared_package_name(build_source: &str) -> Option<String> {
-    let tokens = source_files_to_tokens::Lexer::new(build_source)
-        .tokenize()
-        .ok()?;
-    let significant = tokens
-        .iter()
-        .filter(|token| !token.is_whitespace() && !matches!(token.kind, TokenKind::Comment(_)))
-        .collect::<Vec<_>>();
-    significant.windows(3).find_map(|window| {
-        let [method, open, literal] = window else {
-            return None;
-        };
-        (method.is_identifier()
-            && method.lexeme == "package"
-            && open.punctuation() == Some(PunctuationKind::LeftParen)
-            && literal.is_string_literal())
-        .then(|| literal.lexeme.as_str().to_owned())
-    })
+    let build_declarations::BuildDeclaration::Package(declaration) =
+        build_declarations::project_build_declaration_from_source(build_source).ok()?
+    else {
+        return None;
+    };
+    Some(declaration.name.into_string())
 }

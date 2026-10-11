@@ -5046,8 +5046,8 @@ fail/ownership/whole_borrowed_shared_extraction rejected 1173ms expected @a9ae30
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `take_shared`, state `entry` (statement 0)
 fail/ownership/whole_borrowed_stale_observation rejected 1213ms expected @a9ae30e1c334+wt
 	cannot use `inventory.slots` while `inventory` is absent from borrowed storage: the value moved out at statement 0 must be restored first
-fail/packages/std_missing_dependency_rejected rejected 6ms expected @a9ae30e1c334+wt
-	failed to resolve tests/omega/fail/packages/std_missing_dependency_rejected/omega_language_std/console.omg: No such file or directory (os error 2)
+fail/packages/std_missing_dependency_rejected rejected 50ms expected @2cc7258c36bd+wt
+	tests/omega/fail/packages/std_missing_dependency_rejected/main.omg: import `omega_language_std::console` names package `omega_language_std` (bundled) as `omega_language_std`, but package `std_missing_dependency_rejected` (0101010101010101010101010101010101010101010101010101010101010101) declares no product dependency under that alias -- declare `Build::depend(builder, ...)` or `Build::depend_as(builder, "omega_language_std", ...)` in its build.omg to add that dependency edge for the product scope
 fail/packages/std_mount_path_rejected rejected 0ms expected @a9ae30e1c334+wt
 	package-aware import `omega::language::std::console` in tests/omega/fail/packages/std_mount_path_rejected/main.omg cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias
 fail/parse/machine_clause_garbage_rejected rejected 0ms expected @a9ae30e1c334+wt

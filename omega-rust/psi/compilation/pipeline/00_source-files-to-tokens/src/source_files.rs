@@ -8,8 +8,7 @@ use arena::Arena;
 use diagnostics::Diagnostic;
 use rayon::prelude::*;
 use source::{
-    DependencyScope, LoadedSource, LoadedSources, SourceFileSystem, SourceId, SourceOrigin,
-    SourcePosition,
+    DependencyScope, LoadedSource, LoadedSources, SourceFileSystem, SourceId, SourcePosition,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -47,46 +46,6 @@ pub fn load_sources(
     let batch = sources.insert_many(loaded);
 
     Ok(LoadedSources { sources, batch })
-}
-
-/// Load a COMPILER-PROVIDED source (a virtual file with no on-disk backing):
-/// the build-vocabulary prelude and its future siblings. The synthetic path
-/// names the provider in diagnostics.
-pub fn load_injected_source(name: &str, text: &str, first_source_id: usize) -> LoadedSources {
-    let mut sources = Arena::with_capacity(1);
-    // Injected toolchain vocabulary is compiler-owned, not a dependency-
-    // selected instance; it carries product scope and joins a build entry
-    // through its explicit source-scoped binding instead.
-    let batch = sources.insert_many([LoadedSource {
-        source_id: SourceId(first_source_id),
-        path: PathBuf::from(name),
-        source: Arc::from(text),
-        origin: Some(SourceOrigin::Toolchain),
-        scope: DependencyScope::Product,
-    }]);
-    LoadedSources { sources, batch }
-}
-
-/// Load one compiler-retained package source with a logical package-relative
-/// path and no physical file access. `scope` is the checked instance the
-/// generated bundle joins: a bundle embodies its producing package's own
-/// context (host context for a build-only package), so generated sources
-/// keep their owning package's scope rather than the importer's.
-pub fn load_package_generated_source(
-    path: PathBuf,
-    text: &str,
-    source_id: usize,
-    scope: DependencyScope,
-) -> LoadedSources {
-    let mut sources = Arena::with_capacity(1);
-    let batch = sources.insert_many([LoadedSource {
-        source_id: SourceId(source_id),
-        path,
-        source: Arc::from(text),
-        origin: Some(SourceOrigin::User),
-        scope,
-    }]);
-    LoadedSources { sources, batch }
 }
 
 /// Tokenize every loaded source, retaining its backing text and exact metadata.

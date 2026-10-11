@@ -2,7 +2,9 @@
 
 //! Psi compilation sequencing, independent of product scheduling and native output.
 //!
-//! Start at `source_compilation.rs` for admitted syntax: `prepare` owns source
+//! Start at `source_parsing.rs` for admitted source frontiers: Psi owns loading,
+//! lexing, parsing and page publication; packages own discovery and source custody.
+//! `source_compilation.rs` consumes admitted syntax: `prepare` owns source
 //! evaluation, resolution and the paired typing continuation. Build execution
 //! borrows its declared inputs; `complete_authored` resumes that same owner,
 //! and `extend` consumes admitted generated syntax against its exact predecessor.
@@ -23,12 +25,14 @@ pub use composition_admission::TerminalCompositionAdmission;
 mod observation;
 mod source_checking;
 mod source_compilation;
+mod source_parsing;
 mod terminal_production;
 
 pub use source_checking::{
     CheckRequest, CheckedSource, CheckedTreeProductSelection, RetainedCheck, SelectedCheckedSource,
     SourceAdmission,
 };
+pub use source_parsing::{ParsedText, SourceInput, SourceParseError, parse_text};
 
 pub use source_compilation::{
     BuildSourceInput, CompletedSource, PreparedSource, SourceCompilationRequest,

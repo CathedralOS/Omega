@@ -111,18 +111,23 @@ those stages or replace one half of the continuation. The same facade owns
 preparation, retained-judgment matching and checking for both Build and Product;
 product pruning consumes its checked result. Shared executable projections and
 operator contract queries live in semantic checking, without a stage dependency.
+The facade also owns source-frontier loading, lexing, parsing and parser-page
+publication. Package assembly supplies admitted frontiers and discovers imports
+from the returned syntax; generated extension units preserve separate forests.
+Build role projection and dependency editing use the same Psi parsing entrance,
+not independent lexer/parser pipelines.
 Package-manager batches also retain separate
 checked activations. These are unfinished ownership moves, not the intended route:
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → assembled syntax | [package source preparation](omega/packages/compilation-inputs/src/source_assembly.rs) |
+| Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/driver/src/source_parsing.rs); [package source preparation](omega/packages/compilation-inputs/src/source_assembly.rs) owns import discovery and custody between frontiers |
 | Assembled syntax → completed typing | [Psi source continuation](psi/compilation/driver/src/source_compilation.rs), interrupted only for admitted Build execution and generated-source admission |
 | Completed typing → checked program | [Psi source checking](psi/compilation/driver/src/source_checking.rs); the product coordinator supplies source admission and seals package custody afterward |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compilation/driver/src/terminal/terminal_artifact.rs) |
 
-Package-owned source preparation now feeds the ordinary loading and parsing
-stages directly; Build evaluation no longer owns source discovery or assembly.
+Package-owned source preparation feeds the Psi source-parsing facade;
+Build evaluation does not own source discovery or assembly.
 The [pipeline route items](../TASKS.md#pipeline-route) finish convergence: source
 preparation supplies one source set, the Psi-owned work between stages
 moves inside stages 02 through 04, and provider settlement moves behind
