@@ -11,6 +11,11 @@ ROOT = Path(__file__).resolve().parent
 def frozen_cases():
     manifest = json.loads((ROOT / 'data/oracle_manifest.json').read_text())
     assert hashlib.sha256((ROOT / 'data/cases.json').read_bytes()).hexdigest() == manifest['cases_sha256']
+    frozen_inputs = {case['name']: case['input'].encode()
+                     for case in json.loads((ROOT / 'data/cases.json').read_text())}
+    for case in manifest['cases']:
+        assert (ROOT / f"data/{case['name']}.stdin").read_bytes() == frozen_inputs[case['name']], \
+            f"frozen input mismatch: {case['name']}"
     cases = [(case, (ROOT / f"data/{case['name']}.stdin").read_bytes(),
               (ROOT / f"data/{case['name']}.stdout").read_bytes()) for case in manifest['cases']]
     wide = json.loads((ROOT / 'data/wide_bands.oracle.json').read_text())

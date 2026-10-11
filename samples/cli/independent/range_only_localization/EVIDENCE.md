@@ -104,3 +104,7 @@ cache-custody, proof, source-admission or provider guard was altered. Executor
 disconnections were followed by same-executor readiness checks; no replacement
 worker or executor was created. The normal main-only landing queue follows
 independent parent/coordinator review, as explicitly requested.
+
+## Independent review and renewed integration
+
+GPT-6.1 Sol Medium independently approved qualified candidate `7761bc21cf8b4027943dafad3441ef507fa3e7b7` without blocking findings. The reviewer verified the frozen fixture inputs and reference outputs and confirmed published main `71d6144cc88ba852d1dbd17327295d2eb1f0ffee` has no equivalent descriptor repair. The renewed candidate rebases those changes onto that main. Validation now also compares every original stdin fixture byte against its frozen JSON input, addressing the review's nonblocking custody observation without changing any oracle. A copied whitespace-tampered fixture is rejected before execution. Renewed exact compiler and runtime identities are recorded in the transfer bundle.
