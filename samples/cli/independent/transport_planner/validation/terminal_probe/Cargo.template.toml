@@ -3,6 +3,10 @@ name = "ind01-terminal-probe"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "ind01-terminal-probe"
+path = "../../validation/terminal_probe/src/main.rs"
+
 [workspace]
 
 [dependencies]

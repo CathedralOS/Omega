@@ -1,15 +1,34 @@
 """Link validation source to the verified compiler build's existing Rust libraries.
 
-The normal Cargo manifest remains available. This bounded route avoids a second
+The portable Cargo templates generate a private workspace under ignored build/. This bounded route avoids a second
 whole compiler build caused by an independent workspace's absolute source paths.
 Every selected input and the exact rustc invocation is recorded for review.
 """
-import argparse, hashlib, json, subprocess
+import argparse, hashlib, json, shutil, subprocess
 from pathlib import Path
 parser = argparse.ArgumentParser()
-parser.add_argument('verified_target', type=Path)
+parser.add_argument('verified_target', type=Path, nargs='?')
+parser.add_argument('--prepare-cargo', action='store_true', help='materialize the portable private validation workspace without building')
 arguments = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
+if arguments.verified_target is None:
+    workspace = root/'build/terminal-probe-cargo'
+    workspace.mkdir(parents=True, exist_ok=True)
+    for source, destination in [('Cargo.template.toml', 'Cargo.toml'), ('Cargo.template.lock', 'Cargo.lock')]:
+        shutil.copyfile(root/'validation/terminal_probe'/source, workspace/destination)
+    if arguments.prepare_cargo:
+        print(workspace/'Cargo.toml')
+        raise SystemExit(0)
+    command = [shutil.which('mbx') or shutil.which('cargo') or 'cargo', 'build', '--release',
+               '--manifest-path', str(workspace/'Cargo.toml'), '--target-dir', str(workspace/'target')]
+    result = subprocess.run(command, capture_output=True, text=True)
+    (root/'build/terminal-probe-cargo-build.json').write_text(json.dumps(dict(command=command,
+        exit=result.returncode, stdout=result.stdout, stderr=result.stderr), indent=2)+'\n')
+    print(result.stdout, end=''); print(result.stderr, end='')
+    assert result.returncode == 0, 'private validation workspace did not build'
+    print(workspace/'target/release/ind01-terminal-probe')
+    raise SystemExit(0)
+assert not arguments.prepare_cargo, '--prepare-cargo is for the portable workspace'
 target = arguments.verified_target.resolve()/'release'
 command = ['rustc', '--edition=2024', '--crate-name', 'ind01_terminal_probe',
            '-C', 'opt-level=2', '-C', 'debuginfo=0',

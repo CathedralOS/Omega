@@ -74,12 +74,20 @@ native report, and executes that report's exact retained Terminal artifact with
 private replay stdin and buffered stdout/stderr. It uses the stable compiler
 runtime API and never calculates shipments on the host. `omega run --both`
 checks exit agreement; this additional consumer checks exact Terminal output.
-Build and execute it sequentially, reusing this checkout's verified Cargo target:
+The portable Cargo templates materialize a private validation workspace under
+ignored `build/`; it does not join the product's Rust workspace. Build and
+execute it sequentially:
 
 ```sh
-mbx build --release --manifest-path samples/cli/independent/transport_planner/validation/terminal_probe/Cargo.toml
-<probe-target>/release/ind01-terminal-probe samples/cli/independent/transport_planner
+python3 samples/cli/independent/transport_planner/validation/build_terminal_probe.py
+samples/cli/independent/transport_planner/build/terminal-probe-cargo/target/release/ind01-terminal-probe samples/cli/independent/transport_planner
 ```
 
 See the delivered validation receipt for the exact compiler/source identities,
 commands, native/Terminal observations and remaining limitations.
+
+On this executor, `build_terminal_probe.py <verified-main-target>` also links the
+same validation source to the recorded main build's existing Rust libraries.
+Its exact rustc command and library hashes are saved in `build/terminal-probe-link.json`.
+The validation consumer is checked separately; normal landing checks cover the
+changed production compiler packages and CLI.
