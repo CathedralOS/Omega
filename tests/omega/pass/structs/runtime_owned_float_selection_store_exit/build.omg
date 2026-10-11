@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_owned_float_selection_store_exit");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}
