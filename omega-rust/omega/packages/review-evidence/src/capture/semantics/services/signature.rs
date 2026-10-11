@@ -6,7 +6,7 @@ use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::{
     PackagePolicyServiceSignature, PackageReviewNominalIdentity,
-    PackageReviewTraitRequirementParameter,
+    PackageReviewSignatureParameter,
 };
 use diagnostics::Diagnostic;
 use provider_planning::ProviderSchemaDeclaration;
@@ -86,7 +86,7 @@ pub(super) fn project(
             parameters: calling
                 .semantic_parameters
                 .iter()
-                .map(|parameter| PackageReviewTraitRequirementParameter {
+                .map(|parameter| PackageReviewSignatureParameter {
                     name: parameter.name.clone(),
                     type_identity: parameter.value_type.clone(),
                     is_const: parameter.is_const,
@@ -208,7 +208,7 @@ pub(super) fn project(
     let parameters = values
         .iter()
         .map(|parameter| {
-            Ok(PackageReviewTraitRequirementParameter {
+            Ok(PackageReviewSignatureParameter {
                 name: parameter.name.as_str().to_owned(),
                 type_identity: review_signature_type_identity_with_binders(
                     compilation,

@@ -1,6 +1,6 @@
 use crate::record::{
     PackagePolicyCrashRoute, PackagePolicyTermination, PackageReviewCallableContract,
-    PackageReviewDataProperties, PackageReviewMachineParameterValue, PackageReviewNominalIdentity,
+    PackageReviewDataProperties, PackageReviewSignatureParameter, PackageReviewNominalIdentity,
     PackageReviewPropositionParameterSignature, PackageReviewSynchronousInvocation,
     PackageReviewTypeIdentity,
 };
@@ -39,7 +39,7 @@ pub enum PackagePolicyMachineParameterContract {
 pub struct PackagePolicyMachineParameterSignature {
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) parameters: Vec<PackageReviewMachineParameterValue>,
+    pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
     pub(crate) return_type: Option<PackageReviewTypeIdentity>,
     pub(crate) contracts: Vec<PackageReviewCallableContract>,
     pub(crate) published_crash: Vec<PackagePolicyCrashRoute>,
@@ -67,7 +67,7 @@ impl PackagePolicyMachineParameterSignature {
     pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
         &self.type_parameters
     }
-    pub fn parameters(&self) -> &[PackageReviewMachineParameterValue] {
+    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
         &self.parameters
     }
     crate::record::accessors::package_policy_callable_signature_accessors!();

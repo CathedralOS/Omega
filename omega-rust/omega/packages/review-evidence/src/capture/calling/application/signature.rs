@@ -16,7 +16,7 @@ use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::capture::semantics::types::signature_type_identity;
 use crate::record::{
     PackagePolicyTypeParameter, PackageReviewNominalIdentity,
-    PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
+    PackageReviewSignatureParameter, PackageReviewTypeIdentity,
 };
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
@@ -32,7 +32,7 @@ pub(crate) struct CallingSignatureProjection {
     pub requirement_lifetime_arguments: Vec<u32>,
     pub requirement_lifetime_parameter_count: u32,
     pub static_parameters: Vec<PackagePolicyTypeParameter>,
-    pub semantic_parameters: Vec<PackageReviewTraitRequirementParameter>,
+    pub semantic_parameters: Vec<PackageReviewSignatureParameter>,
     pub semantic_result: Option<PackageReviewTypeIdentity>,
     pub lifetime_binders: Vec<Identifier>,
 }
@@ -278,7 +278,7 @@ fn project_with_binders(
             &lifetimes,
             0,
         )?;
-        semantic_parameters.push(PackageReviewTraitRequirementParameter {
+        semantic_parameters.push(PackageReviewSignatureParameter {
             name: parameter.name.as_str().to_owned(),
             type_identity: signature_type_identity(
                 &projected,

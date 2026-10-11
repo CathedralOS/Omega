@@ -1,12 +1,12 @@
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
     PackagePolicyOperatorShape, PackagePolicyTraitRequirement, PackagePolicyTraitShape,
-    PackagePolicyTypeParameter, PackageReviewCallableContract, PackageReviewCallableParameter,
+    PackagePolicyTypeParameter, PackageReviewCallableContract,
     PackageReviewConformanceBound, PackageReviewContractFact, PackageReviewDataKind,
     PackageReviewDataMember, PackageReviewDataProperties, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
     PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
-    PackageReviewTraitParent, PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
+    PackageReviewSignatureParameter, PackageReviewTraitParent, PackageReviewTypeIdentity,
 };
 
 impl PackagePolicyTraitShape {
@@ -48,7 +48,7 @@ impl PackagePolicyTraitRequirement {
     pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
         &self.type_parameters
     }
-    pub fn parameters(&self) -> &[PackageReviewTraitRequirementParameter] {
+    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
         &self.parameters
     }
     crate::record::accessors::package_policy_callable_signature_accessors!();
@@ -109,7 +109,7 @@ impl PackagePolicyOperatorShape {
     pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
         &self.type_parameters
     }
-    pub fn parameters(&self) -> &[PackageReviewCallableParameter] {
+    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
         &self.parameters
     }
     pub const fn return_type(&self) -> Option<&PackageReviewTypeIdentity> {

@@ -13,7 +13,7 @@ use super::super::types::project_data_properties;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewCrashRoute, PackageReviewMachineParameterContract,
-    PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
+    PackageReviewMachineParameterSignature, PackageReviewSignatureParameter,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
@@ -311,7 +311,7 @@ fn project_machine_parameter_contract_inner(
                     parameters: parameters
                         .iter()
                         .map(|parameter| {
-                            Ok(PackageReviewMachineParameterValue {
+                            Ok(PackageReviewSignatureParameter {
                                 name: parameter.name.as_str().to_owned(),
                                 type_identity: projection.value_type(
                                     typed,

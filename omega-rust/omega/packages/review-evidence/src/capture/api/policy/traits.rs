@@ -11,7 +11,7 @@ use crate::capture::semantics::signatures::policy_crashes;
 use crate::capture::semantics::types::signature_type_identity;
 use crate::record::{
     PackagePolicyTraitRequirement, PackagePolicyTraitShape, PackageReviewTraitRequirement,
-    PackageReviewTraitRequirementParameter,
+    PackageReviewSignatureParameter,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -118,7 +118,7 @@ fn project_requirement(
         .state_signature_parameters(&prepared.signature)
         .iter()
         .map(|parameter| {
-            Ok(PackageReviewTraitRequirementParameter {
+            Ok(PackageReviewSignatureParameter {
                 name: parameter.name.as_str().to_owned(),
                 type_identity: signature_type_identity(
                     &prepared.typed,

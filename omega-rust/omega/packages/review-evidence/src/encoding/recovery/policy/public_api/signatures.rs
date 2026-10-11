@@ -9,7 +9,7 @@ use super::super::{
 };
 use crate::record::{
     PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
-    PackagePolicyTypeParameter, PackagePolicyTypeParameterKind, PackageReviewMachineParameterValue,
+    PackagePolicyTypeParameter, PackagePolicyTypeParameterKind, PackageReviewSignatureParameter,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
 };
 
@@ -63,7 +63,7 @@ pub(in crate::encoding::recovery) fn machine_signature(
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
         parameters: reader.sequence(18, |reader| {
-            Ok(PackageReviewMachineParameterValue {
+            Ok(PackageReviewSignatureParameter {
                 name: reader.string()?,
                 type_identity: type_identity(reader)?,
                 is_const: reader.boolean()?,

@@ -1,6 +1,6 @@
 use super::{Error, Reader};
 use crate::encoding::recovery::policy::{identity::type_identity, public_api::type_parameter};
-use crate::record::{PackagePolicyServiceSignature, PackageReviewTraitRequirementParameter};
+use crate::record::{PackagePolicyServiceSignature, PackageReviewSignatureParameter};
 
 pub(in crate::encoding::recovery) fn signature(
     reader: &mut Reader<'_>,
@@ -13,7 +13,7 @@ pub(in crate::encoding::recovery) fn signature(
         requirement_lifetime_parameter_count: reader.u32()?,
         static_parameters: reader.sequence(3, type_parameter)?,
         parameters: reader.sequence(18, |reader| {
-            Ok(PackageReviewTraitRequirementParameter {
+            Ok(PackageReviewSignatureParameter {
                 name: reader.string()?,
                 type_identity: type_identity(reader)?,
                 is_const: reader.boolean()?,

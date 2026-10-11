@@ -11,8 +11,7 @@ use super::super::{
 use super::signatures::type_parameter;
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyOperatorShape, PackagePolicyTraitRequirement,
-    PackagePolicyTraitShape, PackageReviewCallableParameter,
-    PackageReviewTraitRequirementParameter,
+    PackagePolicyTraitShape, PackageReviewSignatureParameter,
 };
 
 pub(in crate::encoding::recovery) fn trait_shape(
@@ -39,7 +38,7 @@ pub(in crate::encoding::recovery) fn trait_requirement(
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
         parameters: reader.sequence(18, |reader| {
-            Ok(PackageReviewTraitRequirementParameter {
+            Ok(PackageReviewSignatureParameter {
                 name: reader.string()?,
                 type_identity: type_identity(reader)?,
                 is_const: reader.boolean()?,
@@ -79,7 +78,7 @@ pub(in crate::encoding::recovery) fn operator_shape(
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
         parameters: reader.sequence(18, |reader| {
-            Ok(PackageReviewCallableParameter {
+            Ok(PackageReviewSignatureParameter {
                 name: reader.string()?,
                 type_identity: type_identity(reader)?,
                 is_const: reader.boolean()?,

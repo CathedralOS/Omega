@@ -10,7 +10,7 @@ pub(in crate::record) mod validation;
 use crate::record::{
     PackagePolicyCapabilityFlow, PackagePolicyCrash, PackagePolicyMutation,
     PackagePolicyTermination, PackagePolicyTypeParameter, PackageReviewCallableContract,
-    PackageReviewCallableParameter, PackageReviewCallableSupply, PackageReviewCheckedServiceReach,
+    PackageReviewSignatureParameter, PackageReviewCallableSupply, PackageReviewCheckedServiceReach,
     PackageReviewConformanceBound, PackageReviewInstallationReach, PackageReviewNominalIdentity,
     PackageReviewOperatorRealization, PackageReviewSynchronousInvocation,
     PackageReviewTypeIdentity,
@@ -59,7 +59,7 @@ pub struct PackagePolicyCallable {
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) conformance_bounds: Vec<PackageReviewConformanceBound>,
-    pub(crate) parameters: Vec<PackageReviewCallableParameter>,
+    pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
     pub(crate) return_type: Option<PackageReviewTypeIdentity>,
     pub(crate) conformances: Vec<PackagePolicyCallableConformance>,
     pub(crate) operator_realizations: Vec<PackageReviewOperatorRealization>,

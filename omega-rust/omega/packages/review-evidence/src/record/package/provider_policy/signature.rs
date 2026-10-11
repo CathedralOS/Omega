@@ -1,7 +1,7 @@
 //! Target-independent source signature of a selected service application.
 
 use crate::record::{
-    PackagePolicyTypeParameter, PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
+    PackagePolicyTypeParameter, PackageReviewSignatureParameter, PackageReviewTypeIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,7 +12,7 @@ pub struct PackagePolicyServiceSignature {
     pub(crate) requirement_lifetime_arguments: Vec<u32>,
     pub(crate) requirement_lifetime_parameter_count: u32,
     pub(crate) static_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) parameters: Vec<PackageReviewTraitRequirementParameter>,
+    pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
     pub(crate) result: Option<PackageReviewTypeIdentity>,
 }
 
@@ -20,7 +20,7 @@ impl PackagePolicyServiceSignature {
     pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {
         &self.static_parameters
     }
-    pub fn parameters(&self) -> &[PackageReviewTraitRequirementParameter] {
+    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
         &self.parameters
     }
     pub fn result(&self) -> Option<&PackageReviewTypeIdentity> {

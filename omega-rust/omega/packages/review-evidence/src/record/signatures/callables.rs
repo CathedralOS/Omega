@@ -1,5 +1,4 @@
 use crate::record::PackageReviewNominalIdentity;
-use crate::record::PackageReviewTypeIdentity;
 
 /// A checked body's exact top-level requirement association. Unlike trait
 /// conformance, this edge has no authored arguments: static and lifetime
@@ -12,27 +11,3 @@ pub(crate) struct PackageReviewRequirementRealization {
 }
 
 impl PackageReviewRequirementRealization {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewTraitRequirementParameter {
-    pub(crate) name: String,
-    pub(crate) type_identity: PackageReviewTypeIdentity,
-    pub(crate) is_const: bool,
-    pub(crate) is_mutable: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewCallableParameter {
-    pub(crate) name: String,
-    pub(crate) type_identity: PackageReviewTypeIdentity,
-    pub(crate) is_const: bool,
-    pub(crate) is_mutable: bool,
-}
-
-impl PackageReviewCallableParameter {
-    crate::record::accessors::signature_parameter_accessors!();
-}
-
-impl PackageReviewTraitRequirementParameter {
-    crate::record::accessors::signature_parameter_accessors!();
-}

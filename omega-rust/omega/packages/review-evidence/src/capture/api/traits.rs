@@ -18,7 +18,7 @@ use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
-    PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
+    PackageReviewSignatureParameter, PackageReviewTraitShape,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -233,7 +233,7 @@ pub(crate) fn project_trait_requirement(
             .state_signature_parameters(requirement)
             .iter()
             .map(|parameter| {
-                Ok(PackageReviewTraitRequirementParameter {
+                Ok(PackageReviewSignatureParameter {
                     name: parameter.name.as_str().to_owned(),
                     type_identity: review_signature_type_identity_with_binders(
                         compilation,

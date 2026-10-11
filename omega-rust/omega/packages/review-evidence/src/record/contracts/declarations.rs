@@ -1,5 +1,5 @@
 use crate::record::PackageReviewCallableContract;
-use crate::record::PackageReviewCallableParameter;
+use crate::record::PackageReviewSignatureParameter;
 use crate::record::PackageReviewCrashRoute;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewOperatorCoordinate;
@@ -20,7 +20,7 @@ pub(crate) struct PackageReviewOperatorShape {
     pub(crate) spelling: Option<language_core::OperatorSpelling>,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
-    pub(crate) parameters: Vec<PackageReviewCallableParameter>,
+    pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
     pub(crate) return_type: PackageReviewTypeIdentity,
     pub(crate) contracts: Vec<PackageReviewCallableContract>,
     pub(crate) published_crash: Vec<PackageReviewCrashRoute>,

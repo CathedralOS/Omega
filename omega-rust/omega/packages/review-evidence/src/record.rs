@@ -153,14 +153,13 @@ pub(crate) use rows::{
 pub(crate) use signatures::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
     PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
-    PackagePolicyExternalRequirement, PackageReviewCallableParameter,
-    PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewEvaluatedImport,
+    PackagePolicyExternalRequirement, PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewEvaluatedImport,
     PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
     PackageReviewExternalCallableParameter, PackageReviewForeignLocator,
     PackageReviewMachineParameterContract, PackageReviewMachineParameterSignature,
-    PackageReviewMachineParameterValue, PackageReviewPropositionParameterSignature,
-    PackageReviewPropositionParameterValue, PackageReviewRequirementRealization,
+    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
+    PackageReviewRequirementRealization, PackageReviewSignatureParameter,
     PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
-    PackageReviewTraitRequirementParameter, PackageReviewTraitShape, PackageReviewTypeIdentity,
+    PackageReviewTraitShape, PackageReviewTypeIdentity,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };

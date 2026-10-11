@@ -63,7 +63,7 @@ pub(crate) enum PackageReviewMachineParameterContract {
 pub(crate) struct PackageReviewMachineParameterSignature {
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
-    pub(crate) parameters: Vec<PackageReviewMachineParameterValue>,
+    pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
     pub(crate) return_type: PackageReviewTypeIdentity,
     pub(crate) contracts: Vec<PackageReviewCallableContract>,
     pub(crate) published_crash: Vec<PackageReviewCrashRoute>,
@@ -76,14 +76,14 @@ pub(crate) struct PackageReviewMachineParameterSignature {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewMachineParameterValue {
+pub struct PackageReviewSignatureParameter {
     pub(crate) name: String,
     pub(crate) type_identity: PackageReviewTypeIdentity,
     pub(crate) is_const: bool,
     pub(crate) is_mutable: bool,
 }
 
-impl PackageReviewMachineParameterValue {
+impl PackageReviewSignatureParameter {
     crate::record::accessors::signature_parameter_accessors!();
 }
 

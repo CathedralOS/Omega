@@ -8,7 +8,7 @@ use crate::record::PackagePolicyServiceReachDependency;
 use crate::record::PackagePolicyTermination;
 use crate::record::PackagePolicyTypeParameter;
 use crate::record::PackageReviewCallableContract;
-use crate::record::PackageReviewCallableParameter;
+use crate::record::PackageReviewSignatureParameter;
 use crate::record::PackageReviewCallableSupply;
 use crate::record::PackageReviewCheckedServiceReach;
 use crate::record::PackageReviewConformanceBound;
@@ -51,7 +51,7 @@ impl PackagePolicyCallable {
         &self.conformance_bounds
     }
 
-    pub fn parameters(&self) -> &[PackageReviewCallableParameter] {
+    pub fn parameters(&self) -> &[PackageReviewSignatureParameter] {
         &self.parameters
     }
 

@@ -8,10 +8,7 @@ pub(crate) mod external_supply;
 mod signature_vocabulary;
 mod traits;
 
-pub(crate) use callables::{
-    PackageReviewCallableParameter, PackageReviewRequirementRealization,
-    PackageReviewTraitRequirementParameter,
-};
+pub(crate) use callables::PackageReviewRequirementRealization;
 
 pub(crate) use external_policy::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
@@ -26,7 +23,7 @@ pub(crate) use external_supply::{
 
 pub(crate) use signature_vocabulary::{
     PackageReviewConformanceBound, PackageReviewMachineParameterContract,
-    PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
+    PackageReviewMachineParameterSignature, PackageReviewSignatureParameter,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
     PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };

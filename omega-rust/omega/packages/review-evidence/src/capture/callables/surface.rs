@@ -12,7 +12,7 @@ use super::conformances::project_callable_conformances;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     PackagePolicyCallableConformance, PackagePolicyExternalRequirement, PackagePolicyTypeParameter,
-    PackageReviewCallableContract, PackageReviewCallableParameter, PackageReviewCallableRole,
+    PackageReviewCallableContract, PackageReviewSignatureParameter, PackageReviewCallableRole,
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
     PackageReviewInstallationReach, PackageReviewNominalIdentity, PackageReviewOperatorRealization,
     PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
@@ -28,7 +28,7 @@ pub(super) struct CallableSurface {
     pub(super) lifetime_parameter_count: usize,
     pub(super) policy_type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(super) conformance_bounds: Vec<PackageReviewConformanceBound>,
-    pub(super) parameters: Vec<PackageReviewCallableParameter>,
+    pub(super) parameters: Vec<PackageReviewSignatureParameter>,
     pub(super) return_type: PackageReviewTypeIdentity,
     pub(super) policy_conformances: Vec<PackagePolicyCallableConformance>,
     pub(super) operator_realizations: Vec<PackageReviewOperatorRealization>,
@@ -94,7 +94,7 @@ pub(super) fn project<'a>(
         .state_parameters(entry)
         .iter()
         .map(|parameter| {
-            Ok(PackageReviewCallableParameter {
+            Ok(PackageReviewSignatureParameter {
                 name: parameter.name.as_str().to_owned(),
                 type_identity: review_signature_type_identity_with_binders(
                     compilation,

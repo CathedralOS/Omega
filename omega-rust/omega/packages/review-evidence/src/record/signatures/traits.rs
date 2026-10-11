@@ -5,7 +5,7 @@ use crate::record::PackageReviewEvidenceInterface;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewSynchronousInvocation;
 use crate::record::PackageReviewTermination;
-use crate::record::PackageReviewTraitRequirementParameter;
+use crate::record::PackageReviewSignatureParameter;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::PackageReviewTypeParameter;
 
@@ -34,7 +34,7 @@ pub(crate) struct PackageReviewTraitRequirement {
     pub(crate) has_default_realization: bool,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
-    pub(crate) parameters: Vec<PackageReviewTraitRequirementParameter>,
+    pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
     pub(crate) return_type: PackageReviewTypeIdentity,
     pub(crate) contracts: Vec<PackageReviewCallableContract>,
     /// Abstract published crash ceiling for this requirement. Trait
