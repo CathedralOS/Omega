@@ -31,10 +31,27 @@ pub(crate) fn is_scalar_return_call(
     let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
-    validation::call_target_return_type(program, validation::call_target_symbol(program, call))
-        .is_some_and(|return_type| {
-            program.primitive_type_reference(return_type) == Some(primitive_type)
-        })
+    let Some(machine) = program.machine_holding_state(state.symbol) else {
+        return false;
+    };
+    let target = validation::call_target_symbol_for_origin(
+        program,
+        expression,
+        checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol: machine.symbol,
+            state_symbol: state.symbol,
+            statement_index: program
+                .statement_table
+                .statements(state.statement_nodes)
+                .len()
+                - 1,
+            role: checked_trees::CheckedValueStatementRole::Expression,
+        },
+        call,
+    );
+    validation::call_target_return_type(program, target).is_some_and(|return_type| {
+        program.primitive_type_reference(return_type) == Some(primitive_type)
+    })
 }
 pub(crate) fn retain_nested_structural_call_arguments(
     program: &dyn ::validation::CheckingInput,

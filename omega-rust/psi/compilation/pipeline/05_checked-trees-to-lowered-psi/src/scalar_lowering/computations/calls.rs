@@ -598,6 +598,26 @@ impl Expansion<'_> {
             // available at this evaluation point. Keep that lexical prefix
             // scoped while nested calls or selected branches are expanded.
             let established_prefix = self.established_values.len();
+            let completed_prefix = self.completed.len();
+            // Earlier scalar operands are snapshots in this lexical prefix,
+            // just like earlier structural operands. A shared normalized node
+            // consumes that carried value rather than invoking its source call
+            // again. Distinct authored nodes keep their ordered evaluations.
+            self.completed
+                .extend(
+                    operands[..ordinal]
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(earlier, operand)| match operand {
+                            Operand::Scalar(Argument::Computation(computation))
+                            | Operand::DispatchSelector(Argument::Computation(computation))
+                            | Operand::Selector {
+                                value: Argument::Computation(computation),
+                                ..
+                            } => Some((*computation, prefixes[earlier].len())),
+                            _ => None,
+                        }),
+                );
             self.established_values
                 .extend(
                     operands[..ordinal]
@@ -689,6 +709,7 @@ impl Expansion<'_> {
                 }
             };
             self.established_values.truncate(established_prefix);
+            self.completed.truncate(completed_prefix);
         }
         Ok(continuation)
     }

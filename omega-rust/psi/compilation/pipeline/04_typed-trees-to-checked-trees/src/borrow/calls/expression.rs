@@ -29,12 +29,23 @@ pub(super) fn collect_expression_borrow_calls(
             let boundary_operator =
                 typed_trees::operator::resolve_named_expression_call(collection.program, call)
                     .filter(|operator| operator.is_boundary);
+            let selected_target = validation::call_target_symbol_for_origin(
+                program,
+                expression,
+                checked_trees::CheckedValueOrigin::StateStatement {
+                    machine_symbol: collection.machine.symbol,
+                    state_symbol: collection.state.symbol,
+                    statement_index: collection.statement_index,
+                    role: checked_trees::CheckedValueStatementRole::Expression,
+                },
+                call,
+            );
             let resolved_target = resolve_state_call_target(
                 collection.program,
                 collection.machine,
                 collection.state,
                 receiver_symbol,
-                boundary_operator.map_or(call.target_symbol, |operator| operator.symbol),
+                selected_target,
                 receiver_path.as_deref(),
                 &call.target,
             );

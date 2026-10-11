@@ -8,8 +8,14 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "2", "load1_end": 0.8, "load1_start": 0.4, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# NEW022: scoped measured rows; other published rows preserved verbatim.
+# context: {"cpus": 5, "jobs": "2", "load1_end": 0.8, "load1_start": 0.4, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 0.8, "load1_start": 0.4, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "1", "load1_end": 1.0, "load1_start": 1.01, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_bounded_dividend_remainder_exit built 9272ms exit:0 interpreter-exit:0 interpreter:agrees @cb7a5a5136b3
 pass/arithmetic/runtime_explicit_call_result_policy_exit built 7513ms exit:0 interpreter-exit:0 interpreter:agrees @30eb6513ae80+wt
+pass/arithmetic/runtime_fixed_integer_across_console_exit built 58766ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @cacb7c7a55e2
+pass/arithmetic/runtime_min_max_clamp_narrowing_exit built 4579ms exit:70 interpreter-exit:70 interpreter:agrees @5906e5ec7c81
 pass/arithmetic/runtime_signed_minimum_remainder_exit built 7703ms exit:0 interpreter-exit:0 interpreter:agrees @1e7d4009e238
 pass/arithmetic/runtime_unbounded_zero_product_exit built 6821ms exit:0 interpreter-exit:0 interpreter:agrees @373d956d212f
 pass/atomics/runtime_atomic_bitwise_widths_exit built 5472ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
@@ -39,7 +45,13 @@ pass/control_flow/runtime_namespace_local_state_loan built 983ms exit:0 stdout:m
 pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 6296ms exit:0 interpreter-exit:0 interpreter:agrees @d537c1f08618
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 5398ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d537c1f08618
 pass/float/build_runtime_semantics_twins_x86_baseline built 259139ms @d537c1f08618
+pass/float/named_provider_min_max_sqrt_exit built 56288ms exit:70 interpreter-exit:70 interpreter:agrees @5906e5ec7c81
+pass/float/runtime_authored_max_selection_exit built 60509ms exit:70 interpreter-exit:70 interpreter:agrees @b7ce64956814
+pass/float/runtime_builtin_guard_application_exit built 60270ms exit:70 interpreter-exit:70 interpreter:agrees @cacb7c7a55e2
+pass/float/runtime_builtin_ieee_order_exit built 60422ms exit:70 interpreter-exit:70 interpreter:agrees @fd6cd6367cac
 pass/float/runtime_float_digit_separators_exit built 162056ms exit:0 interpreter-exit:0 interpreter:agrees @e129ea486356
+pass/float/runtime_shared_float_lazy_branch_exit built 61733ms exit:70 interpreter-exit:70 interpreter:agrees @6eefe97847df+wt
+pass/float/runtime_shared_float_operand_once_exit built 60043ms exit:70 interpreter-exit:70 interpreter:agrees @cacb7c7a55e2
 pass/generics/omitted_data_binder_range_equation built 1576ms exit:92 interpreter-exit:92 interpreter:agrees @f64782b89114+wt
 pass/generics/runtime_constructor_equation_binder_carriers_exit built 5015ms exit:0 interpreter-exit:0 interpreter:agrees @1843c1a8677b+wt
 pass/generics/runtime_equation_named_array_actual_exit built 4791ms exit:0 interpreter-exit:0 interpreter:agrees @5025d41fde63+wt
@@ -128,8 +140,8 @@ pass/calls/runtime_owned_state_scalar_field_store_exit built 5907ms exit:70 inte
 pass/calls/runtime_exact_division_call_span_exit built 5514ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @6301348b6fe2
 pass/calls/runtime_wrapping_division_call_span_exit built 5417ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @6301348b6fe2
 pass/arithmetic/runtime_remainder_result_cast_exit built 10204ms exit:70 interpreter-exit:70 interpreter:agrees @4a5e90b862b4
-pass/arithmetic/saturating_signed_divide_min_by_neg_one built 8255ms exit:70 interpreter-exit:70 interpreter:agrees @4a5e90b862b4
-pass/arithmetic/wrapping_signed_divide_min_by_neg_one built 7877ms exit:70 interpreter-exit:70 interpreter:agrees @4a5e90b862b4
+pass/arithmetic/saturating_signed_divide_min_by_neg_one built 4409ms exit:70 interpreter-exit:70 interpreter:agrees @5906e5ec7c81
+pass/arithmetic/wrapping_signed_divide_min_by_neg_one built 4542ms exit:70 interpreter-exit:70 interpreter:agrees @5906e5ec7c81
 run/arithmetic/pinned_dividend_across_console_calls built 6825ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9d9e2c34aa73
 pass/arithmetic/runtime_fixed_input_policy_reuse_exit built 4162ms exit:0 interpreter-exit:0 interpreter:agrees @392e08091547
 pass/arithmetic/reused_fixed_integer_operands_exit built 6837ms exit:0 interpreter-exit:0 interpreter:agrees @7223309ebb5b

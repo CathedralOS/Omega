@@ -101,7 +101,7 @@ pub(crate) struct Expansion<'a> {
     copies: Vec<copies::Slot>,
     cases: Vec<cases::Slot>,
     fields: &'a [fields::Binding],
-    /// Selection-local computations already carried in the current input prefix.
+    /// Computations already carried in the current ordered input prefix.
     completed: Vec<(Computation, usize)>,
     /// Earlier structural operands on the selected evaluation path. A later
     /// projection observes their established homes without replaying producers
@@ -433,6 +433,19 @@ impl<'a> Expansion<'a> {
         }
         let mut continuation = target;
         for (index, argument) in arguments.iter().enumerate().rev() {
+            let saved = self.completed.len();
+            self.completed
+                .extend(
+                    arguments[..index]
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(earlier, argument)| match argument {
+                            Argument::Computation(computation) => {
+                                Some((*computation, prefixes[earlier].len()))
+                            }
+                            Argument::Value(_) => None,
+                        }),
+                );
             continuation = self.argument(
                 identities,
                 argument,
@@ -441,6 +454,7 @@ impl<'a> Expansion<'a> {
                 site,
                 active,
             )?;
+            self.completed.truncate(saved);
         }
         Ok(continuation)
     }

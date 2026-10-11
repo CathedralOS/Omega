@@ -110,13 +110,19 @@ pub(crate) fn bind_checked_body_call_source_spans(
                     call.target_symbol,
                     program.statement_table.expression_handles(call.arguments),
                 ),
-                CallSite::Expression { call, .. } => (
+                CallSite::Expression { expression, call } => (
                     FlowCallSite::Expression,
-                    // A named `Namespace::requirement(...)` call keeps an
-                    // invalid authored leaf; its live identity is the
-                    // selected boundary declaration.
-                    typed_trees::operator::selected_boundary_operator(program, call)
-                        .map_or(call.target_symbol, |operator| operator.symbol),
+                    validation::call_target_symbol_for_origin(
+                        program,
+                        *expression,
+                        checked_trees::CheckedValueOrigin::StateStatement {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                            statement_index: checked_call.statement_index,
+                            role: checked_trees::CheckedValueStatementRole::Expression,
+                        },
+                        call,
+                    ),
                     program.expression_table.expression_handles(call.arguments),
                 ),
                 CallSite::TransitionNamed {

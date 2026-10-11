@@ -8,6 +8,10 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "2", "load1_end": 1.47, "load1_start": 1.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# NEW022: scoped measured rows; other published rows preserved verbatim.
+# context: {"cpus": 10, "jobs": "2", "load1_end": 1.47, "load1_start": 1.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 1.47, "load1_start": 1.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "1", "load1_end": 1.0, "load1_start": 1.0, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1583,6 +1587,11 @@ fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 10ms expe
 	`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape (Wrapped, Wrapped); a second spelling needs a distinct operand shape or a separate owner
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 31ms expected @2d8ed253669f
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
+fail/float/builtin_operand_borrow_conflict_rejected rejected 26973ms expected @cacb7c7a55e2
+	state `F64::maximum` receives `main.values` as both mutable and read-only
+	state `F64::maximum` receives `main.values` as both mutable and read-only
+	state `pair` receives `main.values` as both mutable and read-only
+	state `subtract` receives `main.values` as both mutable and read-only
 fail/float/captured_finite_requirement_precedes_source_repair rejected 23293ms expected @c9bf07d93a60+wt
 	cannot prove requires contract for call finite_captured from main: F32.is_finite(slot.value) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/closed_integer_conversion_predicate_retains_result rejected 1378ms expected @d0e40a213f35

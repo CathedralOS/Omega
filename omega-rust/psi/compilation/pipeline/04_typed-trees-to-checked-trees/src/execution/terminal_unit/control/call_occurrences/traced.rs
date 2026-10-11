@@ -75,6 +75,20 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     let mut structural = Vec::<&checked_trees::FlowCallFact>::new();
     let mut outer = Vec::new();
     let owner = program.machine_by_symbol(machine)?;
+    let expression_target =
+        |expression, authored: &typed_trees::expression::TableCallExpression, statement_index| {
+            validation::call_target_symbol_for_origin(
+                program,
+                expression,
+                checked_trees::CheckedValueOrigin::StateStatement {
+                    machine_symbol: machine,
+                    state_symbol: state.symbol,
+                    statement_index,
+                    role: checked_trees::CheckedValueStatementRole::Expression,
+                },
+                authored,
+            )
+        };
     let mut scalar_local_count = 0u32;
     let control_prefix =
         statement_sequence::scalar_control(program, facts, owner, state).map(|(_, prefix)| prefix);
@@ -403,7 +417,8 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             let (expression, authored) =
                 ordered_statement_call(program, owner, state, call.statement_index)?;
             if call.authored_expression != expression
-                || call.target_symbol != validation::call_target_symbol(program, authored)
+                || call.target_symbol
+                    != expression_target(expression, authored, call.statement_index)
             {
                 return None;
             }
@@ -467,7 +482,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 if *expression != call.authored_expression {
                     return None;
                 }
-                validation::call_target_symbol(program, authored)
+                expression_target(*expression, authored, call.statement_index)
             }
             validation::CallSite::Statement(authored) => authored.target_symbol,
             validation::CallSite::TransitionNamed { path, .. } => path.symbol,

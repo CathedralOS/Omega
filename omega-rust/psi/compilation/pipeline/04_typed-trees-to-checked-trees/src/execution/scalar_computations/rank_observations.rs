@@ -156,6 +156,7 @@ pub(super) fn record(
             locals: &[],
             plans,
             structural_values,
+            scalar_occurrences: Vec::new(),
             integer_occurrences: Vec::new(),
         };
         if let Some(root) = observation(&mut builder, rank, subject, &bindings) {

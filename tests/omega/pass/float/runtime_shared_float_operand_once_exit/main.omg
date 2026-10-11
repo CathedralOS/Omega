@@ -1,0 +1,29 @@
+// abs shares one normalized operand; distinct tick calls remain distinct.
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::float_operations;
+data Values {value:f64;}
+data Main {console:Binding<Console>;values:Values;}
+machine tick(values:&mut Values)->f64 {
+ values.value=values.value+1.0;
+ values.value
+}
+machine Main::main(main:&mut Main) reaches Console {
+ let byte:ByteRead=block main.console.read_byte();
+ transition byte {ByteRead::Byte{value} -> shared(main,value) _ -> fail(main)}
+ state shared(main:&mut Main,value:i32) {
+  main.values.value=F64::from_i32(value)-49.0;
+  let result:f64=abs(tick(&mut main.values));
+  transition result == 1.0 && main.values.value == 1.0 {
+   true -> distinct(main) _ -> fail(main)
+  }
+ }
+ state distinct(main:&mut Main) {
+  let result:f64=max(tick(&mut main.values),tick(&mut main.values));
+  transition result == 3.0 && main.values.value == 3.0 {
+   true -> good(main) _ -> fail(main)
+  }
+ }
+ state good(main:&mut Main) {main.console.exit_process(70);}
+ state fail(main:&mut Main) {main.console.exit_process(71);}
+}

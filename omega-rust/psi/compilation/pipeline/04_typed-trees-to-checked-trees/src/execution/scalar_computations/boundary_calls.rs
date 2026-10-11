@@ -26,6 +26,24 @@ use super::{
 };
 
 impl Builder<'_, '_> {
+    pub(super) fn selected_call_target(
+        &self,
+        expression: ExpressionHandle,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> symbols::SymbolHandle {
+        validation::call_target_symbol_for_origin(
+            self.program,
+            expression,
+            checked_trees::CheckedValueOrigin::StateStatement {
+                machine_symbol: self.machine,
+                state_symbol: self.state,
+                statement_index: self.statement_index,
+                role: checked_trees::CheckedValueStatementRole::Expression,
+            },
+            call,
+        )
+    }
+
     /// Destinations whose statement already owns a whole-value boundary call
     /// as its result operation. Building a node there would sequence the same
     /// occurrence twice: once by the statement and once by the computation.
@@ -108,7 +126,8 @@ impl Builder<'_, '_> {
                 _ => return false,
             }
         };
-        bodyless_boundary_target(self.program, call).is_some()
+        bodyless_boundary_target(self.program, self.selected_call_target(expression, call))
+            .is_some()
     }
 
     /// The resolved declaration owns the signature; having an authored body
@@ -121,12 +140,12 @@ impl Builder<'_, '_> {
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
         let program = self.program;
-        let authored_target = validation::call_target_symbol(program, call);
+        let authored_target = self.selected_call_target(expression, call);
         // Boundary authority is admitted through the same source relation as
         // statement calls. A parameter projection must retain its ordinary
         // input. Entry establishment and provider selection are independent
         // realization obligations, not implicit receiver attachment authority.
-        if !program.call_has_no_runtime_receiver_for_target(call) {
+        if call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call) {
             let mut owners = program.traits().iter().filter(|owner| {
                 owner.is_boundary
                     && program
@@ -221,15 +240,14 @@ impl Builder<'_, '_> {
 /// provider. Authored boundary bodies remain ordinary checked callees.
 pub(super) fn bodyless_boundary_target(
     program: &dyn ::validation::CheckingInput,
-    call: &typed_trees::expression::TableCallExpression,
+    target: symbols::SymbolHandle,
 ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
-    let target = validation::call_target_symbol(program, call);
     if let Some((requirement, _)) =
         validation::exact_external_leaf_boundary_requirement(program, target)
     {
         return Some((requirement, requirement));
     }
-    if let Some((machine, state)) = validation::find_machine_by_entry_state(program, target) {
+    if let Some((machine, state)) = validation::find_machine_head(program, target) {
         // Every bodyless callable owns an opaque signature, including a
         // Requirement. Supply/trust classification is not executable ownership:
         // lowering must not search an opaque requirement for a private body.

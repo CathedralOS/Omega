@@ -237,20 +237,28 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     }) => {
                         let (receiver, path) =
                             validation::call_receiver_parts(program, source.receiver);
-                        // Borrow discovery keys a named boundary operator by
-                        // its declaration symbol even when the typed call
-                        // retains no target. Rejoin with that same identity;
-                        // a mismatch would clear every live storage fact.
-                        let boundary_operator =
-                            typed_trees::operator::resolve_named_expression_call(program, source)
-                                .filter(|operator| operator.is_boundary);
+                        // Rejoin the same selected callable used by borrow
+                        // inventory and ordinal discovery. Catalog float calls
+                        // retain a builtin in syntax and a boundary requirement
+                        // in execution; neither an absent leaf nor that builtin
+                        // withdraws the checked invocation or its live facts.
+                        let selected_target = validation::call_target_symbol_for_origin(
+                            program,
+                            expression,
+                            checked_trees::CheckedValueOrigin::StateStatement {
+                                machine_symbol: machine.symbol,
+                                state_symbol: state.symbol,
+                                statement_index,
+                                role: checked_trees::CheckedValueStatementRole::Expression,
+                            },
+                            source,
+                        );
                         let target = validation::resolve_state_call_target(
                             program,
                             machine,
                             state,
                             receiver,
-                            boundary_operator
-                                .map_or(source.target_symbol, |operator| operator.symbol),
+                            selected_target,
                             path.as_deref(),
                             &source.target,
                         );

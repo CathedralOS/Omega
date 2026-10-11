@@ -50,6 +50,14 @@ pub(super) struct Builder<'program, 'plans> {
     pub(super) locals: &'program [ScalarLocal],
     pub(super) plans: &'plans mut CheckedScalarComputationPlans,
     pub(super) structural_values: &'plans mut checked_trees::CheckedStructuralValuePlans,
+    /// A normalized source operand is one evaluation. Retain that identity for
+    /// every scalar carrier within this statement; distinct authored handles
+    /// and distinct contextual carriers remain separate computations.
+    pub(super) scalar_occurrences: Vec<(
+        ExpressionHandle,
+        PrimitiveType,
+        CheckedScalarComputationHandle,
+    )>,
     /// One statement's normalized source DAG may reference an operand more
     /// than once. Retain its computation identity, including the contextual
     /// carrier for anonymous integers; never merge different authored handles.
@@ -310,6 +318,24 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
+        if let Some((_, _, computation)) = self
+            .scalar_occurrences
+            .iter()
+            .find(|(source, carrier, _)| *source == expression && *carrier == expected_type)
+        {
+            return Some(*computation);
+        }
+        let computation = self.build_expression(expression, expected_type)?;
+        self.scalar_occurrences
+            .push((expression, expected_type, computation));
+        Some(computation)
+    }
+
+    fn build_expression(
+        &mut self,
+        expression: ExpressionHandle,
+        expected_type: PrimitiveType,
+    ) -> Option<CheckedScalarComputationHandle> {
         if let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
             && name.symbol == name.head_symbol
             && self
@@ -517,8 +543,10 @@ impl Builder<'_, '_> {
                 if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {
                     return None;
                 }
-                if let Some(target) = boundary_calls::bodyless_boundary_target(self.program, &call)
-                {
+                if let Some(target) = boundary_calls::bodyless_boundary_target(
+                    self.program,
+                    self.selected_call_target(expression, &call),
+                ) {
                     return self.boundary_call(expression, &call, target, expected_type);
                 }
                 let (target_machine, target_state) =

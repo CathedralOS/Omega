@@ -519,6 +519,10 @@ pub(super) fn collect_argument_calls(
         })
         .collect::<Vec<_>>();
     let mut roles = Vec::new();
+    // All scalar operands belong to one invocation. Normalization can share a
+    // computation between argument roots; retain its completed visit across
+    // those roots while distinct nodes still face the exact occurrence check.
+    let mut visits = Vec::new();
     for (_, root) in facts
         .values
         .scalar_computations
@@ -580,7 +584,7 @@ pub(super) fn collect_argument_calls(
         // Address operands own their nested invocations just as scalar actuals
         // do. Leaving a selector call in the outer roster either duplicates
         // its execution or refuses a statement whose operand already owns it.
-        collect_root_calls(
+        collect(
             program,
             facts,
             state,
@@ -588,6 +592,7 @@ pub(super) fn collect_argument_calls(
             root.root,
             calls,
             u32::try_from(call.call_ordinal.checked_add(1)?).ok()?,
+            &mut visits,
             consumed,
         )?;
     }

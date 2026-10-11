@@ -1,0 +1,8 @@
+use omega::language::core::float_operations;
+data Values {x:f64;}
+data Main {values:Values;}
+machine pair(left:&mut Values,right:&Values)->f64 {left.x+right.x}
+machine Main::main(main:&mut Main) {
+ let value:f64=abs(pair(&mut main.values,&main.values));
+ main.values.x=value;
+}

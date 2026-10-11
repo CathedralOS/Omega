@@ -84,8 +84,18 @@ pub(crate) fn lower_call_arguments(
 ) -> Option<LoweredCallArguments> {
     let target_symbol = match call_site {
         validation::CallSite::Statement(call) => call.target_symbol,
-        validation::CallSite::Expression { call, .. } => {
-            validation::call_target_symbol(program, call)
+        validation::CallSite::Expression { expression, call } => {
+            validation::call_target_symbol_for_origin(
+                program,
+                *expression,
+                checked_trees::CheckedValueOrigin::StateStatement {
+                    machine_symbol: program.machine_holding_state(state.symbol)?.symbol,
+                    state_symbol: state.symbol,
+                    statement_index: statement_ordinal as usize,
+                    role: checked_trees::CheckedValueStatementRole::Expression,
+                },
+                call,
+            )
         }
         validation::CallSite::TransitionNamed { .. } => return None,
     };

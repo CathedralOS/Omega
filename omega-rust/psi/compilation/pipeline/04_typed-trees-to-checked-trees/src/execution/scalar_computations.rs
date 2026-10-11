@@ -114,6 +114,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     locals: &locals,
                     plans: &mut plans,
                     structural_values: &mut structural_values,
+                    scalar_occurrences: Vec::new(),
                     integer_occurrences: Vec::new(),
                 };
                 // Endpoints are ordinary operands. Capture every occurrence
@@ -263,7 +264,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     })
                     .unwrap_or_default()
                 {
-                    let validation::CallSite::Expression { call, .. } = site else {
+                    let validation::CallSite::Expression { expression, call } = site else {
                         continue;
                     };
                     let Ok(call_ordinal) = u32::try_from(call_ordinal) else {
@@ -272,7 +273,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     builder.record_call_arguments(
                         statement_ordinal,
                         call_ordinal,
-                        validation::call_target_symbol(program, call),
+                        builder.selected_call_target(expression, call),
                         program.expression_table.expression_handles(call.arguments),
                     );
                 }
@@ -300,7 +301,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         builder.record_call_arguments(
                             statement_ordinal,
                             0,
-                            validation::call_target_symbol(program, call),
+                            builder.selected_call_target(local.initial_value, call),
                             program.expression_table.expression_handles(call.arguments),
                         );
                     }
@@ -358,7 +359,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     builder.record_call_arguments(
                         statement_ordinal,
                         0,
-                        validation::call_target_symbol(program, call),
+                        builder.selected_call_target(*expression, call),
                         program.expression_table.expression_handles(call.arguments),
                     );
                     if validation::unit_statement_call_is_admitted(
@@ -496,7 +497,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         builder.record_call_arguments(
                             statement_ordinal,
                             0,
-                            validation::call_target_symbol(program, call),
+                            builder.selected_call_target(assignment.value, call),
                             program.expression_table.expression_handles(call.arguments),
                         );
                     }
