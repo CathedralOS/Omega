@@ -152,3 +152,5 @@ pass/operators/division_value_entry_selection built 13417ms exit:70 interpreter-
 pass/operators/result_domain_operator_family_conversion_exit built 72968ms exit:0 interpreter-exit:0 interpreter:agrees @ad018194f55c
 pass/structural/computed_enum_case_guard_effects_exit built 5246ms exit:0 interpreter-exit:0 interpreter:agrees @ad018194f55c
 pass/structural/computed_enum_equality_guard_exit built 5267ms exit:0 interpreter-exit:0 interpreter:agrees @ad018194f55c
+# NEW031 scoped evidence; jobs=1, Linux x86_64; detailed context in sample validation logs.
+pass/float/state_arrival_ieee_predicates built 75910ms exit:70 interpreter-exit:70 interpreter:agrees @69b706459738+wt

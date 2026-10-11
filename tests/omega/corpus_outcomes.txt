@@ -5210,3 +5210,7 @@ pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit checked 12
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.27, "load1_start": 1.79, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/calls/runtime_boolean_result_across_console_exit checked 11911ms check-target:macos_arm64 @b342aa09cb97+wt
 pass/calls/runtime_float_result_across_call_exit checked 121629ms check-target:macos_arm64 @b342aa09cb97+wt
+# NEW031 scoped evidence; jobs=1, Linux x86_64; detailed context in sample validation logs.
+fail/float/state_arrival_ieee_predicate_unsatisfied rejected 17950ms expected @69b706459738+wt
+	cannot prove requires contract for call bounded from Main::main: main.value == main.value && main.value >= 0.0 && main.value < 1000.0 (needs fact `value == value && value >= 0.0 && value < 1000.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+pass/float/state_arrival_ieee_predicates checked 82022ms check-target:macos_arm64 @69b706459738+wt
