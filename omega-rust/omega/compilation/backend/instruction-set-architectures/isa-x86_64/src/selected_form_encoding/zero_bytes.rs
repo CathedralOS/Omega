@@ -152,15 +152,7 @@ mod tests {
         let catalog = crate::x86_64_register_constraint_catalog(&physical);
         let constraints =
             crate::validate_x86_64_register_constraint_catalog(catalog.clone(), &physical).unwrap();
-        let mut changed = catalog.clone();
-        register_model::find_register_constraint_mut(
-            &mut changed.constraints,
-            crate::X86_64_ZERO_BYTES,
-        )
-        .unwrap()
-        .operands[2]
-            .early_clobber = false;
-        assert!(crate::validate_x86_64_register_constraint_catalog(changed, &physical).is_err());
+        crate::selected_form_encoding::tests::assert_early_clobber_required(&catalog, &physical, crate::X86_64_ZERO_BYTES, &[2]);
         for target in [
             target::NativeTarget::linux_x64(),
             target::NativeTarget::windows_x64(),

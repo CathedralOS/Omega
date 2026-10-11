@@ -28,6 +28,26 @@ use semantic_vocabulary::{MachineId, ObligationId};
 
 mod control;
 mod saturating;
+
+/// Every encoder test corrupts its canonical constraint row the same way:
+/// clone the catalog, drop a required early-clobber marker, and confirm the
+/// row validator rejects it.
+pub(crate) fn assert_early_clobber_required(
+    catalog: &register_model::RegisterConstraintCatalog,
+    physical: &ValidatedPhysicalRegisterModel,
+    key: register_model::RegisterConstraintKey,
+    operands: &[usize],
+) {
+    for &operand in operands {
+        let mut changed = catalog.clone();
+        register_model::find_register_constraint_mut(&mut changed.constraints, key)
+            .unwrap()
+            .operands[operand]
+            .early_clobber = false;
+        assert!(crate::validate_x86_64_register_constraint_catalog(changed, physical).is_err());
+    }
+}
+
 mod scalar;
 mod trapping;
 
