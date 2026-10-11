@@ -1,6 +1,9 @@
 // NATIVE end-to-end std::fs WORKFLOW sample — a realistic sequence exercising the
-// raw seam COHESIVELY on real macOS syscalls (per-op canaries test each in
-// isolation; this proves they compose). The workflow:
+// raw seam COHESIVELY on real syscalls (per-op canaries test each in
+// isolation; this proves they compose). `read_metadata` delivers the TARGET's
+// raw `struct stat`: Darwin keeps st_mode at offset 4 / st_size at 96; the
+// Linux generic layout keeps them at 24 / 48 — each bound target decodes its
+// own record. The workflow:
 //   1. create_dir a working directory
 //   2. create + write "hello world" (11 bytes) + close a file in it
 //   3. stat it -> assert S_IFREG (regular file) and st_size == 11
@@ -34,7 +37,77 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
+    main.mode = 420;      // 0o644
+    main.dir_mode = 493;  // 0o755
+    main.ro_mode = 292;   // 0o444
+    main.rdonly = 0;
+    main.cap = 144;
+    // 1. working directory
+    main.rc = main.fs.create_dir("/tmp/omega_wf", main.dir_mode);
+    transition main.rc == 0 { true -> makefile(main) _ -> fail(main) }
+    state makefile(main: &mut Main) {
+        // 2. create + write + close
+        main.fd = main.fs.create("/tmp/omega_wf/a.txt", main.mode);
+        main.n = main.fs.write(main.fd, "hello world");
+        main.discard = main.fs.close(main.fd);
+        // 3. stat: regular file, size 11
+        main.rc = main.fs.read_metadata("/tmp/omega_wf/a.txt", &mut main.buffer);
+        transition main.rc == 0 { true -> checktype(main) _ -> fail(main) }
+    }
+    state checktype(main: &mut Main) {
+        main.fmt =
+            (widen_u8_to_i32(main.buffer[24]) | (widen_u8_to_i32(main.buffer[25]) << 8))
+                & 61440;
+        transition main.fmt == 32768 { true -> checksize(main) _ -> fail(main) }
+    }
+    state checksize(main: &mut Main) {
+        main.size = widen_u8_to_i32(main.buffer[48]); // st_size low byte (11 < 256)
+        transition main.size == 11 { true -> link(main) _ -> fail(main) }
+    }
+    state link(main: &mut Main) {
+        // 4. hard link, then 5. rename it
+        main.rc = main.fs.hard_link("/tmp/omega_wf/a.txt", "/tmp/omega_wf/b.txt");
+        transition main.rc == 0 { true -> renameit(main) _ -> fail(main) }
+    }
+    state renameit(main: &mut Main) {
+        main.rc = main.fs.rename("/tmp/omega_wf/b.txt", "/tmp/omega_wf/c.txt");
+        transition main.rc == 0 { true -> lockread(main) _ -> fail(main) }
+    }
+    state lockread(main: &mut Main) {
+        // 6. open, flock, read back, unlock, close
+        main.fd = main.fs.open("/tmp/omega_wf/c.txt", main.rdonly);
+        main.rc = main.fs.lock_file(main.fd, 2); // LOCK_EX
+        main.n = main.fs.read(main.fd, &mut main.buffer, main.cap);
+        main.first = main.buffer[0];
+        main.discard = main.fs.lock_file(main.fd, 8); // LOCK_UN
+        main.discard = main.fs.close(main.fd);
+        transition main.first == 104 { true -> chmod(main) _ -> fail(main) }
+    }
+    state chmod(main: &mut Main) {
+        // 7. chmod read-only, re-stat, assert write bits cleared
+        main.rc = main.fs.set_permissions("/tmp/omega_wf/a.txt", main.ro_mode);
+        main.rc = main.fs.read_metadata("/tmp/omega_wf/a.txt", &mut main.buffer);
+        transition main.rc == 0 { true -> checkro(main) _ -> fail(main) }
+    }
+    state checkro(main: &mut Main) {
+        main.wbits =
+            (widen_u8_to_i32(main.buffer[24]) | (widen_u8_to_i32(main.buffer[25]) << 8))
+                & 146; // 0o222
+        transition main.wbits == 0 { true -> cleanup(main) _ -> fail(main) }
+    }
+    state cleanup(main: &mut Main) {
+        // 8. remove everything
+        main.discard = main.fs.remove("/tmp/omega_wf/a.txt");
+        main.discard = main.fs.remove("/tmp/omega_wf/c.txt");
+        main.rc = main.fs.remove_dir("/tmp/omega_wf");
+        transition main.rc == 0 { true -> good(main) _ -> fail(main) }
+    }
+    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: fs workflow (mkdir/create/write/stat/link/rename/flock/read/chmod/cleanup)\n"); }
+    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: fs workflow\n"); }
+}
+
+machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;      // 0o644
     main.dir_mode = 493;  // 0o755
     main.ro_mode = 292;   // 0o444

@@ -1,6 +1,9 @@
 // NATIVE file-type classification (Rust FileType / os::unix::fs::FileTypeExt) via
-// stat's st_mode format bits, on real macOS. Decodes st_mode (offset 4, u16) and
-// masks the format field (mode & S_IFMT, S_IFMT = 0o170000 = 61440). `/dev/null`
+// stat's st_mode format bits. `read_metadata` fills the buffer with the TARGET's
+// raw `struct stat`, so each bound target decodes its own layout: Darwin keeps
+// st_mode at offset 4 as u16; the Linux generic layout (x86-64 and arm64 alike)
+// keeps it at offset 24 as u32 — the S_IFMT bits sit in its low half either way.
+// Masks the format field (mode & S_IFMT, S_IFMT = 0o170000 = 61440). `/dev/null`
 // is a CHARACTER-special device (S_IFCHR = 0o020000 = 8192) present on every
 // system; a freshly-created regular file is S_IFREG (0o100000 = 32768). Proves
 // is_char_device()/is_file() decode real device nodes, not just regular files.
@@ -20,7 +23,37 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
+    main.mode = 420;
+    // 1: /dev/null must stat as a character device
+    main.rc = main.fs.read_metadata("/dev/null", &mut main.buffer);
+    transition main.rc == 0 { true -> checkchar(main) _ -> fail(main) }
+    state checkchar(main: &mut Main) {
+        main.fmt =
+            (widen_u8_to_i32(main.buffer[24]) | (widen_u8_to_i32(main.buffer[25]) << 8))
+                & 61440;
+        transition main.fmt == 8192 { true -> regular(main) _ -> fail(main) }
+    }
+    state regular(main: &mut Main) {
+        // 2: a fresh regular file must stat as S_IFREG (not a device)
+        main.fd = main.fs.create("/tmp/omega_ftype.txt", main.mode);
+        main.n = main.fs.write(main.fd, "hi");
+        main.discard = main.fs.close(main.fd);
+        main.rc = main.fs.read_metadata("/tmp/omega_ftype.txt", &mut main.buffer);
+        main.discard = main.fs.remove("/tmp/omega_ftype.txt");
+        transition main.rc == 0 { true -> checkreg(main) _ -> fail(main) }
+    }
+    state checkreg(main: &mut Main) {
+        main.fmt =
+            (widen_u8_to_i32(main.buffer[24]) | (widen_u8_to_i32(main.buffer[25]) << 8))
+                & 61440;
+        transition main.fmt == 32768 { true -> good(main) _ -> fail(main) }
+    }
+    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
+    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: native filetype\n"); }
+}
+
+machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
     // 1: /dev/null must stat as a character device
     main.rc = main.fs.read_metadata("/dev/null", &mut main.buffer);
