@@ -5388,3 +5388,5 @@ pass/termination/runtime_selected_result_ranked_arrival_exit checked 2700ms chec
 pass/borrows/runtime_shared_carrier_storage_observation_exit checked 5396ms check-target:macos_arm64 @759f6dbf1dfa
 fail/borrows/shared_carrier_storage_move rejected 603ms expected @759f6dbf1dfa
 	state `take` receives an owned value while local borrow `alias` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+pass/calls/callback_owned_float_record checked 78964ms check-target:macos_arm64 @759f6dbf1dfa
+pass/calls/callback_owned_float_record_packing checked 78963ms check-target:macos_arm64 @759f6dbf1dfa

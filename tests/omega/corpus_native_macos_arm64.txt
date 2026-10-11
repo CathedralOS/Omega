@@ -1791,3 +1791,5 @@ pass/atomics/runtime_stored_reference_atomic_events_exit built 2698ms exit:0 @36
 pass/calls/callback_borrowed_scalar_entry built 5937ms exit:0 @09084c02ea24
 pass/calls/callback_scalar_loan_permutation built 5941ms exit:0 @09084c02ea24
 pass/borrows/runtime_shared_carrier_storage_observation_exit built 5346ms exit:0 @759f6dbf1dfa
+pass/calls/callback_owned_float_record built 78977ms exit:0 @759f6dbf1dfa
+pass/calls/callback_owned_float_record_packing built 78974ms exit:0 @759f6dbf1dfa
