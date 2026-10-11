@@ -387,60 +387,25 @@ pub(super) fn leaf_paths(
     Some(output)
 }
 
-/// Shared references observe their declared referent without acquiring its
-/// contents. An opaque referent identity is sufficient for descriptor storage;
-/// an actual pointee projection still requires its own catalog declaration.
-/// Exclusive primitive storage uses the same pointer carrier;
-/// writable aggregates retain their separate restoration checks below.
+/// A reference owns one address descriptor, independent of its referent's
+/// shape or contained loans. Looking up its declared referent grants neither
+/// payload observation nor ownership of nested descriptors. Establishment and
+/// each use separately check source compatibility, access and exact paths;
+/// writes retain their ordinary validity and displaced-custody obligations.
 pub(super) fn referent(
     types: &StructuralTypeLookup<'_>,
     structural_type: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
-    let declaration = types.get(&structural_type)?;
-    match declaration.shape {
+    match types.get(&structural_type)?.shape {
         StructuralTypeShape::Reference {
             referent,
-            access: StructuralAccess::SharedBorrow,
+            access:
+                StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow,
         } => Some(referent),
-        StructuralTypeShape::Reference {
-            referent,
-            access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
-        } if matches!(
-            types.get(&referent).map(|declaration| &declaration.shape),
-            Some(StructuralTypeShape::PrimitiveScalar(_))
-        ) =>
-        {
-            Some(referent)
-        }
         _ => None,
     }
-}
-
-/// The aggregate bare-reference carrier native lowering realizes: a borrow of
-/// a plain record whose referent contains storage, not another loan roster.
-/// Shared and mutable carriers read the referent through the loan; mutable
-/// and write-only carriers store through it. The carrier retains possible
-/// backing origins and an address payload, never a copied referent record.
-fn plain_record_referent(
-    types: &StructuralTypeLookup<'_>,
-    structural_type: StructuralTypeId,
-) -> Option<StructuralTypeId> {
-    let StructuralTypeShape::Reference {
-        referent,
-        access:
-            StructuralAccess::SharedBorrow
-            | StructuralAccess::MutableBorrow
-            | StructuralAccess::WriteOnlyBorrow,
-    } = &types.get(&structural_type)?.shape
-    else {
-        return None;
-    };
-    matches!(
-        types.get(referent).map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::Record { .. })
-    )
-    .then_some(*referent)
-    .filter(|referent| !contains_reference(types, *referent))
 }
 
 /// A field-only carrier path ending at a reference leaf, then its referent;
@@ -451,14 +416,8 @@ pub(super) fn leaf_referent(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     let leaf = leaf_type(types, current, fields)?;
-    // A reference leaf over a record names its whole referent the same way a
-    // primitive referent does: the mapped source's type is the referent
-    // declaration itself, not the `Reference` shell.
-    if let Some(referent) = referent(types, leaf) {
-        return Some(referent);
-    }
     match &types.get(&leaf)?.shape {
-        StructuralTypeShape::Reference { .. } => plain_record_referent(types, leaf),
+        StructuralTypeShape::Reference { .. } => referent(types, leaf),
         _ => Some(leaf),
     }
 }
@@ -907,7 +866,6 @@ pub(super) fn establish(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let referent = referent(types, result.structural_type)
-        .or_else(|| plain_record_referent(types, result.structural_type))
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if !result.is_affine_plain()
         || live.structural_homes.contains_key(&result.place)

@@ -6141,3 +6141,4 @@ fail/constants/unused_nested_default_domain_constant rejected 6ms expected @ea68
 	constant `INVALID` is invalid: data constant `Bounded` violates its default-domain predicate
 fail/time/duration_constant_unnormalized rejected 33ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
 	constant `INVALID` is invalid: data constant `Duration` violates its default-domain predicate
+pass/borrow/runtime_write_only_array_indexed_calls_exit checked 2848ms check-target:macos_arm64 @e67b2abb52b9+wt

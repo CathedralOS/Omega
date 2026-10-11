@@ -399,55 +399,25 @@ fn leaf_paths(
     Some(output)
 }
 
-/// Reconstruct shared referents by declared identity, not their owned contents.
-/// Writable aggregates still need their separate restoration contract below.
+/// A reference owns one address descriptor, independent of its referent's
+/// shape or contained loans. Looking up its declared referent grants neither
+/// payload observation nor ownership of nested descriptors. Establishment and
+/// each use separately check source compatibility, access and exact paths;
+/// writes retain their ordinary validity and displaced-custody obligations.
 fn referent(
     types: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
-    let declaration = find_structural_type(types, structural_type)?;
-    match declaration.shape {
+    match find_structural_type(types, structural_type)?.shape {
         StructuralTypeShape::Reference {
             referent,
-            access: StructuralAccess::SharedBorrow,
+            access:
+                StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow,
         } => Some(referent),
-        StructuralTypeShape::Reference {
-            referent,
-            access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
-        } if matches!(
-            find_structural_type(types, referent).map(|declaration| &declaration.shape),
-            Some(StructuralTypeShape::PrimitiveScalar(_))
-        ) =>
-        {
-            Some(referent)
-        }
         _ => None,
     }
-}
-
-/// The aggregate bare-reference carrier native lowering realizes: a shared,
-/// mutable or write-only borrow of a plain record. Its referent contains
-/// storage, not another loan roster, and the carrier owns no record home.
-fn plain_record_referent(
-    types: &[StructuralTypeDeclaration],
-    structural_type: StructuralTypeId,
-) -> Option<StructuralTypeId> {
-    let StructuralTypeShape::Reference {
-        referent,
-        access:
-            StructuralAccess::SharedBorrow
-            | StructuralAccess::MutableBorrow
-            | StructuralAccess::WriteOnlyBorrow,
-    } = &find_structural_type(types, structural_type)?.shape
-    else {
-        return None;
-    };
-    matches!(
-        find_structural_type(types, *referent).map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::Record { .. })
-    )
-    .then_some(*referent)
-    .filter(|referent| !contains_reference(types, *referent))
 }
 
 /// A field-only carrier path ending at a reference leaf, then its referent;
@@ -458,14 +428,8 @@ fn leaf_referent(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     let leaf = leaf_type(types, current, fields)?;
-    // A reference leaf over a record names its whole referent the same way a
-    // primitive referent does: the mapped source's type is the referent
-    // declaration itself, not the `Reference` shell.
-    if let Some(referent) = referent(types, leaf) {
-        return Some(referent);
-    }
     match &find_structural_type(types, leaf)?.shape {
-        StructuralTypeShape::Reference { .. } => plain_record_referent(types, leaf),
+        StructuralTypeShape::Reference { .. } => referent(types, leaf),
         _ => Some(leaf),
     }
 }
@@ -1706,9 +1670,7 @@ pub(in crate::legalization) fn apply(
             source,
             storage,
         } => {
-            let referent = referent(types, result.structural_type)
-                .or_else(|| plain_record_referent(types, result.structural_type))
-                .ok_or_else(|| invalid())?;
+            let referent = referent(types, result.structural_type).ok_or_else(|| invalid())?;
             if !result.is_affine_plain()
                 || custody
                     .leaves
