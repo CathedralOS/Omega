@@ -258,8 +258,8 @@ fn x86_64_callback_replay(
                 root_register,
                 byte_offset,
             },
-            machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+                X86_64CallbackMaterializationDestination::OutgoingStack { byte_offset }
             }
         };
         destinations.push(destination);

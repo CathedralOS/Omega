@@ -1,160 +1,157 @@
-use omega::language::core::layout;
-use omega::language::core::binding;
 use omega_language_std::calling;
+use omega_language_std::console;
+use omega::language::core::external_binding;
 
-pub boundary trait WindowProcedure: Calling<RegistrarPolicyCallingPolicy> {
-    machine call(message: u64);
+pub data CallbackPolicies { }
+pub PointCalling satisfies CallingPolicy {
+    CallingPolicy::plan = CallbackPolicies::point;
+}
+pub LineCalling satisfies CallingPolicy {
+    CallingPolicy::plan = CallbackPolicies::line;
 }
 
-pub boundary trait UnusedProcedure {
-    machine call(message: u64) -> u64;
+machine CallbackPolicies::point(signature: BoundarySignature) -> BoundaryPlanResult
+satisfies CallingPolicy::plan
+{
+    let mut plan: BoundaryEntryPlan;
+    plan.call.parameter_count = 3;
+    plan.call.parameters[0] = CallbackPolicies::word(4, MachineRegister::X86Rcx);
+    plan.call.parameters[1] = CallbackPolicies::word(4, MachineRegister::X86Rdx);
+    plan.call.parameters[2] = CallbackPolicies::word(8, MachineRegister::X86R8);
+    let mut callback: BoundaryEntryPlan = CallbackPolicies::finish(plan);
+    // Keep the genuine Microsoft argument geometry, with a stronger R10/XMM5
+    // preservation promise than the ordinary body. This requires an adapter.
+    callback.call.ordinary_clobbers.registers[5] = callback.call.ordinary_clobbers.registers[11];
+    callback.call.ordinary_clobbers.register_count = 11;
+    BoundaryPlanResult::Accepted { plan: callback }
 }
 
-data Spread {}
+machine CallbackPolicies::line(signature: BoundarySignature) -> BoundaryPlanResult
+satisfies CallingPolicy::plan
+{
+    let mut plan: BoundaryEntryPlan;
+    plan.call.parameter_count = signature.native_parameter_count;
+    plan.call.parameters[0] = CallbackPolicies::word(4, MachineRegister::X86Rcx);
+    plan.call.parameters[1] = CallbackPolicies::word(4, MachineRegister::X86Rdx);
+    plan.call.parameters[2] = CallbackPolicies::word(4, MachineRegister::X86R8);
+    plan.call.parameters[3] = CallbackPolicies::word(4, MachineRegister::X86R9);
+    plan.call.parameters[4] = CallbackPolicies::stack_word(32);
+    plan.call.parameters[5] = CallbackPolicies::stack_word(40);
+    plan.call.has_result = true;
+    plan.call.result = CallbackPolicies::word(4, MachineRegister::X86Rax);
+    plan.call.callback_materialization_count = signature.callback_demand_count;
+    plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
+    plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
+    BoundaryPlanResult::Accepted { plan: CallbackPolicies::finish(plan) }
+}
 
-WndClassWindowProcedureSlot satisfies PrivateCallbackSlot<
-    Spread,
-    WindowProcedure::call
-> { }
-
-SecondaryWndClassWindowProcedureSlot satisfies PrivateCallbackSlot<
-    Spread,
-    WindowProcedure::call
-> { }
-
-UnusedWindowProcedureSlot satisfies PrivateCallbackSlot<
-    Spread,
-    UnusedProcedure::call
-> { }
-
-machine Spread::plan(schema: Schema) -> Plan {
-    let mut owned_entries: [FieldEntry; 64];
-    owned_entries[0] = FieldEntry {
-        key: schema.fields[0].key,
-        placement: FieldPlan::At { offset: 0 },
+machine CallbackPolicies::word(bytes: u64, register: MachineRegister) -> ValuePlacement {
+    let mut placement: ValuePlacement;
+    placement.shape.class = AbiValueClass::Integer;
+    placement.shape.byte_size = bytes;
+    placement.shape.alignment = bytes;
+    placement.location_count = 1;
+    placement.locations[0] = ValueLocation::Register {
+        register: register, value_byte_offset: 0, byte_size: bytes,
     };
-    let plan: Plan = Plan {
-        entries: owned_entries,
-        entry_count: 1,
-        size_fixed: 24,
-        size_is_dynamic: false,
-        align: 8,
+    placement
+}
+
+machine CallbackPolicies::stack_word(offset: u64) -> ValuePlacement {
+    let mut placement: ValuePlacement;
+    placement.shape.class = AbiValueClass::Integer;
+    placement.shape.byte_size = 8;
+    placement.shape.alignment = 8;
+    placement.location_count = 1;
+    placement.locations[0] = ValueLocation::Stack {
+        stack_byte_offset: offset, value_byte_offset: 0, byte_size: 8, alignment: 8,
     };
-    let placed: Plan =
-        Plan::place_private<WndClassWindowProcedureSlot>(plan, 8);
-    Plan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)
+    placement
 }
 
-data ForeignRecord {
-    payload: u64;
+machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
+    let mut plan: BoundaryEntryPlan = output;
+    plan.call.convention = CallingConvention::MicrosoftX64;
+    plan.call.stack_alignment = 16;
+    plan.call.shadow_bytes = 32;
+    plan.call.entry_control = EntryControl::CallReturn;
+    plan.call.ordinary_clobbers.register_count = 13;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+    plan.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+    plan.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+    plan.call.ordinary_clobbers.registers[3] = MachineRegister::X86R8;
+    plan.call.ordinary_clobbers.registers[4] = MachineRegister::X86R9;
+    plan.call.ordinary_clobbers.registers[5] = MachineRegister::X86R10;
+    plan.call.ordinary_clobbers.registers[6] = MachineRegister::X86R11;
+    plan.call.ordinary_clobbers.registers[7] = MachineRegister::X86Xmm { index: 0 };
+    plan.call.ordinary_clobbers.registers[8] = MachineRegister::X86Xmm { index: 1 };
+    plan.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 2 };
+    plan.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 3 };
+    plan.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 4 };
+    plan.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 5 };
+    plan.state.initial_regime = MachineRegime::X86Long64;
+    plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.vector_registers = true;
+    plan.state.permitted_transitive_use.flags = true;
+    plan.state.stack = EntryStack::ProviderSelected;
+    plan.state.preemption = Preemption::NotApplicable;
+    plan
 }
 
-pub data RegistrarPolicy { }
-pub RegistrarPolicyCallingPolicy satisfies CallingPolicy {
-    CallingPolicy::plan = RegistrarPolicy::plan;
+pub data CallbackState [copy] {
+    observed: bool;
+    last_x: i32;
+    last_y: i32;
+}
+pub boundary trait PointProcedure: Calling<PointCalling> {
+    machine visit(x: i32, y: i32, context: &mut CallbackState);
+}
+pub boundary trait LineRaster: Calling<LineCalling> {
+    machine draw<machine Handler>(
+        start_x: i32, start_y: i32, end_x: i32, end_y: i32,
+        native callback point from Handler, context: &mut CallbackState
+    ) -> i32
+    where machine Handler satisfies PointProcedure::visit;
+    invokes PointProcedure;
 }
 
-machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
-    satisfies CallingPolicy::plan
+machine remember_point(context: &mut CallbackState, x: i32, y: i32) {
+    context.observed = true;
+    context.last_x = x;
+    context.last_y = y;
+}
+pub data PointHandler { }
+pub machine PointHandler::visit(x: i32, y: i32, context: &mut CallbackState)
+satisfies PointProcedure::visit
 {
-    transition signature.parameter_count == 1 {
-        true -> select_catalog(signature)
-        _ -> reject()
-    }
-
-    state select_catalog(signature: BoundarySignature) -> BoundaryPlanResult {
-        transition signature.callback_demand_count == 0 {
-            true -> check_root(signature, signature.parameters[0])
-            _ -> select_two_demands(signature)
-        }
-    }
-
-    state select_two_demands(signature: BoundarySignature) -> BoundaryPlanResult {
-        transition signature.callback_demand_count == 2 {
-            true -> check_root(signature, signature.parameters[0])
-            _ -> reject()
-        }
-    }
-
-    state check_root(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
-        transition root < 256 {
-            true -> build(signature, root)
-            _ -> reject()
-        }
-    }
-
-    state build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
-        let mut output: BoundaryEntryPlan;
-        output.call.convention = CallingConvention::MicrosoftX64;
-        output.call.parameter_count = 1;
-        output.call.parameters[0].shape.class = AbiValueClass::Integer;
-        output.call.parameters[0].shape.byte_size = signature.shapes[root].byte_size;
-        output.call.parameters[0].shape.alignment = signature.shapes[root].alignment;
-        output.call.parameters[0].location_count = 1;
-        output.call.parameters[0].locations[0] = ValueLocation::Register {
-            register: MachineRegister::X86Rcx,
-            value_byte_offset: 0,
-            byte_size: signature.shapes[root].byte_size,
-        };
-        output.call.stack_alignment = 16;
-        output.call.shadow_bytes = 32;
-        output.call.entry_control = EntryControl::CallReturn;
-        output.state.initial_regime = MachineRegime::X86Long64;
-        output.state.stack = EntryStack::ProviderSelected;
-        output.state.preemption = Preemption::NotApplicable;
-        output.call.callback_materialization_count = signature.callback_demand_count;
-        transition signature.callback_demand_count == 2 {
-            true -> bind_callback(signature, output)
-            _ -> accept(output)
-        }
-    }
-
-    state bind_callback(
-        signature: BoundarySignature,
-        output: BoundaryEntryPlan
-    ) -> BoundaryPlanResult {
-        let mut bound: BoundaryEntryPlan = output;
-        bound.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
-        bound.call.callback_materializations[0].destination =
-            signature.callback_demands[0].destination;
-        bound.call.callback_materializations[1].binder = signature.callback_binders[1].binder;
-        bound.call.callback_materializations[1].destination =
-            signature.callback_demands[1].destination;
-        BoundaryPlanResult::Accepted { plan: bound }
-    }
-
-    state accept(output: BoundaryEntryPlan) -> BoundaryPlanResult {
-        BoundaryPlanResult::Accepted { plan: output }
-    }
-
-    state reject() -> BoundaryPlanResult {
-        BoundaryPlanResult::Rejected {
-            reason: CallingPolicyRejection { reason: "invalid callback catalog" },
-        }
-    }
+    remember_point(context, x, y);
 }
 
-pub boundary trait WindowRegistrar: Calling<RegistrarPolicyCallingPolicy> {
-    machine register<machine Selected, machine SecondarySelected>(
-        specification: &Spread<ForeignRecord>
-    )
-    where machine Selected satisfies WindowProcedure::call;
-    where machine SecondarySelected satisfies WindowProcedure::call;
+windows_x86_64 machine line_binding() -> ForeignBinding<9, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName { library: "gdi32.dll", export: "LineDDA" },
+    }
 }
+windows_x86_64 machine line_leaf<machine Selected>(
+    start_x: i32, start_y: i32, end_x: i32, end_y: i32,
+    context: &mut CallbackState
+) -> i32
+where machine Selected satisfies PointProcedure::visit;
+satisfies LineRaster::draw
+via line_binding();
 
-data CallbackProvider { }
-
-machine CallbackProvider::call(message: u64)
-satisfies WindowProcedure::call
+data Main { context: CallbackState; }
+machine Main::main(main: &mut Main) reaches LineRaster + PointProcedure + Console
+invokes LineRaster;
+invokes Console;
 {
-}
-
-data Main {
-    specification: Spread<ForeignRecord>;
-}
-
-machine Main::main(main: &mut Main) reaches WindowRegistrar
-invokes WindowRegistrar;
-{
-    WindowRegistrar::register<CallbackProvider::call, CallbackProvider::call>(&main.specification);
+    main.context = CallbackState { observed: false, last_x: 0, last_y: 0 };
+    let status: i32 = LineRaster::draw<PointHandler::visit>(2, 4, 5, 4, &mut main.context);
+    transition status != 0 && main.context.observed
+        && main.context.last_x == 4 && main.context.last_y == 4 {
+        true -> done()
+        _ -> failed()
+    }
+    state done() { Console::exit_process(0); }
+    state failed() { Console::exit_process(71); }
 }

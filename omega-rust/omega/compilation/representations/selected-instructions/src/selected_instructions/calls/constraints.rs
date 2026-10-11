@@ -130,7 +130,7 @@ pub fn instantiate_foreign_call_constraint(
 
     let mut row = base.clone();
     let mut private_parameters = Vec::new();
-    let mut field_destination = false;
+    let mut memory_destination = false;
     let pointer_shape = ValueShape::integer(
         u32::try_from(target.pointer_size).ok()?,
         u16::try_from(target.pointer_alignment).ok()?,
@@ -172,7 +172,7 @@ pub fn instantiate_foreign_call_constraint(
                                 .copied(),
                         );
                     }
-                    [ValueLocation::Stack { .. }] => {}
+                    [ValueLocation::Stack { .. }] => memory_destination = true,
                     _ => return None,
                 }
             }
@@ -189,20 +189,35 @@ pub fn instantiate_foreign_call_constraint(
                 {
                     return None;
                 }
-                field_destination = true;
+                memory_destination = true;
             }
         }
     }
-    if field_destination {
+    if memory_destination {
+        let scratch = plan.call.policy.callback_field_scratch();
+        // A prefix materializes memory destinations before the counterparty
+        // consumes its inputs. Its fixed scratch cannot overwrite another
+        // parameter (including another private entry) or a hidden result
+        // pointer. Direct results are outputs, not live prefix inputs.
+        if plan.call.parameters.iter().any(|parameter| {
+            parameter
+                .locations
+                .iter()
+                .any(|location| location.direct_register() == Some(scratch))
+        }) || plan.call.result.as_ref().is_some_and(|result| {
+            result.locations.iter().any(|location| {
+                matches!(location,
+                ValueLocation::Indirect { pointer: IndirectPointerLocation::Register(register), .. }
+                    if *register == scratch)
+            })
+        }) {
+            return None;
+        }
         row.implicit_uses.extend(
-            register_view(
-                physical,
-                plan.call.policy.callback_field_scratch(),
-                &fixed_register_view,
-            )?
-            .units
-            .iter()
-            .copied(),
+            register_view(physical, scratch, &fixed_register_view)?
+                .units
+                .iter()
+                .copied(),
         );
     }
     row.implicit_uses.sort_unstable();

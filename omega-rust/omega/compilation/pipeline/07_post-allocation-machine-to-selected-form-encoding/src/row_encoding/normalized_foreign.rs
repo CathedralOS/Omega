@@ -121,8 +121,10 @@ pub(super) fn encode(
                         root_register: *root_register,
                         byte_offset: *byte_offset,
                     }),
-                    machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
-                        Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+                    machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+                        Ok(X86_64CallbackMaterializationDestination::OutgoingStack {
+                            byte_offset: *byte_offset,
+                        })
                     }
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -164,6 +166,8 @@ pub(super) fn encode(
                             root_register,
                             byte_offset,
                         },
+                        X86_64CallbackMaterializationDestination::OutgoingStack { byte_offset } =>
+                            machine_code::CallbackAddressDestination::OutgoingStack { byte_offset },
                     },
                     code_row_offset: callback.materialization_byte_offset,
                     code_byte_count: callback.materialization_byte_count,
@@ -310,23 +314,30 @@ fn callback_destinations(
         .callbacks
         .iter()
         .map(|callback| {
-            let root = callback
-                .application
-                .placement
-                .locations
-                .first()
-                .and_then(|location| match location {
-                    calling_conventions::ValueLocation::Register { register, .. } => {
-                        Some(*register)
-                    }
-                    _ => None,
-                })
-                .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-            match callback.destination {
-                calling_conventions::NativePlace::Parameter(_) => {
-                    Ok(machine_code::CallbackAddressDestination::Register(root))
-                }
-                calling_conventions::NativePlace::Field { .. } => {
+            match (
+                &callback.destination,
+                callback.application.placement.locations.as_slice(),
+            ) {
+                (
+                    calling_conventions::NativePlace::Parameter(_),
+                    [calling_conventions::ValueLocation::Register { register, .. }],
+                ) => Ok(machine_code::CallbackAddressDestination::Register(
+                    *register,
+                )),
+                (
+                    calling_conventions::NativePlace::Parameter(_),
+                    [
+                        calling_conventions::ValueLocation::Stack {
+                            stack_byte_offset, ..
+                        },
+                    ],
+                ) => Ok(machine_code::CallbackAddressDestination::OutgoingStack {
+                    byte_offset: *stack_byte_offset,
+                }),
+                (
+                    calling_conventions::NativePlace::Field { .. },
+                    [calling_conventions::ValueLocation::Register { register, .. }],
+                ) => {
                     let byte_offset = u32::try_from(
                         callback
                             .field_byte_offset
@@ -334,10 +345,11 @@ fn callback_destinations(
                     )
                     .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
                     Ok(machine_code::CallbackAddressDestination::RecordField {
-                        root_register: root,
+                        root_register: *register,
                         byte_offset,
                     })
                 }
+                _ => Err(OptimizedSelectedFormEncodingError::ArtifactMismatch),
             }
         })
         .collect()

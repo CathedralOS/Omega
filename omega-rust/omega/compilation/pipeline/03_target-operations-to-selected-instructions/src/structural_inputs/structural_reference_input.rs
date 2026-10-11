@@ -5,9 +5,7 @@
 //! A flattened selector roster authenticates bounds but cannot be reapplied
 //! after the loads: that would index different storage. Scalar crossings retain
 //! their address-and-codec descriptor, while aggregate crossings load a pointer.
-use calling_conventions::{
-    IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement, ValueShape,
-};
+use calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement, ValueShape};
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
@@ -26,14 +24,14 @@ pub(crate) fn scalar_storage_type(
     runtime_abi::ScalarStorageCodec::from_scalar(scalar).map(|_| scalar)
 }
 
-/// Locate pointer bits in an exact borrowed-reference ABI placement, not referent bytes.
+/// Locate stack pointer bits after the caller has established pointer transport.
+///
+/// Internal reference plans retain a borrowed-reference class, while foreign
+/// boundaries classify the same pointer bits as an integer word. The class is
+/// not evidence of a loan: semantic access and the retained source/ABI join
+/// establish that before this geometry query. Owned inline payloads must not
+/// use this query to reinterpret their bytes as a pointer.
 pub(crate) fn stack_pointer_offset(placement: &ValuePlacement) -> Option<u32> {
-    if !matches!(
-        placement.shape.class,
-        ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference
-    ) {
-        return None;
-    }
     match placement.locations.as_slice() {
         [
             ValueLocation::Stack {

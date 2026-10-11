@@ -107,6 +107,37 @@ pub(super) fn emit_invocation(
         &constraint,
         environment,
     )?;
+    // Encoding materializes private addresses inside the call row, but frame
+    // demand belongs here alongside every other outgoing argument. A final
+    // stack callback cannot borrow extent from an unrelated sibling operand.
+    for callback in &call.callbacks {
+        if matches!(
+            callback.destination,
+            calling_conventions::NativePlace::Parameter(_)
+        ) && let [
+            ValueLocation::Stack {
+                stack_byte_offset,
+                byte_size,
+                alignment,
+                ..
+            },
+        ] = callback.application.placement.locations.as_slice()
+        {
+            builder
+                .transport
+                .slots
+                .push(selected_instructions::SelectedOutgoingArgumentSlot {
+                    id: selected_instructions::OutgoingArgumentSlotId {
+                        invocation_site,
+                        argument_index: callback.application.native_ordinal,
+                        role: selected_instructions::OutgoingArgumentSlotRole::Argument,
+                    },
+                    byte_size: *byte_size,
+                    alignment: *alignment,
+                    abi_stack_byte_offset: *stack_byte_offset,
+                });
+        }
+    }
     // The private save home is disjoint from outgoing arguments and survives
     // the counterparty's register clobbers. Save after argument transport;
     // restore before interpreting its result. Both remain ordinary selected

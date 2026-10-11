@@ -120,6 +120,7 @@ pub fn x86_64_normalized_foreign_call_declaration(
         .id;
     let mut register_destinations = 0_u16;
     let mut field_destinations = 0_u16;
+    let mut stack_destinations = 0_u16;
     let mut callback_byte_count = 0_u16;
     for callback in &record.call.callbacks {
         if Some(callback.terminal_operation) != record.invocation_site.operation() {
@@ -127,14 +128,26 @@ pub fn x86_64_normalized_foreign_call_declaration(
         }
         match callback.destination {
             calling_conventions::NativePlace::Parameter(_) => {
-                if !matches!(
-                    callback.application.placement.locations.as_slice(),
-                    [calling_conventions::ValueLocation::Register { .. }]
-                ) {
-                    return None;
-                }
-                register_destinations = register_destinations.checked_add(1)?;
-                callback_byte_count = callback_byte_count.checked_add(7)?;
+                let bytes = match callback.application.placement.locations.as_slice() {
+                    [calling_conventions::ValueLocation::Register { .. }] => {
+                        register_destinations = register_destinations.checked_add(1)?;
+                        7
+                    }
+                    [
+                        calling_conventions::ValueLocation::Stack {
+                            stack_byte_offset, ..
+                        },
+                    ] if *stack_byte_offset <= i32::MAX as u32 => {
+                        stack_destinations = stack_destinations.checked_add(1)?;
+                        if *stack_byte_offset <= i8::MAX as u32 {
+                            12
+                        } else {
+                            15
+                        }
+                    }
+                    _ => return None,
+                };
+                callback_byte_count = callback_byte_count.checked_add(bytes)?;
             }
             calling_conventions::NativePlace::Field { .. } => {
                 field_destinations = field_destinations.checked_add(1)?;
@@ -160,7 +173,9 @@ pub fn x86_64_normalized_foreign_call_declaration(
     if supervisor && !record.call.callbacks.is_empty() {
         return None;
     }
-    let variant = u32::from(register_destinations != 0) | (u32::from(field_destinations != 0) << 1);
+    let variant = u32::from(register_destinations != 0)
+        | (u32::from(field_destinations != 0) << 1)
+        | (u32::from(stack_destinations != 0) << 2);
     let byte_count = if supervisor {
         12
     } else {

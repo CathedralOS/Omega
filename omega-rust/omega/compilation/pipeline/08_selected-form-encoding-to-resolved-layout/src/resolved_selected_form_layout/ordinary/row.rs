@@ -393,8 +393,24 @@ fn validate_callback_materializations(
                                 == byte_offset
                             && zero_patch(patch_row_offset)?
                     }
-                    machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
-                        return unexpected(instruction.id);
+                    machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+                        // lea r11, [rip+disp32], then the exact-width pointer
+                        // store at pre-call RSP; CALL's return address is not
+                        // part of this outgoing-area coordinate.
+                        let mut expected = vec![0x4c, 0x8d, 0x1d, 0, 0, 0, 0, 0x4c, 0x89];
+                        if byte_offset > i32::MAX as u32 {
+                            return unexpected(instruction.id);
+                        }
+                        if byte_offset <= i8::MAX as u32 {
+                            expected.extend_from_slice(&[0x5c, 0x24, byte_offset as u8]);
+                        } else {
+                            expected.extend_from_slice(&[0x9c, 0x24]);
+                            expected.extend_from_slice(&byte_offset.to_le_bytes());
+                        }
+                        callback.code_byte_count as usize == expected.len()
+                            && patch_row_offset as u64 == cursor + 3
+                            && group == expected
+                            && zero_patch(patch_row_offset)?
                     }
                 };
                 if !canonical {

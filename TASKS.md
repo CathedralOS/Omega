@@ -4451,6 +4451,13 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   alias an ordinary body with a weaker promise. The integer-record and resultless
   call-closure regressions carry stricter X9/V16 promises. SysV/Microsoft adapters
   have byte-encoding coverage, not matching-host invocation acceptance.
+  The Windows `pass/calls/callback_private_materialization` witness now uses
+  genuine `gdi32.dll!LineDDA`, a resultless callback and an ordinary helper
+  that mutates caller-owned context. Its native-only stack argument and the
+  neighboring borrowed pointer reach PE production and independent audits;
+  stack materializations retain their own outgoing frame demand and exact
+  fixup geometry. Matching-host `omega run` must still demonstrate exit 0
+  and the final observed point; macOS cross-realization is not that acceptance.
   Complete over-aligned owned storage and stack-based caller-area result protocols;
   these retain explicit implementation fences.
   Preserve `pass/calls/callback_future_registration_cycle`:

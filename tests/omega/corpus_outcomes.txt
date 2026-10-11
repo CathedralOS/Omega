@@ -3467,8 +3467,7 @@ pass/calls/by_value_case_param_self_write_exit checked 1360ms check-target:macos
 pass/calls/callback_borrowed_record_entry checked 5567ms check-target:macos_arm64 @588499422fe3+wt
 pass/calls/callback_future_registration_cycle checked 5759ms check-target:macos_arm64 @12953abbc60f+wt
 pass/calls/callback_mixed_formal_entry checked 5458ms check-target:macos_arm64 @8ca55c8e7e42+wt
-pass/calls/callback_private_materialization rejected 9447ms check-target:macos_arm64 @22d7c734257c+wt
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/callback_private_materialization checked 5548ms check-target:windows_x86_64 @0684469a73d0
 pass/calls/caller_result_binding_mutable_loan_exit checked 1568ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/caller_structural_result_indexed_borrow_exit checked 763ms check-target:macos_arm64 @0f26891d973a+wt
 pass/calls/case_arm_payload_receiver_arg checked 1332ms check-target:macos_arm64 @30260e7900cb+wt

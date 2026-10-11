@@ -27,11 +27,15 @@ pub(crate) const X86_64_CALLBACK_FIELD_MATERIALIZATION_BYTE_COUNT: u16 = 14;
 pub(crate) const X86_64_CALLBACK_MATERIALIZATION_RELOCATION_OFFSET: u16 = 3;
 
 /// Where one callback materialization's resolved private-function address
-/// lands: an ABI parameter register, or a private field inside the record a
-/// register-resident root parameter names (encoded through scratch `r11`).
+/// lands: an ABI parameter register, an outgoing stack slot at pre-call RSP,
+/// or a private field inside a register-resident record. Memory destinations
+/// use scratch `r11`; the retained call row excludes its overlap with inputs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum X86_64CallbackMaterializationDestination {
     Register(calling_conventions::MachineRegister),
+    OutgoingStack {
+        byte_offset: u32,
+    },
     RecordField {
         root_register: calling_conventions::MachineRegister,
         byte_offset: u32,
@@ -249,21 +253,34 @@ pub fn validate_x86_64_selected_normalized_foreign_call_template(
         .callbacks
         .iter()
         .map(|callback| {
-            let [calling_conventions::ValueLocation::Register { register, .. }] =
-                callback.application.placement.locations.as_slice()
-            else {
-                return None;
-            };
-            match callback.destination {
-                calling_conventions::NativePlace::Parameter(_) => Some(
-                    X86_64CallbackMaterializationDestination::Register(*register),
-                ),
-                calling_conventions::NativePlace::Field { .. } => {
-                    Some(X86_64CallbackMaterializationDestination::RecordField {
-                        root_register: *register,
-                        byte_offset: u32::try_from(callback.field_byte_offset?).ok()?,
-                    })
-                }
+            match (
+                &callback.destination,
+                callback.application.placement.locations.as_slice(),
+            ) {
+                (
+                    calling_conventions::NativePlace::Parameter(_),
+                    [calling_conventions::ValueLocation::Register { register, .. }],
+                ) => Some(X86_64CallbackMaterializationDestination::Register(
+                    *register,
+                )),
+                (
+                    calling_conventions::NativePlace::Parameter(_),
+                    [
+                        calling_conventions::ValueLocation::Stack {
+                            stack_byte_offset, ..
+                        },
+                    ],
+                ) => Some(X86_64CallbackMaterializationDestination::OutgoingStack {
+                    byte_offset: *stack_byte_offset,
+                }),
+                (
+                    calling_conventions::NativePlace::Field { .. },
+                    [calling_conventions::ValueLocation::Register { register, .. }],
+                ) => Some(X86_64CallbackMaterializationDestination::RecordField {
+                    root_register: *register,
+                    byte_offset: u32::try_from(callback.field_byte_offset?).ok()?,
+                }),
+                _ => None,
             }
         })
         .collect::<Option<Vec<_>>>()
@@ -308,6 +325,21 @@ fn callback_group_bytes(destination: X86_64CallbackMaterializationDestination) -
             let rex = 0x48 | (u8::from(index >= 8) << 2);
             let modrm = 0x05 | ((index & 7) << 3);
             Some(vec![rex, 0x8d, modrm, 0, 0, 0, 0])
+        }
+        X86_64CallbackMaterializationDestination::OutgoingStack { byte_offset } => {
+            if byte_offset > i32::MAX as u32 {
+                return None;
+            }
+            // The offset names the caller's outgoing area at pre-call RSP,
+            // not the callee's post-CALL stack or its private frame.
+            let mut group = vec![0x4c, 0x8d, 0x1d, 0, 0, 0, 0, 0x4c, 0x89];
+            if byte_offset <= i8::MAX as u32 {
+                group.extend_from_slice(&[0x5c, 0x24, byte_offset as u8]);
+            } else {
+                group.extend_from_slice(&[0x9c, 0x24]);
+                crate::codec_bytes::push_encoded(&mut group, byte_offset.to_le_bytes());
+            }
+            Some(group)
         }
         X86_64CallbackMaterializationDestination::RecordField {
             root_register,
@@ -365,6 +397,13 @@ fn callback_fixup(
         let byte_count = match destination {
             X86_64CallbackMaterializationDestination::Register(_) => {
                 X86_64_CALLBACK_MATERIALIZATION_BYTE_COUNT
+            }
+            X86_64CallbackMaterializationDestination::OutgoingStack { byte_offset } => {
+                if *byte_offset <= i8::MAX as u32 {
+                    12
+                } else {
+                    15
+                }
             }
             X86_64CallbackMaterializationDestination::RecordField { root_register, .. } => {
                 X86_64_CALLBACK_FIELD_MATERIALIZATION_BYTE_COUNT
@@ -1031,6 +1070,39 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn callback_stack_bytes_preserve_outgoing_offsets_and_fixup_extent() {
+        use super::{X86_64CallbackMaterializationDestination, callback_group_bytes};
+        for (offset, store) in [
+            (0, vec![0x4c, 0x89, 0x5c, 0x24, 0]),
+            (32, vec![0x4c, 0x89, 0x5c, 0x24, 32]),
+            (127, vec![0x4c, 0x89, 0x5c, 0x24, 127]),
+            (128, vec![0x4c, 0x89, 0x9c, 0x24, 128, 0, 0, 0]),
+            (256, vec![0x4c, 0x89, 0x9c, 0x24, 0, 1, 0, 0]),
+        ] {
+            let destination = X86_64CallbackMaterializationDestination::OutgoingStack {
+                byte_offset: offset,
+            };
+            let bytes = callback_group_bytes(destination).unwrap();
+            assert_eq!(&bytes[..7], &[0x4c, 0x8d, 0x1d, 0, 0, 0, 0]);
+            assert_eq!(&bytes[7..], store);
+            let fixup =
+                callback_fixup(BoundaryMachineId::new(3).unwrap(), 0, &[destination]).unwrap();
+            assert_eq!(usize::from(fixup.opcode_byte_offset), bytes.len());
+            assert_eq!(
+                usize::from(fixup.callbacks[0].materialization_byte_count),
+                bytes.len()
+            );
+            assert_eq!(fixup.callbacks[0].relocation_byte_offset, 3);
+        }
+        assert!(
+            callback_group_bytes(X86_64CallbackMaterializationDestination::OutgoingStack {
+                byte_offset: i32::MAX as u32 + 1,
+            })
+            .is_none()
+        );
     }
 
     #[test]

@@ -573,8 +573,18 @@ fn resolve_foreign(
                             0x98 | (root & 7), off[0], off[1], off[2], off[3],
                         ]
                     }
-                    machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
-                        return Err(TextPlacementError::SourceShapeMismatch)
+                    machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+                        if byte_offset > i32::MAX as u32 {
+                            return Err(TextPlacementError::SourceShapeMismatch)
+                        }
+                        let mut group = vec![0x4c, 0x8d, 0x1d, 0, 0, 0, 0, 0x4c, 0x89];
+                        if byte_offset <= i8::MAX as u32 {
+                            group.extend_from_slice(&[0x5c, 0x24, byte_offset as u8]);
+                        } else {
+                            group.extend_from_slice(&[0x9c, 0x24]);
+                            group.extend_from_slice(&byte_offset.to_le_bytes());
+                        }
+                        group
                     }
                 };
                 check_group(callback, &bytes, &[3])?;
