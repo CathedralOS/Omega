@@ -1,3 +1,39 @@
+Latest complete connected policy qualification (publication pending)
+
+Clean execution revision6178dfc303b74b0f39c8cc7207132e9d8a6427b1.
+Actual execution base3e49a9f1a417c0a152ad3c3a6101c9f6aa553669.
+Product build0/230.086s; runner build0/21.710s.
+Classification: update0/85.592s, sourcecheck0/29files/93.802s,
+native0/Terminal0/211.804s.
+Error budget: update0/42.163s, sourcecheck0/29files/59.002s,
+native0/Terminal0/149.525s.
+Source gate0/116.698s:19 fixtures,7checked/12intendedrejected, no outcome
+moves, wrong reasons, lost successes or oracle failures.
+Runtime gate0/92.036s:5fixtures, each native0/Terminal0.
+NF01 mutable: update0/181.444s, sourcecheck0/26files/45.230s,
+native73/Terminal73/46.490s, matching frozen backing-cell assertions.
+Invalid suffix source1/2.186s, expected explicit f64-literal-in-f32 diagnostic.
+The additional upstream reused-fixed-operands control did not execute:
+run--both exit200/26.206s because its boundary binding was not accepted;
+provider update exit124/180.027s without diagnostics. These are setup failures,
+not intended rejection or native/Terminal results. Preserve and rerun on the
+next integration revision after installing its declared providers.
+
+Earlier d4b execution atcab58211668083d7f5e0a048ba687bbc81da6923:
+source gate1/144.696s qualified19semantic outcomes, with only a timing move
+shared_field_borrow2583ms→9306ms. Golden contextDarwinARM64,14CPUs/jobs4;
+executorLinuxx86_64,5visibleCPUs/jobs1. This gate failed on performance;
+its comparability is unresolved and its golden records remain unchanged.
+Later3e49 gate0 is a separate observation, not a rewrite of that failure.
+All command arrays, clean revisions, exits, stdout/stderr and verdicts are
+retained under evidence/*-d4b-* and evidence/*-3e49-*.
+
+Main advanced to4f790ddf1e0 during execution. Changed native allocation,
+provider-call custody and view geometry require input-specific qualification
+before normal queue publication. Do not describe6178 executions as executions
+on a rebased candidate. Policy/consumer/oracle source identities remain fixed.
+All older status paragraphs below describe their historical checkpoint.
+
 Current connected integration qualification
 
 Clean execution revision: 9ace898d57534ff533ab3a44d221d9d19c353235.
