@@ -1491,25 +1491,23 @@ defines the complete product bar.
   discovery beside large unrelated arrays. Wrong-subject and missing-public-
   equation controls reject; private helper bodies supply no caller evidence.
 
-  Remaining:
-  - Carry remaining non-polynomial public result equations through completed
-    arrivals. A selected `observe(value: i32)` requiring `0 < value && value <= 9`
-    and ensuring `result == value >> 1` leaves
-    `countdown(reader.observe(remaining))` unable to prove the receiving bounds
-    or rank range `0..=9` under `remaining > 0` on macOS ARM64. Reuse the
-    admitted integer-operation owner over captured operands, preserving
-    count validity, policy and intermediate carrier bounds. Keep
-    `runtime_quotient_result_rank_arrivals_exit` for quotient/remainder results
-    through direct, nested, saved and projected arrivals, variable divisors and
-    signed truncation. Division by one, missing premises, alternative results,
-    wrong result fields, zero divisors and signed quotient overflow must reject.
-    Keep `runtime_computed_result_rank_arrivals_exit` for polynomial results
-    and its intermediate overflow and policy controls. Preserve
-    `runtime_selected_result_ranked_arrival_exit` and
-    `external_result_ranked_arrival_compile`, with missing-guarantee,
-    unguarded and stale-prefix controls. External execution also
-    needs **ASSUMED-BINDING-CONTRACTS**' Build/root trust-to-installation join;
-    source acceptance and provider selection supply no admission receipt.
+  Keep `runtime_quotient_result_rank_arrivals_exit` and
+  `runtime_shift_result_rank_arrivals_exit` for captured integer equations
+  through direct, nested, saved and projected arrivals, variable divisors and
+  independently typed/policy-bearing counts, including record fields. Signed
+  truncation and signed right-shift floor semantics remain distinct. Division
+  by one, zero-count shifts, preserving masks, changed endpoint counts, absent
+  signed-field floors, missing premises, alternative results, wrong operands,
+  invalid counts and overflowing intermediates must reject. Keep
+  `runtime_computed_result_rank_arrivals_exit` and its policy controls, plus
+  `runtime_selected_result_ranked_arrival_exit` and
+  `external_result_ranked_arrival_compile` with missing-guarantee, unguarded
+  and stale-prefix controls.
+
+  Remaining: external execution needs **ASSUMED-BINDING-CONTRACTS**' Build/root
+  trust-to-installation join; source acceptance and provider selection supply
+  no admission receipt. Re-run the external-result and std-loop execution
+  controls through the completed provider route before closing this item.
 
   Acceptance: `python tools/corpus_gate.py --filter termination/` with `--both`
   and `--native` on matching hosts; changed endpoints, stale copies,

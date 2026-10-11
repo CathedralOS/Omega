@@ -391,7 +391,7 @@ impl<'program> Engine<'program> {
         }
         let value =
             self.integer_binary_value(binary.operator, dividend.clone(), divisor.clone())?;
-        self.install_integer_division_bounds(binary.operator, &dividend, &divisor, &value);
+        self.install_integer_operation_bounds(binary.operator, &dividend, &divisor, &value);
         self.bind_strict_occurrence(expression, value).then_some(())
     }
 

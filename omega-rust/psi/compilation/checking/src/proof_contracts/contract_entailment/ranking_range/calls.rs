@@ -436,9 +436,21 @@ pub(crate) fn prove_ranking_range_call(
     if parameters.clone().count() != arguments.len() {
         return None;
     }
+    let demanded = super::ranking_range_required_coordinates(
+        program,
+        callee.machine,
+        callee.range,
+        destination_measure,
+        super::RankingRangePremises::RankInvariant,
+    )?;
     let mut actuals = Vec::new();
     for (parameter, argument) in parameters.zip(arguments) {
-        if exact_integer_parameter(program, parameter.type_reference).is_none() {
+        if !demanded.iter().any(|coordinate| {
+            coordinate.parameter == parameter.symbol && coordinate.path.is_empty()
+        }) {
+            continue;
+        }
+        if super::integer_parameter(program, parameter.type_reference).is_none() {
             continue;
         }
         if !parameter.symbol.is_valid() || parameter.is_const {
@@ -465,8 +477,10 @@ pub(crate) fn prove_ranking_range_call(
             0,
         )?;
     }
-    // Resolve every caller actual before adding any callee formal. Foreign
-    // references and required nonnumeric inputs therefore fail before vacuity.
+    // Resolve every demanded caller value before adding any callee formal.
+    // Unrelated accumulators remain payload; required unknown values still
+    // fail before vacuity. Whole-argument execution and effects belong to the
+    // source checking and completed-operand owners.
     if !engine.bind_strict_arguments(&actuals) {
         return None;
     }
@@ -1014,7 +1028,7 @@ pub(super) fn telescoped_bindings(
             continue;
         }
         let entry = program.state_parameter_by_symbol(root, selected.entry.parameter)?;
-        if exact_integer_parameter(program, entry.type_reference).is_none() {
+        if super::integer_parameter(program, entry.type_reference).is_none() {
             continue;
         }
         let value =

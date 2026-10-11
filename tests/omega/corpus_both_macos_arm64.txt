@@ -825,3 +825,4 @@ pass/termination/runtime_selected_result_ranked_arrival_exit built 2748ms exit:0
 pass/borrows/runtime_shared_carrier_storage_observation_exit built 5346ms exit:0 interpreter-exit:0 interpreter:agrees @759f6dbf1dfa
 pass/termination/runtime_computed_result_rank_arrivals_exit built 3883ms exit:0 interpreter-exit:0 interpreter:agrees @64934ccf0dd+wt
 pass/termination/runtime_quotient_result_rank_arrivals_exit built 2842ms exit:0 interpreter-exit:0 interpreter:agrees @9412eb149c68
+pass/termination/runtime_shift_result_rank_arrivals_exit built 4362ms exit:0 interpreter-exit:0 interpreter:agrees @f70cef10b430

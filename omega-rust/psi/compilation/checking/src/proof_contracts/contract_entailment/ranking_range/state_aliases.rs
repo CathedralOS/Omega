@@ -8,7 +8,7 @@
 //! the entry-relative ranking.
 use super::{
     ExpressionHandle, ExpressionNode, Machine, RankingRangeMeasure, RankingRangePremises,
-    exact_integer_parameter,
+    integer_parameter,
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::TableRangeExpression;
@@ -31,7 +31,7 @@ pub(super) fn required_symbols(
     symbols.retain(|symbol| {
         program.state_parameters(root).iter().any(|parameter| {
             parameter.symbol == *symbol
-                && exact_integer_parameter(program, parameter.type_reference).is_some()
+                && integer_parameter(program, parameter.type_reference).is_some()
         })
     });
     Some(symbols)

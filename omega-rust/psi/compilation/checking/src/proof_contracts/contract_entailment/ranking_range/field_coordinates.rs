@@ -3,8 +3,8 @@
 //! unique, nominally checked arrival role. Record ancestry alone never proves
 //! copy equality.
 use super::{
-    BTreeMap, Comparison, Engine, ExpressionHandle, Machine, Polynomial, RankingRangeState, State,
-    fields, projections,
+    BTreeMap, Comparison, Engine, ExpressionHandle, Machine, Polynomial, RankSubjectCoordinate,
+    RankingRangeState, State, fields, projections,
 };
 use fields::FieldCoordinate;
 use symbols::SymbolHandle;
@@ -100,8 +100,9 @@ impl<'program> FieldCoordinates<'program> {
     /// The caller applies this map simultaneously, never sequentially rewriting
     /// one field's actual through another field's new value. `carrier` is the
     /// destination formal whose slot `argument` fills (unused on a root edge),
-    /// and `required` names the entry symbols the judgment holds equal at
-    /// every arrival. A role claimed by several slots can still be read:
+    /// and `required` names exact entry coordinates observed by the authored
+    /// witness and active premises. Auxiliary source facts need no destination
+    /// substitution. A role claimed by several slots can still be read:
     /// contested required copies stay equal under the edge's own alias
     /// hypotheses, so each claimant's own record is the carrier its actual
     /// must fill and every transport must agree with the first reading.
@@ -115,7 +116,7 @@ impl<'program> FieldCoordinates<'program> {
         entry_parameters: Option<&super::RankStateBindings>,
         destination: Option<RankingRangeState<'_>>,
         carrier: &'program StateParameter,
-        _required: &[SymbolHandle],
+        required: &[RankSubjectCoordinate],
         engine: &mut Engine<'_>,
         _formal: SymbolHandle,
         argument: ExpressionHandle,
@@ -133,6 +134,9 @@ impl<'program> FieldCoordinates<'program> {
                     }
                 }
             };
+            if !required.contains(&entry) {
+                continue;
+            }
             let (arrival_state, target) = match destination {
                 Some(destination) => (
                     destination.state,

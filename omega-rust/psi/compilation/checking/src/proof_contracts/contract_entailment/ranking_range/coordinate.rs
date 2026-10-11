@@ -8,18 +8,17 @@ use super::fields::{
     declared_field, declared_spelling_verified, member_chain, member_coordinate_parts,
     record_referent,
 };
-use super::{
-    ExpressionHandle, Polynomial, PrimitiveType, RankingRangeState, State, exact_integer_parameter,
-};
+use super::{ExpressionHandle, Polynomial, RankingRangeState, State, exact_integer_parameter};
 use symbols::SymbolHandle;
 use typed_trees::data::DataField;
 use typed_trees::signature::StateParameter;
 
-/// Which produced value a member chain's leaf carries: a field view's
-/// natural rank coordinate, or a collection's length.
+/// A field view's natural rank, an ordinary stored integer observation,
+/// or a collection's length. Each owns its carrier admission, not its custody.
 #[derive(Clone, Copy)]
 pub(super) enum CoordinateKind {
     Field,
+    Integer,
     Length,
 }
 
@@ -33,7 +32,9 @@ impl CoordinateKind {
         field: &'program DataField,
     ) -> Option<SymbolHandle> {
         match self {
-            Self::Field => record_referent(program, field.type_reference).map(|(next, _)| next),
+            Self::Field | Self::Integer => {
+                record_referent(program, field.type_reference).map(|(next, _)| next)
+            }
             Self::Length => {
                 let Some(next) = program
                     .type_reference_table
@@ -46,28 +47,16 @@ impl CoordinateKind {
         }
     }
 
-    /// Whether the chain's leaf field admits this produced value.
-    /// `natural_leaf` is the origin's rule for an unsigned leaf — a field
-    /// view emits `u64` while an authored member chain admits any exact
-    /// unsigned integer; the produced length ignores it.
-    fn leaf_admits<'program>(
-        self,
-        program: &'program dyn crate::CheckingInput,
-        field: &'program DataField,
-        natural_leaf: bool,
-    ) -> bool {
+    /// Declared natural field views and ordinary numeric observations share
+    /// projection identity, but only the former requires an Exact unsigned
+    /// carrier. A count field is a stored value, not a natural ranking view.
+    fn leaf_admits(self, program: &dyn crate::CheckingInput, field: &DataField) -> bool {
         match self {
-            Self::Field => {
-                let leaf = exact_integer_parameter(program, field.type_reference);
-                if natural_leaf {
-                    matches!(
-                        leaf,
-                        Some(typed_trees::unsigned_integer_primitive_pattern!())
-                    )
-                } else {
-                    leaf == Some(PrimitiveType::U64)
-                }
-            }
+            Self::Field => matches!(
+                exact_integer_parameter(program, field.type_reference),
+                Some(typed_trees::unsigned_integer_primitive_pattern!())
+            ),
+            Self::Integer => super::integer_parameter(program, field.type_reference).is_some(),
             Self::Length => super::lengths::is_slice(program, field.type_reference),
         }
     }
@@ -75,17 +64,9 @@ impl CoordinateKind {
     /// The identity prefix a coordinate of this kind mints.
     fn tag(self) -> &'static str {
         match self {
-            Self::Field => "\0ranking:field:",
+            Self::Field | Self::Integer => "\0ranking:field:",
             Self::Length => "\0ranking:length:",
         }
-    }
-
-    /// The natural-leaf rule a re-resolution on an arrival applies: the
-    /// rebuilt chain lands on the same declared leaf by construction, so a
-    /// field coordinate keeps the origin's own unsigned-leaf admission.
-    /// The length's leaf predicate does not read the flag.
-    fn natural_leaf_on_arrival(self) -> bool {
-        matches!(self, Self::Field)
     }
 }
 
@@ -122,7 +103,6 @@ impl<'program> Coordinate<'program> {
         state: &State,
         expression: ExpressionHandle,
         kind: CoordinateKind,
-        natural_leaf: bool,
     ) -> Option<Self> {
         let (parameter, chain) = member_chain(program, state, expression)?;
         let coordinate = Self::for_parameter(
@@ -130,7 +110,6 @@ impl<'program> Coordinate<'program> {
             parameter,
             &chain.iter().map(|(symbol, _)| *symbol).collect::<Vec<_>>(),
             kind,
-            natural_leaf,
         )?;
         declared_spelling_verified(&chain, &coordinate.steps, coordinate.field)
             .then_some(coordinate)
@@ -141,14 +120,13 @@ impl<'program> Coordinate<'program> {
         parameter: &'program StateParameter,
         chain: &[SymbolHandle],
         kind: CoordinateKind,
-        natural_leaf: bool,
     ) -> Option<Self> {
         let parts = member_coordinate_parts(
             program,
             parameter,
             chain,
             |program, field| kind.step_owner(program, field),
-            |program, field| kind.leaf_admits(program, field, natural_leaf),
+            |program, field| kind.leaf_admits(program, field),
             kind.tag(),
         )?;
         Some(Self {
@@ -265,13 +243,7 @@ impl<'program> Coordinate<'program> {
                 _ => return None,
             }
         }
-        let result = Self::for_parameter(
-            program,
-            parameter,
-            &chain,
-            kind,
-            kind.natural_leaf_on_arrival(),
-        )?;
+        let result = Self::for_parameter(program, parameter, &chain, kind)?;
         (result.location(program) == *coordinate).then_some(result)
     }
 
@@ -323,13 +295,7 @@ impl<'program> Coordinate<'program> {
             return None;
         }
         chain.extend(self.chain().into_iter().skip(depth));
-        Self::for_parameter(
-            program,
-            carrier,
-            &chain,
-            self.kind,
-            self.kind.natural_leaf_on_arrival(),
-        )
+        Self::for_parameter(program, carrier, &chain, self.kind)
     }
 }
 

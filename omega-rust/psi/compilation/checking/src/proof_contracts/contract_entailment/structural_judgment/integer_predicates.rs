@@ -12,7 +12,6 @@
 
 use super::super::{BigInt, Engine, Polynomial};
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
-use numerics::arithmetic::ArithmeticDomain;
 use std::ops::Range;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
@@ -21,7 +20,7 @@ type Comparison = (BinaryOperator, Polynomial, Polynomial);
 
 struct ObservedOperation {
     operator: BinaryOperator,
-    primitive: PrimitiveType,
+    primitives: [PrimitiveType; 2],
     operands: [Polynomial; 2],
     value: Polynomial,
     children: Range<usize>,
@@ -78,13 +77,13 @@ impl IntegerObservations<'_> {
                 if operation.admitted
                     || self.engine.integer_operation_lands(
                         operation.operator,
-                        operation.primitive,
+                        operation.primitives,
                         left,
                         right,
                         &operation.value,
                     )
                 {
-                    changed |= self.engine.install_integer_division_bounds(
+                    changed |= self.engine.install_integer_operation_bounds(
                         operation.operator,
                         left,
                         right,
@@ -253,17 +252,7 @@ impl StructuralJudge<'_> {
             left,
             right,
         } = value
-            && meaning.iter().all(|(primitive, domain)| {
-                primitive.accepts_integer_literal() && *domain == ArithmeticDomain::Exact
-            })
-            && matches!(
-                operator,
-                BinaryOperator::Add
-                    | BinaryOperator::Subtract
-                    | BinaryOperator::Multiply
-                    | BinaryOperator::Divide
-                    | BinaryOperator::Modulo
-            )
+            && Engine::integer_operation_meaning(*operator, *meaning)
         {
             if ![left, right]
                 .into_iter()
@@ -278,19 +267,21 @@ impl StructuralJudge<'_> {
             {
                 return None;
             }
-            if meaning[0].0 != meaning[1].0 || meaning[0].0 != primitive {
+            if meaning[0].0 != primitive {
                 return None;
             }
             let start = observations.operations.len();
             let left = self.integer_value(left, primitive, observations, depth + 1)?;
-            let right = self.integer_value(right, primitive, observations, depth + 1)?;
-            let value =
-                observations
-                    .engine
-                    .integer_binary_value(*operator, left.clone(), right.clone())?;
+            let right = self.integer_value(right, meaning[1].0, observations, depth + 1)?;
+            let value = observations.engine.selected_integer_binary_value(
+                *operator,
+                *meaning,
+                left.clone(),
+                right.clone(),
+            )?;
             observations.operations.push(ObservedOperation {
                 operator: *operator,
-                primitive,
+                primitives: meaning.map(|(primitive, _)| primitive),
                 operands: [left, right],
                 value: value.clone(),
                 children: start..observations.operations.len(),

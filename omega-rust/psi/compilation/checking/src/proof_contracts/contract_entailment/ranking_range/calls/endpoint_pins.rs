@@ -603,7 +603,7 @@ fn coordinate_value(
                 program,
                 state,
                 coordinate,
-                CoordinateKind::Field,
+                CoordinateKind::Integer,
             )?;
             engine
                 .install_hypotheses(field.field_comparisons(program))
@@ -655,7 +655,7 @@ fn actual_value(
                 program,
                 destination,
                 coordinate,
-                CoordinateKind::Field,
+                CoordinateKind::Integer,
             )?;
             field.field_actual(program, source.machine, source.state, engine, actual)
         }

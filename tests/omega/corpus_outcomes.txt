@@ -5467,3 +5467,18 @@ run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 95931m
 run/providers/module_named_float_conversion_family_exit checked 79121ms check-target:macos_arm64 @16ed47526a08
 run/stores/runtime_float_indexed_call_result_exit checked 90790ms check-target:linux_x86_64 @16ed47526a08
 run/stores/runtime_float_store_selector_snapshot_exit checked 96305ms check-target:linux_x86_64 @16ed47526a08
+pass/termination/runtime_shift_result_rank_arrivals_exit checked 2943ms check-target:macos_arm64 @f70cef10b430
+fail/contracts/shift_result_count_exceeds_left_width rejected 231ms expected @f70cef10b430
+	machine `invalid` state `entry` value call to `shifted` violates required fact `value >= 0 && count < 8`: the instantiated fact is structurally false
+fail/contracts/shift_result_negative_wrapping_count rejected 444ms expected @f70cef10b430
+	cannot prove requires contract for call shifted from invalid: value >= 0 && value <= 9 && 0 - (31 as i8 ) >= 0 && 0 - (31 as i8 ) < 32 (needs fact `value >= 0 && value <= 9 && count >= 0 && count < 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/shift_result_wrong_count rejected 445ms expected @f70cef10b430
+	cannot prove requires contract for call require_expected from invalid: shifted(value, count) == value >> 3 (needs fact `actual == expected` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/termination/shift_result_rank_mask_preserves rejected 445ms expected @f70cef10b430
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/shift_result_rank_replaced_count rejected 441ms expected @f70cef10b430
+	terminating machine countdown: cannot prove rank range `0..=16 >> count` for the rank produced by the selected view
+fail/termination/shift_result_rank_zero_count rejected 448ms expected @f70cef10b430
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/shift_result_signed_field_floor rejected 448ms expected @f70cef10b430
+	terminating machine invalid: cannot prove rank range `0..=9` for the rank produced by the selected view

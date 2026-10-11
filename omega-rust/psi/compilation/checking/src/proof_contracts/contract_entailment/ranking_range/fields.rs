@@ -66,6 +66,26 @@ pub(super) fn endpoint_lands_under(
     endpoint: ExpressionHandle,
     polynomial: &Polynomial,
 ) -> bool {
+    if let Some(Some(reference)) = super::meanings::builtin(program, machine, state, endpoint, 0)
+        && exact_integer_parameter(program, reference).is_none()
+    {
+        return false;
+    }
+    integer_expression_lands_under(engine, program, machine, state, endpoint, polynomial)
+}
+
+/// A completed integer value retains its carrier independently of its policy.
+/// Strict normalization admits each selected operation before reaching here;
+/// this shared formation walk still checks every intermediate. Endpoints add
+/// their separate Exact restriction, whereas a shift count may use any policy.
+fn integer_expression_lands_under(
+    engine: &mut Engine<'_>,
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    endpoint: ExpressionHandle,
+    polynomial: &Polynomial,
+) -> bool {
     if !operations_land_under(engine, program, machine, state, endpoint, None) {
         return false;
     }
@@ -79,7 +99,7 @@ pub(super) fn endpoint_lands_under(
         // admission rejected it before this judgment ran.
         None => return false,
     };
-    let Some(primitive) = exact_integer_parameter(program, carrier) else {
+    let Some(primitive) = super::integer_parameter(program, carrier) else {
         return false;
     };
     integer_value_lands(engine, primitive, polynomial)
@@ -309,34 +329,33 @@ impl<'program> Coordinate<'program> {
             .map(|step| step.field_symbol)
             .chain([field_symbol])
             .collect::<Vec<_>>();
-        Self::for_parameter(program, parameter, &chain, CoordinateKind::Field, false)
+        let coordinate = Self::for_parameter(program, parameter, &chain, CoordinateKind::Field)?;
+        (exact_integer_parameter(program, coordinate.field.type_reference)
+            == Some(PrimitiveType::U64))
+        .then_some(coordinate)
     }
 
     /// The coordinate an authored member chain names: every step an exact
     /// declared field, by resolved symbol and spelling, of the record before
-    /// it, rooted at a state formal. The leaf may be any exact unsigned
-    /// integer: a scalar rank subject or endpoint reads the projected
-    /// natural coordinate, not only the `u64` a declared field view emits.
+    /// it, rooted at a state formal. The leaf is an ordinary integer value;
+    /// selected rank views and endpoint operations independently restrict
+    /// arithmetic policy and prove their required nonnegative bounds.
     pub(super) fn resolve_field_projection(
         program: &'program dyn crate::CheckingInput,
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<Self> {
-        Self::resolve_member(program, state, expression, CoordinateKind::Field, true)
+        Self::resolve_member(program, state, expression, CoordinateKind::Integer)
     }
 
     pub(super) fn field_comparisons(&self, program: &dyn crate::CheckingInput) -> Vec<Comparison> {
-        let mut comparisons = vec![(
-            BinaryOperator::GreaterOrEqual,
-            self.value(),
-            Polynomial::default(),
-        )];
+        let mut comparisons = Vec::new();
         // Carrier membership is independent of an authored rank range. The
         // signed-window interval owner below retains narrower storage facts,
         // but cannot represent an unrestricted u64 ceiling. Keep the exact
         // declared carrier here so reconstructed field actuals can prove
         // every operation forms without assuming a smaller arrival value.
-        if let Some(primitive) = exact_integer_parameter(program, self.field.type_reference)
+        if let Some(primitive) = super::integer_parameter(program, self.field.type_reference)
             && let Some((minimum, maximum)) = super::integer_carrier_bounds(primitive)
         {
             comparisons.extend([
@@ -532,7 +551,6 @@ fn completed_source_value(
     suffix: &[facts::PlaceSegment],
 ) -> Option<Polynomial> {
     use super::super::completed_values::CompletedValueSource;
-    use numerics::arithmetic::ArithmeticDomain;
     match source {
         CompletedValueSource::Parameter { symbol, path } => {
             let mut path = path.clone();
@@ -545,7 +563,7 @@ fn completed_source_value(
                 path,
             };
             let coordinate =
-                FieldCoordinate::at_coordinate(program, state, &location, CoordinateKind::Field)?;
+                FieldCoordinate::at_coordinate(program, state, &location, CoordinateKind::Integer)?;
             engine
                 .install_hypotheses(coordinate.field_comparisons(program))
                 .then(|| coordinate.value())
@@ -556,7 +574,8 @@ fn completed_source_value(
             )?;
             super::meanings::builtin(program, machine, state, *source, 0)?;
             let value = engine.normalize(*source)?;
-            endpoint_lands_under(engine, program, machine, state, *source, &value).then_some(value)
+            integer_expression_lands_under(engine, program, machine, state, *source, &value)
+                .then_some(value)
         }
         CompletedValueSource::Integer(integer) if suffix.is_empty() => {
             Some(Polynomial::constant(integer.clone()))
@@ -566,22 +585,28 @@ fn completed_source_value(
             meaning,
             operands,
         } if suffix.is_empty() => {
-            let [(primitive, policy), (right_primitive, right_policy)] = *meaning;
-            if primitive != right_primitive
-                || !primitive.accepts_integer_literal()
-                || policy != ArithmeticDomain::Exact
-                || right_policy != ArithmeticDomain::Exact
-            {
+            if !Engine::integer_operation_meaning(*operator, *meaning) {
                 return None;
             }
             let [left, right] = operands.as_ref();
             let left = completed_source_value(program, machine, state, engine, left, &[])?;
             let right = completed_source_value(program, machine, state, engine, right, &[])?;
-            let value = engine.integer_binary_value(*operator, left.clone(), right.clone())?;
-            if !engine.integer_operation_lands(*operator, primitive, &left, &right, &value) {
+            let value = engine.selected_integer_binary_value(
+                *operator,
+                *meaning,
+                left.clone(),
+                right.clone(),
+            )?;
+            if !engine.integer_operation_lands(
+                *operator,
+                meaning.map(|(primitive, _)| primitive),
+                &left,
+                &right,
+                &value,
+            ) {
                 return None;
             }
-            engine.install_integer_division_bounds(*operator, &left, &right, &value);
+            engine.install_integer_operation_bounds(*operator, &left, &right, &value);
             Some(value)
         }
         _ => None,

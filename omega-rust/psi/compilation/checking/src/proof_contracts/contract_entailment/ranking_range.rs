@@ -655,7 +655,7 @@ pub(super) fn constrained_parameter_bound_expressions(
     for parameter in program
         .state_parameters(root)
         .iter()
-        .filter(|parameter| exact_integer_parameter(program, parameter.type_reference).is_some())
+        .filter(|parameter| integer_parameter(program, parameter.type_reference).is_some())
     {
         let mut reference = parameter.type_reference;
         while let TypeReferenceNode::Constrained {
@@ -693,7 +693,7 @@ fn subject_field_coordinates<'program>(
         for selected in &entries.coordinates {
             if selected.entry.path.is_empty()
                 && ranking_coordinate_type(program, root, &selected.entry)
-                    .and_then(|reference| exact_integer_parameter(program, reference))
+                    .and_then(|reference| integer_parameter(program, reference))
                     .is_some()
                 && !selected.destination.path.is_empty()
             {
@@ -701,7 +701,7 @@ fn subject_field_coordinates<'program>(
                     program,
                     state,
                     &selected.destination,
-                    coordinate::CoordinateKind::Field,
+                    coordinate::CoordinateKind::Integer,
                 )?);
             }
         }
@@ -748,7 +748,7 @@ fn carried_subject_coordinate<'program>(
         program,
         state,
         &destination,
-        coordinate::CoordinateKind::Field,
+        coordinate::CoordinateKind::Integer,
     )
 }
 
@@ -786,11 +786,11 @@ fn scalar_coordinate_value(
         program,
         state,
         coordinate,
-        coordinate::CoordinateKind::Field,
+        coordinate::CoordinateKind::Integer,
     )?;
     Some(StrictArithmeticBindingValue::Atom {
         identity: field.identity,
-        unsigned: true,
+        unsigned: !integer_parameter(program, field.field.type_reference)?.is_signed_integer(),
     })
 }
 
@@ -816,7 +816,7 @@ fn arrival_scalar_actual(
         program,
         destination_state,
         destination,
-        coordinate::CoordinateKind::Field,
+        coordinate::CoordinateKind::Integer,
     )?;
     coordinate.field_actual(program, machine, state, engine, actual)
 }
@@ -968,6 +968,11 @@ fn prove_edge(
                 .map(lengths::SliceCoordinates::new)
         }
         _ => None,
+    };
+    let demanded_coordinates = if arguments.is_some() {
+        ranking_range_required_coordinates(program, machine, range, measure, premises)?
+    } else {
+        Vec::new()
     };
     let range = if range.is_valid() {
         Some(program.expression_table.range_node(range)?)
@@ -1282,7 +1287,7 @@ fn prove_edge(
                 entry_parameters,
                 destination,
                 parameter,
-                &required_symbols,
+                &demanded_coordinates,
                 &mut engine,
                 parameter.symbol,
                 *argument,
@@ -1323,7 +1328,11 @@ fn prove_edge(
             }],
         };
         for reading in target_readings {
-            if !reading.entry.path.is_empty() {
+            // Substitute only what the destination witness observes. An
+            // unrelated Wrapping accumulator is payload, not integer algebra.
+            // Dependencies come from authored terms, preserving even operands
+            // that cancel out of a normalized endpoint.
+            if !demanded_coordinates.contains(&reading.entry) || !reading.entry.path.is_empty() {
                 continue;
             }
             if let Some((_, identity)) = length_bindings
@@ -1629,7 +1638,7 @@ fn parameter_comparisons(
     let admit = |expression| meanings::builtin(program, machine, root, expression, 0);
     let mut comparisons = Vec::new();
     for parameter in program.state_parameters(root).iter() {
-        if exact_integer_parameter(program, parameter.type_reference).is_none() {
+        if integer_parameter(program, parameter.type_reference).is_none() {
             continue;
         }
         for (minimum, maximum, end_inclusive) in
@@ -1743,9 +1752,7 @@ fn validate_mapping(
         if state.symbol == root.symbol && selected.entry != selected.destination {
             return None;
         }
-        if exact_integer_parameter(program, entry_type)
-            != exact_integer_parameter(program, destination_type)
-        {
+        if integer_parameter(program, entry_type) != integer_parameter(program, destination_type) {
             return None;
         }
         // Ordinary typed arrivals own nonnumeric carrier compatibility. This
@@ -1763,7 +1770,7 @@ fn integer_bindings(
 ) -> Option<Vec<StrictArithmeticSymbolBinding>> {
     let mut bindings = Vec::new();
     for parameter in program.state_parameters(state).iter() {
-        let Some(primitive) = exact_integer_parameter(program, parameter.type_reference) else {
+        let Some(primitive) = integer_parameter(program, parameter.type_reference) else {
             // Unrelated payloads are never promoted to numeric facts.
             continue;
         };
@@ -1793,7 +1800,11 @@ pub(super) fn required_contract_expressions(
         .collect()
 }
 
-fn exact_integer_parameter(
+/// A stored integer is a numeric coordinate under any arithmetic policy.
+/// Policy belongs to selected computations over that value; refusing a Wrapping
+/// count here loses an ordinary operand of an Exact shift. Normalization and
+/// endpoint formation independently keep the operation's policy obligations.
+fn integer_parameter(
     program: &dyn crate::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
@@ -1806,7 +1817,12 @@ fn exact_integer_parameter(
             .type_reference_table
             .constraints(*constraints)
             .iter()
-            .any(|constraint| !matches!(constraint, TypeConstraintNode::Range { .. }))
+            .any(|constraint| {
+                !matches!(
+                    constraint,
+                    TypeConstraintNode::Range { .. } | TypeConstraintNode::ArithmeticDomain(_)
+                )
+            })
         {
             return None;
         }
@@ -1814,6 +1830,16 @@ fn exact_integer_parameter(
     }
     let primitive = crate::value_custody::recasts::exact_primitive_type(program, reference)?;
     primitive.is_fixed_integer().then_some(primitive)
+}
+
+fn exact_integer_parameter(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    (program.arithmetic_domain_for_type_reference(reference)
+        == numerics::arithmetic::ArithmeticDomain::Exact)
+        .then(|| integer_parameter(program, reference))
+        .flatten()
 }
 
 type Comparison = (BinaryOperator, Polynomial, Polynomial);

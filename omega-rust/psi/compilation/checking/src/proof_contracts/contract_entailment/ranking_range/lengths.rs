@@ -568,7 +568,7 @@ impl<'program> Coordinate<'program> {
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<Self> {
-        Self::resolve_member(program, state, expression, CoordinateKind::Length, false)
+        Self::resolve_member(program, state, expression, CoordinateKind::Length)
     }
 
     /// The length this coordinate holds after `expression` arrives in its
