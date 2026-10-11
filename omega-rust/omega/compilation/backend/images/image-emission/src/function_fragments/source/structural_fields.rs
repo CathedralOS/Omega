@@ -935,24 +935,25 @@ pub(super) fn retained(
         let Some((_, root)) = read_access(function, target, *source, AccessPurpose::Field) else {
             return false;
         };
-        // A read may end at a scalar field of a runtime-selected record
-        // element; the leaf is rebuilt from declarations, never from a
-        // retained offset.
-        if path.is_empty()
-            || terminal_semantics::primitive_read_projection_type(
-                target.graph.structural_types.iter(),
-                root,
-                path,
-            ) != Some(result.scalar_type)
+        // Whole-place and projected reads observe the same declared scalar
+        // leaf. A borrowed scalar carries an address and storage codec, so its
+        // observation need not be one load of the semantic carrier's width.
+        // Rejoin the admitted source and selection here. Mandatory physical
+        // replay checks the retained descriptor decoding and actual loads;
+        // the corpus additionally audits independent source/target custody.
+        if terminal_semantics::primitive_read_projection_type(
+            target.graph.structural_types.iter(),
+            root,
+            path,
+        ) != Some(result.scalar_type)
         {
             return false;
         }
         // As with record-field reads, publication retains the exact graph
         // subject, and each runtime element's traversal names that element's
-        // selector. Mandatory source/selection replay independently checks the
-        // computed offset, strides and load on the original root; do not
-        // duplicate its layout calculator or accept a matching byte offset as
-        // path identity.
+        // selector. Selection owns the computed offset, strides and load on
+        // the original root, and physical replay preserves that realization.
+        // Do not reconstruct its layout or treat a byte offset as path identity.
         let selectors = operation
             .runtime_indices()
             .into_iter()
@@ -1551,15 +1552,10 @@ fn read_access(
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !target.graph.operations().any(|operation| {
-                let Some((retained_producer, home)) = operation.structural_result_home() else {
-                    return false;
-                };
-                retained_producer == producer
-                    && home
-                        .operation_result()
-                        .is_some_and(|(actual, declaration)| {
-                            actual == producer && declaration == result
-                        })
+                // Primitive locals and descriptor results need not carry an
+                // aggregate home. The observation binds the exact producer and
+                // declaration; each establishment's own audit checks storage.
+                operation.structural_result() == Some((producer, result))
             })
             || access
                 .replace((StructuralAccess::Owned, result.structural_type))

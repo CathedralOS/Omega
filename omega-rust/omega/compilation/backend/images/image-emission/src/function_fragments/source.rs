@@ -298,9 +298,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                             &current.optimized_target().optimized().plan().structural_types,
                         )
                 }
-                AbstractOperation::PrimitiveScalarRead { path, .. } if !path.is_empty() => {
+                AbstractOperation::PrimitiveScalarRead { .. } => {
                     structural_fields::retained(abstracted, operation, targeted)
-                        && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                 }
                 AbstractOperation::StructuralScalarFieldRead { .. } => {
                     structural_fields::retained(abstracted, operation, targeted)
@@ -326,8 +325,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected),
                 AbstractOperation::EstablishPrimitiveLocal { .. }
-                | AbstractOperation::PrimitiveLocalStore { .. }
-                | AbstractOperation::PrimitiveScalarRead { .. } => {
+                | AbstractOperation::PrimitiveLocalStore { .. } => {
                     super::structural::primitive_operation_retained(abstracted, selected, operation)
                 }
                 AbstractOperation::SelectImplementation {psi_operation,table,..} => selected.instructions().filter(|instruction|

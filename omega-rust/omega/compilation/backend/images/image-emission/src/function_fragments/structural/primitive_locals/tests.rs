@@ -1,4 +1,3 @@
-use super::access::operation_retained;
 use super::establishment::establishment;
 use super::frame_location::frame_location;
 use abstract_operations::{
@@ -294,76 +293,6 @@ fn local_frame_identity_cannot_be_replaced_by_matching_geometry() {
         }
         assert!(
             frame_location(&[changed], 24, slot, 8).is_err(),
-            "mutation {mutation}"
-        );
-    }
-}
-
-#[test]
-fn primitive_observation_requires_a_fresh_load_result() {
-    let (mut function, mut selected) = fixture();
-    let operation = OperationId::new(3).unwrap();
-    let value = ValueId::new(2).unwrap();
-    let result = AbstractResult {
-        value,
-        scalar_type: selected.virtual_registers[0].scalar_type,
-    };
-    let read = AbstractOperation::PrimitiveScalarRead {
-        path: Vec::new(),
-        psi_operation: operation,
-        result,
-        source: PlaceId::new(1).unwrap(),
-    };
-    function.operations.push(read.clone());
-    let mut load = selected.blocks[0].instructions[1].clone();
-    load.id = SelectedInstructionId(3);
-    load.kind = SelectedInstructionKind::Load64 { byte_offset: 0 };
-    load.operands[1].virtual_register = VirtualRegisterId(2);
-    load.operands[1].access = RegisterOperandAccess::Def;
-    load.provenance.operations = vec![operation];
-    load.provenance.values = vec![value];
-    selected.blocks[0].instructions.push(load);
-    selected.virtual_registers.push(VirtualRegister {
-        id: VirtualRegisterId(2),
-        scalar_type: result.scalar_type,
-        class: RegisterClassId(0),
-        origin: VirtualRegisterOrigin::InstructionResult {
-            instruction: SelectedInstructionId(3),
-            source_value: value,
-        },
-        definition_site: None,
-        entry_fixed_view: None,
-    });
-    selected.memory_accesses.push(SelectedMemoryAccess {
-        instruction: SelectedInstructionId(3),
-        origin: SelectedMemoryAccessOrigin::Operation(operation),
-        place: PlaceId::new(1).unwrap(),
-        byte_offset: 0,
-        byte_count: 8,
-        role: SelectedMemoryAccessRole::ReadPlace,
-    });
-    assert!(operation_retained(&function, &selected, &read));
-    for mutation in 0..5 {
-        let mut changed = selected.clone();
-        match mutation {
-            0 => {
-                changed.memory_accesses.pop();
-            }
-            1 => changed.blocks[0].instructions[2].kind = SelectedInstructionKind::CopyI64,
-            2 => {
-                changed.blocks[0].instructions[2].operands[1].virtual_register =
-                    VirtualRegisterId(1)
-            }
-            3 => {
-                changed.virtual_registers[2].origin = VirtualRegisterOrigin::InstructionResult {
-                    instruction: SelectedInstructionId(1),
-                    source_value: value,
-                }
-            }
-            _ => changed.memory_accesses[2].place = PlaceId::new(2).unwrap(),
-        }
-        assert!(
-            !operation_retained(&function, &changed, &read),
             "mutation {mutation}"
         );
     }

@@ -1,12 +1,9 @@
-//! Primitive read and replacement publication over established or borrowed referents.
+//! Primitive establishment and replacement publication over local storage.
 use super::establishment::{establishment, primitive_size, producer};
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use selected_instructions::{
-    SelectedFunction, SelectedInstructionKind, SelectedMemoryAccessOrigin,
-    SelectedMemoryAccessRole, VirtualRegisterOrigin,
+    SelectedFunction, SelectedInstructionKind, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };
-use semantic_vocabulary::{PlaceId, ScalarType};
-use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
 pub(in crate::function_fragments) fn operation_retained(
     function: &AbstractFunction,
@@ -40,22 +37,6 @@ pub(in crate::function_fragments) fn operation_retained(
                 SelectedMemoryAccessRole::WritePlace,
             )
         }
-        AbstractOperation::PrimitiveScalarRead {
-            psi_operation,
-            result,
-            source,
-            path,
-        } => {
-            if !path.is_empty() || !readable(function, selected, *source, result.scalar_type) {
-                return false;
-            }
-            (
-                *psi_operation,
-                *source,
-                result.scalar_type,
-                SelectedMemoryAccessRole::ReadPlace,
-            )
-        }
         _ => return false,
     };
     let Some(size) = primitive_size(scalar) else {
@@ -87,24 +68,6 @@ pub(in crate::function_fragments) fn operation_retained(
         return false;
     }
     match operation {
-        AbstractOperation::PrimitiveScalarRead { result, .. } => {
-            let load = match size {
-                1 => SelectedInstructionKind::Load8 { byte_offset: 0 },
-                2 => SelectedInstructionKind::Load16 { byte_offset: 0 },
-                4 => SelectedInstructionKind::Load32 { byte_offset: 0 },
-                8 => SelectedInstructionKind::Load64 { byte_offset: 0 },
-                _ => return false,
-            };
-            instruction.kind == load
-                && instruction.operands.len() == 2
-                && instruction.provenance.values == [result.value]
-                && selected.virtual_registers.iter().any(|register| {
-                    register.id == instruction.operands[1].virtual_register
-                        && register.scalar_type == result.scalar_type
-                        && matches!(register.origin, VirtualRegisterOrigin::InstructionResult { instruction: defining, source_value }
-                            if defining == instruction.id && source_value == result.value)
-                })
-        }
         AbstractOperation::PrimitiveLocalStore { value, .. } => {
             instruction.kind
                 == (SelectedInstructionKind::Store {
@@ -115,65 +78,4 @@ pub(in crate::function_fragments) fn operation_retained(
         }
         _ => false,
     }
-}
-
-fn readable(
-    function: &AbstractFunction,
-    selected: &SelectedFunction,
-    place: PlaceId,
-    scalar: ScalarType,
-) -> bool {
-    if let Some((_, _, value)) = producer(function, place) {
-        return value.scalar_type == scalar && establishment(function, selected, place).is_some();
-    }
-    let Some(contract) = &selected.structural else {
-        return false;
-    };
-    // A `&`-typed block continuation parameter is declared on its block
-    // entry, not the function signature: the edge already binds its referent
-    // storage, so a whole-place read loads it exactly like a borrowed
-    // function parameter's referent.
-    if let Some(parameter) = function.block_structural_parameter(place) {
-        return matches!(
-            parameter.access,
-            terminal_psi::reading_borrow_pair_pattern!()
-        ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-            && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty()
-            && contract
-                .structural_types
-                .iter()
-                .filter(|declaration_type| {
-                    declaration_type.id == parameter.structural_type
-                        && declaration_type.shape == StructuralTypeShape::PrimitiveScalar(scalar)
-                })
-                .count()
-                == 1;
-    }
-    let mut parameters = contract
-        .parameters
-        .iter()
-        .filter(|parameter| parameter.semantic.place == place);
-    let Some(parameter) = parameters.next() else {
-        return false;
-    };
-    let declaration = &parameter.semantic;
-    parameters.next().is_none()
-        && contract.entry_claims.is_empty()
-        && matches!(
-            declaration.access,
-            terminal_psi::reading_borrow_pair_pattern!()
-        )
-        && declaration.multiplicity == StructuralMultiplicity::Unrestricted
-        && declaration.qualifications.is_empty()
-        && declaration.projected_qualifications.is_empty()
-        && contract
-            .structural_types
-            .iter()
-            .filter(|declaration_type| {
-                declaration_type.id == declaration.structural_type
-                    && declaration_type.shape == StructuralTypeShape::PrimitiveScalar(scalar)
-            })
-            .count()
-            == 1
 }
