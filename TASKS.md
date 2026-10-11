@@ -435,8 +435,8 @@ helper that passes does not close an item.
     Imported `Slice::range` needs returned-view boundary transport and its
     admitted executable realization. On macOS,
     `omega run --both tests/omega/pending/slices/runtime_imported_range_views_exit/main.omg`
-    reaches `call operation: result shape`: boundary result publication and
-    admission currently reject reference results. Preserve the selected
+    stops at `outer calls: ordered statement call`: boundary result publication
+    and admission currently reject reference results. Preserve the selected
     requirement, returned loan custody and bounds; do not substitute builtin
     slicing. `pass/modules/runtime_public_generic_dependency_exit` must keep
     executing the public template's selected range bodies; private templates

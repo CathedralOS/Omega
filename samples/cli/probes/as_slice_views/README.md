@@ -13,9 +13,10 @@ The canonical core range probe is:
 omega run --both tests/omega/pending/slices/runtime_imported_range_views_exit/main.omg
 ```
 
-It passes package visibility but stops at `call operation: result shape`:
-boundary calls still lack returned-view transport and admitted descriptor
-supply. A selected declaration must not be bypassed with builtin slicing.
+It passes package visibility but stops at `outer calls: ordered statement call`:
+the bodyless returned-view signature is not planned. Boundary calls still lack
+returned-view transport and admitted descriptor supply. A selected declaration
+must not be bypassed with builtin slicing.
 The owning frontier is `STATIC-MACHINE-MIGRATION` in `TASKS.md`.
 
 Compile-checked only: no standard-library dependency and no
