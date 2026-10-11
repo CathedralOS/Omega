@@ -5328,3 +5328,6 @@ fail/traits/conformance_unused_lifetime_header_undeclared rejected 50ms expected
 fail/traits/conformance_unused_lifetime_undeclared rejected 51ms expected @36591ba7905e+wt
 	conformance application `ReadingMap<'undeclared>` supplies undeclared lifetime argument `'undeclared'; declare it in the lexical owner's lifetime telescope
 pass/traits/conformance_unused_lifetime_scope_exit checked 2609ms check-target:macos_arm64 @36591ba7905e+wt
+fail/atomics/stored_reference_non_atomic_shared_store rejected 223ms expected @36591ba7905e+wt
+	machine `reject` state `entry` assignment cannot write `packet` because it is not mutable in this state (if `packet` is undeclared -- a typo -- no such field or local exists)
+pass/atomics/runtime_stored_reference_atomic_events_exit checked 2680ms check-target:macos_arm64 @36591ba7905e+wt

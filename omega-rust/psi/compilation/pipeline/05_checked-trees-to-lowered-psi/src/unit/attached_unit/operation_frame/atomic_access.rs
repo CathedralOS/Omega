@@ -1,7 +1,7 @@
 //! Emit one checked atomic event as one Terminal `AtomicAccess`.
 //!
-//! The event's place resolves exactly as a scalar field store's does — a
-//! structural parameter, its static carrier path, and the field — and its
+//! The event borrows its containing record through the ordinary structural
+//! source/path join, retaining the actual home and reference crossings. Its
 //! operands are the carrier's own `AtomicOperand` rows,
 //! evaluated in event order in the ordinary scalar evaluator. The operation
 //! then carries the whole event: the arithmetic model the source carrier
@@ -27,36 +27,47 @@ impl OperationFrame<'_, '_> {
         access: &CheckedAtomicAccessPlan,
     ) -> Result<(), LoweringError> {
         let scalar_type = terminal_scalar_type(access.primitive_type)?;
-        // Rejoin the plan to its authored carrier before emitting anything.
-        let parameter = self.parameters.get(access.parameter_index as usize).ok_or(
-            LoweringError::Unsupported("atomic event parameter is absent"),
-        )?;
-        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
-        let _ = self
-            .checked
-            .state_parameters(state)
-            .get(parameter.position as usize)
-            .map(|parameter| parameter.symbol)
-            .ok_or(LoweringError::Unsupported(
-                "atomic event parameter has no authored binding",
-            ))?;
-        // Atomic identity, rather than exclusive access to the containing
-        // record, grants mutation. Ordinary fields retain their own rules.
-        let authorized = matches!(
-            parameter.access,
-            terminal_psi::reading_borrow_pair_pattern!()
-        );
-        if !authorized || !parameter.qualifications.is_empty() {
-            return unsupported("atomic event parameter lost its access authority");
-        }
-        let place = parameter.place;
-        let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
+        // Borrow the current published home through the same join used by
+        // ordinary observations. A stored descriptor remains in the path;
+        // neither its initializer nor a same-typed parameter supplies it.
+        let (machine, state) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let bindings = self
+            .evaluation
+            .completed_bindings(self.operations, std::iter::empty())
+            .with_structural_observations(self.structural_types.declarations());
+        let receiver = bindings.shared_structural_argument(
             identities,
-            parameter.structural_type,
-            &access.carrier_path,
-            &access.field_identity,
-            self.structural_types.declarations(),
+            self.checked,
+            &access.receiver,
+            machine,
+            self.checked.state_parameters(state),
         )?;
+        let carrier =
+            bindings
+                .structural_argument_type(&receiver)
+                .ok_or(LoweringError::Unsupported(
+                    "atomic event lost its receiver type",
+                ))?;
+        if carrier != crate::unit::lookup_type_id(self.type_ids, &access.receiver.type_identity)? {
+            return unsupported("atomic event receiver changed its checked type");
+        }
+        let place = receiver.place;
+        let mut path = receiver.path;
+        let field_path = access
+            .field_case
+            .iter()
+            .cloned()
+            .map(checked_trees::CheckedUnitStructuralPathSegment::Case)
+            .collect::<Vec<_>>();
+        let (suffix, field) =
+            crate::emission::structural_scalar_store::lower_structural_field_path(
+                identities,
+                carrier,
+                &field_path,
+                &access.field_identity,
+                self.structural_types.declarations(),
+            )?;
+        path.extend(suffix);
         let field = field.id;
         let mut operands = Vec::new();
         for (ordinal, operand) in access.event.operands().into_iter().enumerate() {

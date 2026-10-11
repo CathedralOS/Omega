@@ -937,16 +937,54 @@ pub(super) fn apply_operation(
     match operation {
         O::AtomicEvent { event, .. } => {
             if let Some(location) = event.location() {
-                check_record_field_access(
-                    function,
-                    structural_types,
-                    block,
-                    node,
-                    live,
-                    location.root,
-                    &location.path,
-                    Some(location.field),
-                )?;
+                // Atomic identity grants shared access to the cell; every
+                // stored pointer still owes its current readable loan.
+                if location
+                    .path
+                    .contains(&terminal_psi::StructuralPathSegment::Referent)
+                {
+                    let path = match location.path.split_last() {
+                        Some((terminal_psi::StructuralPathSegment::Case(_), prefix)) => prefix,
+                        _ => &location.path,
+                    };
+                    access_reference_custody(
+                        function,
+                        structural_types,
+                        block,
+                        node,
+                        live,
+                        &StructuralArgument {
+                            place: location.root,
+                            path: path.to_vec(),
+                            access: StructuralAccess::SharedBorrow,
+                        },
+                    )?;
+                } else {
+                    let region = super::storage_regions::projected(
+                        function,
+                        structural_types,
+                        location.root,
+                        &location.path,
+                        Some(location.field),
+                    );
+                    check_observation_access(
+                        function,
+                        structural_types,
+                        block,
+                        node,
+                        live,
+                        location.root,
+                        region.direct_path(),
+                        |reference| {
+                            shared_source_compatible(
+                                function,
+                                structural_types,
+                                reference,
+                                StructuralAccess::SharedBorrow,
+                            )
+                        },
+                    )?;
+                }
             }
         }
         O::ReleaseReference { source, path, .. } => {

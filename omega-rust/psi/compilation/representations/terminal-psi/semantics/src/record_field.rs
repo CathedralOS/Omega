@@ -147,6 +147,42 @@ pub fn static_field_projection<'types>(
     matching.next().is_none().then_some((canonical, field))
 }
 
+/// Resolve the declared field of an explicit projection, including stored
+/// reference crossings. This supplies field identity and type only: unlike a
+/// canonical storage path, it proves neither backing identity nor authority.
+/// A final Case is the receiver's payload namespace, not a separate record.
+pub fn projected_field_declaration<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Option<&'types StructuralFieldDeclaration> {
+    let (prefix, selected_case) = match path.split_last() {
+        Some((StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
+        _ => (path, None),
+    };
+    let carrier = crate::runtime_structural_path_tip(types, root, prefix)?;
+    let fields = if let Some(case) = selected_case {
+        let mut matching = carrier
+            .shape
+            .sum_cases()?
+            .iter()
+            .filter(|candidate| candidate.id == case);
+        let selected = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        selected.fields.as_slice()
+    } else {
+        carrier.shape.direct_fields()?
+    };
+    let mut matching = fields
+        .iter()
+        .filter(|candidate| candidate.id == field && !candidate.relevance.is_erased());
+    let field = matching.next()?;
+    matching.next().is_none().then_some(field)
+}
+
 /// Preserve backing authority when observing a field through a canonical path.
 /// Owning an element-view descriptor, even inside an owned record, grants no
 /// exclusive access to the elements it references. A caller must separately

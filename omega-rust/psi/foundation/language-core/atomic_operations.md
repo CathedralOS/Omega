@@ -60,9 +60,10 @@ claiming which internal write supplied the resident or recovering an old value.
 Shared access does not prove an
 unchanged atomic resident. Source and Terminal proof composition independently
 expire observations that shared calls may mutate; copied SSA values survive.
-The event retains its block-local root: arrival declarations supply access and
-layout through target lowering and independent native selection. Projected or
-ambiguous edge bindings still refuse rather than guessing a storage identity.
+The event retains its block-local root and the ordinary shared receiver path,
+including stored-reference crossings. Arrival and local declarations supply
+access and layout through target lowering and independent native selection.
+Ambiguous edge bindings still refuse rather than guessing a storage identity.
 
 Instruction mappings and serial differential tests are not proofs of concurrent
 observations. Complete memory-model/fence axioms, target-refinement proofs,

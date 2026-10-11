@@ -104,7 +104,8 @@ pub use proof_bearing_scalar::{
 };
 pub use record_field::{
     CasePayloadCarrier, RecordFieldCarrier, case_payload_carrier, observed_field_backing_access,
-    observed_field_declaration, record_field_carrier, static_field_projection,
+    observed_field_declaration, projected_field_declaration, record_field_carrier,
+    static_field_projection,
 };
 pub use reference_views::{
     reference_source_compatible, reference_storage_byte_width, reference_storage_export_byte_width,

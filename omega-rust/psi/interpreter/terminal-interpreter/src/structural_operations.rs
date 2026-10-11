@@ -1662,6 +1662,19 @@ impl TerminalExecution<'_> {
         field: semantic_vocabulary::StructuralFieldId,
     ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
         let (structural_value, view) = self.observation_view_root(source)?;
+        self.observed_field_cell_in(&structural_value, view, path, field)
+    }
+
+    /// Select a field in already resolved backing. Reference traversal owns
+    /// the loan and pointer crossings; this join retains the live case and
+    /// declaration-local field identity used by ordinary scalar observations.
+    pub(crate) fn observed_field_cell_in(
+        &self,
+        structural_value: &crate::values::TerminalStructuralValue,
+        view: Option<crate::reference::AggregateViewTip>,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        field: semantic_vocabulary::StructuralFieldId,
+    ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
         // An observation through an aggregate re-view names the view's
         // fields; the backing fields at the same positions hold the cells.
         let translated;
@@ -1684,7 +1697,7 @@ impl TerminalExecution<'_> {
             }
             Some(_) => return Err(malformed()),
         };
-        let mut parent = StructuralRuntimePlace::from(&structural_value);
+        let mut parent = StructuralRuntimePlace::from(structural_value);
         if let Some(carrier) = terminal_semantics::case_payload_carrier(
             self.program.structural_types().values(),
             structural_value.structural_type,

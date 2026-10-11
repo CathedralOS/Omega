@@ -55,9 +55,14 @@ pub(super) fn lower(
     };
     let malformed = || LoweringError::VerifiedAtomicAccessMalformed(operation.id);
     let root = terminal_semantics::arrival_parameter(machine, *place)
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            machine
+                .producing_operation(*place)
+                .map(|(_, structural_type)| structural_type)
+        })
         .ok_or(LoweringError::UnsupportedAtomicAccess(operation.id))?;
-    let leaf =
-        field_type(structural_types, root.structural_type, path, *field).ok_or_else(malformed)?;
+    let leaf = field_type(structural_types, root, path, *field).ok_or_else(malformed)?;
     let location = AbstractAtomicLocation {
         root: *place,
         path: path.clone(),
@@ -165,8 +170,7 @@ fn field_type(
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<ScalarType> {
-    terminal_semantics::static_field_projection(structural_types.iter(), root, path, field)?
-        .1
+    terminal_semantics::projected_field_declaration(structural_types.iter(), root, path, field)?
         .field_type
         .atomic_scalar_type()
 }
@@ -282,8 +286,15 @@ fn latest_write(
     machine: &TerminalMachine,
 ) -> Option<Reaching> {
     let (root, path, field) = location;
-    let may_alias = |other| {
-        abstract_operations::atomic::atomic_roots_may_alias(
+    if operation
+        .result
+        .structural()
+        .is_some_and(|result| result.place == *root)
+    {
+        return Some(Reaching::Effect(operation.id));
+    }
+    let may_alias = |other, other_path: &[terminal_psi::StructuralPathSegment]| {
+        abstract_operations::atomic::atomic_projections_may_alias(
             &machine.structural_places,
             std::iter::once(machine.structural_parameters.as_slice()).chain(
                 machine
@@ -292,7 +303,9 @@ fn latest_write(
                     .map(|block| block.structural_parameters.as_slice()),
             ),
             *root,
+            path,
             other,
+            other_path,
         )
     };
     match &operation.kind {
@@ -309,7 +322,12 @@ fn latest_write(
             {
                 return Some(Reaching::Atomic(operation.id));
             }
-            if other_root != root && event.modifies_resident() && may_alias(*other_root) {
+            if event.modifies_resident()
+                && ((other_root != root && may_alias(*other_root, other_path))
+                    || other_root == root
+                        && (path.contains(&terminal_psi::StructuralPathSegment::Referent)
+                            || other_path.contains(&terminal_psi::StructuralPathSegment::Referent)))
+            {
                 return Some(Reaching::Effect(operation.id));
             }
         }
@@ -319,10 +337,12 @@ fn latest_write(
             field: other_field,
             ..
         } => {
-            if (destination != root && may_alias(*destination))
+            if (destination != root && may_alias(*destination, other_path))
                 || (destination == root
-                    && terminal_semantics::structural_paths_may_overlap(other_path, path)
-                    && other_field == field)
+                    && (path.contains(&terminal_psi::StructuralPathSegment::Referent)
+                        || other_path.contains(&terminal_psi::StructuralPathSegment::Referent)
+                        || terminal_semantics::structural_paths_may_overlap(other_path, path)
+                            && other_field == field))
             {
                 return Some(Reaching::Effect(operation.id));
             }
@@ -341,7 +361,9 @@ fn latest_write(
                 .kind
                 .structural_projections()
                 .iter()
-                .any(|projection| projection.root == *root || may_alias(projection.root));
+                .any(|projection| {
+                    projection.root == *root || may_alias(projection.root, projection.path)
+                });
             if lends_root {
                 return Some(Reaching::Effect(operation.id));
             }

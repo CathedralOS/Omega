@@ -196,13 +196,16 @@ fn fields_residuals(
     emit: bool,
 ) -> Option<usize> {
     // Keep the same field eligibility as the record complement. A virtual
-    // case namespace must not relax cleanup-free storage requirements.
+    // case namespace must not relax cleanup-free storage requirements. Atomic
+    // scalar residency has no disposal action; retiring its containing owned
+    // allocation neither observes the cell nor copies its value.
     if fields.iter().any(|field| {
         field.relevance.is_erased()
             || !matches!(
                 field.field_type,
                 StructuralFieldType::Structural(_)
                     | StructuralFieldType::Scalar(_)
+                    | StructuralFieldType::Atomic(_)
                     | StructuralFieldType::IeeeFloat(_)
                     | StructuralFieldType::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }

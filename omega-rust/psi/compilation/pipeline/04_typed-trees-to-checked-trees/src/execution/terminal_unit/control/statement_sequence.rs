@@ -398,7 +398,6 @@ pub(in crate::execution::terminal_unit) fn build(
                         facts,
                         machine,
                         state,
-                        structural_parameters,
                         statement_index,
                         assignment,
                         atomic_result.take(),

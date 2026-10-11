@@ -220,7 +220,7 @@ pub(super) fn footprint(
 /// Evaluate captured pointer slots in path order before observing the final
 /// region. Stores and reads use the same address operation; replay checks each
 /// load and footprint independently of construction.
-pub(super) fn cross_references(
+pub(in crate::selection) fn cross_references(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,

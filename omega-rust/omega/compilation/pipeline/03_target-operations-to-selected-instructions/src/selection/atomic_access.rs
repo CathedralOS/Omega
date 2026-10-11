@@ -12,7 +12,10 @@ use terminal_psi::{StructuralAccess, StructuralFieldType};
 pub(super) fn form(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
-) -> Option<AtomicForm> {
+) -> Option<(
+    AtomicForm,
+    crate::structural_inputs::structural_reference_input::PrimitiveAccessGeometry,
+)> {
     let LegalizedScalarInstructionKind::AtomicAccess {
         location,
         field,
@@ -25,11 +28,17 @@ pub(super) fn form(
     };
     let form = AtomicForm::from_access(*scalar_type, *event)?;
     let signature = source.structural.as_ref()?;
-    let parameter = crate::selection::arrival_parameter_input::parameter(source, location.place)?;
-    if parameter.access != location.access
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || event.observes_resident() && parameter.access == StructuralAccess::WriteOnlyBorrow
+    let root = super::reference_input::root_type(source, location.place)?;
+    let root_access = if let Some(parameter) =
+        super::arrival_parameter_input::parameter(source, location.place)
+    {
+        parameter.access
+    } else {
+        super::aggregate_result_input::home(source, location.place)?;
+        StructuralAccess::Owned
+    };
+    if root_access != location.access
+        || event.observes_resident() && root_access == StructuralAccess::WriteOnlyBorrow
         || row.result.is_some() != event.observes_resident()
         || row
             .result
@@ -37,25 +46,24 @@ pub(super) fn form(
     {
         return None;
     }
-    let (_, declaration) = terminal_semantics::static_field_projection(
+    let declaration = terminal_semantics::projected_field_declaration(
         signature.structural_types.iter(),
-        parameter.structural_type,
+        root,
         &location.path,
         *field,
     )?;
     if declaration.field_type != StructuralFieldType::Atomic(ScalarType::Integer(*scalar_type)) {
         return None;
     }
-    let (offset, size, indices) = crate::structural_inputs::structural_reference_input::store(
-        parameter.structural_type,
+    let geometry = crate::structural_inputs::structural_reference_input::atomic_field_geometry(
+        root,
         &location.path,
         *field,
         ScalarType::Integer(*scalar_type),
         &signature.structural_types,
     )?;
-    (indices.is_empty()
-        && offset == *field_byte_offset
-        && size == u32::from(form.width.bytes())
-        && offset % size == 0)
-        .then_some(form)
+    (geometry.byte_offset == *field_byte_offset
+        && geometry.byte_size == u32::from(form.width.bytes())
+        && geometry.byte_offset % geometry.byte_size == 0)
+        .then_some((form, geometry))
 }

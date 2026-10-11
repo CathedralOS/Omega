@@ -240,13 +240,16 @@ pub struct AbstractAtomicLocation {
 /// holds and reaches no atomic cell — lending them, as a console write of a
 /// string literal does, writes nothing. Shared roots, unknown roots, and roots
 /// from different arrival groups supply no such evidence; the latter can
-/// rename the same home. The producer that names each event's reaching write
-/// and every validator replaying that claim share this one judgment.
-pub fn atomic_roots_may_alias<'parameters>(
+/// rename the same home. A stored-reference crossing leaves its carrier storage,
+/// so exclusive carrier roots do not establish disjoint referents. The producer
+/// naming each event's reaching write and its independent replay share this judgment.
+pub fn atomic_projections_may_alias<'parameters>(
     places: &[terminal_psi::StructuralPlaceDeclaration],
     arrivals: impl Iterator<Item = &'parameters [terminal_psi::StructuralParameterDeclaration]>,
     left: PlaceId,
+    left_path: &[StructuralPathSegment],
     right: PlaceId,
+    right_path: &[StructuralPathSegment],
 ) -> bool {
     let immutable_image = |root| {
         places.iter().any(|place| {
@@ -260,19 +263,21 @@ pub fn atomic_roots_may_alias<'parameters>(
     left == right
         || (!immutable_image(left)
             && !immutable_image(right)
-            && !arrivals.into_iter().any(|parameters| {
-                let exclusive = |root| {
-                    parameters.iter().any(|parameter| {
-                        parameter.place == root
-                            && matches!(
-                                parameter.access,
-                                terminal_psi::StructuralAccess::Owned
-                                    | terminal_psi::StructuralAccess::MutableBorrow
-                            )
-                    })
-                };
-                exclusive(left) && exclusive(right)
-            }))
+            && (left_path.contains(&StructuralPathSegment::Referent)
+                || right_path.contains(&StructuralPathSegment::Referent)
+                || !arrivals.into_iter().any(|parameters| {
+                    let exclusive = |root| {
+                        parameters.iter().any(|parameter| {
+                            parameter.place == root
+                                && matches!(
+                                    parameter.access,
+                                    terminal_psi::StructuralAccess::Owned
+                                        | terminal_psi::StructuralAccess::MutableBorrow
+                                )
+                        })
+                    };
+                    exclusive(left) && exclusive(right)
+                })))
 }
 
 /// One normalized atomic memory event.
@@ -530,7 +535,7 @@ impl AbstractAtomicEvent {
 /// authorize a claim; revisiting a cycle supplies no initial-residency fact.
 /// `root_before_edge` receives predecessor, successor and successor-local root;
 /// `None` means the edge cannot preserve that whole-storage identity.
-/// `roots_may_alias` reconstructs current root authority independently: distinct
+/// `projections_may_alias` reconstructs current root authority independently: distinct
 /// local names alone do not establish disjoint storage.
 ///
 /// `global_sequential_order` and fence-pair synchronization likewise
@@ -552,7 +557,12 @@ pub fn happens_before_atomic_coherence_violation(
     dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     entry: BlockId,
     root_before_edge: impl Fn(BlockId, BlockId, PlaceId) -> Option<PlaceId>,
-    roots_may_alias: impl Fn(PlaceId, PlaceId) -> bool,
+    projections_may_alias: impl Fn(
+        PlaceId,
+        &[StructuralPathSegment],
+        PlaceId,
+        &[StructuralPathSegment],
+    ) -> bool,
 ) -> Option<(BlockId, usize, AtomicCoherenceViolation)> {
     // Atomic events claimable by a retained edge, keyed by the operation
     // identity they stand under across the whole activation. Duplicate
@@ -596,7 +606,7 @@ pub fn happens_before_atomic_coherence_violation(
                         index,
                         location,
                         &root_before_edge,
-                        &roots_may_alias,
+                        &projections_may_alias,
                     )
                 })
                 .unwrap_or_default();
@@ -653,7 +663,12 @@ fn reaching_writes(
     index: usize,
     location: &AbstractAtomicLocation,
     root_before_edge: &impl Fn(BlockId, BlockId, PlaceId) -> Option<PlaceId>,
-    roots_may_alias: &impl Fn(PlaceId, PlaceId) -> bool,
+    projections_may_alias: &impl Fn(
+        PlaceId,
+        &[StructuralPathSegment],
+        PlaceId,
+        &[StructuralPathSegment],
+    ) -> bool,
 ) -> BTreeSet<ReachingWrite> {
     let mut reached = BTreeSet::new();
     let mut visited = BTreeSet::new();
@@ -676,7 +691,7 @@ fn reaching_writes(
                 stopped = true;
                 break;
             }
-            if invalidates_location(operation, &location, roots_may_alias) {
+            if invalidates_location(operation, &location, projections_may_alias) {
                 reached.insert(
                     operation
                         .psi_operation()
@@ -726,8 +741,22 @@ fn reaching_writes(
 fn invalidates_location(
     operation: &AbstractOperation,
     location: &AbstractAtomicLocation,
-    roots_may_alias: &impl Fn(PlaceId, PlaceId) -> bool,
+    projections_may_alias: &impl Fn(
+        PlaceId,
+        &[StructuralPathSegment],
+        PlaceId,
+        &[StructuralPathSegment],
+    ) -> bool,
 ) -> bool {
+    // Establishing a local home begins its residency. A descriptor may capture
+    // existing backing, so retain the exact establishment without inventing an
+    // initial value or an internal atomic writer for the referenced storage.
+    if operation
+        .structural_result()
+        .is_some_and(|(_, result)| result.place == location.root)
+    {
+        return true;
+    }
     let called_arguments = match operation {
         crate::boundary_or_structural_call_pair_pattern!(structural_arguments, ..)
         | AbstractOperation::ExternalCompletion {
@@ -737,7 +766,13 @@ fn invalidates_location(
         _ => &[],
     };
     if called_arguments.iter().any(|argument| {
-        argument.place == location.root || roots_may_alias(argument.place, location.root)
+        argument.place == location.root
+            || projections_may_alias(
+                argument.place,
+                &argument.path,
+                location.root,
+                &location.path,
+            )
     }) {
         return true;
     }
@@ -745,15 +780,22 @@ fn invalidates_location(
         if mutation.place != location.root {
             // A different root can select this very cell through another loan.
             // Its path and field namespace cannot prove cross-root separation.
-            return roots_may_alias(mutation.place, location.root);
+            return projections_may_alias(
+                mutation.place,
+                mutation.path,
+                location.root,
+                &location.path,
+            );
         }
         // These writes select a scalar leaf exactly. Other mutation families
         // may carry aliases or replace a parent, so their root remains a fence.
         match operation {
             AbstractOperation::StructuralScalarFieldStore { .. }
             | AbstractOperation::AtomicEvent { .. } => {
-                mutation.field == Some(location.field)
-                    && carrier_paths_may_overlap(mutation.path, &location.path)
+                mutation.path.contains(&StructuralPathSegment::Referent)
+                    || location.path.contains(&StructuralPathSegment::Referent)
+                    || mutation.field == Some(location.field)
+                        && carrier_paths_may_overlap(mutation.path, &location.path)
             }
             _ => true,
         }

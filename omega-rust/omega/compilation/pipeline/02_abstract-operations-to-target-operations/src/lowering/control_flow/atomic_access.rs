@@ -19,6 +19,7 @@ pub(super) fn lower(
     event: &AbstractAtomicEvent,
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
@@ -90,17 +91,16 @@ pub(super) fn lower(
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     };
-    let parameter = function
-        .arrival_parameter(location.root)
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let (root, root_access) =
+        super::primitive_storage::field_root(function, types, prepared, live, location.root)?;
     if !access.ordering_is_legal()
-        || access.observes_resident() && parameter.access == StructuralAccess::WriteOnlyBorrow
+        || access.observes_resident() && root_access == StructuralAccess::WriteOnlyBorrow
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (_, field) = terminal_semantics::static_field_projection(
+    let field = terminal_semantics::projected_field_declaration(
         types.values().copied(),
-        parameter.structural_type,
+        root,
         &location.path,
         location.field,
     )
@@ -114,9 +114,23 @@ pub(super) fn lower(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let scalar_type = ScalarType::Integer(integer);
-    let (field_byte_offset, bytes) = crate::lowering::structural_layout::static_field_geometry(
-        parameter.structural_type,
+    let regions = crate::lowering::structural_layout::reference_projection_regions(
+        root,
         &location.path,
+        types,
+    )
+    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    if !regions.readable
+        || regions
+            .pointer_slots
+            .iter()
+            .any(|slot| !slot.indices.is_empty())
+    {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
+    let (field_byte_offset, bytes) = crate::lowering::structural_layout::static_field_geometry(
+        regions.root,
+        regions.path,
         location.field,
         scalar_type,
         types,
@@ -159,7 +173,7 @@ pub(super) fn lower(
         psi_operation: operation,
         location: terminal_psi::StructuralArgument {
             place: location.root,
-            access: parameter.access,
+            access: root_access,
             path: location.path.clone(),
         },
         field: location.field,

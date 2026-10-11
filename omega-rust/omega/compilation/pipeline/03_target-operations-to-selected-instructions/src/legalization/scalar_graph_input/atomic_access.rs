@@ -96,17 +96,24 @@ pub(in crate::legalization) fn access(
 ) -> Option<Access> {
     let location = source.location()?;
     let (event, result) = event(source)?;
-    let parameter = function.arrival_parameter(location.root)?;
+    let root = function
+        .arrival_parameter(location.root)
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            super::structural_case::source_result(function, location.root)
+                .ok()
+                .map(|(_, result)| result.structural_type)
+        })?;
+    let root_access =
+        optimization_unit_semantics::structural_place_access(function, location.root)?;
     if !event.ordering_is_legal()
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || event.observes_resident() && parameter.access == StructuralAccess::WriteOnlyBorrow
+        || event.observes_resident() && root_access == StructuralAccess::WriteOnlyBorrow
     {
         return None;
     }
-    let (_, field) = terminal_semantics::static_field_projection(
+    let field = terminal_semantics::projected_field_declaration(
         types.iter(),
-        parameter.structural_type,
+        root,
         &location.path,
         location.field,
     )?;
@@ -125,21 +132,22 @@ pub(in crate::legalization) fn access(
     {
         return None;
     }
-    let (offset, byte_size, indices) = crate::structural_inputs::structural_reference_input::store(
-        parameter.structural_type,
+    let geometry = crate::structural_inputs::structural_reference_input::atomic_field_geometry(
+        root,
         &location.path,
         location.field,
         scalar_type,
         types,
     )?;
-    if !indices.is_empty() || byte_size != u32::from(integer.bits() / 8) || offset % byte_size != 0
-    {
+    let offset = geometry.byte_offset;
+    let byte_size = geometry.byte_size;
+    if byte_size != u32::from(integer.bits() / 8) || offset % byte_size != 0 {
         return None;
     }
     Some(Access {
         location: StructuralArgument {
             place: location.root,
-            access: parameter.access,
+            access: root_access,
             path: location.path.clone(),
         },
         field: location.field,

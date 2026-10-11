@@ -17,7 +17,8 @@
 
 use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
-    CheckedCallScalarArgument, CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralPathSegment,
+    CheckedCallScalarArgument, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentPlan,
 };
 use language_core::atomic::MemoryOrdering;
 use typed_trees::types::PrimitiveType;
@@ -88,21 +89,18 @@ impl CheckedAtomicEvent {
 }
 
 /// One atomic event on the scalar field `field_identity` of the record
-/// `carrier_path` selects beneath a structural parameter. Atomic cells are
-/// record fields, so the location is the same (root, carrier path, field)
-/// triple a scalar field store names.
+/// selected by its ordinary shared structural receiver. The receiver retains
+/// the actual local or parameter home and every stored-reference crossing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedAtomicAccessPlan {
     /// The carrier statement: the assignment for a writing event, the local
     /// for a load. Operand rows are keyed here.
     pub statement_index: u32,
-    /// Dense index into the body's structural parameter plans. Planning
-    /// admits a modifying event only through exclusive authority; Terminal
-    /// verification rechecks it.
-    pub parameter_index: u32,
-    /// Static fields and at most one literal element from the root to the
-    /// record holding the atomic field.
-    pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+    /// Shared access to the record holding the atomic field. Atomic-cell
+    /// identity admits mutation; this grants no ordinary shared field store.
+    pub receiver: CheckedUnitStructuralArgumentPlan,
+    /// A selected payload namespace within the receiver, not a separate record.
+    pub field_case: Option<CheckedMemberIdentity>,
     /// The atomic field's Terminal identity within that record.
     pub field_identity: CheckedMemberIdentity,
     /// The field's carrier, which every operand and the result share.

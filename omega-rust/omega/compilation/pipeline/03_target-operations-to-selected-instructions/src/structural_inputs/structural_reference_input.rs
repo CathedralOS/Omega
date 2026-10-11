@@ -390,6 +390,44 @@ pub(crate) struct PrimitiveAccessGeometry {
     pub(crate) uses_borrowed_backing: bool,
 }
 
+/// Atomic fields retain their declared identity while their address crosses
+/// captured reference descriptors. This query reconstructs static geometry;
+/// access ordering and current custody remain the atomic consumers' checks.
+pub(crate) fn atomic_field_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<PrimitiveAccessGeometry> {
+    let regions = storage_projection_regions(
+        root,
+        path,
+        declarations,
+        StructuralFieldType::canonical_leaf_shape,
+    )?;
+    if !regions.readable || !regions.elements.is_empty() {
+        return None;
+    }
+    let (byte_offset, byte_size, elements) = store(
+        regions.root,
+        &path[regions.segment_start..],
+        field,
+        scalar,
+        declarations,
+    )?;
+    if !elements.is_empty() {
+        return None;
+    }
+    Some(PrimitiveAccessGeometry {
+        byte_offset,
+        byte_size,
+        elements,
+        pointer_slots: regions.pointer_slots,
+        uses_borrowed_backing: regions.uses_borrowed_backing,
+    })
+}
+
 /// Reconstruct a primitive write without inventing a carrier record or field.
 pub(crate) fn primitive_store(
     destination: &abstract_operations::StructuralScalarStoreDestination,

@@ -13,9 +13,9 @@
 //!   reserved ordinal to the instruction-observed prior;
 //! - a load local plans the event with its own binding ([`load_event`]).
 //!
-//! The place is an atomic field reached through static fields and at most one
-//! literal element of a structural parameter — the (root, carrier path,
-//! field) location a scalar field store names. Planning requires the field
+//! The place is an atomic field reached through an ordinary shared structural
+//! receiver, retaining its actual home and stored-reference crossings. Static
+//! coordinates select one exact cell. Planning requires the field
 //! to be declared atomic storage. Its retained field type supplies atomic-cell
 //! identity, so shared access authorizes the event without granting ordinary
 //! shared mutation. Independent Terminal verification checks that identity.
@@ -24,13 +24,13 @@
 
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, Multiplicity,
-    PrimitiveType, StatementNode,
+    CheckedUnitStructuralPathSegment, PrimitiveType, StatementNode,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use checked_trees::{
     CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite,
-    CheckedCallScalarArgument,
+    CheckedCallScalarArgument, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan,
 };
 use validation::AtomicAccessOperation;
 
@@ -85,7 +85,6 @@ pub(super) fn load_event(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
     binding_ordinal: u32,
@@ -101,7 +100,6 @@ pub(super) fn load_event(
         facts,
         machine,
         state,
-        structural_parameters,
         statement_index,
         carrier.place,
         trace,
@@ -114,8 +112,8 @@ pub(super) fn load_event(
     }
     Some(CheckedAtomicAccessPlan {
         statement_index,
-        parameter_index: place.parameter_index,
-        carrier_path: place.carrier_path,
+        receiver: place.receiver,
+        field_case: place.field_case,
         field_identity: place.field_identity,
         primitive_type: place.primitive_type,
         event: CheckedAtomicEvent::Load { ordering },
@@ -136,7 +134,6 @@ pub(super) fn writing_event(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
     reserved: Option<CheckedUnitScalarResultBindingPlan>,
@@ -149,7 +146,6 @@ pub(super) fn writing_event(
         facts,
         machine,
         state,
-        structural_parameters,
         statement_index,
         carrier.place,
         trace,
@@ -231,8 +227,8 @@ pub(super) fn writing_event(
     };
     Some(CheckedAtomicAccessPlan {
         statement_index,
-        parameter_index: place.parameter_index,
-        carrier_path: place.carrier_path,
+        receiver: place.receiver,
+        field_case: place.field_case,
         field_identity: place.field_identity,
         primitive_type,
         event,
@@ -271,22 +267,20 @@ fn operand_row(
 
 /// The atomic field `expression` names at `statement_index`.
 struct AtomicPlace {
-    parameter_index: u32,
-    carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+    receiver: CheckedUnitStructuralArgumentPlan,
+    field_case: Option<checked_trees::CheckedMemberIdentity>,
     field_identity: checked_trees::CheckedMemberIdentity,
     primitive_type: PrimitiveType,
 }
 
-/// The atomic field `expression` names at `statement_index`: a structural
-/// parameter root, the static carrier path to the record holding the field,
-/// the field, and its carrier.
+/// The atomic field `expression` names at `statement_index`: the shared
+/// receiver of its containing record, the field, and its scalar carrier.
 #[allow(clippy::too_many_arguments)]
 fn place(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
     expression: typed_trees::expression::ExpressionHandle,
     trace: &LocalConstructionTrace,
@@ -335,45 +329,72 @@ fn place(
     {
         return None;
     }
-    // Every literal element lies within its declared extent; a runtime
-    // selector has no retained coordinate here, so it refuses.
-    let selectors = super::structural_scalar_store::TargetSelectors::resolve(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        expression,
-    )?;
-    let mut carrier_path =
-        super::structural_scalar_store::checked_unit_path(program, &selectors, &segments)?;
-    let Some(CheckedUnitStructuralPathSegment::Field(field_identity)) = carrier_path.pop() else {
+    let mut carrier = validation::CanonicalPlace {
+        root: facts::PlaceRoot::Symbol(symbol),
+        segments,
+    };
+    let Some(facts::PlaceSegment::Field { symbol: field }) = carrier.segments.pop() else {
         return None;
     };
-    trace.phase("atomic access: place: parameter authority");
-    let (parameter_index, parameter) =
-        structural_parameters
+    let field_identity =
+        crate::execution::terminal_unit::types::terminal_field_identity(program, field)?;
+    // The final case selects the field namespace of the sum itself. It is
+    // not a structural child that can be passed as a standalone receiver.
+    let field_case = if let Some(facts::PlaceSegment::Case { variant }) = carrier.segments.last() {
+        let mut cases = program
+            .data_definitions()
             .iter()
-            .enumerate()
-            .find(|(_, parameter)| {
-                program
-                    .state_parameters(state)
-                    .get(parameter.position as usize)
-                    .is_some_and(|source| source.symbol == symbol)
-            })?;
-    let authorized = matches!(
-        parameter.access,
-        checked_trees::checked_borrowed_access_pair_pattern!()
-    );
-    if !authorized
-        || parameter.multiplicity == Multiplicity::Linear
-        || !parameter.qualifications.is_empty()
-    {
+            .flat_map(|owner| program.data_members(owner))
+            .filter_map(|member| match member {
+                typed_trees::data::DataMember::Variant(case) if case.symbol == *variant => {
+                    Some(case)
+                }
+                _ => None,
+            });
+        let case = cases.next()?;
+        if cases.next().is_some() {
+            return None;
+        }
+        let identity =
+            checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone());
+        carrier.segments.pop();
+        Some(identity)
+    } else {
+        None
+    };
+
+    trace.phase("atomic access: place: shared receiver");
+    // Atomic source admission already checks shared access to the dedicated
+    // cell. Reuse the ordinary observation path to retain its containing
+    // record, including stored descriptors, rather than substituting their
+    // initializer's backing or requiring a parameter-shaped spelling.
+    let (reference, path) = super::calls::projected_observed_path(
+        program,
+        machine.symbol,
+        state.symbol,
+        ordinal,
+        &carrier,
+        &|_| None,
+    )?;
+    if path.iter().any(|segment| {
+        matches!(
+            segment,
+            CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                | CheckedUnitStructuralPathSegment::ComputedIndex(_)
+                | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+        )
+    }) {
         return None;
     }
+    let receiver = CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+        path,
+        type_identity: program.normalized_type_identity(reference),
+        access: CheckedStructuralAccess::SharedBorrow,
+    };
     Some(AtomicPlace {
-        parameter_index: u32::try_from(parameter_index).ok()?,
-        carrier_path,
+        receiver,
+        field_case,
         field_identity,
         primitive_type,
     })

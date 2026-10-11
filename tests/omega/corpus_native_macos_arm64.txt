@@ -1787,3 +1787,4 @@ pass/calls/resultless_native_callback_compile built 3475ms @9ae10c8a9412+wt
 pass/providers/inherited_applied_binding_dispatch_exit built 2729ms exit:0 @344ec0329ba8+wt
 pass/providers/inherited_applied_binding_finite_family_exit built 2800ms exit:0 @344ec0329ba8+wt
 pass/providers/inherited_applied_binding_forwarded_value_exit built 2638ms exit:0 @344ec0329ba8+wt
+pass/atomics/runtime_stored_reference_atomic_events_exit built 2698ms exit:0 @36591ba7905e+wt

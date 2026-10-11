@@ -70,8 +70,8 @@ pub(crate) fn validate_function_atomic_coherence(
             }
             mapped
         },
-        |left, right| {
-            abstract_operations::atomic::atomic_roots_may_alias(
+        |left, left_path, right, right_path| {
+            abstract_operations::atomic::atomic_projections_may_alias(
                 &function.structural_places,
                 std::iter::once(function.structural_parameters.as_slice()).chain(
                     function
@@ -80,7 +80,9 @@ pub(crate) fn validate_function_atomic_coherence(
                         .map(|block| block.structural_parameters.as_slice()),
                 ),
                 left,
+                left_path,
                 right,
+                right_path,
             )
         },
     ) {

@@ -4,8 +4,8 @@
 //! uninterrupted observe-then-replace step on the same resolved scalar field:
 //! the observed prior is exactly the resident the replacement consumed, never
 //! a second read. The field resolves through the same structural-argument
-//! resolution a `StructuralScalarFieldStore` uses, under the root parameter's
-//! own access. Orderings constrain concurrent observation only; a serial run
+//! resolution other observations use, retaining the current local or arrival
+//! home and every readable stored-reference crossing. Orderings constrain concurrent observation only; a serial run
 //! has no second participant, so they select no different behavior here.
 //! Direct members include a mixed case's common fields: their cells live in
 //! the member namespace regardless of the active payload or physical tag size.
@@ -31,35 +31,49 @@ impl TerminalExecution<'_> {
         event: AtomicAccessEvent,
     ) -> Result<(), TerminalInterpretError> {
         let machine = self.program.verified_machine(self.current_machine)?;
-        machine
-            .structural_parameter(place)
-            .filter(|parameter| {
-                let readable = matches!(
-                    parameter.access,
-                    StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
-                );
-                let writable = matches!(
-                    parameter.access,
-                    StructuralAccess::Owned
-                        | StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
-                        | StructuralAccess::WriteOnlyBorrow
-                );
-                (!event.observes_resident() || readable)
-                    && (!event.modifies_resident() || writable)
-                    && matches!(
-                        parameter.multiplicity,
-                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                    )
-                    && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
+        let root = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let access = terminal_semantics::arrival_parameter(machine, place)
+            .filter(|parameter| parameter.structural_type == root.structural_type)
+            .map(|parameter| parameter.access)
+            .or_else(|| {
+                let (producer, structural_type) = machine.producing_operation(place)?;
+                let result = producer.result.structural()?;
+                (result.place == place
+                    && result.structural_type == structural_type
+                    && structural_type == root.structural_type)
+                    .then_some(StructuralAccess::Owned)
             })
             .ok_or_else(malformed)?;
-        let root = self.structural_values.get(&place).ok_or_else(malformed)?;
+        if access == StructuralAccess::WriteOnlyBorrow || !event.ordering_is_legal() {
+            return Err(malformed());
+        }
+        // A final Case qualifies a payload field of the sum; it does not
+        // designate another structural value. Resolve the actual record/sum
+        // through each current descriptor before selecting that namespace.
+        let (prefix, selected_case) = match path.split_last() {
+            Some((StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
+            _ => (path, None),
+        };
+        let (parent, view) =
+            self.resolve_live_view_projection(place, prefix, StructuralAccess::SharedBorrow)?;
+        let declared_parent = match view {
+            None => parent.structural_type,
+            Some(crate::reference::AggregateViewTip::Aggregate { view, backing })
+                if backing == parent.structural_type =>
+            {
+                view
+            }
+            Some(_) => return Err(malformed()),
+        };
+        let namespace = selected_case
+            .into_iter()
+            .map(StructuralPathSegment::Case)
+            .collect::<Vec<_>>();
+        let types = self.program.structural_types();
         let (canonical, declaration) = terminal_semantics::static_field_projection(
-            self.program.structural_types().values(),
-            root.structural_type,
-            path,
+            types.values(),
+            declared_parent,
+            &namespace,
             field,
         )
         .ok_or_else(malformed)?;
@@ -67,16 +81,7 @@ impl TerminalExecution<'_> {
             .field_type
             .atomic_scalar_type()
             .ok_or_else(malformed)?;
-        // Preserve the original overlay cell, checking each live discriminator
-        // before erasing Case from runtime storage geometry.
-        super::structural_inputs::case_membership::validate_case_projection(
-            &self.program.structural_types(),
-            &self.structural_values,
-            &self.structural_cases,
-            place,
-            path,
-        )?;
-        let cell = self.observed_field_cell(place, &canonical, field)?;
+        let cell = self.observed_field_cell_in(&parent, view, &canonical, field)?;
         let operand = |value| {
             self.values
                 .get(&value)

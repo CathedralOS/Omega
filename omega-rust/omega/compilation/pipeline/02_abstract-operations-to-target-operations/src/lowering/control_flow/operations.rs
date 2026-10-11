@@ -75,6 +75,7 @@ pub(super) fn lower_operation(
             event,
             function,
             structural_types,
+            prepared,
             live,
             operations,
             provenance,

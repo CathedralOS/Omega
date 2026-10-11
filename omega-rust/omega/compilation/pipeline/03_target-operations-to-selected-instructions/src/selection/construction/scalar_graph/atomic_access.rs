@@ -29,7 +29,7 @@ pub(super) fn emit(
     else {
         return Ok(false);
     };
-    let form = crate::selection::atomic_access::form(source, row)
+    let (form, geometry) = crate::selection::atomic_access::form(source, row)
         .ok_or(SelectedInstructionError::custody())?;
     // The catalog admitting no constraint for an atomic form names the
     // target's implementation limit, not a producer or consumer defect.
@@ -39,8 +39,27 @@ pub(super) fn emit(
         .for_semantic(MachineSemanticKind::AtomicAccess(form))
         .ok_or_else(|| SelectedInstructionError::unsupported_shape(function))?;
     let scalar_type = ScalarType::Integer(*scalar_type);
+    let base = super::structural::place_pointer(builder, row, location.place, 0)?;
+    let (referent, _) = super::structural::runtime_address::cross_references(
+        builder,
+        row,
+        location.place,
+        base,
+        &[],
+        &geometry.pointer_slots,
+    )?;
     let address =
-        super::structural::place_pointer(builder, row, location.place, *field_byte_offset)?;
+        super::structural::transport_register(builder, location.place, geometry.byte_offset)?;
+    let address = super::structural::transport_at_byte_offset(
+        builder,
+        referent,
+        address,
+        geometry.byte_offset,
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            ..Default::default()
+        },
+    )?;
     let mut registers = vec![address];
     let values = event.operands();
     for value in &values {

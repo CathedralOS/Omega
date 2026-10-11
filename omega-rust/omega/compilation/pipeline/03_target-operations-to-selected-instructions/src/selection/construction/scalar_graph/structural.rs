@@ -613,7 +613,7 @@ fn memory(
 
 /// Copy `input` into `output` verbatim at offset zero, otherwise emit the
 /// address-offset step that shifts it by `byte_offset`.
-fn transport_at_byte_offset(
+pub(super) fn transport_at_byte_offset(
     builder: &mut Builder<'_>,
     input: VirtualRegisterId,
     output: VirtualRegisterId,

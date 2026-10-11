@@ -388,7 +388,6 @@ pub(super) fn plan(
                 facts,
                 machine,
                 state,
-                structural_parameters,
                 statement_index,
                 local,
                 binding_ordinal,
