@@ -377,7 +377,16 @@ fn recognize_structural_state_leaves_from(
     if start_index == 0 {
         path.push(state.symbol);
     }
-    let mut path_judge = structural_arm_judge(program, judge, &case_hypotheses, &case_equations);
+    // Resuming after a completed statement retains the same branch facts.
+    // The outcome judge already owns them and its newly captured guarantees;
+    // re-intaking the entire branch here duplicates rewrites once per local.
+    // A state arrival still establishes its incoming refinements, and the
+    // requested premise visitor checks contradiction in its final context.
+    let mut path_judge = if start_index == 0 {
+        structural_arm_judge(program, judge, &case_hypotheses, &case_equations)
+    } else {
+        judge.clone()
+    };
     let judge = &mut path_judge;
 
     let result = (|| {

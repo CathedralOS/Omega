@@ -217,7 +217,10 @@ impl TypedTrees {
 
     /// The machine `symbol` declares, if any.
     pub fn machine(&self, symbol: symbols::SymbolHandle) -> Option<&machine::Machine> {
-        machine::machine_by_symbol(self.machines(), symbol)
+        // Both lookup spellings share the owner-revision index. A roster
+        // scan here made structural proof normalization repeat whole-program
+        // searches despite the declaration owner already retaining this join.
+        self.machine_by_symbol(symbol)
     }
 
     /// The machine spelled `name`, if any.
@@ -939,5 +942,57 @@ impl TypedTrees {
         signature: &signature::StateSignature,
     ) -> &[signature::SignatureContract] {
         self.signature_contracts.span_or_empty(signature.contracts)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::TypedTrees;
+    use crate::machine::Machine;
+    use symbols::SymbolHandle;
+
+    #[test]
+    fn machine_lookup_retains_first_match_and_refreshes_after_mutation() {
+        let original = SymbolHandle::from_parts(1, 1);
+        let replacement = SymbolHandle::from_parts(1, 2);
+        let mut program = TypedTrees::default();
+        program.push_machine(Machine {
+            symbol: original,
+            ..Machine::default()
+        });
+        assert_eq!(
+            program.machine(original).map(|machine| machine.is_public),
+            Some(false)
+        );
+        assert!(program.machine(replacement).is_none());
+        assert!(program.machine(SymbolHandle::invalid()).is_none());
+
+        program.push_machine(Machine {
+            symbol: original,
+            is_public: true,
+            ..Machine::default()
+        });
+        assert_eq!(
+            program.machine(original).map(|machine| machine.is_public),
+            Some(false)
+        );
+
+        let snapshot = program.clone();
+        program.machines_mut()[0].symbol = replacement;
+        assert_eq!(
+            program.machine(original).map(|machine| machine.is_public),
+            Some(true)
+        );
+        assert_eq!(
+            program
+                .machine(replacement)
+                .map(|machine| machine.is_public),
+            Some(false)
+        );
+        assert_eq!(
+            snapshot.machine(original).map(|machine| machine.is_public),
+            Some(false)
+        );
+        assert!(snapshot.machine(replacement).is_none());
     }
 }
