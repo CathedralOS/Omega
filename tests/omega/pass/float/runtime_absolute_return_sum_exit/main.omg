@@ -1,0 +1,26 @@
+use omega::language::core::float_operations;
+use omega::language::core::binding;
+use omega_language_std::console;
+data Storage { weights: [f64; 4]; }
+data Main { console: Binding<Console>; storage: Storage; }
+machine amplitude(storage: &Storage) -> f64 {
+    abs(storage.weights[0]) + abs(storage.weights[1]) + abs(storage.weights[2]) + abs(storage.weights[3])
+}
+machine Main::main(main: &mut Main) reaches Console {
+    main.storage.weights[0] = -1.0;
+    main.storage.weights[1] = 2.0;
+    main.storage.weights[2] = -2.0;
+    main.storage.weights[3] = 1.0;
+    let observed: f64 = amplitude(&main.storage);
+    transition observed == 6.0 { true -> zero(main) false -> fail(main) }
+    state zero(main: &mut Main) {
+        main.storage.weights[0] = 0.0;
+        main.storage.weights[1] = 0.0;
+        main.storage.weights[2] = 0.0;
+        main.storage.weights[3] = 0.0;
+        let observed: f64 = amplitude(&main.storage);
+        transition observed == 0.0 { true -> pass(main) false -> fail(main) }
+    }
+    state pass(main: &mut Main) { main.console.exit_process(70); }
+    state fail(main: &mut Main) { main.console.exit_process(71); }
+}

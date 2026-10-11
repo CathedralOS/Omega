@@ -49,19 +49,38 @@ pub(super) fn bind(
                     .map(|entry| entry.symbol)
             })
             .unwrap_or(selected);
+        let name = program
+            .state_by_symbol(target)
+            .map(|state| state.name.clone())
+            .or_else(|| {
+                program
+                    .operator_definition_by_symbol(target)
+                    .and_then(|operator| {
+                        program.operator_path_members(operator.name).last().cloned()
+                    })
+            })
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "a selected float shorthand has no callable declaration name",
+                )]
+            })?;
         if let Some((_, previous)) = bindings.iter().find(|(bound, _)| *bound == expression) {
-            if *previous != target {
+            if *previous != (target, name) {
                 return Err(vec![Diagnostic::error(
                     "a float shorthand occurrence selects conflicting requirement identities",
                 )]);
             }
         } else {
-            bindings.push((expression, target));
+            bindings.push((expression, (target, name)));
         }
     }
-    for &(expression, target) in &bindings {
-        if let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) {
-            call.target_symbol = target;
+    for (expression, (target, name)) in &bindings {
+        if let ExpressionNode::Call(call) = program.expression_table.expression_mut(*expression) {
+            // Ordinary receiver/source replay rejoins both the exact declaration
+            // and its leaf name. Retaining `max` beside F64::maximum invents a
+            // runtime receiver during nested argument lowering.
+            call.target_symbol = *target;
+            call.target = name.clone();
         }
     }
     Ok(bindings.len())
