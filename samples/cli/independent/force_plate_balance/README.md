@@ -33,6 +33,8 @@ that all frames were valid. Host I/O failure follows Console's Trap contract.
 names: standard torque components are `Mx=Qy`, `My=-Qx`. Output positions are
 unreduced exact ratios `Qx/F,Qy/F`, so no rounding or floating tolerance is
 needed. Residuals are computed force/moments minus supplied applied values.
+The private decimal emitter collects up to ten base-10 digits using a constant
+divisor, then writes them in reverse order through Console.
 Negative loads, saturation, zero resultant and nonzero equilibrium residuals
 invalidate a frame. An outside-support result remains a valid reconstruction
 with an unsafe support decision. Diagnostic priority is documented in

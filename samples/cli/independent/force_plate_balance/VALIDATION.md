@@ -33,6 +33,13 @@ first on current main at `main::next`, then at the final parser array store.
 Diagnostic-only tracing is removed from the candidate. These are general storage
 and control joins; no application name, size or fixture constant selects them.
 
+The first decimal emitter interleaved dynamic-divisor descent and Console calls.
+Complete retained reproductions expose the allocator's unresolved fixed-view
+transitions and unsupported cross-block split topology. A bounded spill-preflight
+trial did not resolve the application and was removed. The final private emitter
+collects base-10 digits before I/O; its accepted numerical domain, exact output
+and frozen rational oracles are unchanged. No allocation guard was modified.
+
 The ordinary sandbox reports root ownership 65534 and rejects source resolver
 cache custody. The approved per-command supported context retains UID/GID 1000
 and reports actual `/` ownership 0:0. No ownership or custody guard was changed.
@@ -75,6 +82,12 @@ termination status only; its output is not independently exposed or compared by
 this harness. Do not describe status agreement as full trace or stdout agreement.
 Generated retained native/Terminal artifacts and their hashes are inventoried in
 the review bundle. Other hosts are not claimed as executed on this Linux executor.
+
+The ordinary corpus harness additionally executes complete copies of this exact
+entrypoint and its three modules with each frozen stream and stdout oracle. Its
+`--both` observations check native and Terminal stdout independently, not only
+status. Those source copies, build metadata, inputs and observed records are
+retained in the review bundle; they supplement the public CLI acceptance above.
 
 `python3 data/reference.py` verifies the frozen primary oracle. SHA-256 checks
 verify both frozen streams before and after validation. README documents model
