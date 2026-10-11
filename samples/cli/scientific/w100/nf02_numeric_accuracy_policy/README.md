@@ -1,6 +1,6 @@
 # NF02 numeric accuracy policy
 
-The two complete consumer projects import the shared `numerics` package directly.
+The two complete consumer projects import the shared `numerics` package directly through exact declaration imports.
 `classification` covers finite/nonfinite classification, conversion, signed zero, and
 invalid tolerance precedence. `error_budget` covers symmetric-any and reference-additive
 comparisons, overflow, subnormal rounding, and asymmetric reference scaling.

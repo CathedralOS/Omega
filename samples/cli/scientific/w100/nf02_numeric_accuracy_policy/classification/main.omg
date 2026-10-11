@@ -1,4 +1,15 @@
-use numerics::numeric::numeric_accuracy_policy;
+use numerics::numeric::numeric_accuracy_policy::NumericClass;
+use numerics::numeric::numeric_accuracy_policy::AccuracyComparison;
+use numerics::numeric::numeric_accuracy_policy::ReferenceAdditiveTolerance32;
+use numerics::numeric::numeric_accuracy_policy::ReferenceAdditiveTolerance64;
+use numerics::numeric::numeric_accuracy_policy::widen_f32_to_f64;
+use numerics::numeric::numeric_accuracy_policy::round_f64_to_f32;
+use numerics::numeric::numeric_accuracy_policy::round_i32_to_f32;
+use numerics::numeric::numeric_accuracy_policy::round_i32_to_f64;
+use numerics::numeric::numeric_accuracy_policy::classify_f32;
+use numerics::numeric::numeric_accuracy_policy::classify_f64;
+use numerics::numeric::numeric_accuracy_policy::compare_reference_additive_f32;
+use numerics::numeric::numeric_accuracy_policy::compare_reference_additive_f64;
 use omega::language::core::float_operations;
 machine from_bits32(bits: u32) -> f32 {
     let value: &f32 = &bits as &f32;
