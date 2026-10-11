@@ -2585,10 +2585,16 @@ crash and native exit behavior.
     (`omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/boundary_application_settlement.rs`,
     `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`).
     `ClosedReachApplication`, a template alias or equal runtime signatures
-    cannot identify the specialization.
-    `pass/providers/specialized_structural_fixed_operator_terminal_custody`
-    has an unused `exercise` beside an empty entry, so its build proves
-    nothing: give it an entry that executes the operator.
+    cannot identify the specialization. The four pruned specialized
+    fixtures are recovered on current syntax, and
+    `specialized_structural_fixed_operator_terminal_custody` now executes
+    its operator through native realization: an owned structural parameter
+    whose target shape has zero bytes no longer claims an activation-local
+    frame home (stage 03 `retain_owned_home` matches the block-parameter
+    and edge-transport treatment), which had failed physical staging as
+    `FrameLayout(NonCanonicalLayout)`. Specialization retention through
+    settlement is pinned by the six checked outcomes; matching-host
+    execution remains the native-leg customer.
   - **Directed float arithmetic.** Install the remaining named directed
     arithmetic as Omega builtins through stage 00
     `provider_admission/compiler_builtins.rs` (one
