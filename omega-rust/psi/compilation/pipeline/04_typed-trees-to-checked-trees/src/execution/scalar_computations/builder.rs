@@ -338,17 +338,38 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
-        if let Some((_, _, computation)) = self
+        if let Some((_, _, value)) = self
             .scalar_occurrences
             .iter()
             .find(|(source, carrier, _)| *source == expression && *carrier == expected_type)
         {
-            return Some(*computation);
+            return Some(*value);
         }
-        let computation = self.build_expression(expression, expected_type)?;
+        let value = self.build_expression(expression, expected_type)?;
+        // Representation-identical casts may forward an existing payload. Its
+        // producer identity must remain unchanged: retain the new authored root
+        // as an identity application rather than relabelling a shared producer.
+        let prior_source = self.plans.nodes.get(value).authored_root;
+        let value = if prior_source.is_valid() && prior_source != expression {
+            let operands = self.plans.operands.insert_many([value]);
+            self.insert(
+                expected_type,
+                CheckedScalarComputationKind::Apply {
+                    source_expression: expression,
+                    expression: CheckedScalarExpression::Parameter {
+                        position: 0,
+                        primitive_type: expected_type,
+                    },
+                    operands,
+                },
+            )
+        } else {
+            value
+        };
+        self.plans.nodes.get_mut(value).authored_root = expression;
         self.scalar_occurrences
-            .push((expression, expected_type, computation));
-        Some(computation)
+            .push((expression, expected_type, value));
+        Some(value)
     }
 
     fn build_expression(
