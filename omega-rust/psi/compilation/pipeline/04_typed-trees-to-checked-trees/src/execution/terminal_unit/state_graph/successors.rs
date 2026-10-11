@@ -1214,7 +1214,25 @@ fn projected_loan_transfer(
     if identity.is_some_and(|identity| declared_contains_reference(shapes, identity)) {
         return None;
     }
-    let carrier_type_identity = shapes.add_reference_type(target_type_reference, &[])?;
+    // Static geometry uses the existing rooted storage route; it does not
+    // need an address snapshot. An admitted borrowed carrier need not
+    // also belong to the separately registered reference-carrier family.
+    // Dynamic selectors still require a
+    // retained descriptor, and refuse if its exact carrier is unavailable.
+    let carrier_type_identity = match shapes.add_reference_type(target_type_reference, &[]) {
+        Some(identity) => identity,
+        None if !path.iter().any(|segment| {
+            matches!(
+                segment,
+                CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                    | CheckedUnitStructuralPathSegment::ComputedIndex(_)
+            )
+        }) =>
+        {
+            Default::default()
+        }
+        None => return None,
+    };
     Some(CheckedStructuralControlTransferPlan {
         source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
             formation_expression,

@@ -182,6 +182,9 @@ impl CapturedLoans {
         // Reborrowing creates a new descriptor, not another name for its
         // parent. Preserve every directed projection, including static children
         // without their own descriptor: grandchildren still need that lineage.
+        // Descriptor eligibility cannot gate ancestry: a static borrowed child
+        // retains its dynamically captured parent even without forming another
+        // descriptor of its own.
         let mut parents = Vec::new();
         for (position, state) in plan
             .states
@@ -196,12 +199,7 @@ impl CapturedLoans {
                             "captured loan target disappeared",
                         ))?;
                 for transfer in &edge.transfers {
-                    if let Source::ProjectedLoan {
-                        subject,
-                        carrier_type_identity,
-                        ..
-                    } = &transfer.source
-                        && carrier_type_identity.is_valid()
+                    if let Source::ProjectedLoan { subject, .. } = &transfer.source
                         && let Root::Parameter { parameter_index } = subject.source
                     {
                         let parent = nodes[position][parameter_index as usize];

@@ -1,0 +1,46 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+// main returns 42. A runtime record loan owns a descriptor; its static byte
+// child forms none. A runtime scalar grandchild must retain both backing and
+// ancestor descriptor, including the alternative fixed-index predecessor.
+data Cell { bytes: [u8; 4]; }
+machine select(rows: &[Cell; 2], index: u64, dynamic: bool) -> u64 in Wrapping {
+    transition index < 2 {
+        true -> choose(rows, index, dynamic)
+        _ -> (0)
+    }
+    state choose(rows: &[Cell; 2], index: u64, dynamic: bool) -> u64 in Wrapping {
+        transition dynamic {
+            true -> cell(&rows[index])
+            _ -> cell(&rows[1])
+        }
+    }
+    state cell(value: &Cell) -> u64 in Wrapping {
+        transition { _ -> bytes(&value.bytes, 1) }
+    }
+    state bytes(value: &[u8; 4], index: u64) -> u64 in Wrapping {
+        transition index < 4 {
+            true -> scalar(&value[index])
+            _ -> (0)
+        }
+    }
+    state scalar(value: &u8) -> u64 in Wrapping { value as u64 in Wrapping }
+}
+machine calculate() -> u64 in Wrapping {
+    let mut rows: [Cell; 2];
+    rows[0].bytes[1] = 20;
+    rows[1].bytes[1] = 22;
+    let first: u64 in Wrapping = select(&rows, 0, true);
+    let second: u64 in Wrapping = select(&rows, 0, false);
+    (first + second)
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let result: u64 in Wrapping = calculate();
+    transition result == 42 {
+        true -> exit(main, 42)
+        _ -> exit(main, 43)
+    }
+    state exit(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

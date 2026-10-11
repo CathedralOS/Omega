@@ -1,19 +1,21 @@
 {
-  "base": "7192503a18f205b359c279dd79575835c2b3a7bb",
+  "base": "1f467fff02801f86dd45b3cace62c010f58376ef",
   "branch": "new061",
   "worktree": "/workspace/Omega/.codex/worktrees/new061",
   "compiler": "/workspace/cloud-setup/cache/mbx/targets/v1/2f988c84ddfb3f56428d7bb5ac5c281a097320e8e87200795d60a7b7bd41b530/debug/omega",
-  "compiler_sha256": "477c31c676142a656cd02390bbdae21d1201d87464741834e20a9b3cb5ccf1f4",
+  "compiler_sha256": "d5a9bee142eb8b21bd1ce4dce25fd362157a1e37c53d91c345ed2c307f083739",
   "rust_build": [
     "mbx",
     "build",
     "-p",
-    "omega"
+    "omega",
+    "--profile",
+    "test"
   ],
   "rust_build_exit": 0,
-  "rust_build_duration": "7m11s",
+  "rust_build_duration": "3m42s",
   "cargo_build_jobs": 4,
-  "rust_profile": "dev unoptimized",
+  "rust_profile": "test optimized opt-level=1",
   "mbx_target_identity": "2f988c84ddfb3f56428d7bb5ac5c281a097320e8e87200795d60a7b7bd41b530",
   "target": "linux_x86_64",
   "host": "Linux-6.18.44-x86_64-with-glibc2.41",
