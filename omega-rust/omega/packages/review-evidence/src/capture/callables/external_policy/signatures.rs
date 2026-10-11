@@ -1,3 +1,8 @@
+//! Exact external signatures borrow checked source unless their static
+//! telescope needs private instantiation. Requesting mutable projection storage
+//! clones the whole program, so an empty telescope must remain a read-only
+//! projection, just as it does for ordinary callable policy.
+
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
@@ -32,15 +37,17 @@ pub(super) fn project(
         .map(|name| (name.clone(), name))
         .collect::<Vec<_>>();
     let mut scopes = Vec::new();
-    instantiate_static_parameters(
-        prepared.program_mut(),
-        &mut parameters,
-        &[],
-        &lifetimes,
-        &machine.lifetime_parameters,
-        &mut scopes,
-        0,
-    )?;
+    if !parameters.is_empty() {
+        instantiate_static_parameters(
+            prepared.program_mut(),
+            &mut parameters,
+            &[],
+            &lifetimes,
+            &machine.lifetime_parameters,
+            &mut scopes,
+            0,
+        )?;
+    }
     let exposure = crate::capture::contracts::facts::callable_contract_exposure(machine);
     let (binders, static_parameters) = project_type_parameters(
         &prepared,
