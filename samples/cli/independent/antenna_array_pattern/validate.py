@@ -44,11 +44,12 @@ else:
     assert 'interp exit: 0' in stderr and 'DECLINED' not in stderr, stderr
     check(output/'both_suite.stdout', None)
 
-for name,selection in [('suite',None),('suite_selector',None),('broadside',0),('steering',1),('zero',2),('duplicate',3),('taper',4)]:
+for name,selection in [('suite',None),('suite_selector',None),('suite_newline',None),('broadside',0),('steering',1),('zero',2),('duplicate',3),('taper',4)]:
     run(name,[str(native)],ROOT/f'data/{name}.stdin')
     check(output/f'{name}.stdout',selection)
 for name,status,diagnostic in [('bad_position',65,'ERROR geometry:'),('bad_weight',65,'ERROR geometry:'),
-                               ('bad_selector',64,'ERROR input:'),('trailing_junk',64,'ERROR input:'),('suite_junk',64,'ERROR input:')]:
+                               ('bad_selector',64,'ERROR input:'),('trailing_junk',64,'ERROR input:'),('suite_junk',64,'ERROR input:'),
+                               ('trailing_line_junk',64,'ERROR input:'),('newline_junk',64,'ERROR input:')]:
     completed=run(name,[str(native)],ROOT/f'data/{name}.stdin',status)
     assert diagnostic in completed.stdout.decode() and ' complete' not in completed.stdout.decode()
 print('PASS native fixtures, stdout oracles and rejected runtime inputs', flush=True)

@@ -38,7 +38,7 @@ machine Main::main(main: &mut Main) reaches Console {
         ByteRead::Byte { value } -> select(main, value)
     }
     state select(main: &mut Main, value: i32) {
-        transition value == 10 { true -> suite(main) }
+        transition value == 10 { true -> blank_suite(main) }
         transition value == 97 { true -> selected_suite(main) }
         transition value >= 48 && value <= 54 { true -> selected(main, value - 48) false -> invalid_input(main) }
     }
@@ -59,7 +59,18 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state tail_check(main: &mut Main, value: i32) {
-        transition value == 10 { true -> load(main) false -> invalid_input(main) }
+        transition value == 10 { true -> after_line(main) false -> invalid_input(main) }
+    }
+    state blank_suite(main: &mut Main) {
+        main.selection = 0; main.all = true;
+        transition { _ -> after_line(main) }
+    }
+    state after_line(main: &mut Main) {
+        let remaining: ByteRead = block main.console.read_byte();
+        transition remaining {
+            ByteRead::Eof -> load(main)
+            ByteRead::Byte { value } -> invalid_input(main)
+        }
     }
     state suite(main: &mut Main) {
         main.selection = 0; main.all = true;

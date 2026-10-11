@@ -17,7 +17,8 @@ The entrypoint reads a selector from stdin: `0` broadside, `1` steering to
 EOF, newline or `a` runs all five. Selectors `5` and `6` deliberately supply
 out-of-range position and weight fixtures and must exit 65. Unknown selectors
 or trailing bytes after a selector must exit 64. Selectors accept a
-single optional LF. Hosted reads can block; fixtures close stdin. Positions and
+single optional LF, followed by EOF. Close stdin after the request, including
+after LF; hosted reads can block. Fixtures close stdin. Positions and
 weights must lie in `[-2,2]`, steering in `[-1,1]`; ordered comparisons reject
 nonfinite values. The UI exposes a bounded fixture catalog rather than claiming
 a general floating-point text parser.
