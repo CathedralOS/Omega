@@ -1,24 +1,11 @@
-// Axiom citation: a `boundary machine` over proof-only `Nat` is an
-// accepted axiom — citing it inside a proof machine's body
-// delivers the axiom's `ensures` fact into the hypothesis base,
-// which then discharges the caller's own `ensures` contract.
-//
-//   * `boundary machine mul_comm_axiom(a: Nat, b: Nat) -> Nat
-//     ensures mul(a,b) == mul(b,a)` — axiom decl; `use
-//     omega::language::core::nat` imports proof Nat depend-free.
-//   * `uses_axiom` calls it in a body then returns `Nat::Zero` —
-//     the axiom's ensures flows into `uses_axiom`'s ensures.
-//   * `hits` records the reached arm.
-//
-// Compile-checked only: Nat machines are proof-only — no runtime
-// result ever flows out (Nat values are mathematical terms).
-
+// An axiom about an UNPROVEN shape, cited by a lemma: a boundary
+// machine's `ensures` states `(mul(a,b)) == (mul(b,a))` where `mul`
+// itself is never defined — the citation delivers the accepted fact
+// into the lemma's hypothesis base.
 use omega::language::core::nat;
-
 boundary machine mul_comm_axiom(a: Nat, b: Nat) -> Nat
 ensures
     (mul(a, b)) == (mul(b, a));
-
 machine uses_axiom(a: Nat, b: Nat) -> Nat
 ensures
     (mul(a, b)) == (mul(b, a))
@@ -31,9 +18,5 @@ ensures
         transition { _ -> Nat::Zero }
     }
 }
-
-data Main { hits: i32 in Wrapping; }
-
-machine Main::main(main: &mut Main) {
-    main.hits = 1;
-}
+data Main {}
+machine Main::main(main: &mut Main) { }
