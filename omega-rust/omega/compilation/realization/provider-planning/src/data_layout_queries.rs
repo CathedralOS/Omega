@@ -49,7 +49,7 @@ pub fn fold_data_layout_queries(
     // The proof-only classification is computed over the typed program;
     // a `size_of<Nat>` over recursive data must name the
     // classification instead of reporting the layout builder's zero default.
-    let proof_only = validation::proof_only_classification(program);
+    let proof_only = typed_trees::proof_only::classify(program);
     let queries: Vec<(
         typed_trees::expression::ExpressionHandle,
         typed_trees::expression::DataLayoutQueryRequest,
