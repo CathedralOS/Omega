@@ -418,6 +418,49 @@ suspension, resume, cancellation or every referent shape. Windows x86-64 and
 matching-host Linux x86-64 remain open; QEMU does not close the latter row.
 Neither Linux release row is closed by this bounded qualification.
 
+The 2026-10-10 slice/carrier follow-on used published producer
+`f3c3255420f4d0eedcf5279fc17d51e7577f1f51`, the pinned Rust toolchain and
+`CARGO_PROFILE_DEV_OPT_LEVEL=1`. The producer was built on macOS 27.0.1
+AArch64 in 2 minutes 15 seconds. Colima 0.10.1, Ubuntu 24.04.4 LTS,
+kernel `6.8.0-100-generic` and QEMU 7.0.0 were unchanged. All 11 programs
+below matched their authored exits directly on Linux ARM64 and under
+Linux x86-64 QEMU: 22 observations, no skips or mismatches.
+
+| Fixture under `tests/omega/pass/` | Authored exit |
+| --- | --- |
+| `recast/runtime_inline_shared_slice_record_read_exit` | 70 |
+| `recast/runtime_inline_slice_view_mutable_write_exit` | 70 |
+| `recast/runtime_inline_slice_recast_call_exit` | 70 |
+| `ownership/runtime_borrowed_carried_loan_transform_exit` | 42 |
+| `ownership/runtime_borrowed_carrier_repeated_repair_exit` | 42 |
+| `ownership/runtime_borrowed_shared_alias_carrier_transform_exit` | 42 |
+| `borrows/runtime_returned_reference_array_bounded_read_exit` | 70 |
+| `collections/runtime_projected_element_descriptor_read_exit` | 0 |
+| `collections/runtime_owned_descriptor_parameter_read_exit` | 0 |
+| `ownership/runtime_borrowed_case_result_restore_exit` | 0 |
+| `ownership/runtime_generic_borrowed_case_restore_exit` | 0 |
+
+The two-target preparation/emission commands and separate guest assertions
+above were used, with automatic first-party review acceptance rather than a
+manual external-package audit. The slice cases capture a suffix before the
+selector changes, preserve original backing across state arrival and mutable
+writes, and retire a mutable descriptor before a nested shared helper call.
+The carrier cases preserve references through consuming calls and repeated
+repair, including duplicate shared origins and returned descriptor arrays.
+Projected and owned descriptor parameters retain their original window;
+ordinary and generic Case controls exercise both repair arms.
+
+The inline scalar-call program's SHA-256 identities are:
+
+- `main.omg`: `35b15432954d98cff7e27d65d09f657309f43b614cf169c282d47241b80d771c`.
+- ARM64 ELF: `d6c305f0af5c68d708911e97d80ee6c333201eb02883818a03216935b967d029`.
+- x86-64 ELF: `d5e251e4836a8d70bfe17939b79e23e6d4dc45b6f5bf7c2b41a9aa59fac9bad3`.
+
+This qualifies only the listed normal paths. Physical suspension, resume and
+cancellation, Windows x86-64 and matching-host Linux x86-64 remain open.
+Emulated observations do not close a matching-host row, and this is not the
+unfiltered RC-NATIVE-MATRIX gate. The VM returned to its initial stopped state.
+
 ## Closure rule
 
 The contract closes only when all six named gates pass from a clean checkout
