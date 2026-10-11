@@ -479,6 +479,7 @@ pub(super) fn indexed_read_footprint_retained(
     // A descriptor may already retain its backing pointer in a register.
     // Mandatory selection replay decides whether a reload is needed; either
     // realization still publishes the same strict field access rows below.
+    let mut consumed_backing = false;
     if loads_backing_pointer(function, target, *source, path)
         && let Some((backing, rest)) = cursor.split_first()
         && backing.place == *source
@@ -486,6 +487,7 @@ pub(super) fn indexed_read_footprint_retained(
         && backing.role == Role::ReadPlace
     {
         cursor = rest;
+        consumed_backing = matches!(path.first(), Some(terminal_psi::StructuralPathSegment::Referent));
     }
     if reads_through_descriptor(function, operation, target) {
         let count = path
@@ -497,6 +499,24 @@ pub(super) fn indexed_read_footprint_retained(
             return false;
         }
         cursor = &cursor[count..];
+    } else {
+        // Each `Referent` hop publishes the pointer load it reads through —
+        // one 8-byte root access per hop before the terminal byte read.
+        let hops = path
+            .iter()
+            .filter(|segment| {
+                matches!(segment, terminal_psi::StructuralPathSegment::Referent)
+            })
+            .count()
+            .saturating_sub(usize::from(consumed_backing));
+        if cursor.len() < hops
+            || !cursor[..hops].iter().all(|hop| {
+                hop.place == *source && hop.byte_count == 8 && hop.role == Role::ReadPlace
+            })
+        {
+            return false;
+        }
+        cursor = &cursor[hops..];
     }
     let [read] = cursor else {
         return false;
