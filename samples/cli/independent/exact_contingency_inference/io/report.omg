@@ -1,0 +1,40 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+use domain::tables;
+machine decimal(console: &mut Binding<Console>, value: u64 in Wrapping) reaches Console {
+    transition { _ -> scale(console, value, 1) }
+    state scale(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping) {
+        transition divisor <= value / 10 {
+            true -> scale(console, value, divisor * 10)
+            false -> emit(console, value, divisor)
+        }
+    }
+    state emit(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping) {
+        transition divisor > 0 { true -> digit(console, value, divisor) false -> done() }
+    }
+    state digit(console: &mut Binding<Console>, value: u64 in Wrapping, divisor: u64 in Wrapping)
+    requires divisor > 0 {
+        console.write_byte((value / divisor % 10 + 48) as i32);
+        transition { _ -> emit(console, value % divisor, divisor / 10) }
+    }
+    state done() {}
+}
+machine field(console: &mut Binding<Console>, name: &[u8], value: u64 in Wrapping) reaches Console {
+    console.write(name);
+    decimal(console, value);
+    console.write_line("");
+}
+pub machine report(console: &mut Binding<Console>, result: &Inference) reaches Console
+invokes console;
+{
+    console.write_line("exact_contingency_inference model=fixed_margins_factorial structural_zeros=conditioned");
+    field(console, "feasible=", result.count);
+    field(console, "partition=", result.partition);
+    field(console, "observed_weight=", result.observed_weight);
+    field(console, "pearson_numerator=", result.score);
+    field(console, "pearson_denominator=", result.denominator);
+    field(console, "probability_tail_numerator=", result.probability_tail);
+    field(console, "association_tail_numerator=", result.association_tail);
+    field(console, "tail_denominator=", result.partition);
+    field(console, "association_ties=", result.ties);
+}
