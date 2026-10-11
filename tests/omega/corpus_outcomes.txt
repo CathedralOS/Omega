@@ -4256,6 +4256,7 @@ pass/float/foreign_control_state_restore checked 4723ms check-target:macos_arm64
 pass/float/guarded_exact_float_conversion checked 1317ms @2d8ed253669f
 pass/float/literal_indexed_float_field_read_exit checked 4361ms check-target:macos_arm64 @2d8ed253669f
 pass/float/local_after_float_call_store_exit checked 4433ms check-target:macos_arm64 @2d8ed253669f
+pass/float/module_imported_policy_conversion_family_exit built 61316ms exit:2 interpreter-exit:2 interpreter:agrees @8a006b29cc3b
 pass/float/named_constant_materialization_exit checked 13800ms check-target:macos_arm64 @2d8ed253669f
 pass/float/named_float_integer_lower_boundary_conversion_traps checked 4101ms check-target:macos_arm64 @2d8ed253669f
 pass/float/named_float_integer_nan_conversion_traps checked 4114ms check-target:macos_arm64 @2d8ed253669f

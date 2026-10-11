@@ -1,0 +1,8 @@
+// A domain module imports result-policy overloads; a root import must not
+// turn the core provider's visible conversion family into a missing target.
+use omega_language_std::console;
+use conversion;
+machine main() reaches Console {
+    let result: i32 in Saturating = conversion::convert(2.0);
+    Console::exit_process(result as i32);
+}
