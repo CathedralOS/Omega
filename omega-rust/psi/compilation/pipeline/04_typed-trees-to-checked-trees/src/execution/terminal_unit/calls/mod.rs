@@ -104,5 +104,5 @@ pub(crate) use signatures::{
     parameter_signatures, structural_scalar_signature_traced, structural_signature,
 };
 pub(crate) use structural_arguments::{
-    call_claim_transfers, computed_call_claim_transfers, exact_structural_borrow_access,
+    call_claim_transfers, computed_call_claim_transfers,
 };

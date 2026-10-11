@@ -24,7 +24,7 @@
 //! changes, so stored reads cannot observe a partial replacement.
 use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, DataMember, Multiplicity,
+    CheckedUnitEffectOperationPlan, Multiplicity,
     PrimitiveType, StatementNode, SymbolHandle, TypeConstraintNode, TypeReferenceNode,
 };
 
