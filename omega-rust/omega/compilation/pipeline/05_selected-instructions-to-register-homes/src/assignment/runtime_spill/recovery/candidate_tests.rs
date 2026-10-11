@@ -39,13 +39,26 @@ fn failed_identity_in_another_function_does_not_gain_priority() {
 }
 
 #[test]
-fn nonpressure_failures_do_not_choose_a_runtime_spill() {
+fn incompatible_interval_homes_choose_an_admitted_recovery_candidate() {
     let roster = [(2, VirtualRegisterId(9))];
     assert_eq!(
         candidate_position(
             &RegisterHomeError::NoCommonCandidate {
                 function: 2,
                 register: 9
+            },
+            &roster,
+            |_| true,
+            |_| 0
+        ),
+        Some(0)
+    );
+    assert_eq!(
+        candidate_position(
+            &RegisterHomeError::UnknownOrIncompatibleView {
+                function: 2,
+                register: 9,
+                view: 0
             },
             &roster,
             |_| true,

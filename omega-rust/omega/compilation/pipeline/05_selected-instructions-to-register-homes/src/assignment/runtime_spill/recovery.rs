@@ -1,6 +1,13 @@
 //! Executable pressure recovery over a finite roster of original runtime values.
 //! Allocation chooses the values; the selected rewrite owner validates semantics.
 //!
+//! Empty interval-home intersections are also recoverable: a scalar carried
+//! across a call can require callee-saved views there and a fixed accumulator
+//! at a later division. No single home fits that interval, but the existing
+//! admitted split or spill can realize its separate segments. Home assignment
+//! remains strict after every rewrite; this classification grants no view or
+//! storage authority and does not recover malformed classes or tied topology.
+//!
 //! Each step takes the cheapest admissible decision. A live-range split at a
 //! fixed-view definition comes first: one copy right after the pinned write
 //! frees the pinned home for the rest of the value's range and realizes no
@@ -207,7 +214,7 @@ pub(super) fn transformations(
 }
 
 /// The pressure domain one recovery step must relieve: the function and
-/// leader a `NoCompatibleHome` names, with the leader's member fragments
+/// leader a `NoCompatibleHome` or `NoCommonCandidate` names, with the leader's member fragments
 /// collected once. Every roster candidate is scored against this one
 /// reconstruction; rebuilding the members per candidate made each step
 /// quadratic in the failed function's ties and transfers.
@@ -224,7 +231,9 @@ impl<'ranges> FailedDomain<'ranges> {
         failure: &crate::RegisterHomeError,
         ranges: &'ranges ValidatedLiveRanges,
     ) -> Option<Self> {
-        let crate::RegisterHomeError::NoCompatibleHome { function, register } = failure else {
+        let (crate::RegisterHomeError::NoCompatibleHome { function, register }
+        | crate::RegisterHomeError::NoCommonCandidate { function, register }) = failure
+        else {
             return None;
         };
         let function_ranges = ranges.plan().functions.get(*function)?;
@@ -340,7 +349,9 @@ fn candidate_position(
     mut overlaps: impl FnMut(&(usize, VirtualRegisterId)) -> bool,
     relief: impl Fn(&(usize, VirtualRegisterId)) -> usize,
 ) -> Option<usize> {
-    let crate::RegisterHomeError::NoCompatibleHome { function, register } = failure else {
+    let (crate::RegisterHomeError::NoCompatibleHome { function, register }
+    | crate::RegisterHomeError::NoCommonCandidate { function, register }) = failure
+    else {
         return None;
     };
     roster
@@ -420,7 +431,7 @@ pub(crate) fn recover_after_declined_fixed_view_probe(
 }
 
 /// An active-resident rematerialization sweep whose rebuilt facts still
-/// report `NoCompatibleHome` hands custody here: recovery runs over the
+/// report `NoCompatibleHome` or `NoCommonCandidate` hands custody here: recovery runs over the
 /// rematerialized program and its rebuilt analyses, the recorded sweep stays
 /// the first transformation in the produced manifest.
 pub(crate) fn recover_after_active_resident_rematerialization(
@@ -432,7 +443,7 @@ pub(crate) fn recover_after_active_resident_rematerialization(
 }
 
 /// A completed selected-lowering run whose final facts still report
-/// `NoCompatibleHome` hands custody here: recovery runs over the run's
+/// `NoCompatibleHome` or `NoCommonCandidate` hands custody here: recovery runs over the run's
 /// current program and rebuilt analyses, the committed fold ledger and the
 /// suite completion stay recorded ahead of every spill step.
 pub(crate) fn recover_after_selected_lowering(
@@ -442,7 +453,7 @@ pub(crate) fn recover_after_selected_lowering(
 }
 
 /// A completed pre-allocation run whose final facts still report
-/// `NoCompatibleHome` hands custody here the same way: recovery runs over
+/// `NoCompatibleHome` or `NoCommonCandidate` hands custody here the same way: recovery runs over
 /// the run's current program and rebuilt analyses, the committed
 /// transformation ledger and the suite completion stay recorded ahead of
 /// every spill step.
@@ -486,7 +497,10 @@ fn recover_over(
         source.legality(),
         Some(&mut home_reuse),
     ) {
-        Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => error,
+        Err(
+            error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
+            | crate::RegisterHomeError::NoCommonCandidate { .. }),
+        ) => error,
         Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
         Ok(_) => return Err(RuntimeSpillAllocationError::RecoveryNotRequired),
     };
@@ -624,7 +638,10 @@ fn recover_over(
                                 };
                                 return Ok(result);
                             }
-                            Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => {
+                            Err(
+                                error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
+                                | crate::RegisterHomeError::NoCommonCandidate { .. }),
+                            ) => {
                                 failed_crossing = Some(SpillPressureProbe {
                                     rewrite: crossing,
                                     facts: probe,
@@ -704,7 +721,10 @@ fn recover_over(
                 };
                 return Ok(result);
             }
-            Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => {
+            Err(
+                error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
+                | crate::RegisterHomeError::NoCommonCandidate { .. }),
+            ) => {
                 failure = error;
                 current_ranges = facts.ranges;
                 current_legality = facts.legality;
