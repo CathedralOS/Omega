@@ -34,7 +34,14 @@ The mutable-view both gate reports a new unpinned baseline row (exit 1/moved),
 with the authored behavior passing; it was not added to unrelated goldens.
 Numeric/report/exit oracles did not change. The invalid diagnostic assertion
 was corrected to the actual earlier invariant-store rejection.
-Final work: produce a clean local candidate and verified Library review bundle.
+Independent review checked all 18 independently recomputed oracles, all native
+results, eight Terminal source identities and the transferred bundle hashes.
+It found a retained-cut composition gap: a cut of a dynamic cut has an
+operation-result source. Root traversal now resolves retained producers before
+requiring block parameters, preserving bounds and the cycle set. The source
+repair and guarded chained-cut regression passed independent source review.
+Final work: integrated-main acceptance, normal queue publication and refreshed
+verified Library bundle.
 There is no application execution blocker. The claims service remains unavailable,
 so registration/release of the uncertain ticket cannot be confirmed.
 Original base binary SHA256:

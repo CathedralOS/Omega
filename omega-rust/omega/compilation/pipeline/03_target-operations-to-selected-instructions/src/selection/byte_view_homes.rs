@@ -146,6 +146,16 @@ fn transitive_view_roots(
     if !explored.insert(parameter) {
         return Ok(Vec::new());
     }
+    if let Some(view) = views.iter().find(|view| view.place == parameter) {
+        // A dynamic cut can itself be the retained source of another cut.
+        // Resolve that producer chain before requiring edge bindings: cut
+        // results are operation places, not block parameters. Every step
+        // retains its own bound and the same visited set closes cycles.
+        return match view.root {
+            Some(root) => Ok(vec![(root, view.root_length)]),
+            None => transitive_view_roots(source, views, view.source, view.root_length, explored),
+        };
+    }
     bound_view_roots_recurse(source, views, parameter, extent, explored)
 }
 
@@ -168,23 +178,8 @@ fn bound_view_roots_recurse(
     let bound_root = |place: PlaceId,
                       explored: &mut BTreeSet<PlaceId>|
      -> Result<Vec<(PlaceId, ValueId)>, SelectedInstructionError> {
-        if let Some(bound_view) = views.iter().find(|view| view.place == place) {
-            // A bound subslice contributes its own root bound: its bytes sit at
-            // `O + i` inside `root`, so the honest reach is `0 .. root_length`.
-            return match bound_view.root {
-                Some(root) => Ok(vec![(root, bound_view.root_length)]),
-                // A cut does not acquire a new storage root. Follow its
-                // retained source bindings just as an unsliced arrival does;
-                // the shared explored set closes state-loop cycles without
-                // dropping roots contributed by other incoming edges.
-                None => transitive_view_roots(
-                    source,
-                    views,
-                    bound_view.source,
-                    bound_view.root_length,
-                    explored,
-                ),
-            };
+        if views.iter().any(|view| view.place == place) {
+            return transitive_view_roots(source, views, place, extent, explored);
         }
         let kind = contract
             .structural_place(place)

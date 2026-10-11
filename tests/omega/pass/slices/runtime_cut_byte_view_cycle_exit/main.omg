@@ -19,12 +19,31 @@ machine sum(bytes: &[u8]) -> i32 in Wrapping {
         transition { _ -> scan(tail, total) }
     }
 }
+// Compose two dynamic cuts before transporting the resulting descriptor.
+machine pairs(bytes: &[u8]) -> i32 in Wrapping {
+    transition { _ -> scan(bytes, 0) }
+    state scan(bytes: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
+        transition bytes.len > 1 {
+            true -> scan(bytes[1..][1..], total + (bytes[0] as i32 in Wrapping) + (bytes[1] as i32 in Wrapping))
+            false -> finish(bytes, total)
+        }
+    }
+    state finish(bytes: &[u8], total: i32 in Wrapping) -> i32 in Wrapping {
+        transition bytes.len > 0 {
+            true -> (total + (bytes[0] as i32 in Wrapping))
+            false -> (total)
+        }
+    }
+}
 machine Main::main(main: &mut Main) reaches Console {
     main.bytes = [1, 2, 3, 4];
     let whole: i32 in Wrapping = sum(&main.bytes);
     let cut: i32 in Wrapping = sum(&main.bytes[1..]);
     let literal: i32 in Wrapping = sum("AB");
-    transition whole == 10 && cut == 9 && literal == 131 {
+    let paired: i32 in Wrapping = pairs(&main.bytes);
+    let paired_cut: i32 in Wrapping = pairs(&main.bytes[1..]);
+    let paired_literal: i32 in Wrapping = pairs("ABC");
+    transition whole == 10 && cut == 9 && literal == 131 && paired == 10 && paired_cut == 9 && paired_literal == 198 {
         true -> good(main)
         false -> bad(main)
     }
