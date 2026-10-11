@@ -142,23 +142,16 @@ impl ValidatedConstRecordWithSumArrayMaterialization {
     ) -> Result<(), MaterializationDiagnostic> {
         if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable sum-array record invocation drifted from retained custody"
-                    .into(),
-            ));
+            return Err(super::super::retained_custody_drift("sum-array record invocation"));
         }
         let layout_fingerprint = normalized_layout_plan_report_fingerprint(layout);
         if layout_fingerprint != self.non_authoritative_layout_report_fingerprint
             || !layout_plan_reports_match_for_replay(layout, &self.layout)
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable sum-array outer layout drifted from retained custody".into(),
-            ));
+            return Err(super::super::retained_custody_drift("sum-array outer layout"));
         }
         if !sum_array_layouts_match_for_replay(array_layout, &self.array_layout) {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable compact sum-array layout drifted from retained custody".into(),
-            ));
+            return Err(super::super::retained_custody_drift("compact sum-array layout"));
         }
         let replayed = derive_record_with_sum_array_bytes(
             typed,
@@ -272,20 +265,14 @@ impl ValidatedConstRecordWithSumArraysMaterialization {
     ) -> Result<(), MaterializationDiagnostic> {
         if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable sum-array fields invocation drifted from retained custody"
-                    .into(),
-            ));
+            return Err(super::super::retained_custody_drift("sum-array fields invocation"));
         }
         let layout_fingerprint = normalized_layout_plan_report_fingerprint(layout);
         if layout_fingerprint != self.non_authoritative_layout_report_fingerprint
             || !layout_plan_reports_match_for_replay(layout, &self.layout)
             || !sum_array_layout_sets_match_for_replay(array_layouts, &self.array_layouts)
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable sum-array field layout set drifted from retained custody"
-                    .into(),
-            ));
+            return Err(super::super::retained_custody_drift("sum-array field layout set"));
         }
         let replayed = derive_record_with_sum_arrays_bytes(
             typed,
@@ -440,23 +427,16 @@ impl ValidatedConstRecordWithSumMaterialization {
             )));
         }
         if value != &self.value {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable nested-sum record value drifted from retained custody".into(),
-            ));
+            return Err(super::super::retained_custody_drift("nested-sum record value"));
         }
         if byte_order != self.byte_order {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable nested-sum record target byte order drifted from retained custody"
-                    .into(),
-            ));
+            return Err(super::super::retained_custody_drift("nested-sum record target byte order"));
         }
         let layout_report_fingerprint = normalized_layout_plan_report_fingerprint(layout);
         if layout_report_fingerprint != self.non_authoritative_layout_report_fingerprint
             || !layout_plan_reports_match_for_replay(layout, &self.layout)
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable nested-sum outer layout drifted from retained custody".into(),
-            ));
+            return Err(super::super::retained_custody_drift("nested-sum outer layout"));
         }
         validate_supplied_nested_rows_against_retained(
             typed,
@@ -476,10 +456,7 @@ impl ValidatedConstRecordWithSumMaterialization {
         if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
             || !nested_sum_fields_match(&replayed.nested_sums, &self.nested_sums)
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable nested-sum field identity drifted from retained custody"
-                    .into(),
-            ));
+            return Err(super::super::retained_custody_drift("nested-sum field identity"));
         }
         if replayed.bytes != self.bytes {
             return Err(MaterializationDiagnostic(

@@ -187,20 +187,14 @@ impl ValidatedConstRecordWithNestedSumRecordMaterialization {
     ) -> Result<(), MaterializationDiagnostic> {
         if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable nested-record path invocation drifted from retained custody"
-                    .into(),
-            ));
+            return Err(super::retained_custody_drift("nested-record path invocation"));
         }
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
             || !nested_path_reports_match_for_replay(path_layout, &self.path_layout)
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable nested-record path layout drifted from retained custody"
-                    .into(),
-            ));
+            return Err(super::retained_custody_drift("nested-record path layout"));
         }
 
         let replayed =
@@ -335,20 +329,14 @@ impl ValidatedConstRecordWithNestedSumRecordsMaterialization {
     ) -> Result<(), MaterializationDiagnostic> {
         if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable nested-record paths invocation drifted from retained custody"
-                    .into(),
-            ));
+            return Err(super::retained_custody_drift("nested-record paths invocation"));
         }
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
             || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable nested-record paths layout drifted from retained custody"
-                    .into(),
-            ));
+            return Err(super::retained_custody_drift("nested-record paths layout"));
         }
         let replayed = derive_nested_record_sums_bytes_with_reachability(
             typed,
@@ -381,10 +369,7 @@ impl ValidatedConstRecordWithNestedSumRecordsMaterialization {
                 &retained_path.outer_field,
                 retained_path.outer_member_identity,
             ) {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable nested-record occurrence identity drifted from retained custody"
-                        .into(),
-                ));
+                return Err(super::retained_custody_drift("nested-record occurrence identity"));
             }
             retained.inner.replay_against_sum_fields(
                 typed,

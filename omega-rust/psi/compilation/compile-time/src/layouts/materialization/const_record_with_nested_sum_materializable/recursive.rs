@@ -93,18 +93,14 @@ impl ValidatedConstRecordWithRecursiveNestedSumsMaterialization {
     ) -> Result<(), MaterializationDiagnostic> {
         if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable recursive invocation drifted from retained custody".to_owned(),
-            ));
+            return Err(super::super::retained_custody_drift("recursive invocation"));
         }
         let outer_fingerprint =
             normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
         if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
             || !record_sum_paths_reports_match_for_replay(path_layout, &self.path_layout)
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable recursive layout drifted from retained custody".to_owned(),
-            ));
+            return Err(super::super::retained_custody_drift("recursive layout"));
         }
 
         let replayed = derive_record_level_children_bytes(
@@ -135,10 +131,7 @@ impl ValidatedConstRecordWithRecursiveNestedSumsMaterialization {
                     retained_row.member_identity,
                 )
             {
-                return Err(MaterializationDiagnostic(
-                    "ConstMaterializable recursive child custody drifted from retained custody"
-                        .to_owned(),
-                ));
+                return Err(super::super::retained_custody_drift("recursive child custody"));
             }
             // A record child's inner custody replays the deeper level
             // pairwise before its fingerprint compares.

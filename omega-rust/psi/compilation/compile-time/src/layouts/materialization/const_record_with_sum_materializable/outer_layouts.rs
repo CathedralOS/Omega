@@ -156,8 +156,8 @@ pub(crate) fn validate_supplied_nested_rows_against_retained(
         if layout_fingerprint != nested.non_authoritative_layout_report_fingerprint()
             || !conventional_sum_layout_reports_match_for_replay(&row.layout, nested.layout())
         {
-            return Err(MaterializationDiagnostic(format!(
-                "ConstMaterializable nested conventional sum layout for field `{}` drifted from retained custody",
+            return Err(super::super::retained_custody_drift(&format!(
+                "nested conventional sum layout for field `{}`",
                 row.field
             )));
         }

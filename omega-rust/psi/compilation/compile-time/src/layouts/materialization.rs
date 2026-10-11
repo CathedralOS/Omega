@@ -33,6 +33,14 @@ macro_rules! materialization_accessors {
     };
 }
 
+/// The custody-drift diagnostic every const materialization replay raises
+/// when an observed input disagrees with the retained admission row.
+fn retained_custody_drift(label: &str) -> MaterializationDiagnostic {
+    MaterializationDiagnostic(format!(
+        "ConstMaterializable {label} drifted from retained custody"
+    ))
+}
+
 mod const_materializable;
 mod const_record_with_nested_sum_materializable;
 mod const_record_with_sum_materializable;

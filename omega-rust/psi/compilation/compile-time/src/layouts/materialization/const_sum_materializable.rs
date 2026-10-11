@@ -113,32 +113,24 @@ impl ValidatedConstSumMaterialization {
             )));
         }
         if value != &self.value {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable sum value drifted from retained custody".into(),
-            ));
+            return Err(super::retained_custody_drift("sum value"));
         }
         if byte_order != self.byte_order {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable sum target byte order drifted from retained custody".into(),
-            ));
+            return Err(super::retained_custody_drift("sum target byte order"));
         }
         let layout_report_fingerprint =
             normalized_conventional_sum_layout_report_fingerprint(layout);
         if layout_report_fingerprint != self.non_authoritative_layout_report_fingerprint
             || !conventional_sum_layout_reports_match_for_replay(layout, &self.layout)
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable conventional sum layout drifted from retained custody".into(),
-            ));
+            return Err(super::retained_custody_drift("conventional sum layout"));
         }
         let replayed = derive_sum_bytes(typed, schema_name, layout, value, byte_order)?;
         if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
             || replayed.selected_case_identity != self.selected_case_identity
             || replayed.selected_case_ordinal != self.selected_case_ordinal
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable selected sum case drifted from retained custody".into(),
-            ));
+            return Err(super::retained_custody_drift("selected sum case"));
         }
         if replayed.bytes != self.bytes {
             return Err(MaterializationDiagnostic(

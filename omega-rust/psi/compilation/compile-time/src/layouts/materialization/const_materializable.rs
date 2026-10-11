@@ -92,30 +92,21 @@ impl ValidatedConstMaterialization {
             )));
         }
         if value != &self.value {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable typed owned value drifted from retained custody".into(),
-            ));
+            return Err(super::retained_custody_drift("typed owned value"));
         }
         if byte_order != self.byte_order {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable target byte order drifted from retained custody".into(),
-            ));
+            return Err(super::retained_custody_drift("target byte order"));
         }
         let layout_report_fingerprint = normalized_layout_plan_report_fingerprint(layout);
         if layout_report_fingerprint != self.non_authoritative_layout_report_fingerprint
             || !layout_plan_reports_match_for_replay(layout, &self.layout)
         {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable layout drifted from retained custody".into(),
-            ));
+            return Err(super::retained_custody_drift("layout"));
         }
 
         let replayed = derive_bytes(typed, schema_name, layout, value, byte_order)?;
         if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable typed schema report fingerprint drifted from retained custody"
-                    .into(),
-            ));
+            return Err(super::retained_custody_drift("typed schema report fingerprint"));
         }
         if replayed.bytes != self.bytes {
             return Err(MaterializationDiagnostic(
