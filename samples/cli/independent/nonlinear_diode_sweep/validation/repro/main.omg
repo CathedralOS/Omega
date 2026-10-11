@@ -1,0 +1,17 @@
+// Complete reproduction: checked IEEE arrival predicate on a scalar state.
+use omega::language::core::float_operations;
+data Main { value: f64; observed: i32; }
+machine bounded(value: f64) -> i32 {
+    transition value == value && value >= 0.0 && value < 1000000000.0 {
+        true -> land(value)
+        false -> zero()
+    }
+    state land(value: f64) -> i32
+    requires value == value && value >= 0.0 && value < 1000000000.0
+    { I32::from_f64(value) }
+    state zero() -> i32 { 0 }
+}
+machine Main::main(main: &mut Main) {
+    main.value = 123.75;
+    main.observed = bounded(main.value);
+}
