@@ -2,6 +2,7 @@
 """Sequential public-entrypoint validation; never performs package acceptance."""
 import argparse, json, os, subprocess, hashlib, sys
 from pathlib import Path
+sys.dont_write_bytecode = True
 from reference import verify, VALID, INVALID
 ROOT = Path(__file__).resolve().parent
 REPOSITORY = ROOT.parents[3]
