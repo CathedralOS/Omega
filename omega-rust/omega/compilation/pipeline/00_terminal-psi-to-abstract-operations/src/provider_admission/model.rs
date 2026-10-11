@@ -15,6 +15,7 @@ use target_operations::BoundarySettlementRealization;
 /// placement owner.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedNativeCallbackArgument {
+    pub registrar_invokes_callback: bool,
     pub terminal_operation: OperationId,
     pub placement_index: usize,
     pub callback_function: function_identity::MachineFunctionIdentity,

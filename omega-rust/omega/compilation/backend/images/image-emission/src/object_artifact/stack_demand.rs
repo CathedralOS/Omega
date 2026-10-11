@@ -2,7 +2,9 @@
 //!
 //! This module composes the exact caller-owned peaks retained by target
 //! emission. Sequential calls take a maximum; one active caller prefix adds to
-//! the selected callee peak. It does not infer new stack or call-site facts.
+//! the selected callee peak. Private callback addresses are code dependencies;
+//! only retained registrar invocation contracts create synchronous stack edges.
+//! It does not infer new stack or call-site facts or authorize future entry.
 
 use target::{Architecture, NativeTarget};
 use terminal_psi::TerminalPsiIdentity;
@@ -32,15 +34,17 @@ fn derive_namespace_stack_demand(
     private_functions: &[crate::ObjectCompilerPrivateFunction],
     active_private: &mut Vec<function_identity::MachineFunctionIdentity>,
 ) -> Result<StackDemand, ObjectError> {
-    // Native materialization by itself does not prove a provider cannot enter
-    // its supplied callback synchronously. Reserve a conservative same-stack
-    // bound for each possible entry, separately from registration permission
-    // or a future-root lease. Bodies retain their own machine namespace.
+    // Only the exact registrar's declared synchronous contract creates a
+    // same-stack edge. A stored address may participate in a cyclic future
+    // registration graph without consuming this activation's stack. These
+    // provider assumptions neither authorize future entry nor grant a lease.
+    // Bodies retain their own machine namespace.
     let mut private_demands = Vec::new();
     for callback in artifact
         .foreign_calls
         .iter()
         .flat_map(|call| &call.callback_addresses)
+        .filter(|callback| callback.target.registrar_invokes_callback)
     {
         let identity = callback.target.callback_function;
         if private_demands.iter().any(|(known, _)| *known == identity) {
@@ -224,6 +228,7 @@ fn derive_terminal_stack_peak(
         let callback_peak = call
             .callback_addresses
             .iter()
+            .filter(|callback| callback.target.registrar_invokes_callback)
             .try_fold(0, |peak, callback| {
                 let (_, demand) = private_demands
                     .iter()

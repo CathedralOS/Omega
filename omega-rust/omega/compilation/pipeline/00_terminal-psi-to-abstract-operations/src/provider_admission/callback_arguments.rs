@@ -42,6 +42,7 @@ pub(crate) fn project_native_callback_arguments(
             ));
         }
         admitted.push(crate::AdmittedNativeCallbackArgument {
+            registrar_invokes_callback: materialization.registrar_invokes_callback,
             terminal_operation: occurrence.terminal_operation(),
             placement_index: occurrence.placement_index(),
             callback_function: occurrence.callback_thunk_identity(),

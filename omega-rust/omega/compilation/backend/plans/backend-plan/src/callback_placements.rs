@@ -34,6 +34,10 @@ pub struct NativeCallbackEntryParameter {
 /// authority, and leases are absent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundCallbackPrivateMaterialization {
+    /// Whether the exact registrar requirement permits this callback service
+    /// during the registration call. False denotes no same-stack edge, not
+    /// permission to invoke the callback later.
+    pub registrar_invokes_callback: bool,
     pub binder: StaticMachineBinderId,
     pub destination: NativePlace,
     pub requirement: CallbackRequirementId,

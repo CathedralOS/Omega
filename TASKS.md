@@ -4411,9 +4411,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   Complete inbound recipes that differ physically from the internal convention
   through ordinary selected-call bridges, including scalar-loan descriptors and
   register/stack redistribution. Equal pointer widths cannot establish those
-  conversions. Hosted stack composition conservatively
-  includes every supplied callback; retain declared synchronous reach to
-  distinguish future-only reference cycles from same-stack invocation cycles.
+  conversions. Preserve `pass/calls/callback_future_registration_cycle`:
+  genuine macOS Arm64 `pthread_key_create` registers a destructor whose body
+  can register itself; native `_exit` must exit 0 without invoking it.
+  Same-stack composition follows the registrar's declared synchronous reach,
+  not its complete callback-address closure. This establishes neither future
+  invocation permission nor registration capacity or lifetime.
   Preserve resultless transport with `calls/resultless_native_callback_compile`
   (a genuine Linux `pthread_once` import) and the runnable
   `calls/resultless_scalar_parameters`. Neither substitutes for Windows

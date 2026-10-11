@@ -909,6 +909,8 @@ fail/capabilities/blocking_beneath_no_block_root rejected 97ms expected @c08960b
 	machine `Main::main` omits `blocks;` from its published contract, but its body may block
 fail/capabilities/boundary_qualification_subject_rejected rejected 245ms expected @2d8ed253669f
 	boundary requirement `TokenIssuer::issue` may admit domain `Token::Issued` only for its exact `result` or an exact mutable parameter; move the membership guarantee to `ensures result in Token::Issued` or name a mutable parameter
+fail/capabilities/callback_synchronous_registration_cycle rejected 697ms expected @12953abbc60f+wt
+	selected providers realize a cyclic synchronous `invokes` graph: Initializer -> Registration -> Initializer; break one edge with a mailbox, queue, scheduler handoff, or other new activation
 fail/capabilities/cyclic_synchronous_invocation rejected 108ms expected @2d8ed253669f
 	selected providers realize a cyclic synchronous `invokes` graph: Alpha -> Beta -> Alpha; break one edge with a mailbox, queue, scheduler handoff, or other new activation
 fail/capabilities/effect_ceiling_exceeded rejected 140ms expected @c08960bee2b1+wt
@@ -3438,6 +3440,7 @@ pass/calls/boundary_call_nested_call_argument_exit checked 1515ms check-target:w
 pass/calls/builtin_named_machine_call_exit checked 3244ms check-target:macos_arm64 @e7691b42e321+wt
 pass/calls/by_value_case_param_self_write_exit checked 1360ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/callback_borrowed_record_entry checked 5567ms check-target:macos_arm64 @588499422fe3+wt
+pass/calls/callback_future_registration_cycle checked 5759ms check-target:macos_arm64 @12953abbc60f+wt
 pass/calls/callback_mixed_formal_entry checked 5458ms check-target:macos_arm64 @8ca55c8e7e42+wt
 pass/calls/callback_private_materialization rejected 9447ms check-target:macos_arm64 @22d7c734257c+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows

@@ -53,6 +53,10 @@ pub struct BoundaryCallingPlanRealization {
     /// coordinate and cannot authorize replacement of this plan.
     pub(crate) validated_boundary_entry_plan: ValidatedBoundaryEntryPlan,
     pub callback_binders: Vec<BoundaryCallbackBinder>,
+    /// Exact binder subset whose requirement service is in the registrar's
+    /// declared synchronous invocation contract. Address placement alone is
+    /// not an invocation edge or a future-root permission.
+    pub(crate) synchronous_callback_binders: Vec<calling_conventions::StaticMachineBinderId>,
     pub callback_demands: Vec<NativeCallbackDemand>,
     pub callback_context_closed: bool,
     pub native_parameters: Vec<BoundaryNativeParameter>,
@@ -695,7 +699,43 @@ fn bound_private_callback_materialization(
         root_parameter_application,
         field_byte_offset,
         context,
+        registrar_invokes_callback: registrar
+            .synchronous_callback_binders
+            .contains(&binder.binder),
     }))
+}
+
+/// Resolve the synchronous contract while declaration symbols still exist.
+/// Downstream code cannot recover it from a callback address or ABI geometry.
+pub(crate) fn synchronous_callback_binders(
+    typed: &TypedTrees,
+    boundary_trait: symbols::SymbolHandle,
+    requirement_machine: symbols::SymbolHandle,
+    binders: &[BoundaryCallbackBinder],
+) -> Result<Vec<calling_conventions::StaticMachineBinderId>, String> {
+    if binders.is_empty() {
+        return Ok(Vec::new());
+    }
+    let invocations = if let Some(definition) = typed.trait_definition_by_symbol(boundary_trait) {
+        let requirement = typed
+            .trait_machine_signature_by_symbol(definition, requirement_machine)
+            .ok_or("callback registrar lost its exact requirement declaration")?;
+        validation::declared_signature_invocations(typed, requirement)
+    } else {
+        let requirement = typed
+            .machine_by_symbol(requirement_machine)
+            .ok_or("callback registrar lost its exact top-level declaration")?;
+        validation::declared_machine_invocations(typed, requirement)
+    };
+    Ok(binders
+        .iter()
+        .filter(|binder| {
+            invocations.contains(&flow_effects::InvocationTarget::Service(
+                binder.requirement_trait,
+            ))
+        })
+        .map(|binder| binder.binder)
+        .collect())
 }
 
 /// Close outbound registrar policies over the target's native layout catalog

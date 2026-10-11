@@ -1,0 +1,2 @@
+cyclic synchronous `invokes` graph
+Initializer -> Registration -> Initializer

@@ -111,6 +111,7 @@ pub fn encode_native_callback_argument(
         crate::codec_bytes::push_encoded(bytes, demand.requirement.get().to_le_bytes());
     }
     bytes.extend_from_slice(&callback.registrar_application_commitment);
+    bytes.push(u8::from(callback.registrar_invokes_callback));
 }
 
 /// Canonical source-free function identity shared by all native consumers.

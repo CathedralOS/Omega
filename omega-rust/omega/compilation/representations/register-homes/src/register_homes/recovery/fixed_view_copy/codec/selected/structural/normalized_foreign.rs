@@ -47,7 +47,7 @@ use legalized_operations::{encode_integer, encode_native_callback_argument};
 
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, decode_list, length},
-    values::{decode_integer, decode_scalar, encode_scalar},
+    values::{decode_bool, decode_integer, decode_scalar, encode_scalar},
 };
 
 /// Machine-state bit positions beyond the closed `MachineState` vocabulary
@@ -232,7 +232,9 @@ fn decode_native_callback_argument(
         });
     }
     let registrar_application_commitment = cursor.array()?;
+    let registrar_invokes_callback = decode_bool(cursor)?;
     Ok(TargetNativeCallbackArgument {
+        registrar_invokes_callback,
         terminal_operation,
         placement_index,
         callback_function,

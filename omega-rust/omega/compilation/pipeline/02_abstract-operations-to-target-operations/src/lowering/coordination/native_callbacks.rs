@@ -64,6 +64,7 @@ pub(crate) fn bind_native_callback_arguments(
             .entry(admitted.terminal_operation)
             .or_default()
             .push(target_operations::TargetNativeCallbackArgument {
+                registrar_invokes_callback: admitted.registrar_invokes_callback,
                 terminal_operation: admitted.terminal_operation,
                 placement_index: admitted.placement_index,
                 callback_function: admitted.callback_function,

@@ -728,6 +728,7 @@ mod tests {
                     .call
                     .callbacks
                     .push(target_operations::TargetNativeCallbackArgument {
+                        registrar_invokes_callback: true,
                         terminal_operation: record
                             .invocation_site
                             .operation()

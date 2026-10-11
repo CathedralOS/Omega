@@ -14,6 +14,9 @@ use terminal_psi::TerminalPlacedViewInput;
 /// retaining the symbolic callback-function identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetNativeCallbackArgument {
+    /// Producer-retained projection of the registrar's declared synchronous
+    /// invocation contract, separate from native placement and future leases.
+    pub registrar_invokes_callback: bool,
     pub terminal_operation: OperationId,
     pub placement_index: usize,
     pub callback_function: function_identity::MachineFunctionIdentity,
