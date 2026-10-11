@@ -168,12 +168,23 @@ helper that passes does not close an item.
   Landed so far: denotational-candidacy and cleanup-owner memos plus the
   owner→cleanup-machine index (`2434d11413`, 113s→~39s on a quiet Linux
   box), the selected-application carrier verdict memo keyed on
-  (caller, target, declared result, arity) (~39s→~32s), and Arc-shared
+  (caller, target, declared result, arity) (~39s→~32s), Arc-shared
   judge fact vectors so per-leaf judge clones stop deep-copying
-  `StructuralTerm` lists (~32s→~26s). Residual cost is repeated
-  subject/term resolution inside each leaf — term interning or a
-  resolved-subject memo is the next leg — then restore the pinned
-  order of magnitude and repin the rows.
+  `StructuralTerm` lists (~32s→~26s), and program-pure fact sharing
+  across each judge tree: one lazily built CallFrameResolver behind an
+  Arc<OnceLock> on StructuralJudge plus bucketed rewrite probes
+  (resolver builds -31%, deep term-eq probes -48%; fixture wall ~20–26s,
+  within box noise of the ~20.2s pre-leg baseline). The residual is no
+  longer a single hot spot: per-leaf judgment still spreads ~10^5–10^6
+  calls across ~50 helpers (`resolve_at` 941k, `callee_term` 702k,
+  `structural_term` 473k, specification equations 1.1M) because every
+  leaf clone re-walks deep Box/Vec terms. The remaining lever is
+  StructuralTerm interning (arena handles so memo keys, equality, and
+  dedup are O(1) on identity rather than tree compare) or a
+  resolved-subject cache keyed on that identity — a representation
+  redesign beyond item scope. Call it: ~20–26s is the practical floor
+  under the current term representation; restore the pinned 4–5s
+  ordering and repin the rows only after interning lands.
 
 - **REFERENCE-CUSTODY-JOIN-SCALING.** (new-scope) Investigate and remove
   avoidable compilation cost in reference-custody joins without weakening their
