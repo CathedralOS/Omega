@@ -1,0 +1,22 @@
+// Private bounded acquisition and report storage. Zero status is invalid.
+pub data Acquisition {
+    layers: u64 in Saturating;
+    echoes: u64 in Saturating;
+    window: i64 in Saturating;
+    reference_present: i64 in Saturating;
+    reference: i64 in Saturating;
+    speeds: [i64 in Saturating; 4];
+    thicknesses: [i64 in Saturating; 4];
+    arrivals: [i64 in Saturating; 8];
+    boundaries: [i64 in Saturating; 4];
+}
+pub data EchoResult [copy] {
+    matches: i64 in Saturating;
+    layer: i64 in Saturating;
+    order: i64 in Saturating;
+    thickness: i64 in Saturating;
+}
+pub data Token [copy] {
+    value: i64 in Saturating;
+    valid: bool;
+}
