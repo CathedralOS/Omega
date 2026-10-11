@@ -1,0 +1,54 @@
+// A complete runtime-input model; there is no baked expected map in this entry.
+// Closed stdin is an invalid request; native fixture runs supply data/*.in.
+// Expected exit: 64.
+// Expected output contains: INVALID_INPUT
+use omega_language_std::console;
+use omega::language::core::binding;
+use model::fill;
+use input::parse;
+use report::output;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let mut input: [u8; 32];
+    let result: LineReadResult = block main.console.read_line(&mut input);
+    transition result {
+        LineReadResult::LineComplete { count } -> prefix(main, &input, count)
+        LineReadResult::EndOfInput { count } -> prefix(main, &input, count)
+        _ -> invalid(main)
+    }
+    state prefix(main: &mut Main, input: &[u8; 32], count: u64) {
+        transition count <= 32 {
+            true -> parse(main, &input[0..count])
+            _ -> invalid(main)
+        }
+    }
+    state parse(main: &mut Main, text: &[u8]) {
+        let mut cavity: Cavity;
+        let valid: bool = parse_input(text, &mut cavity);
+        transition valid {
+            true -> simulate(main, &mut cavity)
+            _ -> invalid(main)
+        }
+    }
+    state simulate(main: &mut Main, cavity: &mut Cavity) {
+        Cavity::simulate(cavity);
+        transition Cavity::balanced(cavity) {
+            true -> publish(main, cavity)
+            _ -> unbalanced(main)
+        }
+    }
+    state publish(main: &mut Main, cavity: &Cavity) {
+        report(&mut main.console, cavity);
+        main.console.exit_process(0);
+    }
+    state invalid(main: &mut Main) {
+        main.console.write_line("INVALID_INPUT");
+        main.console.exit_process(64);
+    }
+    state unbalanced(main: &mut Main) {
+        main.console.write_line("INTERNAL_BALANCE_ERROR");
+        main.console.exit_process(70);
+    }
+}
