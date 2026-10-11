@@ -1,5 +1,13 @@
 //! Settle build-selected execution against the final typed program.
 //! The resulting checked program and its sidecars remain one owned handoff.
+//!
+//! Settlement is split from checking: [`settle_initial_execution`] records one
+//! target's initial source-dependent selection — calling plans, provider
+//! settlement, synchronous invocations and pending constant evaluation — as
+//! data over the shared typed product. [`check_selected_execution`] then binds
+//! that record to the language judgment. The driver settles every target
+//! before checking any, so per-target selection output is recorded provenance
+//! rather than interleaved mutation of the input the next target reuses.
 
 use artifacts::compile_timings::CompileTimings;
 use compilation_products::{CheckedCompilationInputs, PreparedProductSource};
@@ -10,21 +18,28 @@ use selected_dispatch::{
     SelectedExecutionRequest, settle_selected_execution,
 };
 
-pub(crate) fn check_selected_execution(
+/// One target's initial source-dependent selection over the shared typed
+/// product. Settlement's typed mutations travel inside this record's private
+/// typed view; equal views across targets share one language judgment.
+pub(crate) struct InitialExecutionSelection {
+    typed: typed_trees::TypedTrees,
+    computed_build_config: std::sync::Arc<compilation_products::ComputedBuildConfig>,
+    admission: compilation_products::BuildAdmission,
+    checked_provider_selection: provider_planning::CheckedProviderSelection,
+    x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    selected_build_machine_symbol: Option<symbols::SymbolHandle>,
+}
+
+/// Record one target's initial source-dependent selection: provider defaults,
+/// boundary calling plans, provider settlement and pending const/layout
+/// evaluation, all resolved against this target's view of the shared typed
+/// product. The returned record carries the settled typed view and every
+/// settlement output checking later binds.
+pub(crate) fn settle_initial_execution(
     source: PreparedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
-    optimization_rollback: &crate::checked::OptimizationRollback,
-    timings: &mut CompileTimings,
-    permit_unsettled_fused_service_fields: bool,
-    settled_check_reuse: compilation_products::SettledCheckReuse,
-) -> Result<
-    (
-        CheckedCompilationInputs,
-        Option<typed_trees_to_checked_trees::RetainedCheck>,
-    ),
-    Vec<Diagnostic>,
-> {
+) -> Result<InitialExecutionSelection, Vec<Diagnostic>> {
     let PreparedProductSource {
         mut typed,
         pending_pre_checks,
@@ -86,11 +101,7 @@ pub(crate) fn check_selected_execution(
     // computes it once here and realization consumes the plan rather than
     // re-deriving it from typed structure.
     let inferred_synchronous_invocations = validation::infer_synchronous_invocations(&typed);
-    let provider_planning::CheckedProviderSelection {
-        settlement: providers,
-        selected_provider_plan_facts,
-        selected_provider_provenance,
-    } = provider_planning::settle_checked_providers(
+    let checked_provider_selection = provider_planning::settle_checked_providers(
         &mut typed,
         settled_target_machines,
         selected_target_profile,
@@ -122,10 +133,52 @@ pub(crate) fn check_selected_execution(
             selected_native_target,
             opaque_representation_selections,
             &operator_selections,
-            &selected_provider_plan_facts,
+            &checked_provider_selection.selected_provider_plan_facts,
         )?
         .evaluate_pending(&mut typed, pending_pre_checks)?;
     }
+    Ok(InitialExecutionSelection {
+        typed,
+        computed_build_config,
+        admission,
+        checked_provider_selection,
+        x86_scalar_fma_provider,
+        selected_build_machine_symbol,
+    })
+}
+
+/// Check one settled selection against the shared typed view it carries, then
+/// bind the judgment to this target's entry, providers and selected dispatch.
+pub(crate) fn check_selected_execution(
+    selection: InitialExecutionSelection,
+    selected_target_profile: Option<target::TargetProfile>,
+    package_inputs: Option<&PackageCompilationInputs>,
+    optimization_rollback: &crate::checked::OptimizationRollback,
+    timings: &mut CompileTimings,
+    permit_unsettled_fused_service_fields: bool,
+    settled_check_reuse: compilation_products::SettledCheckReuse,
+) -> Result<
+    (
+        CheckedCompilationInputs,
+        Option<typed_trees_to_checked_trees::RetainedCheck>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let InitialExecutionSelection {
+        typed,
+        computed_build_config,
+        admission,
+        checked_provider_selection,
+        x86_scalar_fma_provider,
+        selected_build_machine_symbol,
+    } = selection;
+    let provider_planning::CheckedProviderSelection {
+        settlement: providers,
+        selected_provider_plan_facts,
+        selected_provider_provenance,
+    } = checked_provider_selection;
+    let build_config = &computed_build_config.config;
+    let opaque_representation_selections = &build_config.opaque_representation_selections;
     let root_grants = build_config.root_grant_selectors();
     let provider_request = ProviderCheckingRequest {
         package_inputs,

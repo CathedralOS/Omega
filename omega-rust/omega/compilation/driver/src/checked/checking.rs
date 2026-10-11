@@ -424,30 +424,79 @@ fn check_completed_build(
     }
 }
 
-/// Target settlement consumes complete source, never a resumable frontend.
-pub(crate) fn check_completed_source(
+/// A target's settled selection plus the checked-compilation side inputs the
+/// outcome path needs. The driver settles every admitted target before any
+/// checking runs, so per-target selection travels as recorded data.
+pub(crate) struct SettledCompletedSource {
+    selection: Result<execution_settlement::InitialExecutionSelection, Vec<Diagnostic>>,
+    build_sources: package_compilation::BuildSourceCustody,
+    retained_build_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    timings: CompileTimings,
+    symbol_sources: Option<std::sync::Arc<source::SourceMap>>,
+    independent_components: IndependentComponentDiscovery,
+}
+
+/// Settle one target's initial source-dependent selection against the shared
+/// typed product. Seal inputs move beside the selection so a failed settle
+/// still attributes its diagnostics the same way.
+pub(crate) fn settle_completed_source(
     source: PreparedProductSource,
+    selected_target_profile: Option<target::TargetProfile>,
+    package_inputs: Option<&PackageCompilationInputs>,
+) -> SettledCompletedSource {
+    let independent_components = source.computed_build_config.independent_components();
+    let mut timings = source.timings.clone();
+    let build_sources = source.build_sources.clone();
+    let retained_build_check = source.retained_build_check.clone();
+    let symbol_sources = source.typed.symbols.source_map();
+    let selection = timed(&mut timings, EXECUTION_SETTLEMENT, |_timings| {
+        execution_settlement::settle_initial_execution(
+            source,
+            selected_target_profile,
+            package_inputs,
+        )
+    });
+    SettledCompletedSource {
+        selection,
+        build_sources,
+        retained_build_check,
+        timings,
+        symbol_sources,
+        independent_components,
+    }
+}
+
+/// Check a settled selection and seal its checked compilation. Checking,
+/// per-target entry/binding/dispatch settlement and the retained-check chain
+/// all consume the recorded selection rather than re-deriving it.
+pub(crate) fn check_settled_source(
+    settled: SettledCompletedSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
     permit_unsettled_fused_service_fields: bool,
     settled_check_reuse: SettledCheckReuse,
 ) -> CheckedCompileOutcome {
-    let independent_components = source.computed_build_config.independent_components();
-    let mut timings = source.timings.clone();
-    let build_sources = source.build_sources.clone();
-    let retained_build_check = source.retained_build_check.clone();
-    let symbol_sources = source.typed.symbols.source_map();
-    let result = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
-        execution_settlement::check_selected_execution(
-            source,
-            selected_target_profile,
-            package_inputs,
-            rollback,
-            timings,
-            permit_unsettled_fused_service_fields,
-            settled_check_reuse,
-        )
+    let SettledCompletedSource {
+        selection,
+        build_sources,
+        retained_build_check,
+        mut timings,
+        symbol_sources,
+        independent_components,
+    } = settled;
+    let result = selection.and_then(|selection| {
+        timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
+            execution_settlement::check_selected_execution(
+                selection,
+                selected_target_profile,
+                package_inputs,
+                rollback,
+                timings,
+                permit_unsettled_fused_service_fields,
+                settled_check_reuse,
+            )
+        })
     });
     let result = result.and_then(|(execution, settled_check)| {
         CheckedCompilation::seal(execution, build_sources, package_inputs, timings).map(|checked| {
@@ -469,6 +518,26 @@ pub(crate) fn check_completed_source(
         result: result.map_err(CompileFailure::from),
         independent_components,
     }
+}
+
+/// Target settlement consumes complete source, never a resumable frontend.
+pub(crate) fn check_completed_source(
+    source: PreparedProductSource,
+    selected_target_profile: Option<target::TargetProfile>,
+    package_inputs: Option<&PackageCompilationInputs>,
+    rollback: &crate::OptimizationRollback,
+    permit_unsettled_fused_service_fields: bool,
+    settled_check_reuse: SettledCheckReuse,
+) -> CheckedCompileOutcome {
+    let settled = settle_completed_source(source, selected_target_profile, package_inputs);
+    check_settled_source(
+        settled,
+        selected_target_profile,
+        package_inputs,
+        rollback,
+        permit_unsettled_fused_service_fields,
+        settled_check_reuse,
+    )
 }
 
 /// Interpret each diagnostic's authored span against the compilation's
