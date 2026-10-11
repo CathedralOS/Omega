@@ -43,7 +43,7 @@ fn incompatible_interval_homes_choose_an_admitted_recovery_candidate() {
     let roster = [(2, VirtualRegisterId(9))];
     assert_eq!(
         candidate_position(
-            &RegisterHomeError::NoLivePoints {
+            &RegisterHomeError::NoCommonCandidate {
                 function: 2,
                 register: 9
             },
