@@ -49,18 +49,21 @@ impl ExactServiceCarrier {
         }
     }
 
-    pub fn application(
+    /// Inspect the exact carrier beneath its supplying occurrence. Enclosing
+    /// records contribute their simultaneous scopes; a bare carrier handle
+    /// cannot invent that environment or transfer a selected provider's scope.
+    pub fn application<'program>(
         self,
-        program: &TypedTrees,
-    ) -> Option<crate::trait_definition::AppliedTraitScope<'_>> {
+        program: &'program TypedTrees,
+        lexical_owner: SymbolHandle,
+        enclosing_data_applications: &[TypeReferenceHandle],
+    ) -> Option<crate::trait_definition::AppliedTraitScope<'program>> {
         crate::trait_definition::AppliedTraitScope::new(
             program,
             program.trait_definition_by_symbol(self.requirement)?,
             crate::trait_definition::TraitApplicationArguments {
-                // Region-bearing carriers still require occurrence custody;
-                // the classifier refuses them before this view is produced.
-                lexical_owner: SymbolHandle::invalid(),
-                enclosing_data_applications: &[],
+                lexical_owner,
+                enclosing_data_applications,
                 arguments: self.arguments(program),
                 lifetimes: &[],
             },

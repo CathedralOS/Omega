@@ -45,13 +45,18 @@ impl TypedTrees {
                     .map(AppliedTraitScope::abstract_scope),
             )
             .chain(
-                self.type_reference_table
-                    .type_reference_rows()
-                    .filter_map(|(reference, _)| {
-                        crate::service::classify_exact_bound_service_carrier(self, reference)
-                            .ok()
-                            .flatten()
-                            .and_then(|carrier| carrier.application(self))
+                crate::references::collect_program_type_occurrences(self)
+                    .into_iter()
+                    .filter_map(|occurrence| {
+                        crate::service::classify_exact_bound_service_carrier(
+                            self,
+                            occurrence.reference,
+                        )
+                        .ok()
+                        .flatten()
+                        .and_then(|carrier| {
+                            carrier.application(self, occurrence.lexical_owner, &[])
+                        })
                     }),
             )
             .collect()

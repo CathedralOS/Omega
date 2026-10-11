@@ -768,7 +768,7 @@ pub(crate) fn receiver_trait_scope<'program>(
             .ok()
             .flatten()
     {
-        return carrier.carrier.application(program);
+        return carrier.carrier.application(program, lexical_owner, &[]);
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {

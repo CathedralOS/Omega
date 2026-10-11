@@ -93,17 +93,20 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
         .ok()
         .flatten()
         .filter(|carrier| {
-            carrier.carrier.application(program).is_some_and(|scope| {
-                scope.declaring_scope(program, requirement).is_some()
-                    && program
-                        .closed_requirement_application(target)
-                        .is_none_or(|application| {
-                            program.requirement_application_matches_scope(
-                                application.signature.symbol,
-                                &scope,
-                            )
-                        })
-            })
+            carrier
+                .carrier
+                .application(program, state.symbol, &[])
+                .is_some_and(|scope| {
+                    scope.declaring_scope(program, requirement).is_some()
+                        && program.closed_requirement_application(target).is_none_or(
+                            |application| {
+                                program.requirement_application_matches_scope(
+                                    application.signature.symbol,
+                                    &scope,
+                                )
+                            },
+                        )
+                })
         })
         .map(|_| (source, place))
 }

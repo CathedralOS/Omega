@@ -93,6 +93,10 @@ pub type StaticArgumentClassifier = fn(&TypedTrees, StaticArgumentCall<'_>) -> S
 /// A consumer of exact typed references. Return false from an arena callback
 /// when a node was already visited; symbol consumers may preserve repeated edges.
 pub trait TypedReferences: Extend<SymbolHandle> {
+    /// Nested callable telescopes own their fresh binders independently of
+    /// the surrounding declaration. Ordinary dependency sinks need no scope.
+    fn enter_lexical_scope(&mut self, _: SymbolHandle) {}
+    fn leave_lexical_scope(&mut self) {}
     fn authored_selection(&mut self, _: crate::AuthoredDeclarationSelectionOccurrenceId) {}
     /// Exact member body retained for a materialized target layout, distinct
     /// from an authored use of that member in portable source.
@@ -202,6 +206,101 @@ impl TypedReferences for ReferenceCollector {
 }
 pub fn collect_program_references(program: &TypedTrees) -> ProgramReferences {
     collect_selected_program_references(program, &DeclarationSelection::default())
+}
+
+/// A live type occurrence, not ownership attached to a shared arena node.
+/// The same handle can occur beneath distinct supplying declarations.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct TypeOccurrence {
+    pub lexical_owner: SymbolHandle,
+    pub reference: TypeReferenceHandle,
+}
+
+/// Source application discovery uses the same declaration/body traversal as
+/// dependency collection. Arena capacity also contains discarded descriptors;
+/// scanning it would invent application roots with no supplying declaration.
+/// This inventory grants neither reachability nor execution authority.
+pub fn collect_program_type_occurrences(program: &TypedTrees) -> Vec<TypeOccurrence> {
+    let mut occurrences = TypeOccurrences::default();
+    visit_program(program, &mut occurrences);
+    occurrences.types
+}
+
+#[derive(Default)]
+struct TypeOccurrences {
+    owner: SymbolHandle,
+    outer_owners: Vec<SymbolHandle>,
+    types: Vec<TypeOccurrence>,
+    seen_types: Vec<Vec<(SymbolHandle, TypeReferenceHandle)>>,
+    seen_expressions: Vec<Vec<(SymbolHandle, ExpressionHandle)>>,
+    seen_mathematical_types: Vec<Vec<(SymbolHandle, crate::mathematical::MathematicalTypeHandle)>>,
+}
+
+/// Index shared nodes by arena slot, retaining generation and supplying scope.
+/// Searching the whole occurrence roster at every child would turn ordinary
+/// source discovery into quadratic work on the complete library graph.
+fn retain_scoped_occurrence<Element>(
+    seen: &mut Vec<Vec<(SymbolHandle, arena::Handle<Element>)>>,
+    owner: SymbolHandle,
+    reference: arena::Handle<Element>,
+) -> bool {
+    let slot = reference.arena_index() as usize;
+    if seen.len() <= slot {
+        seen.resize_with(slot + 1, Vec::new);
+    }
+    let occurrence = (owner, reference);
+    if seen[slot].contains(&occurrence) {
+        return false;
+    }
+    seen[slot].push(occurrence);
+    true
+}
+
+impl Extend<SymbolHandle> for TypeOccurrences {
+    fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, _: Symbols) {}
+}
+
+impl TypedReferences for TypeOccurrences {
+    fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+        self.owner = symbol;
+        true
+    }
+
+    fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
+        self.outer_owners.push(self.owner);
+        if owner.is_valid() {
+            self.owner = owner;
+        }
+    }
+
+    fn leave_lexical_scope(&mut self) {
+        if let Some(owner) = self.outer_owners.pop() {
+            self.owner = owner;
+        }
+    }
+
+    fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+        let occurrence = TypeOccurrence {
+            lexical_owner: self.owner,
+            reference,
+        };
+        if !retain_scoped_occurrence(&mut self.seen_types, self.owner, reference) {
+            return false;
+        }
+        self.types.push(occurrence);
+        true
+    }
+
+    fn expression(&mut self, expression: ExpressionHandle) -> bool {
+        retain_scoped_occurrence(&mut self.seen_expressions, self.owner, expression)
+    }
+
+    fn mathematical_type(
+        &mut self,
+        reference: crate::mathematical::MathematicalTypeHandle,
+    ) -> bool {
+        retain_scoped_occurrence(&mut self.seen_mathematical_types, self.owner, reference)
+    }
 }
 
 /// Enumerate declaration roots without traversing their expressions, types or
@@ -861,6 +960,7 @@ fn visit_signature(
     retained: &mut impl TypedReferences,
     signature: &crate::signature::StateSignature,
 ) {
+    retained.enter_lexical_scope(signature.symbol);
     visit_type_parameters(program, retained, signature.type_parameters);
     visit_proof_facts(program, retained, signature.where_facts);
     for parameter in program
@@ -887,6 +987,7 @@ fn visit_signature(
     {
         visit_contract(program, retained, contract);
     }
+    retained.leave_lexical_scope();
 }
 
 /// Retain machines referenced by one signature contract's proof facts.
@@ -1301,6 +1402,7 @@ pub fn visit_machine(
     retained: &mut impl TypedReferences,
     machine: &crate::machine::Machine,
 ) {
+    retained.enter_lexical_scope(machine.symbol);
     for specialization in program
         .machine_specializations
         .iter()
@@ -1406,6 +1508,7 @@ pub fn visit_machine(
             visit_statement(program, retained, statement);
         }
     }
+    retained.leave_lexical_scope();
 }
 
 fn visit_mathematical_type(

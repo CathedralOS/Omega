@@ -388,7 +388,11 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 )
                 .ok()
                 .flatten()
-                .and_then(|carrier| carrier.carrier.application(program))
+                .and_then(|carrier| {
+                    carrier
+                        .carrier
+                        .application(program, current_machine.symbol, &[])
+                })
                 .is_some_and(|scope| {
                     program
                         .requirement_application_matches_scope(application.signature.symbol, &scope)

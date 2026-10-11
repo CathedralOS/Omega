@@ -16,7 +16,7 @@ use super::{
 };
 use checked_trees::{CheckedUnitStructuralFieldPlan, CheckedUnitStructuralTypePlan};
 use typed_trees::service::ExactServiceCarrier;
-use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+use typed_trees::trait_definition::AppliedTraitScope;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 struct ServiceFieldApplication<'program> {
@@ -534,20 +534,8 @@ fn collect_service_fields<'a>(
             field.type_reference,
         ) {
             Ok(Some(carrier)) => {
-                let Some(application) = checked
-                    .trait_definition_by_symbol(carrier.requirement)
-                    .and_then(|declaration| {
-                        AppliedTraitScope::new(
-                            checked,
-                            declaration,
-                            TraitApplicationArguments {
-                                lexical_owner: source.lexical_owner,
-                                enclosing_data_applications,
-                                arguments: carrier.arguments(checked),
-                                lifetimes: &[],
-                            },
-                        )
-                    })
+                let Some(application) =
+                    carrier.application(checked, source.lexical_owner, enclosing_data_applications)
                 else {
                     diagnostics.push(Diagnostic::error(format!(
                             "selected ProgramEntry field `{}::{}` lost its exact enclosing data application",

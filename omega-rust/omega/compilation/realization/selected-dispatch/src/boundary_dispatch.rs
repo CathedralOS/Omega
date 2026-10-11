@@ -33,18 +33,21 @@ fn selected_service_plan_for_carrier<'plans>(
     calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_plans: &'plans effects::SelectedProviderPlanFacts,
     carrier: typed_trees::service::ExactServiceCarrier,
+    lexical_owner: symbols::SymbolHandle,
 ) -> Option<&'plans effects::provider_plan::ProviderPlan> {
-    let schema = carrier.application(typed).and_then(|application| {
-        provider_planning::service_schema::from_typed_application(
-            provider_planning::ProviderPlanningContext::new(
-                typed,
-                source::DependencyScope::Product,
-            ),
-            calling_plans,
-            application,
-            carrier.arguments(typed),
-        )
-    })?;
+    let schema = carrier
+        .application(typed, lexical_owner, &[])
+        .and_then(|application| {
+            provider_planning::service_schema::from_typed_application(
+                provider_planning::ProviderPlanningContext::new(
+                    typed,
+                    source::DependencyScope::Product,
+                ),
+                calling_plans,
+                application,
+                carrier.arguments(typed),
+            )
+        })?;
     let mut matching = selected_plans
         .plans()
         .iter()
@@ -157,6 +160,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
                     calling_plans,
                     selected_plans,
                     carrier,
+                    data.symbol,
                 ) else {
                     // Unselected requirements supply no executable adapter.
                     // Root establishment owns missing-provider diagnostics.
@@ -355,6 +359,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
                 calling_plans,
                 selected_plans,
                 carrier.carrier,
+                receipt.source_parameter,
             ) else {
                 continue;
             };

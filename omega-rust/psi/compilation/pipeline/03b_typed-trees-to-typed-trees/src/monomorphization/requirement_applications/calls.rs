@@ -8,6 +8,7 @@ use typed_trees::{TypedTrees, expression::StaticMachineArgument, types::TypeRefe
 
 fn instance(
     program: &TypedTrees,
+    lexical_owner: SymbolHandle,
     target: SymbolHandle,
     receiver: Option<TypeReferenceHandle>,
     arguments: &[StaticMachineArgument],
@@ -25,7 +26,7 @@ fn instance(
     }) {
         Some(carrier) => carrier
             .carrier
-            .application(program)
+            .application(program, lexical_owner, &[])
             .and_then(|scope| scope.declaring_scope(program, owner.symbol)),
         None if program.trait_type_parameters(owner).is_empty()
             && owner.lifetime_parameters.is_empty() =>
@@ -84,6 +85,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                     );
                     let selected = instance(
                         program,
+                        machine.symbol,
                         call.target_symbol,
                         receiver,
                         &call.machine_arguments,
@@ -111,6 +113,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                     );
                     let selected = instance(
                         program,
+                        machine.symbol,
                         call.target_symbol,
                         receiver,
                         &call.machine_arguments,
