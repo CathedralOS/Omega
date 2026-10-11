@@ -307,6 +307,7 @@ impl Builder<'_, '_> {
                     expression,
                     expected,
                 )?,
+                source_value: CheckedStructuralValueHandle::invalid(),
             }
         } else if matches!(
             self.program.expression_table.expression(expression),

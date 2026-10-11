@@ -405,6 +405,50 @@ impl Preparation<'_> {
         let plans = &self.checked.facts.values.structural_values;
         let node = plans.nodes.get(value);
         let declaration = carrier_declaration(identities, self.checked, self.types, reference)?;
+        if let CheckedStructuralValueKind::Reference {
+            source,
+            source_value,
+        } = &node.kind
+        {
+            let argument = if source_value.is_valid() {
+                let child_reference = plans.nodes.get(*source_value).type_reference;
+                let root_type =
+                    carrier_declaration(identities, self.checked, self.types, child_reference)?.id;
+                let mut argument =
+                    self.source(identities, *source_value, child_reference, claim_path)?;
+                argument.path.extend(crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                    identities, &source.path, root_type, self.types,
+                )?);
+                argument.access =
+                    crate::expression_preparation::bindings::structural_paths::terminal_access(
+                        source.access,
+                    );
+                argument
+            } else {
+                let (machine, state) =
+                    crate::declarations::state_declaration(self.checked, self.state)?;
+                self.bindings.borrowed_structural_argument(
+                    identities,
+                    self.checked,
+                    source,
+                    machine,
+                    self.checked.state_parameters(state),
+                )?
+            };
+            let place = self.reserved.place(value)?;
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::EstablishReference {
+                    state: node.state,
+                    statement: node.statement_index,
+                    expression: node.expression,
+                    place,
+                    structural_type: declaration.id,
+                    source: argument,
+                },
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
         if let CheckedStructuralValueKind::Call { .. } = &node.kind {
             let mut producers = self.calls.iter().filter(|call| call.value == value);
             let producer = producers.next().ok_or(LoweringError::Unsupported(

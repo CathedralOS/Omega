@@ -403,8 +403,12 @@ pub(crate) fn structural_dependencies(
                     scalars.push(*start);
                 }
             }
-            Value::Reference { .. }
-            | Value::Call { .. }
+            Value::Reference { source_value, .. } => {
+                if source_value.is_valid() {
+                    pending.push(*source_value);
+                }
+            }
+            Value::Call { .. }
             | Value::Place(_)
             | Value::ByteLiteralView { .. }
             | Value::CopiedStructuralPlace { .. }

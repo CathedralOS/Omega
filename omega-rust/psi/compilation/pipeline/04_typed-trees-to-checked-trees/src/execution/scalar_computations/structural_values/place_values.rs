@@ -6,9 +6,7 @@
 //! the shells required by their representation. No lookup grants membership.
 
 use super::super::{Builder, ExpressionHandle, ExpressionNode, PrimitiveType, TypeReferenceNode};
-use super::place_types::{
-    canonical_place_is_borrowable, needs_copied_place_root, projection_root_expression,
-};
+use super::place_types::{needs_copied_place_root, projection_root_expression};
 use super::value_predicates::{
     is_view_element_copy, plain_or_policy_scalar_field, shared_record_reference,
 };
@@ -295,16 +293,10 @@ impl Builder<'_, '_> {
     /// moving a child. `shared_record_reference` pins the referent to a
     /// carrier the pipeline can build -- a record, or a primitive whose
     /// structural shape is its own scalar -- and the target must be the exact
-    /// place semantics admitted: a named root under record fields and literal
-    /// fixed indexes, whose projected leaf type has to equal the declared
-    /// referent.
-    /// One copyable payloadless case leaf projected out of shared-borrowed
-    /// storage: `self.bitness` reads which case the borrowed record currently
-    /// holds. The root and path become a `SharedBorrow` `Place` source exactly
-    /// as `borrowed_place` builds for `&place`, so lowering observes the held
-    /// case and establishes the same constructor fresh rather than moving a
-    /// child out of the loan. Owned roots still move their whole leaf through
-    /// the owned arms.
+    /// place semantics admitted: an existing or computed root under record
+    /// fields and literal fixed indexes, whose projected leaf type must equal
+    /// the declared referent. A computed root retains its backing producer;
+    /// the descriptor owns neither that backing nor its cleanup obligations.
     pub(super) fn borrowed_place(
         &mut self,
         expression: ExpressionHandle,
@@ -323,11 +315,43 @@ impl Builder<'_, '_> {
             self.statement_index,
             borrow.target,
         )?;
-        if !canonical_place_is_borrowable(&place) {
+        if !place.segments.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+            )
+        }) {
             return None;
         }
-        let symbol = place.root.as_symbol()?;
-        let source = self.structural_source(symbol);
+        // A source is storage, not necessarily a named binding. Retain the
+        // producer of an anonymous root explicitly so construction schedules
+        // can establish it before lending the selected path. Borrow checking
+        // still owns the lifetime and access of this exact occurrence.
+        let (source, source_value) = match place.root {
+            facts::PlaceRoot::Symbol(symbol) => (
+                self.structural_source(symbol),
+                checked_trees::CheckedStructuralValueHandle::invalid(),
+            ),
+            facts::PlaceRoot::Expression(root) => {
+                let root_reference = validation::canonical_place_type_reference(
+                    self.program,
+                    self.state,
+                    self.statement_index,
+                    &validation::CanonicalPlace {
+                        root: place.root,
+                        segments: Vec::new(),
+                    },
+                )?;
+                let value = self.structural_value(root, root_reference)?;
+                (
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        expression: root,
+                    },
+                    value,
+                )
+            }
+            _ => return None,
+        };
         let (mut projected, mut path) =
             crate::execution::terminal_unit::calls::projected_argument_path(
                 self.program,
@@ -364,6 +388,7 @@ impl Builder<'_, '_> {
             return None;
         }
         Some(CheckedStructuralValueKind::Reference {
+            source_value,
             source: checked_trees::CheckedUnitStructuralArgumentPlan {
                 source,
                 path,

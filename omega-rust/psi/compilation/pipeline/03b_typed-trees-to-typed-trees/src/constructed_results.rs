@@ -3,7 +3,7 @@
 //! A projection can know its element or member without knowing its complete
 //! value type. Ownership needs the latter: an array's authored extent and a
 //! constructor's applied declaration determine each child's claim path. Derive
-//! compound values from completed children after final call binding, never from a
+//! compound values from completed children as calls bind, never from a
 //! same-shaped declaration or the consumer's formal type. Child-before-parent
 //! preparation gives nested constructors the same ordinary result-type route.
 //! No ownership, membership or loan permission is established by this derivation.

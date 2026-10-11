@@ -1,7 +1,8 @@
 //! Reference carriers retain ingress provenance and the exact source loan end.
 //! A consumer borrows the referent; it does not acquire its linear claims or
-//! cleanup. The checked borrow-free storage judgment excludes nested carriers
-//! without requiring the referent to be a freely copied owned snapshot.
+//! cleanup. A computed backing is established by the ordinary value schedule
+//! before this operation; reference-bearing backing keeps its contained loans
+//! and normal disposition rather than borrowing a detached owned snapshot.
 use super::super::StructuralArgument;
 use super::{
     LoweringError, Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration,
@@ -12,11 +13,11 @@ use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 /// The checked expression the reference operation actually evaluates.
 /// Source coordinates stay in this producer companion, never in Terminal.
-pub(super) struct Formation<'checked> {
-    pub(super) checked: &'checked checked_trees::CheckedTrees,
-    pub(super) state: symbols::SymbolHandle,
-    pub(super) statement_index: usize,
-    pub(super) expression: checked_trees::expression::ExpressionHandle,
+pub(crate) struct Formation<'checked> {
+    pub(crate) checked: &'checked checked_trees::CheckedTrees,
+    pub(crate) state: symbols::SymbolHandle,
+    pub(crate) statement_index: usize,
+    pub(crate) expression: checked_trees::expression::ExpressionHandle,
 }
 
 pub(super) fn emit(
@@ -34,21 +35,20 @@ pub(super) fn emit(
         structural_type,
         source,
         storage,
-        next_place,
+        place_id(allocate_dense(next_place)?),
         operations,
     )
 }
 
-pub(super) fn emit_carrier(
+pub(crate) fn emit_carrier(
     formation: Formation<'_>,
     structural_type: StructuralTypeId,
     source: StructuralArgument,
     storage: Option<terminal_psi::ReferenceStorageView>,
-    next_place: &mut u64,
+    place: semantic_vocabulary::PlaceId,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let id = operations.allocate();
-    let place = place_id(allocate_dense(next_place)?);
     // The ordinary and constructed-reference routes share this capture. The
     // lowered source is already evaluated, including every selector snapshot.
     // These rows associate checked occurrences with emitted coordinates; they

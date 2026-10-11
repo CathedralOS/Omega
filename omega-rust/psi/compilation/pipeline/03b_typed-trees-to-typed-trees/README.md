@@ -28,7 +28,13 @@ checking (04) without renumbering their existing downstream consumers.
 [Specialization](src/monomorphization/mod.rs) runs explicit fixed-point rounds:
 discover call tuples, retain their exact bindings,
 materialize missing instances, then rewrite calls. Source operand formation
-does not run in those rounds. [Authored selections](src/preparation/selections.rs)
+does not run in those rounds. Complete array, record and borrow result types
+are derived together in child-before-parent order before tuple discovery:
+borrowing a constructed value needs that value's type, not a declared-place
+approximation. Unchanged type vocabulary is reused across rounds and final
+preparation. This derivation establishes no loan, ownership or field predicate;
+immutable checking still owns those judgments.
+[Authored selections](src/preparation/selections.rs)
 retain each application's declaration, operands and lexical owner before
 folding; cloning copies and remaps that custody. Immutable checking owns
 [argument admission](../../checking/src/machine_calls/static_arguments.rs),

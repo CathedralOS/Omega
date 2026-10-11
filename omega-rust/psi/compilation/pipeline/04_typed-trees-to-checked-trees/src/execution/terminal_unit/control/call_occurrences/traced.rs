@@ -174,7 +174,12 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     checked_trees::CheckedStructuralValueKind::FixedArray { ref elements } => {
                         pending.extend(elements.iter().copied());
                     }
-                    checked_trees::CheckedStructuralValueKind::Reference { ref source }
+                    checked_trees::CheckedStructuralValueKind::Reference {
+                        source_value, ..
+                    } if source_value.is_valid() => {
+                        pending.push(source_value);
+                    }
+                    checked_trees::CheckedStructuralValueKind::Reference { ref source, .. }
                     | checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
                         ref source,
                         ..

@@ -63,10 +63,14 @@ pub enum CheckedElementViewRegion {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedStructuralValueKind {
-    /// Capture existing borrowed storage into an owned permission carrier.
+    /// Capture borrowed storage into an owned permission carrier.
     /// A record field consumes this carrier, never a scalar referent snapshot.
     Reference {
         source: crate::CheckedUnitStructuralArgumentPlan,
+        /// The backing producer when the source has no existing storage home.
+        /// Zero names existing storage. Evaluation lends this child; it never
+        /// transfers the child into the descriptor or its containing record.
+        source_value: CheckedStructuralValueHandle,
     },
     Case(crate::CheckedScalarCaseConstruction),
     /// An owned construction of a named case whose payload fields are not all

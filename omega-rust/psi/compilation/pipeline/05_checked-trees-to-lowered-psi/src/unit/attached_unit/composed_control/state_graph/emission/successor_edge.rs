@@ -374,7 +374,7 @@ impl StateGraphEmission<'_, '_> {
                                         statement_index: edge.statement_ordinal as usize,
                                         expression: formation_expression,
                                     },
-                                    carrier_type, source, None, &mut self.catalogs.next_place, operations,
+                                    carrier_type, source, None, place_id(allocate_dense(&mut self.catalogs.next_place)?), operations,
                                 )?;
                                 captured_loans.push((group, carrier.id));
                                 self.structural_places.push(carrier);

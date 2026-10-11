@@ -41,8 +41,16 @@ fn collect_value_roots(
 ) -> Result<(), LoweringError> {
     let node = checked.facts.values.structural_values.nodes.get(value);
     match &node.kind {
+        checked_trees::CheckedStructuralValueKind::Reference {
+            source,
+            source_value,
+        } => {
+            roots.push(source.type_identity);
+            if source_value.is_valid() {
+                collect_value_roots(checked, *source_value, roots)?;
+            }
+        }
         checked_trees::CheckedStructuralValueKind::Place(source)
-        | checked_trees::CheckedStructuralValueKind::Reference { source }
         | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. } => {
             roots.push(source.type_identity);
         }

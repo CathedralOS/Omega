@@ -24,6 +24,28 @@ pub(crate) fn emit(
 ) -> Result<(), LoweringError> {
     for effect in effects {
         match effect {
+            LoweredScalarEffect::EstablishReference {
+                state,
+                statement,
+                expression,
+                place,
+                structural_type,
+                source,
+            } => {
+                crate::unit::attached_unit::reference_results::emit_carrier(
+                    crate::unit::attached_unit::reference_results::Formation {
+                        checked,
+                        state: *state,
+                        statement_index: *statement as usize,
+                        expression: *expression,
+                    },
+                    *structural_type,
+                    source.clone(),
+                    None,
+                    *place,
+                    operations,
+                )?;
+            }
             LoweredScalarEffect::CopyStructuralValue {
                 source,
                 place,

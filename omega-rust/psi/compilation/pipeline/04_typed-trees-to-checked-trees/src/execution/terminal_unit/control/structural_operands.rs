@@ -354,8 +354,12 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     let _ = shapes.add_type(*leaf, &binders, &[])?;
                 }
             }
-            checked_trees::CheckedStructuralValueKind::Reference { .. }
-            | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
+            checked_trees::CheckedStructuralValueKind::Reference { source_value, .. } => {
+                if source_value.is_valid() {
+                    pending.push(*source_value);
+                }
+            }
+            checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
             | checked_trees::CheckedStructuralValueKind::MutableSliceView { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_)
             | checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }

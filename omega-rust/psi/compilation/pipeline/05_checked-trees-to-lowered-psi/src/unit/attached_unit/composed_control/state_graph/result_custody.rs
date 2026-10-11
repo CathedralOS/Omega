@@ -107,8 +107,15 @@ fn construction_inputs<'input>(
                 }
                 visited.push(value);
                 match &plans.nodes.get(value).kind {
+                    CheckedStructuralValueKind::Reference { source_value, .. }
+                        if source_value.is_valid() =>
+                    {
+                        pending.push((*source_value, false));
+                    }
                     CheckedStructuralValueKind::Place(argument)
-                    | CheckedStructuralValueKind::Reference { source: argument }
+                    | CheckedStructuralValueKind::Reference {
+                        source: argument, ..
+                    }
                     | CheckedStructuralValueKind::BorrowedSliceView {
                         source: argument, ..
                     }

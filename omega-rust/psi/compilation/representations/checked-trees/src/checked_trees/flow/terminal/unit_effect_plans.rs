@@ -598,7 +598,7 @@ impl CheckedUnitEffectOperationPlan {
             Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
                 value, ..
             }) if values.nodes.is_valid(*value) => match &values.nodes.get(*value).kind {
-                crate::CheckedStructuralValueKind::Reference { source } => Some(source),
+                crate::CheckedStructuralValueKind::Reference { source, .. } => Some(source),
                 _ => None,
             },
             _ => None,

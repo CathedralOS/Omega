@@ -336,8 +336,18 @@ impl CallTransfers<'_> {
                         }
                     }
             }
+            CheckedStructuralValueKind::Reference {
+                source,
+                source_value,
+            } => {
+                self.argument_evaluation(source)
+                    + if source_value.is_valid() {
+                        self.structural(*source_value, calls)
+                    } else {
+                        0
+                    }
+            }
             CheckedStructuralValueKind::Place(source)
-            | CheckedStructuralValueKind::Reference { source }
             | CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 self.argument_evaluation(source)
             }

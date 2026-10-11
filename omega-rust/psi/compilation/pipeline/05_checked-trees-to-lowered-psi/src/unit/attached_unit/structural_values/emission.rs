@@ -1339,7 +1339,10 @@ impl Emission<'_, '_, '_> {
                     LoanAccess::Mutable,
                     continuation,
                 ),
-            CheckedStructuralValueKind::Reference { source } => self.reference_value(
+            CheckedStructuralValueKind::Reference {
+                source,
+                source_value,
+            } => self.reference_value(
                 identities,
                 super::super::reference_results::Formation {
                     checked: self.checked,
@@ -1348,6 +1351,7 @@ impl Emission<'_, '_, '_> {
                     expression: node.expression,
                 },
                 &source,
+                source_value,
                 continuation,
             ),
             CheckedStructuralValueKind::Record { .. } => {

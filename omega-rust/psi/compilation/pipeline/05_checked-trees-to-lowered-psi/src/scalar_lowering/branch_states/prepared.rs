@@ -270,6 +270,14 @@ pub(crate) fn scalar_state_emission_order(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarEffect {
+    EstablishReference {
+        state: symbols::SymbolHandle,
+        statement: u32,
+        expression: checked_trees::expression::ExpressionHandle,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        source: terminal_psi::StructuralArgument,
+    },
     /// Snapshot one unrestricted whole operand at its authored evaluation point.
     CopyStructuralValue {
         source: crate::expression_preparation::bindings::PreparedStructuralCopy,

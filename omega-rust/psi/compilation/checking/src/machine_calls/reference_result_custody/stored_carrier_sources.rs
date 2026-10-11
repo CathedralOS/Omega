@@ -61,7 +61,7 @@ fn select(
     }
     active.push(value);
     match &values.nodes.get(value).kind {
-        CheckedStructuralValueKind::Reference { source }
+        CheckedStructuralValueKind::Reference { source, .. }
         | CheckedStructuralValueKind::BorrowedSliceView { source, .. }
         | CheckedStructuralValueKind::MutableSliceView { source, .. } => {
             if !selection.is_empty() {

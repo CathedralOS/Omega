@@ -71,14 +71,11 @@ pub(crate) fn validate(
         consumer.statement_index,
         &owner,
     )?;
-    if !validation::has_contents(
-        program,
-        owner_type,
-        &[],
-        validation::ContentsRequirement::BorrowFree,
-    ) {
-        return None;
-    }
+    // Construction has already admitted each reference leaf and retained its
+    // exact source. Lending the containing home neither copies those referents
+    // nor transports their permissions into the callee. A borrow-free contents
+    // whitelist here rejected ordinary composition instead of checking the
+    // actual owner/loan/disposition relationships retained below and on calls.
     let multiplicity = crate::checks::type_multiplicity(program, owner_type);
     let (source_machine, source_state) = validation::find_state(program, state)?;
     if source_machine.symbol != machine {

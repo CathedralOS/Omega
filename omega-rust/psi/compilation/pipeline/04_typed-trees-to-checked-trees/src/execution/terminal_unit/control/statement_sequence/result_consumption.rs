@@ -857,8 +857,12 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
             checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
                 pending.extend(elements.iter().copied());
             }
-            checked_trees::CheckedStructuralValueKind::Reference { .. }
-            | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
+            checked_trees::CheckedStructuralValueKind::Reference { source_value, .. } => {
+                if source_value.is_valid() {
+                    pending.push(*source_value);
+                }
+            }
+            checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
             | checked_trees::CheckedStructuralValueKind::MutableSliceView { .. }
             | checked_trees::CheckedStructuralValueKind::Call { .. }
             | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }

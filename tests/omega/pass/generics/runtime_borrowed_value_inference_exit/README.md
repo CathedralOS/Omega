@@ -3,6 +3,9 @@ Generic calls infer from argument values, not their underlying storage types.
 `accept(&backing)` binds `Payload` to `i32` without a result-type hint.
 Reborrowing a lifetime-tagged reference through `identity` retains its referent
 and lifetime instead of creating a reference to its carrier.
+Constructed records and fixed arrays supply their complete types before their
+borrows participate in call inference. A nested borrowed constructor retains
+its backing home: the callee reads 37 through the stored reference leaf.
 The returned linear token retains the original backing, observes 73 and is
 consumed exactly once. Native and Terminal execution must both return 0.
 
