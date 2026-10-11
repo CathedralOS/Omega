@@ -69,6 +69,8 @@ project=samples/cli/independent/constrained_pendulum_motion
 "$OMEGA" run "$project/main.omg" < "$project/data/released.stdin"
 "$OMEGA" run --both --keep "$project/main.omg" < "$project/data/small_double.stdin"
 python3 "$project/validate.py" --omega "$OMEGA"
+# Or reuse the exact retained native executable printed by a successful run --keep:
+python3 "$project/validate.py" --executable /absolute/path/to/retained/native/executable
 ```
 
 Package review/acceptance is explicit and host-local. Denied acceptance is a

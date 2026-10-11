@@ -7,9 +7,13 @@ from reference import verify, VALID, INVALID
 ROOT = Path(__file__).resolve().parent
 REPOSITORY = ROOT.parents[3]
 parser = argparse.ArgumentParser()
-parser.add_argument('--omega', required=True)
+runner = parser.add_mutually_exclusive_group(required=True)
+runner.add_argument('--omega')
+runner.add_argument('--executable', help='reuse the exact retained native artifact after a verified Omega run')
 parser.add_argument('--both', action='store_true', help='compare native and Terminal termination')
 options = parser.parse_args()
+if options.both and not options.omega:
+    parser.error('--both requires --omega')
 output = ROOT/'build'/('comparison' if options.both else 'native')
 output.mkdir(parents=True,exist_ok=True)
 environment = dict(os.environ,OMEGA_LIBRARY_ROOT=str(REPOSITORY/'source/library'))
@@ -21,12 +25,13 @@ def run(label,command,input_bytes=b''):
     records.append({'case':label,'command':command,'exit':completed.returncode})
     (output/'commands.json').write_text(json.dumps(records,indent=2)+'\n')
     return completed
-command = [options.omega,'--check',str(ROOT/'main.omg')]
-checked = run('check',command)
-if checked.returncode:
-    sys.exit('check blocked: '+checked.stderr.decode(errors='replace'))
+if options.omega:
+    command = [options.omega,'--check',str(ROOT/'main.omg')]
+    checked = run('check',command)
+    if checked.returncode:
+        sys.exit('check blocked: '+checked.stderr.decode(errors='replace'))
 for name in list(VALID)+INVALID:
-    command = [options.omega,'run']+(['--both','--keep'] if options.both else [])+[str(ROOT/'main.omg')]
+    command = [options.executable] if options.executable else [options.omega,'run']+(['--both','--keep'] if options.both else [])+[str(ROOT/'main.omg')]
     completed = run(name,command,(ROOT/'data'/(name+'.stdin')).read_bytes())
     expected_exit = 0 if name in VALID else 64
     if completed.returncode != expected_exit:
