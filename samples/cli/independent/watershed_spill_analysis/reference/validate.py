@@ -1,6 +1,7 @@
 """Serial public-entry validation against immutable byte and exit oracles."""
 from pathlib import Path
 import argparse, hashlib, json, os, subprocess, sys
+sys.dont_write_bytecode = True
 import oracle
 parser=argparse.ArgumentParser()
 parser.add_argument('--omega', required=True)
