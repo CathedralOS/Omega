@@ -1,102 +1,106 @@
-# ADD09 validation evidence
+# ADD09 evidence and reproduction
 
-Base compiler source: `9a0463cc42af5f7178372c169ae55e528fe43878` (fetched main).
-Isolated branch `add09-range`; worktree `/workspace/Omega/.codex/worktrees/add09`.
-Compiler built directly from that worktree, with no Rust edits or other workers.
+The application is private to this directory. It imports only published std
+Console facilities and core numeric conversion; it has no worker or numerical
+library dependency. Source comparison and ownership are in `ASSIGNMENT.md`.
+The model and limitations are in `README.md`.
 
-Build command:
+The original oracle was frozen before any Omega execution: 18 cases, manifest
+SHA256 `00b3e7636698202552def906938d3510be5c8656fca67628e6f2e4d540075a65`.
+An independent anchor-first annulus set intersection confirms the constructed
+lattice positions. The first two exact circles intersect at (3,4) and (3,-4);
+the third selects (3,4). Integer tolerance is zero; the independent continuous
+witness tolerance is 1e-12. A separate frozen wide-band case has 121 candidates;
+three separately frozen cases cover LF and EOF at the 128-byte read capacity.
+Neither validator regenerates expected output.
+
+## Witnessed development controls
+
+Native execution initially declined the guarded fixed-array-to-slice argument
+on main `9a0463cc42af5f7178372c169ae55e528fe43878`; the same complete application
+reproduced it on then-current published main
+`2f145503f24ecc1cac43588dc1c593dc069f9e7d`. The owning Psi structural argument
+producer needed to form a view descriptor at the argument occurrence, and its
+consumer needed to keep that exact retained root ahead of borrow peeling.
+The general repair has two corpus controls:
+
+- `pass/slices/fixed_array_slice_state_arguments_exit`: a local array and a
+  mutable array field become state slices, preserve backing writes, print
+  `3456\n`, and exit 70 through native and Terminal.
+- `fail/borrows/fixed_array_slice_state_immutable_rejected`: an immutable
+  referent cannot lend writable access. The exact existing diagnostic is pinned.
+
+The unchanged `pass/slices/local_array_element_view_exit` also passed native
+and Terminal after the producer/consumer repair. Only the new controls' corpus
+rows were added; existing ledger rows and main's later entries were preserved.
+A scoped `typed-trees-to-checked-trees` Clippy run exited 0 in 1m07s; it reported
+234 existing warnings, including an unchanged `?` suggestion at
+`structural_arguments.rs:839`. No warnings were suppressed or unrelated lint
+changes applied.
+
+A recursive private decimal formatter reached the existing unsupported recursive
+Unit closure boundary. The next scalar iterative formatter exposed
+`RegisterAllocation(RuntimeSpill(Homes(NoCommonCandidate { function: 9,
+register: 5 })))` on the same main base. An optional crossing-spill experiment
+still failed and was withdrawn completely. No allocator or backend change is
+retained. The delivered private formatter prepares decimal bytes in one
+`Decimal` record before writing them with the existing Console provider; it
+retains the same signed decimal output and handles the nonpositive magnitude
+of i32::MIN without overflow. Its guarded transitions use ordinary checked
+Omega arithmetic and array bounds.
+
+The complete source with this formatter passed native and Terminal for the
+unique case. The real admitted sample, compiled with compiler SHA256
+`0c78368c0f77d755778f01c95c2e13aa3429c34deeef0346dc9e7455d8f00609`
+from the repaired 2f base, produced `build/omega-program`, SHA256
+`6a1ebc52082ed32bb3e5d9c36949755ac5525afe6f1ea8d567bb8b84469a8723`.
+All 28 native runtime cases passed exact stdout, empty stderr and exit checks.
+This is pre-integration evidence; final integrated identities and per-case
+observations are preserved in the review bundle's validation manifest and logs.
+
+## Integrated validation commands
+
+The isolated branch was rebased onto published main
+`a5d20d6a7faeaf56acabe903a4e78275760d0cee`. Build metadata binds the existing
+Linux x86_64, Windows x86_64 and macOS arm64 entry providers; execution evidence
+is for Linux x86_64 only. The executor is UID 1000, Linux x86_64, five CPUs,
+18440136 KiB memory. One Rust build and one Omega execution are used at a time.
+The pinned toolchain is nightly-2026-09-04, Rust build jobs 4, corpus jobs 1.
 
 ```sh
 source /workspace/cloud-setup/activate.sh
-CARGO_TARGET_DIR=/workspace/add09-target CARGO_BUILD_JOBS=4 mbx build -p omega
+export CARGO_TARGET_DIR=/workspace/add09-opt-target
+export CARGO_PROFILE_DEV_OPT_LEVEL=1
+export OMEGA_CORPUS_JOBS=1
+export OMEGA_LIBRARY_ROOT="$PWD/source/library"
+mbx build -p omega
+omega update --project samples/cli/independent/range_only_localization --target linux_x86_64
+# If a pending review is produced, inspect its exact local decisions and resume
+# through the normal package workflow; no lock or source guard is hand-edited.
+omega --check --target linux_x86_64 samples/cli/independent/range_only_localization/main.omg
+omega --target linux_x86_64 samples/cli/independent/range_only_localization/main.omg
+python3 -B samples/cli/independent/range_only_localization/validate.py \
+  samples/cli/independent/range_only_localization/build/omega-program
+python3 tools/corpus_gate.py --both \
+  --filter pass/slices/fixed_array_slice_state_arguments_exit,pass/slices/local_array_element_view_exit \
+  --golden /tmp/add09-integrated-slices.txt --record
+python3 -B samples/cli/independent/range_only_localization/validate_terminal.py \
+  /absolute/path/to/the/verified/corpus_runner
+omega --check --target linux_x86_64 \
+  samples/cli/independent/range_only_localization/intended_invalid/rejected.omg
 ```
 
-Build exit 0, elapsed 3m26s, unoptimized dev profile, pinned
-nightly-2026-09-04. Compiler binary `/workspace/add09-target/debug/omega`:
-SHA256 `f2129021ac24244b42762cfe77417806ecaed0c9f369d986c05f6646205bfaa5`.
-`--version`: `omega 0.1.0-dev (unrecorded; x86_64-unknown-linux-gnu)`.
-The fresh isolated target and source revision establish identity even though the
-version text lacks an embedded commit.
+The separate final command must exit 1 with the authored unproved array-index
+fragment from `intended_invalid/expected_error.txt`. The standalone control has
+its own complete entrypoint and build metadata; it is never part of the valid
+application entrypoint. The validators save actual streams or corpus stream
+comparison records and exact commands under the ignored `build/` directory.
+The transfer bundle includes these artifacts rather than relying on local paths.
 
-Executor: Linux x86_64, kernel 6.18.44, UID 1000, five CPUs,
-18440136 KiB total memory. At most one Rust build and one Omega compiler/execution
-process run at a time. `OMEGA_LIBRARY_ROOT` always selects this worktree's
-`source/library`. The default sandbox rejected synthetic root ownership with
-`cache custody ancestry is owned by an unrelated user`. The supported ordinary
-per-command escalation was requested for compiler execution; no filesystem
-ownership or custody guard was changed.
-
-Oracle freeze occurred before Omega execution: 18 cases, manifest SHA256
-`00b3e7636698202552def906938d3510be5c8656fca67628e6f2e4d540075a65`.
-Reference set intersection confirms every manually constructed expected position;
-continuous first-two-circle intersections are exactly (3,4) and (3,-4).
-Integer output tolerance 0; circle witness tolerance 1e-12.
-
-Actual acceptance results and artifact identities follow below when complete.
-
-First authoring check rejected an ordinary call to internal state `digits` in
-`number`; corrected to a normal state transition. This was an application
-source error, not a compiler-gap claim. Command used the same binary and
-`--check --target linux_x86_64`; captured log `/tmp/add09-check.log`.
-
-The second check (`--check --timings --target linux_x86_64`) spent 228043187
-microseconds checking std and 254420.641 ms total, then rejected the exported
-formatter's omitted `invokes Console;`. Added that documented published ceiling.
-This was an application declaration error, not a compiler defect.
-
-Unoptimized `omega update --project ... --target linux_x86_64` produced no review
-or diagnostic by the ten-minute attempt bound. The owned PID was terminated at
-10m13s; shell exit 143 is a timeout observation, not a source rejection.
-No custody, proof, provider or package-admission check was changed. An optimized
-dev binary was then built from the identical compiler base with:
-
-```sh
-source /workspace/cloud-setup/activate.sh
-CARGO_TARGET_DIR=/workspace/add09-opt-target CARGO_BUILD_JOBS=4 \
-  CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega
-```
-
-The prior unoptimized build remains preserved in `/workspace/add09-target`.
-
-Optimized dev build exit 0, elapsed 8m41s. Binary SHA256:
-`81579b8ec3697d6ac9f2ccab123b44ec2a0b61164156a6b60d1f3f86046ab2ae`.
-The per-command execution context reported UID 1000, root `/` UID 0, and
-`/workspace` UID 1000. No custody guard was altered.
-
-The first optimized check exposed a clause-separator authoring error; bodyful
-`reaches Console` must precede `invokes Console;` without ending the machine
-declaration. Corrected using existing bodyful corpus examples. The corrected
-check took 35173.315 ms and reached the expected accepted-program-entry boundary:
-`LinuxX86_64Application ... needs an accepted program-entry binding; run omega
-update to review and accept it`. The normal review, not a hand-edited lock, is
-used for this acceptance. A 180-second optimized review attempt timed out with
-exit 124 and no diagnostic; the next attempt was bounded at 600 seconds.
-
-The original 18-case oracle manifest remains byte-identical. A separately frozen
-wide-band oracle admits all 121 points in [0,10]^2 under three [0,20] ranges;
-this challenges multi-digit coordinates, counts and squared residuals. Five
-protocol/window variants reuse the already frozen unique/error numerical output.
-
-The 600-second review completed in approximately three minutes, checking two
-source packages and generating a pending review. Inspection counted 286
-pending rows: std 140 existing callable imports, 140 existing external supplies,
-2 declared capability classes; application 3 Console terminal permissions and
-1 Console process capability class. The application's permissions are input,
-output and termination only. Accepting these project decisions does not assert
-a full standalone audit of std's other exported platform imports.
-
-Two Python bytecode files generated during oracle authoring were removed from
-the private source tree. The normal resume guard rejected the changed source
-snapshot, so that proposal was discarded and the clean source was re-reviewed.
-No locked-source or source-consumption guard was weakened.
-
-Admitted check exit 0: 27 source files, 35678.005 ms total, no output product.
-Native production on original base 9a0463cc42 exited 2 (Incomplete), with:
-`main has no executable body ... state graph: terminator: guarded jump
-successors: loan transfer`, coverage_transition_forms limit 0 requested 1,
-source coordinate 755 (main.omg line 18). This is the first native failure.
-The original application is preserved; no expected output was weakened.
-`repro/loan_transfer.omg` is a complete standalone control for borrowing a
-local fixed byte array into a slice state parameter; its normal expected output
-is `3456\n` and exit 0. Current main was fetched as
-2f145503f24ecc1cac43588dc1c593dc069f9e7d before any compiler repair.
+Default sandbox execution exposed synthetic root ownership rejected by cache
+custody. Ordinary per-command escalated compiler execution was individually
+approved and retained UID 1000 with real UID 0 ownership of `/`. No ownership,
+cache-custody, proof, source-admission or provider guard was altered. Executor
+disconnections were followed by same-executor readiness checks; no replacement
+worker or executor was created. The normal main-only landing queue follows
+independent parent/coordinator review, as explicitly requested.

@@ -8,16 +8,9 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parent
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('executable')
-    parser.add_argument('--output', default=str(ROOT / 'build/validation'))
-    arguments = parser.parse_args()
-    output = Path(arguments.output)
-    output.mkdir(parents=True, exist_ok=True)
+def frozen_cases():
     manifest = json.loads((ROOT / 'data/oracle_manifest.json').read_text())
     assert hashlib.sha256((ROOT / 'data/cases.json').read_bytes()).hexdigest() == manifest['cases_sha256']
-    records = []
     cases = [(case, (ROOT / f"data/{case['name']}.stdin").read_bytes(),
               (ROOT / f"data/{case['name']}.stdout").read_bytes()) for case in manifest['cases']]
     wide = json.loads((ROOT / 'data/wide_bands.oracle.json').read_text())
@@ -39,6 +32,19 @@ def main():
         cases.append(({'name': name, 'exit': 0, 'stdout_sha256': manifest['cases'][0]['stdout_sha256']}, payload, unique_output))
     error_output = (ROOT / 'data/bad_count.stdout').read_bytes()
     cases.append(({'name': 'blank_line', 'exit': 64, 'stdout_sha256': hashlib.sha256(error_output).hexdigest()}, b'\n', error_output))
+    cases.append(({'name': 'default_demo', 'exit': 0,
+                  'stdout_sha256': hashlib.sha256(unique_output).hexdigest()}, b'', unique_output))
+    return cases
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('executable')
+    parser.add_argument('--output', default=str(ROOT / 'build/validation'))
+    arguments = parser.parse_args()
+    output = Path(arguments.output)
+    output.mkdir(parents=True, exist_ok=True)
+    cases = frozen_cases()
+    records = []
     for case, payload, expected in cases:
         name = case['name']
         assert hashlib.sha256(expected).hexdigest() == case['stdout_sha256']
@@ -52,12 +58,6 @@ def main():
         records.append({'case': name, 'exit': actual.returncode, 'expected_exit': case['exit'],
                         'stdout_sha256': hashlib.sha256(actual.stdout).hexdigest(), 'passed': matches})
         print(name, 'PASS' if matches else 'FAIL', actual.returncode)
-    demo = subprocess.run([str(Path(arguments.executable).resolve())], input=b'', capture_output=True, timeout=30)
-    assert demo.returncode == 0 and demo.stdout == (ROOT / 'data/unique.stdout').read_bytes() and not demo.stderr
-    (output / 'default_demo.stdout').write_bytes(demo.stdout)
-    (output / 'default_demo.stderr').write_bytes(demo.stderr)
-    records.append({'case': 'default_demo', 'exit': demo.returncode, 'expected_exit': 0,
-                    'stdout_sha256': hashlib.sha256(demo.stdout).hexdigest(), 'passed': True})
     (output / 'results.json').write_text(json.dumps(records, indent=2) + '\n')
     assert all(record['passed'] for record in records), 'frozen oracle mismatch'
 

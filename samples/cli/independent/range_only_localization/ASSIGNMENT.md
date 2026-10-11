@@ -1,36 +1,34 @@
 ADD09: independent range-only localization application.
 
-Base: 9a0463cc42af5f7178372c169ae55e528fe43878, fetched origin/main.
+Published-main integration base: a5d20d6a7faeaf56acabe903a4e78275760d0cee.
 Branch: add09-range. Worktree: .codex/worktrees/add09.
-Scope: samples/cli/independent/range_only_localization exclusively.
-No active-worker dependencies, shared numerics or worker candidates.
-Acceptance: check, native and Terminal comparison, exact stdout for valid and
-invalid runtime cases, separate complete intended-invalid source rejection.
-Claim request ticket: 5d01a90e8f7e491ea38e60fc0a615485. Coordination timed out
-and status also timed out; registration is unconfirmed, isolated work continues.
+Private application scope: samples/cli/independent/range_only_localization/.
+No active-worker dependencies, shared numerics, or remote worker candidates.
+Acceptance: admitted check, native and Terminal comparisons on all 28 frozen
+runtime cases, separate complete intended-invalid source rejection.
 
-Source comparison on fetched main: `rg -l -i
-'survey|traverse|nearest.neighbor|localization' samples` finds only incidental
-probe prose (dual_accumulator_recursion, callback_contract_reach,
-reach_through_machine_param). No admitted survey/nearest-neighbor application
-is present in this checkout, and samples/cli/independent did not yet exist.
-Existing maze_flood enumerates maze cells; bubble_sort reorders values;
-parse_int parses a fixed text carrier; dual_float demonstrates scalar arithmetic;
-float_builtins checks min/max/sqrt. None intersects bounded range constraints
-on one static position or emits all feasible position/residual tuples.
-The delivered workflow uses synthetic static geometry, without traverse state,
-temporal estimation, nearest-neighbor selection, or averaging.
+Bounded compiler ownership: the Psi typed-trees-to-checked-trees structural
+argument producer and consumer, plus two regression fixtures and only their
+corpus ledger rows. The general repair retains the occurrence's fixed-array
+slice descriptor and consumes that exact producer root before borrow peeling.
+It preserves aliasing and the existing writable-loan rejection. No allocator,
+backend, numeric library or other worker implementation change is retained.
 
-Additional source comparison: arithmetic/stats_compute computes mean, variance
-and weighted sum of eight fixed scalar measurements; it does not estimate a
-position from ranges. arithmetic/vector_distance evaluates one known 3-4-5
-vector magnitude, without inverse geometry or feasible-set classification.
-algorithms/maze_flood performs queue-backed BFS through walls; it does not test
-Euclidean annuli. ADD09 supplies runtime observations, an exhaustive inverse
-range-constraint search, full candidate residual rows and domain classifications.
+Claim request ticket: 5d01a90e8f7e491ea38e60fc0a615485. Coordination and bounded
+status attempts were unavailable; registration remains unconfirmed. Work stayed
+isolated, with scope and exact evidence recorded locally for coordinator review.
 
-Current frontier: admitted source check passes, native coverage declines the
-fixed-array-to-slice loan on the root's guarded state edge (coordinate 755).
-Application and oracles remain unchanged. Next: reproduce on fetched current
-main 2f145503f2 using the complete minimal control and repair the general
-loan/view presentation if still missing. Claims status remains unavailable.
+Source comparison on fetched main: survey/traverse/nearest-neighbor/localization
+matches were incidental probe prose; no such admitted application was present.
+arithmetic/stats_compute computes mean, variance and weighted scalar sums;
+arithmetic/vector_distance evaluates a known 3-4-5 vector; algorithms/maze_flood
+performs queue-backed BFS through walls. None estimates one static position from
+bounded ranges, intersects Euclidean annuli or emits every feasible position
+and residual tuple. This workflow uses runtime synthetic geometry without
+traverse state, temporal filtering, neighbor selection or averaging.
+
+Independent review belongs to the parent/coordinator, as explicitly requested.
+No additional worker is launched. A review-ready Library bundle must contain the
+candidate/base identities, source hashes, patch, git bundle, frozen oracles,
+actual output artifacts and precise validation commands. Only after that review
+should the candidate use the documented main-only landing queue.

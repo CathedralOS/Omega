@@ -80,7 +80,7 @@ index and must reject its missing index bound.
 ## Commands
 
 From the repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's absolute
-`source/library` path and use a binary built from the recorded base:
+`source/library` path and use a binary built from the recorded candidate:
 
 ```sh
 sample=samples/cli/independent/range_only_localization
@@ -91,7 +91,9 @@ omega update --resume --project "$sample"
 omega --check --target linux_x86_64 "$sample/main.omg"
 omega --target linux_x86_64 "$sample/main.omg"
 omega run --both "$sample/main.omg" < "$sample/data/unique.stdin"
-python3 "$sample/validate.py" "$sample/build/omega-program"
+python3 -B "$sample/validate.py" "$sample/build/omega-program"
+# Reuse the corpus runner built from this exact compiler source.
+python3 -B "$sample/validate_terminal.py" /absolute/path/to/corpus_runner
 omega --check --target linux_x86_64 "$sample/intended_invalid/rejected.omg"
 ```
 
@@ -107,3 +109,10 @@ CRLF, tabs, the full 41x41 search window and a blank input line. A separately
 frozen wide-band fixture admits all 121 points of an 11x11 window, testing
 multi-digit coordinates, residuals and counts and complete output ordering.
 `reference.py` reproduces both the original manifest and this wide-band oracle.
+
+`validate_terminal.py` uses the documented corpus gate with one verified runner
+and one compilation/execution at a time. It copies the four application source
+files unchanged into one uniquely owned temporary fixture, rebases only its
+Build dependency path to the same std package, and removes that fixture afterward.
+Its 28 cases compare full native and Terminal streams and exits. Outputs and
+per-case commands are retained under `build/terminal_validation/`.
