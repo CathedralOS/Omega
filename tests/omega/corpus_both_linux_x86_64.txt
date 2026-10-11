@@ -115,3 +115,4 @@ pass/arithmetic/runtime_exact_left_shift_bounds_exit built 67394ms exit:0 interp
 pass/modules/public_constant_array_computed_extent_body_exit built 92483ms exit:7 interpreter-exit:7 interpreter:agrees @af9b942fa09e+wt
 pass/modules/selected_constant_array_alias_computed_extent_exit built 50076ms exit:7 interpreter-exit:7 interpreter:agrees @af9b942fa09e+wt
 pass/slices/runtime_predicate_qualified_scalar_copy_exit built 45704ms exit:0 interpreter-exit:0 interpreter:agrees @846ed632561f+wt
+run/calls/fixed_dividend_across_console_calls built 7421ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @20d50fee2e55

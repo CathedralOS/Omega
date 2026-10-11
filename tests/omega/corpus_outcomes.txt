@@ -5137,3 +5137,4 @@ fail/borrows/boundary_returned_view_keeps_backing_loan rejected 688ms expected @
 pass/borrows/runtime_computed_shared_view_reborrow_exit checked 3762ms check-target:macos_arm64 @0dc6368bf7c8
 fail/borrows/reborrowed_call_view_keeps_backing_loan rejected 539ms expected @0dc6368bf7c8
 	statement 2 mutates `main.bytes[1]` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+run/calls/fixed_dividend_across_console_calls checked 6881ms check-target:macos_arm64 @20d50fee2e55
