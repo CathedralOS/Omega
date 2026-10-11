@@ -1,0 +1,26 @@
+// A domain declares its progress profile and grant route:
+// `domain SchedulerHandle::WeakFair satisfies ProgressProfile
+// established by Scheduler::grant` — the boundary's `-> SchedulerHandle
+// in WeakFair` return issues the admission token qualified; each
+// target body implements the requirement via its own foreign route
+// (`ForeignBinding::Syscall(1)` / `VtableField(notify)`).
+use omega::language::core::binding;
+pub data SchedulerHandle [copy] {}
+pub domain SchedulerHandle::WeakFair
+satisfies ProgressProfile
+established by Scheduler::grant;
+pub boundary trait Scheduler {
+    machine notify(value: i32)
+    terminates;
+    machine grant(handle: SchedulerHandle) -> SchedulerHandle in WeakFair;
+}
+data SchedulerProvider { grant: addr; notify: addr; }
+linux_x86_64 machine SchedulerProvider::notify(value: i32)
+satisfies Scheduler::notify
+via ForeignBinding::Syscall(1);
+linux_x86_64 machine SchedulerProvider::grant(handle: SchedulerHandle) -> SchedulerHandle in WeakFair
+satisfies Scheduler::grant
+via ForeignBinding::VtableField(grant);
+data Main {
+}
+machine Main::main(main: &mut Main) { }

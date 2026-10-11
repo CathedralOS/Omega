@@ -1,0 +1,26 @@
+// A mutable bounded-text receiver rewritten across states:
+// `&mut [u8; 16] in Utf8` + `ensures output in Utf8` — successive
+// literal stores each re-prove the domain on the write side; the
+// sibling scalar beside the receiver in the caller keeps its value.
+domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+machine replace(output: &mut [u8; 16] in Utf8)
+ensures output in Utf8
+{
+    transition { _ -> first(output) }
+    state first(output: &mut [u8; 16] in Utf8) {
+        output = "Gate";
+        transition { _ -> second(output) }
+    }
+    state second(output: &mut [u8; 16] in Utf8) {
+        output = "second";
+    }
+}
+data Main {
+    line: [u8; 16] in Utf8;
+    sibling: u64;
+}
+machine Main::main(main: &mut Main) {
+    main.line = "old contents";
+    main.sibling = 29;
+    replace(&mut main.line);
+}
