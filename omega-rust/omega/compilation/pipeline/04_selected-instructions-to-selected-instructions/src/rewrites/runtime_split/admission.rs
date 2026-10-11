@@ -271,12 +271,21 @@ pub(super) fn rebindable_use(operand: &SelectedOperand, victim: &VirtualRegister
         && operand.class == victim.class
 }
 
-pub(super) fn names_structurally(
+pub(crate) fn names_structurally(
     successor: &selected_instructions::SelectedSuccessor,
     register: VirtualRegisterId,
 ) -> bool {
-    successor.structural_bindings.iter().any(|binding| {
-        matches!(binding.transport,
+    let mut named = false;
+    visit_structural_registers(successor, |candidate| named |= candidate == register);
+    named
+}
+
+pub(crate) fn visit_structural_registers(
+    successor: &selected_instructions::SelectedSuccessor,
+    mut visit: impl FnMut(VirtualRegisterId),
+) {
+    for binding in &successor.structural_bindings {
+        match binding.transport {
             SelectedStructuralTransport::WholeValue { argument, .. }
             | SelectedStructuralTransport::ScalarReference {
                 base: selected_instructions::SelectedAddressBase::Register(argument),
@@ -285,19 +294,28 @@ pub(super) fn names_structurally(
             | SelectedStructuralTransport::Address {
                 base: selected_instructions::SelectedAddressBase::Register(argument),
                 ..
-            } if argument == register)
-    }) || successor.structural_case.as_ref().is_some_and(|case| {
-        matches!(case.source,
-            SelectedCaseDispatchSource::Borrowed { pointer, .. } if pointer == register)
-            || case.payloads.iter().any(|payload| match payload.transport {
+            } => visit(argument),
+            _ => {}
+        }
+    }
+    if let Some(case) = &successor.structural_case {
+        if let SelectedCaseDispatchSource::Borrowed { pointer, .. } = case.source {
+            visit(pointer);
+        }
+        for payload in &case.payloads {
+            match payload.transport {
                 SelectedCasePayloadTransport::Registers {
                     argument,
                     parameter,
-                } => argument == register || parameter == register,
-                SelectedCasePayloadTransport::Unmaterialized { parameter } => parameter == register,
-                SelectedCasePayloadTransport::Unused => false,
-            })
-    })
+                } => {
+                    visit(argument);
+                    visit(parameter);
+                }
+                SelectedCasePayloadTransport::Unmaterialized { parameter } => visit(parameter),
+                SelectedCasePayloadTransport::Unused => {}
+            }
+        }
+    }
 }
 
 pub(super) fn charge(

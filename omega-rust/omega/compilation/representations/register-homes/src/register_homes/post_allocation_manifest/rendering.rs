@@ -89,6 +89,9 @@ impl PostAllocationOptimizationManifest {
                 PostAllocationSelectedTransformation::EquivalentCompare(identity) => {
                     ("equivalent-compare", identity.bytes())
                 }
+                PostAllocationSelectedTransformation::FixedOccurrences(identity) => {
+                    ("fixed-occurrences", identity.bytes())
+                }
                 PostAllocationSelectedTransformation::RuntimeSplit(identity) => {
                     ("runtime-split", identity.bytes())
                 }

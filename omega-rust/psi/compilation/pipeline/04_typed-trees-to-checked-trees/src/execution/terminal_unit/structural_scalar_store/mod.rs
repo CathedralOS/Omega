@@ -440,6 +440,8 @@ fn plan_assignment(
         &destination,
         statement_index,
         assignment,
+        source,
+        trace,
     ) {
         return Some(vec![store]);
     }

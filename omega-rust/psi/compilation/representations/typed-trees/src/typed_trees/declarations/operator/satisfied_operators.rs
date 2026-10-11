@@ -70,46 +70,27 @@ fn resolve_satisfied_operator_for_conformance<'program>(
             .into_iter()
             .find(|operator| operator.symbol == conformance.requirement_symbol);
     }
-    if candidates.iter().any(|candidate| {
-        program
-            .machine_token_binding_by_symbol(candidate.symbol)
-            .is_some()
-    }) {
-        // A token-bearing requirement is a machine overload. Apply the
-        // clause's ordinary source visibility to the signature-matched set;
-        // a same-path declaration in another package cannot satisfy it.
-        let path = format!("{}::{}", conformance.name, requirement);
-        let selected = program
-            .symbols
-            .lookup_signature_free_top_level_from_source_matching(
-                &path,
-                &[symbols::SymbolKind::Machine],
-                conformance.requirement_source_span.unwrap_or_default(),
-                |symbol| {
-                    candidates
-                        .iter()
-                        .any(|candidate| candidate.symbol == symbol)
-                },
-            )
-            .unique()?;
-        return candidates
-            .into_iter()
-            .find(|candidate| candidate.symbol == selected);
-    }
-    match candidates.as_slice() {
-        [only] => Some(*only),
-        _ => {
-            let owner_package = conformance
-                .symbol
-                .is_valid()
-                .then(|| program.symbols.symbol_package_identity(conformance.symbol))?;
-            let mut owned = candidates.into_iter().filter(|operator| {
-                program.symbols.symbol_package_identity(operator.symbol) == owner_package
-            });
-            let first = owned.next()?;
-            owned.next().is_none().then_some(first)
-        }
-    }
+    // Both operator declarations and token-bearing machine requirements
+    // select from the signature-matched set under the clause's own source
+    // scope. A visible family is not authority to pick a same-spelled member
+    // from another package, even when it is the only signature match.
+    let path = format!("{}::{}", conformance.name, requirement);
+    let selected = program
+        .symbols
+        .lookup_signature_free_top_level_from_source_matching(
+            &path,
+            &[symbols::SymbolKind::Machine, symbols::SymbolKind::Operator],
+            conformance.requirement_source_span.unwrap_or_default(),
+            |symbol| {
+                candidates
+                    .iter()
+                    .any(|candidate| candidate.symbol == symbol)
+            },
+        )
+        .unique()?;
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.symbol == selected)
 }
 
 /// Resolve a concrete generic checked-body specialization through the exact

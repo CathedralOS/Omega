@@ -82,7 +82,8 @@ fn fixed_view_allocation(
         )
         .map_err(RegisterAllocationError::Admission),
         Err(crate::RegisterHomeError::NoCompatibleHome { .. }
-            | crate::RegisterHomeError::NoCommonCandidate { .. }) => RetainedAllocation::try_from(
+            | crate::RegisterHomeError::NoCommonCandidate { .. }
+            | crate::RegisterHomeError::UnresolvedEntryTransitions { .. }) => RetainedAllocation::try_from(
             crate::assignment::runtime_spill::recover_after_fixed_view_copies(reanalysis)
                 .map_err(RegisterAllocationError::RuntimeSpill)?,
         )
@@ -103,19 +104,6 @@ pub(crate) fn stage_shared_entry_fixed_view_register_allocation(
     fixed_view_allocation(
         legality,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
-    )
-}
-
-/// The shared-source-exit sequence in its composing form: the route the
-/// default allocation path takes on unresolved fixed-site transitions,
-/// publishing one retained allocation whether post-copy homes or the
-/// runtime-spill composition resolved the program.
-pub(crate) fn stage_leaf_local_fixed_view_register_allocation_composing(
-    legality: StagedOptimizedAllocationLegality,
-) -> Result<RetainedAllocation, RegisterAllocationError> {
-    fixed_view_allocation(
-        legality,
-        FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
     )
 }
 
@@ -158,7 +146,8 @@ pub(crate) fn stage_active_resident_register_allocation(
         .map_err(RegisterAllocationError::Admission),
         Err(
             crate::RegisterHomeError::NoCompatibleHome { .. }
-            | crate::RegisterHomeError::NoCommonCandidate { .. },
+            | crate::RegisterHomeError::NoCommonCandidate { .. }
+            | crate::RegisterHomeError::UnresolvedEntryTransitions { .. },
         ) => RetainedAllocation::try_from(
             crate::assignment::runtime_spill::recover_after_active_resident_rematerialization(
                 pressure,
@@ -193,7 +182,8 @@ pub(crate) fn stage_selected_lowering_register_allocation(
         )
         .map_err(RegisterAllocationError::Admission),
         Err(crate::RegisterHomeError::NoCompatibleHome { .. }
-            | crate::RegisterHomeError::NoCommonCandidate { .. }) => RetainedAllocation::try_from(
+            | crate::RegisterHomeError::NoCommonCandidate { .. }
+            | crate::RegisterHomeError::UnresolvedEntryTransitions { .. }) => RetainedAllocation::try_from(
             crate::assignment::runtime_spill::recover_after_selected_lowering(run)
                 .map_err(RegisterAllocationError::RuntimeSpill)?,
         )
@@ -222,7 +212,8 @@ pub(crate) fn stage_pre_allocation_register_allocation(
         )
         .map_err(RegisterAllocationError::Admission),
         Err(crate::RegisterHomeError::NoCompatibleHome { .. }
-            | crate::RegisterHomeError::NoCommonCandidate { .. }) => RetainedAllocation::try_from(
+            | crate::RegisterHomeError::NoCommonCandidate { .. }
+            | crate::RegisterHomeError::UnresolvedEntryTransitions { .. }) => RetainedAllocation::try_from(
             crate::assignment::runtime_spill::recover_after_pre_allocation(run)
                 .map_err(RegisterAllocationError::RuntimeSpill)?,
         )

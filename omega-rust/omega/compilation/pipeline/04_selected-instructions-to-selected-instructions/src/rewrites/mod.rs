@@ -632,3 +632,8 @@ pub(crate) fn required_stage_phase<E>(
     }
     Ok(phase.clone())
 }
+
+pub use fixed_occurrences::{
+    FixedOccurrencesError, ValidatedFixedOccurrences, materialize_selected_fixed_occurrences,
+};
+mod fixed_occurrences;

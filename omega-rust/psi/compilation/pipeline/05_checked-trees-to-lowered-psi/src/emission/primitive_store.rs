@@ -20,6 +20,7 @@ pub(crate) struct Destination {
     pub(crate) place: PlaceId,
     pub(crate) path: Vec<ProjectionStep>,
     pub(crate) scalar_restriction: Option<StructuralFieldType>,
+    pub(crate) scalar_type: ScalarType,
 }
 
 pub(crate) fn parameter_destination(
@@ -39,11 +40,13 @@ pub(crate) fn parameter_destination(
     }
     let scalar_restriction =
         destination_restriction(identities, parameter.structural_type, path, types)?;
-    let (path, _) = lower_destination_path(identities, parameter.structural_type, path, types)?;
+    let (path, scalar_type) =
+        lower_destination_path(identities, parameter.structural_type, path, types)?;
     Ok(Destination {
         place: parameter.place,
         path,
         scalar_restriction,
+        scalar_type,
     })
 }
 
@@ -57,7 +60,7 @@ pub(crate) fn emit_assignment(
     destination: Destination,
     receiving_range: Option<&checked_trees::CheckedPrimitiveReceivingRange>,
     role: CheckedScalarExpressionRole,
-    value: &checked_trees::CheckedCallScalarArgument,
+    value: &checked_trees::CheckedScalarStoreValue,
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
     source_value_count: usize,
     values: &mut Vec<ValueDeclaration>,
@@ -67,6 +70,23 @@ pub(crate) fn emit_assignment(
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<OperationKind, LoweringError> {
+    // Capture the exact call-result slot before selector evaluation creates
+    // private staging slots. Selector continuations preserve this scalar
+    // prefix; read its rebound declaration after the destination is captured.
+    let call_result =
+        if let checked_trees::CheckedScalarStoreValue::ScalarResult { position } = value {
+            let position = usize::try_from(*position).map_err(|_| {
+                LoweringError::Unsupported("primitive store call-result position exceeds usize")
+            })?;
+            if position.checked_add(1) != Some(values.len())
+                || values[position].scalar_type != destination.scalar_type
+            {
+                return unsupported("primitive store lost its exact established call result");
+            }
+            Some(position)
+        } else {
+            None
+        };
     // The runtime elements' selectors are evaluated before the stored value.
     let indexes = super::runtime_elements::evaluate_selectors(
         identities,
@@ -84,22 +104,45 @@ pub(crate) fn emit_assignment(
         operations,
         calls,
     )?;
-    let value = evaluation.source_value(
-        identities,
-        checked,
-        machine,
-        state,
-        statement_index,
-        role,
-        value,
-        source_value_count,
-        values,
-        next_value,
-        next_block,
-        next_edge,
-        operations,
-        calls,
-    )?;
+    let value = if let Some(position) = call_result {
+        let value = *values.get(position).ok_or(LoweringError::Unsupported(
+            "primitive store lost its call-result slot after selector evaluation",
+        ))?;
+        if value.scalar_type != destination.scalar_type {
+            return unsupported(
+                "primitive store call-result carrier changed after selector evaluation",
+            );
+        }
+        value
+    } else {
+        let value = match value {
+            checked_trees::CheckedScalarStoreValue::Pure(expression) => {
+                checked_trees::CheckedCallScalarArgument::Pure(expression.clone())
+            }
+            checked_trees::CheckedScalarStoreValue::Computation(root) => {
+                checked_trees::CheckedCallScalarArgument::Computation(*root)
+            }
+            checked_trees::CheckedScalarStoreValue::ScalarResult { .. } => {
+                unreachable!("captured call result")
+            }
+        };
+        evaluation.source_value(
+            identities,
+            checked,
+            machine,
+            state,
+            statement_index,
+            role,
+            &value,
+            source_value_count,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            calls,
+        )?
+    };
     let range_obligation = if let Some(restriction) = &destination.scalar_restriction {
         let decided = match restriction {
             StructuralFieldType::BoundedInteger(_) => {

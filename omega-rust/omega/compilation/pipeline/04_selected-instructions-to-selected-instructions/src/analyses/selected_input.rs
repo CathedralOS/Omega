@@ -1,3 +1,4 @@
+use crate::ValidatedFixedOccurrences;
 use crate::ValidatedStoredLoadForwarding;
 use crate::{
     ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch,
@@ -236,3 +237,5 @@ impl ValidatedSelectedAnalysis for OwnedSelectedProgram {
         self.fuel_schedule
     }
 }
+
+validated_selected_analysis!(ValidatedFixedOccurrences);

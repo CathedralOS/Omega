@@ -63,6 +63,9 @@ pub(super) fn expected_record(
             PostAllocationSelectedTransformation::EquivalentCompare(identity) => {
                 (13_u8, identity.bytes())
             }
+            PostAllocationSelectedTransformation::FixedOccurrences(identity) => {
+                (17_u8, identity.bytes())
+            }
             PostAllocationSelectedTransformation::RuntimeSplit(identity) => {
                 (14_u8, identity.bytes())
             }

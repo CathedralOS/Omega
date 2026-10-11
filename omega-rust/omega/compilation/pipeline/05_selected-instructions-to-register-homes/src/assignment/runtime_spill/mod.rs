@@ -17,13 +17,13 @@ use register_homes::{
 };
 use selected_instructions::SelectedInstructionPlan;
 use selected_instructions_to_selected_instructions::{
-    AllocationLegalityError, FixedViewCopyPolicy, LiveRangeError, LivenessError,
-    RuntimeRematerializationError, RuntimeSpillError, RuntimeSplitError, SelectedProgramRef,
-    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+    AllocationLegalityError, FixedOccurrencesError, FixedViewCopyPolicy, LiveRangeError,
+    LivenessError, RuntimeRematerializationError, RuntimeSpillError, RuntimeSplitError,
+    SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
-    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
-    ValidatedLiveness, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    ValidatedRuntimeSplit,
+    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedFixedOccurrences,
+    ValidatedLiveRanges, ValidatedLiveness, ValidatedRuntimeRematerialization,
+    ValidatedRuntimeSpill, ValidatedRuntimeSplit,
 };
 
 /// A completed recovery: its source custody, the final step and the final
@@ -318,6 +318,7 @@ pub(crate) struct RuntimeSpillStep {
 /// victim's pure immediate definition; private storage is the fallback.
 #[derive(Debug)]
 pub(crate) enum RuntimeSpillStepRewrite {
+    FixedOccurrences(ValidatedFixedOccurrences),
     Split(ValidatedRuntimeSplit),
     Spill(ValidatedRuntimeSpill),
     Rematerialization(ValidatedRuntimeRematerialization),
@@ -327,6 +328,11 @@ impl RuntimeSpillStepRewrite {
     /// The manifest record of this step: its family and transformed program.
     pub(crate) fn transformation(&self) -> PostAllocationSelectedTransformation {
         match self {
+            Self::FixedOccurrences(rewrite) => {
+                PostAllocationSelectedTransformation::FixedOccurrences(
+                    rewrite.receipt().transformed_selected(),
+                )
+            }
             Self::Split(rewrite) => PostAllocationSelectedTransformation::RuntimeSplit(
                 rewrite.receipt().transformed_selected(),
             ),
@@ -343,6 +349,7 @@ impl RuntimeSpillStepRewrite {
 
     pub(crate) fn transformed(&self) -> &SelectedInstructionPlan {
         match self {
+            Self::FixedOccurrences(rewrite) => rewrite.transformed(),
             Self::Split(rewrite) => rewrite.transformed(),
             Self::Spill(rewrite) => rewrite.transformed(),
             Self::Rematerialization(rewrite) => rewrite.transformed(),
@@ -351,6 +358,7 @@ impl RuntimeSpillStepRewrite {
 
     pub(crate) fn selected(&self) -> SelectedProgramRef<'_> {
         match self {
+            Self::FixedOccurrences(rewrite) => SelectedProgramRef::new(rewrite),
             Self::Split(rewrite) => SelectedProgramRef::new(rewrite),
             Self::Spill(rewrite) => SelectedProgramRef::new(rewrite),
             Self::Rematerialization(rewrite) => SelectedProgramRef::new(rewrite),
@@ -367,6 +375,7 @@ pub(crate) struct RuntimeSpillFacts {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeSpillAllocationError {
+    FixedOccurrences(FixedOccurrencesError),
     Rewrite(RuntimeSpillError),
     Rematerialization(RuntimeRematerializationError),
     Split(RuntimeSplitError),

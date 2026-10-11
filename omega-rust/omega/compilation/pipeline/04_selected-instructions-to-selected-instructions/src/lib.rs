@@ -186,3 +186,7 @@ pub use selected_instructions::{
 pub(crate) use rewrites::{
     StoredLoadForwardingError, ValidatedStoredLoadForwarding, forward_selected_stored_load,
 };
+
+pub use rewrites::{
+    FixedOccurrencesError, ValidatedFixedOccurrences, materialize_selected_fixed_occurrences,
+};

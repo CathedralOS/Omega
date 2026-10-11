@@ -1179,3 +1179,8 @@ pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit built 1544
 pass/calls/runtime_boolean_result_across_console_exit built 16813ms exit:70 stdout:match @b342aa09cb97+wt
 pass/calls/runtime_float_result_across_call_exit built 151268ms exit:70 stdout:match @b342aa09cb97+wt
 pass/calls/resultless_native_callback_compile built 3835ms @10b02229ff8b
+# context: {"cpus": 5, "jobs": "1", "load1_end": 0.96, "load1_start": 0.83, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+run/arithmetic/fixed_integer_operand_after_call built 5765ms exit:70 stdout:match @3c6fd126c67d
+run/arithmetic/fixed_integer_operand_after_pressure built 5568ms exit:70 stdout:match @3c6fd126c67d
+run/arithmetic/fixed_integer_operand_join built 5235ms exit:70 stdout:match @3c6fd126c67d
+pass/slices/fixed_array_slice_state_arguments_exit built 9847ms exit:70 stdout:match stderr:match @bfff43e67094+wt

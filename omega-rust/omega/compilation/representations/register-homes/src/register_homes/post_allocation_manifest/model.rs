@@ -51,6 +51,7 @@ pub enum PostAllocationSelectedTransformation {
     /// A pressure-chosen live-range split: one copy ends a fixed-view
     /// definition's pinned segment. Realizes no private storage.
     RuntimeSplit(SelectedInstructionPlanIdentity),
+    FixedOccurrences(SelectedInstructionPlanIdentity),
     FixedViewCopy(FixedViewCopyIdentity),
     LiteralFold(LiteralFoldIdentity),
     PressureRematerialization(PressureRematerializationIdentity),

@@ -136,6 +136,9 @@ impl PostAllocationOptimizationManifest {
                 16 => PostAllocationSelectedTransformation::StoredLoadForwarding(
                     StoredLoadForwardingIdentity::from_bytes(cursor.array()?),
                 ),
+                17 => PostAllocationSelectedTransformation::FixedOccurrences(
+                    SelectedInstructionPlanIdentity::from_bytes(cursor.array()?),
+                ),
                 tag => {
                     return Err(
                         PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(
@@ -278,6 +281,10 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
             }
             PostAllocationSelectedTransformation::EquivalentCompare(identity) => {
                 canonical.push(13);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::FixedOccurrences(identity) => {
+                canonical.push(17);
                 canonical.extend_from_slice(&identity.bytes());
             }
             PostAllocationSelectedTransformation::RuntimeSplit(identity) => {

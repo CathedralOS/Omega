@@ -8,9 +8,8 @@
 //! identity included, to `assignment::runtime_spill`; otherwise an
 //! admitted recovery rule takes `assignment::recovery`; otherwise legality is
 //! staged and the direct assignment either succeeds into `assignment::baseline`
-//! homes, splits authenticated entry-fixed-view transitions through the
-//! shared-source-exit fixed/precolored sequence in `assignment::recovery`, or,
-//! on `NoCompatibleHome` or value-local `NoCommonCandidate` pressure, enters
+//! homes, or materializes typed operation-local fixed operands and recovers
+//! residual `NoCompatibleHome` or value-local `NoCommonCandidate` pressure in
 //! `assignment::runtime_spill`.
 //! A declared fixed-view rule whose segment-home probe reports a capacity
 //! decline — segment pressure or front-end work-budget exhaustion — hands
@@ -29,10 +28,8 @@
 mod route_tests;
 
 use crate::assignment::recovery::{
-    stage_active_resident_register_allocation,
-    stage_leaf_local_fixed_view_register_allocation_composing,
-    stage_pre_allocation_register_allocation, stage_selected_lowering_register_allocation,
-    stage_shared_entry_fixed_view_register_allocation,
+    stage_active_resident_register_allocation, stage_pre_allocation_register_allocation,
+    stage_selected_lowering_register_allocation, stage_shared_entry_fixed_view_register_allocation,
 };
 use optimization_core::{Optimization, OptimizationExecutionPhase};
 
@@ -91,18 +88,10 @@ pub fn stage_register_allocation(
         stage_optimized_allocation_legality(ranges).map_err(RegisterAllocationError::Legality)?;
     let assignment = match crate::assignment::runtime_spill::assign_source(&legality) {
         Ok(homes) => homes,
-        Err(crate::RegisterHomeError::UnresolvedEntryTransitions { .. }) => {
-            // The transitions recorded in legality are exactly the boundaries
-            // the shared-source-exit leg admits — a fan-out of fixed-use
-            // sites leaving one segment end shares one dominating copy; the
-            // rest copy at their sites. Residual pressure after the copies
-            // hands custody to runtime spill inside that sequence. Any other
-            // failure class keeps the direct-assignment surface below.
-            return stage_leaf_local_fixed_view_register_allocation_composing(legality);
-        }
         Err(
             crate::RegisterHomeError::NoCompatibleHome { .. }
-            | crate::RegisterHomeError::NoCommonCandidate { .. },
+            | crate::RegisterHomeError::NoCommonCandidate { .. }
+            | crate::RegisterHomeError::UnresolvedEntryTransitions { .. },
         ) => {
             let recovered = crate::assignment::runtime_spill::recover(legality)
                 .map_err(RegisterAllocationError::RuntimeSpill)?;

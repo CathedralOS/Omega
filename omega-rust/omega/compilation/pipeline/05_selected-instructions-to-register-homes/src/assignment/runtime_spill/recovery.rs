@@ -40,8 +40,9 @@ use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
     ValidatedLiveness, ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedSelectedAnalysis,
     analyze_allocation_legality_reusing, analyze_live_ranges_reusing, analyze_liveness_reusing,
-    rematerialize_selected_runtime_value, spill_selected_runtime_value,
-    spill_selected_runtime_value_with_span_policy, split_selected_runtime_value,
+    materialize_selected_fixed_occurrences, rematerialize_selected_runtime_value,
+    spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
+    split_selected_runtime_value,
 };
 
 pub(crate) fn assign_source(
@@ -507,30 +508,55 @@ fn recover_over(
     // One reuse set spans every step: each step rewrites one function, so the
     // others keep the homes their unchanged rows already received.
     let mut home_reuse = FunctionHomeReuse::default();
-    let mut failure = match assign_reusing(
+    let budget = source.budget_per_pass();
+    let rewrite = RuntimeSpillStepRewrite::FixedOccurrences(
+        materialize_selected_fixed_occurrences(&source.base(), environment, budget)
+            .map_err(RuntimeSpillAllocationError::FixedOccurrences)?,
+    );
+    let facts = analyze(
         environment,
+        source.allocator_availability(),
+        &source.base(),
+        source.liveness(),
         source.ranges(),
         source.legality(),
+        &rewrite.selected(),
+    )?;
+    let mut recorded = vec![rewrite.transformation()];
+    let mut failure = match assign_reusing(
+        environment,
+        &facts.ranges,
+        &facts.legality,
         Some(&mut home_reuse),
     ) {
+        Ok(homes) => {
+            let manifest = project_recovery_manifest(
+                &base,
+                &recorded,
+                &facts.ranges,
+                &facts.legality,
+                &homes,
+            )?;
+            return Ok(RuntimeSpillAllocation {
+                source,
+                last: RuntimeSpillStep { rewrite },
+                facts,
+                homes,
+                manifest,
+            });
+        }
         Err(
             error @ (crate::RegisterHomeError::NoCompatibleHome { .. }
             | crate::RegisterHomeError::NoCommonCandidate { .. }),
         ) => error,
         Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
-        Ok(_) => return Err(RuntimeSpillAllocationError::RecoveryNotRequired),
     };
-    let budget = source.budget_per_pass();
-    // Each committed step's manifest record, and the latest committed step.
-    // A step's program replaces the one before it, so earlier programs are
-    // released as soon as the next step commits.
-    let mut recorded: Vec<PostAllocationSelectedTransformation> = Vec::new();
-    let mut current: Option<RuntimeSpillStepRewrite> = None;
+    let mut current = Some(rewrite);
     let mut tried: std::collections::BTreeSet<(usize, VirtualRegisterId)> =
         std::collections::BTreeSet::new();
-    let mut current_ranges = source.ranges().clone();
-    let mut current_liveness = source.liveness().clone();
-    let mut current_legality = source.legality().clone();
+    let mut current_ranges = facts.ranges;
+    let mut current_liveness = facts.liveness;
+    let mut current_legality = facts.legality;
     loop {
         let selected = current
             .as_ref()

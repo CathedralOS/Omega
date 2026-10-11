@@ -58,6 +58,7 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
 /// The primitive store of one authored assignment, or `None` when its target
 /// is not a primitive leaf this lane writes. The shared statement roster
 /// validates the complete state write frame.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn store_at(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -66,6 +67,8 @@ pub(super) fn store_at(
     destination: &super::destination::Destination<'_>,
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
+    source: super::value::AssignmentSource,
+    trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let projection = destination.storage_projection(program)?;
     let primitive_type = program.primitive_type_reference(projection.type_reference)?;
@@ -141,17 +144,35 @@ pub(super) fn store_at(
         assignment.target,
     )?;
     let authored_symbol = authored.root.as_symbol()?;
-    let value = primitive_store_value(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        assignment,
-        authored_symbol,
-        authored.segments.is_empty(),
-        primitive_type,
-    )?;
+    let value = match source {
+        super::value::AssignmentSource::Authored => primitive_store_value(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            assignment,
+            authored_symbol,
+            authored.segments.is_empty(),
+            primitive_type,
+        )?,
+        // An assignment that performs a scalar call owns its completed SSA
+        // result instead of an AssignmentValue expression-table row. Retain
+        // the same exact result-type and authored-call checks as field stores;
+        // destination authority, selectors and receiving domains stay above.
+        super::value::AssignmentSource::CallResult { .. } => super::value::assignment_value(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            assignment,
+            source,
+            primitive_type,
+            trace,
+        )?,
+        super::value::AssignmentSource::StructuralCallResult { .. } => return None,
+    };
     Some(CheckedUnitEffectOperationPlan::new_store(
         statement_index,
         destination.root.destination(),

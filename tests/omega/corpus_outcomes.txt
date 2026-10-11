@@ -5392,3 +5392,10 @@ pass/calls/callback_owned_float_record checked 78964ms check-target:macos_arm64 
 pass/calls/callback_owned_float_record_packing checked 78963ms check-target:macos_arm64 @759f6dbf1dfa
 fail/borrows/float_selection_store_through_shared_receiver rejected 2130ms expected @6ef8cfca3bf6+wt
 pass/structs/runtime_owned_float_selection_store_exit checked 52445ms check-target:linux_x86_64 @6ef8cfca3bf6+wt
+pass/providers/module_named_operator_result_domain_satisfaction checked 6344ms check-target:macos_arm64 @c9a3c8fa2cc4
+pass/structural/indexed_scalar_call_result_store checked 90494ms check-target:macos_arm64 @c9a3c8fa2cc4
+fail/providers/module_operator_hidden_signature_rejected rejected 607ms expected @c9a3c8fa2cc4
+	machine `Provider::wrong` operator realization `Policy::convert` does not retain the exact selected overload
+run/arithmetic/fixed_integer_operand_after_call checked 5954ms check-target:linux_x86_64 @3c6fd126c67d
+run/arithmetic/fixed_integer_operand_after_pressure checked 5535ms check-target:linux_x86_64 @3c6fd126c67d
+run/arithmetic/fixed_integer_operand_join checked 5346ms check-target:linux_x86_64 @3c6fd126c67d

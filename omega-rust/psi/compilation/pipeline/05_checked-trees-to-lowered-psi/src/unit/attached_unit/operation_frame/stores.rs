@@ -190,18 +190,15 @@ impl OperationFrame<'_, '_> {
         let Some((role, value)) = store.value.scalar() else {
             return unsupported("primitive store holds no scalar value");
         };
-        let value = match value {
-            CheckedScalarStoreValue::Pure(expression) => {
-                checked_trees::CheckedCallScalarArgument::Pure(expression.clone())
-            }
+        let authored_value = match value {
+            CheckedScalarStoreValue::Pure(expression) => Some(
+                checked_trees::CheckedCallScalarArgument::Pure(expression.clone()),
+            ),
             CheckedScalarStoreValue::Computation(root) => {
-                checked_trees::CheckedCallScalarArgument::Computation(*root)
+                Some(checked_trees::CheckedCallScalarArgument::Computation(*root))
             }
-            CheckedScalarStoreValue::ScalarResult { .. } => {
-                return unsupported("a primitive store has no call-result route");
-            }
+            CheckedScalarStoreValue::ScalarResult { .. } => None,
         };
-        let value = &value;
         let statement_index = store.statement_index;
         let destination = &store.destination.root;
         let path = store.destination.path.as_slice();
@@ -214,6 +211,9 @@ impl OperationFrame<'_, '_> {
             path,
             self.structural_types.declarations(),
         )? {
+            let authored_value = authored_value.as_ref().ok_or(LoweringError::Unsupported(
+                "primitive recast store has no call-result route",
+            ))?;
             let projection = loan
                 .byte_overlay
                 .as_ref()
@@ -230,7 +230,7 @@ impl OperationFrame<'_, '_> {
                 self.state,
                 statement_index,
                 role,
-                value,
+                authored_value,
                 self.source_value_count,
                 self.values,
                 self.next_value,
@@ -284,12 +284,13 @@ impl OperationFrame<'_, '_> {
                     path,
                     self.structural_types.declarations(),
                 )?;
-                let (steps, _) = crate::emission::primitive_store::lower_destination_path(
-                    identities,
-                    declared,
-                    path,
-                    self.structural_types.declarations(),
-                )?;
+                let (steps, scalar_type) =
+                    crate::emission::primitive_store::lower_destination_path(
+                        identities,
+                        declared,
+                        path,
+                        self.structural_types.declarations(),
+                    )?;
                 // An owned alias contributes its existing static prefix before
                 // this assignment's complete checked projection.
                 let mut composed = source
@@ -303,6 +304,7 @@ impl OperationFrame<'_, '_> {
                     place: source.place,
                     path: composed,
                     scalar_restriction,
+                    scalar_type,
                 }
             }
         };

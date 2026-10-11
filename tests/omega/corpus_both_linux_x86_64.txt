@@ -194,3 +194,10 @@ pass/float/named_provider_directed_divide_exit built 75156ms exit:70 interpreter
 pass/float/named_provider_multiply_then_add_exit built 72535ms exit:70 interpreter-exit:70 interpreter:agrees @a5e687e6c77f+wt
 pass/generics/runtime_selected_operator_body_exit built 5941ms exit:3 interpreter-exit:3 interpreter:agrees @a5e687e6c77f+wt
 pass/traits/equatable_implementation_selection_exit built 5640ms exit:70 interpreter-exit:70 interpreter:agrees @a5e687e6c77f+wt
+pass/providers/module_named_operator_result_domain_satisfaction built 6317ms exit:70 interpreter-exit:70 interpreter:agrees @c9a3c8fa2cc4
+pass/structural/indexed_scalar_call_result_store built 92856ms exit:70 interpreter-exit:70 interpreter:agrees @c9a3c8fa2cc4
+pass/float/local_after_float_call_store_exit built 86146ms exit:70 interpreter-exit:70 interpreter:agrees @3c6fd126c67d
+pass/float/runtime_float_call_same_carrier_cast_exit built 72867ms exit:0 interpreter-exit:0 interpreter:agrees @3c6fd126c67d
+run/arithmetic/fixed_integer_operand_after_call built 5202ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @3c6fd126c67d
+run/arithmetic/fixed_integer_operand_after_pressure built 5695ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @3c6fd126c67d
+run/arithmetic/fixed_integer_operand_join built 5232ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @3c6fd126c67d

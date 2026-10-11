@@ -1,0 +1,5 @@
+// A source-visible owner with a bool result cannot license a same-spelled
+// i32 requirement in an unrelated module, even when that signature is unique.
+use visible;
+use hidden;
+machine main() { visible::exercise(); }

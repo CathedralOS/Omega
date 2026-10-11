@@ -1,0 +1,5 @@
+// Complete intended-invalid application: demands a negative safety radius
+// inhabit a strictly positive radius type. No runtime execution is admissible.
+machine positive_radius(radius: i32 [1..=100]) -> i32 { radius }
+data Main { radius: i32; }
+machine Main::main(main: &mut Main) { main.radius = positive_radius(-1); }

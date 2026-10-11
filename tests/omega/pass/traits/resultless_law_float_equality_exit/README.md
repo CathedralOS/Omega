@@ -1,0 +1,1 @@
+Resultless generic law equality retains proposition authority on both float specializations. Ordinary result-producing IEEE equality still returns false for NaN and true for finite self equality. The sibling false-identity control must reject rather than discharge an unproved theorem.

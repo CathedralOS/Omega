@@ -62,6 +62,7 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 
+pub(crate) use admission::visit_structural_registers;
 pub use rewrite::split_selected_runtime_value;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
