@@ -3009,20 +3009,45 @@ crash and native exit behavior.
 
 - **PACKAGE-CHECK-DIAGNOSTIC-ATTRIBUTION.** (new-scope) Checked-compilation
   diagnostics inside a batched package check report the requesting package
-  and no source location, while parse-stage diagnostics name the failing
-  package and its file. Staged in
+  and no source location for product-source files, while build-file and
+  parse-stage diagnostics already attribute correctly. Staged in
   `samples/cli/probes/build_sibling_checks/controls/invalid_divergent_sibling`:
   a type mismatch in `bad_sibling/main.omg` reports "checked compilation
   failed for package `invalid_divergent_sibling` with 1 diagnostic(s) ...
   machine `bad_value` state `entry` terminal expression expects `i32`, got
   `String`" — the failing package is never named and no file:line is
   emitted, while a syntax error in the same package reports `bad_sibling`
-  with the full snapshot path and line:col. With several siblings a user
-  cannot tell which occurrence diverged. Acceptance: every
-  checked-compilation diagnostic in a package batch names the failing
-  package and carries its source location, matching the attribution
-  parse-stage diagnostics already produce; the requesting package never
-  absorbs a sibling's diagnostic.
+  with the full snapshot path and line:col. The boundary is confirmed by
+  `samples/cli/probes/build_sibling_divergent_build/controls/invalid_checked_divergence`:
+  an unresolvable call inside `sibling_bad2/build.omg` reports "checked
+  compilation failed for package `sibling_bad2`" with the machine/state
+  location, so the misattribution is specific to dep product files; with
+  several siblings a user cannot tell which occurrence diverged.
+  Acceptance: every checked-compilation diagnostic in a package batch
+  names the failing package and carries its source location, matching the
+  attribution parse-stage diagnostics already produce; the requesting
+  package never absorbs a sibling's diagnostic.
+- **COMPONENT-ASSUMPTION-ACCEPTANCE-SHAPE.** (new-scope)
+  `Build::accept_component_assumption` declares signature
+  `(builder: &mut Build, digest: &[u8])` but no authored spelling can
+  reach its behavior: `Build::accept_component_assumption(builder,
+  "64-hex")` — the only arity the checker accepts — reaches the digest
+  harvester
+  (`omega-rust/omega/compilation/realization/trust-model/src/component_assumptions.rs`)
+  with the builder among the call's value arguments, so it reports
+  "component assumption acceptance takes exactly one digest spelling";
+  dropping the builder to satisfy the harvester fails arity ("expects 2
+  argument(s), got 1"); and value-qualified `builder.accept_component_assumption(...)`
+  is retired syntax. The accepted-assumption row family is therefore
+  unreachable from authored builds. Staged in
+  `samples/cli/probes/build_component_assumptions/controls/`:
+  `invalid_assumption_two_arg` and `invalid_assumption_one_arg` pin both
+  rejections. Acceptance: one authored spelling both type-checks and
+  harvests — either the harvester skips the leading builder argument or
+  the row takes a call form whose value arguments exclude it; a
+  well-formed 64-hex digest then lands in the build's accepted-assumption
+  records, a malformed spelling still rejects at its authored span, and
+  the staged controls are flipped/removed accordingly.
 
 ## Lowering simplification
 

@@ -1,0 +1,9 @@
+use omega::language::core::representation;
+
+pub boundary data Token;
+
+pub data TokenBytes [copy] {
+    value: u64;
+}
+
+pub TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }

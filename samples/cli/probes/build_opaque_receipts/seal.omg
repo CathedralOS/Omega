@@ -1,0 +1,13 @@
+// Second opaque carrier declared after token's satisfies declaration —
+// its own satisfies lands textually later, reversing declaration order
+// relative to the two boundary data declarations' module order.
+
+use omega::language::core::representation;
+
+pub boundary data Seal;
+
+pub data SealBytes [copy] {
+    value: u64;
+}
+
+pub SealRepresentation satisfies OpaqueRepresentation<Seal, SealBytes> { }
