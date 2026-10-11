@@ -1,57 +1,44 @@
-// An empty named implementation receives a synthesized
-// structural `equals`: `PointEquality satisfies
-// Equatable<Point> { }` makes `==`/`!=` legal on Point
-// values, comparing field by field, and
-// `PointEquality::equals` selects the same row. An
-// authored `equals` member overrides synthesis, so `==`
-// then calls it.
-//
-//   * Synthesized: equal points match, a differing
-//     middle field misses.
-//   * Override: `equals` returning `false` — `==`
-//     calls it and compares unequal on identical
-//     values.
-//
-// Compile-checked only: no standard-library dependency, no
-// ProcessExit provider.
-
+// The sealed `==` route selects the one implementation whose trait
+// argument is the operand type; the implementation, not the data type,
+// owns the `equals` row. An EMPTY `satisfies Equatable<T> { }` receives
+// a synthesized structural row (field-by-field); an authored member or
+// a row filled by an ordinary machine reference overrides it; a
+// generic evidence binder `Equality satisfies Equatable<T>` selects
+// the same rows.
 trait Equatable<T> {
     machine equals(left: &T, right: &T) -> bool;
 }
-
-data Point {
+data Coin {
+    value: i32;
+    year: i32;
+}
+CoinEquality satisfies Equatable<Coin> { }
+machine equal<T, Equality satisfies Equatable<T>>(left: &T, right: &T) -> bool {
+    Equality::equals(left, right)
+}
+data Mark {
     x: i32;
     y: i32;
-    z: i32;
 }
-
-PointEquality satisfies Equatable<Point> { }
-
-data OverridePoint {
-    value: i32;
+machine marks_share_x(left: &Mark, right: &Mark) -> bool {
+    left.x == right.x
 }
-
-OverrideEquality satisfies Equatable<OverridePoint> {
-    machine equals(left: &OverridePoint, right: &OverridePoint) -> bool {
-        false
-    }
+MarkByX satisfies Equatable<Mark> {
+    Equatable::equals = marks_share_x;
 }
-
-data Main { hits: i32 in Wrapping; }
-
+data Main {
+    a: Coin;
+    b: Coin;
+    left: Mark;
+    right: Mark;
+}
 machine Main::main(main: &mut Main) {
-    main.hits = 0;
-    let a: Point = Point { x: 1, y: 2, z: 3 };
-    let b: Point = Point { x: 1, y: 9, z: 3 };
-    let same: Point = Point { x: 1, y: 2, z: 3 };
-    let named: bool = PointEquality::equals(&a, &same);
-    let over: OverridePoint = OverridePoint { value: 5 };
-    let twin: OverridePoint = OverridePoint { value: 5 };
-    let forced: bool = over == twin;
-    transition a == same && a != b && named && forced == false {
-        true -> pass(main)
-        _ -> fail(main)
-    }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    main.a = Coin { value: 5, year: 1990 };
+    main.b = Coin { value: 5, year: 1991 };
+    main.left = Mark { x: 3, y: 7 };
+    main.right = Mark { x: 3, y: 8 };
+    let same_value: bool = main.a == main.a;
+    let structural_miss: bool = main.a != main.b;
+    let by_binder: bool = equal<Coin, CoinEquality>(&main.a, &main.b);
+    let by_machine_row: bool = main.left == main.right;
 }

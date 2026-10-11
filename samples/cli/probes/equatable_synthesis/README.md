@@ -1,11 +1,6 @@
 # equatable_synthesis
 
-Empty `PointEquality satisfies Equatable<Point> { }`
-receives synthesized structural `equals`: `==`/`!=`
-compare Point field-by-field, `PointEquality::equals`
-selects the same row. An authored `equals` member
-overrides synthesis — `==` calls it (returns `false`
-on identical values).
+Empty `satisfies Equatable<T> {}` gets a synthesized structural `equals` row; `Equatable::equals = marks_share_x` fills a row by machine reference; evidence binder `Equality satisfies Equatable<T>` selects the same rows.
 
 Compile-checked only: no standard-library dependency and
-no `Main::exit` — run a check target, not native.
+no \`Main::exit\` — run a check target, not native.
