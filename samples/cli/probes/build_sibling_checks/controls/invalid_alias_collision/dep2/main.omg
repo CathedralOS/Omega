@@ -1,0 +1,3 @@
+pub machine dep_value() -> i32 {
+    5
+}
