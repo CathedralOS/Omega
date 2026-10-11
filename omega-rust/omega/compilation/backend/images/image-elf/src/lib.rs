@@ -211,6 +211,44 @@ pub(crate) mod test_support {
         let descriptors = plan_elf_dynamic_section_descriptors(payloads).unwrap();
         plan_elf_procedure_linkage_relocations(descriptors).unwrap()
     }
+    /// One imported symbol plus its text-relative relocation sites — the
+    /// shape every import-driven fixture stages before planning.
+    pub(crate) fn import_with_text_relocations(
+        image: &mut FinalImage,
+        name: &str,
+        import: image::FinalImageImportPlan,
+        offsets: &[usize],
+    ) -> image::FinalImageSymbolHandle {
+        use image::{FinalImageImport, FinalImageRelocation, FinalImageSection, FinalImageSymbol};
+        use object_file::{RelocationKind, SymbolKind};
+
+        let imported = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: name.into(),
+            section: FinalImageSection::None,
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Import,
+        });
+        image.symbol_table.imports.insert(FinalImageImport {
+            symbol_handle: imported,
+            import,
+        });
+        for &offset in offsets {
+            image
+                .relocation_table
+                .relocations
+                .insert(FinalImageRelocation {
+                    section: FinalImageSection::Text,
+                    offset,
+                    byte_width: 4,
+                    symbol_handle: imported,
+                    addend: 0,
+                    kind: RelocationKind::X86_64Relative32,
+                });
+        }
+        imported
+    }
+
     /// One dynamic-executable import entry shared by the dynamic-table
     /// fixtures — the same shape as `ImportFixture`.
     pub(crate) type DynamicImportFixture = ImportFixture;

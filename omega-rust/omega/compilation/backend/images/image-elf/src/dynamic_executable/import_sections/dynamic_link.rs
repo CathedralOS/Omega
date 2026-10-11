@@ -154,11 +154,7 @@ mod tests {
         plan_elf_dynamic_link_inputs,
     };
     use arena::Handle;
-    use image::{
-        FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-        FinalImageSection, FinalImageSymbol,
-    };
-    use object_file::{RelocationKind, SymbolKind};
+    use image::{FinalImageImportPlan, FinalImageMemory};
     use target::{
         ForeignLocatorCandidate, NativeTarget, normalize_elf_interpreter_plan,
         normalize_foreign_locator,
@@ -186,30 +182,12 @@ mod tests {
             1,
             2,
         );
-        let imported = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "__omega_dynamic_import".into(),
-            section: FinalImageSection::None,
-            offset: 0,
-            size: 0,
-            kind: SymbolKind::Import,
-        });
-        image.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle: imported,
+        crate::test_support::import_with_text_relocations(
+            &mut image,
+            "__omega_dynamic_import",
             import,
-        });
-        for offset in [3, 15] {
-            image
-                .relocation_table
-                .relocations
-                .insert(FinalImageRelocation {
-                    section: FinalImageSection::Text,
-                    offset,
-                    byte_width: 4,
-                    symbol_handle: imported,
-                    addend: 0,
-                    kind: RelocationKind::X86_64Relative32,
-                });
-        }
+            &[3, 15],
+        );
         image
     }
 
