@@ -92,15 +92,17 @@ Reading a move — the summary cuts each field at 300 columns, so use
 
     python3 tools/corpus_gate.py --filter fail/ --write-moves build/moves.json
 
-Measuring your own change — one pass, not two:
+Measuring your own change against the commit it builds on:
 
-    git stash && python3 tools/corpus_gate.py --baseline --record && git stash pop
-    python3 tools/corpus_gate.py --baseline        # after every later edit
+    python3 tools/corpus_gate.py --compare origin/main --filter calls/
 
-`--baseline` keys its file on `git rev-parse HEAD` under ignored
-`build/corpus_baselines/`, so it answers "what did I move" even while the
-checked-in golden disagrees with this checkout over another lane's in-flight
-work. Re-record after moving to a new base.
+`--compare` builds REVISION's runner in its own worktree (`build/cmp`, with
+its own build directory) and diffs this tree's run fixture by fixture: a lost
+outcome, expected fragment or execution fact exits 1. REVISION's rows are
+cached under ignored `build/corpus_baselines/<sha>[-leg].txt`, so later runs
+against the same base cost one pass. It answers "what did I move" even while
+the checked-in golden disagrees with this checkout over another lane's
+in-flight work, and editing this tree cannot leak into the base.
 
 `--filter` (or `OMEGA_CORPUS_FIXTURE_FILTER` directly) matches comma-separated
 trimmed substrings against `tier/group/name` and diffs only the fixtures that
@@ -416,12 +418,18 @@ class InfrastructureFailure(Exception):
     so `git bisect run` skips the commit instead of blaming it."""
 
 
-def build_runner() -> Path:
-    """Build the runner via cargo/mbx message-format JSON; return its path."""
+def build_runner(root: Path = ROOT) -> Path:
+    """Build `root`'s runner via cargo/mbx message-format JSON; return its path."""
     tool = "mbx" if shutil_which("mbx") else "cargo"
     args = [tool, "test", "--no-run", "--message-format=json",
             "-p", "compiler", "--test", "corpus_runner"]
-    proc = subprocess.run(args, cwd=ROOT, capture_output=True, text=True)
+    env = dict(os.environ)
+    if root != ROOT:
+        # A compared checkout never shares this tree's target directory:
+        # timestamp freshness could link the measured tree's artifacts.
+        env["CARGO_TARGET_DIR"] = str(root / "target")
+    proc = subprocess.run(args, cwd=root, capture_output=True, text=True,
+                          stdin=subprocess.DEVNULL, env=env)
     if proc.returncode != 0:
         sys.stderr.write(proc.stdout[-4000:])
         sys.stderr.write(proc.stderr[-4000:])
@@ -448,12 +456,12 @@ def shutil_which(name: str):
     return which(name)
 
 
-def run_runner(binary: Path) -> list[dict]:
+def run_runner(binary: Path, root: Path = ROOT) -> list[dict]:
     env = dict(os.environ)
     env.pop("NEXTEST", None)
     # A reused build cache may retain another worktree's development library.
     # Corpus inputs belong to this checkout; preserve deliberate overrides.
-    env.setdefault("OMEGA_LIBRARY_ROOT", str(ROOT / "source/library"))
+    env.setdefault("OMEGA_LIBRARY_ROOT", str(root / "source/library"))
     # Records arrive in their own file: a fixture's build log is ordinary
     # compiler output on the runner's stdout and must not parse as a record.
     records_file = tempfile.NamedTemporaryFile(
@@ -461,7 +469,8 @@ def run_runner(binary: Path) -> list[dict]:
     records_file.close()
     env["OMEGA_CORPUS_RECORDS"] = records_file.name
     try:
-        proc = subprocess.Popen([str(binary)], cwd=ROOT, text=True, env=env,
+        proc = subprocess.Popen([str(binary)], cwd=root, text=True, env=env,
+                                stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except OSError as error:
         # No runner started: do not leak its records file or blame a fixture.
@@ -731,22 +740,95 @@ def shown(value) -> str:
     return str(value)
 
 
-def baseline_path(leg: str = "") -> Path:
-    """This checkout's baseline file, named for the commit it was recorded at.
+def baseline_path(revision: str, leg: str = "") -> Path:
+    """The cached outcomes of `revision`, one file per commit and leg.
 
     The checked-in golden pins outcomes for `main` as a whole, so it disagrees
     with any checkout whose base carries another lane's in-flight movement, and
     a single run against it cannot separate that lane's drift from this one's.
-    Recording a baseline at the current commit and diffing working-tree edits
-    against it answers the question a change actually asks -- what did I move --
-    in one corpus pass rather than two.
+    `--compare` measures the base commit itself and keeps those rows here, so
+    each later measurement against the same base costs one corpus pass.
     """
-    revision = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=ROOT, capture_output=True, text=True, check=False,
-    ).stdout.strip() or "unknown"
     suffix = f"-{leg}" if leg else ""
     return ROOT / "build" / "corpus_baselines" / f"{revision}{suffix}.txt"
+
+
+COMPARE_WORKTREE = ROOT / "build" / "cmp"
+FILTER_VARIABLE = "OMEGA_CORPUS_FIXTURE_FILTER"
+
+
+def checkout_base(revision: str) -> Path:
+    """A detached worktree at `revision` with its own build directory, so the
+    base runner can never link the measured tree's edits or artifacts."""
+    if (COMPARE_WORKTREE / ".git").exists():
+        moved = git_out("-C", str(COMPARE_WORKTREE), "checkout", "-q", "-f",
+                        "--detach", revision)
+    else:
+        git_out("worktree", "prune")
+        moved = git_out("worktree", "add", "-q", "--detach",
+                        str(COMPARE_WORKTREE), revision)
+    if moved is None:
+        raise InfrastructureFailure(
+            f"corpus_gate: cannot check out {revision} at {COMPARE_WORKTREE}")
+    return COMPARE_WORKTREE
+
+
+def base_records_for(revision: str, leg: str, selected: list) -> list:
+    """`revision`'s rows for the selected fixtures, measuring only those the
+    cache lacks. A fixture the base does not have stays absent: it is new."""
+    cache = baseline_path(revision, leg)
+    cached = ({record["fixture"]: record for record in corpus_records.read(cache)}
+              if cache.is_file() else {})
+    missing = [fixture for fixture in selected if fixture not in cached]
+    if missing:
+        selection = os.environ.get(FILTER_VARIABLE, "")
+        exact = ",".join(missing)
+        # Exact names keep a top-up cheap; the original selection already
+        # covers a cold cache, and an over-long list would exceed the
+        # environment block on Windows.
+        if len(missing) < len(selected) and len(exact) < 20_000:
+            selection = exact
+        worktree = checkout_base(revision)
+        previous = os.environ.get(FILTER_VARIABLE)
+        if selection:
+            os.environ[FILTER_VARIABLE] = selection
+        try:
+            measured = run_runner(build_runner(worktree), worktree)
+        finally:
+            if previous is None:
+                os.environ.pop(FILTER_VARIABLE, None)
+            else:
+                os.environ[FILTER_VARIABLE] = previous
+        for record in measured:
+            record["recorded_at"] = revision[:12]
+            cached[record["fixture"]] = record
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(corpus_records.render(
+            [cached[fixture] for fixture in sorted(cached)]), encoding="utf-8")
+    return [cached[fixture] for fixture in selected if fixture in cached]
+
+
+def compare_with_revision(options, leg, revision: str, head_records: list) -> int:
+    """Diff this tree's run against `revision`'s, fixture by fixture."""
+    base = base_records_for(revision, leg, [record["fixture"] for record in head_records])
+    result = corpus_records.compare_records(base, head_records)
+    for line in result["losses"]:
+        print(f"- {line}")
+    for line in result["gains"]:
+        print(f"+ {line}")
+    dirty = bool(git_out("status", "--porcelain", "--untracked-files=no"))
+    print(f"corpus_gate: compared {result['fixtures']} fixtures against "
+          f"{revision[:12]}{' (head has uncommitted edits)' if dirty else ''}: "
+          f"{len(result['losses'])} lost, {len(result['gains'])} gained")
+    write_verdict(options, {
+        "schema": "omega-corpus-compare-v1",
+        "base": revision,
+        "head": git_out("rev-parse", "HEAD"),
+        "dirty": dirty,
+        "leg": leg or "checked",
+        **result,
+    })
+    return 1 if result["losses"] else 0
 
 
 def git_out(*arguments) -> str | None:
@@ -1017,12 +1099,12 @@ def main() -> int:
                              "record whether they agree, and diff against "
                              "tests/omega/corpus_both_<target>.txt "
                              "(supply --golden when absent)")
-    parser.add_argument("--baseline", action="store_true",
-                        help="diff against this checkout's own recorded "
-                             "outcomes instead of the checked-in golden — "
-                             "`--baseline --record` on a clean tree saves "
-                             "them, and every later run costs one corpus pass "
-                             "instead of stashing and running twice")
+    parser.add_argument("--compare", metavar="REVISION",
+                        help="diff this tree's run against REVISION's, built "
+                             "in its own worktree (build/cmp) and cached per "
+                             "commit under build/corpus_baselines; exits 1 "
+                             "when any fixture loses an outcome, expected "
+                             "fragment or execution fact")
     parser.add_argument("--filter",
                         help="comma-separated fixture fragments — run and diff "
                              "only matching fixtures (sets "
@@ -1086,20 +1168,17 @@ def main() -> int:
         if options.golden == GOLDEN:
             name = ("checked_both" if options.checked_interpreter else "both") if options.interpret else "native"
             options.golden = ROOT / "tests" / "omega" / f"corpus_{name}_{target}.txt"
-    if options.baseline:
-        if options.golden != GOLDEN and not leg:
-            print("corpus_gate: --baseline and --golden name different goldens")
+    compare_revision = None
+    if options.compare:
+        if options.record:
+            print("corpus_gate: --compare measures a base; it does not record a golden")
             return usage_error
-        # A foreign native target keeps its own baseline beside the host's.
-        options.golden = baseline_path(
-            f"{leg}-{options.native_target}" if options.native_target else leg)
-        if not options.golden.is_file() and not options.record:
-            print(f"corpus_gate: no baseline at {options.golden.relative_to(ROOT)}; "
-                  "record one from a clean tree first:\n"
-                  "  git stash && python3 tools/corpus_gate.py --baseline --record "
-                  "&& git stash pop")
+        compare_revision = git_out("rev-parse", "--verify", f"{options.compare}^{{commit}}")
+        if not compare_revision:
+            print(f"corpus_gate: --compare names no commit: {options.compare}")
             return usage_error
-        options.golden.parent.mkdir(parents=True, exist_ok=True)
+        # A foreign native target keeps its own cache beside the host's.
+        compare_leg = f"{leg}-{options.native_target}" if options.native_target else leg
 
     subset = (bool(options.filter) or bool(options.shard)
               or bool(os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", "").strip())
@@ -1134,6 +1213,8 @@ def main() -> int:
         binary = options.runner or build_runner()
         records = run_runner(binary)
         context = measurement_context(load_start)
+        if compare_revision is not None:
+            return compare_with_revision(options, compare_leg, compare_revision, records)
     except InfrastructureFailure as error:
         print(str(error), file=sys.stderr)
         code = 125 if options.bisect else 4

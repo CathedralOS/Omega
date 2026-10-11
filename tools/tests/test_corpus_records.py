@@ -208,5 +208,49 @@ class PinnedOffTarget(unittest.TestCase):
             ["pass/a/rejected", "fail/a/checked", "run/a/incomplete"])
 
 
+class CompareRecords(unittest.TestCase):
+    """`--compare` diffs two fresh runs of one selection."""
+
+    def row(self, fixture, status, expected=None, facts=None):
+        return {"fixture": fixture, "tier": fixture.split("/", 1)[0],
+                "status": status, "millis": 1, "expected_satisfied": expected,
+                "facts": facts or {}, "diagnostics": [],
+                "regressed_from": None, "recorded_at": None}
+
+    def test_identical_runs_have_no_moves(self):
+        rows = [self.row("pass/a/x", "built", facts={"exit": "70"}),
+                self.row("fail/a/y", "rejected", expected=True)]
+        self.assertEqual(corpus_records.compare_records(rows, rows),
+                         {"losses": [], "gains": [], "fixtures": 2})
+
+    def test_weaker_outcomes_unmet_fragments_and_changed_facts_are_losses(self):
+        base = [self.row("pass/a/built", "built"),
+                self.row("pass/a/exit", "built", facts={"exit": "70"}),
+                self.row("fail/a/reason", "rejected", expected=True),
+                self.row("fail/a/accepts", "rejected"),
+                self.row("pass/a/gone", "checked")]
+        head = [self.row("pass/a/built", "checked"),
+                self.row("pass/a/exit", "built", facts={"exit": "72"}),
+                self.row("fail/a/reason", "rejected", expected=False),
+                self.row("fail/a/accepts", "checked")]
+        self.assertEqual(corpus_records.compare_records(base, head)["losses"], [
+            "fail/a/accepts: rejected -> checked",
+            "fail/a/reason: expected fragments no longer met",
+            "pass/a/built: built -> checked",
+            "pass/a/exit: exit 70 -> 72",
+            "pass/a/gone: absent from head"])
+
+    def test_repairs_and_new_fixtures_are_gains(self):
+        base = [self.row("pass/a/x", "rejected")]
+        head = [self.row("pass/a/x", "built", facts={"exit": "70"}),
+                self.row("pass/a/new", "checked")]
+        result = corpus_records.compare_records(base, head)
+        self.assertEqual(result["losses"], [])
+        self.assertEqual(result["gains"], [
+            "pass/a/new: new checked",
+            "pass/a/x: rejected -> built",
+            "pass/a/x: exit - -> 70"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -19,12 +19,12 @@ Four measurements, each independent of the others:
             matter" means pairs that at least `--pair-floor` samples use;
   outcomes  per-fixture verdicts from corpus outcome records (the golden
             `tests/omega/corpus_outcomes.txt` by default, or a baseline file
-            written by `tools/corpus_gate.py --baseline --record`).
+            cached by `tools/corpus_gate.py --compare <revision>`).
 
 Run from the repository root; standard library only:
 
     python tools/progress.py
-    python tools/progress.py --outcomes build/corpus_baselines/<head>.txt
+    python tools/progress.py --outcomes build/corpus_baselines/<sha>.txt
 
 The check golden gives each fixture's `checks` level. When this host's native
 golden (`tests/omega/corpus_native_<target>.txt`, written by

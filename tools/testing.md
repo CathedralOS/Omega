@@ -238,27 +238,32 @@ lands as a forty-row diff in a file every lane edits.
 
 **A full run can exceed the harness background cap, and the way through is
 slices, not detaching.** At six concurrent sessions on a 10-cpu host a full
-`--baseline --record` took 19 minutes of runner build plus over 100 minutes of
+`--record` took 19 minutes of runner build plus over 100 minutes of
 fixtures and did not finish inside a 2-hour cap; `nohup`/`disown` is not a way
 around it, and killing a gate's parent leaves its `corpus_runner` executing
-against a dead pipe. Accumulate the baseline from several `--filter <group>/`
-slices instead: a subset `--record` **merges** into the same baseline file, and
-`--baseline` compares only the fixtures that ran. Diff the after-run the same
-way, slice by slice. Use the trailing slash on each group -- a bare substring
+against a dead pipe. Compare in several `--filter <group>/` slices instead:
+`--compare` caches the base commit's rows per fixture, so each slice adds to the
+same cache and compares only the fixtures that ran. Use the trailing slash on each group -- a bare substring
 like `time` matches 510 fixtures, some already red, and their unmet exit
 promises abort the run before the golden diff.
 
-**Do not record a baseline in a worktree you are then editing.** The runner is
-built from the tree, so an edit that lands before the link step silently
-measures something other than the base.
-
-To measure what your own change moved, record a baseline once per base commit
-and diff against it, rather than running the corpus twice per measurement:
+To measure what your own change or series moved, compare against the commit it
+builds on. Every agent and host uses the same command:
 
 ```bash
-git stash && python3 tools/corpus_gate.py --baseline --record && git stash pop
-python3 tools/corpus_gate.py --baseline   # after every later edit
+python3 tools/corpus_gate.py --compare origin/main --filter calls/,host/
+python3 tools/corpus_gate.py --compare origin/main --native --filter calls/
 ```
+
+The base is built from its commit in a separate worktree (`build/cmp`) with its
+own build directory, so neither uncommitted edits nor artifacts from this tree
+can leak into it. A run exits 1 when any fixture loses its outcome, its
+expected fragments or an execution fact such as `exit:70`, and prints every
+loss and gain. Name the base explicitly: comparing against a newer `main` than
+your series sits on attributes other lanes' movement to you. Rebase first, then
+compare against the commit you rebased onto. Edits made to this tree while its
+own runner links still change what the head side measured, so finish edits
+before starting a run.
 
 **Build the runner from the tree you are measuring.** `--runner <binary>`
 reuses a prebuilt runner, which is a real saving and a real hazard: a stale
@@ -269,8 +274,8 @@ One re-record pinned fifteen rows to a diagnostic removed eleven commits
 earlier, and it was caught only because the text contradicted a landed change.
 Reuse a runner only within one tree state.
 
-Keep baseline and candidate builds in separate `CARGO_TARGET_DIR` directories
-when comparing worktrees. A successful Cargo invocation against a shared target
+`--compare` builds its base with its own `CARGO_TARGET_DIR`; keep any other
+baseline and candidate builds in separate target directories the same way. A successful Cargo invocation against a shared target
 directory can retain another worktree's artifacts when timestamp freshness sees
 the candidate sources as older than those artifacts. Rebuilding the runner alone
 does not establish that its linked compiler dependencies came from the candidate.
@@ -288,13 +293,13 @@ Direct runner or CLI invocations should select the matching library explicitly
 when sharing build artifacts across checkouts. Release library validation still
 checks the selected content; this does not waive compiler or package identity.
 
-`--baseline` keys its file on `git rev-parse HEAD` under ignored
-`build/corpus_baselines/`. Use it when the checked-in golden disagrees with
-your checkout over another lane's in-flight movement, which is the usual case:
-a run against the shared golden cannot separate that drift from yours, and
-re-recording the shared golden would pin their regression as expected. A subset diff
-compares only the fixtures that ran against the same golden; a subset
-`--record` merges into it. The unfiltered corpus is scheduled-workload cost,
+`--compare` caches the base under ignored
+`build/corpus_baselines/<sha>[-leg].txt`. Use it when the checked-in golden
+disagrees with your checkout over another lane's in-flight movement, which is
+the usual case: a run against the shared golden cannot separate that drift from
+yours, and re-recording the shared golden would pin their regression as
+expected. A subset diff compares only the fixtures that ran; a subset
+`--record` merges into the golden. The unfiltered corpus is scheduled-workload cost,
 not loop cost — keep it out of routine iteration.
 
 The default run checks fixtures only. `--native` realizes each pass and run
@@ -506,8 +511,9 @@ python3 tools/sample_native_gate.py --cli "$(realpath ../tgt-opt/debug/omega*)" 
   --target windows_x86_64 --filter cli/ --jobs 8 --timeout 900 < /dev/null
 ```
 
-Close stdin (`< /dev/null`) on any `omega` or gate command run in the
-background: `omega run` forwards stdin and otherwise waits at zero CPU.
+The corpus and sample gates give every child an empty stdin. Close stdin
+(`< /dev/null`, or `$null |` in PowerShell) on a direct `omega` command run in
+the background: `omega run` forwards stdin and otherwise waits at zero CPU.
 
 A sample is the product's own customer, so a cluster names a capability the
 language owes rather than a fixture to repair. Read the

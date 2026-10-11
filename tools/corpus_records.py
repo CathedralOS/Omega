@@ -137,6 +137,58 @@ def pinned_off_target(records: list) -> list:
                 and record["status"] in SUCCESS_STATUSES)]
 
 
+def _outcome_rank(record) -> int:
+    """How much of its tier's success a row reached: a fail row succeeds by
+    rejecting, a pass or run row by checking and more by building."""
+    if record is None:
+        return -1
+    if record["tier"] == "fail":
+        return 1 if record["status"] == "rejected" else 0
+    return {"checked": 1, "built": 2}.get(record["status"], 0)
+
+
+def compare_records(base: list, head: list) -> dict:
+    """What `head` lost and gained against `base`, fixture by fixture.
+
+    Both sides are fresh runs of one selection, so this compares measured
+    behavior, not a golden that may be commits old. A loss is a fixture
+    absent from `head`, a weaker outcome for its tier, an expected fragment
+    no longer met, or an execution fact (`exit`, `stdout`, ...) that changed
+    or disappeared. Gains are the same moves in the other direction; timing
+    and diagnostic text are neither.
+    """
+    base_rows = {record["fixture"]: record for record in base}
+    head_rows = {record["fixture"]: record for record in head}
+    losses, gains = [], []
+    for fixture in sorted(base_rows.keys() | head_rows.keys()):
+        old, new = base_rows.get(fixture), head_rows.get(fixture)
+        if new is None:
+            losses.append(f"{fixture}: absent from head")
+            continue
+        if old is None:
+            gains.append(f"{fixture}: new {new['status']}")
+            continue
+        old_rank, new_rank = _outcome_rank(old), _outcome_rank(new)
+        move = f"{fixture}: {old['status']} -> {new['status']}"
+        if new_rank < old_rank:
+            losses.append(move)
+        elif new_rank > old_rank:
+            gains.append(move)
+        if old["expected_satisfied"] is True and new["expected_satisfied"] is not True:
+            losses.append(f"{fixture}: expected fragments no longer met")
+        elif new["expected_satisfied"] is True and old["expected_satisfied"] is not True:
+            gains.append(f"{fixture}: expected fragments now met")
+        old_facts, new_facts = old.get("facts", {}), new.get("facts", {})
+        for key in sorted(old_facts.keys() | new_facts.keys()):
+            before, after = old_facts.get(key), new_facts.get(key)
+            if before == after:
+                continue
+            change = f"{fixture}: {key} {before or '-'} -> {after or '-'}"
+            (losses if before is not None else gains).append(change)
+    return {"losses": losses, "gains": gains,
+            "fixtures": len(base_rows.keys() | head_rows.keys())}
+
+
 _ESCAPES = {"\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t"}
 _UNESCAPES = {"\\": "\\", "n": "\n", "r": "\r", "t": "\t"}
 
