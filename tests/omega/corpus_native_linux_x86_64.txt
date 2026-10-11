@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 3.82, "load1_start": 3.79, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 5.18, "load1_start": 3.57, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -125,8 +125,7 @@ pass/calls/borrowed_float_result_exit built 3114ms exit:70 @2d8ed253669f+wt
 pass/calls/borrowed_float_scalar_result_exit built 863ms exit:70 @2d8ed253669f+wt
 pass/calls/borrowed_scalar_result_with_binding_exit built 879ms exit:70 @2d8ed253669f+wt
 pass/calls/by_value_case_param_self_write_exit built 936ms exit:70 @2d8ed253669f+wt
-pass/calls/callback_private_materialization rejected 3809ms @3eebfe9c3de
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/callback_private_materialization built 12331ms @ddb19e6ab06e
 pass/calls/caller_result_binding_mutable_loan_exit built 1040ms exit:70 @2d8ed253669f+wt
 pass/calls/caller_structural_result_indexed_borrow_exit built 1814ms exit:171 @bd26d3a01ac1
 pass/calls/case_arm_payload_receiver_arg built 10984ms exit:70 @26de5dbf218d
@@ -349,8 +348,7 @@ pass/contracts/ensures_named_parameter_arithmetic_exit built 620ms exit:0 @5a10c
 pass/contracts/proof_fact_indexed_domain_application checked 314ms @2d8ed253669f+wt
 pass/contracts/requires_narrow_ceiling_unproven built 927ms @2d8ed253669f+wt
 pass/contracts/requires_u8_ceiling_below_carrier built 1164ms @2d8ed253669f+wt
-pass/control_flow/affine_call_result_state_transfer_exit rejected 5088ms @527bb17dc5
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
+pass/control_flow/affine_call_result_state_transfer_exit built 12298ms exit:70 @ddb19e6ab06e
 pass/control_flow/arm_pattern_rest_optout_exit built 1097ms exit:70 @9baafc0ace88
 pass/control_flow/borrowed_state_argument built 1139ms exit:5 @9baafc0ace88
 pass/control_flow/case_arm_payload_receiver_call built 10280ms exit:70 @26de5dbf218d
@@ -370,8 +368,7 @@ pass/control_flow/nested_parameter_receiver_call checked 318ms @2d8ed253669f+wt
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit built 1277ms exit:70 @2d8ed253669f+wt
 pass/control_flow/ordered_unconditional_arm_exit built 916ms exit:70 @2d8ed253669f+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit built 1265ms exit:70 @2d8ed253669f+wt
-pass/control_flow/runtime_branching_helper_string rejected 411ms @2d8ed253669f+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` calls `Main::pick`, which has no plan; `Main::pick` has no admitted body (local construction stopped at result ownership)") })
+pass/control_flow/runtime_branching_helper_string built 9146ms @ddb19e6ab06e
 pass/control_flow/runtime_captured_local_remutated_field_exit built 1011ms exit:70 @2d8ed253669f+wt
 pass/control_flow/runtime_compare_pair_dispatch_exit built 926ms exit:70 @2d8ed253669f+wt
 pass/control_flow/runtime_indexed_case_dispatch_exit built 1239ms exit:2 @2d8ed253669f+wt
@@ -533,28 +530,22 @@ pass/filesystem/dir_walk_wrappers_exit rejected 62222ms @b2906d953be
 pass/filesystem/native_canonicalize rejected 2304ms @3eebfe9c3de
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::canonicalize),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_close built 805ms @9baafc0ace88
-pass/filesystem/native_crud rejected 2382ms @3eebfe9c3de
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_errno rejected 663ms @2d8ed253669f+wt
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::errno),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/native_crud built 18443ms exit:0 stdout:match @ddb19e6ab06e
+pass/filesystem/native_errno built 18342ms exit:0 stdout:match @ddb19e6ab06e
 pass/filesystem/native_filetype rejected 3256ms @3eebfe9c3de
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_fs_workflow rejected 3487ms @3eebfe9c3de
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_metadata_blocks rejected 24844ms @3eebfe9c3de
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/native_metadata_blocks built 23205ms exit:0 stdout:match @ddb19e6ab06e
 pass/filesystem/native_metadata_ctime_dev rejected 55432ms @3eebfe9c3de
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_metadata_ino incomplete 86510ms @b2906d953be
-	incomplete: terminal-artifact production stopped at the private `proof_search_result_guarantee_work` proof-search capacity (provision 4096) with obligation 105 unproved; the module is not shown invalid
+pass/filesystem/native_metadata_ino built 27145ms @ddb19e6ab06e
 pass/filesystem/native_metadata_nlink rejected 4005ms @3eebfe9c3de
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_read_dir_iter rejected 2656ms @3eebfe9c3de
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/native_read_dir_iter built 24811ms exit:0 stdout:match @ddb19e6ab06e
 pass/filesystem/native_wrapper_write_all_result rejected 40481ms @3eebfe9c3de
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/runtime_local_host_result_dispatch_exit rejected 2249ms @3eebfe9c3de
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/runtime_local_host_result_dispatch_exit built 20956ms exit:70 @ddb19e6ab06e
 pass/filesystem/windows_canonicalize_exit rejected 40317ms @ee1da2845a7
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_raw_breadth_exit rejected 813ms @2d8ed253669f+wt
@@ -678,8 +669,7 @@ pass/layouts/placed_view_source_access_compile checked 881ms @2d8ed253669f+wt
 pass/layouts/private_callback_slot_demand_compile rejected 35ms @2d8ed253669f+wt
 	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
 pass/layouts/private_callback_slot_untaken_compile checked 355ms @2d8ed253669f+wt
-pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 6856ms @835baa6033e
-	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
+pass/layouts/runtime_callee_integer_at_fitting_write_exit built 9370ms exit:0 @ddb19e6ab06e
 pass/layouts/runtime_plan_laid_compact_bits_exit built 853ms exit:70 @2d8ed253669f+wt
 pass/layouts/runtime_plan_laid_erased_field_exit built 1610ms exit:70 @9baafc0ace88
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 1461ms exit:72 @9baafc0ace88
@@ -774,14 +764,12 @@ pass/optimizer/rollback_sparse_conditional_constant_propagation_selected built 2
 pass/optimizer/rollback_to_no_selection_empty_entry built 2750ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] @3aa9587aec19+wt
 pass/optimizer/stored_load_forwarding_selection_exit built 590ms exit:0 @f7f623460021+wt
 pass/ownership/conditional_linear_sum checked 289ms @2d8ed253669f+wt
-pass/ownership/linear_ambiguous_state_result_mapping rejected 345ms @2d8ed253669f+wt
-	entry machine `Main::main` returns a value, but `ProgramEntry` has no result
+pass/ownership/linear_ambiguous_state_result_mapping built 12364ms exit:0 @ddb19e6ab06e
 pass/ownership/linear_assignment_establishes checked 285ms @2d8ed253669f+wt
 pass/ownership/linear_boundary_entry_handoff checked 367ms @2d8ed253669f+wt
 pass/ownership/linear_branch_reconciliation checked 280ms @2d8ed253669f+wt
 pass/ownership/linear_self_receiver_disposition checked 284ms @2d8ed253669f+wt
-pass/ownership/linear_transfer_and_consume rejected 708ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
+pass/ownership/linear_transfer_and_consume built 10141ms exit:0 @ddb19e6ab06e
 pass/ownership/linear_transparent_record_frontier rejected 724ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
 pass/ownership/move_keyword_field_assignment built 743ms exit:41 @2d8ed253669f+wt
@@ -790,8 +778,7 @@ pass/parameters/byte_store_root_after_scalar_formal_exit built 1267ms exit:70 @2
 pass/parameters/shared_and_mut_borrow_params_compile checked 285ms @2d8ed253669f+wt
 pass/parser/deep_nesting_within_limit checked 286ms @2d8ed253669f+wt
 pass/parser/invariant_is_an_identifier checked 277ms @2d8ed253669f+wt
-pass/progress/provider_receiver_progress_installation rejected 638ms @2d8ed253669f+wt
-	final composition cannot discharge build-bound progress demand `named-callable(path(Scheduler::notify),parameters(parameter\\(self\\(yes\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\($Self\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` requiring profile `SchedulerHandle::WeakFair` at checked call 0:0; the exact installed provider occurrence and admitted establishment receipt must be bound before native lowering
+pass/progress/provider_receiver_progress_installation built 10176ms @ddb19e6ab06e
 pass/proofs/accepted_axiom_cited_exit built 761ms exit:70 @2d8ed253669f+wt
 pass/proofs/accumulator_guarantee_exit built 1205ms exit:70 @2d8ed253669f+wt
 pass/proofs/case_call_premises checked 337ms @2d8ed253669f+wt
@@ -880,15 +867,13 @@ pass/recast/runtime_float_range_representation_recast_exit built 4207ms exit:70 
 pass/recast/runtime_guarded_offset_recast_exit built 1728ms exit:70 @a3bac00e54bb
 pass/recast/runtime_integer_bit_view_recast_exit built 1761ms exit:70 @a3bac00e54bb
 pass/recast/runtime_interior_slice_congruent_offset_exit built 3331ms exit:70 @c773c4ad3c34
-pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 2156ms @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidNominalAffineCleanup { machine: MachineId(1), block: BlockId(10) }))
+pass/recast/runtime_interior_slice_view_mutable_write_exit built 10048ms exit:70 @ddb19e6ab06e
 pass/recast/runtime_mutable_equivalent_domain_recast_exit built 1148ms exit:70 @a3bac00e54bb
 pass/recast/runtime_mutable_equivalent_range_recast_exit built 1193ms exit:70 @a3bac00e54bb
 pass/recast/runtime_mutable_equivalent_record_recast_exit built 6027ms exit:70 @a3bac00e54bb
 pass/recast/runtime_nested_record_byte_store_exit built 1403ms exit:70 @a3bac00e54bb
 pass/recast/runtime_offset_byte_recast_mutable_write_exit built 1841ms exit:70 @a3bac00e54bb
-pass/recast/runtime_record_array_view_mutable_write_exit rejected 1020ms @a3bac00e54bb
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
+pass/recast/runtime_record_array_view_mutable_write_exit built 11014ms exit:70 @ddb19e6ab06e
 pass/recast/runtime_scalar_parameter_shared_views_exit built 4887ms exit:70 @e8239f945e8
 pass/recast/runtime_shared_domain_weakening_recast_exit built 1130ms exit:70 @a3bac00e54bb
 pass/recast/runtime_shared_parameter_view_calls_exit built 6651ms exit:0 @e8239f945e8
@@ -1047,10 +1032,8 @@ pass/termination/runtime_stored_exclusive_endpoint_exit built 4663ms exit:0 @b29
 pass/termination/stored_reference_endpoint_arrivals checked 679ms @2d8ed253669f+wt
 pass/termination/symbolic_quotient_endpoints checked 712ms @2d8ed253669f+wt
 pass/termination/unsigned_identity_measure_rank_range checked 628ms @2d8ed253669f+wt
-pass/text/local_bounded_text_case_result_loan_exit rejected 1174ms @655eb1d82b+wt
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(20)))
-pass/text/local_bounded_text_scalar_loan_exit incomplete 1885ms @655eb1d82b+wt
-	incomplete: terminal-artifact production stopped at the private `proof_search_integer_certificate_work` proof-search capacity (provision 65536) with obligation 27 unproved; the module is not shown invalid
+pass/text/local_bounded_text_case_result_loan_exit built 11099ms exit:70 @ddb19e6ab06e
+pass/text/local_bounded_text_scalar_loan_exit built 12542ms exit:70 @ddb19e6ab06e
 pass/text/nested_mutable_receiver_byte_result_exit checked 2712ms @655eb1d82b+wt
 pass/text/runtime_alias_string_write built 852ms @2d8ed253669f+wt
 pass/text/runtime_bounded_carrier_alias_concat_exit built 2931ms exit:70 @2d8ed253669f+wt
@@ -1096,11 +1079,9 @@ pass/traits/generic_trait_parent_binds_requirement checked 703ms @2d8ed253669f+w
 pass/traits/nominal_generic_reference_forwarding_exit checked 1790ms @c00769b616a+wt
 pass/traits/nominal_machine_binder_static_dispatch checked 1768ms @c00769b616a+wt
 pass/traits/ring_requirement_satisfies_exit built 2576ms exit:70 @2d8ed253669f+wt
-pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1574ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
+pass/traits/runtime_dyn_two_impl_dispatch_exit built 12471ms exit:70 @ddb19e6ab06e
 pass/traits/runtime_exact_requirement_edge_exit checked 1588ms @655eb1d82b+wt
-pass/traits/runtime_inherited_trait_default_exit rejected 818ms @655eb1d82b+wt
-	authored Call declaration selection occurrence remained unresolved after successful checking (CheckedCall): sibling requirement call `set(&mut subject, ...)` inside a trait default body
+pass/traits/runtime_inherited_trait_default_exit built 9967ms exit:70 @ddb19e6ab06e
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 1604ms @655eb1d82b+wt
 pass/traits/trait_generic_bound_static_dispatch checked 1595ms @655eb1d82b+wt
 pass/traits/transparent_refinement_declaration built 895ms @2d8ed253669f+wt
