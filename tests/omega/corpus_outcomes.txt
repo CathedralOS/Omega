@@ -5181,3 +5181,4 @@ pass/collections/runtime_projected_element_descriptor_read_exit checked 3982ms c
 pass/text/runtime_decimal_scalar_across_output_alternate_exit checked 17418ms check-target:linux_x86_64 @767574d46ddd
 pass/text/runtime_decimal_scalar_across_output_exit checked 18174ms check-target:linux_x86_64 @767574d46ddd
 # context: {"cpus": 5, "jobs": "1", "load1_end": 2.08, "load1_start": 2.39, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/float/owned_local_computed_float_store_exit checked 61310ms check-target:linux_x86_64 @6d6a4e9b3408

@@ -1167,3 +1167,4 @@ pass/arithmetic/reused_masked_shift_count_exit built 6668ms exit:0 @56b53faa47a8
 pass/text/runtime_decimal_scalar_across_output_alternate_exit built 19925ms exit:70 stdout:match stderr:match @767574d46ddd
 pass/text/runtime_decimal_scalar_across_output_exit built 15096ms exit:70 stdout:match stderr:match @767574d46ddd
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.91, "load1_start": 2.08, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/float/owned_local_computed_float_store_exit built 63210ms exit:70 @6d6a4e9b3408
