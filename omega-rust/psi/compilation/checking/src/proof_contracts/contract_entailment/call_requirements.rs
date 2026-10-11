@@ -4,8 +4,9 @@
 //! recursive call's eventual result and later citations are not entry evidence.
 //! A licensed induction hypothesis is different: it may establish an earlier
 //! premise, but only once its own premises hold in that earlier context.
-//! The checked caller separately establishes that entry values cannot be
-//! mutated; this judgment does not replace the separate recursion validator.
+//! The runtime prefix checks complete write frames before retaining entry
+//! observations; proof callers establish preservation separately. This judgment
+//! does not replace the separate recursion validator.
 //! Runtime calls reuse the traversal with opaque invocation results and exact
 //! builtin equality domains. Empty write frames alone do not make observations
 //! deterministic, and IEEE equality is not structural reflexivity.
@@ -33,8 +34,9 @@ use typed_trees::statement::{TransitionGuardNode, TransitionTargetNode};
 
 /// Check one exact substituted requirement on every recognized path to a call.
 /// Unsupported paths and unknown judgments do not establish the requirement.
-/// Callers must preserve the machine's entry premises and provide the selected
-/// callee state and actual arguments, not a display-name reconstruction.
+/// Proof callers preserve the machine's entry premises; runtime traversal checks
+/// preservation over the executed prefix. Both provide the selected callee state
+/// and actual arguments, not a display-name reconstruction.
 /// With `case_facts_only`, callers instead preserve every retained subject's
 /// tag across the traversed prefix. Scalar premises and equations are unavailable
 /// in that mode; incomplete mutation evidence never licenses either judgment.
@@ -373,29 +375,16 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             }
             entries
         } else {
-            let arguments = self
-                .parameters
-                .iter()
-                .zip(self.arguments)
-                .map(|(parameter, argument)| {
-                    judge.callee_term_in_scope(
-                        Some((machine, caller_state, parameter.type_reference)),
-                        *argument,
-                        environment,
-                        0,
-                    )
-                })
-                .collect::<Option<Vec<_>>>();
-            let Some(arguments) = arguments else {
+            let Some(entries) = site_judge.normal_argument_entries(
+                self.arguments,
+                self.parameters,
+                environment,
+                (machine, caller_state, caller_state.return_type),
+            ) else {
                 self.proven = false;
                 return;
             };
-            vec![
-                super::structural_judgment::normal_returns::NormalCallEntry {
-                    arguments,
-                    judge: site_judge,
-                },
-            ]
+            entries
         };
         self.proven &= !entries.is_empty();
         for entry in entries {

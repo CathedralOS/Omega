@@ -410,6 +410,24 @@ fn recognize_structural_state_leaves_from(
                 // Other incoming paths are still visited by the parent.
                 return Some(Vec::new());
             }
+            // A runtime prefix retains entry observations only across complete
+            // empty frames. The statement call and its evaluated operands own
+            // separate frames; check both before either citation intake path.
+            // The requested call above has not executed and owes only operand
+            // evaluation, which its visitor checks through normal-return paths.
+            if judge.requires_value_preservation()
+                && let StatementNode::Call(call) = statement
+            {
+                let frames = crate::machine_calls::calls::CallFrameResolver::new(program)?;
+                for frame in [
+                    frames.may_write_frame(machine, call),
+                    frames.statement_value_write_frame(machine, statement),
+                ] {
+                    if !frame.into_complete_paths()?.is_empty() {
+                        return None;
+                    }
+                }
+            }
             if requirement.is_some()
                 && !saw_transition
                 && (!judge.has_runtime_body_values() || matches!(statement, StatementNode::Call(_)))
@@ -583,6 +601,12 @@ fn recognize_structural_state_leaves_from(
                         &mut pending_citations,
                     )?;
                 }
+                StatementNode::Call(_)
+                    if !saw_transition && judge.requires_value_preservation() =>
+                {
+                    // The shared frame check above established completion
+                    // without invalidating retained observations.
+                }
                 StatementNode::Call(call)
                     if !saw_transition
                         && is_citation_statement(program, classification, machine, call) =>
@@ -619,20 +643,22 @@ fn recognize_structural_state_leaves_from(
                 StructuralTerm::Opaque("()".to_owned()),
             )]);
         }
-        if transitions.len() > 1
-            && transitions
-                .iter()
-                .any(|(_, transition)| matches!(transition.guard, TransitionGuardNode::Always))
-        {
-            return None;
-        }
-
+        // A fallback is checked with the incoming facts alone. Omitting the
+        // preceding arms' negations weakens its evidence but cannot donate a
+        // guard from another arm or skip its obligation.
         let mut leaves = Vec::new();
         for (statement_index, transition) in transitions {
             let mut branch_environment = environment.clone();
             let mut branch_hypotheses = case_hypotheses.clone();
             let mut branch_equations = case_equations.clone();
             if let TransitionGuardNode::When(guard) = transition.guard {
+                if judge.requires_value_preservation()
+                    && !crate::machine_calls::calls::CallFrameResolver::new(program)?
+                        .expression_may_write_paths(machine, guard)?
+                        .is_empty()
+                {
+                    return None;
+                }
                 let Some(comparison) = program.expression_table.binary_node(guard) else {
                     return None;
                 };
@@ -655,65 +681,25 @@ fn recognize_structural_state_leaves_from(
                     &branch_environment,
                     0,
                 )?;
-                let (definition, variant) = super::structural_terms::case_guard_classifier(
-                    program,
-                    machine,
-                    Some(state),
-                    guard,
-                )?;
-                let data = definition.name.as_str().to_owned();
-                let case = variant.name.as_str().to_owned();
-                let variant_fields: Vec<String> = program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .map(|field| field.name.as_str().to_owned())
-                    .collect();
-                let branch_id = *fresh;
-                *fresh += 1;
-                // Matching determines the case, never the values of its common
-                // fields. Keep those fields symbolic beside the active payload.
-                let common_fields = program
-                    .data_members(definition)
-                    .iter()
-                    .filter_map(|member| match member {
-                        typed_trees::data::DataMember::Field(field) => {
-                            Some(field.name.as_str().to_owned())
-                        }
-                        _ => None,
-                    });
-                let mut fields: Vec<(String, StructuralTerm)> = variant_fields
-                    .into_iter()
-                    .chain(common_fields)
-                    .map(|field| {
-                        // These binders must never alias an authored identifier.
-                        // The NUL prefix is outside the source name alphabet.
-                        let variable =
-                            format!("\0__ih_{}_{}_{}", state.name.as_str(), branch_id, field);
-                        (field, StructuralTerm::Variable(variable))
-                    })
-                    .collect();
-                fields.sort_by(|(left, _), (right, _)| left.cmp(right));
-                let constructor = StructuralTerm::Constructor { data, case, fields };
+                let constructor = guard_case_value(program, machine, state, guard, fresh)?;
 
                 match subject {
                     StructuralTerm::Variable(subject) => {
                         branch_hypotheses.push((subject, constructor.clone()));
                     }
-                    StructuralTerm::Application { .. } | StructuralTerm::BoundValue(_) => {
-                        branch_equations.push((subject, constructor.clone()));
-                    }
-                    _ => return None,
+                    // Every successfully observed subject can retain its case
+                    // equation, including computed Boolean predicates. Its
+                    // spelling does not determine whether a guard is evidence.
+                    subject => branch_equations.push((subject, constructor.clone())),
                 }
                 if let StructuralTerm::Variable(raw_name) = raw_subject {
                     let (_, binding) = branch_environment
                         .iter_mut()
                         .find(|(name, _)| name == &raw_name)?;
                     *binding = constructor;
-                } else if matches!(raw_subject, StructuralTerm::Application { .. }) {
-                    // A computed subject has no environment binding to refine.
-                } else {
-                    return None;
                 }
+                // Computed and projected subjects have no direct environment
+                // binder; their exact value equation carries the refinement.
             }
 
             if let Some(requirement) = requirement.as_deref_mut()
@@ -929,4 +915,59 @@ pub(super) fn structural_arm_judge<'program>(
     }
     arm_judge.hypotheses_contradictory |= vacuous;
     arm_judge
+}
+
+/// Boolean literals and nominal case classifiers retain their own meanings.
+/// Nominal cases expose only their tag; payload and common fields stay fresh.
+fn guard_case_value(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    guard: ExpressionHandle,
+    fresh: &mut usize,
+) -> Option<StructuralTerm> {
+    let comparison = program.expression_table.binary_node(guard)?;
+    if comparison.operator == BinaryOperator::Equal
+        && crate::has_builtin_binary_expression_meaning(program, machine, Some(state), guard)
+        && let ExpressionNode::Boolean(truth) =
+            program.expression_table.expression(comparison.right)
+    {
+        return Some(StructuralTerm::Constructor {
+            data: "bool".to_owned(),
+            case: truth.to_string(),
+            fields: Vec::new(),
+        });
+    }
+    let (definition, variant) =
+        super::structural_terms::case_guard_classifier(program, machine, Some(state), guard)?;
+    let data = definition.name.as_str().to_owned();
+    let case = variant.name.as_str().to_owned();
+    let variant_fields: Vec<String> = program
+        .data_payload_fields(variant)
+        .iter()
+        .map(|field| field.name.as_str().to_owned())
+        .collect();
+    let branch_id = *fresh;
+    *fresh += 1;
+    // Matching determines the case, never the values of its common
+    // fields. Keep those fields symbolic beside the active payload.
+    let common_fields = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) => Some(field.name.as_str().to_owned()),
+            _ => None,
+        });
+    let mut fields: Vec<(String, StructuralTerm)> = variant_fields
+        .into_iter()
+        .chain(common_fields)
+        .map(|field| {
+            // These binders must never alias an authored identifier.
+            // The NUL prefix is outside the source name alphabet.
+            let variable = format!("\0__ih_{}_{}_{}", state.name.as_str(), branch_id, field);
+            (field, StructuralTerm::Variable(variable))
+        })
+        .collect();
+    fields.sort_by(|(left, _), (right, _)| left.cmp(right));
+    Some(StructuralTerm::Constructor { data, case, fields })
 }

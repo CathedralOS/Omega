@@ -245,29 +245,6 @@ pub(super) fn structural_call_requirement(
     ) else {
         return false;
     };
-    let Some(callee) = program.state_by_symbol(call_flow.target_symbol) else {
-        return false;
-    };
-    let callee_machine = program
-        .machine_by_symbol(call_flow.target_symbol)
-        .or_else(|| {
-            validation::find_machine_by_entry_state(program, call_flow.target_symbol)
-                .map(|(machine, _)| machine)
-        });
-    let runtime_values = !classification.is_proof_machine(program, machine)
-        || callee_machine.is_none_or(|callee| !classification.is_proof_machine(program, callee));
-    let case_facts_only = runtime_values
-        && callee_machine.is_some_and(|machine| {
-            case_preservation::is_case_requirement(program, machine, callee, expression)
-        });
-    let preserved = if case_facts_only {
-        case_preservation::body_preserves_case_tags(program, facts, machine)
-    } else {
-        entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver)
-    };
-    if !preserved {
-        return false;
-    }
     let Some(call_site) = validation::find_call_site(
         program,
         machine.symbol,
@@ -277,6 +254,42 @@ pub(super) fn structural_call_requirement(
     ) else {
         return false;
     };
+    // Expression calls can follow earlier sibling operands in this statement.
+    // Their exact normal-call traversal owns those effects and capture epochs;
+    // starting a fresh argument-only entry here would skip the siblings.
+    if matches!(call_site, validation::CallSite::Expression { .. }) {
+        return validation::selected_value_call_requirement_entailed(
+            program,
+            machine,
+            state,
+            call_flow.statement_index,
+            call_site,
+            expression,
+        );
+    }
+    let Some(callee) = validation::call_target_state(program, call_flow.target_symbol) else {
+        return false;
+    };
+    let callee_machine = program.machine_holding_state(callee.symbol);
+    let runtime_values = !classification.is_proof_machine(program, machine)
+        || callee_machine.is_none_or(|callee| !classification.is_proof_machine(program, callee));
+    let case_facts_only = runtime_values
+        && callee_machine.is_some_and(|machine| {
+            case_preservation::is_case_requirement(program, machine, callee, expression)
+        });
+    let preserved = if case_facts_only {
+        case_preservation::body_preserves_case_tags(program, facts, machine)
+    } else if runtime_values {
+        // The runtime path owner checks each executed prefix frame, including
+        // argument evaluation, before retaining its observations. Writes after
+        // this occurrence and recursive successors cannot invalidate its entry.
+        true
+    } else {
+        entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver)
+    };
+    if !preserved {
+        return false;
+    }
     let arguments = validation::call_site_argument_expressions(program, &call_site);
     let in_transition_target = validation::transition_call_target(
         program,

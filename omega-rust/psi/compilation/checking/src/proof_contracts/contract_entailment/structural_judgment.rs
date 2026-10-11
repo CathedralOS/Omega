@@ -5,6 +5,7 @@ use super::{
 };
 use typed_trees::types::TypeReferenceHandle;
 
+mod integer_predicates;
 mod licenses;
 pub(super) mod normal_returns;
 mod selected_contracts;
@@ -297,6 +298,10 @@ impl<'program> StructuralJudge<'program> {
 
     pub(super) fn has_runtime_body_values(&self) -> bool {
         self.runtime_body_values
+    }
+
+    pub(super) fn requires_value_preservation(&self) -> bool {
+        self.runtime_body_values && !self.case_facts_only
     }
 
     /// Tag preservation does not preserve scalar premises or payload equations.

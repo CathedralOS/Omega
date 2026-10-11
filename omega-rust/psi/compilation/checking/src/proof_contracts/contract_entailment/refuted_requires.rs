@@ -284,15 +284,7 @@ pub(super) fn instantiated_fact_judgment(
             )
     {
         let term = StructuralJudge::substitute_term(&term, map);
-        match judge.judge_equation(
-            judge.resolve(term),
-            StructuralTerm::Constructor {
-                data: "bool".to_owned(),
-                case: "true".to_owned(),
-                fields: Vec::new(),
-            },
-            0,
-        ) {
+        match judge.judge_observed_predicate(term, 0) {
             StructuralJudgment::Proven => return StructuralJudgment::Proven,
             StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
             StructuralJudgment::Unknown => {}

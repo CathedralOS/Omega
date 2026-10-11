@@ -1339,9 +1339,6 @@ defines the complete product bar.
 
   Runtime qualification still needs package preparation and
   `omega run --both tests/omega/pass/collections/runtime_vec_u32_growth_exit/main.omg`.
-  Std resolves again, but its package check stops at the Console loop-ranking
-  dependency recorded under **PSI-TARGET-FAMILIES**, so
-  `omega update` cannot accept std before entry binding review.
   Normal `omega update --project
   tests/omega/pass/collections/runtime_vec_u32_growth_exit --target linux_x86_64`
   exceeded a measured 600-second bound at checkable checkpoint
@@ -1429,13 +1426,6 @@ defines the complete product bar.
   `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/`
   and `omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking/`.
 
-  Std's own package check refuses three loops that ranked before
-  bd68c42a6ef, so every Console program stops before execution:
-  `console_write_bytes` (`Slice::Length` cycle on a non-entry state),
-  `Filesystem::mkall_walk` (bounded distance in a 4-state machine) and
-  `windows_wide_copy` (`fuel`). Reproduce with
-  `omega --check source/library/std/main.omg < /dev/null`.
-
   Quotient/remainder, shifts and bitwise-AND actuals already use
   `install_nonpolynomial_terms`. Executing controls:
   `pass/control_flow/termination_index_distance_compile` (exit 0 on macOS and
@@ -1502,15 +1492,17 @@ defines the complete product bar.
   equation controls reject; private helper bodies supply no caller evidence.
 
   Remaining:
-  - Carry published postconditions through external selected-signature frames
-    in nested and composed initializers. The real libc absolute-value crossing
-    admits the direct identity observation on `i32` values in `0..=9`, but
-    cannot prove the nested/composed identity calls or the received rank range.
-    Keep `pass/providers/external_boundary_requirement_via_exit` as the genuine
-    host-binding control. Admitted relationships also need the real Build/root
-    trust acceptance to installation-roster join; native provider admission
-    still receives no assumed relationships. Build selection alone supplies
-    neither contract authority nor an admission receipt.
+  - Normalize computed public result equations into ranked arrivals. A selected
+    `observe(value: i32)` requiring `0 < value && value <= 9` and ensuring
+    `result == value - 1` still leaves `countdown(reader.observe(remaining))`
+    unable to prove rank range `0..=9` under `remaining > 0`. Captured operand
+    identities already reach ranking; a new result equation must describe its
+    value without requiring an identical caller expression to have executed.
+    Preserve `runtime_selected_result_ranked_arrival_exit` and
+    `external_result_ranked_arrival_compile`, with missing-guarantee,
+    nondecreasing, unguarded and stale-prefix controls. External execution also
+    needs **ASSUMED-BINDING-CONTRACTS**' Build/root trust-to-installation join;
+    source acceptance and provider selection supply no admission receipt.
 
   Acceptance: `python tools/corpus_gate.py --filter termination/` with `--both`
   and `--native` on matching hosts; changed endpoints, stale copies,

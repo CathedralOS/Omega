@@ -450,95 +450,123 @@ impl<'program> Coordinate<'program> {
         engine: &mut Engine<'_>,
         expression: ExpressionHandle,
     ) -> Option<Polynomial> {
-        use super::super::completed_values::{
-            CompletedValueSource, completed_value_observations, expression_statement_index,
-        };
-        let statement_index = expression_statement_index(program, state, expression)?;
-        let reference =
-            crate::expression_result_type_reference(program, machine, state, expression)?;
-        let path = self.location(program).path;
-        let mut projected_type = reference;
-        let mut completed_path_length = path.len();
-        for (index, segment) in path.iter().enumerate() {
-            if crate::reference_shell(program, projected_type).is_some() {
-                completed_path_length = index;
-                break;
-            }
-            projected_type = crate::value_custody::places::project_type_reference_from_segments(
-                program,
-                projected_type,
-                std::slice::from_ref(segment),
-            )?;
-        }
-        let (completed_path, referent_path) = path.split_at(completed_path_length);
-        // A completed borrow may also carry an observed referent value. Ask
-        // for both evidence classes in one normal-return observation; never
-        // turn descriptor identity into permission to extract that value.
-        let mut demands = vec![path.clone()];
-        if !referent_path.is_empty() {
-            demands.push(completed_path.to_vec());
-        }
-        let projections = completed_value_observations(
+        completed_scalar_actual(
             program,
             machine,
             state,
-            statement_index,
+            engine,
             expression,
-            reference,
-            &demands,
+            &self.location(program).path,
+        )
+    }
+}
+
+/// A scalar observation uses the same completed-value identity whether it
+/// occupies a whole actual or a declared field. The prefix/normal-return owner
+/// supplies public equations; arithmetic still proves each observed operand's
+/// formation under this edge's preserved hypotheses.
+pub(super) fn completed_scalar_actual(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    engine: &mut Engine<'_>,
+    expression: ExpressionHandle,
+    path: &[facts::PlaceSegment],
+) -> Option<Polynomial> {
+    use super::super::completed_values::{
+        CompletedValueSource, completed_value_observations, expression_statement_index,
+    };
+    let statement_index = expression_statement_index(program, state, expression)?;
+    let reference = crate::expression_result_type_reference(program, machine, state, expression)?;
+    let mut projected_type = reference;
+    let mut completed_path_length = path.len();
+    for (index, segment) in path.iter().enumerate() {
+        if crate::reference_shell(program, projected_type).is_some() {
+            completed_path_length = index;
+            break;
+        }
+        projected_type = crate::value_custody::places::project_type_reference_from_segments(
+            program,
+            projected_type,
+            std::slice::from_ref(segment),
         )?;
-        for projection in projections {
-            let suffix = if projection.path == path {
-                &[][..]
-            } else if projection.path == completed_path {
-                referent_path
-            } else {
-                continue;
-            };
-            for source in projection.sources {
-                match source {
-                    CompletedValueSource::Parameter { symbol, mut path } => {
-                        // Equality of the completed descriptor conserves this
-                        // declared suffix, not a scalar snapshot of its contents.
-                        path.extend_from_slice(suffix);
-                        let location = super::RankSubjectCoordinate {
-                            parameter: symbol,
-                            path,
-                        };
-                        let Some(coordinate) =
-                            Self::at_coordinate(program, state, &location, CoordinateKind::Field)
-                        else {
-                            continue;
-                        };
-                        if engine.install_hypotheses(coordinate.field_comparisons(program)) {
-                            return Some(coordinate.value());
-                        }
-                    }
-                    CompletedValueSource::Expression(source) => {
-                        if !suffix.is_empty() {
-                            continue;
-                        }
-                        if super::meanings::install_nonpolynomial_terms(
-                            program, machine, state, engine, source, 0,
-                        )
-                        .is_none()
-                            || super::meanings::builtin(program, machine, state, source, 0)
-                                .is_none()
-                        {
-                            continue;
-                        }
-                        let Some(value) = engine.normalize(source) else {
-                            continue;
-                        };
-                        if endpoint_lands_under(engine, program, machine, state, source, &value) {
+    }
+    let (completed_path, referent_path) = path.split_at(completed_path_length);
+    // A completed borrow may also carry an observed referent value. Ask
+    // for both evidence classes in one normal-return observation; never
+    // turn descriptor identity into permission to extract that value.
+    let mut demands = vec![path.to_vec()];
+    if !referent_path.is_empty() {
+        demands.push(completed_path.to_vec());
+    }
+    let projections = completed_value_observations(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        reference,
+        &demands,
+    )?;
+    for projection in projections {
+        let suffix = if projection.path.as_slice() == path {
+            &[][..]
+        } else if projection.path == completed_path {
+            referent_path
+        } else {
+            continue;
+        };
+        for source in projection.sources {
+            match source {
+                CompletedValueSource::Parameter { symbol, mut path } => {
+                    // Equality of the completed descriptor conserves this
+                    // declared suffix, not a scalar snapshot of its contents.
+                    path.extend_from_slice(suffix);
+                    if path.is_empty() {
+                        if let Some(value) = engine.strict_symbol_value(symbol) {
                             return Some(value);
                         }
+                        continue;
+                    }
+                    let location = super::RankSubjectCoordinate {
+                        parameter: symbol,
+                        path,
+                    };
+                    let Some(coordinate) = FieldCoordinate::at_coordinate(
+                        program,
+                        state,
+                        &location,
+                        CoordinateKind::Field,
+                    ) else {
+                        continue;
+                    };
+                    if engine.install_hypotheses(coordinate.field_comparisons(program)) {
+                        return Some(coordinate.value());
+                    }
+                }
+                CompletedValueSource::Expression(source) => {
+                    if !suffix.is_empty() {
+                        continue;
+                    }
+                    if super::meanings::install_nonpolynomial_terms(
+                        program, machine, state, engine, source, 0,
+                    )
+                    .is_none()
+                        || super::meanings::builtin(program, machine, state, source, 0).is_none()
+                    {
+                        continue;
+                    }
+                    let Some(value) = engine.normalize(source) else {
+                        continue;
+                    };
+                    if endpoint_lands_under(engine, program, machine, state, source, &value) {
+                        return Some(value);
                     }
                 }
             }
         }
-        None
     }
+    None
 }
 
 /// The declared type of an exact member chain rooted at a state formal:

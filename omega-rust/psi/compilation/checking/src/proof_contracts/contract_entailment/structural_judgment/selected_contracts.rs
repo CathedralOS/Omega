@@ -299,11 +299,7 @@ pub(super) fn selected_requirement_judgment(
     ) else {
         return StructuralJudgment::Unknown;
     };
-    judge.judge_equation(
-        judge.resolve_at(required, depth + 1),
-        super::value_predicates::boolean_term(true),
-        depth + 1,
-    )
+    judge.judge_observed_predicate(required, depth)
 }
 
 fn collect_applications<'term>(

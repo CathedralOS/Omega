@@ -5353,3 +5353,26 @@ fail/arithmetic/indexed_divisor_storage_write rejected 958ms expected @13a26a2d8
 	partial wrapping division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/indexed_divisor_wrong_collection rejected 945ms expected @13a26a2d888e+wt
 	partial wrapping division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/contracts/captured_predicate_arithmetic_policies rejected 437ms expected @17893ef676f4+wt
+	cannot prove requires contract for call wrapping_greater from wrapping_step: value + 1 > value (needs fact `actual > prior` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call saturating_greater from saturating_step: value + 1 > value (needs fact `actual > prior` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call at_least_one from positive_float: value >= 1.0 (needs fact `value >= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/runtime_requirement_after_argument_write rejected 428ms expected @17893ef676f4+wt
+	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/runtime_requirement_after_guard_write rejected 425ms expected @17893ef676f4+wt
+	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/runtime_requirement_after_sibling_write rejected 429ms expected @17893ef676f4+wt
+	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/runtime_requirement_after_statement_write rejected 428ms expected @17893ef676f4+wt
+	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/termination/selected_result_rank_arrival_missing_guarantee rejected 428ms expected @17893ef676f4+wt
+	cannot prove requires contract for call countdown from countdown: reader.observe(remaining - 1) >= 0 && reader.observe(remaining - 1) <= 9 (needs fact `remaining >= 0 && remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+fail/termination/selected_result_rank_arrival_nondecreasing rejected 425ms expected @17893ef676f4+wt
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/selected_result_rank_arrival_unguarded rejected 425ms expected @17893ef676f4+wt
+	cannot prove requires contract for call observe from countdown: remaining - 1 >= 0 && remaining - 1 <= 9 (needs fact `value >= 0 && value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call countdown from countdown: reader.observe(remaining - 1) >= 0 && reader.observe(remaining - 1) <= 9 (needs fact `remaining >= 0 && remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+pass/termination/external_result_ranked_arrival_compile checked 471ms @17893ef676f4+wt
+pass/termination/runtime_selected_result_ranked_arrival_exit checked 2700ms check-target:macos_arm64 @17893ef676f4+wt

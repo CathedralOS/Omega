@@ -65,6 +65,22 @@ impl<'program> Engine<'program> {
         self.strict_symbol_bindings_valid
     }
 
+    /// Read a coordinate from this exact strict declaration frame. A caller
+    /// must first establish that the completed observation names this symbol.
+    pub(in crate::proof_contracts::contract_entailment) fn strict_symbol_value(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<Polynomial> {
+        if !self.strict_symbol_bindings_valid {
+            return None;
+        }
+        self.strict_symbol_bindings
+            .as_ref()?
+            .iter()
+            .find(|(bound, _)| *bound == symbol)
+            .map(|(_, value)| value.clone())
+    }
+
     /// Copy captured closed values into a fresh judgment without its live
     /// hypotheses. Reading a saved initializer may retain an immutable bound
     /// value, but later guards cannot retroactively describe its evaluation.

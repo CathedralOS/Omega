@@ -303,12 +303,29 @@ pub(super) fn completed_value_observations(
     reference: TypeReferenceHandle,
     demands: &[Vec<PlaceSegment>],
 ) -> Option<Vec<CompletedValueProjection>> {
+    let in_transition_target = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)
+        .is_some_and(|statement| {
+            let typed_trees::statement::StatementNode::Transition(transition) = statement else {
+                return false;
+            };
+            let mut expressions = Vec::new();
+            crate::expression_traversal::collect_transition_target_expression_trees(
+                program,
+                transition.target,
+                &mut expressions,
+            );
+            expressions.contains(&expression)
+        });
     let mut visitor = CompletedProjectionVisitor {
         state: state.symbol,
         statement_index,
         expression,
         reference,
         demands,
+        in_transition_target,
         observations: None,
         recognized: true,
     };
@@ -322,18 +339,20 @@ struct CompletedProjectionVisitor<'path> {
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
     demands: &'path [Vec<PlaceSegment>],
+    in_transition_target: bool,
     observations: Option<Vec<CompletedValueProjection>>,
     recognized: bool,
 }
 
 impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
     fn site(&self) -> super::structural_prefix::StructuralPrefixSite {
-        // Projection identity is unconditional. The arithmetic edge owner
-        // independently keeps this transition's guard for range and descent.
+        // A transition operand executes only on its selected guard. Its
+        // nested calls need those already-proved premises before importing
+        // their normal guarantees; unrelated branches contribute no facts.
         super::structural_prefix::StructuralPrefixSite {
             state: self.state,
             statement_index: self.statement_index,
-            in_transition_target: false,
+            in_transition_target: self.in_transition_target,
         }
     }
 

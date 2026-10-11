@@ -133,29 +133,17 @@ fn captured_contract_proven(
     // The exact normal-call prefix owns completed nested operands and their
     // public guarantees. It must run before the source-replay fence: a call
     // result need not be repeatable to establish this occurrence's requirement.
+    // Named and statement destinations use the same captured-operand prefix;
+    // they must reach it before the replay fence just like expression calls.
     // Use the retained authored fact, not a replay of its substituted syntax.
     // The current roster retains descriptor measures and endpoint snapshots;
     // its whole-operand write fence declines when an earlier operand could
     // replace them. It is therefore a capture proof, not a source fallback.
     if let typed_trees::domain::ProofFact::Expression(required) =
         program.proof_facts.get(contract.fact)
-        && let Some((machine, caller_state)) =
-            validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)
-        && let Some(site) = validation::find_call_site(
-            program,
-            machine.symbol,
-            caller_state.symbol,
-            call.statement_index,
-            call.call_ordinal,
-        )
         && (super::super::current_values::proves_call(program, state, call, *required, frames)
-            || validation::selected_value_call_requirement_entailed(
-                program,
-                machine,
-                caller_state,
-                call.statement_index,
-                site,
-                *required,
+            || super::super::entailment::structural_call_requirement(
+                program, facts, state, call, *required, frames,
             ))
     {
         return true;

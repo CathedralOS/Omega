@@ -144,22 +144,19 @@ pub(super) fn builtin(
             Some(None)
         }
         ExpressionNode::Call(call) => {
-            // A call result's carrier is the callee's declared return type
-            // and its value the term the callee's contract spells; both are
-            // fixed by declaration the way a constructor's are. Only an
-            // all-immutable callee is admitted: a `&mut` formal could rewrite
-            // a caller place the installed facts still name, so its result is
-            // not stable snapshot evidence.
-            let (_, entry) =
-                crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
-            if program
-                .state_parameters(entry)
+            // Result carriers belong to the selected public declaration,
+            // including dynamic slots. A concrete body is not the authority
+            // for that type or for the result's eventual guarantee.
+            let owner = super::super::specification_calls::selected_call_contract(program, call)?;
+            if super::super::specification_calls::owner_parameter_scope(program, &owner)?
                 .iter()
                 .any(|parameter| parameter.is_mutable)
             {
                 return None;
             }
-            Some(Some(entry.return_type))
+            Some(Some(super::super::specification_calls::owner_return_type(
+                &owner,
+            )))
         }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             builtin(program, machine, state, unary.operand, depth + 1)?;

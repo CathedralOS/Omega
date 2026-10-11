@@ -804,6 +804,11 @@ fn arrival_scalar_actual(
     actual: ExpressionHandle,
 ) -> Option<Polynomial> {
     if destination.path.is_empty() {
+        if let Some(value) =
+            fields::completed_scalar_actual(program, machine, state, engine, actual, &[])
+        {
+            return Some(value);
+        }
         meanings::install_nonpolynomial_terms(program, machine, state, engine, actual, 0)?;
         return engine.normalize(actual);
     }

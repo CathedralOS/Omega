@@ -201,6 +201,74 @@ impl<'program> StructuralJudge<'program> {
         (!entries.is_empty()).then_some(entries)
     }
 
+    /// Complete a declaration's actuals in source order before checking its
+    /// receiving contract. Named transitions and expression calls share the
+    /// same operand scheduler; the destination's ensures are never available.
+    pub(in crate::proof_contracts::contract_entailment) fn normal_argument_entries(
+        &self,
+        arguments: &[ExpressionHandle],
+        parameters: &[typed_trees::signature::StateParameter],
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> Option<Vec<NormalCallEntry<'program>>> {
+        if arguments.len() != parameters.len() {
+            return None;
+        }
+        let operands = arguments
+            .iter()
+            .zip(parameters)
+            .map(|(expression, parameter)| (*expression, parameter.type_reference))
+            .collect::<Vec<_>>();
+        Some(
+            self.clone()
+                .evaluate_normal_operands(
+                    &operands,
+                    environment,
+                    scope,
+                    0,
+                    ExpressionHandle::invalid(),
+                    &mut Vec::new(),
+                )?
+                .into_iter()
+                .map(|(judge, values)| NormalCallEntry {
+                    arguments: values.into_iter().map(|(_, value)| value).collect(),
+                    judge,
+                })
+                .collect(),
+        )
+    }
+
+    fn evaluate_normal_operands(
+        self,
+        operands: &[(ExpressionHandle, TypeReferenceHandle)],
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+        depth: usize,
+        requested_call: ExpressionHandle,
+        entries: &mut Vec<NormalCallEntry<'program>>,
+    ) -> Option<Vec<(Self, Vec<(ExpressionHandle, StructuralTerm)>)>> {
+        let mut contexts = vec![(self, Vec::new())];
+        for &(child, reference) in operands {
+            let mut next = Vec::new();
+            for (context, inputs) in contexts {
+                for path in context.evaluate_normal_paths(
+                    child,
+                    environment,
+                    (scope.0, scope.1, reference),
+                    depth + 1,
+                    requested_call,
+                    entries,
+                )? {
+                    let mut inputs = inputs.clone();
+                    inputs.push((child, path.value));
+                    next.push((path.judge, inputs));
+                }
+            }
+            contexts = next;
+        }
+        Some(contexts)
+    }
+
     fn evaluate_normal_paths(
         mut self,
         expression: ExpressionHandle,
@@ -411,47 +479,41 @@ impl<'program> StructuralJudge<'program> {
                 children_to_evaluate.push(child);
             }
         });
-        let mut contexts = vec![(self, Vec::new())];
-        for child in children_to_evaluate {
-            // Constructor operands land in their selected field declaration,
-            // rather than inheriting the aggregate's carrier. This is the
-            // same qualification retained by the construction owner and lets
-            // anonymous arithmetic form under its actual receiving field.
-            let child_reference = if let ExpressionNode::StructLiteral(literal) = node {
-                program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .find(|field| field.value == child)
-                    .and_then(|field| {
-                        crate::value_custody::struct_literals::selected_construction_field_type(
-                            program,
-                            literal,
-                            field.field_symbol,
-                        )
-                    })
-                    .unwrap_or(scope.2)
-            } else {
-                scope.2
-            };
-            let child_scope = (scope.0, scope.1, child_reference);
-            let mut next = Vec::new();
-            for (context, inputs) in contexts {
-                for path in context.evaluate_normal_paths(
-                    child,
-                    environment,
-                    child_scope,
-                    depth + 1,
-                    requested_call,
-                    entries,
-                )? {
-                    let mut inputs = inputs.clone();
-                    inputs.push((child, path.value));
-                    next.push((path.judge, inputs));
-                }
-            }
-            contexts = next;
-        }
+        let operands = children_to_evaluate
+            .into_iter()
+            .map(|child| {
+                // Constructor operands land in their selected field declaration,
+                // rather than inheriting the aggregate's carrier. This is the
+                // same qualification retained by the construction owner and lets
+                // anonymous arithmetic form under its actual receiving field.
+                let child_reference = if let ExpressionNode::StructLiteral(literal) = node {
+                    program
+                        .expression_table
+                        .struct_fields(literal.fields)
+                        .iter()
+                        .find(|field| field.value == child)
+                        .and_then(|field| {
+                            crate::value_custody::struct_literals::selected_construction_field_type(
+                                program,
+                                literal,
+                                field.field_symbol,
+                            )
+                        })
+                        .unwrap_or(scope.2)
+                } else {
+                    scope.2
+                };
+                (child, child_reference)
+            })
+            .collect::<Vec<_>>();
+        let contexts = self.evaluate_normal_operands(
+            &operands,
+            environment,
+            scope,
+            depth,
+            requested_call,
+            entries,
+        )?;
         contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
