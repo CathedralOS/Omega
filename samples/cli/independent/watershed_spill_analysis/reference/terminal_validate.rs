@@ -30,6 +30,8 @@ fn run(root: PathBuf) -> Result<(), String> {
         let expected_code=if name.starts_with("invalid_"){2}else{0};
         let observed=compiler::runtime::execute(TerminalRuntimeRequest {
             artifact, target:Some("linux_x86_64"), provisions:report.runtime_provisions(),
+            // Ordinary CLI default: no root-authored Terminal provider proposal.
+            provider_proposal:None,
             fuel_allowance:10_000_000,
             domain_exit:TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input:Some(Box::new(fs::File::open(fixture).map_err(|e|e.to_string())?)),
