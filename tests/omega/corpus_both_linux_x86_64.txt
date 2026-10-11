@@ -212,3 +212,9 @@ run/calls/runtime_float_normalized_operand_single_evaluation_exit built 111135ms
 run/providers/module_named_float_conversion_family_exit built 98477ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @16ed47526a08
 run/stores/runtime_float_indexed_call_result_exit built 94679ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a15293788ba4
 run/stores/runtime_float_store_selector_snapshot_exit built 121925ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a15293788ba4
+
+# NEW039 scoped source and native/Terminal observations; full commands and hashes in qualified Library packet.
+pass/float/runtime_absolute_return_sum_exit built 145197ms exit:70 interpreter-exit:70 interpreter:agrees @f367bb1be29d
+pass/float/runtime_absolute_shared_call_operands_exit built 141369ms exit:70 interpreter-exit:70 interpreter:agrees @f367bb1be29d
+pass/float/runtime_nested_float_min_max_exit built 141437ms exit:70 interpreter-exit:70 interpreter:agrees @f367bb1be29d
+pass/float/runtime_resultless_law_equality_custody_exit built 142452ms exit:70 interpreter-exit:70 interpreter:agrees @f367bb1be29d

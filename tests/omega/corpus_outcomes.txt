@@ -5481,3 +5481,9 @@ fail/termination/shift_result_rank_zero_count rejected 448ms expected @f70cef10b
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/termination/shift_result_signed_field_floor rejected 448ms expected @f70cef10b430
 	terminating machine invalid: cannot prove rank range `0..=9` for the rank produced by the selected view
+
+# NEW039 scoped source and native/Terminal observations; full commands and hashes in qualified Library packet.
+pass/float/runtime_absolute_return_sum_exit checked 142042ms check-target:linux_x86_64 @f367bb1be29d
+pass/float/runtime_absolute_shared_call_operands_exit checked 141288ms check-target:linux_x86_64 @f367bb1be29d
+pass/float/runtime_nested_float_min_max_exit checked 141863ms check-target:linux_x86_64 @f367bb1be29d
+pass/float/runtime_resultless_law_equality_custody_exit checked 142539ms check-target:linux_x86_64 @f367bb1be29d
