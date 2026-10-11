@@ -16,12 +16,8 @@ use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::Elf
 use crate::dynamic_executable::section_headers::relative_section_layout::ElfRelativeSectionPayloadRegion;
 use crate::plan_elf_relative_section_payload_layout;
 use arena::Handle;
-use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageSection,
-    FinalImageSymbol,
-};
-use object_file::SymbolKind;
-use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
+use image::{FinalImage, FinalImageMemory};
+use target::TargetProfile;
 
 fn relative(target: TargetProfile) -> ValidatedElfRelativeSectionPayloadLayout {
     relative_with_bss_alignment(target, 16)
@@ -44,27 +40,15 @@ fn relative_with_bss_alignment(
         1,
         1,
     );
-    let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-        name: "__omega_load_layout_import".to_owned(),
-        section: FinalImageSection::None,
-        offset: 0,
-        size: 0,
-        kind: SymbolKind::Import,
-    });
-    image.symbol_table.imports.insert(FinalImageImport {
-        symbol_handle,
-        import: FinalImageImportPlan::Normalized(
-            normalize_foreign_locator(
-                ForeignLocatorCandidate::ElfVersioned {
-                    object: b"libload-layout.so".to_vec(),
-                    symbol: b"load_layout_call".to_vec(),
-                    version: b"LOAD_LAYOUT_1".to_vec(),
-                },
-                target,
-            )
-            .unwrap(),
-        ),
-    });
+    let symbol_handle = crate::test_support::versioned_import(
+        &mut image,
+        "__omega_load_layout_import",
+        b"libload-layout.so",
+        b"load_layout_call",
+        b"LOAD_LAYOUT_1",
+        target,
+        "versioned import locator",
+    );
     let payloads = crate::test_support::import_call_indexed_payloads(image, symbol_handle, target);
     plan_elf_relative_section_payload_layout(payloads).unwrap()
 }

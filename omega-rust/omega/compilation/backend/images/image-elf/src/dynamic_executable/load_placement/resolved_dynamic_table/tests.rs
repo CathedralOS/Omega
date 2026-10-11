@@ -9,12 +9,8 @@ use super::{
 };
 use crate::apply_elf_section_header_placements;
 use arena::Handle;
-use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageSection,
-    FinalImageSymbol,
-};
-use object_file::SymbolKind;
-use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
+use image::{FinalImage, FinalImageMemory};
+use target::TargetProfile;
 
 fn placed(target: TargetProfile, imported_symbol: &[u8]) -> ValidatedElfPlacedSectionHeaderTable {
     let mut image = FinalImage::with_capacity(
@@ -30,27 +26,15 @@ fn placed(target: TargetProfile, imported_symbol: &[u8]) -> ValidatedElfPlacedSe
         1,
         1,
     );
-    let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-        name: "__omega_resolved_dynamic_import".to_owned(),
-        section: FinalImageSection::None,
-        offset: 0,
-        size: 0,
-        kind: SymbolKind::Import,
-    });
-    image.symbol_table.imports.insert(FinalImageImport {
-        symbol_handle,
-        import: FinalImageImportPlan::Normalized(
-            normalize_foreign_locator(
-                ForeignLocatorCandidate::ElfVersioned {
-                    object: b"libresolved-dynamic.so".to_vec(),
-                    symbol: imported_symbol.to_vec(),
-                    version: b"RESOLVED_DYNAMIC_1".to_vec(),
-                },
-                target,
-            )
-            .unwrap(),
-        ),
-    });
+    let symbol_handle = crate::test_support::versioned_import(
+        &mut image,
+        "__omega_resolved_dynamic_import",
+        b"libresolved-dynamic.so",
+        imported_symbol,
+        b"RESOLVED_DYNAMIC_1",
+        target,
+        "versioned import locator",
+    );
     let load = crate::test_support::import_call_load_layout(image, symbol_handle, target);
     let load = load;
     apply_elf_section_header_placements(load).unwrap()

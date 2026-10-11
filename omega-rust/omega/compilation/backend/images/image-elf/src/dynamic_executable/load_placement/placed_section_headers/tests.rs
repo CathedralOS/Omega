@@ -10,12 +10,8 @@ use super::{
 };
 use crate::ElfPlacedDynamicSectionKind;
 use arena::Handle;
-use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageSection,
-    FinalImageSymbol,
-};
-use object_file::SymbolKind;
-use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
+use image::{FinalImage, FinalImageMemory};
+use target::TargetProfile;
 
 fn load_layout(target: TargetProfile) -> ValidatedElfDynamicLoadLayout {
     let mut image = FinalImage::with_capacity(
@@ -31,27 +27,15 @@ fn load_layout(target: TargetProfile) -> ValidatedElfDynamicLoadLayout {
         1,
         1,
     );
-    let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-        name: "__omega_placed_section_header_import".to_owned(),
-        section: FinalImageSection::None,
-        offset: 0,
-        size: 0,
-        kind: SymbolKind::Import,
-    });
-    image.symbol_table.imports.insert(FinalImageImport {
-        symbol_handle,
-        import: FinalImageImportPlan::Normalized(
-            normalize_foreign_locator(
-                ForeignLocatorCandidate::ElfVersioned {
-                    object: b"libplaced-section-header.so".to_vec(),
-                    symbol: b"placed_section_header_call".to_vec(),
-                    version: b"PLACED_SECTION_HEADER_1".to_vec(),
-                },
-                target,
-            )
-            .unwrap(),
-        ),
-    });
+    let symbol_handle = crate::test_support::versioned_import(
+        &mut image,
+        "__omega_placed_section_header_import",
+        b"libplaced-section-header.so",
+        b"placed_section_header_call",
+        b"PLACED_SECTION_HEADER_1",
+        target,
+        "versioned import locator",
+    );
     let load = crate::test_support::import_call_load_layout(image, symbol_handle, target);
     load
 }

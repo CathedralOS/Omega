@@ -649,12 +649,11 @@ pub(crate) mod test_support {
         },
     ];
 
-    /// Insert the imported symbol and its normalized ELF-versioned locator —
-    /// the shared prelude of every dynamic-link import fixture.
-    pub(crate) fn insert_import_fixture(
-        image: &mut image::FinalImage,
-        symbol_prefix: &str,
-        index: usize,
+    /// One imported symbol plus its normalized ELF-versioned locator — the
+    /// shape every versioned-import fixture stages.
+    pub(crate) fn versioned_import(
+        image: &mut FinalImage,
+        name: &str,
         object: &[u8],
         symbol: &[u8],
         version: &[u8],
@@ -664,15 +663,15 @@ pub(crate) mod test_support {
         use image::{FinalImageImport, FinalImageImportPlan, FinalImageSection, FinalImageSymbol};
         use object_file::SymbolKind;
         use target::{ForeignLocatorCandidate, normalize_foreign_locator};
-        let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: format!("{symbol_prefix}{index}"),
+        let imported = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: name.into(),
             section: FinalImageSection::None,
             offset: 0,
             size: 0,
             kind: SymbolKind::Import,
         });
         image.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle,
+            symbol_handle: imported,
             import: FinalImageImportPlan::Normalized(
                 normalize_foreign_locator(
                     ForeignLocatorCandidate::ElfVersioned {
@@ -685,7 +684,30 @@ pub(crate) mod test_support {
                 .expect(locator_expect),
             ),
         });
-        symbol_handle
+        imported
+    }
+
+    /// Insert an index-named imported symbol and its normalized ELF-versioned
+    /// locator — the shared prelude of every multi-import fixture.
+    pub(crate) fn insert_import_fixture(
+        image: &mut image::FinalImage,
+        symbol_prefix: &str,
+        index: usize,
+        object: &[u8],
+        symbol: &[u8],
+        version: &[u8],
+        target: TargetProfile,
+        locator_expect: &str,
+    ) -> image::FinalImageSymbolHandle {
+        versioned_import(
+            image,
+            &format!("{symbol_prefix}{index}"),
+            object,
+            symbol,
+            version,
+            target,
+            locator_expect,
+        )
     }
 
     /// The unprintable-byte interpreter path the multi-import fixtures link

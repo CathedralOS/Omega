@@ -401,12 +401,8 @@ mod tests {
     };
 
     use arena::Handle;
-    use image::{
-        FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageSection,
-        FinalImageSymbol,
-    };
-    use object_file::SymbolKind;
-    use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
+    use image::{FinalImage, FinalImageMemory};
+    use target::TargetProfile;
 
     fn payloads(target: TargetProfile) -> ValidatedElfIndexedSectionPayloadPlan {
         let mut image = FinalImage::with_capacity(
@@ -420,27 +416,15 @@ mod tests {
             1,
             1,
         );
-        let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "__omega_relative_layout_import".to_owned(),
-            section: FinalImageSection::None,
-            offset: 0,
-            size: 0,
-            kind: SymbolKind::Import,
-        });
-        image.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle,
-            import: FinalImageImportPlan::Normalized(
-                normalize_foreign_locator(
-                    ForeignLocatorCandidate::ElfVersioned {
-                        object: b"liblayout.so".to_vec(),
-                        symbol: b"layout_call".to_vec(),
-                        version: b"LAYOUT_1".to_vec(),
-                    },
-                    target,
-                )
-                .unwrap(),
-            ),
-        });
+        let symbol_handle = crate::test_support::versioned_import(
+        &mut image,
+        "__omega_relative_layout_import",
+        b"liblayout.so",
+        b"layout_call",
+        b"LAYOUT_1",
+        target,
+        "versioned import locator",
+    );
         crate::test_support::import_call_indexed_payloads(image, symbol_handle, target)
     }
 
