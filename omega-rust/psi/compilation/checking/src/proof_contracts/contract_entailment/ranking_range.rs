@@ -870,11 +870,13 @@ fn prove_edge(
         .any(|candidate| candidate.symbol == state.symbol)
         || (matches!(context, EdgeContext::Root) && root.symbol != state.symbol)
     {
+        eprintln!("Z41 prove_edge None @line 873");
         return None;
     }
     if matches!(premises, RankingRangePremises::InitialEntry)
         && (state.symbol != root.symbol || root_has_incoming_transition(program, machine, root))
     {
+        eprintln!("Z41 prove_edge None @line 878");
         return None;
     }
     let (entry_parameters, destination) = match &context {
@@ -969,7 +971,8 @@ fn prove_edge(
         }
         _ => None,
     };
-    let demanded_coordinates = if arguments.is_some() {
+eprintln!("Z41 stage: demanded_coords");
+        let demanded_coordinates = if arguments.is_some() {
         ranking_range_required_coordinates(program, machine, range, measure, premises)?
     } else {
         Vec::new()
@@ -991,35 +994,35 @@ fn prove_edge(
     }
     let admit_template = |expression| meanings::builtin(program, machine, root, expression, 0);
     for endpoint in range.into_iter().flat_map(|range| [range.start, range.end]) {
-        admit_template(endpoint)?;
+        if admit_template(endpoint).is_none() { eprintln!("Z41 admit_template endpoint failed"); return None; }
     }
     match measure {
         RankingRangeMeasure::Single(subject)
         | RankingRangeMeasure::Computed { subject, .. }
         | RankingRangeMeasure::SliceLength(subject)
         | RankingRangeMeasure::Field { subject, .. } => {
-            admit_template(subject)?;
+            if admit_template(subject).is_none() { eprintln!("Z41 admit_template subject failed"); return None; }
         }
         RankingRangeMeasure::Distance { lower, upper }
         | RankingRangeMeasure::IncreasingTo {
             subject: lower,
             limit: upper,
         } => {
-            admit_template(lower)?;
-            admit_template(upper)?;
+            if admit_template(lower).is_none() { eprintln!("Z41 admit_template lower failed"); return None; }
+            if admit_template(upper).is_none() { eprintln!("Z41 admit_template upper failed"); return None; }
         }
     }
     let admit = |expression| meanings::builtin(program, machine, state, expression, 0);
     for argument in arguments.unwrap_or_default() {
-        admit(*argument)?;
+        if admit(*argument).is_none() { eprintln!("Z41 admit argument failed"); return None; }
     }
     for (guard, _) in guards {
-        admit(*guard)?;
+        if admit(*guard).is_none() { eprintln!("Z41 admit guard failed"); return None; }
     }
     // Prefix guards/initializers may have executed even when they establish no
     // surviving hypothesis. Check their meaning without assuming their truth.
     for expression in evaluated_prefix {
-        admit(*expression)?;
+        if admit(*expression).is_none() { eprintln!("Z41 admit prefix failed"); return None; }
     }
     // A mutable parameter's live value equals its arrival value only while no
     // intervening write touches its path. The evaluated-prefix callers prove
@@ -1036,8 +1039,11 @@ fn prove_edge(
             .count()
             != arguments.len()
     }) {
+        eprintln!("Z41 prove_edge None @line 1039");
         return None;
     }
+eprintln!("Z41 stage: required_symbols");
+        eprintln!("Z41 stage: pre-required-symbols");
     let required_symbols =
         state_aliases::required_symbols(program, machine, range, measure, premises)?;
     let bindings = match entry_parameters {
@@ -1056,10 +1062,13 @@ fn prove_edge(
                     .is_none()
             })
     }) {
+        eprintln!("Z41 prove_edge None @line 1059");
         return None;
     }
-    let mut engine = Engine::strict(program, machine, &bindings);
+eprintln!("Z41 stage: engine");
+        let mut engine = Engine::strict(program, machine, &bindings);
     if !engine.strict_symbol_bindings_are_valid() {
+        eprintln!("Z41 prove_edge None @line 1063");
         return None;
     }
     let length_bindings = lengths::bindings(program, machine, state, entry_parameters);
@@ -1111,7 +1120,8 @@ fn prove_edge(
     // normalizes to the bound polynomial rather than an unknown atom. A
     // written or exclusively exposed binding never joins the roster.
     saved_arguments::install(program, machine, state, &length_bindings, &mut engine);
-    let auxiliary =
+eprintln!("Z41 stage: auxiliary");
+        let auxiliary =
         if arguments.is_none() || !matches!(premises, RankingRangePremises::RankInvariant) {
             entry_comparisons(program, machine, root, &mut engine, &bindings)?
         } else {
@@ -1171,7 +1181,8 @@ fn prove_edge(
     for endpoint in range.into_iter().flat_map(|range| [range.start, range.end]) {
         meanings::install_nonpolynomial_terms(program, machine, root, &mut engine, endpoint, 0)?;
     }
-    let floor = match range {
+eprintln!("Z41 stage: floor");
+        let floor = match range {
         Some(range) => engine.normalize(range.start)?,
         None => Polynomial::default(),
     };
@@ -1179,7 +1190,8 @@ fn prove_edge(
         Some(range) => engine.normalize(range.end)?,
         None => Polynomial::default(),
     };
-    let rank = match measure {
+eprintln!("Z41 stage: rank");
+        let rank = match measure {
         RankingRangeMeasure::Single(subject) => engine.normalize(subject)?,
         RankingRangeMeasure::Computed {
             subject,
@@ -1265,7 +1277,8 @@ fn prove_edge(
                 engine.prove_at_least(&engine.substituted(&maximum.sub(value)), &BigInt::zero())
             })
     };
-    let entry_membership = rank_is_member(&rank);
+eprintln!("Z41 stage: entry_membership");
+        let entry_membership = rank_is_member(&rank);
     let Some(arguments) = arguments else {
         return Some(RankingRangeEdgeProof {
             membership_and_pinning: entry_membership || engine.requires_unsatisfiable,
@@ -1273,7 +1286,8 @@ fn prove_edge(
             non_increasing: false,
         });
     };
-    let mut substitutions = BTreeMap::new();
+eprintln!("Z41 stage: substitutions");
+        let mut substitutions = BTreeMap::new();
     // Actual arguments retain the complete non-self formal ordinal. Filtering
     // numeric bindings must not shift a payload slot onto the next rank input.
     let target_parameters =
@@ -1353,6 +1367,7 @@ fn prove_edge(
                     if !engine.requires_unsatisfiable
                         && !comparison_proven(&engine, BinaryOperator::Equal, existing, &actual)
                     {
+                        eprintln!("Z41 prove_edge None @line 1356");
                         return None;
                     }
                 } else {
@@ -1367,6 +1382,7 @@ fn prove_edge(
                 continue;
             };
             let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
+                eprintln!("Z41 prove_edge None @line 1370");
                 return None;
             };
             let actual = arrival_scalar_actual(
@@ -1382,6 +1398,7 @@ fn prove_edge(
                 if !engine.requires_unsatisfiable
                     && !comparison_proven(&engine, BinaryOperator::Equal, existing, &actual)
                 {
+                    eprintln!("Z41 prove_edge None @line 1385");
                     return None;
                 }
             } else {
@@ -1393,8 +1410,10 @@ fn prove_edge(
     // cannot reach them by name: each minted term whose operands substitute
     // completely re-mints under both transported operands. An operand leaf the
     // loop above did not cover keeps its atom unmapped and fails closed here.
-    engine.extend_argument_map_over_opaque_terms(&mut substitutions);
-    let next_rank = inductive_judgment::apply_argument_map(&rank, &substitutions)?;
+eprintln!("Z41 stage: extend_map");
+        engine.extend_argument_map_over_opaque_terms(&mut substitutions);
+eprintln!("Z41 stage: next_rank_done");
+        let next_rank = inductive_judgment::apply_argument_map(&rank, &substitutions)?;
     let next_floor = inductive_judgment::apply_argument_map(&floor, &substitutions)?;
     let next_ceiling = inductive_judgment::apply_argument_map(&ceiling, &substitutions)?;
     let pinned_view_bound = match measure {
@@ -1418,6 +1437,7 @@ fn prove_edge(
         if !engine.requires_unsatisfiable
             && !comparison_proven(&engine, *operator, &next_left, &next_right)
         {
+            eprintln!("Z41 prove_edge None @line 1421");
             return None;
         }
     }
@@ -1442,6 +1462,7 @@ fn prove_edge(
             endpoint,
             &substitutions,
         ) {
+            eprintln!("Z41 prove_edge None @line 1445");
             return None;
         }
     }
@@ -1451,6 +1472,7 @@ fn prove_edge(
     if let Some((bound, next)) = pinned_view_bound
         && (!prove(bound.sub(&next), 0) || !prove(next.sub(&bound), 0))
     {
+        eprintln!("Z41 prove_edge None @line 1454");
         return None;
     }
     // Prove equality to the old endpoints, not merely membership in a newly
@@ -1460,6 +1482,7 @@ fn prove_edge(
         || !prove(next_ceiling.sub(&ceiling), 0)
         || !prove(ceiling.sub(&next_ceiling), 0)
     {
+        eprintln!("Z41 prove_edge None @line 1463");
         return None;
     }
     let next_membership = if let Some(range) = range {

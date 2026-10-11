@@ -33,10 +33,13 @@ pub(super) fn select<'program>(
         targets.dedup();
     }
     let entry_is_initial = !adjacency.iter().any(|targets| targets.contains(&0));
-    let discovered = validation::discover_rank_arrival_correspondence(program, machine)?;
+    let discovered = validation::discover_rank_arrival_correspondence(program, machine);
+    let Some(discovered) = discovered else { eprintln!("Z41: discover_rank_arrival_correspondence None"); return None; };
     let required =
-        validation::ranking_range_required_coordinates(program, machine, range, measure, premises)?;
-    let relevance = validation::rank_relevance(program, &[machine.symbol])?;
+        validation::ranking_range_required_coordinates(program, machine, range, measure, premises);
+    let Some(required) = required else { eprintln!("Z41: required_coordinates None"); return None; };
+    let relevance = validation::rank_relevance(program, &[machine.symbol]);
+    let Some(relevance) = relevance else { eprintln!("Z41: rank_relevance None"); return None; };
     let demands = states
         .iter()
         .filter(|state| relevance.requires_rank(state.symbol))
@@ -64,6 +67,7 @@ pub(super) fn select<'program>(
                     .iter()
                     .find(|selection| selection.state == source.symbol)
                 else {
+                    eprintln!("Z41: no source_bindings for state");
                     return validation::RankArrivalCompatibility::Refuted;
                 };
                 let source_ready = !relevance.requires_rank(source.symbol)
@@ -81,6 +85,7 @@ pub(super) fn select<'program>(
                     Some(source_bindings),
                     premise_inputs,
                 ) else {
+                    eprintln!("Z41: protected_input_paths None (source {:?})", source.symbol);
                     return validation::RankArrivalCompatibility::Refuted;
                 };
                 let protected = protected.iter().map(String::as_str).collect::<Vec<_>>();
@@ -117,6 +122,7 @@ pub(super) fn select<'program>(
                             edge.statement_ordinal,
                             &protected,
                         ) else {
+                            eprintln!("Z41: preserved_entry_prefix None src {:?} dst {:?} ord {}", source.symbol, target.symbol, edge.statement_ordinal);
                             return validation::RankArrivalCompatibility::Refuted;
                         };
                         // Even a rankless suffix keeps prefix/formation custody.
@@ -137,6 +143,7 @@ pub(super) fn select<'program>(
                             edge.statement_ordinal,
                             edge.arguments,
                         ) {
+                            eprintln!("Z41: preserves_roles false src {:?} dst {:?} ord {}", source.symbol, target.symbol, edge.statement_ordinal);
                             return validation::RankArrivalCompatibility::Refuted;
                         }
                         let guards = edge
@@ -170,12 +177,15 @@ pub(super) fn select<'program>(
                             &prefix,
                             edge.arguments,
                         ) else {
+                            eprintln!("Z41: prove_ranking_range_transition None src {:?} dst {:?} ord {}", source.symbol, target.symbol, edge.statement_ordinal);
                             return validation::RankArrivalCompatibility::Refuted;
                         };
                         if !proof.membership_and_pinning {
+                            eprintln!("Z41: membership_and_pinning false src {:?} dst {:?}", source.symbol, target.symbol);
                             return validation::RankArrivalCompatibility::Refuted;
                         }
                         if cyclic && !proof.strictly_decreases {
+                            eprintln!("Z41: not strictly_decreases src {:?} dst {:?}", source.symbol, target.symbol);
                             *failure = RankArrivalFailure::StrictDecrease {
                                 source: source.symbol,
                                 destination: target.symbol,
