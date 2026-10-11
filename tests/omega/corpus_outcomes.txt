@@ -5193,3 +5193,7 @@ run/calls/table_report_call_survival checked 9157ms check-target:linux_x86_64 @b
 pass/borrows/runtime_guarded_local_byte_loan_exit checked 8586ms check-target:linux_x86_64 @a7846c335879
 pass/borrows/runtime_mixed_static_dynamic_loan_header_exit checked 6595ms check-target:linux_x86_64 @a7846c335879
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit checked 12817ms check-target:linux_x86_64 @a7846c335879
+fail/operators/result_domain_operator_family_wrong_signature rejected 4710ms expected @ad018194f55c
+pass/operators/result_domain_operator_family_conversion_exit checked 74681ms check-target:macos_arm64 @ad018194f55c
+pass/structural/computed_enum_case_guard_effects_exit checked 5286ms check-target:macos_arm64 @ad018194f55c
+pass/structural/computed_enum_equality_guard_exit checked 5285ms check-target:macos_arm64 @ad018194f55c

@@ -1,0 +1,60 @@
+NF02 current-main integration qualification
+
+Initial group base: 829e6b5808883ee2a4d59e00d9b051efd0a7d92e (published NF01).
+Preserved NF02 source SHA256: f5ff964fb5d6d0e2ca93608be0c83469a84c5e176ea82f6f6aed08f2e74c49eb.
+Frozen EXPECTATIONS.txt SHA256: 1436c7a2d4548ab869006677fba76decba17456d4a523d5c81b2e1897280599e.
+Independent exact-rational and explicit-rounding derivation exited0 before any
+integration execution; see w100-nf02-current-oracle.log.txt. Assertions check
+mathematical outcomes; engine agreement or printed PASS is not the oracle.
+
+Classification source check exited0/29 files at a8050d805c635ad06d8bdb24fd4524d3a54b8926.
+Classification package update0/77.157s and native0/Terminal0/149.846s at clean
+0a6f779fce474218543b324bf9cdf27192bcdc92. Reuse across ad018 is independently
+reviewed: only borrowed StructuralResult home resolution changed, and this
+consumer uses no such borrow. Policy, source and oracle bytes are unchanged.
+This is reused execution evidence, not execution on ad018.
+Error-budget package update0/86.940s, separate check0/29 files/59.777s, and
+native0/Terminal0/150.969s at clean ad018194f55caa09bbc5b2ad385cabe0050cd0f4.
+Minimal computed enum control native0/Terminal0 at clean0a6/2.698s; mutable
+side-effect control native0/Terminal0 at cleanad018/2.570s, counter exactly2.
+Intended-invalid suffix source check exit1/1.854s at ad018 with only owned
+corpus goldens dirty: literal1.0 suffixedf64 landsinf32. Full diagnostic is in
+w100-nf02-invalid-suffix-established-check.log.txt. Runtime InvalidTolerance
+is a separate admitted error result, covered in both complete consumers.
+
+Product build at0a6 exit0/7m16s; product rebuild atad018 exit0/22.41s.
+Runner build exit0/25.30s. Scoped affected3Psi packages+omega check exit0/7.69s.
+Source corpus recording exit0/95.212s:10 fixtures,3checked/7expectedrejected.
+Native+Terminal recording exit0/83.723s:3built, eachnative0/Terminal0;
+verdict records zero oracle failures. Only4new source and3new both-runtime rows
+were appended; all original golden bytes are preserved unchanged. Recording
+used temporary golden files. Final non-recording replay remains pending.
+The initial source gate wrapper shared its JSON name with the verdict output;
+its command receipt survives, and full fixture verdicts are obtained in the
+final non-recording replay using distinct output names. No global corpus pass
+is claimed: unrelated historical lost-success rows are preserved.
+
+Compiler gaps and bounded repairs:
+* Source02 declaration-family lookup had treated a non-unique overload family
+  as absent. Use the source-visible family existence query; do not pick a
+  sibling. Typed result-domain/signature matching remains authoritative.
+* Computed unrestricted payload-free enum calls compared to a case literal
+  had no retained guard root. Retain the complete ordinary call result once,
+  observe its case, and preserve completion. General computed-vs-computed or
+  payload-bearing enum equality is not claimed by this bounded repair.
+* Borrowing a named structural initializer could retain its earlier result
+  ordinal. Join that existing unique local home, preserving access/type/path
+  checks; never replay the initializer or allocate/copy backing storage.
+Full pre-repair sources and diagnostics are preserved in evidence. The exact
+import declaration correction was a consumer error, not a compiler gap.
+Independent static review approved the policy, family lookup, retained root
+custody and result-home borrowing. Review does not replace recorded execution.
+
+Exact command arrays, revisions, dirty state, environment, exits and seconds
+are in corresponding evidence/*.json; stdout/stderr are sibling*.log.txt.
+Measured CPU quota4, visible5; memory limit17179869184 bytes, measured charged
+16687849472 bytes, peak17179869184; available disk12877000704 bytes; no OOM/
+OOM-kill. Resource snapshot: w100-nf02-enum-resources.json.
+One Rust build and one Omega execution maximum per executor; corpus jobs1.
+Strict Clippy was not run for this chunk; no clean Clippy pass is claimed.
+Final exact-candidate landing verification and normal publication are pending.

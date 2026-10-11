@@ -149,3 +149,6 @@ pass/formatting/runtime_repeated_wrapping_decimal_format_exit built 11786ms exit
 pass/borrows/runtime_reference_array_pressure_exit built 10539ms exit:70 interpreter-exit:70 interpreter:agrees @48c94ec2ea9c+wt
 pass/arithmetic/runtime_pressure_trapping_add_exit built 13982ms exit:70 interpreter-exit:70 interpreter:agrees @48c94ec2ea9c+wt
 pass/operators/division_value_entry_selection built 13417ms exit:70 interpreter-exit:70 interpreter:agrees @48c94ec2ea9c+wt
+pass/operators/result_domain_operator_family_conversion_exit built 72968ms exit:0 interpreter-exit:0 interpreter:agrees @ad018194f55c
+pass/structural/computed_enum_case_guard_effects_exit built 5246ms exit:0 interpreter-exit:0 interpreter:agrees @ad018194f55c
+pass/structural/computed_enum_equality_guard_exit built 5267ms exit:0 interpreter-exit:0 interpreter:agrees @ad018194f55c
