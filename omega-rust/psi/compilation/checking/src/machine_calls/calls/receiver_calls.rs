@@ -110,8 +110,9 @@ fn validate_signature_result_and_arguments(
         value_environment,
         arguments,
         &signature.name,
+        &signature.name,
         program.state_signature_parameters(signature),
-        writable_roots,
+        writable_roots.statements,
         false,
         &[],
         |argument, required| {

@@ -1,6 +1,11 @@
 //! Statement-position machine calls: `validate_call_node` resolves what a
 //! call targets and validates its result use and arguments; the argument
-//! checks shared with value-position calls live below it. The rungs of the
+//! checks shared with value-position calls live below it. Argument admission
+//! has one order regardless of result use: literal destination, reference
+//! authority, carrier correspondence, then element, scalar and domain facts.
+//! Checking carriers first can hide an access violation behind a shape error.
+//! Callee selection and execution-dependent preconditions remain with each
+//! invocation site; neither grants argument authority. The rungs of the
 //! target ladder are `call_gates`, `receiverless_calls` and
 //! `receiver_calls`; the other children validate one concern each
 //! (argument bounds, expression-position scanning, generic bounds and
@@ -189,7 +194,7 @@ pub(crate) fn validate_call_node(
 /// would misalign). Every parameter corresponds to an authored argument.
 /// This is the common arity contract for the statement-position
 /// (`validate_call_arguments`) and value-position
-/// (`validate_value_call_argument_classes`) paths.
+/// (`validate_value_call_arguments`) paths.
 pub(crate) fn report_argument_count_mismatch(
     target_name: &str,
     parameters: &[StateParameter],
@@ -419,6 +424,8 @@ pub(crate) fn selected_float_operation_retains_argument_policy(
 
 /// The selected requirement owns type substitution; permission and value/domain
 /// validation remain common to ordinary and bounded calls.
+/// `argument_scope` retains the resolved callee's diagnostic qualification;
+/// it does not change admission or substitute for the selected declaration.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_arguments(
     program: &dyn crate::CheckingInput,
@@ -427,8 +434,9 @@ pub(crate) fn validate_call_arguments(
     value_environment: &ValueEnvironment,
     arguments: &[ExpressionHandle],
     target_name: &str,
+    argument_scope: &str,
     parameters: &[StateParameter],
-    writable_roots: &WritableRoots<'_, '_>,
+    prior_statements: &[typed_trees::statement::StatementNode],
     retains_float_result_policy: bool,
     argument_environments: &[ValueEnvironment],
     type_matches: impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool,
@@ -456,7 +464,7 @@ pub(crate) fn validate_call_arguments(
             program,
             current_machine,
             current_state,
-            writable_roots.statements,
+            prior_statements,
             *argument,
             parameter,
             target_name,
@@ -470,7 +478,7 @@ pub(crate) fn validate_call_arguments(
 
         let expected_type =
             program.display_type_reference_with_constraints(parameter.type_reference);
-        let slot_context = format!("argument `{}` for state `{target_name}`", parameter.name);
+        let slot_context = format!("argument `{}` for state `{argument_scope}`", parameter.name);
 
         if !type_matches(*argument, parameter.type_reference) {
             diagnostics.push(Diagnostic::error(format!(
@@ -572,8 +580,7 @@ pub(crate) fn validate_call_arguments(
 /// Reject a single ARGUMENT whose scalar class conflicts with its `parameter`'s
 /// primitive type -- a `bool`/text value passed where a numeric parameter is
 /// expected (or vice versa), which the backend would otherwise read as garbage.
-/// Shared by the statement/transition path (`validate_call_arguments`)
-/// and the value-position path (`validate_value_call_argument_classes`). Returns
+/// Used by the common argument admission path (`validate_call_arguments`). Returns
 /// `true` if it reported. A non-primitive parameter (a data reference, a struct)
 /// or an unresolvable argument class yields `false` -- no report.
 fn report_cross_class_argument(
@@ -602,13 +609,10 @@ fn report_cross_class_argument(
     )
 }
 
-/// Reject cross-class scalar ARGUMENTS at a VALUE-position call site
-/// (`let r = self.f(self.bool_field)`). The value-position path validates only
-/// type-parameter bounds, so the same cross-class hole the statement/transition
-/// paths had applies here. Unlike `validate_call_arguments` there is no
-/// shape gate ahead of this, so it also covers literal arguments.
+/// Prepare a value call's substitution and execution-dependent preconditions,
+/// then admit its arguments through the same judgment as statements and transfers.
 #[allow(clippy::too_many_arguments)]
-fn validate_value_call_argument_classes(
+fn validate_value_call_arguments(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: &State,
@@ -626,11 +630,8 @@ fn validate_value_call_argument_classes(
     // transition VALUE arms, which is what keying off `callee_state.return_type`
     // alone could not do.)
 
-    // Arity: value-position calls (`let r = self.pick(1)`) reach only this path,
-    // never `validate_call_arguments`, so without this a wrong argument
-    // count compiled silently (a missing arg then read its ZII default). Safe here
-    // because this function runs only on a RESOLVED callee -- the resolver's blind
-    // spots fall through earlier without reaching it.
+    // Reject incomplete bindings before type substitution or precondition
+    // instantiation can zip arguments against the declared parameters.
     let parameters = program.state_parameters(callee_state);
     if report_callable_argument_count_mismatch(
         callee_state.name.as_str(),
@@ -669,128 +670,21 @@ fn validate_value_call_argument_classes(
             diagnostics,
         );
     }
-    let retains_float_result_policy =
-        selected_float_operation_retains_argument_policy(program, callee_machine.symbol);
-    for (argument, parameter) in arguments
-        .iter()
-        .zip(program.state_parameters(callee_state).iter())
-    {
-        validate_literal_argument_destination(
-            program,
-            current_machine,
-            Some(current_state),
-            *argument,
-            parameter.type_reference,
-            diagnostics,
-        );
-        // Result use does not relax argument admission. Ordinary and generic
-        // value calls use the same carrier correspondence as statement calls.
-        if !crate::value_custody::expression_types::argument_matches_carrier(
-            program,
-            *argument,
-            parameter.type_reference,
-            &type_bindings,
-        ) {
-            diagnostics.push(Diagnostic::error(format!(
-                "argument `{}` for state `{}` expects `{}`, got `{}`",
-                parameter.name,
-                callee_state.name,
-                program.display_type_reference_with_constraints(parameter.type_reference),
-                expression_type_name_handle(program, *argument),
-            )));
-            continue;
-        }
-        if report_argument_reference_access(
-            program,
-            current_machine,
-            Some(current_state),
-            prior_statements,
-            *argument,
-            parameter,
-            callee_state.name.as_str(),
-            diagnostics,
-        ) {
-            continue;
-        }
-        let slot_context = format!(
-            "argument `{}` for state `{}::{}`",
-            parameter.name,
-            callee_machine.name,
-            callee_state.name.as_str()
-        );
-        // Narrowing is checked only when the numeric classes agree, so a
-        // cross-class argument is not reported twice. This matches the
-        // statement/transition path in `validate_call_arguments`.
-        if !crate::value_custody::expression_types::report_view_element_argument_mismatch(
-            program,
-            current_machine,
-            Some(current_state),
-            *argument,
-            parameter.type_reference,
-            &slot_context,
-            diagnostics,
-        ) && !report_cross_class_argument(
-            program,
-            current_machine,
-            Some(current_state),
-            *argument,
-            parameter,
-            callee_state.name.as_str(),
-            diagnostics,
-        ) {
-            report_argument_bounds(
-                program,
-                current_machine,
-                Some(current_state),
-                value_environment,
-                *argument,
-                parameter,
-                callee_state.name.as_str(),
-                retains_float_result_policy,
-                diagnostics,
-            );
-        }
-        // Nominal guard (value-position complement): `let r = self.take_foo(&self.bar)`
-        // with a `&Foo` parameter is silently accepted -- the same wrong-data-type
-        // hole the statement/transition path has.
-        report_data_type_conflict(
-            program,
-            current_machine,
-            Some(current_state),
-            *argument,
-            parameter.type_reference,
-            &slot_context,
-            "argument",
-            diagnostics,
-        );
-        // Scalar-vs-data shape guard -- safe at the argument position (see the twin
-        // call in `validate_call_arguments`): fires only on scalar-vs-DATA
-        // crossings, which `&buffer`/`addr`/text args never are.
-        crate::value_custody::expression_types::report_scalar_data_shape_mismatch(
-            program,
-            current_machine,
-            Some(current_state),
-            *argument,
-            parameter.type_reference,
-            &slot_context,
-            "argument",
-            diagnostics,
-        );
-        crate::proof_contracts::domain_weakening::validate_argument_domain_weakening(
-            program,
-            current_machine,
-            Some(current_state),
-            *argument,
-            parameter.type_reference,
-            &slot_context,
-            retains_float_result_policy,
-            Some(parameter),
-            diagnostics,
-        );
-        // (No array/scalar shape check here -- see the note in
-        // `validate_call_arguments`: `&buffer`-into-`addr` and text/byte args
-        // make the argument position a false-positive minefield.)
-    }
+    validate_call_arguments(
+        program,
+        current_machine,
+        Some(current_state),
+        value_environment,
+        arguments,
+        callee_state.name.as_str(),
+        &format!("{}::{}", callee_machine.name, callee_state.name),
+        parameters,
+        prior_statements,
+        selected_float_operation_retains_argument_policy(program, callee_machine.symbol),
+        &[],
+        |argument, required| argument_matches_carrier(program, argument, required, &type_bindings),
+        diagnostics,
+    );
 }
 
 mod topology;

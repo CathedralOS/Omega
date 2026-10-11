@@ -63,7 +63,7 @@ pub(super) fn is_declaration_namespace(
 /// transition arguments, terminal expressions) and recurses into nested
 /// call arguments.  Enforces the type-parameter BOUND check plus, for a
 /// RESOLVED callee, argument arity (`report_argument_count_mismatch`) and the
-/// per-argument class/narrowing/nominal checks (`validate_value_call_argument_classes`).
+/// shared argument admission (`validate_value_call_arguments`).
 /// The remaining frontier is the UNRESOLVED callee: a value call whose target
 /// no branch resolves falls through silently (the nonexistent-value-call gap),
 /// which needs the complete value-call target resolver.

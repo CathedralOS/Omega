@@ -221,8 +221,9 @@ pub(super) fn validate_resolved_call_arguments(
         environment,
         arguments,
         target,
+        target,
         program.state_parameters(entry),
-        writable_roots,
+        writable_roots.statements,
         selected_float_operation_retains_argument_policy(program, callee.symbol),
         &[],
         |argument, required| {

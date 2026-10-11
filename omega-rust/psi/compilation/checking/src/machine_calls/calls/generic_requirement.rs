@@ -29,8 +29,9 @@ pub(super) fn validate_requirement_call_arguments(
         value_environment,
         arguments,
         requirement.signature.name.as_str(),
+        requirement.signature.name.as_str(),
         parameters,
-        writable_roots,
+        writable_roots.statements,
         false,
         &[],
         |argument, required| {

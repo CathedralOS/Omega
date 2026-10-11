@@ -167,8 +167,9 @@ pub(crate) fn validate_transition_target_node(
             value_environment,
             arguments,
             signature.name.as_str(),
+            signature.name.as_str(),
             program.state_signature_parameters(signature),
-            writable_roots,
+            writable_roots.statements,
             false,
             argument_environments,
             |argument, required| {
@@ -280,8 +281,9 @@ fn validate_transition_arguments_handles(
         value_environment,
         arguments,
         target_name,
+        target_name,
         parameters,
-        writable_roots,
+        writable_roots.statements,
         false,
         argument_environments,
         |argument, required| {

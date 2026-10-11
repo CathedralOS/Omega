@@ -8,7 +8,7 @@ use super::{
     free_machine_entry_state, machine_state_by_symbol, register_read_mnemonic,
     selected_float_operation_retains_argument_policy, user_asm_contract,
     validate_asm_operand_constraint, validate_call_arguments,
-    validate_machine_call_type_parameter_bounds, validate_value_call_argument_classes,
+    validate_machine_call_type_parameter_bounds, validate_value_call_arguments,
 };
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
@@ -179,7 +179,7 @@ impl ValueCallSite<'_> {
             Some(self.current_state),
             diagnostics,
         );
-        validate_value_call_argument_classes(
+        validate_value_call_arguments(
             self.program,
             self.current_machine,
             self.current_state,
@@ -458,8 +458,9 @@ fn validate_expression_call_bounds(
             value_environment,
             arguments,
             call.target.as_str(),
+            call.target.as_str(),
             parameters,
-            writable_roots,
+            writable_roots.statements,
             selected_float_operation_retains_argument_policy(program, operator.symbol),
             &[],
             |argument, required| {
@@ -564,8 +565,9 @@ fn validate_expression_call_bounds(
             value_environment,
             arguments,
             signature.name.as_str(),
+            signature.name.as_str(),
             program.state_signature_parameters(signature),
-            writable_roots,
+            writable_roots.statements,
             false,
             &[],
             |argument, required| {
