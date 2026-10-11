@@ -222,7 +222,10 @@ pub fn execute_package_command(
     }
     // One closure serves every requested target's review; binding-independent
     // source preparation happens once and each target still checks fresh.
+    // The session's pure Build store carries over review rounds so a resumed
+    // request does not re-execute an evaluation this invocation already ran.
     let mut preparation = CandidateSourcePreparation::for_closure(&closure);
+    preparation.pure_build_compilation = session.pure_build_compilation();
     let mut reviews = Vec::new();
     for target in &targets {
         reviews.push(

@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "nested_generated_dependency_dual_purpose");
+    Build::build_depend_as(builder, "kit", Source::Path { location: "dependency" });
+    Build::depend_as(builder, "product_kit", Source::Path { location: "dependency" });
+}

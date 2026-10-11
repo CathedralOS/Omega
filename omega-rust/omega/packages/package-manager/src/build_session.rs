@@ -9,6 +9,7 @@ pub(crate) use component_publication::publish_checked_component;
 mod inputs;
 mod order;
 mod preparation;
+use build_evaluation::PureBuildCompilation;
 pub(crate) use inputs::{OccurrenceBuildInputs, reconcile_build_inputs};
 pub(crate) use order::{dependency_first_package_order, package_build_root};
 pub(crate) use preparation::PackageSourcePreparation;
@@ -47,7 +48,6 @@ const PACKAGE_RESULT_CELL_CEILING: u64 = 1_048_576;
 /// Aggregate Text payload bytes retained by successful build results.
 const PACKAGE_RESULT_TEXT_BYTE_CEILING: u64 = 64 * 1024 * 1024;
 
-#[derive(Debug)]
 /// Resource owner for one invocation, including every review target and round.
 /// Borrow this owner through candidate compilation; source preparation and
 /// target-specific authority do not replenish its grants.
@@ -55,8 +55,25 @@ pub struct PackageBuildSession {
     root: PathBuf,
     filesystem_sponsor: FilesystemSponsor,
     evaluation_sponsor: BuildEvaluationSponsor,
+    /// Completed pure Build evaluations owned by the whole invocation. Review
+    /// rounds and targets adopt this store into their per-command source
+    /// preparation so one occurrence row's evaluation can answer a later
+    /// round's identical request instead of re-executing the same build.
+    /// Membership stays exact input equality: a hit replays no output and
+    /// carries no checked product, entry token, or host grant, and a round
+    /// whose closure no longer matches simply misses.
+    pure_build_compilation: PureBuildCompilation,
     next_occurrence: u64,
     active: bool,
+}
+
+impl std::fmt::Debug for PackageBuildSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PackageBuildSession")
+            .field("root", &self.root)
+            .field("active", &self.active)
+            .finish_non_exhaustive()
+    }
 }
 
 impl PackageBuildSession {
@@ -108,6 +125,7 @@ impl PackageBuildSession {
                         root: canonical_root,
                         filesystem_sponsor,
                         evaluation_sponsor: BuildEvaluationSponsor::new(evaluation_limits),
+                        pure_build_compilation: PureBuildCompilation::default(),
                         next_occurrence: 0,
                         active: true,
                     });
@@ -190,6 +208,13 @@ impl PackageBuildSession {
 
     pub(crate) fn evaluation_sponsor(&self) -> &BuildEvaluationSponsor {
         &self.evaluation_sponsor
+    }
+
+    /// The invocation's shared pure Build store. Each caller clones the
+    /// shared handle into its source preparation so evaluations completed
+    /// by earlier targets or review rounds remain visible to this one.
+    pub(crate) fn pure_build_compilation(&self) -> PureBuildCompilation {
+        self.pure_build_compilation.clone()
     }
 
     /// Release staging before publishing accepted project files. Closing does
