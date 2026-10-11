@@ -32,6 +32,27 @@ pub(crate) struct CleanupEmission<'a> {
 }
 
 impl Evaluation {
+    /// Every cleanup emission borrows the same working set from the
+    /// evaluation context — build it once per call site. The erased-formal
+    /// scratch vector arrives from the caller so the empty `Vec::new()`
+    /// temporary can live for the whole emission statement.
+    pub(crate) fn cleanup_emission<'a>(
+        &'a mut self,
+        checked: &'a checked_trees::CheckedTrees,
+        block_erased_scalar_formals: &'a mut Vec<ValueDeclaration>,
+    ) -> CleanupEmission<'a> {
+        CleanupEmission {
+            checked,
+            current: &mut self.current,
+            parameters: &mut self.parameters,
+            structural_parameters: &mut self.block_structural_parameters,
+            block_erased_scalar_formals,
+            erased_proof_formals: &self.erased_proof_formals,
+            operation_start: &mut self.operation_start,
+            blocks: &mut self.blocks,
+        }
+    }
+
     /// Releasing a descriptor ends its own home, not its borrowed backing.
     /// The emitted carrier decides whether that also disposes affine custody;
     /// qualifications do not turn an unrestricted value into an affine owner.
@@ -211,16 +232,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &OperationBuffer,
     ) -> Result<(), LoweringError> {
-        CleanupEmission {
-            checked,
-            current: &mut self.current,
-            parameters: &mut self.parameters,
-            structural_parameters: &mut self.block_structural_parameters,
-            block_erased_scalar_formals: &mut Vec::new(),
-            erased_proof_formals: &self.erased_proof_formals,
-            operation_start: &mut self.operation_start,
-            blocks: &mut self.blocks,
-        }
+        self.cleanup_emission(checked, &mut Vec::new())
         .capture_arguments(
             identities,
             arguments,
@@ -286,16 +298,7 @@ impl Evaluation {
                 condition.place = self.current_structural_place(condition.place);
             }
         }
-        CleanupEmission {
-            checked,
-            current: &mut self.current,
-            parameters: &mut self.parameters,
-            structural_parameters: &mut self.block_structural_parameters,
-            block_erased_scalar_formals: &mut Vec::new(),
-            erased_proof_formals: &self.erased_proof_formals,
-            operation_start: &mut self.operation_start,
-            blocks: &mut self.blocks,
-        }
+        self.cleanup_emission(checked, &mut Vec::new())
         .emit(
             identities, &regions, values, next_value, next_block, next_edge, operations,
         )

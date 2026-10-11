@@ -732,16 +732,7 @@ impl Evaluation {
             };
             *place = self.current_structural_place(*place);
         }
-        cleanup_control::CleanupEmission {
-            checked,
-            current: &mut self.current,
-            parameters: &mut self.parameters,
-            structural_parameters: &mut self.block_structural_parameters,
-            block_erased_scalar_formals: &mut Vec::new(),
-            erased_proof_formals: &self.erased_proof_formals,
-            operation_start: &mut self.operation_start,
-            blocks: &mut self.blocks,
-        }
+        self.cleanup_emission(checked, &mut Vec::new())
         .continue_actions(
             identities,
             cleanup_actions,
