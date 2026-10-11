@@ -4,7 +4,9 @@ use super::super::accesses::{self, borrow_access_place};
 use super::super::tracker::StateLoanTracker;
 use super::RebasedBorrowPlace;
 use super::owner_paths::owner_path_matches;
-use crate::borrow::view_link::{ViewReturnSource, resolve_signature_view_return_source};
+use crate::borrow::view_link::{
+    ViewReturnFieldSource, ViewReturnSource, resolve_signature_view_return_source,
+};
 
 use arena::Handle;
 use checked_trees::expression::ExpressionHandle;
@@ -67,7 +69,7 @@ pub(crate) fn helper_call_borrow_loan_place(
         return Some(place);
     }
 
-    match call_view_return_source_at(program, state_symbol, call) {
+    match call_view_return_contract(program, state_symbol, call)?.source(program) {
         ViewReturnSource::NotApplicable
         | ViewReturnSource::Ambiguous(_)
         | ViewReturnSource::Fields { .. } => None,
@@ -111,6 +113,30 @@ pub(in crate::borrow) struct CallViewReturnContract<'program> {
 }
 
 impl CallViewReturnContract<'_> {
+    /// Every returned reference leaf has one declaration relation, including a
+    /// bare reference's empty result path. Body precision refines these sources
+    /// separately; choosing a different formation path for bare references
+    /// would discard the returned projection beneath their declared input.
+    pub(in crate::borrow) fn reference_sources(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+    ) -> Option<Vec<ViewReturnFieldSource>> {
+        match self.source(program) {
+            ViewReturnSource::Fields { fields } => Some(fields),
+            ViewReturnSource::Parameter { parameter_index } => Some(vec![ViewReturnFieldSource {
+                owner_path: Vec::new(),
+                source_path: Vec::new(),
+                source_type: self.parameter_type_reference(program, parameter_index),
+                parameter_index,
+                kind: super::types::reference_borrow_access_kind(
+                    program,
+                    self.return_type_reference(program),
+                )?,
+            }]),
+            ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => None,
+        }
+    }
+
     pub(in crate::borrow) fn source(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -249,17 +275,6 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
         requirement_signature,
         argument_owner: caller.symbol,
     })
-}
-
-pub(in crate::borrow) fn call_view_return_source_at(
-    program: &dyn ::validation::CheckingInput,
-    state_symbol: SymbolHandle,
-    call: &checked_trees::expression::TableCallExpression,
-) -> ViewReturnSource {
-    call_view_return_contract(program, state_symbol, call)
-        .map_or(ViewReturnSource::NotApplicable, |contract| {
-            contract.source(program)
-        })
 }
 
 /// True when the call target's own declaration names one exact borrow source

@@ -9,8 +9,6 @@ use crate::borrow::loans::StatementBorrowLoan;
 use crate::borrow::loans::borrowed_initializer_loans;
 use crate::borrow::loans::borrowed_initializers;
 use crate::borrow::loans::call_view_return_contract;
-use crate::borrow::loans::call_view_return_source_at;
-use crate::borrow::loans::helper_call_aggregate_borrow_loans;
 use crate::borrow::loans::owner_path_matches;
 use crate::borrow::loans::reference_borrow_access_kind;
 use crate::borrow::tracker::StateLoanTracker;
@@ -30,22 +28,7 @@ pub(crate) fn call_reference_sources(
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
     let contract = call_view_return_contract(program, state_symbol, call)?;
-    let fields = match contract.source(program) {
-        ViewReturnSource::Fields { fields } => fields,
-        ViewReturnSource::Parameter { parameter_index } => {
-            vec![ViewReturnFieldSource {
-                owner_path: Vec::new(),
-                source_path: Vec::new(),
-                source_type: contract.parameter_type_reference(program, parameter_index),
-                parameter_index,
-                kind: reference_borrow_access_kind(
-                    program,
-                    contract.return_type_reference(program),
-                )?,
-            }]
-        }
-        ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => return None,
-    };
+    let fields = contract.reference_sources(program)?;
     Some(completed_sources(program, call.target_symbol, fields))
 }
 
@@ -443,67 +426,34 @@ pub(super) fn relative_result_loans(
             }
             _ => return None,
         };
-        if let Some(contract) = call_view_return_contract(program, state_symbol, call)
-            && let Some(access) =
-                reference_borrow_access_kind(program, contract.return_type_reference(program))
-        {
-            access_limits.push(access);
+        let contract = call_view_return_contract(program, state_symbol, call)?;
+        let fields = contract.reference_sources(program)?;
+        let mut loans = super::aggregate_loans::result_source_loans(
+            program,
+            state_symbol,
+            statement_index,
+            machine_symbol,
+            local_data,
+            call.target_symbol,
+            program.expression_table.expression_handles(call.arguments),
+            fields,
+            &contract.substitutions,
+            &[],
+            loan_trackers,
+        );
+        // Bare and aggregate results both carry the completed source leaves,
+        // not just the declared argument's root. Operand reborrow ancestry is
+        // evaluated during invocation; it is not the returned value's ancestry.
+        for loan in &mut loans {
+            loan.formation_expression = expression;
+            loan.call_result = true;
+            loan.lineage = if loan.source_owner_symbol.is_valid() {
+                checked_trees::BorrowLoanLineage::UnretainedDerived
+            } else {
+                checked_trees::BorrowLoanLineage::DirectRoot
+            };
         }
-        match call_view_return_source_at(program, state_symbol, call) {
-            ViewReturnSource::Fields { .. } => {
-                let mut loans = helper_call_aggregate_borrow_loans(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    machine_symbol,
-                    local_data,
-                    call,
-                    &[],
-                    loan_trackers,
-                );
-                // The call's completed result carries these leaves. Its
-                // operands have their own access lifetimes during invocation.
-                for loan in &mut loans {
-                    loan.formation_expression = expression;
-                }
-                return Some(limit_access(loans, &access_limits));
-            }
-            ViewReturnSource::Parameter { parameter_index } => {
-                let argument = *program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .get(parameter_index)?;
-                let state = program.state_by_symbol(state_symbol)?;
-                let selected = checked_trees::statement::TableLocalData {
-                    initial_value: argument,
-                    ..local_data.clone()
-                };
-                // Resolve the selected argument through ordinary formation.
-                // Falling out of this walk at a name would discard the call's
-                // input relation and capture the outer temporary instead.
-                let mut loans = super::reference_borrows::reference_local_borrow_loans(
-                    program,
-                    state,
-                    statement_index,
-                    machine_symbol,
-                    &selected,
-                    loan_trackers,
-                );
-                for loan in &mut loans {
-                    loan.formation_expression = expression;
-                    loan.call_result = true;
-                    // The input's borrow is evaluated during invocation. Its
-                    // reborrow ancestry is not the returned carrier's ancestry.
-                    loan.lineage = if loan.source_owner_symbol.is_valid() {
-                        checked_trees::BorrowLoanLineage::UnretainedDerived
-                    } else {
-                        checked_trees::BorrowLoanLineage::DirectRoot
-                    };
-                }
-                return Some(limit_access(loans, &access_limits));
-            }
-            ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => return None,
-        }
+        return Some(limit_access(loans, &access_limits));
     }
 }
 

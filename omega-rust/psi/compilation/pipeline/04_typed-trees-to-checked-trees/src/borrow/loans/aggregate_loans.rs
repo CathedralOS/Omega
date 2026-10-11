@@ -7,9 +7,7 @@ use super::aggregate::{BorrowedInitializer, BorrowedInitializerKind, borrowed_in
 use super::call_views::*;
 use super::owner_paths::{owner_path_matches, place_path_matches_owner_prefix};
 use super::types::is_reference_type;
-use crate::borrow::view_link::{
-    ViewReturnFieldSource, ViewReturnSource, is_mutably_borrow_carrying_data,
-};
+use crate::borrow::view_link::{ViewReturnFieldSource, is_mutably_borrow_carrying_data};
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
@@ -245,38 +243,6 @@ pub(super) fn aggregate_expression_borrow_loans(
         }
         _ => Vec::new(),
     }
-}
-
-pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
-    program: &dyn ::validation::CheckingInput,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    machine_symbol: SymbolHandle,
-    local_data: &checked_trees::statement::TableLocalData,
-    call: &checked_trees::expression::TableCallExpression,
-    owner_path_prefix: &[BorrowOwnerSegment],
-    loan_trackers: &[StateLoanTracker],
-) -> Vec<StatementBorrowLoan> {
-    let Some(contract) = call_view_return_contract(program, state_symbol, call) else {
-        return Vec::new();
-    };
-    let ViewReturnSource::Fields { fields } = contract.source(program) else {
-        return Vec::new();
-    };
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    result_source_loans(
-        program,
-        state_symbol,
-        statement_index,
-        machine_symbol,
-        local_data,
-        call.target_symbol,
-        arguments,
-        fields,
-        &contract.substitutions,
-        owner_path_prefix,
-        loan_trackers,
-    )
 }
 
 /// Expression calls and named normal completions transport the same declared

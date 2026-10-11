@@ -64,14 +64,10 @@ pub(crate) mod types;
 use types::{is_reference_type, reference_borrow_access_kind};
 
 mod reference_borrows;
+pub(in crate::borrow) use aggregate_loans::borrowed_initializer_loans;
 use aggregate_loans::*;
-pub(in crate::borrow) use aggregate_loans::{
-    borrowed_initializer_loans, helper_call_aggregate_borrow_loans,
-};
 pub(crate) use call_views::argument_borrow_loan_place;
-pub(in crate::borrow) use call_views::{
-    call_view_return_contract, call_view_return_source_at, helper_call_borrow_loan_place,
-};
+pub(in crate::borrow) use call_views::{call_view_return_contract, helper_call_borrow_loan_place};
 use reference_borrows::*;
 
 mod aggregate_loans;
