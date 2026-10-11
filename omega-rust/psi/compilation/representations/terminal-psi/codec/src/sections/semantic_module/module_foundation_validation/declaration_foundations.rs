@@ -5,9 +5,12 @@ use super::{
     has_service, has_structural_type, require_known_services, validate_service_parent_graph,
     validate_structural_parameters, validate_structural_qualifications,
 };
+use std::collections::BTreeMap;
+
 use crate::codec_error::{CodecError, malformed};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, StructuralPlaceKind};
 use terminal_psi::TerminalModule;
-use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance};
+use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, TerminalMachine};
 
 /// Every structural domain names a known carrier type.
 pub(super) fn validate_domains(module: &TerminalModule) -> Result<(), CodecError> {
@@ -99,6 +102,7 @@ pub(super) fn validate_boundary_machine(
     }
     require_known_services(module, &boundary.published_service_ceiling)?;
     require_known_services(module, &boundary.fixed_service_reach)?;
+    validate_boundary_scalar_rows(boundary)?;
     if let Some(owner) = boundary.owning_service {
         if boundary.kind != terminal_psi::BoundaryRequirementKind::Trait {
             return malformed("non-trait boundary names an owning service");
@@ -132,17 +136,16 @@ pub(super) fn validate_provider_candidate(
     {
         return malformed("provider candidate identities must be nonempty");
     }
-    if !module.boundary_machine(candidate.boundary).is_some()
-        || !module.machine(candidate.candidate).is_some()
-    {
+    let Some(boundary) = module.boundary_machine(candidate.boundary) else {
         return malformed("provider candidate references an unknown terminal ID");
-    }
-    if module
-        .boundary_machine(candidate.boundary)
-        .is_some_and(|boundary| boundary.role != terminal_psi::BoundaryDeclarationRole::Callable)
-    {
+    };
+    let Some(machine) = module.machine(candidate.candidate) else {
+        return malformed("provider candidate references an unknown terminal ID");
+    };
+    if boundary.role != terminal_psi::BoundaryDeclarationRole::Callable {
         return malformed("provider candidate references contract evidence rather than a callable");
     }
+    validate_provider_scalar_contract(boundary, machine)?;
     for parameter in &candidate.signature.parameters {
         if !has_structural_type(module, parameter.structural_type) {
             return malformed("provider signature references an unknown structural type");
@@ -157,4 +160,142 @@ pub(super) fn validate_provider_candidate(
     }
     require_known_services(module, &candidate.refinement.realized_service_ceiling)?;
     Ok(())
+}
+
+/// The declaration's scalar contract rows are propositions over its own
+/// telescope: `scalar_requires` names input formals and structural-parameter
+/// places (a `ViewExtent` bound is how a view's caller-owed bound publishes),
+/// `scalar_ensures` additionally names the scalar result. Every call and
+/// provider candidate instantiates them in its own namespace, so a row may
+/// not reach outside this declaration's formals.
+fn validate_boundary_scalar_rows(boundary: &BoundaryMachineDeclaration) -> Result<(), CodecError> {
+    let Some(mut formals) = boundary.scalar_contract_parameters() else {
+        return malformed("boundary scalar contract formals overflow");
+    };
+    let places = boundary
+        .structural_parameters
+        .iter()
+        .map(|parameter| {
+            (
+                parameter.place,
+                StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let requires = PropositionContext::from_value_types_and_places(
+        formals.iter().map(|formal| (formal.id, formal.scalar_type)),
+        places.iter().copied(),
+    )
+    .map_err(|_| CodecError::MalformedStructuralFoundation("boundary scalar requires telescope"))?;
+    for proposition in &boundary.scalar_requires {
+        requires.validate(proposition).map_err(|_| {
+            CodecError::MalformedStructuralFoundation(
+                "boundary scalar requires names an undeclared formal",
+            )
+        })?;
+    }
+    if boundary.scalar_ensures.is_empty() {
+        return Ok(());
+    }
+    if let Some(result) = boundary.scalar_contract_result() {
+        formals.push(result);
+    }
+    let ensures = PropositionContext::from_value_types_and_places(
+        formals.iter().map(|formal| (formal.id, formal.scalar_type)),
+        places.iter().copied(),
+    )
+    .map_err(|_| CodecError::MalformedStructuralFoundation("boundary scalar ensures telescope"))?;
+    for proposition in &boundary.scalar_ensures {
+        ensures.validate(proposition).map_err(|_| {
+            CodecError::MalformedStructuralFoundation(
+                "boundary scalar ensures names an undeclared formal",
+            )
+        })?;
+    }
+    Ok(())
+}
+
+/// Scalar agreement between a boundary requirement's published contract and
+/// one provider candidate's own checked contract, translated into the
+/// candidate's value namespace. The declaration's rows are the public
+/// contract: a candidate may strengthen them — narrower `requires`, wider
+/// `ensures` — but never narrow them, so a selected body that cannot cover
+/// the declared guarantees is malformed rather than silently weakening what
+/// callers import.
+fn validate_provider_scalar_contract(
+    boundary: &BoundaryMachineDeclaration,
+    machine: &TerminalMachine,
+) -> Result<(), CodecError> {
+    if boundary.scalar_parameters.len() != machine.parameters.len()
+        || boundary
+            .scalar_parameters
+            .iter()
+            .zip(&machine.parameters)
+            .any(|(required, actual)| *required != actual.scalar_type)
+    {
+        return malformed("provider candidate scalar signature disagrees with its boundary");
+    }
+    if !boundary.result.matches_machine_result(&machine.result) {
+        return malformed("provider candidate result disagrees with its boundary");
+    }
+    // An erased formal has no boundary actual to substitute.
+    if !machine.contract.erased_scalar_formals.is_empty()
+        || !machine.contract.erased_proof_formals.is_empty()
+    {
+        return malformed("provider candidate carries erased formals its boundary cannot bind");
+    }
+    let Some(formals) = boundary.scalar_contract_parameters() else {
+        return malformed("boundary scalar contract formals overflow");
+    };
+    let mut substitutions = formals
+        .iter()
+        .zip(&machine.parameters)
+        .map(|(formal, actual)| (formal.id, ScalarTerm::value(actual.id, actual.scalar_type)))
+        .collect::<BTreeMap<_, _>>();
+    if let Some(formal) = boundary.scalar_contract_result()
+        && let Some(actual) = machine.result.scalar()
+    {
+        substitutions.insert(formal.id, ScalarTerm::value(actual.id, actual.scalar_type));
+    }
+    // Roster rows are folded `Conjunction`s on the machine side, so coverage
+    // compares conjunct sets: a published `A && B` is the established facts
+    // `A` and `B`, never a weaker reading. `contract.requires` merges authored
+    // clauses with generated runtime obligations (entry storage, view
+    // bounds), so provider-side requires agreement cannot be replayed against
+    // the declared roster until the authored roster survives into the
+    // contract.
+    // Every declared guarantee must occur in the candidate's own checked
+    // ensures roster after substitution.
+    let roster = machine
+        .contract
+        .ensures
+        .iter()
+        .flat_map(|clause| conjuncts(&clause.proposition))
+        .collect::<Vec<_>>();
+    if boundary.scalar_ensures.iter().any(|row| {
+        let substituted =
+            terminal_semantics::substitution::substitute_proposition_values(row, &substitutions);
+        !conjuncts(&substituted)
+            .iter()
+            .all(|part| roster.contains(part))
+    }) {
+        return malformed("provider candidate does not ensure its boundary's declared guarantees");
+    }
+    Ok(())
+}
+
+/// The flat conjunct list of a contract proposition. Contract rosters fold
+/// their rows through `connective`, which flattens nested conjunctions, so a
+/// `Conjunction`'s parts are the atomic roster entries; anything else is one.
+fn conjuncts(proposition: &Proposition) -> Vec<&Proposition> {
+    match proposition {
+        Proposition::Conjunction(parts) => parts
+            .iter()
+            .filter(|part| !matches!(part, Proposition::Truth))
+            .collect(),
+        Proposition::Truth => Vec::new(),
+        proposition => vec![proposition],
+    }
 }

@@ -194,6 +194,19 @@ impl BoundaryMachineDeclaration {
             .filter_map(move |(position, found)| (*found == kind).then_some(position))
     }
 
+    /// Result pseudo-value shares the contract telescope, after all inputs.
+    pub fn scalar_contract_result(&self) -> Option<ValueDeclaration> {
+        Some(ValueDeclaration {
+            id: ValueId::new(
+                u64::try_from(self.scalar_parameters.len())
+                    .ok()?
+                    .checked_add(1)?,
+            )?,
+            scalar_type: self.result.scalar()?,
+            qualifications: Default::default(),
+        })
+    }
+
     /// Reconstruct declaration-local scalar formals for contract validation and
     /// substitution. These are proof coordinates, not executable module values.
     pub fn scalar_contract_parameters(&self) -> Option<Vec<ValueDeclaration>> {

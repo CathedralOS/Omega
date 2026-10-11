@@ -2895,8 +2895,9 @@ crash and native exit behavior.
     views, and `reject_divergent_constant_providers` compares the provider
     rows each pending fold selected — naming every pair of diverging targets
     in that target's own diagnostics while leaving layout custody per
-    target. Remaining frontier: `BoundaryMachineDeclaration` `ensures` and
-    execution_settlement's Omega-00 installation joins.
+    target. Remaining frontier: execution_settlement's Omega-00 installation
+    joins and the authored provider-requires roster the ensures work exposes
+    below.
   - `omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
     still joins frontend-dependent `provider-planning` and `selected-dispatch`
     decisions: calling plans, program-entry
@@ -2924,9 +2925,17 @@ crash and native exit behavior.
     rewriting checked source and rederiving schemas. Accepted package roles
     enter source preparation before checking. Move discovery to explicit source
     contract admission, without inferring public completion from a provider.
-  - `BoundaryMachineDeclaration` has no field for general scalar `ensures`;
-    add it and validate provider/call agreement without narrowing the public
-    contract to the selected body.
+  - `BoundaryMachineDeclaration` `ensures` is landed: codec module admission
+    checks every declared scalar contract row over the declaration
+    telescope — input formals and structural-parameter places, plus the
+    scalar result for `ensures` — and every provider candidate's checked
+    `ensures` roster covers each substituted declared guarantee
+    conjunct-wise, without narrowing the public contract to the selected
+    body. Provider-side `requires` agreement stays unverifiable at the
+    module: `MachineContract.requires` merges the authored clauses with
+    generated runtime obligations (entry storage, view bounds), so
+    agreement cannot be replayed until an authored requires roster —
+    `source_checked_requires` at lowering — survives into the contract.
 
   Acceptance (with **BUILD-EVALUATES-ONCE** and **OPERATOR-BOUNDARY-CALLS**):
   a two-target request runs Psi 00–07 once and produces one Terminal artifact;
