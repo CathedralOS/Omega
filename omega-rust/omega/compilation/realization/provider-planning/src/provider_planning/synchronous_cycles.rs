@@ -12,10 +12,10 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan};
 /// selected target cannot manufacture an edge.
 pub(crate) fn validate_selected_synchronous_invocation_cycles(
     typed: &TypedTrees,
+    inferred: &flow_effects::InvocationInferencePlan,
     selected_plans: &[effects::provider_plan::ProviderPlan],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let selected = exact_selected_synchronous_plans(selected_plans)?;
-    let inferred = validation::infer_synchronous_invocations(typed);
     let mut edges = vec![Vec::<usize>::new(); selected.len()];
     let mut diagnostics = Vec::new();
     for (source_index, source) in selected.iter().enumerate() {
@@ -30,7 +30,7 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
             let target_names = match &row.binding {
                 ProviderBinding::CheckedAdapter { .. } => exact_checked_adapter_invocations(
                     crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-                    &inferred,
+                    inferred,
                     source,
                     method,
                     row,

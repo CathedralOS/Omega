@@ -82,6 +82,10 @@ pub(crate) fn check_selected_execution(
         &admission.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
+    // Synchronous-invocation inference is a checking product: the driver
+    // computes it once here and realization consumes the plan rather than
+    // re-deriving it from typed structure.
+    let inferred_synchronous_invocations = validation::infer_synchronous_invocations(&typed);
     let provider_planning::CheckedProviderSelection {
         settlement: providers,
         selected_provider_plan_facts,
@@ -95,6 +99,7 @@ pub(crate) fn check_selected_execution(
         &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,
         &build_config.opaque_representation_selections,
+        &inferred_synchronous_invocations,
     )?;
     // Deferred const work decides the block; a surviving `size_of`/`align_of`
     // query must fold under this target's custody even when nothing else

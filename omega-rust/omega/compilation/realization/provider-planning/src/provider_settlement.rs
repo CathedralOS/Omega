@@ -278,6 +278,7 @@ pub fn settle_checked_providers(
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
+    inferred_synchronous_invocations: &flow_effects::InvocationInferencePlan,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
     // Target-scoped machines were selected before resolution against the
     // choice `filter_target_machines_by_scope` makes: the requested target,
@@ -355,7 +356,11 @@ pub fn settle_checked_providers(
     // only its honestly realizable leaves and its syscall rows can never
     // invoke, so it joins after the authored-plan cycle check, before the
     // external-binding extraction that binds its syscall numbers.
-    crate::validate_selected_synchronous_invocation_cycles(typed, &selected_semantic_plans)?;
+    crate::validate_selected_synchronous_invocation_cycles(
+        typed,
+        inferred_synchronous_invocations,
+        &selected_semantic_plans,
+    )?;
     if let Some(minted) = &toolchain_filesystem_plan {
         selected_semantic_plans.push(minted.plan.clone());
     }
