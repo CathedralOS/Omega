@@ -2339,14 +2339,21 @@ impl Emission<'_, '_, '_> {
     }
 
     /// Bookkeep a root selection continuation: install the join block's
-    /// value and structural parameters on the evaluation state, record the
-    /// selection cleanup for the live sources, then repoint structural
-    /// locals through the continuation's pass-through mapping.
+    /// value and structural parameters on the evaluation state, publish the
+    /// completed custody roster, record cleanup for live sources, then repoint
+    /// structural locals through the continuation's pass-through mapping.
     fn record_root_continuation(&mut self, continuation: &ValueContinuation) {
         self.start(continuation.block);
         *self.values = continuation.parameters.clone();
         self.evaluation.parameters = continuation.parameters.clone();
         self.evaluation.block_structural_parameters = continuation.structural_parameters.clone();
+        // A join is a producer just as an operation is. Enclosing constructors
+        // capture its checked completion roster before evaluating their next
+        // operand; an empty roster is a completed value, not missing custody.
+        // Publish before the source-owner early return: fresh alternatives
+        // still have a result even when they have no residual input owners.
+        self.arrival_claims
+            .push((continuation.place, self.completion_claims.clone()));
         if self.sources.is_empty() {
             return;
         }

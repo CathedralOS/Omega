@@ -141,7 +141,7 @@ impl CallViewReturnContract<'_> {
         &self,
         program: &dyn ::validation::CheckingInput,
     ) -> TypeReferenceHandle {
-        self.carrier_reference(program, self.return_type)
+        Self::carrier_reference(program, self.return_type, &self.substitutions)
     }
 
     pub(in crate::borrow) fn parameter_type_reference(
@@ -149,20 +149,21 @@ impl CallViewReturnContract<'_> {
         program: &dyn ::validation::CheckingInput,
         parameter_index: usize,
     ) -> TypeReferenceHandle {
-        self.parameters
-            .get(parameter_index)
-            .map_or_else(TypeReferenceHandle::invalid, |parameter| {
-                self.carrier_reference(program, parameter.type_reference)
-            })
+        self.parameters.get(parameter_index).map_or_else(
+            TypeReferenceHandle::invalid,
+            |parameter| {
+                Self::carrier_reference(program, parameter.type_reference, &self.substitutions)
+            },
+        )
     }
 
     /// Only the borrow carrier is projected here; qualifications remain on
     /// the original declaration. Composite types stay borrowed nodes and the
     /// structural frontier walks them under the complete substitution roster.
-    fn carrier_reference(
-        &self,
+    pub(in crate::borrow) fn carrier_reference(
         program: &dyn ::validation::CheckingInput,
         mut reference: TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> TypeReferenceHandle {
         let mut visited = Vec::new();
         loop {
@@ -173,8 +174,7 @@ impl CallViewReturnContract<'_> {
             match program.type_reference_table.type_reference(reference) {
                 TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
                 TypeReferenceNode::Named { symbol, .. } => {
-                    let Some((_, argument)) = self
-                        .substitutions
+                    let Some((_, argument)) = substitutions
                         .iter()
                         .rev()
                         .find(|(parameter, _)| parameter == symbol)

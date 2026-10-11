@@ -550,6 +550,20 @@ pub(super) fn argument_loans(
             // `field.source_type` is the declared parameter type; the call's
             // closed bindings resolve a type parameter to the argument's
             // concrete carrier before its loan leaves are enumerated.
+            // Nested producers select paths in this input carrier, not the
+            // enclosing result's type. Keep the receiving storage identity;
+            // result_owner_path rebases its leaves only after source selection.
+            // Using an outer Envelope here would erase a Held argument's
+            // target leaf before an owned forwarding call could transport it.
+            let argument_owner = checked_trees::statement::TableLocalData {
+                type_reference: super::call_views::CallViewReturnContract::carrier_reference(
+                    program,
+                    field.source_type,
+                    substitutions,
+                ),
+                initial_value: argument,
+                ..local_data.clone()
+            };
             let loans =
                 borrowed_initializers(program, field.source_type, argument, substitutions, &[])
                     .into_iter()
@@ -559,7 +573,7 @@ pub(super) fn argument_loans(
                             state_symbol,
                             statement_index,
                             machine_symbol,
-                            local_data,
+                            &argument_owner,
                             initializer,
                             loan_trackers,
                         )

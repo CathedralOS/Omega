@@ -45,7 +45,6 @@ fn validate(
     if referent_identity.is_some() && result.multiplicity != Multiplicity::Unrestricted {
         return None;
     }
-    let source_multiplicity = program.type_multiplicity(local.type_reference);
     let carrier_multiplicity =
         validation::reference_result_custody::binding_multiplicity(program, local.type_reference);
     if !local.symbol.is_valid()
@@ -80,10 +79,11 @@ fn validate(
     if !has_disposal_edge {
         return None;
     }
-    // Source-unrestricted values need dominance, not an owned-disposal
-    // receipt. Their materialized reference carriers can still be affine:
-    // lowering ends each retained loan when this binding is discarded.
-    if source_multiplicity == Multiplicity::Unrestricted {
+    // Only an unrestricted carrier needs dominance rather than an exact
+    // disposal receipt. A copyable source type can materialize an affine loan
+    // carrier: after that occurrence moves into a constructor, source
+    // copyability cannot invent a second state-exit owner for it.
+    if carrier_multiplicity == Multiplicity::Unrestricted {
         return Some(());
     }
     // Permission eligibility has one producer owner. Here it is rejoined to
