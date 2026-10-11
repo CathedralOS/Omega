@@ -35,7 +35,6 @@ pub(crate) fn derive_selected_requirement_specializations(
     let mut diagnostics = Vec::new();
     let mut rows = Vec::new();
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-    let mut top_level_symbols = None;
     for plan in selected.plans() {
         trait_requirements::append(checked, plan, &mut rows, &mut identities, &mut diagnostics);
         let templates = typed
@@ -127,9 +126,7 @@ pub(crate) fn derive_selected_requirement_specializations(
                     )));
                     continue;
                 }
-                let Some(closed) =
-                    satisfied_row_requirement(typed, &mut top_level_symbols, instance, template)
-                else {
+                let Some(closed) = satisfied_row_requirement(checked, instance, template) else {
                     diagnostics.push(diagnostics::Diagnostic::error(format!(
                         "selected provider instance `{}` realizes requirement template `{}` without one exact closed requirement",
                         instance.name, template.name,

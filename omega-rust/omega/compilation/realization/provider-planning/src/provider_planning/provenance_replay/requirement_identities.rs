@@ -326,35 +326,27 @@ pub(crate) fn realization_machine_identity(
 /// its plan row. An edge naming a generic token-machine template is
 /// satisfied by the provider instance's closed applications: the clause
 /// keeps the template's symbols while the retained specialization receipt
-/// and validated operator application select the closed requirement. The
-/// join replays that source-specialization evidence; equal runtime
-/// signatures never qualify, and a template never aliases its closed
-/// requirement. `top_level_symbols` is built once per derivation or
-/// validation run and reused across rows.
+/// and validated operator application select the closed requirement.
+/// Checking resolved that join once into `CheckedProviderClosedRequirement`
+/// facts; realization reads the recorded decision rather than replaying
+/// source-specialization evidence, and a template never aliases its closed
+/// requirement.
 pub(crate) fn satisfied_row_requirement<'typed>(
-    typed: &'typed TypedTrees,
-    top_level_symbols: &mut Option<validation::TopLevelSymbols<'typed>>,
+    checked: &'typed checked_trees::CheckedTrees,
     provider: &'typed checked_trees::typed_trees::machine::Machine,
     requirement: &'typed checked_trees::typed_trees::machine::Machine,
 ) -> Option<&'typed checked_trees::typed_trees::machine::Machine> {
+    let typed: &'typed TypedTrees = checked;
     if typed.machine_type_parameters(requirement).is_empty() {
         return Some(requirement);
     }
-    if top_level_symbols.is_none() {
-        let mut diagnostics = Vec::new();
-        let symbols = validation::TopLevelSymbols::build(typed, &mut diagnostics);
-        if !diagnostics.is_empty() {
-            return None;
-        }
-        *top_level_symbols = Some(symbols);
-    }
-    validation::resolve_closed_requirement_application(
-        typed,
-        provider,
-        requirement,
-        top_level_symbols.as_ref()?,
-    )
-    .ok()
+    let closed = checked
+        .facts
+        .provider_closed_requirements
+        .iter()
+        .find(|row| row.provider == provider.symbol && row.template == requirement.symbol)?
+        .closed_requirement;
+    typed.machine(closed)
 }
 
 /// Whether two boundary names denote the same slot: equal, or one is the
