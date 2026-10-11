@@ -43,25 +43,29 @@ pub(super) fn backing(
     if !geometry::runtime_indices_match(indices, &geometry.elements) {
         return Err(invalid());
     }
-    let pointer = if source.path.is_empty() || !geometry.pointer_slots.is_empty() {
-        place_pointer(builder, row, source.place, 0)?
+    let (pointer, pointer_slots) = if source.path.is_empty() {
+        (
+            Some(place_pointer(builder, row, source.place, 0)?),
+            geometry.pointer_slots.as_slice(),
+        )
     } else {
-        super::runtime_address::projection_base(
+        super::runtime_address::projection_origin(
             function,
             builder,
             row,
             source.place,
             geometry.byte_offset,
+            &geometry.pointer_slots,
         )?
-        .ok_or(invalid())?
     };
+    let pointer = pointer.ok_or_else(invalid)?;
     let (pointer, leaf_index) = super::runtime_address::cross_references(
         builder,
         row,
         source.place,
         pointer,
         indices,
-        &geometry.pointer_slots,
+        pointer_slots,
     )?;
     let leaf_indices = &indices[leaf_index..];
     let pointer = super::runtime_address::scale(

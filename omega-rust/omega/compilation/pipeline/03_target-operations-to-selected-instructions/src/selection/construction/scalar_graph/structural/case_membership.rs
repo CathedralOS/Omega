@@ -47,9 +47,15 @@ pub(in crate::selection) fn observe(
         fuel: row.fuel.clone(),
         ..Default::default()
     };
-    if let Some(pointer) =
-        super::runtime_address::projection_base(source, builder, row, place, *tag_byte_offset)?
-    {
+    let (pointer, pointer_slots) = super::runtime_address::projection_origin(
+        source,
+        builder,
+        row,
+        place,
+        *tag_byte_offset,
+        &geometry.pointer_slots,
+    )?;
+    if let Some(pointer) = pointer {
         // A runtime element joins the place pointer before the tag load
         // (`runtime_address`), and its footprint names the element's
         // certificate; a static tag reads its exact place extent.
@@ -59,7 +65,7 @@ pub(in crate::selection) fn observe(
             place,
             pointer,
             indices,
-            &geometry.pointer_slots,
+            pointer_slots,
         )?;
         let indices = indices.get(leaf_index..).ok_or(invalid())?;
         let pointer =

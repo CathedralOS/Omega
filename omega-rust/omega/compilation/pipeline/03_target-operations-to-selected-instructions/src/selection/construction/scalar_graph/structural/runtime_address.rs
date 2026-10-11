@@ -15,8 +15,8 @@
 //! so `index * stride` stays inside the array span and the wrapping multiply
 //! is exact for every reachable operand. Nothing here re-derives a bound: the
 //! obligation rides on the address instruction's provenance and on the
-//! access's footprint rows. Validation mirrors this sequence instruction for
-//! instruction (`validation/.../runtime_address.rs`).
+//! access's footprint rows. The corpus audits the retained target geometry;
+//! construction consumes it without a second compiler validation pass.
 use super::{
     Builder, IntegerSign, LegalizedScalarInstruction, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
@@ -70,6 +70,44 @@ pub(super) fn projection_base(
     let base = transport_register(builder, place, byte_offset)?;
     builder.emit_byte_view_address(backing, view_offset, base, super::provenance(row))?;
     Ok(Some(base))
+}
+
+/// Start a projected access at the coordinate origin of its pointer regions.
+/// A root view may live as backing/offset SSA without a descriptor home. Its
+/// transport resolves the first crossing; replaying that slot would read an
+/// element as a pointer. Nested crossings still load descriptors in path order,
+/// after the root view's offset. Whole-descriptor observations use their home
+/// directly and do not enter this operation.
+pub(super) fn projection_origin<'slots>(
+    source: &super::LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    byte_offset: u32,
+    mut slots: &'slots [crate::structural_inputs::structural_reference_input::PointerSlot],
+) -> Result<
+    (
+        Option<VirtualRegisterId>,
+        &'slots [crate::structural_inputs::structural_reference_input::PointerSlot],
+    ),
+    SelectedInstructionError,
+> {
+    let root_view = crate::selection::established_view_input::view_type(source, place).is_some()
+        || crate::selection::established_view_input::element_view_type(source, place).is_some();
+    let pointer = if root_view {
+        if let Some(first) = slots.first() {
+            if first.byte_offset != 0 || first.indices != (0..0) || first.scalar_descriptor {
+                return Err(invalid());
+            }
+            slots = &slots[1..];
+        }
+        projection_base(source, builder, row, place, byte_offset)?
+    } else if !slots.is_empty() {
+        Some(super::place_pointer(builder, row, place, 0)?)
+    } else {
+        projection_base(source, builder, row, place, byte_offset)?
+    };
+    Ok((pointer, slots))
 }
 
 /// Join each runtime element's scaled selector to `address`, in path order,
@@ -218,8 +256,8 @@ pub(super) fn footprint(
 }
 
 /// Evaluate captured pointer slots in path order before observing the final
-/// region. Stores and reads use the same address operation; replay checks each
-/// load and footprint independently of construction.
+/// region. Stores and reads use the same address operation, retaining each
+/// pointer load and its footprint at the original storage boundary.
 pub(in crate::selection) fn cross_references(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,

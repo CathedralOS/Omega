@@ -100,14 +100,23 @@ pub(in crate::selection) fn read(
         LegalizedScalarInstructionKind::ElementViewLength { source, .. }
         | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
         if source.path.is_empty());
-    let pointer = if pointer_slots.is_empty() && !observes_descriptor_home {
-        super::runtime_address::projection_base(source, builder, row, place, byte_offset)?
-            .ok_or_else(|| invalid())?
+    let (pointer, pointer_slots) = if observes_descriptor_home {
+        // A whole descriptor's metadata is in its own home.
+        (
+            Some(super::place_pointer(builder, row, place, 0)?),
+            pointer_slots.as_slice(),
+        )
     } else {
-        // A whole descriptor's metadata is in its own home. Projection bases
-        // intentionally resolve views to their backing elements instead.
-        super::place_pointer(builder, row, place, 0)?
+        super::runtime_address::projection_origin(
+            source,
+            builder,
+            row,
+            place,
+            byte_offset,
+            &pointer_slots,
+        )?
     };
+    let pointer = pointer.ok_or_else(invalid)?;
     let pointer = if matches!(&row.kind,
         LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
         if matches!(source.path.first(), Some(terminal_psi::StructuralPathSegment::Referent)))
@@ -132,7 +141,7 @@ pub(in crate::selection) fn read(
         place,
         pointer,
         indices,
-        &pointer_slots,
+        pointer_slots,
     )? {
         if byte_offset != 0 {
             return Err(invalid());
@@ -145,7 +154,7 @@ pub(in crate::selection) fn read(
         place,
         pointer,
         indices,
-        &pointer_slots,
+        pointer_slots,
     )?;
     let indices = &indices[leaf_index..];
     let pointer =

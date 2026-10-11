@@ -119,18 +119,15 @@ pub(super) fn emit(
     if row.result.is_some() || !declared {
         return Err(invalid());
     }
-    let pointer = if pointer_slots.is_empty() {
-        super::runtime_address::projection_base(
-            source,
-            builder,
-            row,
-            destination.place(),
-            byte_offset,
-        )?
-        .ok_or_else(|| invalid())?
-    } else {
-        super::place_pointer(builder, row, destination.place(), 0)?
-    };
+    let (pointer, pointer_slots) = super::runtime_address::projection_origin(
+        source,
+        builder,
+        row,
+        destination.place(),
+        byte_offset,
+        &pointer_slots,
+    )?;
+    let pointer = pointer.ok_or_else(invalid)?;
     if let Some((address, codec)) = super::runtime_address::scalar_reference(
         source,
         builder,
@@ -138,7 +135,7 @@ pub(super) fn emit(
         destination.place(),
         pointer,
         indices,
-        &pointer_slots,
+        pointer_slots,
     )? {
         if byte_offset != 0 {
             return Err(invalid());
@@ -158,7 +155,7 @@ pub(super) fn emit(
         destination.place(),
         pointer,
         indices,
-        &pointer_slots,
+        pointer_slots,
     )?;
     let leaf_indices = &indices[leaf_index..];
     let (_, register, _, scalar) = builder.resolve(value.value).ok_or_else(|| invalid())?;

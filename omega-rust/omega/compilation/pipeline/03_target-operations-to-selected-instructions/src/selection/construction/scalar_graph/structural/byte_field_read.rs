@@ -92,19 +92,22 @@ pub(super) fn payload_pointer(
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let offset = geometry.offset();
-    let root = if geometry.pointer_slots.is_empty() {
-        super::runtime_address::projection_base(function, builder, row, place, offset)?
-            .ok_or_else(|| invalid())?
-    } else {
-        super::place_pointer(builder, row, place, 0)?
-    };
+    let (root, pointer_slots) = super::runtime_address::projection_origin(
+        function,
+        builder,
+        row,
+        place,
+        offset,
+        &geometry.pointer_slots,
+    )?;
+    let root = root.ok_or_else(invalid)?;
     let (root, first_leaf_index) = super::runtime_address::cross_references(
         builder,
         row,
         place,
         root,
         indices,
-        &geometry.pointer_slots,
+        pointer_slots,
     )?;
     let indices = indices.get(first_leaf_index..).ok_or_else(|| invalid())?;
     let root = super::runtime_address::scale(builder, row, place, offset, root, indices)?;

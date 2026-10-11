@@ -73,28 +73,21 @@ pub(super) fn copy(
         }
         _ => None,
     };
-    let mut pointer_slots = geometry
+    let pointer_slots = geometry
         .as_ref()
         .map_or(&[][..], |geometry| geometry.pointer_slots.as_slice());
-    // A root view may be carried as backing/offset SSA rather than an inline
-    // descriptor. Its ordinary transport owner performs the first crossing;
-    // all nested descriptors remain ordered loads from the resulting storage.
-    // Whole-view copies still copy descriptor bytes, not backing elements.
-    let root_view = crate::selection::established_view_input::view_type(function, *source)
-        .is_some()
-        || crate::selection::established_view_input::element_view_type(function, *source).is_some();
-    let input = if geometry.is_some() && root_view {
-        if let Some(first) = pointer_slots.first() {
-            if first.byte_offset != 0 || !first.indices.is_empty() || first.scalar_descriptor {
-                return Err(invalid());
-            }
-            pointer_slots = &pointer_slots[1..];
-        }
-        super::runtime_address::projection_base(function, builder, row, *source, *byte_offset)?
-    } else if !pointer_slots.is_empty() {
-        Some(super::place_pointer(builder, row, *source, 0)?)
+    let (input, pointer_slots) = if geometry.is_some() {
+        super::runtime_address::projection_origin(
+            function,
+            builder,
+            row,
+            *source,
+            *byte_offset,
+            pointer_slots,
+        )?
     } else {
-        input
+        // Whole-value copies retain descriptor bytes, not backing elements.
+        (input, pointer_slots)
     };
     let Some(input) = input else {
         copy_from_fragments(
