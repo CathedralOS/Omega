@@ -40,6 +40,10 @@ actual package/approval denial occurred. No foreign-target execution was claimed
 Exact log names and the final integration receipt are supplied in the Library
 review archive with full source hashes, commands, patch and git bundle.
 
+`git diff --check` reports only `data/too_long.in`: its 96 spaces plus LF are
+deliberate malformed runtime input bytes, exactly matching the frozen JSON case.
+Those bytes are retained; other candidate files have no whitespace diagnostics.
+
 - Complete original-base+repair corpus matrix: 76/76 cases built and matched
   native and Terminal exits, stdout and stderr. Gate exit1 reports exactly
   76 new scratch rows, with zero oracle failures; no golden was rewritten.

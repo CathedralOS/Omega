@@ -21,7 +21,7 @@ minimum acceptable total flow. Every isolated operating point is reported,
 including ones below demand. No physical stability claim is attached to roots.
 
 Bounds: `a,elevation` in 0..64, `b` in -16..16, `c` in 0..16, `d,r1,r2` in
-1..16, `maximum` in 1..16, and `demand` in 0..16. Negative quadratic coefficient,
+1..16, `maximum` in 1..16, and `demand` in 0..16. Negative `c`,
 zero resistance, zero denominator, out-of-range values and the identically
 coincident curves (a continuum, not an isolated operating point) reject with
 exit 64. The parser consumes at most 96 bytes, allows at most nine tokens and
