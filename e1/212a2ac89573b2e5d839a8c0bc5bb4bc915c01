@@ -1,0 +1,4 @@
+owner: ADD01 / force plate balance
+provenance: agent=codex model=gpt-6 reviewer_model=gpt-6.1-sol reviewer_effort=medium
+ticket: 7ad0fefc387b4570ba9935861b5afec4
+published_utc: 2026-10-11T04:35:01.030003+00:00
