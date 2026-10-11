@@ -104,6 +104,10 @@ and storage; distinct roots still produce separate artifacts. Product constants
 requiring selected-provider evaluation reject until portable recipes cross this
 boundary; selected providers cannot inject completion roles into checked source.
 Accepted package roles enter source preparation before checking instead.
+Psi owns their declaration admission and confined nomination before matching
+retained checks. Realization only rejoins the resulting source declarations to
+selected provider rows. Synchronous provider-cycle checks consume Psi's checked
+invocation facts rather than a second coordinator-owned inference sidecar.
 Resolver/typing continuation now lives in the [Psi compiler](psi/compilation/driver/src/source_compilation.rs):
 one owner pairs the deferred resolver, typing arenas and evaluation obligations
 across Build and generated-source resumption. Product records cannot rearrange

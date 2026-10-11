@@ -384,7 +384,7 @@ fn exact_invocation_service_name(
 
 pub(crate) fn exact_checked_adapter_invocations(
     context: ProviderPlanningContext<'_>,
-    inferred: &flow_effects::InvocationInferencePlan,
+    invocations: &checked_trees::SynchronousInvocationFacts,
     plan: &ProviderPlan,
     method: &effects::provider_plan::ServiceMethod,
     row: &ProviderPlanRow,
@@ -401,14 +401,14 @@ pub(crate) fn exact_checked_adapter_invocations(
         )));
     };
     let adapter = exact_checked_adapter(context, plan, row)?;
-    let summaries = inferred
+    let summaries = invocations
         .machines
         .iter()
         .filter(|summary| summary.machine == adapter.symbol)
         .collect::<Vec<_>>();
     let [summary] = summaries.as_slice() else {
         return Err(diagnostics::Diagnostic::error(format!(
-            "checked adapter `{}` resolves to {} exact synchronous-invocation inference summaries",
+            "checked adapter `{}` resolves to {} exact checked synchronous-invocation facts",
             plan.identity_text(*machine_identity),
             summaries.len(),
         )));
@@ -472,7 +472,7 @@ pub(crate) fn exact_checked_adapter_invocations(
     };
 
     let mut names = Vec::new();
-    for target in &summary.inferred_transitive {
+    for target in &summary.checked_inferred_targets {
         let target_name = exact_invocation_service_name(context, adapter, *target)?;
         let self_forwarded = *target == flow_effects::InvocationTarget::Parameter(0)
             && boundary.is_some_and(|boundary| {

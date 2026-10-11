@@ -2971,8 +2971,9 @@ crash and native exit behavior.
     Product pruning; shared projections/operator queries have semantic owners.
     Source assembly, Build role projection and dependency editing now use Psi's
     parsing facade; no package consumer imports the lexer/parser stages.
-    Move source completion-role admission out of provider planning and join
-    the remaining source/package assembly contracts to this facade.
+    Psi establishes source completion roles before retained-check matching;
+    provider cycle checks consume its retained invocation facts. Join the
+    remaining source/package assembly contracts to this facade.
     Move distinct entry roots, callbacks and the package-manager batch route
     behind whole-program shared checked/Terminal storage and
     retire its per-target typed copies. Remove `compile_checked_reusing_builds`

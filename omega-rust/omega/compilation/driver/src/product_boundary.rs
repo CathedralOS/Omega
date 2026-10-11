@@ -84,6 +84,8 @@ fn product_consumers_do_not_assemble_source_stages() {
             "prepare_typed_trees",
             "reuse_retained_check",
             "lower_typed_trees_reusing",
+            "prepare_source_completion",
+            "infer_synchronous_invocations",
         ] {
             assert!(
                 !source.contains(operation),

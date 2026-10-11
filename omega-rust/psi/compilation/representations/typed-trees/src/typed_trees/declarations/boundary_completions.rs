@@ -12,6 +12,34 @@ use crate::types::{PrimitiveType, TypeReferenceNode};
 use crate::{BoundaryCompletionDeclaration, TypedTrees};
 use symbols::SymbolHandle;
 
+/// Resolve the exact source requirement used by admission and realization.
+pub fn completion_declaration(
+    typed: &TypedTrees,
+    owner: SymbolHandle,
+    package: semantic_vocabulary::PackageKeyIdentity,
+) -> Option<BoundaryCompletionDeclaration> {
+    let definition = typed.trait_definition_by_symbol(owner)?;
+    let mut requirements = typed
+        .trait_machine_signatures(definition)
+        .iter()
+        .filter(|signature| signature.name.as_str() == "exit_process");
+    let requirement = requirements.next()?;
+    if requirements.next().is_some() {
+        return None;
+    }
+    let declaration = BoundaryCompletionDeclaration {
+        package: Some(package),
+        owner,
+        owner_path: typed.symbols.display_path(owner, "::"),
+        requirement: requirement.symbol,
+        requirement_path: typed.symbols.display_path(requirement.symbol, "::"),
+        completion: semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        ),
+    };
+    valid_boundary_completion_declaration(typed, &declaration).then_some(declaration)
+}
+
 /// Completion belongs to the admitted requirement declaration, independently
 /// of the provider selected to realize it. Only the canonical process-exit
 /// requirement and the existing canonical Console adapter end the domain.

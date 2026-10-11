@@ -82,7 +82,7 @@ pub(crate) fn settle_checked_execution(
         &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,
         &build_config.opaque_representation_selections,
-        &source.inferred_synchronous_invocations,
+        &source.program.facts.synchronous_invocations,
     )?;
     provider_planning::target_machines::reject_reached_inert_sibling_calls(
         typed,

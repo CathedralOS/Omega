@@ -30,6 +30,7 @@ pub use value_custody::places::collection_operations;
 pub use value_custody::places::declaration_type_reference;
 
 pub use declarations::selection_resolution;
+pub use declarations::source_completion;
 pub use declarations::standard_declarations::{
     boundary_has_explicit_calling_policy, standard_calling_vocabularies,
 };

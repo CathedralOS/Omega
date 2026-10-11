@@ -16,7 +16,7 @@ pub(crate) fn check_product_source(
     reuse: SettledCheckReuse,
 ) -> Result<CheckedProductSource, Vec<Diagnostic>> {
     let PreparedProductSource {
-        mut typed,
+        typed,
         pending_pre_checks,
         computed_build_config,
         mut admission,
@@ -32,7 +32,6 @@ pub(crate) fn check_product_source(
             "unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source",
         )]);
     }
-    provider_planning::prepare_source_completion(&mut typed, package_inputs)?;
     admission.provider_defaults = provider_planning::target_machines::retain_provider_defaults(
         provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
     )?;
@@ -50,9 +49,26 @@ pub(crate) fn check_product_source(
         })
         .map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
         .collect::<Vec<_>>();
-    let inferred_synchronous_invocations = validation::infer_synchronous_invocations(&typed);
     let symbol_sources = typed.symbols.source_map();
     let source_admission = psi_compiler::SourceAdmission {
+        completion: match package_inputs.and_then(|inputs| {
+            inputs.accepted_semantic_binding(
+                package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+            )
+        }) {
+            Some(binding) => {
+                validation::source_completion::SourceCompletionAdmission::AcceptedProcessExit {
+                    package: binding.package(),
+                    declaration_path: binding.declaration_path(),
+                }
+            }
+            None if package_inputs
+                .is_some_and(PackageCompilationInputs::semantic_role_discovery) =>
+            {
+                validation::source_completion::SourceCompletionAdmission::DiscoverProcessExit
+            }
+            None => validation::source_completion::SourceCompletionAdmission::None,
+        },
         opaque_properties: &opaque_properties,
         asm_authority: Some(
             validation::AsmAuthorityAdmission::from_freestanding(build.settings.freestanding)
@@ -108,7 +124,6 @@ pub(crate) fn check_product_source(
         trust_model::AcceptedTemplateClassifications::capture(&program);
     Ok(CheckedProductSource {
         program,
-        inferred_synchronous_invocations,
         computed_build_config,
         admission,
         sources,

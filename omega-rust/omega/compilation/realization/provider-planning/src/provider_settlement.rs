@@ -27,7 +27,6 @@ mod independent_components;
 mod semantic_roles;
 
 pub use composition_modes::verify_selected_compositions_are_realized;
-pub use semantic_roles::prepare_source_completion;
 
 use crate::ProviderSelection;
 use crate::SelectedProviderReviewProvenance;
@@ -278,7 +277,7 @@ pub fn settle_checked_providers(
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-    inferred_synchronous_invocations: &flow_effects::InvocationInferencePlan,
+    synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
     // Every Product body has already been checked. This target chooses only
     // realization rows; it never narrows the source program.
@@ -345,7 +344,7 @@ pub fn settle_checked_providers(
     // external-binding extraction that binds its syscall numbers.
     crate::validate_selected_synchronous_invocation_cycles(
         typed,
-        inferred_synchronous_invocations,
+        synchronous_invocations,
         &selected_semantic_plans,
     )?;
     if let Some(minted) = &toolchain_filesystem_plan {

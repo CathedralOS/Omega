@@ -9,10 +9,11 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan};
 /// Reject a cycle in the direct synchronous graph realized by the concrete
 /// provider selection. Reach closure is intentionally irrelevant: only a
 /// selected method's authored `invokes` edges participate, and a missing
-/// selected target cannot manufacture an edge.
+/// selected target cannot manufacture an edge. Adapter summaries come from
+/// Psi's checked facts, never from a second inference over realized source.
 pub(crate) fn validate_selected_synchronous_invocation_cycles(
     typed: &TypedTrees,
-    inferred: &flow_effects::InvocationInferencePlan,
+    invocations: &checked_trees::SynchronousInvocationFacts,
     selected_plans: &[effects::provider_plan::ProviderPlan],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let selected = exact_selected_synchronous_plans(selected_plans)?;
@@ -30,7 +31,7 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
             let target_names = match &row.binding {
                 ProviderBinding::CheckedAdapter { .. } => exact_checked_adapter_invocations(
                     crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-                    inferred,
+                    invocations,
                     source,
                     method,
                     row,

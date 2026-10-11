@@ -46,7 +46,6 @@ pub struct PreparedProductSource {
 /// The source checker produces this before any target provider is selected.
 pub struct CheckedProductSource {
     pub program: Arc<checked_trees::CheckedTrees>,
-    pub inferred_synchronous_invocations: flow_effects::InvocationInferencePlan,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     pub sources: Arc<package_compilation::CheckedSourceCustody>,

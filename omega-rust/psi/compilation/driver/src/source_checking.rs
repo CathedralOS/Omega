@@ -15,6 +15,7 @@ pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedChec
 /// These are not provider selections or execution authority.
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
+    pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
     pub opaque_properties: &'request [validation::OpaqueDataPropertyReceipt],
     pub asm_authority: Option<validation::AsmAuthorityAdmission>,
     pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
@@ -46,6 +47,11 @@ pub struct SelectedCheckedSource {
 
 impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
+        let mut program = self.program;
+        validation::source_completion::prepare_source_completion(
+            &mut program,
+            self.admission.completion,
+        )?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_opaque_property_receipts(self.admission.opaque_properties)
             .with_wire_compatibility_demands(self.admission.wire_demands);
@@ -59,15 +65,13 @@ impl CheckRequest<'_> {
             .previous
             .iter()
             .copied()
-            .find(|prior| prior.judges_preparation_input(&self.program, &admission));
+            .find(|prior| prior.judges_preparation_input(&program, &admission));
         let outcome = if let Some(prior) = matching {
             typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, self.retain)?
         } else {
-            let retained_input = self
-                .retain
-                .then(|| (Arc::new(self.program.clone()), admission));
+            let retained_input = self.retain.then(|| (Arc::new(program.clone()), admission));
             let (program, preparation) =
-                typed_trees_to_typed_trees::prepare_typed_trees(self.program, &preparation)?;
+                typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
             typed_trees_to_checked_trees::lower_typed_trees_reusing(
                 program,
                 preparation,

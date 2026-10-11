@@ -390,7 +390,6 @@ dependencies = [
  "checked-trees",
  "diagnostics",
  "effects",
- "flow-effects",
  "image-emission",
  "native-artifact",
  "optimization-core",
