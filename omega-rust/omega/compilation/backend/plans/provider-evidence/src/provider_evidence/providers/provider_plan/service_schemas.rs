@@ -64,8 +64,62 @@ pub struct ServiceSchema {
     /// Exact package owning the selected boundary trait/operator declaration.
     /// `None` is explicit for toolchain, standalone, or source-free trees.
     pub trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    /// Complete applied receiver views owned by this one whole schema. The
+    /// first view is the selected root; the remainder are inherited views,
+    /// never independently selected provider plans. Empty on non-trait slots
+    /// and when parent lifetime substitutions are not retained.
+    pub receiver_applications: Vec<ServiceReceiverApplication>,
     /// One entry per trait machine, in declaration order.
     pub methods: Vec<ServiceMethod>,
+}
+
+/// One exact applied interface and its complete inherited requirement roster.
+/// Arguments participate even when they do not occur in a method signature:
+/// a phantom `Parent<bool>` must not join a selected `Parent<u64>` view. All
+/// identities resolve in the enclosing schema's table, not an external table.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceReceiverApplication {
+    pub trait_name: ProviderIdentityId,
+    pub trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub argument_identities: Vec<ProviderIdentityId>,
+    pub requirement_identities: Vec<ProviderIdentityId>,
+}
+
+impl ServiceReceiverApplication {
+    fn eq_in(
+        &self,
+        left: &ProviderIdentityTable,
+        other: &Self,
+        right: &ProviderIdentityTable,
+    ) -> bool {
+        self.trait_package_identity == other.trait_package_identity
+            && left.text(self.trait_name) == right.text(other.trait_name)
+            && identity_sequence_eq(
+                &self.argument_identities,
+                left,
+                &other.argument_identities,
+                right,
+            )
+            && identity_sequence_eq(
+                &self.requirement_identities,
+                left,
+                &other.requirement_identities,
+                right,
+            )
+    }
+}
+
+fn identity_sequence_eq(
+    left: &[ProviderIdentityId],
+    left_table: &ProviderIdentityTable,
+    right: &[ProviderIdentityId],
+    right_table: &ProviderIdentityTable,
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left_table.text(*left) == right_table.text(*right))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -158,10 +212,29 @@ impl ServiceMethod {
             && left_table.text(self.requirement_identity)
                 == right_table.text(other.requirement_identity)
             && self.parameter_count == other.parameter_count
-            && self.parameter_type_identities == other.parameter_type_identities
-            && self.entry_claims == other.entry_claims
+            && identity_sequence_eq(
+                &self.parameter_type_identities,
+                left_table,
+                &other.parameter_type_identities,
+                right_table,
+            )
+            && self.entry_claims.len() == other.entry_claims.len()
+            && self
+                .entry_claims
+                .iter()
+                .zip(&other.entry_claims)
+                .all(|(left, right)| {
+                    left.parameter_index == right.parameter_index
+                        && left_table.text(left.carrier_identity)
+                            == right_table.text(right.carrier_identity)
+                        && left.domain == right.domain
+                        && left.predicate_body == right.predicate_body
+                        && left.effective_carry == right.effective_carry
+                        && left.authority_flow == right.authority_flow
+                })
             && self.has_result == other.has_result
-            && self.result_type_identity == other.result_type_identity
+            && left_table.text(self.result_type_identity)
+                == right_table.text(other.result_type_identity)
             && self.result_claims == other.result_claims
             && self.service_reach == other.service_reach
             && self.synchronous_invocations == other.synchronous_invocations
@@ -208,6 +281,12 @@ impl PartialEq for ServiceSchema {
     /// resolves, never the process-local mint order that produced the ids.
     fn eq(&self, other: &Self) -> bool {
         self.trait_package_identity == other.trait_package_identity
+            && self.receiver_applications.len() == other.receiver_applications.len()
+            && self
+                .receiver_applications
+                .iter()
+                .zip(&other.receiver_applications)
+                .all(|(left, right)| left.eq_in(&self.identities, right, &other.identities))
             && self.methods.len() == other.methods.len()
             && self.identity_text(self.trait_name) == other.identity_text(other.trait_name)
             && self
@@ -221,6 +300,72 @@ impl PartialEq for ServiceSchema {
 impl Eq for ServiceSchema {}
 
 impl ServiceSchema {
+    /// Check the retained roster's structure, not its source authority. Source
+    /// derivation and independent review replay establish the applied edges;
+    /// a decoded annotation cannot establish an inheritance relationship.
+    pub(crate) fn validate_receiver_applications(&self) -> Result<(), &'static str> {
+        let Some(root) = self.receiver_applications.first() else {
+            return Ok(());
+        };
+        if root.trait_package_identity != self.trait_package_identity
+            || self.identity_text(root.trait_name) != self.identity_text(self.trait_name)
+        {
+            return Err("receiver roster root differs from its whole schema owner");
+        }
+        if root.requirement_identities.len() != self.methods.len()
+            || self.methods.iter().any(|method| {
+                !root
+                    .requirement_identities
+                    .contains(&method.requirement_identity)
+            })
+        {
+            return Err("receiver roster root omits or adds an original schema requirement");
+        }
+        for (position, application) in self.receiver_applications.iter().enumerate() {
+            if self.identity_text(application.trait_name).is_empty()
+                || application
+                    .argument_identities
+                    .iter()
+                    .any(|identity| self.identity_text(*identity).is_empty())
+            {
+                return Err("receiver application has an absent or foreign identity");
+            }
+            if application.requirement_identities.iter().any(|identity| {
+                self.identity_text(*identity).is_empty()
+                    || !self
+                        .methods
+                        .iter()
+                        .any(|method| method.requirement_identity == *identity)
+            }) {
+                return Err("receiver application names a requirement outside its whole schema");
+            }
+            if application
+                .requirement_identities
+                .windows(2)
+                .any(|pair| self.identity_text(pair[0]) >= self.identity_text(pair[1]))
+            {
+                return Err("receiver requirement roster is duplicated or not canonical");
+            }
+            if self.receiver_applications[..position]
+                .iter()
+                .any(|previous| {
+                    previous.trait_package_identity == application.trait_package_identity
+                        && self.identity_text(previous.trait_name)
+                            == self.identity_text(application.trait_name)
+                        && identity_sequence_eq(
+                            &previous.argument_identities,
+                            &self.identities,
+                            &application.argument_identities,
+                            &self.identities,
+                        )
+                })
+            {
+                return Err("receiver application is repeated within one whole schema");
+            }
+        }
+        Ok(())
+    }
+
     /// The canonical identity text one of this schema's fields names.
     /// Projects the empty string for the zero id, matching the empty-field
     /// rendering the encoder wrote before interning.
@@ -233,6 +378,7 @@ impl ServiceSchema {
         let mut encoder = ProviderPlanDigestEncoder::for_service_schema();
         encoder.string(self.identity_text(self.trait_name));
         encoder.package_identity(self.trait_package_identity);
+        encoder.receiver_applications(self);
         let mut methods = self.methods.iter().collect::<Vec<_>>();
         methods.sort_by(|left, right| {
             left.name.cmp(&right.name).then_with(|| {
@@ -336,6 +482,28 @@ pub struct ServiceResultClaim {
 }
 
 impl ServiceSchema {
+    /// Whether this whole schema owns exactly the demanded receiver application
+    /// and its entire declared roster. Coverage is never a union of providers.
+    pub fn supplies_receiver_schema(&self, demanded: &Self) -> bool {
+        let Some(root) = demanded.receiver_applications.first() else {
+            return false;
+        };
+        self.receiver_applications
+            .iter()
+            .any(|application| application.eq_in(&self.identities, root, &demanded.identities))
+    }
+
+    /// Distinct whole choices cannot install the same exact receiver view.
+    /// Equal code bodies do not make their selecting owners interchangeable.
+    pub fn shares_receiver_application(&self, other: &Self) -> bool {
+        self.receiver_applications.iter().any(|left| {
+            other
+                .receiver_applications
+                .iter()
+                .any(|right| left.eq_in(&self.identities, right, &other.identities))
+        })
+    }
+
     /// Match a provider row to one exact requirement. The readable method name
     /// must agree as a drift check, but only the canonical overload identity
     /// selects the requirement. The row's identity resolves against the owning

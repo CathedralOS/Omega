@@ -62,18 +62,34 @@ impl DigestFeed for ProviderPlanDigestEncoder {
 impl ProviderPlanDigestEncoder {
     pub(crate) fn for_provider_plan() -> Self {
         let mut digest = Sha256::new();
-        digest.update(b"omega.provider-plan.sha256.v2\0");
+        digest.update(b"omega.provider-plan.sha256.v3\0");
         Self(digest)
     }
 
     pub(crate) fn for_service_schema() -> Self {
         let mut digest = Sha256::new();
-        digest.update(b"omega.service-schema.sha256.v2\0");
+        digest.update(b"omega.service-schema.sha256.v3\0");
         Self(digest)
     }
 
     pub(crate) fn finish(self) -> [u8; 32] {
         self.0.finalize().into()
+    }
+
+    pub(crate) fn receiver_applications(&mut self, schema: &super::ServiceSchema) {
+        self.len(schema.receiver_applications.len());
+        for application in &schema.receiver_applications {
+            self.string(schema.identity_text(application.trait_name));
+            self.package_identity(application.trait_package_identity);
+            self.len(application.argument_identities.len());
+            for argument in &application.argument_identities {
+                self.string(schema.identity_text(*argument));
+            }
+            self.len(application.requirement_identities.len());
+            for requirement in &application.requirement_identities {
+                self.string(schema.identity_text(*requirement));
+            }
+        }
     }
 
     pub(crate) fn package_identity(

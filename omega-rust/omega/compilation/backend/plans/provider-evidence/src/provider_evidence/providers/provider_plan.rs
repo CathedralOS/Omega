@@ -32,8 +32,8 @@ pub use service_schemas::BoundaryCallingPlanCommitment;
 pub use service_schemas::{
     ProviderPlanDigest, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
     ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
-    ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
-    ServiceSchemaDigest,
+    ServiceProgressPremise, ServiceProgressSubject, ServiceReceiverApplication, ServiceResultClaim,
+    ServiceSchema, ServiceSchemaDigest,
 };
 
 use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
@@ -268,6 +268,7 @@ impl ProviderPlan {
         encoder.string(&self.target);
         encoder.string(self.schema.identity_text(self.schema.trait_name));
         encoder.package_identity(self.schema.trait_package_identity);
+        encoder.receiver_applications(&self.schema);
 
         let mut methods = self.schema.methods.iter().collect::<Vec<_>>();
         methods.sort_by(|left, right| {
@@ -481,6 +482,9 @@ impl ProviderPlan {
         }
         let mut hash = crate::fnv1a::Fnv1a::new();
         hash.bytes(rendered.as_bytes());
+        // Report coordinates distinguish exact applied receiver rosters too.
+        // This is still a compact coordinate, never an admission identity.
+        hash.bytes(self.schema.identity_digest().as_bytes());
         hash.finish()
     }
 
@@ -536,6 +540,12 @@ impl ProviderPlan {
     /// slot.
     pub fn validate_candidate_against_schema(&self) -> Vec<String> {
         let mut errors = Vec::new();
+        if let Err(reason) = self.schema.validate_receiver_applications() {
+            errors.push(format!(
+                "plan `{}` has an invalid applied receiver roster: {reason}",
+                self.name
+            ));
+        }
         if self.name.is_empty() {
             errors.push("provider plan has no exact selection name".to_owned());
         }

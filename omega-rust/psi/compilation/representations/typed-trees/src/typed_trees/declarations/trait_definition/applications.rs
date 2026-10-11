@@ -6,9 +6,93 @@
 
 use super::TraitDefinition;
 use crate::TypedTrees;
-use crate::type_identity::{NormalizedTypeIdentity, TypeIdentityRequest};
+use crate::type_identity::{
+    NormalizedTypeIdentity, TypeIdentityQualification, TypeIdentityRequest,
+};
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
+
+/// A borrowed reference and its remaining lexical scopes. Resolving a binder
+/// narrows the visible scopes before its compound argument is traversed: the
+/// argument's children must not see the telescope that argument replaces.
+/// This is invocation-local inspection, not an instantiated arena node.
+#[derive(Clone, Copy)]
+pub struct AppliedTypeReference<'scope> {
+    pub reference: TypeReferenceHandle,
+    substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &'scope [usize],
+}
+
+impl<'scope> AppliedTypeReference<'scope> {
+    pub fn child(self, program: &TypedTrees, reference: TypeReferenceHandle) -> Self {
+        project_type_reference(program, reference, self.substitutions, self.scope_starts)
+    }
+
+    pub fn type_identity(self, program: &TypedTrees) -> NormalizedTypeIdentity {
+        program.scoped_type_identity(
+            TypeIdentityRequest {
+                substitutions: self.substitutions,
+                ..TypeIdentityRequest::ordinary(self.reference)
+            },
+            self.scope_starts,
+        )
+    }
+
+    /// Applied array/constrained carriers take the resolved child's
+    /// multiplicity; nominal carriers keep the declaration's own judgment.
+    pub fn multiplicity(self, program: &TypedTrees) -> language_semantics::Multiplicity {
+        if !self.reference.is_valid() {
+            return language_semantics::Multiplicity::Affine;
+        }
+        match program.type_reference_table.type_reference(self.reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                self.child(program, *base_type).multiplicity(program)
+            }
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                self.child(program, *element_type).multiplicity(program)
+            }
+            _ => program.type_multiplicity(self.reference),
+        }
+    }
+}
+
+fn project_type_reference<'scope>(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+    substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &'scope [usize],
+) -> AppliedTypeReference<'scope> {
+    let mut visible = substitutions.len();
+    if reference.is_valid() {
+        while let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(reference)
+        {
+            let Some((ordinal, (_, replacement))) = substitutions[..visible]
+                .iter()
+                .enumerate()
+                .rev()
+                .find(|(_, (parameter, _))| parameter == symbol)
+            else {
+                break;
+            };
+            if *replacement == reference {
+                break;
+            }
+            visible = scope_starts
+                .iter()
+                .rev()
+                .find(|start| **start <= ordinal)
+                .copied()
+                .unwrap_or(0);
+            reference = *replacement;
+        }
+    }
+    AppliedTypeReference {
+        reference,
+        substitutions: &substitutions[..visible],
+        scope_starts: &scope_starts[..scope_starts.partition_point(|start| *start < visible)],
+    }
+}
 
 /// Invocation-local traversal storage, not a new durable compiler stage.
 #[derive(Clone)]
@@ -68,7 +152,20 @@ impl<'program> AppliedTraitScope<'program> {
         program: &TypedTrees,
         reference: TypeReferenceHandle,
     ) -> TypeReferenceHandle {
-        self.project_reference(program, reference, self.substitutions.len())
+        self.type_reference(program, reference).reference
+    }
+
+    pub fn type_reference(
+        &self,
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+    ) -> AppliedTypeReference<'_> {
+        project_type_reference(
+            program,
+            reference,
+            &self.substitutions,
+            &self.substitution_scope_starts,
+        )
     }
 
     /// Project one declaration binder through its outer scopes. A compound
@@ -94,42 +191,15 @@ impl<'program> AppliedTraitScope<'program> {
             .find(|start| **start <= ordinal)
             .copied()
             .unwrap_or(0);
-        self.project_reference(program, *reference, visible)
-    }
-
-    fn project_reference(
-        &self,
-        program: &TypedTrees,
-        mut reference: TypeReferenceHandle,
-        mut visible: usize,
-    ) -> TypeReferenceHandle {
-        if !reference.is_valid() {
-            return reference;
-        }
-        while let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(reference)
-        {
-            let Some((ordinal, (_, replacement))) = self.substitutions[..visible]
-                .iter()
-                .enumerate()
-                .rev()
-                .find(|(_, (parameter, _))| parameter == symbol)
-            else {
-                break;
-            };
-            if *replacement == reference {
-                break;
-            }
-            visible = self
+        project_type_reference(
+            program,
+            *reference,
+            &self.substitutions[..visible],
+            &self.substitution_scope_starts[..self
                 .substitution_scope_starts
-                .iter()
-                .rev()
-                .find(|start| **start <= ordinal)
-                .copied()
-                .unwrap_or(0);
-            reference = *replacement;
-        }
-        reference
+                .partition_point(|start| *start < visible)],
+        )
+        .reference
     }
 
     pub fn same_application(&self, program: &TypedTrees, other: &Self) -> bool {
@@ -138,34 +208,80 @@ impl<'program> AppliedTraitScope<'program> {
                 .trait_type_parameters(self.declaration)
                 .iter()
                 .all(|parameter| {
-                    let identity = |scope: &Self| {
-                        scope
-                            .substitutions
-                            .iter()
-                            .enumerate()
-                            .rev()
-                            .find(|(_, (binder, _))| *binder == parameter.symbol)
-                            .map(|(ordinal, (_, reference))| {
-                                let outer = scope
-                                    .substitution_scope_starts
-                                    .iter()
-                                    .rev()
-                                    .find(|start| **start <= ordinal)
-                                    .copied()
-                                    .unwrap_or(0);
-                                program.scoped_type_identity(
-                                    TypeIdentityRequest {
-                                        substitutions: &scope.substitutions[..outer],
-                                        ..TypeIdentityRequest::ordinary(*reference)
-                                    },
-                                    &scope.substitution_scope_starts[..scope
-                                        .substitution_scope_starts
-                                        .partition_point(|start| *start < outer)],
-                                )
-                            })
-                    };
-                    identity(self) == identity(other)
+                    self.parameter_identity(
+                        program,
+                        parameter.symbol,
+                        TypeIdentityQualification::Ordinary,
+                    ) == other.parameter_identity(
+                        program,
+                        parameter.symbol,
+                        TypeIdentityQualification::Ordinary,
+                    )
                 })
+    }
+
+    /// Normalize one actual argument in its outer lexical scopes, not in the
+    /// simultaneous telescope whose binder it replaces. A compound argument
+    /// needs this complete chain; projecting only its existing node loses the
+    /// inherited application. An open declaration keeps its own binder rigid.
+    pub fn parameter_identity(
+        &self,
+        program: &TypedTrees,
+        parameter: SymbolHandle,
+        qualification: TypeIdentityQualification,
+    ) -> NormalizedTypeIdentity {
+        let Some((request, scopes)) = self.parameter_identity_request(parameter, qualification)
+        else {
+            return program
+                .normalized_nominal_type_identity(parameter)
+                .unwrap_or_default();
+        };
+        program.scoped_type_identity(request, scopes)
+    }
+
+    /// Portable exact argument matching is unavailable when ordinary identity
+    /// erases regions or the argument remains an uninstantiated binder.
+    pub fn region_free_parameter_identity(
+        &self,
+        program: &TypedTrees,
+        parameter: SymbolHandle,
+        qualification: TypeIdentityQualification,
+    ) -> Option<NormalizedTypeIdentity> {
+        let (request, scopes) = self.parameter_identity_request(parameter, qualification)?;
+        program.region_free_scoped_type_identity(request, scopes)
+    }
+
+    fn parameter_identity_request(
+        &self,
+        parameter: SymbolHandle,
+        qualification: TypeIdentityQualification,
+    ) -> Option<(TypeIdentityRequest<'_>, &[usize])> {
+        let Some((ordinal, (_, reference))) = self
+            .substitutions
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, (binder, _))| *binder == parameter)
+        else {
+            return None;
+        };
+        let outer = self
+            .substitution_scope_starts
+            .iter()
+            .rev()
+            .find(|start| **start <= ordinal)
+            .copied()
+            .unwrap_or(0);
+        Some((
+            TypeIdentityRequest {
+                substitutions: &self.substitutions[..outer],
+                qualification,
+                ..TypeIdentityRequest::ordinary(*reference)
+            },
+            &self.substitution_scope_starts[..self
+                .substitution_scope_starts
+                .partition_point(|start| *start < outer)],
+        ))
     }
 
     /// Rejoin a declaring trait only when every reaching path agrees on its

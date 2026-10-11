@@ -587,6 +587,38 @@ impl TypedTrees {
         )
     }
 
+    /// The ordinary scoped identity only when its entire normalization path
+    /// encounters no explicit or elided region. This does not encode regions
+    /// portably: it refuses to treat their erased carrier as an exact applied
+    /// identity. The shared normalizer follows substitutions and materialized
+    /// nominal origins, so compound arguments cannot hide an erased region.
+    pub fn region_free_scoped_type_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+    ) -> Option<NormalizedTypeIdentity> {
+        if !self
+            .type_reference_table
+            .contains_type_reference(request.type_reference)
+        {
+            return None;
+        }
+        let encountered_regions = Cell::new(false);
+        let identity = normalize_type_reference(
+            self,
+            request.type_reference,
+            &TypeIdentityContext {
+                binders: request.binders,
+                substitutions: request.substitutions,
+                substitution_scope_starts: scope_starts,
+                encountered_regions: Some(&encountered_regions),
+                qualification: request.qualification,
+                ..TypeIdentityContext::default()
+            },
+        );
+        (!encountered_regions.get()).then(|| program_intern_type_identity(self, identity))
+    }
+
     fn type_identity_with_substitution_semantics(
         &self,
         request: TypeIdentityRequest<'_>,

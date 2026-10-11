@@ -159,6 +159,15 @@ and entry-state identity; readable method names are drift checks, not selectors.
 An external-binding projection retains calling/binding identity and order but
 grants no admission, selection, ABI, or execution authority of its own.
 
+An inherited receiver view stays beneath its selected whole conformance. It
+retains the exact package-owned trait application, including phantom arguments,
+and that application's complete original requirement roster. It is not another
+provider plan or a union of independently selected rows. A whole descendant
+choice can settle automatic ancestor selection only when the complete demanded
+application agrees; it cannot suppress a competing authored choice. Shared
+realizer code does not merge selecting owners. Erased runtime-carrier identities
+cannot establish agreement between region-bearing applications.
+
 Service schemas retain linear routed-parameter claims structurally: exact
 parameter/result subject, carrier-aware semantic domain, authority-flow verb
 such as `accepts`, carry policy, predicate discharge, and grant provenance.

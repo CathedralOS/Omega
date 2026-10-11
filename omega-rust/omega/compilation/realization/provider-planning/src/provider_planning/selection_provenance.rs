@@ -431,7 +431,41 @@ pub(crate) fn select_provider_plan_indices(
         }
     }
 
-    for slot_key in slot_keys {
+    // Authored whole choices settle before automatic slot inference. Among
+    // automatic choices, a descendant's complete roster settles first. A
+    // selected map can then supply an exact ancestor application without
+    // selecting another map or unioning rows. This order is semantic, not the
+    // alphabetical order of a trait's source name.
+    let authored = |key: &ProviderSelectionKey| {
+        resolved_requests
+            .iter()
+            .chain(&resolved_defaults)
+            .any(|(slot, _)| slot == key)
+    };
+    let roster_size = |key: &ProviderSelectionKey| {
+        plans
+            .iter()
+            .filter(|plan| provider_slot_key(plan) == *key && applies(&plan.target))
+            .map(|plan| plan.schema.receiver_applications.len())
+            .max()
+            .unwrap_or(0)
+    };
+    let mut pending_slots = slot_keys
+        .into_iter()
+        .map(|key| {
+            let is_authored = authored(&key);
+            let receiver_count = roster_size(&key);
+            (key, is_authored, receiver_count)
+        })
+        .collect::<Vec<_>>();
+    pending_slots.sort_by(|left, right| {
+        right
+            .1
+            .cmp(&left.1)
+            .then_with(|| right.2.cmp(&left.2))
+            .then_with(|| left.0.cmp(&right.0))
+    });
+    for (slot_key, _, _) in pending_slots {
         let slot_name = &slot_key.1;
         let explicit = resolved_requests
             .iter()
@@ -534,6 +568,29 @@ pub(crate) fn select_provider_plan_indices(
             continue;
         }
 
+        if !candidates.is_empty() {
+            let inherited = selected
+                .iter()
+                .filter(|selection| {
+                    let whole = &plans[selection.candidate];
+                    whole.covers_schema()
+                        && candidates.iter().all(|(_, candidate)| {
+                            whole.schema.supplies_receiver_schema(&candidate.schema)
+                        })
+                })
+                .collect::<Vec<_>>();
+            match inherited.as_slice() {
+                [_] => continue,
+                [] => {}
+                _ => {
+                    diagnostics.push(diagnostics::Diagnostic::error(format!(
+                        "slot `{slot_name}` is supplied by multiple selected whole provider maps; an inherited receiver must retain one choosing owner",
+                    )));
+                    continue;
+                }
+            }
+        }
+
         match covering.as_slice() {
             [] => {}
             [(candidate, _)] => selected.push(SelectedProviderPlanIndex {
@@ -552,6 +609,18 @@ pub(crate) fn select_provider_plan_indices(
                         .map(|(_, plan)| format!("`{}` [{:016x}]", plan.name, plan.report_fingerprint()))
                         .collect::<Vec<_>>()
                         .join(", "),
+                )));
+            }
+        }
+    }
+    for (position, selection) in selected.iter().enumerate() {
+        let whole = &plans[selection.candidate];
+        for other in &selected[..position] {
+            let other = &plans[other.candidate];
+            if whole.schema.shares_receiver_application(&other.schema) {
+                diagnostics.push(diagnostics::Diagnostic::error(format!(
+                    "selected whole provider maps `{}` and `{}` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners",
+                    whole.name, other.name,
                 )));
             }
         }

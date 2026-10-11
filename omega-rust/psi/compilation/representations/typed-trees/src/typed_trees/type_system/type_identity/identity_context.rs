@@ -22,6 +22,7 @@ pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) application_scopes: &'binders [super::AppliedTypeIdentityScope<'binders>],
     pub(crate) application_owner: SymbolHandle,
     pub(crate) invalid_application: Option<&'binders Cell<bool>>,
+    pub(crate) encountered_regions: Option<&'binders Cell<bool>>,
     pub(crate) binders: &'binders [(SymbolHandle, String)],
     pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
     pub(crate) substitution_scope_starts: &'binders [usize],
@@ -316,10 +317,20 @@ fn generic_reference_identity<'program>(
             base_symbol,
             base_name,
             arguments: origin_arguments,
-            ..
+            lifetime_arguments: origin_lifetimes,
         } = program.type_reference_table.type_reference(origin)
         && *base_symbol != symbol
     {
+        if let Some(encountered) = context.encountered_regions
+            && (!origin_lifetimes.is_empty()
+                || program
+                    .data_definition_by_symbol(*base_symbol)
+                    .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty()))
+        {
+            // This rewrite reads the origin's type operands without recursively
+            // normalizing the origin. Observe its erased regions here as well.
+            encountered.set(true);
+        }
         symbol = *base_symbol;
         name = base_name;
         arguments = *origin_arguments;
@@ -428,6 +439,40 @@ pub(crate) fn normalize_type_reference(
     type_reference: TypeReferenceHandle,
     context: &TypeIdentityContext<'_>,
 ) -> String {
+    // Ordinary identities erase regions. A consumer needing a portable exact
+    // application may ask whether normalization encountered any such erasure,
+    // including lifetime-only materialized nominals and elided references.
+    if let Some(encountered) = context.encountered_regions {
+        let has_regions = match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { .. } => true,
+            TypeReferenceNode::Generic {
+                base_symbol,
+                lifetime_arguments,
+                ..
+            } => {
+                !lifetime_arguments.is_empty()
+                    || program
+                        .data_definition_by_symbol(*base_symbol)
+                        .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
+                    || program
+                        .trait_definition_by_symbol(*base_symbol)
+                        .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
+            }
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::DynamicTrait { symbol, .. } => {
+                program
+                    .data_definition_by_symbol(*symbol)
+                    .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
+                    || program
+                        .trait_definition_by_symbol(*symbol)
+                        .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
+            }
+            _ => false,
+        };
+        if has_regions {
+            encountered.set(true);
+        }
+    }
     let operand_owner = program
         .type_reference_table
         .operand_lifetime_owner(type_reference);

@@ -2726,9 +2726,18 @@ crash and native exit behavior.
     `targets/selected_family_exclusion_closure_exit` through both engines;
     selected traps and actual service invocations must still reject exclusions.
     Distinct tagged native realizations with their actual ABI/entry backing
-    remain to be demonstrated from that same artifact and companion. Generic
-    and inherited application rosters must retain whole selected interfaces;
-    missing checked coordinates must refuse, never narrow the selected plan.
+    remain to be demonstrated from that same artifact and companion. Preserve
+    `targets/runtime_target_inherited_named_provider_defaults_exit` through
+    both engines and its unchanged-artifact macOS/Windows outcomes, with the
+    competing authored-map, phantom-argument and erased-region rejection controls.
+    Finite inherited rosters remain incomplete: run
+    `omega run --both tests/omega/pending/targets/runtime_target_inherited_provider_roster_exit/main.omg`
+    on macOS. Its Count4/8 requirement currently lacks a checked boundary plan
+    at Terminal production. Finish the ordinary checked boundary/application
+    coordinates and complete named-map family specialization; do not omit the
+    generic requirement or narrow the selected interface. Applied ancestor
+    binding dispatch and region-bearing receiver identities still need their
+    retained exact application joins, not erased carrier matching.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.
 

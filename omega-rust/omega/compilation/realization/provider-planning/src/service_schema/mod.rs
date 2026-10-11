@@ -7,6 +7,8 @@
 //! exact symbol, paired with package identity. An authored leaf is not unique
 //! even inside one package; replay must use the same projection as derivation.
 
+mod applied_receivers;
+
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::planning_context::ProviderPlanningContext;
 use effects::provider_plan::{
@@ -14,6 +16,7 @@ use effects::provider_plan::{
     ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
     ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
 };
+use typed_trees::trait_definition::{AppliedTraitScope, AppliedTypeReference};
 
 /// Whether retained declaration provenance belongs to the product frontier.
 /// Build copies cannot supply final product plans even when package and names
@@ -38,9 +41,9 @@ pub fn from_typed(
     from_typed_instance(context, calling_plans, trait_definition, &[])
 }
 
-/// Reify one concrete generic boundary instance. The argument tuple is
-/// semantic input only for resolving evaluated calling-plan identity;
-/// policy type/source names remain absent from the published schema.
+/// Reify one concrete boundary application. Canonical argument identities pin
+/// its receiver views, including phantom arguments; source spellings do not.
+/// Evaluated calling-plan commitments remain separate realization evidence.
 pub(crate) fn from_typed_instance(
     context: ProviderPlanningContext<'_>,
     calling_plans: &[BoundaryCallingPlanRealization],
@@ -52,24 +55,33 @@ pub(crate) fn from_typed_instance(
         return None;
     }
     let mut methods = Vec::new();
-    let mut visited = Vec::new();
     let mut identities = ProviderIdentityTable::default();
-    collect_service_methods(
-        program,
-        calling_plans,
-        trait_definition,
-        trait_definition.symbol,
-        boundary_arguments,
-        &mut visited,
-        &mut methods,
-        &mut identities,
-    );
+    let root = if boundary_arguments.is_empty() {
+        AppliedTraitScope::abstract_scope(trait_definition)
+    } else {
+        AppliedTraitScope::new(program, trait_definition, boundary_arguments)?
+    };
+    let scopes = applied_receivers::collect_scopes(program, root)?;
+    for scope in scopes.iter().rev() {
+        collect_service_methods(
+            program,
+            calling_plans,
+            scope,
+            trait_definition.symbol,
+            boundary_arguments,
+            &mut methods,
+            &mut identities,
+        );
+    }
+    let receiver_applications =
+        applied_receivers::receiver_applications(program, &scopes, &mut identities)?;
     Some(ServiceSchema {
         trait_name: identities.intern(&program.trait_declaration_path(trait_definition)),
         trait_package_identity: program
             .symbols
             .symbol_package_identity(trait_definition.symbol),
         identities,
+        receiver_applications,
         methods,
     })
 }
@@ -91,6 +103,7 @@ pub fn from_typed_operator(
         .intern(&typed_trees::operator::boundary_operator_requirement_identity(program, operator));
     Some(ServiceSchema {
         trait_name: requirement_identity,
+        receiver_applications: Vec::new(),
         trait_package_identity: program.symbols.symbol_package_identity(operator.symbol),
         methods: vec![ServiceMethod {
             completion: validation::boundary_requirement_completion(program, operator.symbol),
@@ -247,6 +260,7 @@ pub fn from_typed_boundary_requirement(
             identities.intern(&requirement_path)
         },
         trait_package_identity: package_identity,
+        receiver_applications: Vec::new(),
         methods: vec![ServiceMethod {
             completion: validation::boundary_requirement_completion(program, requirement.symbol),
             name: method_name.to_owned(),
@@ -287,34 +301,13 @@ pub fn from_typed_boundary_requirement(
 fn collect_service_methods(
     program: &typed_trees::TypedTrees,
     calling_plans: &[BoundaryCallingPlanRealization],
-    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    scope: &AppliedTraitScope<'_>,
     policy_owner: symbols::SymbolHandle,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
-    visited: &mut Vec<symbols::SymbolHandle>,
     methods: &mut Vec<ServiceMethod>,
     identities: &mut ProviderIdentityTable,
 ) {
-    if visited.contains(&trait_definition.symbol) {
-        return;
-    }
-    visited.push(trait_definition.symbol);
-
-    for requirement in program.trait_requirements(trait_definition) {
-        let Some(parent) = program.trait_definition_by_symbol(requirement.symbol) else {
-            continue;
-        };
-        collect_service_methods(
-            program,
-            calling_plans,
-            parent,
-            policy_owner,
-            boundary_arguments,
-            visited,
-            methods,
-            identities,
-        );
-    }
-
+    let trait_definition = scope.declaration;
     for signature in program.trait_machine_signatures(trait_definition) {
         let requirement_identity = identities
             .intern(&program.trait_requirement_callable_identity_text(trait_definition, signature));
@@ -342,20 +335,29 @@ fn collect_service_methods(
                 .state_signature_parameters(signature)
                 .iter()
                 .map(|parameter| {
-                    identities
-                        .intern(&program.normalized_type_identity_text(parameter.type_reference))
+                    identities.intern(
+                        &program
+                            .type_identity_text(
+                                scope.type_identity(program, parameter.type_reference),
+                            )
+                            .unwrap_or_default(),
+                    )
                 })
                 .collect(),
-            entry_claims: service_entry_claims(program, trait_definition, signature, identities),
+            entry_claims: service_entry_claims(program, scope, signature, identities),
             has_result: signature.return_type.is_valid(),
             result_type_identity: signature
                 .return_type
                 .is_valid()
                 .then(|| {
-                    identities.intern(&program.normalized_type_identity_text(signature.return_type))
+                    identities.intern(
+                        &program
+                            .type_identity_text(scope.type_identity(program, signature.return_type))
+                            .unwrap_or_default(),
+                    )
                 })
                 .unwrap_or_default(),
-            result_claims: service_result_claims(program, trait_definition, signature, identities),
+            result_claims: service_result_claims(program, scope, signature, identities),
             service_reach: service_reach_names(program, trait_definition, signature),
             synchronous_invocations: synchronous_invocation_names(program, signature),
             may_suspend: signature.suspends,
@@ -488,7 +490,7 @@ fn service_progress_establishment_routes(
 
 fn service_entry_claims(
     program: &typed_trees::TypedTrees,
-    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    scope: &AppliedTraitScope<'_>,
     signature: &typed_trees::signature::StateSignature,
     identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceEntryClaim> {
@@ -498,16 +500,15 @@ fn service_entry_claims(
         .iter()
         .enumerate()
     {
-        if program.type_multiplicity(parameter.type_reference)
-            != language_semantics::Multiplicity::Linear
-        {
+        let reference = scope.type_reference(program, parameter.type_reference);
+        if reference.multiplicity(program) != language_semantics::Multiplicity::Linear {
             continue;
         }
         append_routed_entry_claims(
             program,
-            parameter.type_reference,
+            reference,
             parameter_index,
-            trait_definition.symbol,
+            scope.declaration.symbol,
             signature.symbol,
             identities,
             &mut claims,
@@ -533,21 +534,21 @@ fn service_entry_claims(
 
 fn service_result_claims(
     program: &typed_trees::TypedTrees,
-    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    scope: &AppliedTraitScope<'_>,
     signature: &typed_trees::signature::StateSignature,
     identities: &mut ProviderIdentityTable,
 ) -> Vec<ServiceResultClaim> {
-    if !signature.return_type.is_valid()
-        || program.type_multiplicity(signature.return_type)
-            != language_semantics::Multiplicity::Linear
+    let reference = scope.type_reference(program, signature.return_type);
+    if !reference.reference.is_valid()
+        || reference.multiplicity(program) != language_semantics::Multiplicity::Linear
     {
         return Vec::new();
     }
     let mut claims = Vec::new();
     append_bodyless_result_claims(
         program,
-        signature.return_type,
-        trait_definition.symbol,
+        reference,
+        scope.declaration.symbol,
         signature.symbol,
         identities,
         &mut claims,
@@ -559,7 +560,7 @@ fn service_result_claims(
 
 fn append_bodyless_result_claims(
     program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    reference: AppliedTypeReference<'_>,
     boundary_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
     identities: &mut ProviderIdentityTable,
@@ -567,11 +568,14 @@ fn append_bodyless_result_claims(
 ) {
     use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
-    match program.type_reference_table.type_reference(type_reference) {
+    match program
+        .type_reference_table
+        .type_reference(reference.reference)
+    {
         TypeReferenceNode::Reference { referee, .. } => {
             append_bodyless_result_claims(
                 program,
-                *referee,
+                reference.child(program, *referee),
                 boundary_trait,
                 requirement,
                 identities,
@@ -584,7 +588,7 @@ fn append_bodyless_result_claims(
         } => {
             append_bodyless_result_claims(
                 program,
-                *base_type,
+                reference.child(program, *base_type),
                 boundary_trait,
                 requirement,
                 identities,
@@ -625,7 +629,7 @@ fn append_bodyless_result_claims(
 
 fn append_routed_entry_claims(
     program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    reference: AppliedTypeReference<'_>,
     parameter_index: usize,
     boundary_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
@@ -634,11 +638,14 @@ fn append_routed_entry_claims(
 ) {
     use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
-    match program.type_reference_table.type_reference(type_reference) {
+    match program
+        .type_reference_table
+        .type_reference(reference.reference)
+    {
         TypeReferenceNode::Reference { referee, .. } => {
             append_routed_entry_claims(
                 program,
-                *referee,
+                reference.child(program, *referee),
                 parameter_index,
                 boundary_trait,
                 requirement,
@@ -652,7 +659,7 @@ fn append_routed_entry_claims(
         } => {
             append_routed_entry_claims(
                 program,
-                *base_type,
+                reference.child(program, *base_type),
                 parameter_index,
                 boundary_trait,
                 requirement,
@@ -676,8 +683,13 @@ fn append_routed_entry_claims(
                 {
                     claims.push(ServiceEntryClaim {
                         parameter_index,
-                        carrier_identity: identities
-                            .intern(&program.normalized_type_identity_text(*base_type)),
+                        carrier_identity: identities.intern(
+                            &program
+                                .type_identity_text(
+                                    reference.child(program, *base_type).type_identity(program),
+                                )
+                                .unwrap_or_default(),
+                        ),
                         domain: domain
                             .semantic_id
                             .is_valid()

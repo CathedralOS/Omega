@@ -8,7 +8,7 @@ use effects::provider_plan::{
     BoundaryCallingPlanCommitment, ProviderIdentityTable, ProviderPlanDigest,
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
     ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
-    ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
+    ServiceReceiverApplication, ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
 };
 use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
@@ -27,9 +27,9 @@ use package_compilation::{
 use semantic_vocabulary::PackageKeyIdentity;
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-// Usage now carries an explicit engine/fuel/storage identity. Untagged older
-// cache rows cannot silently reuse a different engine resource schedule.
-const RECORD_VERSION: u16 = 6;
+// Schemas retain exact applied receiver rosters. Older records cannot license
+// an inherited view by omitting its application and complete requirements.
+const RECORD_VERSION: u16 = 7;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -468,6 +468,27 @@ fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
         out,
         |identity, out| encode_identity(*identity, out),
     );
+    crate::codec_bytes::push_encoded(
+        out,
+        (schema.receiver_applications.len() as u64).to_le_bytes(),
+    );
+    for application in &schema.receiver_applications {
+        encode_string(schema.identity_text(application.trait_name), out);
+        encode_optional(
+            application.trait_package_identity.as_ref(),
+            out,
+            |identity, out| encode_identity(*identity, out),
+        );
+        for roster in [
+            &application.argument_identities,
+            &application.requirement_identities,
+        ] {
+            crate::codec_bytes::push_encoded(out, (roster.len() as u64).to_le_bytes());
+            for identity in roster {
+                encode_string(schema.identity_text(*identity), out);
+            }
+        }
+    }
     crate::codec_bytes::push_encoded(out, (schema.methods.len() as u64).to_le_bytes());
     for method in &schema.methods {
         encode_service_method(method, &schema.identities, out);
@@ -479,6 +500,18 @@ fn recover_service_schema(cursor: &mut ObservationCursor<'_>) -> Option<ServiceS
     Some(ServiceSchema {
         trait_name: identities.intern(cursor_string(cursor)?),
         trait_package_identity: recover_optional(cursor, recover_identity)?,
+        receiver_applications: cursor_vec(cursor, |cursor| {
+            Some(ServiceReceiverApplication {
+                trait_name: identities.intern(cursor_string(cursor)?),
+                trait_package_identity: recover_optional(cursor, recover_identity)?,
+                argument_identities: cursor_vec(cursor, |cursor| {
+                    Some(identities.intern(cursor_string(cursor)?))
+                })?,
+                requirement_identities: cursor_vec(cursor, |cursor| {
+                    Some(identities.intern(cursor_string(cursor)?))
+                })?,
+            })
+        })?,
         methods: cursor_vec(cursor, |cursor| {
             recover_service_method(cursor, &mut identities)
         })?,
@@ -844,6 +877,12 @@ mod tests {
         let u32_type_identity = identities.intern("omega.core.u32");
         let schema = ServiceSchema {
             trait_name,
+            receiver_applications: vec![ServiceReceiverApplication {
+                trait_name,
+                trait_package_identity: None,
+                argument_identities: vec![u32_type_identity],
+                requirement_identities: vec![alpha, beta, requirement_identity],
+            }],
             identities,
             trait_package_identity: None,
             methods: vec![ServiceMethod {

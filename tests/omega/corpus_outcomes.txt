@@ -2319,6 +2319,12 @@ fail/providers/consuming_requirement_without_provider rejected 6663ms expected @
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 fail/providers/foreign_address_fixed_carrier_mismatch rejected 520ms expected @365e35212c0c
 	provider machine `Imports::release` for top-level boundary requirement `AddressProbe::release` parameter 0 expects `pointer: addr`, got `pointer: u64`
+fail/providers/inherited_provider_competing_authored_maps rejected 906ms expected @d4d7634f9912+wt
+	selected whole provider maps `<selected target>::ParentMap::satisfies::Parent` and `<selected target>::ChildMap::satisfies::Child` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
+fail/providers/inherited_provider_erased_regions rejected 891ms expected @d4d7634f9912+wt
+	slot `Parent` has two covering provider plans for the selected target: `<selected target>::FirstParentMap::satisfies::Parent` [<fingerprint>], `<selected target>::SecondParentMap::satisfies::Parent` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<Parent, ProviderType>(b);`
+fail/providers/inherited_provider_phantom_arguments rejected 808ms expected @d4d7634f9912+wt
+	slot `Parent` has two covering provider plans for the selected target: `<selected target>::FirstBoolMap::satisfies::Parent` [<fingerprint>], `<selected target>::SecondBoolMap::satisfies::Parent` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<Parent, ProviderType>(b);`
 fail/providers/named_provider_wrong_requirement_owner rejected 18ms expected @693920652f41
 	closed conformance `WrongProvider satisfies CounterOperations` has no inherited requirement slot `OtherOperations::read`
 fail/providers/nested_binding_missing_establishment rejected 93091ms expected @6289e072ebd6
