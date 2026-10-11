@@ -1,0 +1,28 @@
+// Requires specialization to stay through the provider selection pipeline,
+// not only through an exact fixed-token use: the generic default adapter
+// selects one specialized concrete local provider whose own receiver-fixed
+// call reaches the selected checked provider.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data IntegerMath {}
+
+data IntegerMathProvider {}
+
+machine IntegerMathProvider::modulo(generic: IntegerMath, left: i32, right: i32) -> i32
+satisfies IntegerMath::modulo
+requires right >= 1
+{
+    left % right
+}
+
+boundary machine % IntegerMath::modulo(receiver: IntegerMath, left: i32, right: i32) -> i32
+requires right >= 1;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main)
+reaches Console
+{
+    main.console.exit_process((70 as i32) % (1 as i32));
+}

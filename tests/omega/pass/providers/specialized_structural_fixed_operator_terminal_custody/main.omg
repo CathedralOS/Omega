@@ -30,4 +30,8 @@ machine exercise(items: Buffer<i32, 4>, position: Position) -> bool {
     items[position]
 }
 
-machine main() {}
+machine main() {
+    let items: Buffer<i32, 4> = Buffer { value: 0 };
+    let position: Position = Position {};
+    let selected: bool = exercise(items, position);
+}
