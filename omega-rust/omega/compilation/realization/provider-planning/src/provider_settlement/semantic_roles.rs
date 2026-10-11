@@ -1,5 +1,8 @@
-//! Accepted package roles enter source checking before provider selection.
-//! Discovery cannot rewrite a completed source judgment to match a provider.
+//! Package completion roles enter source checking before provider selection.
+//! Confined review may nominate a portable declaration, but it must join that
+//! same declaration to a complete provider proposal before review can continue.
+//! Ordinary compilation admits only consumer-accepted roles. Neither route
+//! rewrites checked source to match a selected provider.
 
 use crate::{ProviderSchemaDeclaration, SelectedProviderPlanWithProvenance};
 use checked_trees::typed_trees::{BoundaryCompletionDeclaration, TypedTrees};
@@ -21,6 +24,9 @@ pub fn prepare_source_completion(
     let Some(binding) = inputs.and_then(|inputs| {
         inputs.accepted_semantic_binding(AcceptedSemanticBindingRole::ConsoleExitProcessI32)
     }) else {
+        if inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery) {
+            nominate_source_completion(typed)?;
+        }
         return Ok(());
     };
     let declarations = typed
@@ -48,15 +54,75 @@ pub fn prepare_source_completion(
     Ok(())
 }
 
-/// Discovery cannot change the source judgment to fit a selected provider.
-/// A new completion meaning must enter through source admission before checking.
+/// Review requested source-role discovery explicitly. Names nominate an inert
+/// review subject, never an accepted binding. The exact source declaration is
+/// fixed before checking and before any target chooses a provider. Package
+/// review subsequently recompiles with the full proposed schema/plan binding;
+/// execution still requires consumer policy acceptance.
+fn nominate_source_completion(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let declarations = typed
+        .traits()
+        .iter()
+        .filter_map(|definition| {
+            if !crate::service_schema::is_product_declaration(typed, definition.symbol)
+                || typed.symbols.display_path(definition.symbol, "::") != "Console"
+            {
+                return None;
+            }
+            let package = typed.symbols.symbol_package_identity(definition.symbol)?;
+            let declaration = completion_declaration(typed, definition.symbol, package)?;
+            has_external_source_candidate(typed, &declaration).then_some(declaration)
+        })
+        .collect::<Vec<_>>();
+    if declarations.len() > 1 {
+        return Err(vec![Diagnostic::error(
+            "completion role discovery has multiple package-owned source declarations",
+        )]);
+    }
+    for declaration in declarations {
+        let _ = typed.boundary_completion_declarations.append(declaration);
+    }
+    Ok(())
+}
+
+/// A same-named service implemented entirely by ordinary returning bodies is
+/// not an exit-role review subject. Nomination considers the complete authored
+/// external-supply roster, never a target-selected implementation or ABI. This
+/// only selects a provisional review subject; settlement must still join an
+/// actual external realization and ordinary compilation requires acceptance.
+fn has_external_source_candidate(
+    typed: &TypedTrees,
+    declaration: &BoundaryCompletionDeclaration,
+) -> bool {
+    typed.machines().iter().any(|machine| {
+        !machine.body_is_present
+            && matches!(
+                machine.supply_mode,
+                language_semantics::MachineSupplyMode::Boundary
+                    | language_semantics::MachineSupplyMode::ExternalRealization { .. }
+            )
+            && crate::service_schema::is_product_declaration(typed, machine.symbol)
+            && typed.symbols.symbol_package_identity(machine.symbol) == declaration.package
+            && typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .any(|conformance| {
+                    checked_trees::typed_trees::machine::resolve_satisfied_declaration(
+                        typed,
+                        machine,
+                        conformance,
+                    )
+                    .is_some_and(|requirement| requirement.symbol() == declaration.requirement)
+                })
+    })
+}
+
+/// Rejoin every provisional source role to its exact selected realization.
+/// This validates the proposal without changing any completed source judgment.
 pub(super) fn validate_proposed(
     typed: &TypedTrees,
     selected: &[SelectedProviderPlanWithProvenance],
 ) -> Result<(), Vec<Diagnostic>> {
-    if !typed.boundary_completion_declarations.is_empty() {
-        return Ok(());
-    }
     let mut declarations = Vec::new();
     for selected in selected {
         let plan = &selected.derived.plan;
@@ -77,19 +143,29 @@ pub(super) fn validate_proposed(
         let Some(declaration) = completion_declaration(typed, owner, package) else {
             continue;
         };
-        let has_external_row = plan.rows.iter().enumerate().any(|(index, row)| {
-            matches!(
-                row.binding,
-                ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Import { .. }
-            ) && provenance.row_requirements.get(index) == Some(&declaration.requirement)
-                && provenance
-                    .row_realizations
-                    .get(index)
-                    .is_some_and(|realization| {
-                        typed.symbols.symbol_package_identity(*realization) == Some(package)
-                    })
-        });
-        if has_external_row {
+        let external_rows = plan
+            .rows
+            .iter()
+            .enumerate()
+            .filter(|(index, row)| {
+                matches!(
+                    row.binding,
+                    ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Import { .. }
+                ) && provenance.row_requirements.get(*index) == Some(&declaration.requirement)
+                    && provenance
+                        .row_realizations
+                        .get(*index)
+                        .is_some_and(|realization| {
+                            typed.symbols.symbol_package_identity(*realization) == Some(package)
+                        })
+            })
+            .count();
+        if external_rows > 1 {
+            return Err(vec![Diagnostic::error(
+                "completion role discovery has multiple realizations for one source requirement",
+            )]);
+        }
+        if external_rows == 1 {
             declarations.push(declaration);
         }
     }
@@ -98,9 +174,23 @@ pub(super) fn validate_proposed(
             "completion role discovery has multiple selected package-owned Console declarations",
         )]);
     }
-    if !declarations.is_empty() {
+    let proposals = typed
+        .boundary_completion_declarations
+        .iter()
+        .map(|(_, declaration)| declaration)
+        .collect::<Vec<_>>();
+    if proposals.len() != declarations.len()
+        || proposals.iter().any(|proposal| {
+            !declarations.iter().any(|declaration| {
+                proposal.package == declaration.package
+                    && proposal.owner == declaration.owner
+                    && proposal.requirement == declaration.requirement
+                    && proposal.completion == declaration.completion
+            })
+        })
+    {
         return Err(vec![Diagnostic::error(
-            "unimplemented: portable completion-role discovery; selected providers cannot change a checked source contract",
+            "completion role discovery does not match the exact source declaration and selected realization",
         )]);
     }
     Ok(())
