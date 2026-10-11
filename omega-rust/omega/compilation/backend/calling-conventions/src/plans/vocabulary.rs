@@ -288,7 +288,10 @@ pub enum ValueLocation {
     /// A value passed indirectly through a pointer. Parameters larger than the
     /// ABI's direct-value ceiling carry a pointer to a caller-owned stack copy;
     /// large results carry a pointer to their final caller-owned destination
-    /// and therefore have no copy slot.
+    /// and therefore have no copy slot. The copy offset starts a reserved
+    /// interval; over-aligned values round the absolute address upward inside
+    /// it. Reservation includes `alignment - stack_alignment` padding when
+    /// positive, not just payload bytes.
     Indirect {
         pointer: IndirectPointerLocation,
         copy_stack_byte_offset: Option<u32>,

@@ -267,6 +267,7 @@ pass/calls/by_value_case_param_self_write_exit built 654ms exit:70
 pass/calls/callback_borrowed_record_entry built 5541ms exit:0 @588499422fe3+wt
 pass/calls/callback_future_registration_cycle built 5800ms exit:0 @12953abbc60f+wt
 pass/calls/callback_mixed_formal_entry built 5383ms exit:0 @8ca55c8e7e42+wt
+pass/calls/callback_owned_overaligned_record built 6097ms exit:0 @559de7cca73d
 pass/calls/callback_private_materialization rejected 3342ms @693920652f41
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/caller_result_binding_mutable_loan_exit built 555ms exit:70 @0e894def985b+wt
@@ -328,6 +329,7 @@ pass/calls/nested_subject_call_operand checked 722ms @9beb2be72f2d+wt
 pass/calls/nested_value_call_arg_compile built 1695ms exit:1 @bed5f45e9185+wt
 pass/calls/ordered_field_selector_calls_exit built 902ms exit:70 @e3012d6c0627+wt
 pass/calls/owned_indirect_argument_complete_forwarding_exit built 1724ms exit:0 @65e8a0783b05
+pass/calls/owned_mixed_overaligned_call built 5704ms exit:0 @559de7cca73d
 pass/calls/owned_state_parameter_call_exit built 512ms exit:70 @4ecfdc78f8c7+wt
 pass/calls/private_callback_call_closure built 5765ms exit:0 stdout:match stderr:match @0b802d0a8717+wt
 pass/calls/qualified_record_call_result_field_exit built 1818ms exit:70 @33d47d475b22+wt

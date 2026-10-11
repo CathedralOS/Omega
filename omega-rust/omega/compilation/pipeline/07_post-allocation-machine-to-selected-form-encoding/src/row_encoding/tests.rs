@@ -223,6 +223,7 @@ fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
             base_operand: 0,
             byte_offset: 0,
         },
+        frame_alignment_bytes: 1,
         displacement: 0,
     });
     assert!(matches!(
@@ -276,6 +277,7 @@ fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
             base_operand: 0,
             byte_offset: 0,
         },
+        frame_alignment_bytes: 1,
         displacement: 0,
     });
     assert!(matches!(

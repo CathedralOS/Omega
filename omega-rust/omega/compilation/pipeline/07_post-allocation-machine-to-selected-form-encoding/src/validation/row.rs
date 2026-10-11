@@ -83,6 +83,21 @@ pub(crate) fn validate(
                         address.displacement,
                         bytes,
                     )
+                } else if matches!(
+                    kind,
+                    SelectedInstructionKind::FrameAddress { .. }
+                        | SelectedInstructionKind::Store64 { .. }
+                ) {
+                    isa_aarch64::validate_aarch64_selected_frame_form(
+                        physical,
+                        kind,
+                        machine.alternative.key,
+                        &operand_views(machine),
+                        u32::try_from(address.displacement)
+                            .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?,
+                        address.frame_alignment_bytes,
+                        bytes,
+                    )
                 } else {
                     isa_aarch64::validate_aarch64_selected_memory_form(
                         physical,

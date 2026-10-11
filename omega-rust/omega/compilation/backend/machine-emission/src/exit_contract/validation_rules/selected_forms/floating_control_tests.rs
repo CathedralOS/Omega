@@ -67,6 +67,7 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
                 } else {
                     PhysicalAddressOperation::SaveFloatingControl { slot }
                 },
+                frame_alignment_bytes: 1,
                 displacement: 16,
             }),
             state: SelectedFormEncodingState::Encoded,

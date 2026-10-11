@@ -9,6 +9,9 @@
 //! Owned indirect values copy their complete bytes into this frame; their ABI
 //! pointer never becomes a loan. The inbound caller's result pointer is saved
 //! before argument redistribution, separately from the internal result storage.
+//! Over-aligned owned homes reserve padding and align their absolute addresses
+//! inside the fixed ABI frame. Every snapshot access uses that same locator;
+//! offset alignment alone cannot establish a value's promised alignment.
 //! A differing clobber promise saves the internal call's additional writes;
 //! vector saves retain all 128 bits, not just the scalar transport lane. Published
 //! direct result registers are outputs, not incoming state to restore over them.
@@ -106,6 +109,7 @@ struct ValueTransport {
     source: ValueStorage,
     destination: ValueStorage,
     byte_size: u32,
+    alignment: u16,
     scalar_codec: u64,
 }
 
@@ -165,7 +169,7 @@ fn value_storage(placement: &ValuePlacement, byte_size: u32) -> Result<ValueStor
             },
         ] = placement.locations.as_slice()
     {
-        if *extent != byte_size || *alignment > 16 {
+        if *extent != byte_size || !alignment.is_power_of_two() {
             return Err(Error::UnsupportedValueTransport);
         }
         return Ok(ValueStorage::Indirect {
@@ -301,6 +305,11 @@ fn value_transport(
         source: value_storage(source, byte_size)?,
         destination: value_storage(destination, byte_size)?,
         byte_size,
+        alignment: if is_borrowed(destination.shape.class) {
+            8
+        } else {
+            destination.shape.alignment
+        },
         scalar_codec,
     })
 }
@@ -324,6 +333,42 @@ struct Encoding {
     model: ValidatedPhysicalRegisterModel,
     scratch: MachineRegister,
     address_scratch: MachineRegister,
+    aligned_homes: Vec<AlignedHome>,
+}
+
+struct AlignedHome {
+    offset: u32,
+    byte_size: u32,
+    alignment: u16,
+}
+
+fn allocate_home(
+    cursor: &mut u32,
+    byte_size: u32,
+    alignment: u16,
+    homes: &mut Vec<AlignedHome>,
+) -> Result<u32, Error> {
+    if !alignment.is_power_of_two() {
+        return Err(Error::UnsupportedValueTransport);
+    }
+    let base_alignment = u32::from(alignment.clamp(8, 16));
+    *cursor = cursor
+        .checked_add(base_alignment - 1)
+        .map(|offset| offset & !(base_alignment - 1))
+        .ok_or(Error::FrameOverflow)?;
+    let offset = *cursor;
+    *cursor = cursor
+        .checked_add(byte_size)
+        .and_then(|end| end.checked_add(u32::from(alignment.saturating_sub(16))))
+        .ok_or(Error::FrameOverflow)?;
+    if alignment > 16 {
+        homes.push(AlignedHome {
+            offset,
+            byte_size,
+            alignment,
+        });
+    }
+    Ok(offset)
 }
 
 impl Encoding {
@@ -373,6 +418,30 @@ impl Encoding {
         } else {
             self.view(register)?
         };
+        if let Some(home) = self
+            .aligned_homes
+            .iter()
+            .find(|home| offset >= home.offset && offset - home.offset < home.byte_size)
+        {
+            if offset - home.offset + u32::from(size) > home.byte_size
+                || (!load && register == self.address_scratch)
+                || self.architecture != Architecture::Aarch64
+            {
+                return Err(Error::Encoding);
+            }
+            self.address_register(bytes, self.address_scratch, offset)?;
+            let encoded = isa_aarch64::encode_aarch64_pointer_memory(
+                &self.model,
+                view,
+                self.view(self.address_scratch)?,
+                0,
+                size,
+                load,
+            )
+            .map_err(|_| Error::Encoding)?;
+            bytes.extend_from_slice(&encoded);
+            return Ok(());
+        }
         let encoded = match self.architecture {
             Architecture::Aarch64 => isa_aarch64::encode_aarch64_frame_memory(
                 &self.model,
@@ -403,6 +472,25 @@ impl Encoding {
         offset: u32,
     ) -> Result<(), Error> {
         let view = self.view(register)?;
+        if let Some(home) = self
+            .aligned_homes
+            .iter()
+            .find(|home| offset >= home.offset && offset - home.offset < home.byte_size)
+        {
+            if self.architecture != Architecture::Aarch64 {
+                return Err(Error::Encoding);
+            }
+            let encoded = isa_aarch64::encode_aarch64_aligned_frame_address(
+                &self.model,
+                view,
+                home.offset,
+                home.alignment,
+                offset - home.offset,
+            )
+            .map_err(|_| Error::Encoding)?;
+            bytes.extend_from_slice(&encoded);
+            return Ok(());
+        }
         let encoded = match self.architecture {
             Architecture::Aarch64 => {
                 isa_aarch64::encode_aarch64_frame_address(&self.model, view, offset)
@@ -666,6 +754,7 @@ pub fn emit_native_entry_bridge(
     let mut transports = Vec::with_capacity(internal.parameters.len());
     let mut used_inbound = Vec::with_capacity(inbound.parameters.len());
     let mut cursor = u32::from(internal.shadow_bytes);
+    let mut aligned_homes = Vec::new();
     for (destination, (_, parameter)) in internal.parameters.iter().zip(request.parameters.iter()) {
         let ordinal =
             usize::try_from(parameter.inbound_ordinal).map_err(|_| Error::InvalidParameterJoin)?;
@@ -683,9 +772,24 @@ pub fn emit_native_entry_bridge(
             ..
         } = &transport.destination
         {
+            if transport.alignment > 16 {
+                if request.target.architecture != Architecture::Aarch64
+                    || !offset.is_multiple_of(16)
+                {
+                    return Err(Error::UnsupportedValueTransport);
+                }
+                aligned_homes.push(AlignedHome {
+                    offset: *offset,
+                    byte_size: transport.byte_size,
+                    alignment: transport.alignment,
+                });
+            }
             cursor = cursor.max(
                 offset
                     .checked_add(transport.byte_size)
+                    .and_then(|end| {
+                        end.checked_add(u32::from(transport.alignment.saturating_sub(16)))
+                    })
                     .ok_or(Error::FrameOverflow)?,
             );
         }
@@ -773,21 +877,29 @@ pub fn emit_native_entry_bridge(
         }
     }
     .map_err(|_| Error::Encoding)?;
-    let encoding = Encoding {
+    let mut encoding = Encoding {
         architecture: request.target.architecture,
         model,
         scratch: scratch_register,
         address_scratch,
+        aligned_homes,
     };
     let mut snapshots = Vec::with_capacity(transports.len());
     for transport in &transports {
-        if transport.source.is_indirect() || transport.destination.is_indirect() {
-            cursor = cursor
-                .checked_add(15)
-                .map(|value| value & !15)
-                .ok_or(Error::FrameOverflow)?;
+        let alignment = if transport.source.is_indirect() || transport.destination.is_indirect() {
+            transport.alignment.max(16)
+        } else {
+            8
+        };
+        if alignment > 16 && request.target.architecture != Architecture::Aarch64 {
+            return Err(Error::UnsupportedValueTransport);
         }
-        let snapshot = allocate_value(&mut cursor, transport.byte_size)?;
+        let snapshot = allocate_home(
+            &mut cursor,
+            transport.byte_size,
+            alignment,
+            &mut encoding.aligned_homes,
+        )?;
         let source_pointer = transport
             .source
             .is_indirect()
@@ -806,18 +918,24 @@ pub fn emit_native_entry_bridge(
             descriptor_offset: descriptor,
         });
     }
-    if result
-        .as_ref()
-        .is_some_and(|transport| transport.source.is_indirect())
-    {
-        cursor = cursor
-            .checked_add(15)
-            .map(|value| value & !15)
-            .ok_or(Error::FrameOverflow)?;
-    }
     let result_snapshot = result
         .as_ref()
-        .map(|transport| allocate_value(&mut cursor, transport.byte_size))
+        .map(|transport| {
+            let alignment = if transport.source.is_indirect() {
+                transport.alignment.max(16)
+            } else {
+                8
+            };
+            if alignment > 16 && request.target.architecture != Architecture::Aarch64 {
+                return Err(Error::UnsupportedValueTransport);
+            }
+            allocate_home(
+                &mut cursor,
+                transport.byte_size,
+                alignment,
+                &mut encoding.aligned_homes,
+            )
+        })
         .transpose()?;
     let caller_result_pointer = result
         .as_ref()

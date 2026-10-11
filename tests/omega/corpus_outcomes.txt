@@ -3467,6 +3467,7 @@ pass/calls/by_value_case_param_self_write_exit checked 1360ms check-target:macos
 pass/calls/callback_borrowed_record_entry checked 5567ms check-target:macos_arm64 @588499422fe3+wt
 pass/calls/callback_future_registration_cycle checked 5759ms check-target:macos_arm64 @12953abbc60f+wt
 pass/calls/callback_mixed_formal_entry checked 5458ms check-target:macos_arm64 @8ca55c8e7e42+wt
+pass/calls/callback_owned_overaligned_record checked 6463ms check-target:macos_arm64 @559de7cca73d
 pass/calls/callback_private_materialization checked 5548ms check-target:windows_x86_64 @0684469a73d0
 pass/calls/caller_result_binding_mutable_loan_exit checked 1568ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/caller_structural_result_indexed_borrow_exit checked 763ms check-target:macos_arm64 @0f26891d973a+wt
@@ -3529,6 +3530,7 @@ pass/calls/nested_subject_call_operand checked 126ms @cb6b089b27de+wt
 pass/calls/nested_value_call_arg_compile checked 1255ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/ordered_field_selector_calls_exit checked 1986ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/owned_indirect_argument_complete_forwarding_exit checked 1748ms check-target:macos_arm64 @65e8a0783b05
+pass/calls/owned_mixed_overaligned_call checked 6057ms check-target:macos_arm64 @559de7cca73d
 pass/calls/owned_state_parameter_call_exit checked 1250ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/private_callback_call_closure checked 5805ms check-target:macos_arm64 @0b802d0a8717+wt
 pass/calls/qualified_record_call_result_field_exit checked 902ms check-target:macos_arm64 @e687de1f01bf

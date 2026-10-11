@@ -411,8 +411,9 @@ fn expected_size(
             StorePacked => resolved(24, 56),
             // Page steps past 16 MiB reach every `u32` displacement: 257
             // shifted steps and one remainder, or the store itself.
-            FrameAddress | AddressOffset => resolved(4, 1_032),
-            Store64 => resolved(8, 1_032),
+            AddressOffset => resolved(4, 1_032),
+            FrameAddress => resolved(4, 2_068),
+            Store64 => resolved(8, 2_072),
             Store | Load8Indexed | Load8 | Load16 | Load32 | Load64 => {
                 MachineSizeKnowledge::ExactBytes(4)
             }

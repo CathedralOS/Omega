@@ -55,8 +55,8 @@ pub use floating_control::{
 };
 pub use frame_protocol::{
     Aarch64FrameProtocolError, Aarch64FrameSlot, Aarch64StackProbe, encode_aapcs64_frame_protocol,
-    encode_aarch64_frame_address, encode_aarch64_frame_memory, encode_aarch64_integer_constant,
-    encode_aarch64_pointer_memory,
+    encode_aarch64_aligned_frame_address, encode_aarch64_frame_address,
+    encode_aarch64_frame_memory, encode_aarch64_integer_constant, encode_aarch64_pointer_memory,
 };
 pub use machine_effects::{
     Aarch64MachineEffectCatalogValidationError, aarch64_machine_effect_catalog,
@@ -152,11 +152,12 @@ pub use selected_form_encoding::{
 pub use selected_form_encoding::encode_aarch64_selected_floating_control_form;
 
 pub use selected_form_encoding::{
-    encode_aarch64_selected_hosted_write_byte_form,
-    validate_aarch64_selected_hosted_write_byte_form,
+    encode_aarch64_selected_frame_form, encode_aarch64_selected_memory_form,
+    validate_aarch64_selected_frame_form, validate_aarch64_selected_memory_form,
 };
 pub use selected_form_encoding::{
-    encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form,
+    encode_aarch64_selected_hosted_write_byte_form,
+    validate_aarch64_selected_hosted_write_byte_form,
 };
 
 pub use register_model::{AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32, AARCH64_HOSTED_EXIT_PROCESS_I32};

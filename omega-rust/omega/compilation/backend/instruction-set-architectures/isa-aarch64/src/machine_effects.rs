@@ -808,7 +808,11 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         // One page step reaches 16 MiB; each further 4095 pages adds a step.
         MachineSemanticKind::Store64 => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 8,
-            maximum_bytes: Some(crate::immediate_offset::MAX_STORE64_BYTES),
+            maximum_bytes: Some(
+                crate::immediate_offset::MAX_STORE64_BYTES
+                    + crate::immediate_offset::MAX_ADDRESS_BYTES
+                    + 8,
+            ),
         },
         MachineSemanticKind::CopyBytes => MachineSizeKnowledge::ExactBytes(28),
         MachineSemanticKind::ZeroBytes => MachineSizeKnowledge::ExactBytes(24),
@@ -874,12 +878,14 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         ),
         // One unshifted `add` inside the first page; shifted page steps and
         // the unshifted remainder past it.
-        MachineSemanticKind::FrameAddress | MachineSemanticKind::AddressOffset => {
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 4,
-                maximum_bytes: Some(crate::immediate_offset::MAX_ADDRESS_BYTES),
-            }
-        }
+        MachineSemanticKind::FrameAddress => MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 4,
+            maximum_bytes: Some(crate::immediate_offset::MAX_ADDRESS_BYTES * 2 + 4),
+        },
+        MachineSemanticKind::AddressOffset => MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 4,
+            maximum_bytes: Some(crate::immediate_offset::MAX_ADDRESS_BYTES),
+        },
         // Conditional branches resolve to a 4-byte `B.cond` when the taken
         // edge fits imm19 and widen to `B.<invcond> +8; B target` past it.
         MachineSemanticKind::ConditionalBranchNonZero

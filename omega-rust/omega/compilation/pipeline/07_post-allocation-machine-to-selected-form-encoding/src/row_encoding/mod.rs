@@ -324,6 +324,23 @@ fn encode_address_routed(
         }
         Architecture::Aarch64 => {
             let encoded = match channel {
+                HostedChannel::None
+                    if matches!(
+                        kind,
+                        SelectedInstructionKind::FrameAddress { .. }
+                            | SelectedInstructionKind::Store64 { .. }
+                    ) =>
+                {
+                    isa_aarch64::encode_aarch64_selected_frame_form(
+                        physical,
+                        kind,
+                        alternative,
+                        &views,
+                        u32::try_from(displacement)
+                            .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?,
+                        address.frame_alignment_bytes,
+                    )
+                }
                 HostedChannel::None => isa_aarch64::encode_aarch64_selected_memory_form(
                     physical,
                     kind,

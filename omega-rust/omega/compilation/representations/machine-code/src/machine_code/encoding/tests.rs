@@ -57,6 +57,7 @@ fn read_byte_identity_binds_structural_home_and_distinguishes_write_effects() {
     program.rows[0].alternative.family = MachineAlternativeFamily::HostedReadByte;
     program.rows[0].address = Some(ResolvedPhysicalAddress {
         symbolic: PhysicalAddressOperation::HostedReadByte { slot },
+        frame_alignment_bytes: 1,
         displacement: 8,
     });
     let mut effects = MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new());
@@ -190,6 +191,7 @@ fn encoding_identity_binds_symbolic_role_and_resolved_displacement() {
             slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
             byte_offset: 8,
         },
+        frame_alignment_bytes: 1,
         displacement: 40,
     });
     let identity = program.recomputed_identity();

@@ -64,7 +64,10 @@ pub use hosted_write_byte::{
     validate_aarch64_selected_hosted_write_byte_form,
 };
 pub use jump::{encode_aarch64_selected_jump_form, validate_aarch64_selected_jump_form};
-pub use memory::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
+pub use memory::{
+    encode_aarch64_selected_frame_form, encode_aarch64_selected_memory_form,
+    validate_aarch64_selected_frame_form, validate_aarch64_selected_memory_form,
+};
 
 pub use normalized_foreign_call::{
     Aarch64CallbackAddressMaterialization, Aarch64CallbackMaterializationDestination,

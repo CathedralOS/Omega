@@ -224,4 +224,8 @@ pub struct ResolvedPhysicalAddress {
     /// admitted only for frame slots resident below the unadjusted entry
     /// stack pointer inside the ABI red zone.
     pub displacement: i64,
+    /// One for an ordinary displacement. Otherwise round the absolute frame
+    /// base upward to this alignment, then add the symbolic member offset.
+    /// The retained frame owns the padded interval containing that address.
+    pub frame_alignment_bytes: u16,
 }

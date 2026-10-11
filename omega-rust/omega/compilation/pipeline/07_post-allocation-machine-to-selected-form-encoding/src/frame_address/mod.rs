@@ -79,16 +79,17 @@ pub(super) fn validate_frame_root(
                 || placed.alignment_bytes != local.alignment
                 || local.byte_size == 0
                 || !local.alignment.is_power_of_two()
-                // Frame admission binds this limit to the target's declared
-                // ABI, including aligned locals in otherwise leaf functions.
-                || local.alignment > row.abi_stack_alignment_bytes
-                || !placed
-                    .frame_offset_bytes
-                    .is_multiple_of(u64::from(local.alignment))
+                || (local.alignment > row.abi_stack_alignment_bytes
+                    && machine.target.architecture != target::Architecture::Aarch64)
+                || !placed.frame_offset_bytes.is_multiple_of(u64::from(
+                    local.alignment.min(row.abi_stack_alignment_bytes),
+                ))
                 || placed
                     .frame_offset_bytes
                     .checked_sub(local_end)
-                    .is_none_or(|padding| padding >= u64::from(local.alignment))
+                    .is_none_or(|padding| {
+                        padding >= u64::from(local.alignment.min(row.abi_stack_alignment_bytes))
+                    })
                 || source.local_storage_slots[..index]
                     .iter()
                     .any(|earlier| earlier.id == local.id)
@@ -97,7 +98,7 @@ pub(super) fn validate_frame_root(
             }
             local_end = placed
                 .frame_offset_bytes
-                .checked_add(u64::from(placed.size_bytes))
+                .checked_add(placed.reserved_size_bytes(row.abi_stack_alignment_bytes))
                 .filter(|end| *end <= row.frame_size_bytes)
                 .ok_or(Error::ArtifactMismatch)?;
         }
@@ -197,6 +198,49 @@ fn function_geometry<'frame>(
     Ok(row)
 }
 
+/// The reserved home owns absolute alignment; its member displacement is
+/// applied after rounding, never included in the address being rounded.
+fn frame_address_alignment(
+    function: &PostAllocationMachineFunction,
+    frame: Option<&TargetFrameLayoutPlan>,
+    symbolic: Address,
+) -> Result<u16, Error> {
+    let (Address::FrameAddress { slot, .. } | Address::Store64 { slot, .. }) = symbolic else {
+        return Ok(1);
+    };
+    let geometry = function_geometry(function, frame)?;
+    let (alignment, start) = match slot {
+        FrameStorageSlotId::Local(slot) => {
+            let placed = geometry
+                .local_storage_slot(slot)
+                .ok_or(Error::ArtifactMismatch)?;
+            (placed.alignment_bytes, placed.frame_offset_bytes)
+        }
+        FrameStorageSlotId::Outgoing(slot)
+            if slot.role == selected_instructions::OutgoingArgumentSlotRole::ValueCopy =>
+        {
+            let placed = function
+                .outgoing_arguments
+                .iter()
+                .find(|entry| entry.id == slot)
+                .ok_or(Error::ArtifactMismatch)?;
+            (placed.alignment, u64::from(placed.abi_stack_byte_offset))
+        }
+        _ => return Ok(1),
+    };
+    if alignment <= geometry.abi_stack_alignment_bytes {
+        return Ok(1);
+    }
+    if geometry.abi_stack_alignment_bytes != 16
+        || geometry.red_zone_resident_bytes != 0
+        || !alignment.is_power_of_two()
+        || !start.is_multiple_of(16)
+    {
+        return Err(Error::ArtifactMismatch);
+    }
+    Ok(alignment)
+}
+
 /// The committed stack extent: the addressed extent minus the bytes resident
 /// below the unadjusted entry stack pointer.
 fn committed_extent(geometry: &FunctionTargetFrameLayout) -> Result<u64, Error> {
@@ -246,6 +290,7 @@ pub(super) fn resolve(
     let Some(symbolic) = instruction.address else {
         return Ok(None);
     };
+    let frame_alignment_bytes = frame_address_alignment(function, frame, symbolic)?;
     let displacement = match symbolic {
         Address::FrameAddress {
             slot:
@@ -356,7 +401,11 @@ pub(super) fn resolve(
                 return Err(Error::ArtifactMismatch);
             }
             let frame_offset = start
-                .checked_add(u64::from(byte_offset))
+                .checked_add(if frame_alignment_bytes == 1 {
+                    u64::from(byte_offset)
+                } else {
+                    0
+                })
                 .ok_or(Error::ArtifactMismatch)?;
             if frame_offset
                 .checked_add(u64::from(width))
@@ -374,6 +423,7 @@ pub(super) fn resolve(
     Ok(Some(ResolvedPhysicalAddress {
         symbolic,
         displacement,
+        frame_alignment_bytes,
     }))
 }
 
@@ -391,7 +441,9 @@ pub(super) fn validate_address(
             Err(Error::ArtifactMismatch)
         };
     };
-    if candidate.symbolic != symbolic {
+    if candidate.symbolic != symbolic
+        || candidate.frame_alignment_bytes != frame_address_alignment(function, frame, symbolic)?
+    {
         return Err(Error::ArtifactMismatch);
     }
     match symbolic {
@@ -533,7 +585,11 @@ pub(super) fn validate_address(
                 .checked_add(resident)
                 .and_then(|value| u64::try_from(value).ok());
             if frame_offset.and_then(|offset| offset.checked_sub(start))
-                != Some(u64::from(byte_offset))
+                != Some(if candidate.frame_alignment_bytes == 1 {
+                    u64::from(byte_offset)
+                } else {
+                    0
+                })
                 || (!local && byte_offset >= size)
                 || u64::from(byte_offset) + width > u64::from(size)
                 || frame_offset.is_none_or(|offset| {

@@ -149,6 +149,27 @@ pub struct SelectedOutgoingArgumentSlot {
     pub abi_stack_byte_offset: u32,
 }
 
+impl SelectedOutgoingArgumentSlot {
+    /// Indirect copies own padding for absolute alignment within a fixed ABI
+    /// frame. Direct argument positions remain exact ABI coordinates.
+    pub fn reserved_byte_size(&self, stack_alignment: u16) -> Option<u32> {
+        let padding = if self.id.role == OutgoingArgumentSlotRole::ValueCopy {
+            u32::from(self.alignment.saturating_sub(stack_alignment))
+        } else {
+            0
+        };
+        self.byte_size.checked_add(padding)
+    }
+
+    pub fn reservation_alignment(&self, stack_alignment: u16) -> u16 {
+        if self.id.role == OutgoingArgumentSlotRole::ValueCopy {
+            self.alignment.min(stack_alignment)
+        } else {
+            self.alignment
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedCallContract {
     pub instruction: SelectedInstructionId,

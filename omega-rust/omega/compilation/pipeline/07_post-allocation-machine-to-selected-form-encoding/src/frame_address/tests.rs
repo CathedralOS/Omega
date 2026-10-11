@@ -250,6 +250,7 @@ fn incoming_pointer_slots_bind_entry_bias_frame_size_and_parameter_identity() {
                 &instruction,
                 Some(ResolvedPhysicalAddress {
                     symbolic: address,
+                    frame_alignment_bytes: 1,
                     displacement: 48
                 })
             )
@@ -451,6 +452,7 @@ fn empty_local_backing_allows_address_but_not_one_past_store() {
             &instruction,
             Some(ResolvedPhysicalAddress {
                 symbolic: instruction.address.unwrap(),
+                frame_alignment_bytes: 1,
                 displacement: 16
             })
         )
@@ -542,6 +544,7 @@ fn pointer_address_replay_binds_base_offset_and_store_width_without_a_frame() {
             &instruction,
             Some(ResolvedPhysicalAddress {
                 symbolic: instruction.address.unwrap(),
+                frame_alignment_bytes: 1,
                 displacement: 2,
             })
         )
@@ -650,6 +653,7 @@ fn red_zone_resident_slots_resolve_below_the_unadjusted_stack_pointer() {
             &instruction,
             Some(ResolvedPhysicalAddress {
                 symbolic: instruction.address.unwrap(),
+                frame_alignment_bytes: 1,
                 displacement: -16
             })
         )

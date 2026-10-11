@@ -655,11 +655,15 @@ pub(super) fn indirect_argument(
         || *byte_size != placement.shape.byte_size
         || *alignment != placement.shape.alignment
         || !alignment.is_power_of_two()
-        || !copy_offset.is_multiple_of(u32::from(*alignment))
+        // The copy offset starts the reserved home. Absolute value alignment
+        // is formed inside its padding; the fixed ABI SP remains 16-aligned.
+        || !copy_offset.is_multiple_of(u32::from((*alignment).clamp(8, 16)))
     {
         return None;
     }
-    copy_offset.checked_add(*byte_size)?;
+    copy_offset
+        .checked_add(*byte_size)?
+        .checked_add(u32::from(alignment.saturating_sub(16)))?;
     Some((*pointer, *copy_offset))
 }
 

@@ -218,6 +218,7 @@ fn encode_encoding_row(
                 }
             }
             hasher.raw(&address.displacement.to_le_bytes());
+            hasher.raw(&address.frame_alignment_bytes.to_le_bytes());
         }
     }
     encode_machine_disposition(hasher, &row.machine_disposition);

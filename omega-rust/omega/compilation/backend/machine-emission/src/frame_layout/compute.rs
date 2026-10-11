@@ -159,15 +159,21 @@ fn function_layout(
             || slot.byte_size == 0
             || !slot.alignment.is_power_of_two()
             || slot.abi_stack_byte_offset < u32::from(shadow_bytes)
-            || !slot
-                .abi_stack_byte_offset
-                .is_multiple_of(u32::from(slot.alignment))
+            || !slot.abi_stack_byte_offset.is_multiple_of(u32::from(
+                slot.reservation_alignment(call_site.stack_alignment_bytes),
+            ))
+            || (slot.alignment > call_site.stack_alignment_bytes
+                && (slot.id.role != selected_instructions::OutgoingArgumentSlotRole::ValueCopy
+                    || environment.target().architecture != target::Architecture::Aarch64))
         {
             return Err(TargetFrameLayoutError::NonCanonicalLayout);
         }
         let end = slot
             .abi_stack_byte_offset
-            .checked_add(slot.byte_size)
+            .checked_add(
+                slot.reserved_byte_size(call_site.stack_alignment_bytes)
+                    .ok_or(TargetFrameLayoutError::GeometryOverflow)?,
+            )
             .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
         outgoing_extent = outgoing_extent.max(u64::from(end));
     }
@@ -180,23 +186,32 @@ fn function_layout(
     for (index, slot) in local_storage.iter().enumerate() {
         if slot.byte_size == 0
             || !slot.alignment.is_power_of_two()
-            || slot.alignment > call_site.stack_alignment_bytes
+            || (slot.alignment > call_site.stack_alignment_bytes
+                && environment.target().architecture != target::Architecture::Aarch64)
             || local_storage[..index]
                 .iter()
                 .any(|earlier| earlier.id == slot.id)
         {
             return Err(TargetFrameLayoutError::NonCanonicalLayout);
         }
-        let frame_offset_bytes = align_up(local_extent, u64::from(slot.alignment))?;
-        local_extent = frame_offset_bytes
-            .checked_add(u64::from(slot.byte_size))
-            .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
-        local_storage_slots.push(machine_code::LocalStorageFrameSlot {
+        // Keep the ABI stack protocol fixed. A larger alignment is an
+        // absolute-address operation inside a padded home, not a claim that
+        // the incoming SP has that alignment. This also preserves fixed
+        // probing, continuation and unwind coordinates.
+        let frame_offset_bytes = align_up(
+            local_extent,
+            u64::from(slot.alignment.min(call_site.stack_alignment_bytes)),
+        )?;
+        let placed = machine_code::LocalStorageFrameSlot {
             id: slot.id,
             frame_offset_bytes,
             size_bytes: slot.byte_size,
             alignment_bytes: slot.alignment,
-        });
+        };
+        local_extent = frame_offset_bytes
+            .checked_add(placed.reserved_size_bytes(call_site.stack_alignment_bytes))
+            .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
+        local_storage_slots.push(placed);
     }
     // The loan roster is closed over declared activation-local storage: an
     // instruction materializing the address of an undeclared slot cannot
@@ -239,7 +254,8 @@ fn function_layout(
     // residue.
     // A leaf can still need an aligned activation: x64 entry carries the
     // return-address residue, so a 16-byte local cannot use an eight-byte
-    // rounded frame. The declared ABI bounds supported local alignment.
+    // rounded frame. Over-aligned homes round their own absolute addresses
+    // without changing the activation's ABI stack alignment.
     let locals_need_aligned_activation = local_storage.iter().any(|slot| {
         !call_site
             .entry_residue_bytes

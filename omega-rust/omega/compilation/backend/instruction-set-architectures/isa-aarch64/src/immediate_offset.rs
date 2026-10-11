@@ -87,6 +87,74 @@ pub(crate) fn address_words(destination: u8, base: u8, amount: u64) -> Vec<u32> 
     words
 }
 
+/// Align an address within a padded, fixed frame. SP itself is unchanged.
+/// The member offset follows the mask so fields keep their declared offsets.
+pub(crate) fn aligned_frame_address_words(
+    destination: u8,
+    frame_offset: u32,
+    alignment: u16,
+    member_offset: u32,
+) -> Option<Vec<u32>> {
+    if alignment <= 16 || !alignment.is_power_of_two() || !frame_offset.is_multiple_of(16) {
+        return None;
+    }
+    let shift = alignment.trailing_zeros();
+    let mut words = address_words(
+        destination,
+        31,
+        u64::from(frame_offset) + u64::from(alignment - 1),
+    );
+    // AND (not ANDS): preserve NZCV and all registers except the destination.
+    words.push(
+        0x9240_0000
+            | ((64 - shift) << 16)
+            | ((63 - shift) << 10)
+            | (u32::from(destination) << 5)
+            | u32::from(destination),
+    );
+    append_offset_steps(
+        &mut words,
+        ADD_IMMEDIATE,
+        destination,
+        destination,
+        u64::from(member_offset),
+    );
+    Some(words)
+}
+
+pub(crate) fn validate_aligned_frame_address_words(
+    words: &[u32],
+    destination: u8,
+    frame_offset: u32,
+    alignment: u16,
+    member_offset: u32,
+) -> bool {
+    if alignment <= 16 || !alignment.is_power_of_two() || !frame_offset.is_multiple_of(16) {
+        return false;
+    }
+    let Some(mask_position) = words
+        .iter()
+        .position(|word| word & 0xffc0_0000 == 0x9240_0000)
+    else {
+        return false;
+    };
+    let mask = words[mask_position];
+    let ones = (mask >> 10) & 63;
+    let rotation = (mask >> 16) & 63;
+    let decoded_mask = (u64::MAX >> (63 - ones)).rotate_right(rotation);
+    let suffix = &words[mask_position + 1..];
+    mask & 31 == u32::from(destination)
+        && (mask >> 5) & 31 == u32::from(destination)
+        && decoded_mask == !u64::from(alignment - 1)
+        && decode_address_words(&words[..mask_position], destination, 31)
+            == Some(u64::from(frame_offset) + u64::from(alignment - 1))
+        && if member_offset == 0 {
+            suffix.is_empty()
+        } else {
+            decode_address_words(suffix, destination, destination) == Some(u64::from(member_offset))
+        }
+}
+
 /// How many words [`address_words`] emits for `amount`.
 pub(crate) const fn address_word_count(amount: u64) -> u64 {
     let pages = (amount >> 12).div_ceil(IMMEDIATE_LIMIT);

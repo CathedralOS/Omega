@@ -4449,8 +4449,19 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   stack materializations retain their own outgoing frame demand and exact
   fixup geometry. Matching-host `omega run` must still demonstrate exit 0
   and the final observed point; macOS cross-realization is not that acceptance.
-  Complete over-aligned owned storage and stack-based caller-area result protocols;
-  these retain explicit implementation fences.
+  Preserve `pass/calls/callback_owned_overaligned_record`: genuine macOS Arm64
+  libffi must return the complete 32-aligned record through an ordinary helper
+  and retain unchanged input at exit 0. `pass/calls/owned_mixed_overaligned_call`
+  keeps independent 32/64-aligned caller copies and a 64-aligned result distinct.
+  Fixed ABI frames reserve alignment padding and round absolute home addresses;
+  offsets alone do not establish alignment. Complete x86-64 over-aligned owned
+  storage and stack-based caller-area result protocols; these remain fenced.
+  Public package preparation of the over-aligned witness currently rejects
+  unresolved nominal/source-backed toolchain ownership during review:
+  `omega update --project tests/omega/pass/calls/callback_owned_overaligned_record
+  --target macos_arm64 --offline`. Retain exact layout-wrapped type identity
+  through review so the actual `omega run` can acquire its accepted entry;
+  corpus execution alone does not establish this admission path.
   Preserve `pass/calls/callback_future_registration_cycle`:
   genuine macOS Arm64 `pthread_key_create` registers a destructor whose body
   can register itself; native `_exit` must exit 0 without invoking it.

@@ -15,6 +15,9 @@ use selected_instructions::MachineEncodedStackEffect;
 use selected_instructions::MachineEncodedTrapBehavior;
 use selected_instructions::SelectedInstructionKind;
 mod frame;
+pub use frame::{
+    encode as encode_aarch64_selected_frame_form, validate as validate_aarch64_selected_frame_form,
+};
 mod indexed;
 #[cfg(test)]
 mod load32_tests;
@@ -65,7 +68,7 @@ pub fn encode_aarch64_selected_memory_form(
         kind,
         SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
     ) {
-        return frame::encode(physical, kind, alternative, operands, displacement);
+        return frame::encode(physical, kind, alternative, operands, displacement, 1);
     }
     if kind == SelectedInstructionKind::Load8Indexed {
         return indexed::encode(physical, alternative, operands, displacement);
@@ -131,7 +134,15 @@ pub fn validate_aarch64_selected_memory_form(
         kind,
         SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
     ) {
-        return frame::validate(physical, kind, alternative, operands, displacement, bytes);
+        return frame::validate(
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+            1,
+            bytes,
+        );
     }
     if kind == SelectedInstructionKind::Load8Indexed {
         return indexed::validate(physical, alternative, operands, displacement, bytes);

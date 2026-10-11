@@ -335,6 +335,30 @@ pub fn encode_aarch64_frame_address(
     )
 }
 
+/// Form an absolutely aligned value/member address inside a padded fixed frame.
+pub fn encode_aarch64_aligned_frame_address(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    offset_bytes: u32,
+    alignment_bytes: u16,
+    member_offset_bytes: u32,
+) -> Result<Vec<u8>, Aarch64FrameProtocolError> {
+    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+        return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
+    }
+    let Register::X(destination) = register(model, view)? else {
+        return Err(Aarch64FrameProtocolError::UnknownOrUnsupportedView(view));
+    };
+    let words = crate::immediate_offset::aligned_frame_address_words(
+        destination,
+        offset_bytes,
+        alignment_bytes,
+        member_offset_bytes,
+    )
+    .ok_or(Aarch64FrameProtocolError::UnknownOrUnsupportedView(view))?;
+    Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
+}
+
 /// Materialize an interpretation word using the ordinary integer encoder.
 pub fn encode_aarch64_integer_constant(
     model: &ValidatedPhysicalRegisterModel,

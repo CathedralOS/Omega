@@ -76,15 +76,37 @@ fn request(
     }
 }
 
-pub(super) fn encode(
+pub fn encode(
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
     displacement: u32,
+    alignment_bytes: u16,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     let (register, scratch) = request(physical, kind, alternative, operands, displacement)?;
-    let words = if let Some(scratch) = scratch {
+    let words = if alignment_bytes != 1 {
+        let member = match kind {
+            SelectedInstructionKind::FrameAddress { byte_offset, .. }
+            | SelectedInstructionKind::Store64 { byte_offset, .. } => byte_offset,
+            _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
+        };
+        if scratch.is_some() && !member.is_multiple_of(8) {
+            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        }
+        let address = scratch.unwrap_or(register);
+        let mut words = crate::immediate_offset::aligned_frame_address_words(
+            address,
+            displacement,
+            alignment_bytes,
+            member,
+        )
+        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+        if scratch.is_some() {
+            words.push(store_word(register, address, 0));
+        }
+        words
+    } else if let Some(scratch) = scratch {
         // add xScratch, sp, #pages, lsl #12 per 4095 pages;
         // str xValue, [xScratch, #low].
         let mut words = store_address_words(scratch, displacement);
@@ -97,15 +119,24 @@ pub(super) fn encode(
         .into_iter()
         .flat_map(u32::to_le_bytes)
         .collect::<Vec<u8>>();
-    validate(physical, kind, alternative, operands, displacement, &bytes)
+    validate(
+        physical,
+        kind,
+        alternative,
+        operands,
+        displacement,
+        alignment_bytes,
+        &bytes,
+    )
 }
 
-pub(super) fn validate(
+pub fn validate(
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
     displacement: u32,
+    alignment_bytes: u16,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     let (register, scratch) = request(physical, kind, alternative, operands, displacement)?;
@@ -117,7 +148,32 @@ pub(super) fn validate(
         .iter()
         .map(|word| u32::from_le_bytes(*word))
         .collect::<Vec<_>>();
-    if let Some(scratch) = scratch {
+    if alignment_bytes != 1 {
+        let member = match kind {
+            SelectedInstructionKind::FrameAddress { byte_offset, .. }
+            | SelectedInstructionKind::Store64 { byte_offset, .. } => byte_offset,
+            _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
+        };
+        let address = scratch.unwrap_or(register);
+        let prefix = if scratch.is_some() {
+            if !member.is_multiple_of(8) || words.last() != Some(&store_word(register, address, 0))
+            {
+                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            &words[..words.len() - 1]
+        } else {
+            words.as_slice()
+        };
+        if !crate::immediate_offset::validate_aligned_frame_address_words(
+            prefix,
+            address,
+            displacement,
+            alignment_bytes,
+            member,
+        ) {
+            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        }
+    } else if let Some(scratch) = scratch {
         let address = store_address_words(scratch, displacement);
         let [prefix @ .., store] = words.as_slice() else {
             return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
@@ -196,6 +252,125 @@ mod tests {
     use semantic_vocabulary::{OperationId, PlaceId};
 
     #[test]
+    fn aligned_frame_forms_keep_sp_fixed_and_members_after_alignment() {
+        let physical =
+            register_model::validate_physical_register_model(aarch64_physical_register_model())
+                .unwrap();
+        let slot = FrameStorageSlotId::Local(LocalStorageSlotId::Structural {
+            operation: OperationId::new(104).unwrap(),
+            place: PlaceId::new(102).unwrap(),
+        });
+        let value = physical.model().view_named("x9").unwrap().id;
+        let scratch = physical.model().view_named("x10").unwrap().id;
+        for alignment in [32_u16, 64, 4096, 32768] {
+            for frame_offset in [0_u32, 16, 4096, 16_777_216] {
+                for member in [0, 8, 24] {
+                    let kind = SelectedInstructionKind::FrameAddress {
+                        slot,
+                        byte_offset: member,
+                    };
+                    let alternative = MachineAlternativeKey {
+                        family: MachineAlternativeFamily::FrameAddress,
+                        variant: 0,
+                    };
+                    let encoded = encode(
+                        &physical,
+                        kind,
+                        alternative,
+                        &[value],
+                        frame_offset,
+                        alignment,
+                    )
+                    .unwrap();
+                    assert!(!encoded.footprint.writes_nzcv);
+                    // Interpret the actual ADD/AND instruction fields under
+                    // every possible ABI-aligned stack residue, not only a
+                    // conveniently aligned test stack.
+                    for residue in (0..u64::from(alignment)).step_by(16) {
+                        let stack = 0x10_0000 + residue;
+                        let mut address = stack;
+                        for word in encoded
+                            .bytes()
+                            .chunks_exact(4)
+                            .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+                        {
+                            if word & 0xffc0_0000 == 0x9240_0000 {
+                                let mask = (u64::MAX >> (63 - ((word >> 10) & 63)))
+                                    .rotate_right((word >> 16) & 63);
+                                address &= mask;
+                            } else {
+                                assert_eq!(
+                                    word & 0xff80_0000,
+                                    crate::immediate_offset::ADD_IMMEDIATE
+                                );
+                                let base = if (word >> 5) & 31 == 31 {
+                                    stack
+                                } else {
+                                    address
+                                };
+                                let immediate = u64::from((word >> 10) & 4095)
+                                    << if word & (1 << 22) != 0 { 12 } else { 0 };
+                                address = base + immediate;
+                            }
+                        }
+                        let home = address - u64::from(member);
+                        assert!(home.is_multiple_of(u64::from(alignment)));
+                        let reserved_start = stack + u64::from(frame_offset);
+                        assert!(home >= reserved_start);
+                        assert!(home - reserved_start <= u64::from(alignment - 16));
+                    }
+                    for bit in 0..encoded.bytes().len() * 8 {
+                        let mut corrupt = encoded.bytes().to_vec();
+                        corrupt[bit / 8] ^= 1 << (bit % 8);
+                        assert!(
+                            validate(
+                                &physical,
+                                kind,
+                                alternative,
+                                &[value],
+                                frame_offset,
+                                alignment,
+                                &corrupt
+                            )
+                            .is_err()
+                        );
+                    }
+                    let store = SelectedInstructionKind::Store64 {
+                        slot,
+                        byte_offset: member,
+                    };
+                    let store_alternative = MachineAlternativeKey {
+                        family: MachineAlternativeFamily::Store64,
+                        variant: 0,
+                    };
+                    let stored = encode(
+                        &physical,
+                        store,
+                        store_alternative,
+                        &[value, scratch],
+                        frame_offset,
+                        alignment,
+                    )
+                    .unwrap();
+                    assert_eq!(stored.footprint.register_writes, vec![scratch]);
+                    assert!(
+                        validate(
+                            &physical,
+                            store,
+                            store_alternative,
+                            &[value, scratch],
+                            frame_offset,
+                            alignment,
+                            stored.bytes()
+                        )
+                        .is_ok()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn local_frame_forms_replay_sp_offset_register_and_all_opcode_bits() {
         let physical =
             register_model::validate_physical_register_model(aarch64_physical_register_model())
@@ -258,7 +433,7 @@ mod tests {
                     operands.push(physical.model().view_named("x10").unwrap().id);
                 }
                 let encoded =
-                    encode(&physical, kind, alternative, &operands, displacement).unwrap();
+                    encode(&physical, kind, alternative, &operands, displacement, 1).unwrap();
                 assert_eq!(
                     encoded.footprint.encoded.implicit_unit_uses,
                     physical.model().view_named("sp").unwrap().units
@@ -273,7 +448,8 @@ mod tests {
                             kind,
                             alternative,
                             &[operands[0], operands[0]],
-                            displacement
+                            displacement,
+                            1
                         )
                         .is_err()
                     );
@@ -294,6 +470,7 @@ mod tests {
                             alternative,
                             &operands,
                             displacement,
+                            1,
                             &corrupt
                         )
                         .is_err()
@@ -306,6 +483,7 @@ mod tests {
                         alternative,
                         &[physical.model().view_named("x10").unwrap().id],
                         displacement,
+                        1,
                         encoded.bytes()
                     )
                     .is_err()
@@ -317,6 +495,7 @@ mod tests {
                         alternative,
                         &operands,
                         displacement ^ 8,
+                        1,
                         encoded.bytes()
                     )
                     .is_err()
@@ -327,11 +506,12 @@ mod tests {
                         kind,
                         alternative,
                         &[physical.model().view_named("sp").unwrap().id],
-                        displacement
+                        displacement,
+                        1
                     )
                     .is_err()
                 );
-                assert!(encode(&physical, kind, alternative, &[], displacement).is_err());
+                assert!(encode(&physical, kind, alternative, &[], displacement, 1).is_err());
             }
             if store {
                 assert!(
@@ -340,6 +520,7 @@ mod tests {
                         kind,
                         alternative,
                         &[physical.model().view_named("x9").unwrap().id],
+                        1,
                         1
                     )
                     .is_err()

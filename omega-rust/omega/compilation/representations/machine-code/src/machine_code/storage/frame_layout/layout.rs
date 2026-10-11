@@ -58,9 +58,20 @@ pub struct OutgoingAbiFrameArea {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalStorageFrameSlot {
     pub id: selected_instructions::LocalStorageSlotId,
+    /// Start of the reserved interval, not necessarily the value's address.
+    /// An alignment above the ABI requires rounding the absolute address
+    /// upward inside this interval; rounding only this offset is insufficient.
     pub frame_offset_bytes: u64,
     pub size_bytes: u32,
     pub alignment_bytes: u16,
+}
+
+impl LocalStorageFrameSlot {
+    /// Payload plus the greatest possible adjustment from an ABI-aligned base.
+    pub fn reserved_size_bytes(&self, abi_alignment_bytes: u16) -> u64 {
+        u64::from(self.size_bytes)
+            + u64::from(self.alignment_bytes.saturating_sub(abi_alignment_bytes))
+    }
 }
 
 /// Ordered stack-commit touches the prologue performs while growing the

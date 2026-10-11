@@ -243,7 +243,7 @@ pub(crate) fn validate_call_plan_structure(
                     pointer,
                     copy_stack_byte_offset,
                     byte_size,
-                    ..
+                    alignment,
                 } => {
                     match pointer {
                         IndirectPointerLocation::Register(register) => {
@@ -275,7 +275,12 @@ pub(crate) fn validate_call_plan_structure(
                         }
                     }
                     if let Some(copy_stack_byte_offset) = copy_stack_byte_offset {
-                        let end = stack_end(copy_stack_byte_offset, byte_size)?;
+                        let reserved = byte_size
+                            .checked_add(u32::from(alignment.saturating_sub(plan.stack_alignment)))
+                            .ok_or_else(|| {
+                                PlanDiagnostic("indirect copy reservation overflows".into())
+                            })?;
+                        let end = stack_end(copy_stack_byte_offset, reserved)?;
                         if occupied_stack_ranges.iter().any(|(start, prior_end)| {
                             copy_stack_byte_offset < *prior_end && *start < end
                         }) {
@@ -509,6 +514,7 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             ValueLocation::Indirect {
                 copy_stack_byte_offset,
                 byte_size,
+                alignment,
                 ..
             },
         ] = placement.locations.as_mut_slice()
@@ -520,6 +526,8 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             if !borrowed_class(placement.shape.class) {
                 *copy_stack_byte_offset = Some(copy_stack_offset);
                 copy_stack_offset = stack_end(copy_stack_offset, align_up(*byte_size, 8)?)?;
+                copy_stack_offset =
+                    stack_end(copy_stack_offset, u32::from(alignment.saturating_sub(16)))?;
             }
         }
     }
@@ -876,6 +884,10 @@ fn evaluate_split_bank_call(
             if !borrowed_class(placement.shape.class) {
                 *copy_stack_byte_offset = Some(stack_offset);
                 stack_offset = stack_end(stack_offset, align_up(*byte_size, 8)?)?;
+                stack_offset = stack_end(
+                    stack_offset,
+                    u32::from(alignment.saturating_sub(stack_alignment)),
+                )?;
             }
         }
     }

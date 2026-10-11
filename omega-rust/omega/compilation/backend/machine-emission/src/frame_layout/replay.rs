@@ -80,14 +80,21 @@ pub(super) fn validate_layout(
         };
         let mut outgoing = shadow;
         for (index, slot) in source.outgoing_arguments.iter().enumerate() {
-            let end = u64::from(slot.abi_stack_byte_offset) + u64::from(slot.byte_size);
+            let end = u64::from(slot.abi_stack_byte_offset)
+                + u64::from(
+                    slot.reserved_byte_size(call_site.stack_alignment_bytes)
+                        .ok_or(Error::GeometryOverflow)?,
+                );
             if !calls
                 || slot.byte_size == 0
                 || !slot.alignment.is_power_of_two()
                 || u64::from(slot.abi_stack_byte_offset) < shadow
-                || !slot
-                    .abi_stack_byte_offset
-                    .is_multiple_of(u32::from(slot.alignment))
+                || !slot.abi_stack_byte_offset.is_multiple_of(u32::from(
+                    slot.reservation_alignment(call_site.stack_alignment_bytes),
+                ))
+                || (slot.alignment > call_site.stack_alignment_bytes
+                    && (slot.id.role != selected_instructions::OutgoingArgumentSlotRole::ValueCopy
+                        || environment.target().architecture != target::Architecture::Aarch64))
                 || end > u64::from(u32::MAX)
                 || source.outgoing_arguments[..index].iter().any(|earlier| {
                     earlier.id == slot.id
@@ -95,7 +102,11 @@ pub(super) fn validate_layout(
                             && u64::from(earlier.abi_stack_byte_offset) < end
                             && u64::from(slot.abi_stack_byte_offset)
                                 < u64::from(earlier.abi_stack_byte_offset)
-                                    + u64::from(earlier.byte_size))
+                                    + u64::from(
+                                        earlier
+                                            .reserved_byte_size(call_site.stack_alignment_bytes)
+                                            .unwrap_or(u32::MAX),
+                                    ))
                 })
             {
                 return Err(Error::NonCanonicalLayout);
@@ -114,7 +125,8 @@ pub(super) fn validate_layout(
         {
             if local.byte_size == 0
                 || !local.alignment.is_power_of_two()
-                || local.alignment > call_site.stack_alignment_bytes
+                || (local.alignment > call_site.stack_alignment_bytes
+                    && environment.target().architecture != target::Architecture::Aarch64)
                 || source.local_storage_slots[..index]
                     .iter()
                     .any(|earlier| earlier.id == local.id)
@@ -124,7 +136,7 @@ pub(super) fn validate_layout(
                 || !minimal_aligned_extent(
                     local_extent,
                     placed.frame_offset_bytes,
-                    u64::from(local.alignment),
+                    u64::from(local.alignment.min(call_site.stack_alignment_bytes)),
                     0,
                 )
             {
@@ -132,7 +144,7 @@ pub(super) fn validate_layout(
             }
             local_extent = placed
                 .frame_offset_bytes
-                .checked_add(u64::from(placed.size_bytes))
+                .checked_add(placed.reserved_size_bytes(call_site.stack_alignment_bytes))
                 .ok_or(Error::GeometryOverflow)?;
         }
         // The stable-address-loan roster is recovered from the physical

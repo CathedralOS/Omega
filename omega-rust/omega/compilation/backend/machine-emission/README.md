@@ -55,6 +55,16 @@ Preservation storage starts at its required alignment even when a narrow outgoin
 argument is not followed by activation-local storage. Alignment padding does not
 widen the outgoing argument's payload or write footprint.
 
+On AArch64, over-aligned local values and indirect outgoing copies reserve
+their payload plus `value_alignment - abi_alignment` bytes. Address formation
+rounds the absolute address inside that interval, then adds the member offset.
+The native entry bridge uses the same instruction recipe for its owned
+snapshots, copy homes and result storage. Rounding a frame offset alone would
+leave a 32-aligned value only 16-aligned on some callers. SP stays fixed under
+the ordinary protocol; dynamic whole-frame realignment would unnecessarily
+change incoming argument coordinates, probing and unwind. x86-64 over-aligned
+homes still reject until its address/store effects have matching support.
+
 The separate abstract spill-requirement calculation exposes extent/alignment,
 not integration of executable spill accesses into the common frame. Callee-save
 group selection similarly starts with abstract storage: complete target storage
