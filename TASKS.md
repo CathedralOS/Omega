@@ -2722,9 +2722,15 @@ crash and native exit behavior.
   target: providers, entry, subsystem, application intent, opaque
   representation, x86 scalar FMA provider, grants, behavior exclusions and wire
   demands.
-  - `BuildConfig` is still largely global. Finish authored rows,
-    retain/check unrequested rows, and complete shared preliminary and final
-    product checking (final checking is per target today).
+  - `BuildConfig` is still largely global. Finish authored rows and
+    retain/check unrequested rows. Final product checking now shares across
+    targets wherever inputs converge: each target's retained judgment joins
+    a `sibling_product_checks` pool on the request, and
+    `check_selected_execution` takes the first exact-input match through
+    `reuse_retained_check` — authority admission still runs per invocation.
+    Programs that genuinely diverge per target (the deferred pre-check
+    custody map injecting per-target selections into `typed`) still check
+    their own.
   - The duplicate preliminary whole-program check is gone for equal inputs:
     sibling occurrence rows of one invocation now consult a shared
     `sibling_build_checks` pool before `prepare_checked_build`, and an
