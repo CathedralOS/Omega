@@ -294,11 +294,18 @@ pub(super) fn validate(
         }
     }
     if local_data.initial_value.is_valid() {
-        let copied_value = arithmetic_domains::CopiedIntegerValue::capture(
+        let mut copied_value = arithmetic_domains::CopiedIntegerValue::capture(
             program,
             local_data.initial_value,
             value_environment,
             &arithmetic_decisions.expression_intervals[first_checked_interval..],
+        );
+        copied_value.capture_local_relations(
+            program,
+            machine,
+            current_state,
+            local_data,
+            value_environment,
         );
         arithmetic_domains::record_assignment(
             value_environment,

@@ -41,6 +41,11 @@ pub(super) enum Operand {
         arguments: Vec<Operand>,
     },
     CollectionLength(Box<Operand>),
+    Indexed {
+        collection: Box<Operand>,
+        index: Box<Operand>,
+        primitive: Option<PrimitiveType>,
+    },
     Binary {
         operator: BinaryOperator,
         primitive: PrimitiveType,
@@ -132,7 +137,7 @@ impl Operand {
             Self::Binary { operands, .. } => operands
                 .iter()
                 .all(|value| value.is_immutable_snapshot(program, state)),
-            Self::CollectionLength(_) => false,
+            Self::CollectionLength(_) | Self::Indexed { .. } => false,
         }
     }
 
@@ -148,6 +153,9 @@ impl Operand {
             Self::CollectionLength(collection) => {
                 preserved == Some(collection.as_ref()) || collection.survives(written)
             }
+            Self::Indexed {
+                collection, index, ..
+            } => collection.survives(written) && index.survives(written),
             Self::Binary { operands, .. } => operands
                 .iter()
                 .all(|value| value.survives_preserving_length(written, preserved)),
@@ -170,6 +178,24 @@ impl Operand {
                 .into_iter()
                 .map(|collection| Self::CollectionLength(Box::new(collection)))
                 .collect(),
+            Self::Indexed {
+                collection,
+                index,
+                primitive,
+            } => {
+                let collections = collection.rebound(bindings);
+                let indices = index.rebound(bindings);
+                collections
+                    .into_iter()
+                    .flat_map(|collection| {
+                        indices.iter().map(move |index| Self::Indexed {
+                            collection: Box::new(collection.clone()),
+                            index: Box::new(index.clone()),
+                            primitive: *primitive,
+                        })
+                    })
+                    .collect()
+            }
             Self::Place { root, fields, path } => bindings
                 .iter()
                 .filter_map(|(source, target)| {
@@ -535,6 +561,34 @@ fn build_operand(
                         build_operand(program, machine, state, *argument, depth + 1, frames)
                     })
                     .collect::<Option<Vec<_>>>()?,
+            })
+        }
+        ExpressionNode::Indexed(indexed)
+            if crate::place_has_builtin_coordinates(program, machine, Some(state), expression)
+                && !matches!(
+                    program.expression_table.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) =>
+        {
+            // A collection and its selector jointly identify one observation.
+            // Neither source spelling nor a remembered guard is its identity:
+            // ordinary effect invalidation retires a write to either operand,
+            // and state transport rebinds both resolved trees simultaneously.
+            let collection = build_operand(
+                program,
+                machine,
+                state,
+                indexed.collection,
+                depth + 1,
+                frames,
+            )?;
+            let index = build_operand(program, machine, state, indexed.index, depth + 1, frames)?;
+            let primitive = declared_place_type_raw(program, machine, Some(state), expression)
+                .and_then(|reference| program.primitive_type_reference(reference));
+            Some(Operand::Indexed {
+                collection: Box::new(collection),
+                index: Box::new(index),
+                primitive,
             })
         }
         ExpressionNode::Cast(cast)
@@ -937,6 +991,9 @@ fn operand_carrier_bound(
             Some(primitive_range(*primitive).and_then(|range| range.high))
         }
         Operand::CollectionLength(_) => Some(None),
+        Operand::Indexed { primitive, .. } => {
+            primitive.and_then(primitive_range).map(|range| range.high)
+        }
         Operand::Call { .. } => None,
     }
 }

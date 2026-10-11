@@ -403,6 +403,14 @@ fn condition_belongs_to_state(
                 .is_some())
                 && condition_belongs_to_state(program, machine, state, member.receiver, frames)
         }
+        ExpressionNode::Indexed(indexed) => {
+            // A requirement belongs to this arrival only when both the
+            // collection and selector belong to its exact parameter scope.
+            // Its live identity and write lifetime are owned by ordered_values.
+            crate::place_has_builtin_coordinates(program, machine, Some(state), expression)
+                && condition_belongs_to_state(program, machine, state, indexed.collection, frames)
+                && condition_belongs_to_state(program, machine, state, indexed.index, frames)
+        }
         ExpressionNode::Binary(binary) => {
             condition_belongs_to_state(program, machine, state, binary.left, frames)
                 && condition_belongs_to_state(program, machine, state, binary.right, frames)
@@ -934,8 +942,15 @@ impl ArrivalWalk<'_, '_> {
                 }
                 StatementNode::LocalData(local) => {
                     self.expression(source, local.initial_value, environment);
-                    let value = self.evaluated_value(source, local.initial_value, environment);
+                    let mut value = self.evaluated_value(source, local.initial_value, environment);
                     let path = local.name.as_str().to_owned();
+                    value.copied.capture_local_relations(
+                        self.program,
+                        self.machine,
+                        Some(source),
+                        local,
+                        environment,
+                    );
                     environment.invalidate_written_paths(std::slice::from_ref(&path));
                     environment.set(path.clone(), value.interval);
                     value.copied.record(environment, Some(path.clone()));

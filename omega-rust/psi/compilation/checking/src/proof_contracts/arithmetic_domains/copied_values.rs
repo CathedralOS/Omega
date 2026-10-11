@@ -7,7 +7,7 @@
 //! The supplying environment has already crossed value-evaluation effects;
 //! this owner never replays an initializer or independently summarizes calls.
 
-use super::{Interval, ValueEnvironment, place_path};
+use super::{Interval, ValueEnvironment, ordered_values, place_path};
 use std::collections::BTreeMap;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -15,6 +15,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 pub(crate) struct CopiedIntegerValue {
     intervals: Vec<(String, Interval)>,
     unsigned_values: Vec<(String, u64)>,
+    ordered_relations: Vec<ordered_values::Relation>,
 }
 
 impl CopiedIntegerValue {
@@ -27,6 +28,46 @@ impl CopiedIntegerValue {
         let mut value = Self::default();
         value.capture_at(program, expression, "", environment, checked_intervals);
         value
+    }
+
+    /// Capture live scalar exclusions before the destination is invalidated.
+    /// A dynamic indexed read may become a hoisted local; that local freezes
+    /// this evaluated observation, not any future read of its old storage.
+    /// Other live storage identities remain in this environment: copying a
+    /// selector must also translate indexed observations using that selector.
+    pub(crate) fn capture_local_relations(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: Option<&typed_trees::state::State>,
+        local: &typed_trees::statement::TableLocalData,
+        environment: &ValueEnvironment,
+    ) {
+        if environment.ordered_values.is_empty()
+            || !program
+                .primitive_type_reference(local.type_reference)
+                .is_some_and(|primitive| primitive.is_fixed_integer())
+        {
+            return;
+        }
+        let Some(observed) = state.and_then(|state| {
+            ordered_values::operand(program, machine, state, local.initial_value, None)
+        }) else {
+            return;
+        };
+        let destination = ordered_values::Operand::Place {
+            root: local.symbol,
+            fields: Vec::new(),
+            path: local.name.as_str().to_owned(),
+        };
+        let mut bindings = Vec::new();
+        for relation in &environment.ordered_values {
+            retain_places(&relation.left, &observed, &mut bindings);
+            retain_places(&relation.right, &observed, &mut bindings);
+        }
+        bindings.push((observed, destination));
+        self.ordered_relations =
+            ordered_values::rebind_relations(&environment.ordered_values, &bindings);
     }
 
     fn capture_at(
@@ -99,6 +140,11 @@ impl CopiedIntegerValue {
     /// enforced declared range; this owner supplies the composite descendants.
     pub(crate) fn record(&self, environment: &mut ValueEnvironment, path: Option<String>) {
         let Some(path) = path else { return };
+        for relation in &self.ordered_relations {
+            if !environment.ordered_values.contains(relation) {
+                environment.ordered_values.push(relation.clone());
+            }
+        }
         for (suffix, interval) in &self.intervals {
             if !suffix.is_empty() {
                 environment.set(format!("{path}{suffix}"), *interval);
@@ -106,6 +152,41 @@ impl CopiedIntegerValue {
         }
         for (suffix, value) in &self.unsigned_values {
             environment.mark_known_u64(format!("{path}{suffix}"), *value);
+        }
+    }
+}
+
+fn retain_places(
+    operand: &ordered_values::Operand,
+    observed: &ordered_values::Operand,
+    bindings: &mut Vec<(ordered_values::Operand, ordered_values::Operand)>,
+) {
+    use ordered_values::Operand;
+    if operand == observed {
+        return;
+    }
+    match operand {
+        Operand::Place { .. } => {
+            if !bindings.iter().any(|(source, _)| source == operand) {
+                bindings.push((operand.clone(), operand.clone()));
+            }
+        }
+        Operand::Integer(..) => {}
+        Operand::CollectionLength(collection) => retain_places(collection, observed, bindings),
+        Operand::Indexed {
+            collection, index, ..
+        } => {
+            retain_places(collection, observed, bindings);
+            retain_places(index, observed, bindings);
+        }
+        Operand::Call { arguments, .. }
+        | Operand::Binary {
+            operands: arguments,
+            ..
+        } => {
+            for argument in arguments {
+                retain_places(argument, observed, bindings);
+            }
         }
     }
 }

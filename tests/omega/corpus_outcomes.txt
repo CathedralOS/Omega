@@ -5342,3 +5342,14 @@ fail/atomics/stored_reference_non_atomic_shared_store rejected 223ms expected @3
 pass/atomics/runtime_stored_reference_atomic_events_exit checked 2680ms check-target:macos_arm64 @36591ba7905e+wt
 pass/calls/callback_borrowed_scalar_entry checked 5939ms check-target:macos_arm64 @09084c02ea24
 pass/calls/callback_scalar_loan_permutation checked 6007ms check-target:macos_arm64 @09084c02ea24
+pass/arithmetic/indexed_divisor_requirement checked 1934ms @13a26a2d888e+wt
+fail/arithmetic/indexed_divisor_copied_selector_storage_write rejected 1469ms expected @13a26a2d888e+wt
+	partial wrapping division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/arithmetic/indexed_divisor_copied_selector_write rejected 1053ms expected @13a26a2d888e+wt
+	partial wrapping division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/arithmetic/indexed_divisor_selector_write rejected 631ms expected @13a26a2d888e+wt
+	partial wrapping division in machine `quotient` state `divided` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/arithmetic/indexed_divisor_storage_write rejected 958ms expected @13a26a2d888e+wt
+	partial wrapping division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/arithmetic/indexed_divisor_wrong_collection rejected 945ms expected @13a26a2d888e+wt
+	partial wrapping division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
