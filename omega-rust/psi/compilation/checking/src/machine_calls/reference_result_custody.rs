@@ -221,7 +221,7 @@ pub fn is_reference_record(
         seen.pop();
         Some(contains_reference)
     }
-    // A bare exclusive leaf — mutable or write-only over a nominal referent — is
+    // A bare exclusive pointer leaf — mutable or write-only — is
     // its own custody family, not a record, so the classifier stays out.
     // A shared `&T` borrow has no such family: it has always counted as
     // reference-bearing here, and the discarded-result and admission gates

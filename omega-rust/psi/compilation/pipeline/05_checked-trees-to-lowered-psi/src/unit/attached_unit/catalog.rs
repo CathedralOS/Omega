@@ -33,8 +33,10 @@ pub(super) use operation_types::collect_operation_type_roots;
 /// inside a structural value tree: member/fixed-index leaf reads mint the
 /// projected leaf's own identity (`slice(named(u8))` for a `&'a [u8]`
 /// member), which no signature root names, while emission resolves that
-/// identity against the unit catalog.
-fn collect_value_roots(
+/// identity against the unit catalog. A reference's computed backing also
+/// roots its complete storage type, independently of the projected referent.
+/// Scalar and Unit entrances consume this same inventory.
+pub(crate) fn collect_value_roots(
     checked: &CheckedTrees,
     value: checked_trees::CheckedStructuralValueHandle,
     roots: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
@@ -47,6 +49,18 @@ fn collect_value_roots(
         } => {
             roots.push(source.type_identity);
             if source_value.is_valid() {
+                roots.push(validation::stored_structural_type_identity(
+                    &checked.typed,
+                    checked
+                        .facts
+                        .values
+                        .structural_values
+                        .nodes
+                        .get(*source_value)
+                        .type_reference,
+                    &[],
+                    &[],
+                ));
                 collect_value_roots(checked, *source_value, roots)?;
             }
         }

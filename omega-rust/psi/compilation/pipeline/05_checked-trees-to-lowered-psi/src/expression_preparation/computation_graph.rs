@@ -344,18 +344,14 @@ pub(crate) fn structural_dependencies(
         CheckedStructuralRecordFieldValue as Field, CheckedStructuralValueKind as Value,
     };
     let plans = &checked.facts.values.structural_values;
-    let mut pending = vec![root];
-    let mut values = Vec::new();
+    let values = plans
+        .value_dependencies(root)
+        .ok_or(LoweringError::Unsupported(
+            "structural computation has a stale value dependency",
+        ))?;
     let mut scalars = Vec::new();
-    while let Some(value) = pending.pop() {
-        if !plans.nodes.is_valid(value) {
-            return unsupported("structural computation has a stale value dependency");
-        }
-        if values.contains(&value) {
-            continue;
-        }
-        values.push(value);
-        match &plans.nodes.get(value).kind {
+    for value in &values {
+        match &plans.nodes.get(*value).kind {
             Value::Record { fields, .. } | Value::StructuralCase { fields, .. } => {
                 for field in plans
                     .record_fields
@@ -366,7 +362,7 @@ pub(crate) fn structural_dependencies(
                 {
                     match field.value {
                         Field::Scalar(root) => scalars.push(root),
-                        Field::Structural(root) => pending.push(root),
+                        Field::Structural(_) => {}
                     }
                 }
             }
@@ -383,14 +379,11 @@ pub(crate) fn structural_dependencies(
                     {
                         scalars.push(pattern);
                     }
-                    pending.push(arm.value);
                 }
             }
             Value::Case(subject) => {
                 scalars.extend(fields(checked, subject)?.iter().map(|field| field.value))
             }
-            Value::Projection { source, .. } => pending.push(*source),
-            Value::FixedArray { elements } => pending.extend(elements),
             Value::ScalarArray { elements } => scalars.extend(elements),
             Value::ZeroedScalarArray { element, .. } => scalars.push(*element),
             Value::BorrowedSliceView { source, region, .. }
@@ -403,12 +396,10 @@ pub(crate) fn structural_dependencies(
                     scalars.push(*start);
                 }
             }
-            Value::Reference { source_value, .. } => {
-                if source_value.is_valid() {
-                    pending.push(*source_value);
-                }
-            }
-            Value::Call { .. }
+            Value::Reference { .. }
+            | Value::Projection { .. }
+            | Value::FixedArray { .. }
+            | Value::Call { .. }
             | Value::Place(_)
             | Value::ByteLiteralView { .. }
             | Value::CopiedStructuralPlace { .. }

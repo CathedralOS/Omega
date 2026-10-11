@@ -7,7 +7,8 @@ Constructed records and fixed arrays supply their complete types before their
 borrows participate in call inference. A nested borrowed constructor retains
 its backing home: the callee reads 37 through the stored reference leaf.
 A stored reference to a computed fixed array uses that same pointer carrier
-and cleanup route; reading its first record observes 47.
+and cleanup route; reading its second record observes 53. Its distinct extent
+cannot borrow a storage declaration from the earlier array argument.
 The returned linear token retains the original backing, observes 73 and is
 consumed exactly once. Native and Terminal execution must both return 0.
 

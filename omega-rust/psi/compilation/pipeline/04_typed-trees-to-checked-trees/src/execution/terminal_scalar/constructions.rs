@@ -34,6 +34,35 @@ pub(crate) fn retain_shapes(
     state: SymbolHandle,
     shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
 ) -> Option<()> {
+    // A stored reference publishes only its pointer shape. Its computed
+    // backing is a separate value demand, including when no signature or
+    // other expression mentions that storage type. Follow retained value
+    // edges, never transitive pointee types or speculative arena nodes.
+    let mut retained_values = Vec::new();
+    for (_, root) in structural_values
+        .roots
+        .iter()
+        .filter(|(_, root)| root.state == state)
+    {
+        for value in structural_values.value_dependencies(root.root)? {
+            if retained_values.contains(&value) {
+                continue;
+            }
+            retained_values.push(value);
+            if let checked_trees::CheckedStructuralValueKind::Reference { source_value, .. } =
+                structural_values.nodes.get(value).kind
+                && source_value.is_valid()
+            {
+                retain_declarations(
+                    shapes,
+                    super::super::terminal_unit::scalar_operand_shapes(
+                        program,
+                        structural_values.nodes.get(source_value).type_reference,
+                    )?,
+                )?;
+            }
+        }
+    }
     let mut pending = plans
         .roots
         .iter()

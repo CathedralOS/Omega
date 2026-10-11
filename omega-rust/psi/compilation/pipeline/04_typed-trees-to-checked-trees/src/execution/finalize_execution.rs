@@ -124,7 +124,12 @@ pub(crate) fn finalize_execution(
             &facts.values.structural_values,
             state,
             &mut construction_shapes,
-        );
+        )
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "cannot retain constructed value storage shapes",
+            )]
+        })?;
     }
     if let Err(identity) = terminal_unit_effects.adopt_structural_types(construction_shapes) {
         cleanup_diagnostics.push(Diagnostic::error(format!(

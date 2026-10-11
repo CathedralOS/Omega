@@ -230,6 +230,50 @@ pub struct CheckedStructuralDispatchArm {
 }
 
 impl CheckedStructuralValuePlans {
+    /// Structural values actually reached from a retained root, including
+    /// computed backing storage. This is the value graph, not the referent
+    /// type graph: a stored pointer alone never demands its pointee's storage.
+    /// Catalog and evaluation consumers share these edges so an anonymous
+    /// backing cannot depend on an unrelated expression registering its type.
+    pub fn value_dependencies(
+        &self,
+        root: CheckedStructuralValueHandle,
+    ) -> Option<Vec<CheckedStructuralValueHandle>> {
+        let mut pending = vec![root];
+        let mut values = Vec::new();
+        while let Some(value) = pending.pop() {
+            if !self.nodes.is_valid(value) {
+                return None;
+            }
+            if values.contains(&value) {
+                continue;
+            }
+            values.push(value);
+            match &self.nodes.get(value).kind {
+                CheckedStructuralValueKind::Record { fields, .. }
+                | CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+                    for field in self.record_fields.span(*fields)? {
+                        if let CheckedStructuralRecordFieldValue::Structural(child) = field.value {
+                            pending.push(child);
+                        }
+                    }
+                }
+                CheckedStructuralValueKind::Dispatch { arms, .. } => {
+                    pending.extend(self.dispatch_arms.span(*arms)?.iter().map(|arm| arm.value));
+                }
+                CheckedStructuralValueKind::Projection { source, .. } => pending.push(*source),
+                CheckedStructuralValueKind::FixedArray { elements } => pending.extend(elements),
+                CheckedStructuralValueKind::Reference { source_value, .. } => {
+                    if source_value.is_valid() {
+                        pending.push(*source_value);
+                    }
+                }
+                _ => {}
+            }
+        }
+        Some(values)
+    }
+
     /// Executable calls belong to the exact value DAG, not its eventual local,
     /// argument or observation consumer. Catalog order is not evaluation order.
     pub fn calls_for_root(

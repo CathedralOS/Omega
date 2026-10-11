@@ -19,6 +19,11 @@ pub(crate) fn type_requirements(
     let mut types = super::cases::type_roots(checked, &[machine])?;
     let mut literal_view = false;
     types.extend(super::fields::type_roots(checked, machine)?);
+    for value in crate::expression_preparation::computation_graph::reachable_structural_values(
+        checked, machine,
+    )? {
+        crate::unit::attached_unit::catalog::collect_value_roots(checked, value, &mut types)?;
+    }
     let plans = &checked.facts.values.scalar_computations;
     for handle in super::machine_computation_handles(checked, machine)? {
         match &plans.nodes.get(handle).kind {

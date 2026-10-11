@@ -650,9 +650,12 @@ pub fn join_result_type_references(
         })
 }
 
-/// Equal independently allocated collection types retain the same element
-/// evidence. Recurse through fixed arrays only; qualification nodes must retain
-/// the very same predicate/domain payload rather than equal rendered bounds.
+/// Equal independently allocated type vocabulary retains the same evidence.
+/// Argument spans are storage, not application identity: compare the selected
+/// declaration and its complete arguments recursively. Lifetimes and access
+/// remain exact; qualifications must retain the very same predicate/domain
+/// payload rather than equal rendered bounds. A normalized display identity
+/// would incorrectly equate independently scoped dependent predicates.
 fn same_result_type(
     program: &dyn crate::CheckingInput,
     left: TypeReferenceHandle,
@@ -670,24 +673,110 @@ fn same_result_type(
     if left_type == right_type {
         return true;
     }
-    let (
-        TypeReferenceNode::FixedArray {
-            element_type: left_element,
-            length: left_length,
-        },
-        TypeReferenceNode::FixedArray {
-            element_type: right_element,
-            length: right_length,
-        },
-    ) = (left_type, right_type)
-    else {
-        return false;
-    };
-    if left_length != right_length {
-        return false;
-    }
     active.push((left, right));
-    let same = same_result_type(program, *left_element, *right_element, active);
+    let same = match (left_type, right_type) {
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: left_element,
+                length: left_length,
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: right_element,
+                length: right_length,
+            },
+        ) => {
+            left_length == right_length
+                && same_result_type(program, *left_element, *right_element, active)
+        }
+        (
+            TypeReferenceNode::Slice {
+                element_type: left_element,
+            },
+            TypeReferenceNode::Slice {
+                element_type: right_element,
+            },
+        ) => same_result_type(program, *left_element, *right_element, active),
+        (
+            TypeReferenceNode::Reference {
+                referee: left_referee,
+                access: left_access,
+                lifetime: left_lifetime,
+            },
+            TypeReferenceNode::Reference {
+                referee: right_referee,
+                access: right_access,
+                lifetime: right_lifetime,
+            },
+        ) => {
+            left_access == right_access
+                && left_lifetime == right_lifetime
+                && same_result_type(program, *left_referee, *right_referee, active)
+        }
+        (
+            TypeReferenceNode::Constrained {
+                base_type: left_base,
+                constraints: left_constraints,
+            },
+            TypeReferenceNode::Constrained {
+                base_type: right_base,
+                constraints: right_constraints,
+            },
+        ) => {
+            left_constraints == right_constraints
+                && same_result_type(program, *left_base, *right_base, active)
+        }
+        (
+            TypeReferenceNode::Generic {
+                base_symbol: left_symbol,
+                lifetime_arguments: left_lifetimes,
+                arguments: left_arguments,
+                ..
+            },
+            TypeReferenceNode::Generic {
+                base_symbol: right_symbol,
+                lifetime_arguments: right_lifetimes,
+                arguments: right_arguments,
+                ..
+            },
+        ) if left_symbol == right_symbol && left_lifetimes == right_lifetimes => {
+            let left_arguments = program
+                .type_reference_table
+                .type_reference_handles(*left_arguments);
+            let right_arguments = program
+                .type_reference_table
+                .type_reference_handles(*right_arguments);
+            left_arguments.len() == right_arguments.len()
+                && left_arguments
+                    .iter()
+                    .zip(right_arguments)
+                    .all(|(left, right)| same_result_type(program, *left, *right, active))
+        }
+        (
+            TypeReferenceNode::DynamicTrait {
+                symbol: left_symbol,
+                arguments: left_arguments,
+                ..
+            },
+            TypeReferenceNode::DynamicTrait {
+                symbol: right_symbol,
+                arguments: right_arguments,
+                ..
+            },
+        ) if left_symbol == right_symbol => {
+            let left_arguments = program
+                .type_reference_table
+                .type_reference_handles(*left_arguments);
+            let right_arguments = program
+                .type_reference_table
+                .type_reference_handles(*right_arguments);
+            left_arguments.len() == right_arguments.len()
+                && left_arguments
+                    .iter()
+                    .zip(right_arguments)
+                    .all(|(left, right)| same_result_type(program, *left, *right, active))
+        }
+        _ => false,
+    };
     active.pop();
     same
 }

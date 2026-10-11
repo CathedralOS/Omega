@@ -256,9 +256,9 @@ pub(in crate::execution::scalar_computations) fn is_fixed_array_value(
     }) && !validation::is_closed_primitive_array_type(program, expected)
 }
 
-/// The referent of a shared-borrow result type (`&T` where `T` is a named
-/// record, or a primitive, that the structural pipeline can carry). `None` for
-/// owned results and for borrows the structural pipeline cannot carry. The
+/// The referent of a shared record or primitive view. This classifies the
+/// record-value consumer, not general reference formation: arrays and cases
+/// retain their own ordinary producers. The
 /// carrier rule is linear-tolerant: a shared borrow observes the referent
 /// without moving it, so a linear declaration's claim never reaches this join
 /// and the referent's own owner keeps the whole discharge obligation.
@@ -290,11 +290,6 @@ pub(super) fn shared_record_reference(
         .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_))))
     .then_some(shell.referee)
 }
-
-/// The declared type of a shared borrow's exact target without state scope: a
-/// whole local's declared type, or a projected leaf resolved through its
-/// root's declaration. `canonical_place_from_expression` keeps the root and
-/// every segment exact.
 
 /// An omitted runtime field's zero value is admitted only for a
 /// `[scalar; N]` leaf: a literal-length fixed array whose element resolves
