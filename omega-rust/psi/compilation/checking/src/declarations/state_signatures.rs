@@ -70,6 +70,7 @@ pub(crate) fn validate_callable_state_signatures(
             &lifetime_parameters,
             machine.name.as_str(),
         );
+        validate_machine_state_result_agreement(program, machine, diagnostics);
     }
 
     for definition in program.data_definitions() {
@@ -141,6 +142,49 @@ pub(crate) fn validate_callable_state_signatures(
                 machine.name.as_str(),
             );
         }
+    }
+}
+
+/// A machine composes its states into one callable graph: every authored
+/// `->` must restate the machine's result, which the first (implicit entry)
+/// state carries after the parser fills it with the machine head's declared
+/// result. A state declaring a different result cannot be fused into that
+/// graph — diagnose here instead of declining deep in terminal lowering.
+fn validate_machine_state_result_agreement(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let states = program.machine_states(machine);
+    let Some(result_state) = states.first() else {
+        return;
+    };
+    let result = program.normalized_type_identity(result_state.return_type);
+    for state in &states[1..] {
+        if program.normalized_type_identity(state.return_type) == result {
+            continue;
+        }
+        let declared = if state.return_type.is_valid() {
+            format!(
+                "result `{}`",
+                program.normalized_type_identity_text(state.return_type)
+            )
+        } else {
+            "no result".to_string()
+        };
+        let expected = if result_state.return_type.is_valid() {
+            format!(
+                "result `{}`",
+                program.normalized_type_identity_text(result_state.return_type)
+            )
+        } else {
+            "no result".to_string()
+        };
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` declares {declared}, which differs from the machine's {expected}",
+            machine.name,
+            state.name.as_str(),
+        )));
     }
 }
 
