@@ -1,58 +1,32 @@
 // A tick-PACED marquee -- the first render loop verified against REAL elapsed time. A '#'
 // sweeps across a carrier line for 24 frames at ~15ms each (write_line + Clock.sleep), and
-// the loop's wall-clock cost is then ASSERTED with the value-returning tick_count import:
-// elapsed = t_end - t_start >= 100ms. Natively GetTickCount64 measures real Sleep time; the
-// interpreter's virtual clock advances by the slept milliseconds, so the same arithmetic
-// holds deterministically. Composes: value-returning host imports in a live render loop,
-// carrier byte writes at a runtime index, per-frame host output, and Wrapping u64 tick math.
+// the loop's wall-clock cost is then ASSERTED through std `Time::elapsed_since`: elapsed >=
+// 100ms. Natively the monotonic clock measures real sleep time; the interpreter's virtual
+// clock advances by the slept milliseconds, so the same assertion holds deterministically.
+// Composes: std Clock and Time capabilities in a live render loop, carrier byte writes at a
+// runtime index, and per-frame host output.
 // Expected exit: 0.
 // Expected output contains: #
 use omega_language_std::console;
-use omega_language_std::macos_gui;
-use omega::language::core::numeric_conversion;
+use omega_language_std::clock;
+use omega_language_std::time;
 use omega::language::core::binding;
 domain [u8; 12]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-pub boundary trait Clock2 {
-    machine sleep(milliseconds: u32) invokes DarwinClock;
-    machine tick_count() -> u64 invokes DarwinClock;
-}
-
-// Declared-host Clock2 wiring over the darwin leaves. `tick_count` must answer
-// in MILLISECONDS: the loop asserts `elapsed >= 100` against its own header
-// contract ("GetTickCount64 measures real Sleep time"), so the raw nanosecond
-// read is scaled exactly as `MacosClock::get_tick_count` scales it. The
-// provider holds no state: both calls keep their scratch in locals, where the
-// static-machine contract places invocation scratch.
-data MarqueeClockProvider { }
-macos_arm64 machine MarqueeClockProvider::provider_defaults(defaults: &mut MarqueeClockProvider) {
-    MarqueeClockProvider::select_provider<Clock2, MarqueeClockProvider>(defaults);
-}
-macos_arm64 machine MarqueeClockProvider::sleep(milliseconds: u32) satisfies Clock2::sleep
-{
-    let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
-    let rc: i32 = darwin_poll(0, 0, timeout);
-}
-macos_arm64 machine MarqueeClockProvider::tick_count() -> u64 satisfies Clock2::tick_count
-{
-    let ns: u64 = darwin_clock_ns(6);
-    ns / 1000000
-}
 data Main {
     console: Binding<Console>;
-    clock: Binding<Clock2>;
+    clock: Binding<Clock>;
+    time: Time;
     line: [u8; 12] in Utf8;
     frame: u32 in Wrapping;
     pos: u32 in Wrapping;
-    t_start: u64 in Wrapping;
-    t_end: u64 in Wrapping;
-    elapsed: u64 in Wrapping;
+    t_start: Instant;
     pause: [u8; 256];
 }
-machine Main::main(main: &mut Main) reaches Clock2 + Console + DarwinClock {
+machine Main::main(main: &mut Main) reaches Clock + Console {
     main.console.write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
-    main.t_start = main.clock.tick_count();
+    main.t_start = Time::now(&mut main.time);
     main.frame = 0;
     transition { _ -> frame_loop(main) }
     state frame_loop(main: &mut Main) {
@@ -71,9 +45,14 @@ machine Main::main(main: &mut Main) reaches Clock2 + Console + DarwinClock {
         transition { _ -> frame_loop(main) }
     }
     state finish(main: &mut Main) {
-        main.t_end = main.clock.tick_count();
-        main.elapsed = main.t_end - main.t_start;
-        transition main.elapsed >= 100 { true -> ok(main) _ -> bad(main) }
+        let elapsed: Duration = Time::elapsed_since(&mut main.time, main.t_start);
+        transition elapsed.seconds == 0 {
+            true -> check_subsecond(main, elapsed.subsecond_nanoseconds)
+            false -> ok(main)
+        }
+    }
+    state check_subsecond(main: &mut Main, subsecond_nanoseconds: u32) {
+        transition subsecond_nanoseconds >= 100000000 { true -> ok(main) _ -> bad(main) }
     }
     state ok(main: &mut Main)  {
         main.console.write_line("PASS: 24 frames drawn and elapsed time >= 100ms (exit 0)");
