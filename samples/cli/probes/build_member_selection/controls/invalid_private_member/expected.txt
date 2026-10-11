@@ -1,0 +1,2 @@
+cannot check prepared project: checked compilation failed for package `invalid_private_member` with 1 diagnostic(s)
+  error: package `invalid_private_member` (...) selects private machine `hidden::entry`
