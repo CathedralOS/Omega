@@ -5385,3 +5385,6 @@ fail/termination/selected_result_rank_arrival_unguarded rejected 425ms expected 
 	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
 pass/termination/external_result_ranked_arrival_compile checked 471ms @17893ef676f4+wt
 pass/termination/runtime_selected_result_ranked_arrival_exit checked 2700ms check-target:macos_arm64 @17893ef676f4+wt
+pass/borrows/runtime_shared_carrier_storage_observation_exit checked 5396ms check-target:macos_arm64 @759f6dbf1dfa
+fail/borrows/shared_carrier_storage_move rejected 603ms expected @759f6dbf1dfa
+	state `take` receives an owned value while local borrow `alias` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)

@@ -821,3 +821,4 @@ pass/build/explicit_lifetime_entry_context_exit built 2775ms exit:0 interpreter-
 pass/traits/nominal_generic_reference_forwarding_exit built 3588ms exit:1 interpreter-exit:1 interpreter:agrees @4146666641c6+wt
 pass/traits/conformance_unused_lifetime_scope_exit built 2719ms exit:0 interpreter-exit:0 interpreter:agrees @36591ba7905e+wt
 pass/termination/runtime_selected_result_ranked_arrival_exit built 2748ms exit:0 interpreter-exit:0 interpreter:agrees @17893ef676f4+wt
+pass/borrows/runtime_shared_carrier_storage_observation_exit built 5346ms exit:0 interpreter-exit:0 interpreter:agrees @759f6dbf1dfa
