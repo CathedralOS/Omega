@@ -674,21 +674,17 @@ defines the complete product bar.
   Complete consuming-transform and replacement execution under
   [ownership windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
   and [borrowed-storage restoration](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration).
-  - Regression: 17a82816ca3 (with f9d44e02bc2, d3df9a598d2), landed with
-    "final exact-commit validation and independent review pending", stops
-    12 programs that ran natively at 8efa46c2413 on Windows x86-64. Six fail
-    "jump successor: loan transfer" (`pass/borrows/runtime_record_byte_region_loan_exit`,
-    `pass/collections/borrowed_byte_array_state_{reads,writes}_exit`,
-    `pass/text/borrowed_bounded_byte_indexed_write_exit`,
-    `pass/text/qualified_byte_owner_state_loan_cycle_exit`, and the
-    conditional-successor form in
-    `pass/control_flow/runtime_local_record_array_byte_render_exit`); six fail
-    "reference record result has no exact captured leaf loans"
-    (`pass/ownership/runtime_borrowed_{carried_loan_transform,carrier_repeated_repair,case_result_restore,shared_alias_carrier_transform}_exit`,
-    `pass/ownership/runtime_generic_{borrowed,linear}_case_restore_exit`).
-    Bisected on 8efa46c2413..0b86bd58d74; the three commits do not build
-    individually. Reproduce with `python tools/corpus_gate.py --native
-    --filter <fixture> < /dev/null`.
+  - Qualify borrowed byte-storage state joins on Windows x86-64 and
+    matching-host Linux x86-64. Keep
+    `pass/borrows/runtime_record_byte_region_loan_exit` (50),
+    `pass/collections/borrowed_byte_array_state_{reads,writes}_exit` (70),
+    `pass/text/borrowed_bounded_byte_indexed_write_exit` (70),
+    `pass/text/qualified_byte_owner_state_loan_cycle_exit` (70), and
+    `pass/control_flow/runtime_local_record_array_byte_render_exit` (0)
+    for loan transport across direct and conditional successors.
+    Reproduce with `python tools/corpus_gate.py --both --filter <fixture>`
+    on each bound host; byte-owner loans retain their own qualifications,
+    rather than becoming pointer/length views.
   - Where: `OpenWindows::replace` in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/borrowed_windows.rs`
     separates exact-place restoration debt from detached value custody;
@@ -824,8 +820,9 @@ defines the complete product bar.
   `fail/borrows/replaced_carrier_keeps_new_backing_loan` for the installed loan.
   Keep `pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit` (42) for
   observing primitive backing through the restored incoming descriptor.
-  Keep `runtime_borrowed_shared_alias_carrier_transform_exit` (42) for repeated
-  repair with complete multi-source descriptor groups and
+  Keep `runtime_borrowed_{carried_loan_transform,carrier_repeated_repair,shared_alias_carrier_transform}_exit`
+  (42) for consuming call results, repeated repair and complete multi-source
+  descriptor groups through the borrowed referent, and
   `fail/borrows/record_result_retains_declared_lifetime_origins` for retaining
   candidates a body does not select.
   Keep `pass/ownership/runtime_whole_borrowed_transform_exit` (42) for

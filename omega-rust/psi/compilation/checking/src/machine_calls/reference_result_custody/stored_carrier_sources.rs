@@ -2,6 +2,9 @@
 //! Constructor prefixes and projections belong to this graph; callers retain
 //! the receiving loan's formation separately. A copied place inherits custody,
 //! while a call keeps its exact occurrence and residual result path.
+//! A reference root can supply either its own newly formed descriptor or a
+//! selected carrier already stored in its referent. Preserve that distinction:
+//! an aggregate extraction transports the child's loans, not the root loan.
 
 use checked_trees::{
     CheckFacts, CheckedStructuralValueHandle, CheckedStructuralValueKind,
@@ -61,8 +64,33 @@ fn select(
     }
     active.push(value);
     match &values.nodes.get(value).kind {
-        CheckedStructuralValueKind::Reference { source, .. }
-        | CheckedStructuralValueKind::BorrowedSliceView { source, .. }
+        CheckedStructuralValueKind::Reference {
+            source,
+            source_value,
+        } => {
+            if selection.is_empty() {
+                output.push(StoredCarrierSource::Borrow {
+                    value,
+                    source: source.clone(),
+                });
+            } else {
+                // A selected child belongs to the referent's storage, not to
+                // the descriptor this node forms. Borrowed formals and fresh
+                // temporary backing expose the same existing carrier leaves;
+                // selecting one neither borrows its containing slot again nor
+                // replaces its origin with the outer reference's permission.
+                let mut path = source.path.clone();
+                path.extend_from_slice(selection);
+                if source_value.is_valid() {
+                    select(program, facts, *source_value, &path, active, output)?;
+                } else {
+                    let mut source = source.clone();
+                    source.path = path;
+                    output.push(StoredCarrierSource::Place(source));
+                }
+            }
+        }
+        CheckedStructuralValueKind::BorrowedSliceView { source, .. }
         | CheckedStructuralValueKind::MutableSliceView { source, .. } => {
             if !selection.is_empty() {
                 return None;
