@@ -73,57 +73,38 @@ pub(super) fn function_abi(
     {
         return Err(LegalizationError::custody());
     }
-    match &abstracted.result {
-        AbstractFunctionResult::Scalar(result) => {
-            let Some(abi) = &target.scalar_abi else {
-                return Err(LegalizationError::custody());
-            };
-            if abi.call_plan != expected
-                || abi.result.value != result.value
-                || abi.result.scalar_type != result.scalar_type
-                || Some(&abi.result.placement) != expected.result.as_ref()
-                || abi.parameters.len() != abstracted.parameters.len()
-                || abi
-                    .parameters
-                    .iter()
-                    .zip(&abstracted.parameters)
-                    .zip(&expected.parameters)
-                    .any(|((actual, declared), placement)| {
-                        actual.value != declared.value
-                            || actual.scalar_type != declared.scalar_type
-                            || actual.placement != *placement
-                    })
-            {
-                return Err(LegalizationError::custody());
-            }
+    let Some(abi) = &target.scalar_abi else {
+        return Err(LegalizationError::custody());
+    };
+    let result_matches = match (abstracted.result.scalar(), abi.result.as_ref()) {
+        (None, None) => expected.result.is_none(),
+        (Some(declared), Some(actual)) => {
+            actual.value == declared.value
+                && actual.scalar_type == declared.scalar_type
+                && Some(&actual.placement) == expected.result.as_ref()
         }
-        AbstractFunctionResult::Unit => {
-            let graph = &target.graph;
-            let (parameters, scalar_parameters, call_plan) = (
-                &graph.parameters,
-                &graph.scalar_parameters,
-                &graph.call_plan,
-            );
-            if target.scalar_abi.is_some()
-                || !parameters.is_empty()
-                || *call_plan != expected
-                || scalar_parameters.len() != abstracted.parameters.len()
-                || scalar_parameters
-                    .iter()
-                    .zip(&abstracted.parameters)
-                    .zip(&expected.parameters)
-                    .any(|((actual, declared), placement)| {
-                        actual.value != declared.value
-                            || actual.scalar_type != declared.scalar_type
-                            || actual.placement != *placement
-                    })
-            {
-                return Err(LegalizationError::custody());
-            }
-        }
-        _ => {
-            return Err(LegalizationError::custody());
-        }
+        _ => false,
+    };
+    // An ABI's presence describes parameter transport, not its result family.
+    // The same declaration/graph join applies to procedures and value returns.
+    if !result_matches
+        || abi.call_plan != expected
+        || abi.parameters.len() != abstracted.parameters.len()
+        || abi
+            .parameters
+            .iter()
+            .zip(&abstracted.parameters)
+            .zip(&expected.parameters)
+            .any(|((actual, declared), placement)| {
+                actual.value != declared.value
+                    || actual.scalar_type != declared.scalar_type
+                    || actual.placement != *placement
+            })
+        || !target.graph.parameters.is_empty()
+        || target.graph.call_plan != expected
+        || target.graph.scalar_parameters != abi.parameters
+    {
+        return Err(LegalizationError::custody());
     }
     Ok(expected)
 }

@@ -1778,3 +1778,4 @@ pass/slices/runtime_borrowed_noncopy_array_argument_exit built 3708ms exit:0 @6d
 pass/slices/runtime_namespace_range_contract_exit built 3740ms exit:0 @be968c2c6bfb
 pass/slices/runtime_forwarded_range_extent_snapshot_exit built 3964ms exit:0 @2a23b3a1e99d
 pass/slices/runtime_returned_range_extent_contract_exit built 3951ms exit:0 @2a23b3a1e99d
+run/calls/resultless_scalar_parameters built 5055ms exit:0 stdout:match stderr:match @10b02229ff8b

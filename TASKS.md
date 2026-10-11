@@ -4398,13 +4398,13 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   uses a nonexistent import and is not execution acceptance. Preserve the
   exact body-declaration, registrar and caller-scoped function-identity joins.
 
-  Resultless entries currently cannot be represented:
-  `ScalarFunctionAbi` in
-  `representations/target-operations/src/target_operations/calls/abi.rs`
-  requires a `ScalarAbiValue` result. Fix the ABI representation and its
-  consumers together, not a void special case in the materializer.
-  Changing the procedure to return `u64` is not the customer's semantics and
-  does not repair the upstream `StructuralCallArgumentMismatch`.
+  The private channel still requires one function and refuses foreign-call
+  and image-address custody. Carry the ordinary function/relocation closure
+  rather than filling `MachineCodeFunction` custody with empty records.
+  Preserve resultless transport with `calls/resultless_native_callback_compile`
+  (a genuine Linux `pthread_once` import) and the runnable
+  `calls/resultless_scalar_parameters`. Neither substitutes for Windows
+  invocation, a general callback body or structural argument transport.
 
   Acceptance: `pass/calls/callback_private_materialization` uses a genuine
   Windows x64 host registration provider and executes a callback with a general

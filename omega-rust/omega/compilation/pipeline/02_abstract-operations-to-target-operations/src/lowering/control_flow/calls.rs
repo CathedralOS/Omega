@@ -414,11 +414,11 @@ fn published_scalar_contract(
                 placement: placement.clone(),
             })
             .collect(),
-        result: ScalarAbiValue {
+        result: Some(ScalarAbiValue {
             value: callee_result.value,
             scalar_type: callee_result.scalar_type,
             placement: result_placement,
-        },
+        }),
         call_plan,
     };
     require_exact_target_abi(callee, scalar_abis.get(&callee), &expected_abi)?;

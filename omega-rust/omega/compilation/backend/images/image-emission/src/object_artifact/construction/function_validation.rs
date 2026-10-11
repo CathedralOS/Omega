@@ -714,7 +714,7 @@ fn validate_internal_unit_call_custodies(
                 .iter()
                 .any(|argument| !argument.path.is_empty())
             && machine_functions.get(&custody.target).is_none_or(|callee| {
-                callee.scalar_abi.is_some() || default_affine_cleanup.is_none_or(|cleanup| {
+                callee.scalar_abi.as_ref().is_some_and(|abi| abi.result.is_some()) || default_affine_cleanup.is_none_or(|cleanup| {
                     !crate::object_artifact::replay::unit::continuations::exact_projected_callee(
                         custody,
                         &callee.unit_parameters,

@@ -191,7 +191,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 && targeted.mixed_structural_scalar_abi.is_none())
             || (structural.is_none() && !abstracted.entry_claims.is_empty())
             || (unit
-                && (targeted.scalar_abi.is_some()
+                && (targeted
+                    .scalar_abi
+                    .as_ref()
+                    .is_some_and(|abi| abi.result.is_some())
                     || targeted.mixed_structural_scalar_abi.is_some()))
             || (!unit
                 && !graph_result

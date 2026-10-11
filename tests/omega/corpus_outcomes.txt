@@ -5221,3 +5221,8 @@ pass/collections/runtime_fixed_byte_view_dynamic_state_loan_exit checked 7811ms 
 pass/collections/runtime_fixed_byte_view_dynamic_state_shared_loan_exit checked 6992ms check-target:macos_arm64 @059a98d14555
 # ADD17 restricted-scalar composition control, one corpus job.
 pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit checked 6465ms check-target:macos_arm64 @fbc2344df662
+pass/calls/resultless_native_callback_compile checked 3766ms check-target:linux_x86_64 @10b02229ff8b
+fail/calls/resultless_return_contract rejected 511ms expected @10b02229ff8b
+	machine `WrongReturn::call` state `call` does not satisfy trait `Initializer` machine `call`: expected return `()`, got `u64`
+	machine `WrongReturn::call` state `call` does not satisfy trait `Initializer` machine `call`: return lifetime application does not match the declared `satisfies` edge
+run/calls/resultless_scalar_parameters checked 4770ms check-target:macos_arm64 @10b02229ff8b

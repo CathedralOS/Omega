@@ -1178,3 +1178,4 @@ pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit built 1544
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.79, "load1_start": 0.53, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/calls/runtime_boolean_result_across_console_exit built 16813ms exit:70 stdout:match @b342aa09cb97+wt
 pass/calls/runtime_float_result_across_call_exit built 151268ms exit:70 stdout:match @b342aa09cb97+wt
+pass/calls/resultless_native_callback_compile built 3835ms @10b02229ff8b

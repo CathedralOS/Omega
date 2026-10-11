@@ -88,7 +88,11 @@ pub fn materialize_private_callback_function(
             .iter()
             .zip(boundary_signature.parameters.iter())
             .any(|(emitted, declared)| emitted.placement != *declared)
-        || boundary_signature.result.as_ref() != Some(&emitted_signature.result.placement)
+        || boundary_signature.result.as_ref()
+            != emitted_signature
+                .result
+                .as_ref()
+                .map(|result| &result.placement)
     {
         return Err(reject(
             "callback thunk signature drifts from its boundary entry plan",

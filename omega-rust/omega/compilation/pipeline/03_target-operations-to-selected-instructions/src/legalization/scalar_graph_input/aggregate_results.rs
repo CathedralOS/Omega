@@ -221,8 +221,16 @@ pub(super) fn header(
             || target.nominal_cleanup_subject != abstracted.nominal_cleanup_subject)
         || (target.attachment != optimized.attachment
             || target.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
+        || (match abstracted.result {
+            AbstractFunctionResult::Unit => target
+                .scalar_abi
+                .as_ref()
+                .is_some_and(|abi| abi.result.is_some()),
+            AbstractFunctionResult::Structural(_) => target.scalar_abi.is_some(),
+            AbstractFunctionResult::Scalar(_) => false,
+        })
         || (!matches!(abstracted.result, AbstractFunctionResult::Scalar(_))
-            && (target.scalar_abi.is_some() || target.mixed_structural_scalar_abi.is_some()))
+            && target.mixed_structural_scalar_abi.is_some())
         || optimized.result != abstracted.result
         || !super::place_declarations::matches_producers(optimized)
         || optimized.structural_parameters != abstracted.structural_parameters
@@ -306,18 +314,18 @@ pub(super) fn header(
         },
     )
     .map_err(|_| LegalizationError::custody())?;
-    if graph.call_plan != expected {
+    if graph.call_plan != expected
+        || target.scalar_abi.as_ref().is_some_and(|abi| {
+            !graph.parameters.is_empty()
+                || abi.call_plan != expected
+                || abi.parameters != graph.scalar_parameters
+        })
+    {
         return Err(LegalizationError::custody());
     }
     if let AbstractFunctionResult::Scalar(result) = abstracted.result {
         let retained = match (&target.scalar_abi, &target.mixed_structural_scalar_abi) {
-            (Some(abi), None)
-                if graph.parameters.is_empty()
-                    && abi.call_plan == expected
-                    && abi.parameters == graph.scalar_parameters =>
-            {
-                Some(&abi.result)
-            }
+            (Some(abi), None) => Some(abi.result.as_ref().ok_or(LegalizationError::custody())?),
             (None, Some(abi))
                 if !graph.parameters.is_empty()
                     && abi.call_plan == expected

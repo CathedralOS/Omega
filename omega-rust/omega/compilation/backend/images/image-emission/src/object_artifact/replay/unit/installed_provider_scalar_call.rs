@@ -232,7 +232,10 @@ fn validate_parameter_abi(
                     && scalar_type.sign() == IntegerSign::Signed
                     && scalar_type.bits() == 32
         )
-        || function.scalar_abi.is_some()
+        || function
+            .scalar_abi
+            .as_ref()
+            .is_some_and(|abi| abi.result.is_some())
         || function.scalar_stack.is_some()
         || function.unit_stack.is_none()
         || !function.unit_parameters.is_empty()

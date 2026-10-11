@@ -50,7 +50,10 @@ pub(crate) fn validate_internal_unit_scalar_calls(
         return Ok(());
     }
     if function.attachment.is_none()
-        || function.scalar_abi.is_some()
+        || function
+            .scalar_abi
+            .as_ref()
+            .is_some_and(|abi| abi.result.is_some())
         || function.unit_stack.is_none()
         || function.scalar_stack.is_some()
         || function.internal_unit_scalar_calls.windows(2).any(|pair| {
@@ -214,12 +217,13 @@ fn validate_home_roster(
 }
 
 fn validate_scalar_abi(target: NativeTarget, abi: &ScalarFunctionAbi) -> Result<(), ()> {
+    let result = abi.result.as_ref().ok_or(())?;
     let parameter_shapes = abi
         .parameters
         .iter()
         .map(|value| scalar_home_shape(value.scalar_type).ok_or(()))
         .collect::<Result<Vec<_>, _>>()?;
-    let Some(result_integer) = abi.result.scalar_type.as_integer() else {
+    let Some(result_integer) = result.scalar_type.as_integer() else {
         return Err(());
     };
     let result_shape = integer_shape(result_integer).ok_or(())?;
@@ -238,7 +242,7 @@ fn validate_scalar_abi(target: NativeTarget, abi: &ScalarFunctionAbi) -> Result<
             .iter()
             .zip(&abi.call_plan.parameters)
             .any(|(value, placement)| value.placement != *placement)
-        || abi.result.placement != *abi.call_plan.result.as_ref().ok_or(())?
+        || result.placement != *abi.call_plan.result.as_ref().ok_or(())?
     {
         return Err(());
     }
@@ -254,6 +258,7 @@ fn validate_call(
     call: &InternalUnitScalarCallRecord,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidInternalUnitScalarCallEvidence(function.machine);
+    let result = abi.result.as_ref().ok_or_else(invalid)?;
     let CallSiteOwner::Operation(operation) = call.owner else {
         return Err(invalid());
     };
@@ -264,8 +269,8 @@ fn validate_call(
         .ok_or_else(invalid)?;
     if call.call_plan != abi.call_plan
         || call.arguments.len() != abi.parameters.len()
-        || call.result.source != abi.result.placement
-        || call.result.home.scalar_type != abi.result.scalar_type
+        || call.result.source != result.placement
+        || call.result.home.scalar_type != result.scalar_type
         || !function.provenance.operations.contains(&operation)
         || exact_attribution_count(
             &function.semantic_code_attribution,

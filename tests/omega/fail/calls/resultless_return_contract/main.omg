@@ -1,0 +1,13 @@
+boundary trait Initializer {
+    machine call();
+}
+
+data WrongReturn { }
+
+machine WrongReturn::call() -> u64
+satisfies Initializer::call
+{
+    7
+}
+
+machine main() { }

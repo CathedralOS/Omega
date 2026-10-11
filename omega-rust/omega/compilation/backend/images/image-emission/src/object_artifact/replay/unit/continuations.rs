@@ -392,7 +392,10 @@ pub(crate) fn validate_function(
     }
     if function.unit_stack.is_none()
         || function.scalar_stack.is_some()
-        || function.scalar_abi.is_some()
+        || function
+            .scalar_abi
+            .as_ref()
+            .is_some_and(|abi| abi.result.is_some())
         || function.structural_return.is_some()
         || function.scalar_affine_cleanup.is_some()
         || !function.scalar_control_affine_cleanups.is_empty()

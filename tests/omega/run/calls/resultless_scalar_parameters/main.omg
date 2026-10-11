@@ -1,0 +1,18 @@
+use omega_language_std::console;
+
+machine emit(character: i32 [0..=255], enabled: bool) reaches Console {
+    transition enabled {
+        true -> output(character)
+        false -> skipped()
+    }
+    state output(character: i32 [0..=255]) {
+        Console::write_byte(character);
+    }
+    state skipped() { }
+}
+
+machine main() reaches Console {
+    emit(88, false);
+    emit(65, true);
+    emit(10, true);
+}
