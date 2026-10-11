@@ -49,6 +49,8 @@ mod dynamic_families;
 pub(crate) use dynamic_families::generate_dynamic_family_specializations;
 mod dynamic_slots;
 pub(crate) use dynamic_slots::instantiate_dynamic_slots;
+mod requirement_applications;
+pub(crate) use requirement_applications::instantiate_boundary_requirement_families;
 pub(crate) use type_reference_walk::{for_each_type_reference, type_reference_endpoints};
 mod const_values;
 mod range_arguments;

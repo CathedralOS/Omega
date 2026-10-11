@@ -30,6 +30,10 @@ impl<'program> Evaluator<'program> {
         requirement: SymbolHandle,
         machine_arguments: &[typed_trees::expression::StaticMachineArgument],
     ) -> Option<checked_trees::CheckedBoundaryAdapterDispatch> {
+        let requirement = self
+            .program
+            .closed_requirement_application(requirement)
+            .map_or(requirement, |application| application.template);
         self.boundary_adapter_dispatch
             .iter()
             .filter(|dispatch| dispatch.receiver == receiver && dispatch.requirement == requirement)

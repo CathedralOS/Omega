@@ -42,7 +42,7 @@ pub(crate) fn build_crash_contract_capsules(
             program,
             program.trait_type_parameters(definition),
         ));
-        for signature in program.trait_machine_signatures(definition) {
+        for signature in program.trait_machine_instances(definition) {
             signatures.extend(crate::proof::machine_parameter_evidence_signatures(
                 program,
                 program.state_signature_type_parameters(signature),

@@ -242,6 +242,7 @@ pub fn prepare_typed_trees(
     // reached requirement under its selector application and retarget the
     // calls to those slots before validation judges the call edges.
     crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
+    crate::monomorphization::instantiate_boundary_requirement_families(&mut program)?;
     // Constructed result types finish the source roster that field elaboration reads;
     // substituted member edges do not become new application demands.
     crate::constructed_results::retain_constructed_result_types(&mut program);

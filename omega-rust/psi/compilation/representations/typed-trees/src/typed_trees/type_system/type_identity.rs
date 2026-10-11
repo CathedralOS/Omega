@@ -830,7 +830,7 @@ impl TypedTrees {
         type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
         // As with concrete machines, a requirement belongs to its full module
         // path. Sibling modules may declare identically shaped boundary traits.
-        self.named_callable_identity_parts(
+        let mut identity = self.named_callable_identity_parts(
             &format!(
                 "{}::{}",
                 self.trait_declaration_path(trait_definition),
@@ -840,7 +840,38 @@ impl TypedTrees {
             &type_parameters,
             self.state_signature_parameters(requirement),
             requirement.return_type,
-        )
+        );
+        if let Some(application) = self.closed_requirement_application(requirement.symbol) {
+            // The authored overload and complete tuple own instance identity,
+            // including unused binders. An equal parameter ABI is insufficient.
+            let template =
+                self.trait_machine_signature_by_symbol(trait_definition, application.template);
+            let template_identity = template
+                .map(|template| {
+                    self.trait_requirement_callable_identity_text(trait_definition, template)
+                })
+                .unwrap_or_default();
+            let outer = application
+                .trait_arguments
+                .iter()
+                .map(|argument| self.normalized_type_identity_text(*argument))
+                .collect::<Vec<_>>();
+            let local = application
+                .local_arguments
+                .iter()
+                .map(|argument| self.normalized_type_identity_text(*argument))
+                .collect::<Vec<_>>();
+            identity.parameters = compound(
+                "closed-requirement",
+                [
+                    atom("template", &template_identity),
+                    compound("trait-arguments", outer),
+                    compound("local-arguments", local),
+                    atom("parameters", &identity.parameters),
+                ],
+            );
+        }
+        identity
     }
 
     /// The derived parts of one explicitly named operator requirement

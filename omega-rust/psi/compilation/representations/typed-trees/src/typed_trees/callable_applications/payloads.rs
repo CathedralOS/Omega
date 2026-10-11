@@ -274,6 +274,33 @@ impl CallableApplication {
             .filter(|(handle, _)| handle.arena_index() as usize >= first)
             .map(|(handle, _)| handle)
             .collect::<Vec<_>>();
+        // Signature predicates can retain unresolved local names. Bind only
+        // this copied graph against its declaration's lexical telescope,
+        // before freshening or substitution; never search global spellings.
+        for handle in &rows {
+            let expression::ExpressionNode::Name(mut path) =
+                program.expression_table.expression(*handle).clone()
+            else {
+                continue;
+            };
+            if path.head_symbol.is_valid() || path.symbol.is_valid() {
+                continue;
+            }
+            let [member] = program.expression_table.name_path_members(path.members) else {
+                continue;
+            };
+            if let Some((_, symbol)) = self
+                .source_binders
+                .iter()
+                .rev()
+                .find(|(name, _)| name == member)
+            {
+                path.head_symbol = *symbol;
+                path.symbol = *symbol;
+                *program.expression_table.expression_mut(*handle) =
+                    expression::ExpressionNode::Name(path);
+            }
+        }
         program
             .expression_table
             .remap_symbols_in(copied, &self.symbols);

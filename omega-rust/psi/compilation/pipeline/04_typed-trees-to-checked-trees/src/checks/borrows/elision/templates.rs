@@ -164,7 +164,7 @@ fn closed_return_frontier(
     let signature = program
         .traits()
         .iter()
-        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .flat_map(|definition| program.trait_machine_instances(definition))
         .find(|signature| signature.symbol == target)
         .or_else(|| program.machine_parameter_signature_in(caller, target));
     let Some(signature) = signature else {

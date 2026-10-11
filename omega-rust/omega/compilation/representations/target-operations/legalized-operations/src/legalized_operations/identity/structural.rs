@@ -124,8 +124,16 @@ pub(super) fn encode_provider_candidate(
 ) {
     crate::codec_bytes::push_encoded(bytes, provider.boundary.get().to_le_bytes());
     bytes.extend_from_slice(&provider.requirement_identity.0.to_le_bytes());
+    bytes.extend_from_slice(&provider.source_requirement_identity.0.to_le_bytes());
     bytes.extend_from_slice(&provider.provider_identity.0.to_le_bytes());
     bytes.extend_from_slice(&provider.candidate_identity.0.to_le_bytes());
+    bytes.extend_from_slice(&provider.source_candidate_identity.0.to_le_bytes());
+    bytes.push(u8::from(
+        provider.source_candidate_package_identity.is_some(),
+    ));
+    if let Some(package) = provider.source_candidate_package_identity {
+        bytes.extend_from_slice(&package.digest());
+    }
     bytes.extend_from_slice(&provider.provider_declaration.identity().0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, provider.candidate.get().to_le_bytes());
     encode_len(bytes, provider.signature.parameters.len());

@@ -241,7 +241,7 @@ pub(crate) fn build_static_boundary_requirements(
     for definition in program.traits().iter().filter(|definition| {
         definition.is_boundary && program.trait_type_parameters(definition).is_empty()
     }) {
-        for signature in program.trait_machine_signatures(definition) {
+        for signature in program.trait_machine_instances(definition) {
             let type_parameters = program.state_signature_type_parameters(signature);
             // A `machine` binder without an ABI `native callback` entry takes
             // its destination from a target-owned private slot. Psi retains

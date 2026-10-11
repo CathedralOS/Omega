@@ -14,16 +14,20 @@ use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
 use typed_trees::references::StaticArgumentCall;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
+mod requirement_predicates;
+
 pub fn validate_authored_static_arguments(
     program: &dyn crate::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = crate::TopLevelSymbols::build(program, &mut diagnostics);
-    for (_, expression) in program.expression_table.iter_expressions() {
+    let scopes = requirement_predicates::CallScopes::build(program);
+    for (handle, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call(
                 program,
                 StaticArgumentCall::Expression(call),
+                scopes.context(handle),
                 &symbols,
                 &mut diagnostics,
             );
@@ -36,12 +40,61 @@ pub fn validate_authored_static_arguments(
                     validate_call(
                         program,
                         StaticArgumentCall::Statement(call),
+                        Some((machine, state)),
                         &symbols,
                         &mut diagnostics,
                     );
                 }
             }
         }
+    }
+    // The declaration owns a complete family, including tuples no source call
+    // uses. Preparation can derive these rows but cannot admit their operands
+    // or substituted predicates on the checker's behalf.
+    for application in program.closed_requirement_applications() {
+        let source = program
+            .expression_table
+            .static_machine_application(application.application);
+        let arguments = program
+            .expression_table
+            .static_machine_application_arguments(application.application);
+        let Some((owner, requirement)) = program.trait_machine_signature(application.template)
+        else {
+            diagnostics.push(Diagnostic::error(
+                "closed requirement lost its authored declaration",
+            ));
+            continue;
+        };
+        let scope = typed_trees::trait_definition::AppliedTraitScope::new(
+            program,
+            owner,
+            application.trait_arguments,
+        );
+        let Some(signature) = scope
+            .as_ref()
+            .and_then(|scope| program.applied_callable_signature(scope, application.template))
+        else {
+            diagnostics.push(Diagnostic::error(
+                "closed requirement lost its complete applied source telescope",
+            ));
+            continue;
+        };
+        if let Err(error) = validate_arguments(
+            program,
+            requirement.name.as_str(),
+            program.state_signature_type_parameters(signature),
+            arguments,
+        ) {
+            diagnostics.push(error);
+        }
+        requirement_predicates::validate_where_facts(
+            program,
+            owner,
+            signature,
+            arguments,
+            source.lexical_owner,
+            &mut diagnostics,
+        );
     }
     if diagnostics.iter().any(Diagnostic::is_error) {
         Err(diagnostics)
@@ -50,28 +103,45 @@ pub fn validate_authored_static_arguments(
     }
 }
 
-fn source_machine(
+/// A static application names the authored callable telescope, whether its
+/// declaration owns a body or is a trait requirement signature. Executable
+/// instance identity cannot substitute for that source admission boundary.
+fn source_telescope(
     program: &dyn crate::CheckingInput,
     target: SymbolHandle,
-) -> Option<&typed_trees::machine::Machine> {
-    program
+) -> Option<(&str, &[typed_trees::data::TypeParameter])> {
+    if let Some(machine) = program
         .machine_by_symbol(target)
         .or_else(|| program.machine_holding_state(target))
+    {
+        return Some((
+            machine.name.as_str(),
+            program.machine_type_parameters(machine),
+        ));
+    }
+    let (_, requirement) = program.trait_machine_signature(target)?;
+    Some((
+        requirement.name.as_str(),
+        program.state_signature_type_parameters(requirement),
+    ))
 }
 
 fn validate_call(
     program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
+    context: Option<(&typed_trees::machine::Machine, &typed_trees::state::State)>,
     symbols: &crate::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let arguments = call.arguments(program);
+    requirement_predicates::validate(program, call, context, arguments, diagnostics);
     if arguments.is_empty() {
         return;
     }
-    if let Some(template) = source_machine(program, call.registration_operation(program))
-        && !template.type_parameters.is_empty()
-        && let Err(error) = validate_arguments(program, template, arguments)
+    if let Some((name, parameters)) =
+        source_telescope(program, call.registration_operation(program))
+        && !parameters.is_empty()
+        && let Err(error) = validate_arguments(program, name, parameters, arguments)
     {
         diagnostics.push(error);
     }
@@ -196,10 +266,10 @@ pub(crate) fn validate_structural_type_operand(
 
 fn validate_arguments(
     program: &dyn crate::CheckingInput,
-    template: &typed_trees::machine::Machine,
+    name: &str,
+    parameters: &[typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],
 ) -> Result<(), Diagnostic> {
-    let parameters = program.machine_type_parameters(template);
     let has_types = parameters
         .iter()
         .any(|parameter| matches!(parameter.kind, TypeParameterKind::Type));
@@ -219,14 +289,13 @@ fn validate_arguments(
                 SymbolKind::BuiltinType | SymbolKind::Data
             );
         if argument.type_reference.is_valid() || (named_type && has_types) {
-            if !program
-                .machine_type_parameters(template)
+            if !parameters
                 .get(ordinal)
                 .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
             {
                 return Err(Diagnostic::error(format!(
                     "machine `{}` static argument {} requires its declared binder kind, not a type argument",
-                    template.name,
+                    name,
                     ordinal + 1
                 )));
             }
@@ -268,7 +337,7 @@ fn validate_arguments(
             if !const_parameters.is_empty() && !has_types && type_shaped {
                 return Err(Diagnostic::error(format!(
                     "machine `{}` requires a const value, not type `{}`",
-                    template.name,
+                    name,
                     argument.display_name()
                 )));
             }
@@ -291,7 +360,7 @@ fn validate_arguments(
                 return Err(Diagnostic::error(format!(
                     "value parameter `{parameter_name}` of machine `{}` received `{}`, which \
                      is neither a static const value nor an ordinary runtime value subject",
-                    template.name,
+                    name,
                     argument.display_name()
                 )));
             }
@@ -300,7 +369,7 @@ fn validate_arguments(
         let Some(parameter) = const_parameters.get(const_index) else {
             return Err(Diagnostic::error(format!(
                 "machine `{}` has no const parameter for extra argument `{}`",
-                template.name,
+                name,
                 argument.display_name()
             )));
         };
@@ -328,7 +397,7 @@ fn validate_arguments(
         {
             return Err(Diagnostic::error(format!(
                 "const parameter `{parameter_name}` of `{}` requires `{}`, but `{}` declares `{}`",
-                template.name,
+                name,
                 program.display_type_reference(*required),
                 argument.display_name(),
                 program.display_type_reference(actual)
@@ -355,7 +424,7 @@ fn validate_arguments(
             if program.type_reference_table.primitive_type(*required) != Some(actual) {
                 return Err(Diagnostic::error(format!(
                     "const parameter `{parameter_name}` of `{}` requires `{}`, but its literal already landed as `{}`",
-                    template.name,
+                    name,
                     program.display_type_reference(*required),
                     landing.landed_type.name(),
                 )));

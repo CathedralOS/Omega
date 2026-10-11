@@ -65,6 +65,21 @@ pub fn parameter_expression_result_type_reference(
                         program, parameters, expression,
                     )
                 })
+                .or_else(|| {
+                    // Static value binders retain their declaration's carrier;
+                    // supplied values must not guess the operand's meaning.
+                    let symbol = crate::expression_traversal::single_segment_name_symbol(
+                        program, expression,
+                    )?;
+                    let parameter = program.data_type_parameter_by_symbol(symbol)?;
+                    match parameter.kind {
+                        typed_trees::data::TypeParameterKind::Const { type_reference }
+                        | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                            Some(type_reference)
+                        }
+                        _ => None,
+                    }
+                })
         },
         expression,
     )

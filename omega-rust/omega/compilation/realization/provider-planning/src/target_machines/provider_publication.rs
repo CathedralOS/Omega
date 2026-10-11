@@ -3,6 +3,9 @@
 //! Reuse ordinary plan derivation and whole-provider selection; this is not
 //! another defaults engine. Normalized Build declaration identities join the
 //! canonical candidate catalog, including independently owned named maps.
+//! Canonical candidates retain their original selected-row coordinates beside
+//! closed instances. One shared projection enumerates complete rosters both at
+//! publication and at receiving admission; a proposal cannot truncate them.
 //! Publication exports no source-index companion. No provider display path
 //! is a semantic lookup key at this crossing. Unavailable target selection is
 //! retained as a refusal, not a reason to invalidate other portable targets.
@@ -130,9 +133,10 @@ impl TargetProviderPublicationRequest<'_> {
                 .chain(self.overrides)
                 .any(|selection| {
                     candidate.plan.rows.iter().any(|row| {
-                        selection
-                            .subject
-                            .selects_schema(schema, candidate.plan.identity_text(row.requirement_identity))
+                        selection.subject.selects_schema(
+                            schema,
+                            candidate.plan.identity_text(row.requirement_identity),
+                        )
                     })
                 })
             {
@@ -145,76 +149,6 @@ impl TargetProviderPublicationRequest<'_> {
             &declarations.provider_defaults,
             self.overrides,
         )?;
-        let mut checked_candidates = Vec::new();
-        for selection in &selected {
-            let plan = &selection.derived.plan;
-            let provenance = &selection.derived.provenance;
-            if plan.rows.len() != provenance.row_requirements.len()
-                || plan.rows.len() != provenance.row_realizations.len()
-            {
-                return Err(vec![Diagnostic::error(
-                    "selected provider lost its complete source association",
-                )]);
-            }
-            let provider_declaration = provenance
-                .provider_type
-                .map(|provider| self.declaration_identity(provider))
-                .transpose()?;
-            for (row_ordinal, row) in plan.rows.iter().enumerate() {
-                if !matches!(
-                    row.binding,
-                    effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
-                ) {
-                    continue;
-                }
-                let provider = provider_declaration.as_deref().ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "checked provider row has no exact declaration owner",
-                    )]
-                })?;
-                let realization =
-                    self.declaration_identity(provenance.row_realizations[row_ordinal])?;
-                let mut matching = module.provider_candidates.iter().filter(|candidate| {
-                    module
-                        .identities
-                        .text(candidate.provider_declaration.identity())
-                        == Some(provider)
-                        && module.identities.text(candidate.requirement_identity)
-                            == Some(plan.identity_text(row.requirement_identity))
-                        && module
-                            .machine(candidate.candidate)
-                            .and_then(|machine| machine.declaration.as_ref())
-                            .and_then(|declaration| {
-                                module.identities.text(declaration.machine.identity())
-                            })
-                            == Some(realization.as_str())
-                });
-                let candidate = matching.next().ok_or_else(|| {
-                    vec![Diagnostic::error(format!("selected provider requirement `{}` has no emitted exact declaration candidate", plan.identity_text(row.requirement_identity)))]
-                })?;
-                if matching.next().is_some() {
-                    return Err(vec![Diagnostic::error(
-                        "selected provider association does not name one surviving canonical row",
-                    )]);
-                }
-                let provider_identity = self
-                    .artifact
-                    .module()
-                    .identities
-                    .text(candidate.provider_identity)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "selected provider association lost its canonical identity",
-                        )]
-                    })?;
-                checked_candidates.push(terminal_installation::ProviderInstallationSelection {
-                    boundary: candidate.boundary,
-                    candidate: candidate.candidate,
-                    provider_identity: provider_identity.to_owned(),
-                    provider_declaration: provider.to_owned(),
-                });
-            }
-        }
         // This ordinary owner checks authored provenance, operator-family
         // completeness and independent composition. Its returned provenance
         // keeps each whole plan with its selecting symbol; independently sorted
@@ -234,15 +168,8 @@ impl TargetProviderPublicationRequest<'_> {
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        checked_candidates.sort();
-        // Required parent schemas can share the same exact selected row.
-        // Collapse only identical tuples; competing providers remain distinct
-        // and ordinary installation admission rejects the conflicting boundary.
-        checked_candidates.dedup();
-        Ok(backend_plan::TerminalTargetProviderSelection {
-            plans,
-            checked_candidates,
-        })
+        backend_plan::TerminalTargetProviderSelection::from_plans(plans, self.artifact)
+            .map_err(|reason| vec![Diagnostic::error(reason)])
     }
 
     fn declaration_identity(&self, symbol: SymbolHandle) -> Result<String, Vec<Diagnostic>> {

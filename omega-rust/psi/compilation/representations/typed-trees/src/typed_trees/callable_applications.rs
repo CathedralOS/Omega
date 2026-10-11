@@ -9,9 +9,12 @@
 
 mod machine_selections;
 mod payloads;
+mod requirement_instances;
 mod selected_operands;
 mod signatures;
 mod trait_scopes;
+
+pub use requirement_instances::ClosedRequirementApplication;
 
 use crate::{TypedTrees, data, signature, types};
 use symbols::SymbolHandle;
@@ -29,6 +32,13 @@ enum AppliedCallableOwner {
     Trait {
         declaration: SymbolHandle,
         arguments: arena::HandleSpan<types::TypeReferenceHandle>,
+    },
+    RequirementInstance {
+        declaration: SymbolHandle,
+        template: SymbolHandle,
+        trait_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
+        local_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
+        application: crate::static_applications::StaticMachineApplicationHandle,
     },
     MachineSelection {
         invocation: crate::static_applications::StaticMachineApplicationHandle,
@@ -70,6 +80,7 @@ struct CallableApplication {
     static_arguments: Vec<(SymbolHandle, crate::expression::StaticMachineArgument)>,
     symbols: Vec<(SymbolHandle, SymbolHandle)>,
     active_requirements: Vec<(SymbolHandle, SymbolHandle)>,
+    source_binders: Vec<(crate::name::Identifier, SymbolHandle)>,
 }
 
 impl CallableApplication {
@@ -102,7 +113,7 @@ impl CallableApplication {
         let parameters = program
             .trait_type_parameters(definition)
             .iter()
-            .map(|parameter| parameter.symbol)
+            .map(|parameter| (parameter.name.clone(), parameter.symbol))
             .collect::<Vec<_>>();
         if parameters.len() != arguments.len() {
             return Ok(None);
@@ -126,12 +137,19 @@ impl CallableApplication {
             );
         }
         let previous_types = self.types.len();
-        self.types
-            .extend(parameters.into_iter().zip(arguments.iter().copied()));
+        let previous_binders = self.source_binders.len();
+        self.source_binders.extend(parameters.iter().cloned());
+        self.types.extend(
+            parameters
+                .into_iter()
+                .map(|(_, symbol)| symbol)
+                .zip(arguments.iter().copied()),
+        );
         self.active_requirements.push((trait_symbol, requirement));
         let applied = self.signature(program, &declared);
         self.active_requirements.pop();
         self.types.truncate(previous_types);
+        self.source_binders.truncate(previous_binders);
         applied.map(Some)
     }
 }

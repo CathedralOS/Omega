@@ -354,7 +354,20 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         .trait_machine_signatures(trait_definition)
         .iter()
         .filter(|signature| signature.name.as_str() == target);
-    let signature = signatures.next()?;
+    let declaration = signatures.next()?;
+    if signatures.next().is_some() {
+        return None;
+    }
+    let signature = program.trait_machine_signature_by_symbol(trait_definition, target_symbol)?;
+    // Executable substitution changes the signature symbol, never which
+    // authored receiver member the call selected.
+    if signature.symbol != declaration.symbol
+        && !program
+            .closed_requirement_application(signature.symbol)
+            .is_some_and(|application| application.template == declaration.symbol)
+    {
+        return None;
+    }
     let admitted_binder = |parameter: &typed_trees::data::TypeParameter| {
         parameter.symbol.is_valid()
             && match binders {
@@ -370,17 +383,16 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 }
             }
     };
-    let exact_signature = signatures.next().is_none()
-        && program
-            .state_signature_type_parameters(signature)
-            .iter()
-            .all(admitted_binder)
+    let exact_signature = program
+        .state_signature_type_parameters(signature)
+        .iter()
+        .all(admitted_binder)
         && target_symbol.is_valid()
         && signature.symbol == target_symbol
         && (has_runtime_receiver
-            || (program.symbols.get(target_symbol).kind == symbols::SymbolKind::State
-                && program.symbols.get(target_symbol).parent == trait_definition.symbol
-                && program.symbols.name(target_symbol) == signature.name.as_str()));
+            || (program.symbols.get(declaration.symbol).kind == symbols::SymbolKind::State
+                && program.symbols.get(declaration.symbol).parent == trait_definition.symbol
+                && program.symbols.name(declaration.symbol) == signature.name.as_str()));
     if !exact_signature {
         return None;
     }

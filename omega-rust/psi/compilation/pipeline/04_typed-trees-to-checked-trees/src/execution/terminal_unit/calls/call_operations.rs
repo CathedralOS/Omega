@@ -632,8 +632,7 @@ pub(super) fn boundary_requirement(
         .filter(|definition| definition.is_boundary)
         .flat_map(|definition| {
             program
-                .trait_machine_signatures(definition)
-                .iter()
+                .trait_machine_instances(definition)
                 .filter(move |signature| signature.symbol == direct)
                 .map(move |signature| (definition, signature))
         })

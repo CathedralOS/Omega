@@ -1,0 +1,16 @@
+boundary trait Service {
+    machine echo<const Count: u64>(value: i32) -> i32
+    where Count == 4 || Count == 8;
+}
+Provider satisfies Service { Service::echo = echo; }
+machine echo<const Count: u64>(value: i32) -> i32 { value }
+
+data TargetProviders {}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Service, Provider>(defaults);
+}
+
+data Main {}
+macos_arm64 machine Main::main() reaches Service {
+    let value: i32 = Service::echo<16>((17 as i32));
+}

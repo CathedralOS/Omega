@@ -237,11 +237,14 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
     let provider = ProviderCandidateConformance {
         boundary,
         requirement_identity: terminal_psi::TerminalIdentityIndex(4),
+        source_requirement_identity: terminal_psi::TerminalIdentityIndex(4),
         provider_identity: terminal_psi::TerminalIdentityIndex(5),
         provider_declaration: terminal_psi::NominalDeclarationIdentity::new(
             terminal_psi::TerminalIdentityIndex(5),
         ),
         candidate_identity: terminal_psi::TerminalIdentityIndex(6),
+        source_candidate_identity: terminal_psi::TerminalIdentityIndex(6),
+        source_candidate_package_identity: None,
         candidate: id(2),
         signature: terminal_psi::ProviderSignature {
             parameters: signature

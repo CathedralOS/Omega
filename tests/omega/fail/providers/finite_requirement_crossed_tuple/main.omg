@@ -1,0 +1,15 @@
+// Each operand appears in the roster, but this complete tuple does not.
+boundary trait Service {
+    machine echo<const Count: u64, const Stride: u64>(value: i32) -> i32
+    where (Count == 4 && Stride == 1) || (Count == 8 && Stride == 2);
+}
+Provider satisfies Service { Service::echo = echo; }
+machine echo<const Count: u64, const Stride: u64>(value: i32) -> i32 { value }
+data Providers {}
+macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
+    Providers::select_provider<Service, Provider>(defaults);
+}
+data Main {}
+macos_arm64 machine Main::main() reaches Service {
+    let result: i32 = Service::echo<4, 2>((17 as i32));
+}

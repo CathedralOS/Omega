@@ -28,6 +28,7 @@ use super::{
 use checked_trees::machine::{Machine, TraitConformance};
 
 mod named;
+mod selection_coordinates;
 
 /// Report the exact checked provider whose ordinary body is missing, including
 /// the checker-owned omission. Result shape must not hide that source frontier.
@@ -73,6 +74,39 @@ fn satisfies_requirement(
             definition,
             signature,
         } => {
+            if let Some(application) = checked
+                .typed
+                .closed_requirement_application(signature.symbol)
+            {
+                let scope = checked
+                    .typed
+                    .trait_definition_by_symbol(conformance.symbol)
+                    .and_then(|definition| {
+                        typed_trees::trait_definition::AppliedTraitScope::new(
+                            &checked.typed,
+                            definition,
+                            checked
+                                .typed
+                                .type_reference_table
+                                .type_reference_handles(conformance.arguments),
+                        )
+                    });
+                return conformance.requirement_symbol == application.template
+                    && scope.is_some_and(|scope| {
+                        checked
+                            .typed
+                            .requirement_application_matches_scope(signature.symbol, &scope)
+                    })
+                    && checked
+                        .facts
+                        .provider_closed_requirements
+                        .iter()
+                        .any(|row| {
+                            row.provider == machine.symbol
+                                && row.template == application.template
+                                && row.closed_requirement == signature.symbol
+                        });
+            }
             return conformance.symbol == definition.symbol
                 && if conformance.requirement_symbol.is_valid() {
                     conformance.requirement_symbol == signature.symbol
@@ -153,8 +187,7 @@ pub(super) fn checked_unit_provider_candidates(
             definition.is_boundary
                 && checked
                     .typed
-                    .trait_machine_signatures(definition)
-                    .iter()
+                    .trait_machine_instances(definition)
                     .any(|signature| boundary_symbols.contains(&signature.symbol))
         })
         .collect::<Vec<_>>();
@@ -165,8 +198,7 @@ pub(super) fn checked_unit_provider_candidates(
                 boundary_symbols.extend(
                     checked
                         .typed
-                        .trait_machine_signatures(scope.declaration)
-                        .iter()
+                        .trait_machine_instances(scope.declaration)
                         .map(|signature| signature.symbol),
                 );
             },
@@ -186,8 +218,7 @@ pub(super) fn checked_unit_provider_candidates(
             .flat_map(|definition| {
                 checked
                     .typed
-                    .trait_machine_signatures(definition)
-                    .iter()
+                    .trait_machine_instances(definition)
                     .filter(move |signature| signature.symbol == boundary_symbol)
                     .map(move |signature| (definition, signature))
             })
@@ -419,8 +450,16 @@ pub(super) fn conformances(
                 );
             }
             let provider_identity = identities.intern(&candidate.provider_identity);
+            let (
+                source_requirement_identity,
+                source_candidate_identity,
+                source_candidate_package_identity,
+            ) = selection_coordinates::intern(identities, checked, candidate)?;
             Ok(ProviderCandidateConformance {
                 boundary: *boundary,
+                source_requirement_identity,
+                source_candidate_identity,
+                source_candidate_package_identity,
                 requirement_identity: identities.intern(
                     &checked
                         .typed

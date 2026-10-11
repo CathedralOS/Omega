@@ -25,9 +25,15 @@ pub(crate) fn encode_provider_candidate(
 ) -> Result<(), CodecError> {
     writer.id(candidate.boundary);
     writer.u32(candidate.requirement_identity.0);
+    writer.u32(candidate.source_requirement_identity.0);
     writer.u32(candidate.provider_identity.0);
     writer.u32(candidate.provider_declaration.identity().0);
     writer.u32(candidate.candidate_identity.0);
+    writer.u32(candidate.source_candidate_identity.0);
+    writer.boolean(candidate.source_candidate_package_identity.is_some());
+    if let Some(package) = candidate.source_candidate_package_identity {
+        writer.bytes(&package.digest());
+    }
     writer.id(candidate.candidate);
     writer.len(
         "provider signature parameters",
@@ -75,10 +81,21 @@ pub(crate) fn decode_provider_candidate(
 ) -> Result<ProviderCandidateConformance, CodecError> {
     let boundary = reader.id("BoundaryMachineId")?;
     let requirement_identity = TerminalIdentityIndex(reader.u32()?);
+    let source_requirement_identity = TerminalIdentityIndex(reader.u32()?);
     let provider_identity = TerminalIdentityIndex(reader.u32()?);
     let provider_declaration =
         terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
     let candidate_identity = TerminalIdentityIndex(reader.u32()?);
+    let source_candidate_identity = TerminalIdentityIndex(reader.u32()?);
+    let source_candidate_package_identity = if reader.boolean()? {
+        Some(
+            semantic_vocabulary::PackageKeyIdentity::from_digest(reader.array()?).ok_or(
+                CodecError::MalformedStructuralFoundation("empty provider source package identity"),
+            )?,
+        )
+    } else {
+        None
+    };
     let candidate = reader.id("MachineId")?;
     let parameters = decode_counted(reader, |reader| {
         let position = reader.u32()?;
@@ -113,9 +130,12 @@ pub(crate) fn decode_provider_candidate(
     Ok(ProviderCandidateConformance {
         boundary,
         requirement_identity,
+        source_requirement_identity,
         provider_identity,
         provider_declaration,
         candidate_identity,
+        source_candidate_identity,
+        source_candidate_package_identity,
         candidate,
         signature: ProviderSignature { parameters },
         refinement: ProviderRefinement {

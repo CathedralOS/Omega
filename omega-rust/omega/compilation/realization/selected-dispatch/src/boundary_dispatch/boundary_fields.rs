@@ -97,6 +97,12 @@ pub(crate) fn resolve_adapter_call<'adapter>(
     target_name: &str,
     machine_arguments: &[typed_trees::expression::StaticMachineArgument],
 ) -> Result<Option<&'adapter AdapterRow>, Diagnostic> {
+    // A prepared static instance still selects its authored requirement row.
+    // Its retained source tuple below chooses the exact realization; the fresh
+    // signature is an executable coordinate, not a second provider authority.
+    let target_symbol = typed
+        .closed_requirement_application(target_symbol)
+        .map_or(target_symbol, |application| application.template);
     let candidates = fields
         .iter()
         .filter(|field| field.symbol == receiver_symbol)

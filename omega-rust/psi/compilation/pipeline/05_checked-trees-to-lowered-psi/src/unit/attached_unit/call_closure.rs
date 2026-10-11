@@ -198,8 +198,7 @@ pub(crate) fn checked_unit_boundary_identity(
         .flat_map(|definition| {
             checked
                 .typed
-                .trait_machine_signatures(definition)
-                .iter()
+                .trait_machine_instances(definition)
                 .filter(move |signature| signature.symbol == symbol)
                 .map(move |signature| (definition, signature))
         })

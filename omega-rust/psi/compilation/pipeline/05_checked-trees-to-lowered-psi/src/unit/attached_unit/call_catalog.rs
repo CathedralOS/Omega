@@ -31,7 +31,18 @@ pub(super) fn discover(
     // Authored selection subjects are interface roots, not runtime calls.
     // Keep the complete supplied roster, even methods no body invokes; a
     // missing checked plan rejects rather than narrowing a whole-trait default.
-    let mut retained_boundary_roots = boundary_roots.to_vec();
+    let mut retained_boundary_roots = Vec::new();
+    for boundary in boundary_roots {
+        if let Some((_, signature)) = checked.trait_machine_signature(*boundary) {
+            retained_boundary_roots.extend(
+                checked
+                    .requirement_machine_instances(signature)
+                    .map(|instance| instance.symbol),
+            );
+        } else {
+            retained_boundary_roots.push(*boundary);
+        }
+    }
     for boundary in &retained_boundary_roots {
         super::unique_unit_boundary(plans, *boundary)?;
     }

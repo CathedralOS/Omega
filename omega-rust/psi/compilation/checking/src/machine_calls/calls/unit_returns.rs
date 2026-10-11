@@ -90,7 +90,7 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
         .traits()
         .iter()
         .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .flat_map(|definition| program.trait_machine_instances(definition))
         .filter(|signature| signature.symbol == requirement)
         .map(|signature| signature.return_type);
     results

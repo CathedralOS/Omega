@@ -299,10 +299,10 @@ pub(super) fn instantiated_fact_judgment(
         }
     }
     match binary.operator {
-        BinaryOperator::And => {
+        BinaryOperator::And | BinaryOperator::Or => {
             // Conjunction has no authored operator selection. Each leaf
             // still establishes its own scalar or nominal predicate meaning.
-            match (
+            let operands = (
                 instantiated_fact_judgment(
                     program,
                     judge,
@@ -321,7 +321,19 @@ pub(super) fn instantiated_fact_judgment(
                     map,
                     caller_scope,
                 ),
-            ) {
+            );
+            if binary.operator == BinaryOperator::Or {
+                return match operands {
+                    (StructuralJudgment::Proven, _) | (_, StructuralJudgment::Proven) => {
+                        StructuralJudgment::Proven
+                    }
+                    (StructuralJudgment::Refuted, StructuralJudgment::Refuted) => {
+                        StructuralJudgment::Refuted
+                    }
+                    _ => StructuralJudgment::Unknown,
+                };
+            }
+            match operands {
                 (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
                     StructuralJudgment::Refuted
                 }

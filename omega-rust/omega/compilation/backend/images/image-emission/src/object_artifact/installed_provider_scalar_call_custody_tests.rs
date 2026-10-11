@@ -396,11 +396,14 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
     let provider = ProviderCandidateConformance {
         boundary,
         requirement_identity: terminal_psi::TerminalIdentityIndex(1),
+        source_requirement_identity: terminal_psi::TerminalIdentityIndex(1),
         provider_identity: terminal_psi::TerminalIdentityIndex(2),
         provider_declaration: terminal_psi::NominalDeclarationIdentity::new(
             terminal_psi::TerminalIdentityIndex(2),
         ),
         candidate_identity: terminal_psi::TerminalIdentityIndex(3),
+        source_candidate_identity: terminal_psi::TerminalIdentityIndex(3),
+        source_candidate_package_identity: None,
         candidate: machine_id(2),
         signature: ProviderSignature::empty(),
         refinement: ProviderRefinement::empty(),

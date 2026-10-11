@@ -114,6 +114,14 @@ pub(super) fn validate_provider_candidate(
     candidate: &ProviderCandidateConformance,
 ) -> Result<(), CodecError> {
     if candidate.requirement_identity.is_absent()
+        || module
+            .identities
+            .text(candidate.source_requirement_identity)
+            .is_none_or(str::is_empty)
+        || module
+            .identities
+            .text(candidate.source_candidate_identity)
+            .is_none_or(str::is_empty)
         || candidate.provider_identity.is_absent()
         || candidate.candidate_identity.is_absent()
         || module

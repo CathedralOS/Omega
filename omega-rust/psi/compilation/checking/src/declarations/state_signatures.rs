@@ -77,7 +77,16 @@ pub(crate) fn validate_callable_state_signatures(
     }
 
     for trait_definition in program.traits() {
-        for machine in program.trait_machine_signatures(trait_definition) {
+        for machine in program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .chain(
+                program
+                    .closed_requirement_applications()
+                    .filter(|application| application.declaring_trait == trait_definition.symbol)
+                    .map(|application| application.signature),
+            )
+        {
             let mut type_parameters = program.trait_type_parameters(trait_definition).to_vec();
             type_parameters.extend_from_slice(program.state_signature_type_parameters(machine));
             for lifetime in &machine.lifetime_parameters {

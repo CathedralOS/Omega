@@ -60,6 +60,15 @@ provider. Boundary declarations retain their exact schema owner so whole-interfa
 demand filtering also uses canonical identities. Receiving checked selections
 name that declaration and the artifact-local boundary/body IDs; display labels
 alone do not establish owner or package identity.
+Each candidate also retains the original requirement and realization callable
+coordinates selected by a provider-plan row, beside their closed executable
+coordinates. Unspecialized coordinates are identical; a specialization names
+its immediate checked template, including any existing outer application.
+That template's package coordinate remains separate from callable text and
+must agree exactly with the selected row, including a toolchain's absent package.
+Receiving policy enumerates the complete canonical roster for that exact
+original pair and choosing declaration. A proposal cannot redefine the expansion
+by omitting an uncalled tuple, and equal runtime signatures establish no join.
 Admitted selections retain the canonical choosing declaration for policy
 agreement; projecting a selection to its execution body does not erase that
 declaration from the sealed installation.

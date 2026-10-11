@@ -20,9 +20,6 @@ struct SymbolIndex {
     machine_index: HashMap<SymbolHandle, usize>,
     state_index_in_machine: HashMap<(SymbolHandle, SymbolHandle), usize>,
     state_location: HashMap<SymbolHandle, (usize, usize)>,
-    /// Trait-machine signature symbol -> (traits index, signature index): the
-    /// traits x signatures scan every callable lookup otherwise repeats.
-    signature_location: HashMap<SymbolHandle, (usize, usize)>,
 }
 
 impl SymbolIndex {
@@ -31,7 +28,6 @@ impl SymbolIndex {
             machine_index: HashMap::default(),
             state_index_in_machine: HashMap::default(),
             state_location: HashMap::default(),
-            signature_location: HashMap::default(),
         };
         for (machine_index, machine) in program.machines().iter().enumerate() {
             index.machine_index.insert(machine.symbol, machine_index);
@@ -42,15 +38,6 @@ impl SymbolIndex {
                 index
                     .state_location
                     .insert(state.symbol, (machine_index, state_index));
-            }
-        }
-        for (owner_index, owner) in program.traits().iter().enumerate() {
-            for (signature_index, signature) in
-                program.trait_machine_signatures(owner).iter().enumerate()
-            {
-                index
-                    .signature_location
-                    .insert(signature.symbol, (owner_index, signature_index));
             }
         }
         index
@@ -353,19 +340,6 @@ impl<'plans> FlowBuildContext<'plans> {
         self.symbol_index(program)
             .state_index_in_machine
             .get(&(machine_symbol, state_symbol))
-            .copied()
-    }
-
-    /// `(traits index, in-trait signature index)` of a trait-machine signature
-    /// symbol -- the shape the traits x signatures contract scan repeats.
-    pub(super) fn signature_location(
-        &mut self,
-        program: &dyn ::validation::CheckingInput,
-        signature_symbol: SymbolHandle,
-    ) -> Option<(usize, usize)> {
-        self.symbol_index(program)
-            .signature_location
-            .get(&signature_symbol)
             .copied()
     }
 

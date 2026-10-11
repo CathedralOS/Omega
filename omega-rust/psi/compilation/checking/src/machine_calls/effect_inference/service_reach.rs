@@ -725,7 +725,7 @@ pub fn fixed_installation_boundary_service_reach(
         .traits()
         .iter()
         .filter(|owner| owner.is_boundary)
-        .flat_map(|owner| program.trait_machine_signatures(owner))
+        .flat_map(|owner| program.trait_machine_instances(owner))
         .filter(|signature| signature.symbol == target)
         .map(|signature| signature.service_reach_is_installation_bound);
     let machine_requirements = program
@@ -772,7 +772,7 @@ pub fn boundary_signature_service_reach(
         .traits()
         .iter()
         .filter(|owner| owner.is_boundary)
-        .flat_map(|owner| program.trait_machine_signatures(owner))
+        .flat_map(|owner| program.trait_machine_instances(owner))
         .filter(|declaration| declaration.symbol == signature);
     declarations.next()?;
     if declarations.next().is_some() {
@@ -854,12 +854,7 @@ fn direct_service_reach_for_call(
         return reach;
     }
 
-    if let Some((trait_index, signature_index)) =
-        with_call_target_index(program, |index| index.trait_signature.get(&target).copied())
-    {
-        let trait_definition = &program.traits()[trait_index as usize];
-        let signature =
-            &program.trait_machine_signatures(trait_definition)[signature_index as usize];
+    if let Some((trait_definition, signature)) = program.trait_machine_signature(target) {
         {
             extend_signature_service_rows(program, signature, &mut reach);
             if trait_definition.is_boundary

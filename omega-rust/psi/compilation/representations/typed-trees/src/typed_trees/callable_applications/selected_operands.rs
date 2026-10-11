@@ -33,6 +33,30 @@ impl CallableApplication {
                 .type_reference_table
                 .insert(types::TypeReferenceNode::ConstExpression(expression)));
         }
+        if let Some(declaration) = program.const_declaration_by_symbol(selected.symbol)
+            && declaration.evaluated_value.is_some()
+            && declaration.materialized_initializer.is_valid()
+        {
+            let initializer = declaration.materialized_initializer;
+            let value = program.expression_table.insert_copy(initializer);
+            return Ok(program
+                .type_reference_table
+                .insert(types::TypeReferenceNode::ConstExpression(value)));
+        }
+        if let Some(spelling) =
+            crate::typed_trees::static_const_argument_spelling(program, selected)
+            && let Some(value) =
+                language_semantics::const_value::CanonicalConstValue::from_atom(&spelling)
+            && let Some(language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value)) =
+                value.decode_encoding()
+        {
+            let value = program
+                .expression_table
+                .insert(expression::ExpressionNode::Boolean(value));
+            return Ok(program
+                .type_reference_table
+                .insert(types::TypeReferenceNode::ConstExpression(value)));
+        }
         if !selected.symbol.is_valid() || selected.evidence_projection.is_some() {
             return Err("applied callable has an unrepresented static type operand");
         }

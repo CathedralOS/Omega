@@ -1490,8 +1490,7 @@ pub(crate) fn lower_root_service_reach(
                 .flat_map(|owner| {
                     checked
                         .typed
-                        .trait_machine_signatures(owner)
-                        .iter()
+                        .trait_machine_instances(owner)
                         .filter(move |requirement| requirement.symbol == dependency.requirement)
                         .map(move |requirement| (owner, requirement))
                 })

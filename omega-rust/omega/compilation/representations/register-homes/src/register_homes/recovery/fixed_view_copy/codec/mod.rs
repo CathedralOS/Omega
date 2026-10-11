@@ -23,7 +23,8 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 58 retains identity-only reference targets separately from storage.
 // Version 59 retains complete boundary-completion paths and family-call origins.
 // Older envelopes are not decoded under the new receipt/event vocabulary.
-const VERSION: u32 = 61;
+// Version 62 commits original callable coordinates of installed provider rows.
+const VERSION: u32 = 62;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.

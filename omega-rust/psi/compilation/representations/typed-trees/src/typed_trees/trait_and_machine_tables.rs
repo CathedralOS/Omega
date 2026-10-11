@@ -90,6 +90,37 @@ impl TypedTrees {
             .span_or_empty(trait_definition.machines)
     }
 
+    /// Executable coordinates of the complete authored requirement roster.
+    /// A closed family replaces its open template here, not in the declaration
+    /// table used to check conformance rows. Uncalled tuples remain coordinates.
+    pub fn trait_machine_instances<'program>(
+        &'program self,
+        trait_definition: &'program trait_definition::TraitDefinition,
+    ) -> impl Iterator<Item = &'program signature::StateSignature> {
+        self.trait_machine_signatures(trait_definition)
+            .iter()
+            .flat_map(|signature| self.requirement_machine_instances(signature))
+    }
+
+    /// Expand one authored coordinate without turning provider visibility into
+    /// application evidence. An already closed coordinate remains itself.
+    pub fn requirement_machine_instances<'program>(
+        &'program self,
+        signature: &'program signature::StateSignature,
+    ) -> impl Iterator<Item = &'program signature::StateSignature> {
+        std::iter::once(signature)
+            .filter(|signature| {
+                !self
+                    .closed_requirement_applications()
+                    .any(|application| application.template == signature.symbol)
+            })
+            .chain(
+                self.closed_requirement_applications()
+                    .filter(move |application| application.template == signature.symbol)
+                    .map(|application| application.signature),
+            )
+    }
+
     /// The machine signature keyed `symbol` within `trait_definition`, when declared.
     pub fn trait_machine_signature_by_symbol(
         &self,
@@ -99,6 +130,11 @@ impl TypedTrees {
         self.trait_machine_signatures(trait_definition)
             .iter()
             .find(|candidate| candidate.symbol == symbol)
+            .or_else(|| {
+                self.closed_requirement_application(symbol)
+                    .filter(|application| application.declaring_trait == trait_definition.symbol)
+                    .map(|application| application.signature)
+            })
     }
 
     pub fn machine_parameter_contract_view<'program>(

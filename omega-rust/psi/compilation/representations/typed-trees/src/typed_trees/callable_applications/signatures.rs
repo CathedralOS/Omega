@@ -14,6 +14,17 @@ impl CallableApplication {
         let parameters = program.state_signature_parameters(declared).to_vec();
         let previous_symbols = self.symbols.len();
         let previous_lifetimes = self.lifetimes.len();
+        let previous_binders = self.source_binders.len();
+        self.source_binders.extend(
+            type_parameters
+                .iter()
+                .map(|parameter| (parameter.name.clone(), parameter.symbol))
+                .chain(
+                    parameters
+                        .iter()
+                        .map(|parameter| (parameter.name.clone(), parameter.symbol)),
+                ),
+        );
         let selected_lifetime_telescope = declared.symbol == self.lifetime_declaration;
         if !selected_lifetime_telescope {
             // A nested callable introduces its own fresh binders. The outer
@@ -37,6 +48,17 @@ impl CallableApplication {
             )
         {
             if symbol.is_valid() {
+                // A supplied binder is replaced simultaneously by its caller
+                // operand. Freshening it first would disconnect expression
+                // payloads from that exact substitution.
+                if self.types.iter().any(|(parameter, _)| *parameter == symbol)
+                    || self
+                        .static_arguments
+                        .iter()
+                        .any(|(parameter, _)| *parameter == symbol)
+                {
+                    continue;
+                }
                 let kind = program.symbols.get(symbol).kind;
                 let fresh = program
                     .symbols
@@ -103,6 +125,7 @@ impl CallableApplication {
         }
         self.symbols.truncate(previous_symbols);
         self.lifetimes.truncate(previous_lifetimes);
+        self.source_binders.truncate(previous_binders);
         Ok(applied)
     }
 

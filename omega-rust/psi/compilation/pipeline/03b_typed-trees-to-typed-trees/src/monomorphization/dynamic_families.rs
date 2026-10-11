@@ -23,6 +23,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::finite_family::{FamilyProbe, FamilyTuple};
+use typed_trees::trait_definition::{AppliedTraitScope, Conformance};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
@@ -39,6 +40,13 @@ use validation::contract_identities::{accepted_template_commitment, normalized_m
 pub(crate) fn generate_dynamic_family_specializations(
     program: &mut TypedTrees,
 ) -> Result<usize, Vec<Diagnostic>> {
+    // Stage03 prepared the original scopes. Specialization can introduce
+    // another applied map before this fixed-point round; its producer must
+    // prepare the complete callable view before demand inspection. The existing
+    // preparation query retains prior views and appends only missing scopes.
+    program
+        .prepare_applied_callable_signatures()
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     // Collect the complete demand set before mutating the graph: (realization
     // template symbol, roster tuples). One selected conformance covers the
     // roster alone — the same row reused by several selections generates once,
@@ -96,6 +104,21 @@ pub(crate) fn generate_dynamic_family_specializations(
             }
             queue_family_demand(&mut demands, realization.symbol, tuples);
         }
+    }
+
+    // A closed named boundary map is a candidate even when no local `dyn`
+    // expression selects it. Its requirement, not the current calls or Build
+    // choice, owns the whole family. Open conformance declarations still need
+    // their own complete application before they can produce executable rows.
+    for conformance in program.conformances() {
+        if !conformance.type_parameters.is_empty()
+            || !program
+                .trait_definition_by_symbol(conformance.trait_symbol)
+                .is_some_and(|definition| definition.is_boundary)
+        {
+            continue;
+        }
+        collect_conformance_demands(program, conformance, &mut demands, &mut diagnostics);
     }
 
     // A failed dynamic-selection collection defers that generation to
@@ -174,53 +197,68 @@ fn collect_selection_demands(
             continue;
         }
         seen_conformances.push(conformance.symbol);
-        for row in &conformance.rows {
-            let Some((_, requirement)) = program
-                .traits()
-                .iter()
-                .flat_map(|definition| {
-                    program
-                        .trait_machine_signatures(definition)
-                        .iter()
-                        .map(move |signature| (definition, signature))
-                })
-                .find(|(definition, signature)| {
-                    definition.symbol == row.declaring_trait && signature.symbol == row.requirement
-                })
-            else {
-                continue;
-            };
-            let FamilyProbe::Finite { arity, tuples } =
-                program.finite_signature_family(requirement)
-            else {
-                // A non-finite generic requirement stays dynamically
-                // ineligible per requirement; the conformance's other rows
-                // still settle.
-                continue;
-            };
-            let Some(realization) = program.machine_by_symbol(row.realization_machine) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "dynamic conformance row `{}::{}` has no exact realization machine",
-                    row.declaring_trait_name, row.requirement_name
-                )));
-                continue;
-            };
-            let realization_binders = program.machine_type_parameters(realization);
-            let value_binders = realization_binders
-                .iter()
-                .filter(|parameter| parameter.kind.is_const_or_value())
-                .count();
-            if realization_binders.len() != value_binders || value_binders != arity {
-                diagnostics.push(Diagnostic::error(format!(
-                    "dynamic conformance row `{}::{}` realization `{}` cannot cover the declared finite family: a family provider must be generic over exactly the requirement's {arity} const/value binders",
-                    row.declaring_trait_name,
-                    row.requirement_name,
-                    realization.name
-                )));
-                continue;
-            }
-            queue_family_demand(demands, realization.symbol, tuples);
+        collect_conformance_demands(program, conformance, demands, diagnostics);
+    }
+}
+
+/// Both local selection and boundary candidates read the same exact map and
+/// declaring scope. Inspect its prepared applied requirement, not a raw parent
+/// signature: inherited trait arguments can change the family carrier and
+/// predicates. This query produces demands, never conformance admission.
+fn collect_conformance_demands(
+    program: &dyn ::validation::CheckingInput,
+    conformance: &Conformance,
+    demands: &mut Vec<(SymbolHandle, Vec<FamilyTuple>)>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(declaration) = program.trait_definition_by_symbol(conformance.trait_symbol) else {
+        return;
+    };
+    let Some(application) = AppliedTraitScope::new(
+        program.typed_program(),
+        declaration,
+        program
+            .type_reference_table
+            .type_reference_handles(conformance.arguments),
+    ) else {
+        return;
+    };
+    for row in &conformance.rows {
+        let Some(scope) = application.declaring_scope(program.typed_program(), row.declaring_trait)
+        else {
+            continue;
+        };
+        let Some(requirement) = program.applied_callable_signature(&scope, row.requirement) else {
+            // Nongeneric rows need no prepared local telescope. An absent
+            // generic application must not acquire a roster from another view.
+            continue;
+        };
+        let FamilyProbe::Finite { arity, tuples } = program.finite_signature_family(requirement)
+        else {
+            continue;
+        };
+        let Some(realization) = program.machine_by_symbol(row.realization_machine) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "dynamic conformance row `{}::{}` has no exact realization machine",
+                row.declaring_trait_name, row.requirement_name
+            )));
+            continue;
+        };
+        let realization_binders = program.machine_type_parameters(realization);
+        let value_binders = realization_binders
+            .iter()
+            .filter(|parameter| parameter.kind.is_const_or_value())
+            .count();
+        if realization_binders.len() != value_binders || value_binders != arity {
+            diagnostics.push(Diagnostic::error(format!(
+                "dynamic conformance row `{}::{}` realization `{}` cannot cover the declared finite family: a family provider must be generic over exactly the requirement's {arity} const/value binders",
+                row.declaring_trait_name,
+                row.requirement_name,
+                realization.name
+            )));
+            continue;
         }
+        queue_family_demand(demands, realization.symbol, tuples);
     }
 }
 
@@ -323,7 +361,7 @@ fn const_identity_type_reference(
 
 /// Decode one canonical specialization const identity back to its literal
 /// type-reference spelling.
-fn const_identity_spelling(identity: &str) -> Option<String> {
+pub(super) fn const_identity_spelling(identity: &str) -> Option<String> {
     if let Some(value) = identity
         .strip_prefix("named(integer-const(")
         .and_then(|inner| inner.strip_suffix("))"))

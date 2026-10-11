@@ -2731,14 +2731,13 @@ crash and native exit behavior.
     `targets/runtime_target_inherited_named_provider_defaults_exit` through
     both engines and its unchanged-artifact macOS/Windows outcomes, with the
     competing authored-map, phantom-argument and erased-region rejection controls.
-    Finite inherited rosters remain incomplete: run
-    `omega run --both tests/omega/pending/targets/runtime_target_inherited_provider_roster_exit/main.omg`
-    on macOS. Its Count4/8 requirement currently lacks a checked boundary plan
-    at Terminal production. Finish the ordinary checked boundary/application
-    coordinates and complete named-map family specialization; do not omit the
-    generic requirement or narrow the selected interface. Applied ancestor
-    binding dispatch and region-bearing receiver identities still need their
-    retained exact application joins, not erased carrier matching.
+    Preserve `targets/runtime_target_inherited_provider_roster_exit` through
+    both engines and its unchanged-artifact macOS/Windows outcomes, including
+    uncalled finite coordinates. Complete tuple identity and the original
+    choosing declaration must survive receiving installation; forbidden integer
+    and Boolean tuples, crossed tuples and unconstrained forwarding must reject.
+    Applied ancestor binding dispatch and region-bearing receiver identities
+    still need their retained exact application joins, not erased carrier matching.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.
 

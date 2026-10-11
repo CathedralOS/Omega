@@ -33,7 +33,7 @@ impl<'program> Callable<'program> {
         let requirements = program
             .traits()
             .iter()
-            .flat_map(|definition| program.trait_machine_signatures(definition).iter())
+            .flat_map(|definition| program.trait_machine_instances(definition))
             .filter(|signature| signature.symbol == target)
             .map(|signature| Self::Requirement { signature });
         let mut candidates = machines.into_iter().chain(requirements);

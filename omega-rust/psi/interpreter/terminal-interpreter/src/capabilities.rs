@@ -366,11 +366,14 @@ mod tests {
             .push(terminal_psi::ProviderCandidateConformance {
                 boundary,
                 requirement_identity,
+                source_requirement_identity: requirement_identity,
                 provider_identity,
                 provider_declaration: terminal_psi::NominalDeclarationIdentity::new(
                     provider_identity,
                 ),
                 candidate_identity,
+                source_candidate_identity: candidate_identity,
+                source_candidate_package_identity: None,
                 candidate: MachineId::new(2).unwrap(),
                 signature: terminal_psi::ProviderSignature::empty(),
                 refinement: terminal_psi::ProviderRefinement::empty(),

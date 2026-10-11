@@ -199,8 +199,7 @@ pub(crate) fn validate_requirement_kind(
                     && definition.symbol == plan.contract_owner
                     && checked
                         .typed
-                        .trait_machine_signatures(definition)
-                        .iter()
+                        .trait_machine_instances(definition)
                         .any(|signature| {
                             signature.symbol == plan.machine && plan.state == signature.symbol
                         })

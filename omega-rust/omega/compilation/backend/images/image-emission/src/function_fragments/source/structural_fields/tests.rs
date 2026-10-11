@@ -769,11 +769,14 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
                 provider: ProviderCandidateConformance {
                     boundary,
                     requirement_identity: terminal_psi::TerminalIdentityIndex(7),
+                    source_requirement_identity: terminal_psi::TerminalIdentityIndex(7),
                     provider_identity: terminal_psi::TerminalIdentityIndex(8),
                     provider_declaration: terminal_psi::NominalDeclarationIdentity::new(
                         terminal_psi::TerminalIdentityIndex(8),
                     ),
                     candidate_identity: terminal_psi::TerminalIdentityIndex(9),
+                    source_candidate_identity: terminal_psi::TerminalIdentityIndex(9),
+                    source_candidate_package_identity: None,
                     candidate: callee,
                     signature: ProviderSignature::empty(),
                     refinement: ProviderRefinement::empty(),

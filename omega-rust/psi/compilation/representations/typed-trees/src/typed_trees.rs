@@ -31,7 +31,9 @@ pub(crate) use typed_tree_table;
 
 mod authored_targets;
 mod callable_applications;
-pub use callable_applications::{AppliedMachineCallable, CallableSubstitution};
+pub use callable_applications::{
+    AppliedMachineCallable, CallableSubstitution, ClosedRequirementApplication,
+};
 pub mod calls;
 mod commitments;
 mod frozen;

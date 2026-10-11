@@ -15,14 +15,34 @@ pub(super) fn provider_identities(
         return Ok(Vec::new());
     };
     let typed = &checked.typed;
+    let application = typed.closed_requirement_application(signature.symbol);
+    let template = application.map_or(signature.symbol, |application| application.template);
     let mut identities = Vec::new();
     for implementation in typed.conformances().iter().filter(|implementation| {
         implementation.type_parameters.is_empty() && implementation.lifetime_parameters.is_empty()
     }) {
+        if application.is_some()
+            && !typed
+                .trait_definition_by_symbol(implementation.trait_symbol)
+                .and_then(|definition| {
+                    typed_trees::trait_definition::AppliedTraitScope::new(
+                        typed,
+                        definition,
+                        typed
+                            .type_reference_table
+                            .type_reference_handles(implementation.arguments),
+                    )
+                })
+                .is_some_and(|scope| {
+                    typed.requirement_application_matches_scope(signature.symbol, &scope)
+                })
+        {
+            continue;
+        }
         let rows = &implementation.rows;
-        let mut matching = rows.iter().filter(|row| {
-            row.declaring_trait == definition.symbol && row.requirement == signature.symbol
-        });
+        let mut matching = rows
+            .iter()
+            .filter(|row| row.declaring_trait == definition.symbol && row.requirement == template);
         let Some(row) = matching.next() else {
             continue;
         };
@@ -39,7 +59,27 @@ pub(super) fn provider_identities(
         {
             return unsupported("named provider row has no exact realization entry");
         }
-        if realization.symbol != machine.symbol {
+        if application.is_some() {
+            if !checked
+                .facts
+                .provider_closed_requirements
+                .iter()
+                .any(|row| {
+                    row.provider == machine.symbol
+                        && row.template == template
+                        && row.closed_requirement == signature.symbol
+                })
+                || typed
+                    .requirement_realization_specialization(
+                        signature.symbol,
+                        realization.symbol,
+                        machine.symbol,
+                    )
+                    .is_none()
+            {
+                continue;
+            }
+        } else if realization.symbol != machine.symbol {
             // Specialization owns the ordered template-to-instance state
             // correspondence; the map's entry above must remain its origin.
             let receipts = typed

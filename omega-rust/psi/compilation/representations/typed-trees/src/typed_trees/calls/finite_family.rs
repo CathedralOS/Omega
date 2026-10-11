@@ -98,7 +98,8 @@ impl TypedTrees {
             for conjunct in
                 self.binary_chain_leaves(alternative, crate::expression::BinaryOperator::And)
             {
-                let Some((binder_index, value)) = self.equality_assignment(&binders, conjunct)
+                let Some((binder_index, value)) =
+                    self.equality_assignment(signature.symbol, &binders, conjunct)
                 else {
                     return FamilyProbe::NotFinite(
                         "the `where` clause is not explicit `Binder == literal` equalities; opaque \
@@ -164,6 +165,7 @@ impl TypedTrees {
     /// declaration index and the canonical literal value.
     fn equality_assignment(
         &self,
+        owner: symbols::SymbolHandle,
         binders: &[&crate::data::TypeParameter],
         expression: crate::expression::ExpressionHandle,
     ) -> Option<(usize, FamilyValue)> {
@@ -178,8 +180,8 @@ impl TypedTrees {
         let (binder, value) = match (
             self.binder_operand(binders, binary.left),
             self.binder_operand(binders, binary.right),
-            self.literal_operand(binary.left),
-            self.literal_operand(binary.right),
+            self.literal_operand(owner, binary.left),
+            self.literal_operand(owner, binary.right),
         ) {
             (Some(binder), None, None, Some(value)) | (None, Some(binder), Some(value), None) => {
                 (binder, value)
@@ -211,8 +213,11 @@ impl TypedTrees {
         let members = self.expression_table.name_path_members(path.members);
         let [member] = members else { return None };
         binders.iter().position(|parameter| {
-            parameter.name.as_str() == member.as_str()
-                || (path.symbol.is_valid() && parameter.symbol == path.symbol)
+            if path.symbol.is_valid() {
+                parameter.symbol == path.symbol
+            } else {
+                parameter.name.as_str() == member.as_str()
+            }
         })
     }
 
@@ -220,6 +225,7 @@ impl TypedTrees {
     /// declaration whose canonical encoding is a scalar.
     fn literal_operand(
         &self,
+        owner: symbols::SymbolHandle,
         expression: crate::expression::ExpressionHandle,
     ) -> Option<FamilyValue> {
         match self.expression_table.expression(expression) {
@@ -243,10 +249,22 @@ impl TypedTrees {
             crate::expression::ExpressionNode::Name(path) => {
                 let members = self.expression_table.name_path_members(path.members);
                 let [member] = members else { return None };
-                let declaration = self.const_declarations().iter().find(|declaration| {
-                    self.symbols.name(declaration.symbol) == member.as_str()
-                        || (path.symbol.is_valid() && declaration.symbol == path.symbol)
-                })?;
+                // Where payloads may precede expression binding. Use their
+                // authored source scope, never a globally same-spelled const.
+                // A retained symbol is already the exact resolved selection.
+                let selected = if path.symbol.is_valid() {
+                    path.symbol
+                } else {
+                    self.symbols.find_top_level_by_name_and_kinds_from_source(
+                        member.as_str(),
+                        &[symbols::SymbolKind::Const],
+                        self.symbols.symbol_provenance_source_span(owner)?,
+                    )?
+                };
+                let declaration = self
+                    .const_declarations()
+                    .iter()
+                    .find(|declaration| declaration.symbol == selected)?;
                 let value = language_semantics::const_value::CanonicalConstValue::new(
                     self.display_type_reference(declaration.declared_type),
                     declaration.evaluated_value.as_ref()?.encoding()?.to_owned(),

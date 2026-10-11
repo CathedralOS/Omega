@@ -586,7 +586,7 @@ fn collect_callable_contracts(
         }
     }
     for owner in program.traits() {
-        for signature in program.trait_machine_signatures(owner) {
+        for signature in program.trait_machine_instances(owner) {
             if signature.symbol == target {
                 contracts.extend(program.state_signature_contracts(signature));
             }
@@ -612,9 +612,7 @@ fn collect_callable_contracts_indexed<'plans>(
             contracts.extend(program.machine_contracts(machine));
         }
     }
-    if let Some((owner_index, signature_index)) = build.signature_location(program, target) {
-        let owner = &program.traits()[owner_index];
-        let signature = &program.trait_machine_signatures(owner)[signature_index];
+    if let Some((_, signature)) = program.trait_machine_signature(target) {
         contracts.extend(program.state_signature_contracts(signature));
     }
     contracts

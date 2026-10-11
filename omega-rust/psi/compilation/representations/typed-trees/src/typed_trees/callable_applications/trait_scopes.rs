@@ -52,6 +52,12 @@ impl TypedTrees {
                     .iter()
                     .map(|edge| (edge.trait_symbol, edge.arguments)),
             )
+            .chain(
+                self.traits()
+                    .iter()
+                    .filter(|declaration| declaration.type_parameters.is_empty())
+                    .map(|declaration| (declaration.symbol, arena::HandleSpan::empty())),
+            )
             .collect::<Vec<_>>();
         let mut pending = Vec::new();
         for (trait_symbol, arguments) in roots {

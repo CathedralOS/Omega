@@ -355,9 +355,18 @@ pub(super) fn encode_provider_candidate(
 ) {
     bytes.id(candidate.boundary);
     bytes.u32(candidate.requirement_identity.0);
+    bytes.u32(candidate.source_requirement_identity.0);
     bytes.u32(candidate.provider_identity.0);
     bytes.u32(candidate.provider_declaration.identity().0);
     bytes.u32(candidate.candidate_identity.0);
+    bytes.u32(candidate.source_candidate_identity.0);
+    encode_optional(
+        bytes,
+        candidate.source_candidate_package_identity.as_ref(),
+        |bytes, package| {
+            bytes.bytes(&package.digest());
+        },
+    );
     bytes.id(candidate.candidate);
     bytes.slice(&candidate.signature.parameters, |bytes, parameter| {
         bytes.u32(parameter.position);

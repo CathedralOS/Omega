@@ -18,6 +18,11 @@ use semantic_vocabulary::{
 pub struct ProviderCandidateConformance {
     pub boundary: BoundaryMachineId,
     pub requirement_identity: TerminalIdentityIndex,
+    /// Original checked callable coordinate selected by a provider-plan row.
+    /// Equal to `requirement_identity` when no application closed it. This
+    /// association belongs to the canonical catalog, not a public proposal:
+    /// receivers enumerate the complete instance roster without source replay.
+    pub source_requirement_identity: TerminalIdentityIndex,
     pub provider_identity: TerminalIdentityIndex,
     /// Exact package/toolchain-owned selecting declaration, independently of
     /// the callable it realizes. Named maps may share the same body.
@@ -25,6 +30,14 @@ pub struct ProviderCandidateConformance {
     /// Canonical checked-machine identity named by the selected
     /// `CheckedAdapter` row. The dense `candidate` ID is artifact-local.
     pub candidate_identity: TerminalIdentityIndex,
+    /// The immediate checked specialization template's callable identity,
+    /// or `candidate_identity` for an unspecialized body. Outer applications
+    /// already present on that template remain part of this exact coordinate.
+    pub source_candidate_identity: TerminalIdentityIndex,
+    /// Package custody of that immediate source callable. Module-qualified
+    /// overload text alone cannot establish package equality. `None` retains
+    /// the existing toolchain/standalone coordinate, not a wildcard.
+    pub source_candidate_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub candidate: MachineId,
     pub signature: ProviderSignature,
     pub refinement: ProviderRefinement,

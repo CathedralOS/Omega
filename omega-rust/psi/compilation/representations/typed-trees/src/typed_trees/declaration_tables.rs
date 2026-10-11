@@ -14,6 +14,9 @@ impl TypedTrees {
         mut owner: symbols::SymbolHandle,
     ) -> symbols::SymbolHandle {
         let mut visited = Vec::new();
+        if let Some(application) = self.closed_requirement_application(owner) {
+            owner = application.template;
+        }
         while let Some(application) = self
             .machine_specializations
             .iter()

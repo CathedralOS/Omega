@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Provider and boundary catalogs retain exact selecting/schema owners.
-        125
+        // Provider candidates retain the complete source-to-instance association.
+        126
     }
 }

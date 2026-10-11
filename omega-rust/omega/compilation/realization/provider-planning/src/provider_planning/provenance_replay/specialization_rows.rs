@@ -17,6 +17,8 @@ use super::adapter_conformance::exact_checked_adapter;
 use super::requirement_identities::satisfied_row_requirement;
 use crate::provider_planning::ProviderBinding;
 
+mod trait_requirements;
+
 pub(crate) fn derive_selected_requirement_specializations(
     checked: &checked_trees::CheckedTrees,
     selected: &effects::SelectedProviderPlanFacts,
@@ -35,6 +37,7 @@ pub(crate) fn derive_selected_requirement_specializations(
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let mut top_level_symbols = None;
     for plan in selected.plans() {
+        trait_requirements::append(checked, plan, &mut rows, &mut identities, &mut diagnostics);
         let templates = typed
             .machines()
             .iter()

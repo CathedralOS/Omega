@@ -354,9 +354,7 @@ fn exact_direct_boundary_requirement(
         .iter()
         .filter(|definition| definition.is_boundary)
         .flat_map(|definition| {
-            program
-                .trait_machine_signatures(definition)
-                .iter()
+            boundary_signature_coordinates(program, definition)
                 .filter(move |signature| signature.symbol == target_symbol)
                 .map(move |signature| (definition.symbol, signature.symbol))
         })
@@ -378,6 +376,21 @@ fn exact_direct_boundary_requirement(
             matches.len(),
         ))),
     }
+}
+
+/// Authority checking sees authored declarations and their prepared executable
+/// coordinates. Unlike an execution roster, this must also retain the open
+/// declaration referenced by a universally checked generic caller or provider.
+fn boundary_signature_coordinates<'program>(
+    program: &'program dyn crate::CheckingInput,
+    owner: &'program typed_trees::trait_definition::TraitDefinition,
+) -> impl Iterator<Item = &'program typed_trees::signature::StateSignature> {
+    program.trait_machine_signatures(owner).iter().chain(
+        program
+            .closed_requirement_applications()
+            .filter(move |application| application.declaring_trait == owner.symbol)
+            .map(|application| application.signature),
+    )
 }
 
 fn validate_exact_boundary_requirement(
@@ -409,15 +422,13 @@ fn validate_exact_boundary_requirement(
             boundary_trait_symbol,
         )));
     }
-    let owned_signatures = program
-        .trait_machine_signatures(owner)
-        .iter()
+    let owned_signatures = boundary_signature_coordinates(program, owner)
         .filter(|signature| signature.symbol == boundary_signature_symbol)
         .count();
     let global_signatures = program
         .traits()
         .iter()
-        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .flat_map(|definition| boundary_signature_coordinates(program, definition))
         .filter(|signature| signature.symbol == boundary_signature_symbol)
         .count();
     let state_matches = program

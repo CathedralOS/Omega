@@ -95,6 +95,7 @@ mod result_bounds;
 mod scoped_arithmetic;
 mod self_induction;
 pub(crate) mod specification_calls;
+mod static_applications;
 mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;
@@ -165,6 +166,7 @@ pub use scoped_arithmetic::{
 pub(crate) use specification_calls::{
     SelectedCallContract, selected_call_contract, validate_specification_call_requirements,
 };
+pub use static_applications::static_application_where_judgment;
 pub use strict_arithmetic::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
     StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,

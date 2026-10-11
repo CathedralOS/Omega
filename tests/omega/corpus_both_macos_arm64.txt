@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 6.56, "load1_start": 3.71, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 2.66, "load1_start": 2.51, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
@@ -563,6 +563,10 @@ pass/providers/boundary_declaration_structural_result_return_exit built 6570ms e
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 2780ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b
 pass/providers/checked_boundary_requirement_dispatch_exit built 2255ms exit:70 interpreter-exit:70 interpreter:agrees @3416dca58e06+wt
 pass/providers/direct_boundary_array_snapshot_exit built 4962ms exit:70 interpreter-exit:70 interpreter:agrees @36ad3370c97a
+pass/providers/finite_requirement_boolean_const_exit built 2821ms exit:0 interpreter-exit:0 interpreter:agrees @da6d4e11721e
+pass/providers/finite_requirement_correlated_tuple_exit built 2736ms exit:0 interpreter-exit:0 interpreter:agrees @da6d4e11721e
+pass/providers/finite_requirement_direct_provider_exit built 2693ms exit:0 interpreter-exit:0 interpreter:agrees @da6d4e11721e
+pass/providers/finite_requirement_forwarded_const_exit built 2695ms exit:0 interpreter-exit:0 interpreter:agrees @da6d4e11721e
 pass/providers/foreign_out_parameter_write_observed_exit built 8787ms exit:70 interpreter-exit:70 interpreter:agrees @5889f8b8208f+wt
 pass/providers/generic_provider_structural_result_composition_exit built 6651ms exit:0 interpreter-exit:0 interpreter:agrees @7084889a08d8+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 2754ms exit:41 interpreter-exit:41 interpreter:agrees @cba4ef8c9ab1
@@ -636,6 +640,7 @@ pass/structural/selected_record_payload_observations_exit built 2335ms exit:70 i
 pass/targets/private_target_supplies_remain_disclosed built 1697ms exit:0 interpreter-exit:0 interpreter:agrees @db1571e34f4a+wt
 pass/targets/provider_family_private_contracts_exit built 10157ms exit:0 interpreter-exit:0 interpreter:agrees @ac80e12ccdc5
 pass/targets/runtime_target_inherited_named_provider_defaults_exit built 3277ms exit:0 interpreter-exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @d4d7634f9912+wt
+pass/targets/runtime_target_inherited_provider_roster_exit built 2669ms exit:0 interpreter-exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @da6d4e11721e
 pass/targets/target_body_call_contracts_exit built 11431ms exit:0 interpreter-exit:0 interpreter:agrees @5833e7d00af3
 pass/targets/target_family_entry_exit built 11761ms exit:0 interpreter-exit:0 interpreter:agrees @ac80e12ccdc5
 pass/termination/joint_rank_acyclic_finish_exit built 3333ms exit:0 interpreter-exit:0 interpreter:agrees @a45c3d0bf1f5
@@ -668,6 +673,7 @@ pass/time/runtime_clock_out_parameter_loans_exit built 12826ms exit:0 interprete
 pass/time/runtime_clock_padded_out_parameter_prefix_exit built 15753ms exit:0 interpreter-exit:0 interpreter:agrees @f84dff68876d
 pass/time/runtime_clock_shared_import_slots_exit built 11288ms exit:0 interpreter-exit:0 interpreter:agrees @b8b69519109d+wt
 pass/time/runtime_time_host_native_darwin_exit built 12509ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
+pass/traits/dyn_finite_family_dispatch checked 436ms @da6d4e11721e
 pass/traits/runtime_dyn_data_argument_counts_exit built 993ms exit:70 interpreter-exit:70 interpreter:agrees @2424b17e715c
 pass/traits/runtime_dyn_joined_selector_exit built 1004ms exit:70 interpreter-exit:70 interpreter:agrees @2424b17e715c
 pass/traits/runtime_dyn_local_selection_exit built 983ms exit:70 interpreter-exit:70 interpreter:agrees @2424b17e715c

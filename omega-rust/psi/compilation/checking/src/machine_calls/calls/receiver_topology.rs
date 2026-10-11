@@ -311,19 +311,14 @@ fn state_symbol_in_any_machine(
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
-/// `target_symbol` when it is a machine signature of ANY trait in the program
-/// (the resolved target of a call through a trait-typed receiver), or invalid.
+/// The exact trait signature coordinate, including a prepared closed instance.
+/// Looking only through authored declaration rosters drops those instances
+/// during borrow discovery, leaving their executable calls without flow facts.
 pub fn trait_machine_signature_symbol(
     program: &dyn crate::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
-    if target_symbol.is_valid()
-        && program
-            .traits()
-            .iter()
-            .flat_map(|trait_definition| program.trait_machine_signatures(trait_definition).iter())
-            .any(|signature| signature.symbol == target_symbol)
-    {
+    if program.trait_machine_signature(target_symbol).is_some() {
         return target_symbol;
     }
 

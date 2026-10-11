@@ -1,8 +1,8 @@
 //! The closed boundary requirement each concrete provider refines.
 //!
-//! A provider conformance names a generic top-level requirement template; the
+//! A provider conformance names an authored machine or trait requirement; the
 //! provider's specialization receipt selects the exact closed application of
-//! that template it satisfies. Checking resolves that join once over the
+//! that declaration it satisfies. Checking resolves that join once over the
 //! finalized program, and lowering's provider catalog reads the row instead
 //! of re-entering the resolution.
 
