@@ -39,6 +39,7 @@ def main():
         for case in json.loads((ROOT/'data/cases.json').read_text()):
             folder=ROOT/'data'/case['name']
             raw=(folder/'input.txt').read_bytes()
+            assert raw == bytes.fromhex(case['input_hex']), 'fixture bytes changed: '+case['name']
             code=int((folder/'expected_exit.txt').read_text())
             expected=(folder/'expected_stdout.txt').read_bytes()
             if arguments.route == 'native':
