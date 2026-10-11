@@ -1449,9 +1449,6 @@ impl Emission<'_, '_, '_> {
                 }
                 Ok(continuation.place)
             }
-            CheckedStructuralValueKind::ViewElementCopy { reads } => {
-                self.view_element_copy(identities, &reads, continuation)
-            }
             CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 let argument = self.copied_place_argument(identities, &source)?;
                 self.copied_leaf_place(
@@ -1911,98 +1908,6 @@ impl Emission<'_, '_, '_> {
     /// fully intact, so shared loans admit the observation where a move
     /// would vacate borrowed storage. Only the op-join path is needed — no
     /// case fan-out, no residual bookkeeping.
-    /// Establish a fresh owned record from one view element's scalar fields.
-    /// Each retained read is an ordinary element read through the view at the
-    /// copy's selector, so each carries the view's own bound; the record then
-    /// commits the leaves in declaration order. A field that is bounded,
-    /// erased or structural is refused: a plain read carries none of the
-    /// evidence establishing it would owe.
-    pub(super) fn view_element_copy(
-        &mut self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        reads: &[checked_trees::CheckedScalarExpression],
-        continuation: Option<&ValueContinuation>,
-    ) -> Result<PlaceId, LoweringError> {
-        let shape =
-            terminal_psi::find_structural_type(&self.structural_types[..], self.structural_type)
-                .ok_or(LoweringError::Unsupported(
-                    "view element copy structural type missing",
-                ))?;
-        let Some(fields) = shape.shape.record_fields() else {
-            return unsupported("view element copy establishes a nonrecord");
-        };
-        if fields.len() != reads.len() {
-            return unsupported("view element copy does not read every field once");
-        }
-        let bindings = self
-            .evaluation
-            .scalar_bindings
-            .clone()
-            .with_view_locals(&self.evaluation.view_locals);
-        let mut initialized = Vec::with_capacity(fields.len());
-        for (field, read) in fields.iter().zip(reads) {
-            let checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
-                element_path,
-                ..
-            } = read
-            else {
-                return unsupported("view element copy field is not an element read");
-            };
-            if !matches!(
-                field.field_type,
-                terminal_psi::StructuralFieldType::Scalar(_)
-                    | terminal_psi::StructuralFieldType::IeeeFloat(_)
-            ) {
-                return unsupported("view element copy reads only plain scalar fields");
-            }
-            if field.relevance.is_erased()
-                || element_path.as_slice()
-                    != [checked_trees::CheckedScalarReadProjection::Static(
-                        checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                            checked_trees::CheckedMemberIdentity::of_spelling(
-                                identities.text(field.identity).unwrap_or_default(),
-                            ),
-                        ),
-                    )]
-            {
-                return unsupported("view element copy reordered or renamed a field");
-            }
-            let lowered =
-                bindings.expression(identities, &self.checked.facts.proven_scalar_indexes, read)?;
-            let value = crate::emission::operation_emission::expressions::emit_direct_expression(
-                &lowered,
-                self.values,
-                self.next_value,
-                self.operations,
-            );
-            initialized.push(terminal_psi::RecordFieldInitializer {
-                field: field.id,
-                value: terminal_psi::RecordFieldValue::Scalar {
-                    value,
-                    range_obligation: None,
-                },
-            });
-        }
-        let place = place_id(allocate_dense(self.next_place)?);
-        self.temporary_places.push(super::record::emit_completed(
-            place,
-            self.structural_type,
-            self.multiplicity,
-            initialized,
-            &fields,
-            self.evaluation
-                .structural_parameters
-                .iter()
-                .map(|(_, parameter)| parameter),
-            self.operations,
-        )?);
-        let Some(continuation) = continuation else {
-            return Ok(place);
-        };
-        self.complete_value(identities, place, None, continuation)?;
-        Ok(continuation.place)
-    }
-
     fn copied_leaf_place(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,

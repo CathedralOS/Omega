@@ -370,7 +370,6 @@ impl CallTransfers<'_> {
                 self.argument_evaluation(source)
             }
             CheckedStructuralValueKind::ByteLiteralView { .. }
-            | CheckedStructuralValueKind::ViewElementCopy { .. }
             | CheckedStructuralValueKind::ZeroedStructural {} => 0,
         }
     }

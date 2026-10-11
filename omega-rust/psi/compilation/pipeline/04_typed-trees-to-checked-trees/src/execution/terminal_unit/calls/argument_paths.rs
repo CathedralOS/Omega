@@ -232,6 +232,7 @@ pub(crate) fn projected_selected_path(
 /// `projected_selected_path` for a case observation, which reads the case
 /// value's storage rather than a descriptor. A retained local descriptor is
 /// crossed here; a borrowed parameter already denotes its referee's storage.
+/// A view is itself the indexed carrier, not a Reference to that carrier.
 pub(crate) fn projected_observed_path(
     program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
@@ -263,6 +264,9 @@ pub(crate) fn projected_observed_path(
         while let Some(shell) = validation::reference_shell(program, reference) {
             if shell.access == language_semantics::ReferenceAccess::WriteOnly {
                 return None;
+            }
+            if !validation::stores_reference_shape(program, reference, &[]) {
+                break;
             }
             crossings.push(CheckedUnitStructuralPathSegment::Referent);
             reference = shell.referee;

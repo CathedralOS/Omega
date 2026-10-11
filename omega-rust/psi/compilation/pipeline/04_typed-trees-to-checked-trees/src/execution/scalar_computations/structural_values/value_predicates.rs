@@ -6,8 +6,7 @@ use super::super::{
     ExpressionHandle, ExpressionNode, PrimitiveType, SymbolHandle, TypeReferenceNode,
 };
 use super::place_types::{
-    borrowed_place_leaf_type, canonical_place_is_borrowable, copied_place_type,
-    projected_leaf_type, symbol_declared_type,
+    borrowed_place_leaf_type, canonical_place_is_borrowable, projected_leaf_type,
 };
 use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
@@ -172,69 +171,6 @@ pub(in crate::execution::scalar_computations) fn is_record_value(
         }
     }
     true
-}
-
-/// A LocalData initializer copying one element of a borrowed view
-/// (`let chosen: Entry = tail[index]`): a single-element index over a bare
-/// name whose declared type is a view of exactly the copyable record the
-/// local declares. This is `view_element_copy`'s own admission, consulted by
-/// the builder branch that owns it -- the owned-place arm in `computations`
-/// offers every projected place and does not re-derive this shape.
-pub(super) fn is_view_element_copy(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-    expected: TypeReferenceHandle,
-) -> bool {
-    let Some(indexed) = program.expression_table.indexed_node(expression) else {
-        return false;
-    };
-    let Some(name) = program.expression_table.name_path_node(indexed.collection) else {
-        return false;
-    };
-    !matches!(
-        program.expression_table.expression(indexed.index),
-        ExpressionNode::Range(_)
-    ) && copied_place_type(program, expected)
-        && !crate::execution::terminal_unit::types::borrowed_slice_view(program, expected)
-        && symbol_declared_type(program, name.symbol)
-            .and_then(|declared| {
-                crate::execution::terminal_unit::types::borrowed_slice_view_element(
-                    program,
-                    declared,
-                    &[],
-                )
-            })
-            .is_some_and(|element| {
-                program.normalized_type_identity(element)
-                    == program.normalized_type_identity(expected)
-            })
-}
-
-/// A view-copied record field's carrier: a bare primitive, or a primitive
-/// under exactly one arithmetic policy. A policy changes operations, not the
-/// stored bits, so the element read and the fresh record carry the same
-/// scalar; a range or any other qualification needs its own evidence and
-/// keeps the copy declined.
-pub(super) fn plain_or_policy_scalar_field(
-    program: &dyn ::validation::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { .. } | TypeReferenceNode::DynamicTrait { .. } => true,
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            matches!(
-                program.type_reference_table.constraint_span(*constraints),
-                Some([typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)])
-            ) && matches!(
-                program.type_reference_table.type_reference(*base_type),
-                TypeReferenceNode::Named { .. }
-            )
-        }
-        _ => false,
-    }
 }
 
 /// A fixed-array construction of structural elements spelled as a literal. Primitive arrays keep

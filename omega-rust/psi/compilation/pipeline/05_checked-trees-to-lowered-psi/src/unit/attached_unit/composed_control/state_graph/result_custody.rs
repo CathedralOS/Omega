@@ -159,7 +159,6 @@ fn construction_inputs<'input>(
                     | CheckedStructuralValueKind::Case(_)
                     | CheckedStructuralValueKind::Call { .. }
                     | CheckedStructuralValueKind::ByteLiteralView { .. }
-                    | CheckedStructuralValueKind::ViewElementCopy { .. }
                     | CheckedStructuralValueKind::ScalarArray { .. }
                     | CheckedStructuralValueKind::ZeroedScalarArray { .. }
                     | CheckedStructuralValueKind::ZeroedStructural { .. } => {}

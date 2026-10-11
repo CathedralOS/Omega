@@ -393,8 +393,6 @@ impl Builder<'_, '_> {
                     .expression_handles(call.arguments),
             );
             CheckedStructuralValueKind::Call { source_call }
-        } else if let Some(copy) = self.view_element_copy(expression, expected) {
-            copy
         } else if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Name(_)

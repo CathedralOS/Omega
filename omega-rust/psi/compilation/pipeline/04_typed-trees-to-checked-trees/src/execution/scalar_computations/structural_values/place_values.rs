@@ -4,10 +4,11 @@
 //! not a second row for ordinary qualification. Exact declared types remain on
 //! nodes and carrier comparisons; descriptors and bounded-byte shapes retain
 //! the shells required by their representation. No lookup grants membership.
+//! Readable copies retain one source subtree and selector, rather than
+//! rebuilding records field by field and discarding non-scalar evidence.
 
-use super::super::{Builder, ExpressionHandle, ExpressionNode, PrimitiveType, TypeReferenceNode};
+use super::super::{Builder, ExpressionHandle, ExpressionNode, TypeReferenceNode};
 use super::place_types::{needs_copied_place_root, projection_root_expression};
-use super::value_predicates::{is_view_element_copy, plain_or_policy_scalar_field};
 use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -73,79 +74,6 @@ impl Builder<'_, '_> {
         })
     }
 
-    /// One `[copy]` record element copied out of a borrowed view: the same
-    /// element selection an element read takes, then one read per scalar
-    /// field of the element in declaration order.
-    pub(super) fn view_element_copy(
-        &self,
-        expression: ExpressionHandle,
-        expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
-        if !is_view_element_copy(self.program, expression, expected) {
-            return None;
-        }
-        let selection = crate::values::scalar::scalar_lowering::selected_element(
-            self.program,
-            self.operators,
-            expression,
-            self.parameters,
-            self.authored_parameters,
-            self.parameter_types,
-            self.locals,
-            self.exact_integer_casts,
-        )?;
-        if !selection.through_view
-            || !selection.path.is_empty()
-            || self
-                .program
-                .normalized_type_identity(selection.element_type)
-                != self.program.normalized_type_identity(expected)
-        {
-            return None;
-        }
-        let TypeReferenceNode::Named { symbol, .. } = self
-            .program
-            .type_reference_table
-            .type_reference(validation::unwrapped_type_reference(
-                self.program,
-                expected,
-            )?)
-        else {
-            return None;
-        };
-        let data = self.program.data_definition_by_symbol(*symbol)?;
-        let mut reads = Vec::new();
-        for member in self.program.data_members(data) {
-            let field = member.as_field()?;
-            let primitive_type = self
-                .program
-                .primitive_type_reference(field.type_reference)?;
-            if field.relevance.is_erased()
-                || primitive_type == PrimitiveType::Addr
-                || !plain_or_policy_scalar_field(self.program, field.type_reference)
-            {
-                return None;
-            }
-            reads.push(
-                checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
-                    root: selection.root,
-                    path: Vec::new(),
-                    index: Box::new(selection.index.clone()),
-                    element_path: vec![checked_trees::CheckedScalarReadProjection::Static(
-                        checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                            checked_trees::CheckedMemberIdentity::of_member(
-                                field.identity,
-                                field.name.clone(),
-                            ),
-                        ),
-                    )],
-                    primitive_type,
-                },
-            );
-        }
-        (!reads.is_empty()).then_some(CheckedStructuralValueKind::ViewElementCopy { reads })
-    }
-
     /// Copy one `Unrestricted` leaf from readable storage into a fresh owned
     /// place. The source root and its ownership or loan remain unchanged.
     pub(super) fn copied_place(
@@ -206,7 +134,9 @@ impl Builder<'_, '_> {
             )?;
         // A local owns its descriptor, whereas a borrowed formal already
         // denotes its referent. Selecting below the local crosses that stored
-        // address; copying the whole descriptor does not cross it.
+        // address; copying the whole descriptor does not cross it. View
+        // carriers already select their own backing on indexing: only the
+        // registry's Reference shape requires a separate pointer crossing.
         if !place.segments.is_empty()
             && let Some(state) = self.program.state_by_symbol(self.state)
             && let Some((_, local)) = self.program.state_local_declaration(state, symbol)
@@ -216,6 +146,9 @@ impl Builder<'_, '_> {
             while let Some(shell) = validation::reference_shell(self.program, reference) {
                 if shell.access == language_semantics::ReferenceAccess::WriteOnly {
                     return None;
+                }
+                if !validation::stores_reference_shape(self.program, reference, &[]) {
+                    break;
                 }
                 crossings.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
                 reference = shell.referee;

@@ -125,28 +125,17 @@ pub enum CheckedStructuralValueKind {
         source: crate::CheckedUnitStructuralArgumentPlan,
         region: CheckedElementViewRegion,
     },
-    /// An `Unrestricted` leaf read through shared-borrowed storage
-    /// (`self.scan_compare_type` on a `&self` receiver): the borrowed place's
-    /// contents are observed and copied into a fresh owned place, so no
-    /// child moves out of the loan. `source` is that lent place under shared
-    /// borrow, with `type_identity` naming the projected (leaf) type.
+    /// An unrestricted stored subtree observed and copied into a fresh owned
+    /// place, without moving a child out of the readable source. Record,
+    /// fixed-array and view projections retain the same source/path contract;
+    /// view selectors carry the descriptor's live extent, not an array length.
+    /// `source` lends that place under shared borrow, with `type_identity`
+    /// naming the projected leaf's complete stored carrier.
     CopiedStructuralPlace {
         source: crate::CheckedUnitStructuralArgumentPlan,
         /// The projected leaf's type reference: lowering registers it with the
         /// unit's structural catalog so the leaf's `type_identity` resolves.
         leaf: TypeReferenceHandle,
-    },
-    /// One `[copy]` record element copied out of an established borrowed
-    /// view (`let chosen: Entry = tail[index]`). `reads` are the element's
-    /// scalar fields in declaration order, each an element read through the
-    /// same view root and selector with a one-field element path; the copy is
-    /// the fresh owned record those leaves establish, so every leaf read
-    /// carries the view's own bound. The view keeps its loan and the viewed
-    /// storage its contents. Records with bounded, erased or structural
-    /// fields are not copied this way: their leaves need evidence a plain
-    /// read does not carry.
-    ViewElementCopy {
-        reads: Vec<crate::CheckedScalarExpression>,
     },
     /// An owned child projected out of `source` (a `Place` or `Call` node)
     /// along an exact field/fixed-index path. The untouched residual siblings

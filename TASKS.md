@@ -3256,10 +3256,10 @@ of a check the same flow already performed, not the check itself.
 
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
-  corpus and focused native cohort. The frozen macOS source gate at
-  `0b802d0a871` leaves 84 lost successes, 31 refusal-reason mismatches,
-  and two float materialization timeouts to attribute and repair;
-  no invalid fixture was accepted. Do not repin these refusals. Include
+  corpus and focused native cohort. Refreshing 113 failures from the frozen
+  macOS source gate at `0b802d0a871` leaves 56 lost successes and 30 refusal-reason
+  mismatches; two excluded float materialization timeouts remain unqualified.
+  No selected invalid fixture was accepted. Do not repin these refusals. Include
   `runtime_computed_backing_reference_copy_exit`, `runtime_boundary_range_view_exit`
   and their escape/conflicting-write controls; unchosen backing homes must not
   acquire custody and nested requirements must not select a provider in Psi.

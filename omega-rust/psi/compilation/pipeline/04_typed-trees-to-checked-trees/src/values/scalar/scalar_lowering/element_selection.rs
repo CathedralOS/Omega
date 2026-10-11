@@ -15,46 +15,14 @@ use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 
 /// One builtin element selection `collection[index]` over current structural
 /// storage: the root and projection the collection names, the selected
-/// element's type, whether the collection is a borrowed view, and the lowered
+/// element's type and the lowered
 /// selector. A whole view local reads the view its establishment published,
 /// the same element selection a whole view parameter takes.
-pub(crate) struct ElementSelection {
-    pub(crate) root: checked_trees::CheckedStorageRoot,
-    pub(crate) path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
-    pub(crate) element_type: typed_trees::types::TypeReferenceHandle,
-    pub(crate) through_view: bool,
-    pub(crate) index: checked_trees::CheckedScalarSelector,
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn selected_element(
-    program: &dyn ::validation::CheckingInput,
-    operators: &CheckedOperatorFacts,
-    expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    authored_parameters: &[StateParameter],
-    parameter_types: &[PrimitiveType],
-    locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<ElementSelection> {
-    selected_element_with_selector(
-        program,
-        operators,
-        expression,
-        authored_parameters,
-        &mut |_, operand| {
-            pure_selector(
-                program,
-                operators,
-                operand,
-                parameters,
-                authored_parameters,
-                parameter_types,
-                locals,
-                exact_integer_casts,
-            )
-        },
-    )
+struct ElementSelection {
+    root: checked_trees::CheckedStorageRoot,
+    path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    element_type: typed_trees::types::TypeReferenceHandle,
+    index: checked_trees::CheckedScalarSelector,
 }
 
 /// Both expression templates and computation graphs retain this declaration
@@ -85,14 +53,13 @@ fn selected_element_with_selector(
     let collection_carrier = program
         .type_reference_table
         .peeled_type_reference(collection_type);
-    let through_view = match program
+    match program
         .type_reference_table
         .type_reference(collection_carrier)
     {
-        TypeReferenceNode::FixedArray { .. } => false,
-        TypeReferenceNode::Slice { .. } => true,
+        TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => {}
         _ => return None,
-    };
+    }
     // Geometry uses the storage carrier; the observed value keeps the exact
     // effective element policy retained by the shared projection owner.
     let element_type = validation::collection_element_type_reference(program, collection_type)?;
@@ -105,7 +72,6 @@ fn selected_element_with_selector(
         root,
         path,
         element_type,
-        through_view,
         index: checked_trees::CheckedScalarSelector {
             expression: index,
             occurrence: expression,
