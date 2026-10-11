@@ -33,7 +33,9 @@ pub use callable_identity::{
 pub use language_semantics::type_identity::{
     TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
 };
-pub use lifetime_parameters::{LifetimeParameterIdentity, lifetime_parameter_identity};
+pub use lifetime_parameters::{
+    LifetimeParameterIdentity, applied_lifetime_parameter_identity, lifetime_parameter_identity,
+};
 pub use normalized_identities::{
     NormalizedDomainExpression, NormalizedDomainTerm, NormalizedResultDispatchSet,
     NormalizedTypeIdentity, TypeIdentityId, TypeIdentityTable,

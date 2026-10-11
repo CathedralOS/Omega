@@ -44,7 +44,7 @@ pub(crate) fn type_reference_regions_match<Scope: TypeRegionScope>(
     required: TypeReferenceHandle,
     actual_scope: Scope,
     required_scope: Scope,
-    lifetime_matches: &impl Fn(
+    lifetime_matches: &mut impl FnMut(
         Scope,
         Scope,
         TypeReferenceHandle,

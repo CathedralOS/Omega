@@ -9,6 +9,7 @@ use symbols::SymbolHandle;
 use typed_trees::name::Identifier;
 use typed_trees::signature::StateParameter;
 use typed_trees::static_applications::StaticMachineLifetimeBinding;
+use typed_trees::type_identity::AppliedTypeIdentityScope;
 use typed_trees::types::TypeReferenceHandle;
 
 pub struct CallableBorrowContract<'contract> {
@@ -17,6 +18,8 @@ pub struct CallableBorrowContract<'contract> {
     pub parameters: &'contract [StateParameter],
     pub return_type: TypeReferenceHandle,
     pub substitutions: &'contract [(SymbolHandle, TypeReferenceHandle)],
+    pub substitution_scope_starts: &'contract [usize],
+    pub application_scopes: &'contract [AppliedTypeIdentityScope<'contract>],
     pub binders: &'contract [(SymbolHandle, String)],
     pub lifetime_bindings: &'contract [StaticMachineLifetimeBinding],
     pub argument_owner: SymbolHandle,
@@ -24,8 +27,7 @@ pub struct CallableBorrowContract<'contract> {
 }
 
 struct ContractFrontier {
-    fresh_count: usize,
-    regions: Vec<(String, RegionIdentity)>,
+    regions: super::callable_regions::CallableRegions,
     inputs: Vec<Vec<CarriedLifetime>>,
     outputs: Vec<CarriedLifetime>,
     sources: ViewReturnSource,
@@ -123,13 +125,55 @@ pub fn validate_callable_borrow_refinement(
                 .then_some(parameter.symbol)
         })
         .collect::<Vec<_>>();
-    let required_frontier = contract_frontier(program, &required, &symbolic_parameters, &[0])?;
-    let actual_frontier = contract_frontier(program, &actual, &symbolic_parameters, &[0])?;
-    if required_frontier.fresh_count != 0
-        && required_frontier.fresh_count != actual_frontier.fresh_count
-    {
-        return Err("fresh invocation lifetime telescope is not universally refined");
+    let required_frontier = contract_frontier(
+        program,
+        &required,
+        &symbolic_parameters,
+        required.substitution_scope_starts,
+    )?;
+    let mut actual_frontier = contract_frontier(
+        program,
+        &actual,
+        &symbolic_parameters,
+        actual.substitution_scope_starts,
+    )?;
+    let application = super::region_correspondence::infer_inputs(
+        program,
+        &required,
+        &actual,
+        &required_frontier.regions,
+        &actual_frontier.regions,
+        &actual_frontier.inputs,
+    )?;
+    for (_, region) in &mut actual_frontier.regions.names {
+        application.apply(region);
     }
+    for (ordinal, leaves) in actual_frontier.inputs.iter_mut().enumerate() {
+        for leaf in leaves {
+            if let Some(region) = &mut leaf.lifetime {
+                application.apply(region);
+            } else if let Some((_, _, region)) =
+                application.elided.iter().find(|(parameter, reference, _)| {
+                    *parameter == ordinal && *reference == leaf.reference
+                })
+            {
+                leaf.lifetime = Some(region.clone());
+            }
+        }
+    }
+    for leaf in &mut actual_frontier.outputs {
+        if let Some(region) = &mut leaf.lifetime {
+            application.apply(region);
+        }
+    }
+    // Input instantiation can merge previously distinct regions. Recompute
+    // the result relation from the complete mapped frontier rather than retain
+    // a pre-instantiation source that could conceal newly ambiguous storage.
+    actual_frontier.sources = frontier_sources(
+        &actual_frontier.inputs,
+        &actual_frontier.outputs,
+        actual.parameters,
+    );
     for (required_leaves, actual_leaves) in
         required_frontier.inputs.iter().zip(&actual_frontier.inputs)
     {
@@ -178,6 +222,7 @@ pub fn validate_callable_borrow_refinement(
         &actual,
         &required_frontier.regions,
         &actual_frontier.regions,
+        &application.elided,
         &output_elisions,
     )
 }
@@ -188,33 +233,7 @@ fn contract_frontier(
     symbolic_parameters: &[SymbolHandle],
     scope_starts: &[usize],
 ) -> Result<ContractFrontier, &'static str> {
-    let arguments = captured_lifetimes(program, contract.argument_owner);
-    let mut lifetimes = captured_lifetimes(program, contract.lexical_owner);
-    for binding in contract.lifetime_bindings {
-        let identity = arguments
-            .iter()
-            .find(|(name, _)| name == binding.argument.as_str())
-            .map(|(_, identity)| identity.clone())
-            .ok_or("callable input region has no lexical declaration custody")?;
-        lifetimes.push((binding.parameter.as_str().to_owned(), identity));
-    }
-    let mut fresh_count = 0;
-    for parameter in contract.lifetime_parameters {
-        if contract.supplied_telescope
-            && contract
-                .lifetime_bindings
-                .iter()
-                .any(|binding| binding.parameter == *parameter)
-        {
-            continue;
-        }
-        // Requirement-local fresh binders shadow the enclosing mapping.
-        lifetimes.push((
-            parameter.as_str().to_owned(),
-            RegionIdentity::Fresh(fresh_count),
-        ));
-        fresh_count += 1;
-    }
+    let regions = super::callable_regions::resolve(program, contract)?;
     let collect = |reference| {
         let leaves = scoped_carried_lifetimes(
             program,
@@ -222,8 +241,9 @@ fn contract_frontier(
             contract.substitutions,
             scope_starts,
             symbolic_parameters,
-            &lifetimes,
-            &arguments,
+            &regions.names,
+            &regions.arguments,
+            &regions.applications,
             contract.lexical_owner,
             true,
         )
@@ -242,9 +262,23 @@ fn contract_frontier(
         .map(|parameter| collect(parameter.type_reference))
         .collect::<Result<Vec<_>, &'static str>>()?;
     let outputs = collect(contract.return_type)?;
+    let sources = frontier_sources(&inputs, &outputs, contract.parameters);
+    Ok(ContractFrontier {
+        regions,
+        inputs,
+        sources,
+        outputs,
+    })
+}
+
+fn frontier_sources(
+    inputs: &[Vec<CarriedLifetime>],
+    outputs: &[CarriedLifetime],
+    parameters: &[StateParameter],
+) -> ViewReturnSource {
     let source_inputs = inputs
         .iter()
-        .zip(contract.parameters)
+        .zip(parameters)
         .enumerate()
         .flat_map(|(ordinal, (leaves, parameter))| {
             leaves.iter().map(move |leaf| {
@@ -261,13 +295,7 @@ fn contract_frontier(
             })
         })
         .collect::<Vec<_>>();
-    Ok(ContractFrontier {
-        fresh_count,
-        regions: lifetimes,
-        inputs,
-        sources: structural_frontier_return_source(outputs.clone(), &source_inputs),
-        outputs,
-    })
+    structural_frontier_return_source(outputs.to_vec(), &source_inputs)
 }
 
 pub(crate) fn lexical_region_owner(
@@ -290,31 +318,56 @@ pub(super) fn captured_lifetimes(
     program: &dyn crate::CheckingInput,
     owner: SymbolHandle,
 ) -> Vec<(String, RegionIdentity)> {
-    let owner = program.lifetime_declaration_owner(lexical_region_owner(program, owner));
+    let mut owner = program.lifetime_declaration_owner(owner);
     // A private executable keeps the authored binder identity, not a new
     // region declaration merely because its body received fresh symbols.
-    let parameters = program
-        .machine_by_symbol(owner)
-        .map(|declaration| &declaration.lifetime_parameters)
-        .or_else(|| {
-            program
-                .trait_definition_by_symbol(owner)
-                .map(|declaration| &declaration.lifetime_parameters)
-        })
-        .or_else(|| {
-            program
-                .conformance_by_symbol(owner)
-                .map(|declaration| &declaration.lifetime_parameters)
-        });
-    parameters
+    let mut scopes = Vec::new();
+    while owner.is_valid() {
+        let parameters = program
+            .machine_by_symbol(owner)
+            .map(|declaration| &declaration.lifetime_parameters)
+            .or_else(|| {
+                program
+                    .trait_definition_by_symbol(owner)
+                    .map(|declaration| &declaration.lifetime_parameters)
+            })
+            .or_else(|| {
+                program
+                    .conformance_by_symbol(owner)
+                    .map(|declaration| &declaration.lifetime_parameters)
+            })
+            .or_else(|| {
+                program
+                    .data_definition_by_symbol(owner)
+                    .map(|declaration| &declaration.lifetime_parameters)
+            })
+            .or_else(|| {
+                program
+                    .trait_machine_signature(owner)
+                    .map(|(_, signature)| &signature.lifetime_parameters)
+            })
+            .or_else(|| {
+                program
+                    .retained_static_machine_contract(owner)
+                    .map(|contract| &contract.signature().lifetime_parameters)
+            });
+        scopes.push((owner, parameters));
+        owner = program.lifetime_declaration_owner(program.symbols.get(owner).parent);
+    }
+    scopes
         .into_iter()
-        .flatten()
-        .enumerate()
-        .map(|(ordinal, parameter)| {
-            (
-                parameter.as_str().to_owned(),
-                RegionIdentity::Captured(owner, ordinal),
-            )
+        .rev()
+        .flat_map(|(owner, parameters)| {
+            parameters
+                .into_iter()
+                .flatten()
+                .enumerate()
+                .map(move |(ordinal, parameter)| {
+                    (
+                        parameter.as_str().to_owned(),
+                        RegionIdentity::Captured(owner, ordinal),
+                    )
+                })
         })
         .collect()
 }

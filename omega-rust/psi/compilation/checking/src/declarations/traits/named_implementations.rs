@@ -184,7 +184,6 @@ fn validate_closed_rows(
             state,
             &application,
             requirement,
-            None,
             diagnostics,
         );
         crate::proof_contracts::contract_entailment::check_law_conformance(

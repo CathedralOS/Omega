@@ -10,6 +10,7 @@
 //! family, not its closed executable telescope. Operand admission and signature
 //! matching use the same exact source owner; body/layout checking stays concrete.
 
+mod borrow_refinement;
 mod callable_parameters;
 mod region_application;
 
@@ -183,7 +184,6 @@ pub(crate) fn validate_applied_trait_signature(
     state: &State,
     application: &AppliedTraitScope<'_>,
     requirement: &StateSignature,
-    trait_lifetime_arguments: Option<&[u32]>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let trait_definition = application.declaration;
@@ -447,33 +447,6 @@ pub(crate) fn validate_applied_trait_signature(
         );
     }
 
-    if let Some(trait_lifetime_arguments) = trait_lifetime_arguments {
-        for (index, (actual, required)) in actual_parameters
-            .iter()
-            .zip(required_parameters.iter())
-            .enumerate()
-        {
-            if !type_reference_lifetimes_match_requirement_application(
-                program,
-                actual.type_reference,
-                required.type_reference,
-                &trait_definition.lifetime_parameters,
-                callable_machine,
-                trait_lifetime_arguments,
-                &type_bindings,
-            ) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` does not satisfy trait `{}` machine `{}` parameter {}: lifetime application does not match the declared `satisfies` edge",
-                    machine.name,
-                    state.name,
-                    trait_definition.name,
-                    requirement.name,
-                    index,
-                )));
-            }
-        }
-    }
-
     if !type_references_match_for_trait_bindings(
         program,
         callable_state.return_type,
@@ -491,19 +464,17 @@ pub(crate) fn validate_applied_trait_signature(
             type_reference_label(program, callable_state.return_type)
         )));
     }
-    if let Some(trait_lifetime_arguments) = trait_lifetime_arguments
-        && !type_reference_lifetimes_match_requirement_application(
-            program,
-            callable_state.return_type,
-            requirement.return_type,
-            &trait_definition.lifetime_parameters,
-            callable_machine,
-            trait_lifetime_arguments,
-            &type_bindings,
-        )
-    {
+    if let Err(message) = borrow_refinement::validate(
+        program,
+        application,
+        requirement,
+        callable_machine,
+        callable_state,
+        actual_parameters,
+        &actual_type_parameters,
+    ) {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: return lifetime application does not match the declared `satisfies` edge",
+            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: conformance borrow contract: {message}",
             machine.name, state.name, trait_definition.name, requirement.name,
         )));
     }
@@ -854,7 +825,7 @@ pub(crate) fn type_reference_lifetimes_match_requirement_application(
         required,
         actual_scope,
         required_scope,
-        &|_, required_scope, _, actual, required| {
+        &mut |_, required_scope, _, actual, required| {
             if required_scope.is_provider() {
                 required.is_none_or(|required| actual == Some(required))
             } else {

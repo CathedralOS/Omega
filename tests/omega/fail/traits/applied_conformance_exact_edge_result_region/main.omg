@@ -1,0 +1,6 @@
+// An exact edge must not promise a result region independent of its source.
+trait Borrowing<Input, Output> { machine borrow(value: Input) -> Output; }
+machine borrow<'source, 'other>(value: &'source i32) -> &'source i32
+satisfies Borrowing<&'source i32, &'other i32>::borrow { value }
+data Main {}
+machine Main::main(main: &mut Main) {}

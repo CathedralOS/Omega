@@ -96,28 +96,15 @@ impl TypeIdentityContext<'_> {
     }
 
     pub(crate) fn lifetime(&self, program: &TypedTrees, name: &str) -> String {
-        if let Some((ordinal, scope)) = self.application_scopes.iter().enumerate().next_back()
-            && let Some((_, argument)) = scope
-                .lifetimes
-                .iter()
-                .find(|(parameter, _)| parameter == name)
-        {
-            return Self {
-                application_scopes: &self.application_scopes[..ordinal],
-                ..*self
-            }
-            .lifetime(program, argument);
-        }
-        let owner = self
-            .application_scopes
-            .last()
-            .map_or(self.application_owner, |scope| scope.declaration);
         // Invocation signatures own regions even when they have no executable
         // Machine row. Captured regions retain their enclosing declaration's
         // identity rather than acquiring the child's parameter ordinal.
-        if let Some(region) =
-            super::lifetime_parameters::lifetime_parameter_identity(program, owner, name)
-        {
+        if let Some(region) = super::applied_lifetime_parameter_identity(
+            program,
+            self.application_owner,
+            name,
+            self.application_scopes,
+        ) {
             return compound(
                 "region",
                 [

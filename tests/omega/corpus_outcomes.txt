@@ -3014,6 +3014,16 @@ fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 459ms expected 
 	cannot prove requires contract for call step from main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[position]; output is part of [u8; N]::Utf8)
 fail/text/qualified_byte_state_domain_widening rejected 883ms expected @a0c004371ad8+wt
 	cannot prove requires contract for call narrowed from relay: value in [u8; N]::Ascii
+fail/traits/applied_conformance_exact_edge_result_region rejected 1132ms expected @5913e662b296
+	machine `borrow` state `entry` does not satisfy trait `Borrowing` machine `borrow`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
+fail/traits/applied_conformance_input_region_partition rejected 1304ms expected @5913e662b296
+	machine `read` state `entry` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable input does not preserve its captured region identity
+fail/traits/applied_conformance_nonphysical_input_elision rejected 1299ms expected @5913e662b296
+	machine `read` state `entry` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable input does not preserve its region identity
+fail/traits/applied_conformance_phantom_result_region rejected 1284ms expected @5913e662b296
+	machine `read` state `entry` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable type does not preserve its region identity
+fail/traits/applied_conformance_unrelated_result_region rejected 1193ms expected @5913e662b296
+	machine `read` state `entry` does not satisfy trait `Reading` machine `read`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 fail/traits/applied_nominal_callback_proposition_tag_rejected rejected 345ms expected @e93a32508581+wt
 	machine parameter `Callback` of provider machine `visit` for trait requirement `Visitor::visit` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/traits/conformance_item_missing_member rejected 14ms expected @e3131e3bcd65+wt
@@ -5177,6 +5187,7 @@ pass/time/runtime_time_host_native_darwin_exit checked 4141ms check-target:macos
 pass/time/runtime_time_host_native_darwin_x86_64_exit checked 13546ms check-target:macos_x86_64 @22d7c734257c+wt
 pass/time/runtime_time_host_virtual_exit checked 1234ms @2d8ed253669f
 pass/time/static_duration_accessors checked 7010ms check-target:macos_arm64 @2d8ed253669f
+pass/traits/applied_conformance_captured_fresh_regions_exit checked 2949ms check-target:macos_arm64 @5913e662b296
 pass/traits/applied_nominal_callback_closed_local_types_exit checked 2563ms check-target:macos_arm64 @f08249213499
 pass/traits/applied_nominal_callback_local_types_exit checked 3083ms check-target:macos_arm64 @2347e2eb005f+wt
 pass/traits/applied_nominal_callback_proposition_contract checked 428ms @e93a32508581+wt

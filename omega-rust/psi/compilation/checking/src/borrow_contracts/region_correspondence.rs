@@ -4,7 +4,9 @@
 //! scope; source names never equate a captured region with a fresh binder.
 
 use super::callable_refinement::{CallableBorrowContract, captured_lifetimes};
-use super::carried_lifetimes::RegionIdentity;
+use super::callable_regions::CallableRegions;
+use super::carried_lifetimes::{CarriedLifetime, RegionIdentity};
+use super::region_inference::InputRegionApplication;
 use crate::type_regions::{TypeRegionScope, type_reference_regions_match};
 use symbols::SymbolHandle;
 use typed_trees::name::Identifier;
@@ -30,6 +32,7 @@ impl RegionEnvironment<'_> {
                 .map(|(_, identity)| identity.clone()),
             Self::Captured(owner) => captured_lifetimes(program, owner)
                 .into_iter()
+                .rev()
                 .find(|(parameter, _)| parameter == name.as_str())
                 .map(|(_, identity)| identity),
         }
@@ -40,6 +43,8 @@ impl RegionEnvironment<'_> {
 struct RegionScope<'scope> {
     declaration: SymbolHandle,
     substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
+    starts: &'scope [usize],
+    applications: &'scope [Vec<(String, RegionIdentity)>],
     binders: &'scope [(SymbolHandle, String)],
     regions: RegionEnvironment<'scope>,
     arguments: RegionEnvironment<'scope>,
@@ -52,11 +57,14 @@ impl TypeRegionScope for RegionScope<'_> {
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
     ) -> typed_trees::type_identity::NormalizedTypeIdentity {
-        program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
-            binders: self.binders,
-            substitutions: self.substitutions,
-            ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
-        })
+        program.scoped_type_identity(
+            typed_trees::type_identity::TypeIdentityRequest {
+                binders: self.binders,
+                substitutions: self.substitutions,
+                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
+            },
+            self.starts,
+        )
     }
 
     fn resolve(
@@ -87,6 +95,8 @@ impl TypeRegionScope for RegionScope<'_> {
                     != program.lifetime_declaration_owner(self.declaration)
                 {
                     self.substitutions = &[];
+                    self.starts = &[];
+                    self.applications = &[];
                 }
             }
             let TypeReferenceNode::Named { symbol, .. } =
@@ -94,18 +104,33 @@ impl TypeRegionScope for RegionScope<'_> {
             else {
                 return Some((reference, self));
             };
-            if let Some((_, operand)) = self
+            if let Some((binding_ordinal, (_, operand))) = self
                 .substitutions
                 .iter()
+                .enumerate()
                 .rev()
-                .find(|(parameter, _)| parameter == symbol)
+                .find(|(_, (parameter, _))| parameter == symbol)
             {
                 if *operand == reference {
                     return Some((reference, self));
                 }
                 reference = *operand;
-                self.regions = self.arguments;
-                self.substitutions = &[];
+                let (scope_ordinal, start) = self
+                    .starts
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find(|(_, start)| **start <= binding_ordinal)?;
+                self.regions = scope_ordinal
+                    .checked_sub(1)
+                    .and_then(|ordinal| self.applications.get(ordinal))
+                    .map_or(self.arguments, |regions| {
+                        RegionEnvironment::Resolved(regions)
+                    });
+                self.substitutions = &self.substitutions[..*start];
+                self.starts = &self.starts[..scope_ordinal];
+                self.applications =
+                    &self.applications[..self.applications.len().min(scope_ordinal)];
                 self.output_elisions = &[];
                 continue;
             }
@@ -121,35 +146,131 @@ impl TypeRegionScope for RegionScope<'_> {
     }
 }
 
+fn contract_scope<'scope>(
+    contract: &'scope CallableBorrowContract<'_>,
+    regions: &'scope CallableRegions,
+) -> RegionScope<'scope> {
+    RegionScope {
+        declaration: contract.lexical_owner,
+        substitutions: contract.substitutions,
+        starts: contract.substitution_scope_starts,
+        applications: &regions.applications,
+        binders: contract.binders,
+        regions: RegionEnvironment::Resolved(&regions.names),
+        arguments: RegionEnvironment::Resolved(&regions.arguments),
+        output_elisions: &[],
+    }
+}
+
+pub(super) fn infer_inputs(
+    program: &dyn crate::CheckingInput,
+    required: &CallableBorrowContract<'_>,
+    actual: &CallableBorrowContract<'_>,
+    required_regions: &CallableRegions,
+    actual_regions: &CallableRegions,
+    actual_inputs: &[Vec<CarriedLifetime>],
+) -> Result<InputRegionApplication, &'static str> {
+    if required.parameters.len() != actual.parameters.len() {
+        return Err("callable input arity does not match its requirement");
+    }
+    let mut application = InputRegionApplication::default();
+    for (ordinal, (required_parameter, actual_parameter)) in required
+        .parameters
+        .iter()
+        .zip(actual.parameters)
+        .enumerate()
+    {
+        let mut failure = "callable input does not preserve its region identity";
+        let mut constrain = |actual_scope: RegionScope<'_>,
+                             required_scope: RegionScope<'_>,
+                             reference,
+                             actual: Option<&Identifier>,
+                             required: Option<&Identifier>| {
+            let Some(required) = required else {
+                return true;
+            };
+            let Some(required) = required_scope.regions.identity(program, required) else {
+                return false;
+            };
+            let actual = match actual {
+                Some(name) => {
+                    let Some(region) = actual_scope.regions.identity(program, name) else {
+                        return false;
+                    };
+                    Some(region)
+                }
+                None => {
+                    // Nonphysical operands cannot supply an input region. Keep
+                    // elision on this parameter's enumerated physical frontier.
+                    if !actual_inputs.get(ordinal).is_some_and(|leaves| {
+                        leaves
+                            .iter()
+                            .any(|leaf| leaf.reference == reference && leaf.lifetime.is_none())
+                    }) {
+                        return false;
+                    }
+                    None
+                }
+            };
+            let mut instantiated = actual.clone();
+            if let Some(region) = &mut instantiated {
+                application.apply(region);
+            }
+            if application.constrain(ordinal, reference, actual.clone(), required.clone()) {
+                return true;
+            }
+            // Preserve the semantic axis of the failed application. A rigid
+            // captured input cannot supply a universally fresh invocation;
+            // conflicting inferred binders cannot merge captured storage with
+            // that invocation either. Nonphysical operands carry identity but
+            // never acquire a physical loan diagnostic.
+            failure = if matches!(actual, Some(RegionIdentity::Captured(_, _)))
+                && matches!(required, RegionIdentity::Fresh(_))
+            {
+                "fresh invocation lifetime telescope is not universally refined"
+            } else if actual_inputs
+                .get(ordinal)
+                .is_some_and(|leaves| leaves.iter().any(|leaf| leaf.reference == reference))
+                && (matches!(instantiated, Some(RegionIdentity::Captured(_, _)))
+                    || matches!(required, RegionIdentity::Captured(_, _)))
+            {
+                "callable input does not preserve its captured region identity"
+            } else {
+                "callable type does not preserve its region identity"
+            };
+            false
+        };
+        if !type_reference_regions_match(
+            program,
+            actual_parameter.type_reference,
+            required_parameter.type_reference,
+            contract_scope(actual, actual_regions),
+            contract_scope(required, required_regions),
+            &mut constrain,
+        ) {
+            return Err(failure);
+        }
+    }
+    application.finish(actual_regions.fresh_count, required_regions.fresh_count)?;
+    Ok(application)
+}
+
 pub(super) fn validate(
     program: &dyn crate::CheckingInput,
     required: &CallableBorrowContract<'_>,
     actual: &CallableBorrowContract<'_>,
-    required_regions: &[(String, RegionIdentity)],
-    actual_regions: &[(String, RegionIdentity)],
+    required_regions: &CallableRegions,
+    actual_regions: &CallableRegions,
+    input_elisions: &[(usize, TypeReferenceHandle, RegionIdentity)],
     output_elisions: &[(TypeReferenceHandle, RegionIdentity)],
 ) -> Result<(), &'static str> {
-    let required_scope = RegionScope {
-        declaration: required.lexical_owner,
-        substitutions: required.substitutions,
-        binders: required.binders,
-        regions: RegionEnvironment::Resolved(required_regions),
-        arguments: RegionEnvironment::Captured(required.argument_owner),
-        output_elisions: &[],
-    };
-    let actual_scope = RegionScope {
-        declaration: actual.lexical_owner,
-        substitutions: actual.substitutions,
-        binders: actual.binders,
-        regions: RegionEnvironment::Resolved(actual_regions),
-        arguments: RegionEnvironment::Captured(actual.argument_owner),
-        output_elisions: &[],
-    };
-    let matches = |actual_scope: RegionScope<'_>,
-                   required_scope: RegionScope<'_>,
-                   reference: TypeReferenceHandle,
-                   actual: Option<&Identifier>,
-                   required: Option<&Identifier>| {
+    let required_scope = contract_scope(required, required_regions);
+    let actual_scope = contract_scope(actual, actual_regions);
+    let mut matches = |actual_scope: RegionScope<'_>,
+                       required_scope: RegionScope<'_>,
+                       reference: TypeReferenceHandle,
+                       actual: Option<&Identifier>,
+                       required: Option<&Identifier>| {
         let Some(required) = required else {
             return true;
         };
@@ -166,7 +287,7 @@ pub(super) fn validate(
             })
             .is_some_and(|(required, actual)| required == actual)
     };
-    for (required, actual) in required
+    for (ordinal, (required, actual)) in required
         .parameters
         .iter()
         .map(|parameter| parameter.type_reference)
@@ -176,14 +297,23 @@ pub(super) fn validate(
                 .iter()
                 .map(|parameter| parameter.type_reference),
         )
+        .enumerate()
     {
+        let elisions = input_elisions
+            .iter()
+            .filter(|(parameter, _, _)| *parameter == ordinal)
+            .map(|(_, reference, region)| (*reference, region.clone()))
+            .collect::<Vec<_>>();
         if !type_reference_regions_match(
             program,
             actual,
             required,
-            actual_scope,
+            RegionScope {
+                output_elisions: &elisions,
+                ..actual_scope
+            },
             required_scope,
-            &matches,
+            &mut matches,
         ) {
             return Err("callable type does not preserve its region identity");
         }
@@ -197,7 +327,7 @@ pub(super) fn validate(
             ..actual_scope
         },
         required_scope,
-        &matches,
+        &mut matches,
     ) {
         return Err("callable type does not preserve its region identity");
     }

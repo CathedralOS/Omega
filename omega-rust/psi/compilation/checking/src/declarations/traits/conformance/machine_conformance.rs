@@ -756,7 +756,6 @@ fn validate_machine_single_requirement(
         entry_state,
         &application,
         requirement,
-        Some(trait_lifetime_arguments),
         diagnostics,
     );
 

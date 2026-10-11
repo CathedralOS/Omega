@@ -316,8 +316,10 @@ fn reference_lifetime(
 }
 
 mod callable_refinement;
+mod callable_regions;
 mod carried_lifetimes;
 mod region_correspondence;
+mod region_inference;
 
 pub(crate) use callable_refinement::lexical_region_owner;
 pub use callable_refinement::{CallableBorrowContract, validate_callable_borrow_refinement};
@@ -349,6 +351,8 @@ pub fn resolve_applied_signature_view_return_source(
             parameters: program.state_signature_parameters(signature),
             return_type: signature.return_type,
             substitutions,
+            substitution_scope_starts: scope_starts,
+            application_scopes: &[],
             binders: &[],
             lifetime_bindings: &[],
             argument_owner,

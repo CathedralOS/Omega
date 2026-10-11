@@ -47,6 +47,7 @@ struct TypeScope<'scope> {
     starts: &'scope [usize],
     outer: Option<&'scope TypeScope<'scope>>,
     argument_lifetimes: &'scope [(String, RegionIdentity)],
+    application_lifetimes: &'scope [Vec<(String, RegionIdentity)>],
 }
 
 struct DataVisit {
@@ -216,6 +217,7 @@ pub(super) fn symbolic_carried_lifetimes(
         symbolic_parameters,
         &[],
         &[],
+        &[],
         SymbolHandle::invalid(),
         false,
     )
@@ -230,6 +232,7 @@ pub(super) fn scoped_carried_lifetimes(
     symbolic_parameters: &[SymbolHandle],
     lifetimes: &[(String, RegionIdentity)],
     argument_lifetimes: &[(String, RegionIdentity)],
+    application_lifetimes: &[Vec<(String, RegionIdentity)>],
     declaration: SymbolHandle,
     scoped_regions: bool,
 ) -> Option<Vec<CarriedLifetime>> {
@@ -243,6 +246,7 @@ pub(super) fn scoped_carried_lifetimes(
             bindings: substitutions,
             starts: scope_starts,
             argument_lifetimes,
+            application_lifetimes,
             ..TypeScope::default()
         },
         &[],
@@ -492,6 +496,7 @@ fn collect_type(
                     starts: &[0],
                     outer: Some(&types),
                     argument_lifetimes: lifetimes,
+                    application_lifetimes: &[],
                 },
                 owner_path,
                 visiting,
@@ -539,7 +544,10 @@ fn collect_type(
                     return collect_type(
                         program,
                         *concrete,
-                        frame.argument_lifetimes,
+                        scope_ordinal
+                            .checked_sub(1)
+                            .and_then(|ordinal| frame.application_lifetimes.get(ordinal))
+                            .map_or(frame.argument_lifetimes, Vec::as_slice),
                         outer,
                         owner_path,
                         visiting,
