@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "erased_field_init_order");
+    builder.freestanding = true;
+}
