@@ -1,8 +1,8 @@
 # IND02 validation status
 
-Integrated official-main base: `3056a611a8056e7d3e89d4aa3a0f193afca0c98b`.
+Initial qualification official-main base: `3056a611a8056e7d3e89d4aa3a0f193afca0c98b`.
 Target: Linux x86-64. No active-worker or numerics-library dependencies.
-The independent frozen oracle contains 53 cases and 82,387 Cartesian start
+The independent frozen oracle contains 53 cases (41 distinct requests) and 82,387 Cartesian start
 vectors; tolerance is zero. Its SHA-256 is
 `eeab3f91dd2f31a4b848e490b40ba27b53b6bb4560d6e392ae417f2a6071505c`.
 
@@ -31,5 +31,8 @@ The independent bounded-byte state-loan witness in `validation/reproduction`
 records a separate baseline compiler gap. The application uses ordinary private
 named-record loans. That unrelated compiler gap is not repaired in this candidate.
 
-Independent review and the normal main-only landing workflow remain necessary;
-this file does not claim publication.
+Independent review approved the scheduler, oracle, verifier, compiler repair and
+regression without blocking findings. Approval carries through the official-main
+integration subject to fresh gates. Twelve variants repeat earlier requests;
+the unchanged frozen oracle therefore covers 53 cases and 41 distinct inputs.
+The final handoff records integrated verification and main-only publication status.

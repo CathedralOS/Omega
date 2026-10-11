@@ -87,7 +87,7 @@ Input storage belongs to the private named `Input` record; state edges use
 ordinary record loans. `validation/reproduction` retains the independently
 witnessed bounded-byte state-loan compiler gap on the recorded main base.
 
-The 53 input/output fixture pairs and `data/expected.json` were independently
+The 53 input/output fixture pairs (41 distinct requests) and `data/expected.json` were independently
 frozen before Omega execution. `validation/reference.py` exhaustively enumerates
 integer start vectors up to the sum-of-duration horizon, rather than priority
 orders or the application's placement algorithm. The frozen oracle examines
@@ -131,4 +131,5 @@ All 53 native/Terminal cases pass the frozen independent oracle, and the distinc
 complete intended-invalid source rejects for its declared range. The bounded
 compiler repair preserves reused integer inputs across fixed-register divisions.
 The review bundle contains exact commands, source/binary hashes and observed
-artifacts. Independent review and normal main-only landing remain pending.
+artifacts. Independent review found no blocking correctness findings. The final
+handoff records the integrated validation and main-only publication status.
