@@ -425,20 +425,26 @@ impl Encoding {
         {
             if offset - home.offset + u32::from(size) > home.byte_size
                 || (!load && register == self.address_scratch)
-                || self.architecture != Architecture::Aarch64
             {
                 return Err(Error::Encoding);
             }
             self.address_register(bytes, self.address_scratch, offset)?;
-            let encoded = isa_aarch64::encode_aarch64_pointer_memory(
-                &self.model,
-                view,
-                self.view(self.address_scratch)?,
-                0,
-                size,
-                load,
-            )
-            .map_err(|_| Error::Encoding)?;
+            let base = self.view(self.address_scratch)?;
+            let encoded = match self.architecture {
+                Architecture::Aarch64 => isa_aarch64::encode_aarch64_pointer_memory(
+                    &self.model,
+                    view,
+                    base,
+                    0,
+                    size,
+                    load,
+                )
+                .map_err(|_| Error::Encoding)?,
+                Architecture::X86_64 => {
+                    isa_x86_64::encode_x86_64_pointer_memory(&self.model, view, base, 0, size, load)
+                        .map_err(|_| Error::Encoding)?
+                }
+            };
             bytes.extend_from_slice(&encoded);
             return Ok(());
         }
@@ -477,17 +483,24 @@ impl Encoding {
             .iter()
             .find(|home| offset >= home.offset && offset - home.offset < home.byte_size)
         {
-            if self.architecture != Architecture::Aarch64 {
-                return Err(Error::Encoding);
-            }
-            let encoded = isa_aarch64::encode_aarch64_aligned_frame_address(
-                &self.model,
-                view,
-                home.offset,
-                home.alignment,
-                offset - home.offset,
-            )
-            .map_err(|_| Error::Encoding)?;
+            let encoded = match self.architecture {
+                Architecture::Aarch64 => isa_aarch64::encode_aarch64_aligned_frame_address(
+                    &self.model,
+                    view,
+                    home.offset,
+                    home.alignment,
+                    offset - home.offset,
+                )
+                .map_err(|_| Error::Encoding)?,
+                Architecture::X86_64 => isa_x86_64::encode_x86_64_aligned_frame_address(
+                    &self.model,
+                    view,
+                    home.offset,
+                    home.alignment,
+                    offset - home.offset,
+                )
+                .map_err(|_| Error::Encoding)?,
+            };
             bytes.extend_from_slice(&encoded);
             return Ok(());
         }
@@ -773,9 +786,7 @@ pub fn emit_native_entry_bridge(
         } = &transport.destination
         {
             if transport.alignment > 16 {
-                if request.target.architecture != Architecture::Aarch64
-                    || !offset.is_multiple_of(16)
-                {
+                if !offset.is_multiple_of(16) {
                     return Err(Error::UnsupportedValueTransport);
                 }
                 aligned_homes.push(AlignedHome {
@@ -891,9 +902,6 @@ pub fn emit_native_entry_bridge(
         } else {
             8
         };
-        if alignment > 16 && request.target.architecture != Architecture::Aarch64 {
-            return Err(Error::UnsupportedValueTransport);
-        }
         let snapshot = allocate_home(
             &mut cursor,
             transport.byte_size,
@@ -926,9 +934,6 @@ pub fn emit_native_entry_bridge(
             } else {
                 8
             };
-            if alignment > 16 && request.target.architecture != Architecture::Aarch64 {
-                return Err(Error::UnsupportedValueTransport);
-            }
             allocate_home(
                 &mut cursor,
                 transport.byte_size,
@@ -1677,6 +1682,38 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![(0, 8), (8, 4), (12, 1)]
         );
+    }
+
+    #[test]
+    fn x64_owned_homes_align_inside_fixed_bridge_frames() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+            let bridge = emit_native_entry_bridge(request(
+                target,
+                vec![ValueShape::integer(32, 32), ValueShape::integer(64, 64)],
+                vec![ValueShape::integer(32, 32), ValueShape::integer(64, 64)],
+                &[0, 1],
+                &[0, 0],
+                Some(ValueShape::integer(64, 64)),
+            ))
+            .unwrap();
+            assert_eq!(bridge.frame_bytes() % 16, 8);
+            assert!(bridge.frame_bytes() > 128);
+            assert!(
+                bridge
+                    .bytes()
+                    .windows(4)
+                    .any(|word| word == [0xc0, 0xff, 0xff, 0xff])
+            );
+            validate_native_entry_bridge(&bridge).unwrap();
+            let mut changed = bridge.clone();
+            let mask = changed
+                .bytes
+                .windows(4)
+                .position(|word| word == [0xc0, 0xff, 0xff, 0xff])
+                .unwrap();
+            changed.bytes[mask] ^= 1;
+            assert!(validate_native_entry_bridge(&changed).is_err());
+        }
     }
 
     #[test]

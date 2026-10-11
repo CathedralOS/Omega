@@ -136,6 +136,20 @@ pub(crate) fn validate(
                         address.displacement,
                         bytes,
                     )
+                } else if matches!(
+                    kind,
+                    SelectedInstructionKind::FrameAddress { .. }
+                        | SelectedInstructionKind::Store64 { .. }
+                ) {
+                    isa_x86_64::validate_x86_64_selected_frame_form(
+                        physical,
+                        kind,
+                        machine.alternative.key,
+                        &operand_views(machine),
+                        address.displacement,
+                        address.frame_alignment_bytes,
+                        bytes,
+                    )
                 } else {
                     isa_x86_64::validate_x86_64_selected_memory_form(
                         physical,

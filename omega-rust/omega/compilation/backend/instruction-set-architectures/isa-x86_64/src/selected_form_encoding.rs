@@ -60,6 +60,9 @@ pub use hosted_write_byte::{
     encode_x86_64_selected_hosted_write_byte_form, validate_x86_64_selected_hosted_write_byte_form,
 };
 pub use jump::{encode_x86_64_selected_jump_form, validate_x86_64_selected_jump_form};
+pub use memory::frame::{
+    encode as encode_x86_64_selected_frame_form, validate as validate_x86_64_selected_frame_form,
+};
 pub use memory::{encode_x86_64_selected_memory_form, validate_x86_64_selected_memory_form};
 pub use normalized_foreign_call::{
     X86_64CallbackAddressMaterialization, X86_64CallbackMaterializationDestination,

@@ -214,12 +214,15 @@ pub(super) fn declaration(
             MachineMemoryEffect::WriteFrameStorageV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0],
-            vec![],
+            vec![1],
             MachineEncodedMemoryEffect::WriteFrameStorageV1 {
                 stack_pointer,
                 byte_count: 8,
             },
-            MachineSizeKnowledge::ExactBytes(8),
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 15,
+                maximum_bytes: Some(31),
+            },
         ),
         MachineSemanticKind::FrameAddress => (
             MachineMemoryEffect::NoneV1,
@@ -227,7 +230,10 @@ pub(super) fn declaration(
             vec![],
             vec![0],
             MachineEncodedMemoryEffect::NoneV1,
-            MachineSizeKnowledge::ExactBytes(8),
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 8,
+                maximum_bytes: Some(23),
+            },
         ),
         MachineSemanticKind::CallUnit => (
             MachineMemoryEffect::NoneV1,

@@ -181,7 +181,8 @@ pub(super) fn transport(
                     None
                 }
             })
-            .fold(target.shape.alignment, u16::max);
+            .max()
+            .unwrap_or(target.shape.alignment);
         let alignment = if indirect.is_some()
             && outgoing_plan.policy == calling_conventions::CallingPolicy::MicrosoftX64
         {

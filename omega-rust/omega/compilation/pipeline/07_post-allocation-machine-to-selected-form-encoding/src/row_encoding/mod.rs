@@ -282,6 +282,22 @@ fn encode_address_routed(
     let (bytes, reads, writes, encoded_effects) = match target.architecture {
         Architecture::X86_64 => {
             let encoded = match channel {
+                HostedChannel::None
+                    if matches!(
+                        kind,
+                        SelectedInstructionKind::FrameAddress { .. }
+                            | SelectedInstructionKind::Store64 { .. }
+                    ) =>
+                {
+                    isa_x86_64::encode_x86_64_selected_frame_form(
+                        physical,
+                        kind,
+                        alternative,
+                        &views,
+                        displacement,
+                        address.frame_alignment_bytes,
+                    )
+                }
                 HostedChannel::None => isa_x86_64::encode_x86_64_selected_memory_form(
                     physical,
                     kind,

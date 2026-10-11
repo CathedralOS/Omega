@@ -79,8 +79,6 @@ pub(super) fn validate_frame_root(
                 || placed.alignment_bytes != local.alignment
                 || local.byte_size == 0
                 || !local.alignment.is_power_of_two()
-                || (local.alignment > row.abi_stack_alignment_bytes
-                    && machine.target.architecture != target::Architecture::Aarch64)
                 || !placed.frame_offset_bytes.is_multiple_of(u64::from(
                     local.alignment.min(row.abi_stack_alignment_bytes),
                 ))

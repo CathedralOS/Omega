@@ -1,4 +1,9 @@
-//! Canonical System V AMD64 fixed-frame save/restore encoding.
+//! x86-64 fixed-frame stack transport and owned home addressing.
+//!
+//! Private over-aligned homes round addresses within reserved padding, never
+//! RSP itself. The mask precedes every member offset and changes flags; ordinary
+//! selected forms therefore advertise that clobber before allocation. Stack
+//! probing and continuation custody retain the fixed ABI frame coordinates.
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 
@@ -333,14 +338,6 @@ fn encode_memory(
     Ok(bytes)
 }
 
-fn append_stack_operand(
-    bytes: &mut Vec<u8>,
-    register: u8,
-    offset_bytes: u32,
-) -> Result<(), X86_64FrameProtocolError> {
-    append_memory_operand(bytes, register, 4, offset_bytes)
-}
-
 fn append_memory_operand(
     bytes: &mut Vec<u8>,
     register: u8,
@@ -364,13 +361,138 @@ pub fn encode_x86_64_frame_address(
     view: RegisterViewId,
     offset_bytes: u32,
 ) -> Result<Vec<u8>, X86_64FrameProtocolError> {
+    let displacement =
+        i32::try_from(offset_bytes).map_err(|_| X86_64FrameProtocolError::OffsetOutOfRange)?;
+    encode_frame_address_signed(model, view, displacement)
+}
+
+pub(crate) fn encode_frame_address_signed(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    displacement: i32,
+) -> Result<Vec<u8>, X86_64FrameProtocolError> {
     if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64FrameProtocolError::PhysicalRegisterModelMismatch);
     }
     let register = register_code(model, view)?;
     let mut bytes = vec![0x48 | ((register >> 3) << 2), 0x8d];
-    append_stack_operand(&mut bytes, register, offset_bytes)?;
+    bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
+    bytes.extend_from_slice(&displacement.to_le_bytes());
     Ok(bytes)
+}
+
+/// Round an owned home's absolute address inside a padded fixed frame, then
+/// apply its member offset. RSP stays fixed; AND changes RFLAGS, which the
+/// selected frame forms must declare before register allocation.
+pub fn encode_x86_64_aligned_frame_address(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    offset_bytes: u32,
+    alignment_bytes: u16,
+    member_offset_bytes: u32,
+) -> Result<Vec<u8>, X86_64FrameProtocolError> {
+    if alignment_bytes <= 16
+        || !alignment_bytes.is_power_of_two()
+        || !offset_bytes.is_multiple_of(16)
+    {
+        return Err(X86_64FrameProtocolError::NonCanonicalSlots);
+    }
+    let rounded_offset = offset_bytes
+        .checked_add(u32::from(alignment_bytes - 1))
+        .ok_or(X86_64FrameProtocolError::OffsetOutOfRange)?;
+    let mut bytes = encode_x86_64_frame_address(model, view, rounded_offset)?;
+    let register = register_code(model, view)?;
+    bytes.extend_from_slice(&[0x48 | (register >> 3), 0x81, 0xe0 | (register & 7)]);
+    bytes.extend_from_slice(&(!u32::from(alignment_bytes - 1)).to_le_bytes());
+    if member_offset_bytes != 0 {
+        bytes.extend_from_slice(&[0x48 | ((register >> 3) << 2) | (register >> 3), 0x8d]);
+        append_memory_operand(&mut bytes, register, register, member_offset_bytes)?;
+    }
+    Ok(bytes)
+}
+
+/// Decode canonical frame address steps independently of their producer.
+pub(crate) fn validate_frame_address(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+    displacement: i32,
+    alignment_bytes: u16,
+    member_offset_bytes: u32,
+    bytes: &[u8],
+) -> bool {
+    if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
+        return false;
+    }
+    let Ok(register) = register_code(model, view) else {
+        return false;
+    };
+    if alignment_bytes == 1 {
+        return decode_address_step(bytes, register, 4) == Some(displacement);
+    }
+    if alignment_bytes <= 16
+        || !alignment_bytes.is_power_of_two()
+        || displacement < 0
+        || !(displacement as u32).is_multiple_of(16)
+        || bytes.len() < 15
+    {
+        return false;
+    }
+    let Some(rounded_offset) = displacement.checked_add(i32::from(alignment_bytes - 1)) else {
+        return false;
+    };
+    if decode_address_step(&bytes[..8], register, 4) != Some(rounded_offset)
+        || bytes[8..11] != [0x48 | (register >> 3), 0x81, 0xe0 | (register & 7)]
+        || u32::from_le_bytes([bytes[11], bytes[12], bytes[13], bytes[14]])
+            != !u32::from(alignment_bytes - 1)
+    {
+        return false;
+    }
+    if member_offset_bytes == 0 {
+        bytes.len() == 15
+    } else {
+        i32::try_from(member_offset_bytes)
+            .ok()
+            .is_some_and(|member| {
+                decode_address_step(&bytes[15..], register, register) == Some(member)
+            })
+    }
+}
+
+fn decode_address_step(bytes: &[u8], register: u8, base: u8) -> Option<i32> {
+    let expected_length = if base & 7 == 4 { 8 } else { 7 };
+    if bytes.len() != expected_length
+        || bytes[0] != 0x48 | ((register >> 3) << 2) | (base >> 3)
+        || bytes[1] != 0x8d
+        || bytes[2] != 0x80 | ((register & 7) << 3) | (base & 7)
+        || (base & 7 == 4 && bytes[3] != 0x24)
+    {
+        return None;
+    }
+    Some(i32::from_le_bytes(
+        bytes[expected_length - 4..].try_into().ok()?,
+    ))
+}
+
+pub(crate) fn decode_pointer_store_suffix<'bytes>(
+    model: &ValidatedPhysicalRegisterModel,
+    value: RegisterViewId,
+    base: RegisterViewId,
+    bytes: &'bytes [u8],
+) -> Option<&'bytes [u8]> {
+    let value = register_code(model, value).ok()?;
+    let base = register_code(model, base).ok()?;
+    let store_length = if base & 7 == 4 { 8 } else { 7 };
+    let prefix_length = bytes.len().checked_sub(store_length)?;
+    let store = &bytes[prefix_length..];
+    if store[0] != 0x48 | ((value >> 3) << 2) | (base >> 3)
+        || store[1] != 0x89
+        || store[2] != 0x80 | ((value & 7) << 3) | (base & 7)
+        || (base & 7 == 4 && store[3] != 0x24)
+        || store[store_length - 4..] != [0, 0, 0, 0]
+    {
+        return None;
+    }
+    Some(&bytes[..prefix_length])
 }
 
 /// Materialize one complete interpretation word, not a semantic operation.

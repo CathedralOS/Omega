@@ -168,6 +168,7 @@ mod admission;
 mod case_payload_address;
 mod rewrite;
 mod slot;
+mod unit_effects;
 mod validation;
 
 use std::sync::Arc;
@@ -1339,10 +1340,7 @@ pub(super) fn derive_runtime_spill<'source>(
             },
         ),
     ] {
-        if row.operands.len() != accesses.len()
-            || !row.implicit_defs.is_empty()
-            || !row.clobbers.is_empty()
-        {
+        if row.operands.len() != accesses.len() || !row.implicit_defs.is_empty() {
             return Err(RuntimeSpillError::ConstraintMismatch);
         }
         for (ordinal, (operand, access)) in row.operands.iter().zip(accesses).enumerate() {
@@ -1371,6 +1369,19 @@ pub(super) fn derive_runtime_spill<'source>(
         .flat_map(|row| row.operands.iter())
         .any(|operand| operand.class != carrier_class)
     {
+        return Err(RuntimeSpillError::ConstraintMismatch);
+    }
+    // The frame access stream cannot destroy a unit one of its own rows
+    // requires, such as the stack pointer. Other declared clobbers are
+    // admitted against source liveness at their actual insertion points.
+    let access_rows = [address, load, store];
+    if access_rows.iter().any(|writer| {
+        writer.clobbers.iter().any(|unit| {
+            access_rows
+                .iter()
+                .any(|reader| reader.implicit_uses.contains(unit))
+        })
+    }) {
         return Err(RuntimeSpillError::ConstraintMismatch);
     }
     let bits_conversion = if victim.class == carrier_class {
@@ -1409,6 +1420,15 @@ pub(super) fn derive_runtime_spill<'source>(
         // instructions — the crossing simulation under `UnitWriteCrossing`,
         // the span-close collection under either policy.
         .and_then(|total| total.checked_add(function_scan))
+        // Frame clobbers may require source unit-liveness at insertion
+        // points. Unit-free access rows need no additional analysis.
+        .and_then(|total| {
+            total.checked_add(if access_rows.iter().any(|row| !row.clobbers.is_empty()) {
+                function_scan
+            } else {
+                0
+            })
+        })
         // The structural-argument check groups the memory accesses once; the
         // establishment pairing above scans them twice more — once for the
         // `AddressLocal` records on the victim's definition, once for the
@@ -1743,6 +1763,15 @@ pub(super) fn derive_runtime_spill<'source>(
             }
         }
     }
+    unit_effects::preserve_live_units(
+        function_index,
+        function,
+        &definitions,
+        &use_positions,
+        address,
+        load,
+        store,
+    )?;
     // Resolve every emitted access's slot at window granularity: definitions
     // one reload position may observe merge into a single storage window
     // because that load can name only one slot, and each window independently

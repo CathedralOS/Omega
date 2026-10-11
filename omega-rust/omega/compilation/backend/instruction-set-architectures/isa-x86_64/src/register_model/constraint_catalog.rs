@@ -779,7 +779,13 @@ pub fn x86_64_register_constraint_catalog(
         ),
         (
             X86_64_STORE64,
-            vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+            vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                RegisterOperandConstraint {
+                    early_clobber: true,
+                    ..allocatable(1, RegisterOperandAccess::Def, GPR64)
+                },
+            ],
             view("rsp").units.clone(),
         ),
         (
@@ -799,7 +805,13 @@ pub fn x86_64_register_constraint_catalog(
             operands,
             implicit_uses: uses,
             implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
+            // Absolute frame-address rounding uses AND. Advertise its flags
+            // before scheduling even when this particular home needs no mask.
+            clobbers: if matches!(key, X86_64_STORE64 | X86_64_FRAME_ADDRESS) {
+                view("rflags").units.clone()
+            } else {
+                Vec::new()
+            },
         });
     }
     constraints.push(RegisterInstructionConstraint {

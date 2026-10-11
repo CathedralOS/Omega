@@ -93,8 +93,7 @@ pub(super) fn validate_layout(
                     slot.reservation_alignment(call_site.stack_alignment_bytes),
                 ))
                 || (slot.alignment > call_site.stack_alignment_bytes
-                    && (slot.id.role != selected_instructions::OutgoingArgumentSlotRole::ValueCopy
-                        || environment.target().architecture != target::Architecture::Aarch64))
+                    && slot.id.role != selected_instructions::OutgoingArgumentSlotRole::ValueCopy)
                 || end > u64::from(u32::MAX)
                 || source.outgoing_arguments[..index].iter().any(|earlier| {
                     earlier.id == slot.id
@@ -125,8 +124,6 @@ pub(super) fn validate_layout(
         {
             if local.byte_size == 0
                 || !local.alignment.is_power_of_two()
-                || (local.alignment > call_site.stack_alignment_bytes
-                    && environment.target().architecture != target::Architecture::Aarch64)
                 || source.local_storage_slots[..index]
                     .iter()
                     .any(|earlier| earlier.id == local.id)

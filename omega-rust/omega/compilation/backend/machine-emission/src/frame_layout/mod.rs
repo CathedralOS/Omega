@@ -6,11 +6,12 @@
 //! preservation storage and chooses exact stack-frame coordinates. The result
 //! is independently replayed. It does not claim that prologue, epilogue,
 //! unwind, probing, or memory-access instructions have been emitted.
-//! AArch64 over-aligned local homes and indirect outgoing copies retain a
+//! Over-aligned local homes and indirect outgoing copies retain a
 //! reserved interval with alignment padding. Their addresses round the
 //! absolute SP-relative base before adding member offsets. The ABI SP never
 //! moves outside the ordinary fixed protocol, so probing and unwind keep
-//! exact coordinates. x86-64 over-alignment remains unimplemented and rejects.
+//! exact coordinates. Both x86-64 and AArch64 use this home geometry; their
+//! address instructions and register/flag effects remain target-owned.
 //! Durable plans live in `machine_code::storage::frame_layout`; only the
 //! independently validated wrappers and implementation state live here.
 

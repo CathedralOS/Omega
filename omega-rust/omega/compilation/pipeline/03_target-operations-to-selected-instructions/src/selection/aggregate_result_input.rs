@@ -18,10 +18,9 @@ use legalized_operations::{
 use semantic_vocabulary::PlaceId;
 use terminal_psi::{StructuralAccess, StructuralTypeShape, structural_case_position};
 
-/// Entry captures register fragments in an owned local home, but retains an
-/// address for inline-stack and indirect ABI value copies. Semantic ownership
-/// does not choose between those physical homes. Consumers must make the same
-/// distinction without requesting another copy just to observe the value.
+/// Entry materializes every observed owned arrival in a private value home,
+/// regardless of its ABI backing. Consumers use the same demand as entry;
+/// neither register placement nor an incoming pointer determines ownership.
 pub(super) fn owned_parameter_uses_local_home(
     source: &LegalizedScalarFunction,
     declaration: &terminal_psi::StructuralParameterDeclaration,
@@ -40,13 +39,7 @@ pub(super) fn owned_parameter_uses_local_home(
         return None;
     }
     Some(
-        !parameter.target.placement.locations.is_empty()
-            && parameter.target.placement.locations.iter().all(|location| {
-                matches!(
-                    location,
-                    calling_conventions::ValueLocation::Register { .. }
-                )
-            }),
+        parameter.target.shape.byte_size != 0 && parameter_home_required(source, declaration.place),
     )
 }
 
@@ -522,6 +515,7 @@ pub(super) fn returned_parameter<'a>(
 }
 
 /// Inline arguments may occupy registers or a contiguous incoming stack extent.
+/// The ABI's stack alignment is distinct from the owned value's home alignment.
 /// Result admission remains separate: a stack argument does not admit a hidden result pointer.
 pub(super) fn inline_argument_fragments(placement: &calling_conventions::ValuePlacement) -> bool {
     if !placement.shape.alignment.is_power_of_two() {
@@ -542,9 +536,6 @@ pub(super) fn inline_argument_fragments(placement: &calling_conventions::ValuePl
     else {
         return false;
     };
-    if !base.is_multiple_of(u32::from(placement.shape.alignment)) {
-        return false;
-    }
     let mut offset = 0u32;
     for location in &placement.locations {
         let calling_conventions::ValueLocation::Stack {
@@ -557,7 +548,7 @@ pub(super) fn inline_argument_fragments(placement: &calling_conventions::ValuePl
             return false;
         };
         if *value_byte_offset != offset
-            || !(1..=8).contains(byte_size)
+            || *byte_size == 0
             || !alignment.is_power_of_two()
             || !stack_byte_offset.is_multiple_of(u32::from(*alignment))
             || base.checked_add(offset) != Some(*stack_byte_offset)

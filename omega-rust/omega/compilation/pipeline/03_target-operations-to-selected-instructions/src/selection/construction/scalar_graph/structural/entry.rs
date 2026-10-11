@@ -46,10 +46,11 @@ pub(in crate::selection) fn entry(
                 &parameter.target.placement,
             )
         {
-            // Inline stack bytes are the owned payload, not a pointer to a
-            // caller-owned referent. The incoming value copy remains valid
-            // throughout this activation, including across calls. Retain its
-            // address instead of making every payload fragment live at once.
+            // Inline stack bytes are an owned ABI payload, not a borrowed
+            // referent. Their ABI coordinates need not meet the semantic
+            // value's alignment. Retain the source pointer, then materialize
+            // the same private home used by register/indirect arrivals when
+            // the body needs an addressable value.
             // The frame encoder alone adds prologue/return bias.
             if let Some(ValueLocation::Stack {
                 stack_byte_offset: base,
@@ -90,6 +91,7 @@ pub(in crate::selection) fn entry(
                     }
                 }
                 builder.transport.pointers.push((place, address));
+                retain_owned_home(source, parameter, builder)?;
                 continue;
             }
             for location in &parameter.target.placement.locations {
@@ -168,6 +170,9 @@ pub(in crate::selection) fn entry(
                 SelectedInstructionProvenance::default(),
             )?;
             builder.transport.pointers.push((place, pointer));
+            if parameter.semantic.access == StructuralAccess::Owned {
+                retain_owned_home(source, parameter, builder)?;
+            }
             continue;
         }
         let pointer = match parameter.target.placement.locations.as_slice() {
@@ -214,14 +219,17 @@ pub(in crate::selection) fn entry(
         let output = transport_register(builder, place, 0)?;
         builder.emit_copy_i64(input, output, SelectedInstructionProvenance::default())?;
         builder.transport.pointers.push((place, output));
+        if parameter.semantic.access == StructuralAccess::Owned {
+            retain_owned_home(source, parameter, builder)?;
+        }
     }
     Ok(())
 }
 
 /// Field loads need an addressable value, not an incoming register interpreted
 /// as a pointer. Capture one function-owned home from the already retained ABI
-/// fragments before any authored calls; unobserved values keep fragment-only
-/// transport. This is value storage, never a copy of a borrowed referent.
+/// fragments or ABI backing before any authored calls; unobserved values keep
+/// their retained transport. This is value storage, never a borrowed referent.
 fn retain_owned_home(
     source: &LegalizedScalarFunction,
     parameter: &legalized_operations::LegalizedCallUnitParameter,
@@ -256,6 +264,62 @@ fn retain_owned_home(
         selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot },
     )?;
     builder.emit_local_frame_address(slot, pointer, Default::default())?;
+    if let Some(position) = builder
+        .transport
+        .pointers
+        .iter()
+        .position(|(stored, _)| *stored == place)
+    {
+        let incoming = builder.transport.pointers.remove(position).1;
+        let mut offset = 0u32;
+        while offset < shape.byte_size {
+            let width = (shape.byte_size - offset).min(8);
+            let value = transport_register(builder, place, offset)?;
+            let (incoming, displacement) = super::displaced_memory_pointer(
+                builder,
+                place,
+                incoming,
+                offset,
+                width,
+                Default::default(),
+            )?;
+            super::super::structural_case::memory(
+                builder,
+                source.entry_block,
+                place,
+                offset,
+                width,
+                selected_instructions::SelectedMemoryAccessRole::ReadPlace,
+            )?;
+            super::super::aggregate_memory::load(builder, incoming, value, displacement, width)?;
+            let (destination, displacement) = super::displaced_memory_pointer(
+                builder,
+                place,
+                pointer,
+                offset,
+                width,
+                Default::default(),
+            )?;
+            super::super::structural_case::memory(
+                builder,
+                source.entry_block,
+                place,
+                offset,
+                width,
+                selected_instructions::SelectedMemoryAccessRole::WritePlace,
+            )?;
+            super::super::aggregate_memory::store(
+                builder,
+                destination,
+                value,
+                displacement,
+                width,
+            )?;
+            offset = offset.checked_add(width).ok_or_else(invalid)?;
+        }
+        builder.transport.pointers.push((place, pointer));
+        return Ok(());
+    }
     for location in &parameter.target.placement.locations {
         let (offset, width) = match location {
             calling_conventions::register_or_stack_pair_pattern!(

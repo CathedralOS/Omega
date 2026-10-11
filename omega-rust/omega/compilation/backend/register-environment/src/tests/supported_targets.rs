@@ -230,7 +230,7 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
                     Architecture::X86_64 => X86_64_STORE64,
                     Architecture::Aarch64 => isa_aarch64::AARCH64_STORE64,
                 },
-                1,
+                2,
             ),
             (
                 environment.selected_keys().frame_address,

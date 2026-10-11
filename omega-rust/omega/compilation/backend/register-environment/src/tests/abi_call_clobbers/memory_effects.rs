@@ -270,22 +270,10 @@ fn memory_contract(semantic: MachineSemanticKind, architecture: Architecture) ->
             uses_stack_pointer: false,
         },
         Store64 => MemoryContract {
-            accesses: if architecture == Architecture::Aarch64 {
-                &[Use, Def]
-            } else {
-                &[Use]
-            },
-            early_clobbers: if architecture == Architecture::Aarch64 {
-                &[1]
-            } else {
-                &[]
-            },
+            accesses: &[Use, Def],
+            early_clobbers: &[1],
             reads: &[0],
-            writes: if architecture == Architecture::Aarch64 {
-                &[1]
-            } else {
-                &[]
-            },
+            writes: &[1],
             memory: MachineMemoryEffect::WriteFrameStorageV1,
             faulting: true,
             uses_stack_pointer: true,
@@ -305,7 +293,7 @@ fn memory_contract(semantic: MachineSemanticKind, architecture: Architecture) ->
 
 /// Whether the row's declared clobber set is exactly the architecture flags
 /// view: multi-instruction transport declares it on both ISAs, while packed
-/// transport needs it only for the x86-64 flag-writing forms.
+/// transport and absolute frame-address masking need it on x86-64.
 fn row_clobbers_flags(semantic: MachineSemanticKind, architecture: Architecture) -> bool {
     match semantic {
         MachineSemanticKind::CopyBytes | MachineSemanticKind::ZeroBytes => true,
@@ -313,7 +301,9 @@ fn row_clobbers_flags(semantic: MachineSemanticKind, architecture: Architecture)
         | MachineSemanticKind::LoadPacked5
         | MachineSemanticKind::LoadPacked6
         | MachineSemanticKind::LoadPacked7
-        | MachineSemanticKind::StorePacked => architecture == Architecture::X86_64,
+        | MachineSemanticKind::StorePacked
+        | MachineSemanticKind::Store64
+        | MachineSemanticKind::FrameAddress => architecture == Architecture::X86_64,
         _ => false,
     }
 }
@@ -399,7 +389,8 @@ fn expected_size(
             AddressOffset | Load32 | Load64 => resolved(7, 8),
             Load8 | Load16 => resolved(8, 9),
             Load8Indexed => MachineSizeKnowledge::ExactBytes(9),
-            Store64 | FrameAddress => MachineSizeKnowledge::ExactBytes(8),
+            Store64 => resolved(15, 31),
+            FrameAddress => resolved(8, 23),
             other => panic!("{other:?} is not a selected memory rule"),
         },
         Architecture::Aarch64 => match semantic {

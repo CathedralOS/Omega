@@ -74,8 +74,9 @@ pub(super) fn build(
                 place: declaration.place,
             },
         },
-        // Only register-carried owned arrivals require an activation-local
-        // home. Other owned ABI arrivals already have addressable value storage.
+        // Entry uses the same private-home demand for every owned ABI arrival.
+        // Incoming stack coordinates and indirect pointers do not establish
+        // the semantic value home's alignment or storage identity.
         legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration }
             if crate::selection::aggregate_result_input::owned_parameter_uses_local_home(
                 source,

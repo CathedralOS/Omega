@@ -2,6 +2,112 @@ use super::{
     CalleeSaveFrameSlot, FrameAbiPreservationConvention, ReturnAddressFrameCustody,
     TargetFrameLayoutError, TargetFrameLayoutPolicy, function_layout,
 };
+
+#[test]
+fn owned_overaligned_homes_keep_fixed_x64_stack_geometry() {
+    use selected_instructions::{
+        LocalStorageSlotId, OutgoingArgumentSlotId, OutgoingArgumentSlotRole,
+        SelectedLocalStorageSlot, SelectedOutgoingArgumentSlot,
+    };
+    use semantic_vocabulary::{MachineId, OperationId, PlaceId};
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let abi = register_environment::selected_abi_preservation(&environment)
+            .unwrap()
+            .kind;
+        let outgoing = SelectedOutgoingArgumentSlot {
+            id: OutgoingArgumentSlotId {
+                role: OutgoingArgumentSlotRole::ValueCopy,
+                invocation_site: OperationId::new(11).unwrap().into(),
+                argument_index: 0,
+            },
+            byte_size: 32,
+            alignment: 32,
+            abi_stack_byte_offset: if target == target::NativeTarget::windows_x64() {
+                32
+            } else {
+                0
+            },
+        };
+        let local = SelectedLocalStorageSlot {
+            id: LocalStorageSlotId::Structural {
+                operation: OperationId::new(12).unwrap(),
+                place: PlaceId::new(1).unwrap(),
+            },
+            byte_size: 64,
+            alignment: 64,
+        };
+        let layout = function_layout(
+            &environment,
+            abi,
+            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+            MachineId::new(1).unwrap(),
+            true,
+            false,
+            std::slice::from_ref(&outgoing),
+            std::slice::from_ref(&local),
+            Vec::new(),
+            0,
+            Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(layout.abi_stack_alignment_bytes, 16);
+        assert_eq!(layout.frame_size_bytes % 16, 8);
+        assert_eq!(layout.red_zone_resident_bytes, 0);
+        let placed = &layout.local_storage_slots[0];
+        let outgoing_end = u64::from(outgoing.abi_stack_byte_offset)
+            + u64::from(outgoing.reserved_byte_size(16).unwrap());
+        assert!(placed.frame_offset_bytes >= outgoing_end);
+        assert!(
+            placed.frame_offset_bytes + placed.reserved_size_bytes(16) <= layout.frame_size_bytes
+        );
+        for (start, size, alignment, reserved) in [
+            (
+                u64::from(outgoing.abi_stack_byte_offset),
+                32_u64,
+                32_u64,
+                u64::from(outgoing.reserved_byte_size(16).unwrap()),
+            ),
+            (
+                placed.frame_offset_bytes,
+                64,
+                64,
+                placed.reserved_size_bytes(16),
+            ),
+        ] {
+            for stack_residue in (0..alignment).step_by(16) {
+                let base = stack_residue + start;
+                let address = (base + alignment - 1) & !(alignment - 1);
+                assert_eq!(address % alignment, 0);
+                assert!(address >= base && address + size <= base + reserved);
+            }
+        }
+        // ABI argument coordinates cannot be rounded like private copies.
+        let mut invalid = outgoing;
+        invalid.id.role = OutgoingArgumentSlotRole::Argument;
+        assert_eq!(
+            function_layout(
+                &environment,
+                abi,
+                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+                MachineId::new(1).unwrap(),
+                true,
+                false,
+                &[invalid],
+                &[],
+                Vec::new(),
+                0,
+                Vec::new(),
+            ),
+            Err(TargetFrameLayoutError::NonCanonicalLayout),
+        );
+    }
+}
+
 #[test]
 fn narrow_outgoing_payload_aligns_preservation_without_activation_locals() {
     for (target, abi, stack_offset, save_name) in [

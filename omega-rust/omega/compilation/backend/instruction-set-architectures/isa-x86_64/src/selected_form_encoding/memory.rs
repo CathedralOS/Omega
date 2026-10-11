@@ -8,6 +8,7 @@ use super::{
 };
 use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
 use crate::selected_form_encoding::request_validation::resolve_registers;
+pub(super) mod frame;
 mod indexed;
 #[cfg(test)]
 mod load32_tests;
@@ -24,6 +25,12 @@ pub fn encode_x86_64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: i64,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
+    ) {
+        return frame::encode(physical, kind, alternative, operands, displacement, 1);
+    }
     if matches!(
         kind,
         SelectedInstructionKind::SaveFloatingControl { .. }
@@ -91,6 +98,20 @@ pub fn validate_x86_64_selected_memory_form(
     displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
+    ) {
+        return frame::validate(
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+            1,
+            bytes,
+        );
+    }
     if matches!(
         kind,
         SelectedInstructionKind::SaveFloatingControl { .. }
@@ -242,18 +263,6 @@ fn request(
             0x8b,
             crate::X86_64_LOAD64,
         ),
-        SelectedInstructionKind::Store64 { .. } => (
-            MachineAlternativeFamily::Store64,
-            1,
-            0x89,
-            crate::X86_64_STORE64,
-        ),
-        SelectedInstructionKind::FrameAddress { .. } => (
-            MachineAlternativeFamily::FrameAddress,
-            1,
-            0x8d,
-            crate::X86_64_FRAME_ADDRESS,
-        ),
         _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
     };
     if alternative != (MachineAlternativeKey { family, variant: 0 }) {
@@ -272,11 +281,6 @@ fn request(
     let constraint = catalog
         .constraint(key)
         .expect("canonical memory constraint");
-    let stack_pointer = physical
-        .model()
-        .view_named("rsp")
-        .expect("canonical rsp")
-        .id;
     let (reads, writes, memory, trap) = match kind {
         SelectedInstructionKind::Store { .. } => (
             vec![0, 1],
@@ -300,21 +304,7 @@ fn request(
             },
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ),
-        SelectedInstructionKind::Store64 { .. } => (
-            vec![0],
-            vec![],
-            MachineEncodedMemoryEffect::WriteFrameStorageV1 {
-                stack_pointer,
-                byte_count: 8,
-            },
-            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ),
-        _ => (
-            vec![],
-            vec![0],
-            MachineEncodedMemoryEffect::NoneV1,
-            MachineEncodedTrapBehavior::NeverV1,
-        ),
+        _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
     };
     let footprint = X86_64SelectedFormFootprint {
         register_reads: reads
@@ -362,7 +352,8 @@ mod tests {
                 place: semantic_vocabulary::PlaceId::new(102).unwrap(),
             },
         );
-        let operands = [physical.model().view_named("r9").unwrap().id];
+        let value = physical.model().view_named("r9").unwrap().id;
+        let scratch = physical.model().view_named("r10").unwrap().id;
         for (kind, family) in [
             (
                 SelectedInstructionKind::Store64 {
@@ -379,6 +370,11 @@ mod tests {
                 MachineAlternativeFamily::FrameAddress,
             ),
         ] {
+            let operands = if family == MachineAlternativeFamily::Store64 {
+                vec![value, scratch]
+            } else {
+                vec![value]
+            };
             let alternative = MachineAlternativeKey { family, variant: 0 };
             let encoded =
                 encode_x86_64_selected_memory_form(&physical, kind, alternative, &operands, 24)
@@ -434,6 +430,7 @@ mod tests {
             },
         );
         let value = physical.model().view_named("r11").unwrap().id;
+        let scratch = physical.model().view_named("r10").unwrap().id;
         for (kind, family, expected) in [
             (
                 SelectedInstructionKind::Store64 {
@@ -441,7 +438,9 @@ mod tests {
                     byte_offset: 0,
                 },
                 MachineAlternativeFamily::Store64,
-                vec![0x4c, 0x89, 0x9c, 0x24, 0xf0, 0xff, 0xff, 0xff],
+                vec![
+                    0x4c, 0x8d, 0x94, 0x24, 0xf0, 0xff, 0xff, 0xff, 0x4d, 0x89, 0x9a, 0, 0, 0, 0,
+                ],
             ),
             (
                 SelectedInstructionKind::FrameAddress {
@@ -452,9 +451,14 @@ mod tests {
                 vec![0x4c, 0x8d, 0x9c, 0x24, 0xf0, 0xff, 0xff, 0xff],
             ),
         ] {
+            let operands = if family == MachineAlternativeFamily::Store64 {
+                vec![value, scratch]
+            } else {
+                vec![value]
+            };
             let alternative = MachineAlternativeKey { family, variant: 0 };
             let encoded =
-                encode_x86_64_selected_memory_form(&physical, kind, alternative, &[value], -16)
+                encode_x86_64_selected_memory_form(&physical, kind, alternative, &operands, -16)
                     .unwrap();
             assert_eq!(encoded.bytes, expected, "{kind:?}");
             assert_eq!(
@@ -462,7 +466,7 @@ mod tests {
                     &physical,
                     kind,
                     alternative,
-                    &[value],
+                    &operands,
                     -16,
                     &encoded.bytes
                 ),
@@ -474,7 +478,7 @@ mod tests {
                         &physical,
                         kind,
                         alternative,
-                        &[value],
+                        &operands,
                         displacement,
                         &encoded.bytes
                     )
@@ -490,7 +494,7 @@ mod tests {
                         &physical,
                         kind,
                         alternative,
-                        &[value],
+                        &operands,
                         -16,
                         &changed
                     )
@@ -513,7 +517,7 @@ mod tests {
                         family: MachineAlternativeFamily::Store64,
                         variant: 0
                     },
-                    &[value],
+                    &[value, scratch],
                     displacement,
                 ),
                 Err(X86_64SelectedFormEncodingError::ImmediateOutsideU12)
@@ -527,7 +531,7 @@ mod tests {
                 family: MachineAlternativeFamily::Store64,
                 variant: 0,
             },
-            &[value],
+            &[value, scratch],
             i64::from(i32::MIN),
         )
         .unwrap();
@@ -539,7 +543,7 @@ mod tests {
                     family: MachineAlternativeFamily::Store64,
                     variant: 0
                 },
-                &[value],
+                &[value, scratch],
                 i64::from(i32::MIN),
                 &encoded.bytes
             ),
@@ -571,7 +575,7 @@ mod tests {
                         byte_offset: 8,
                     },
                     MachineAlternativeFamily::Store64,
-                    vec![value],
+                    vec![value, pointer],
                 ),
                 (
                     SelectedInstructionKind::FrameAddress {
@@ -592,7 +596,10 @@ mod tests {
                             vec![0x4d, 0x8b, 0x9c, 0x24, 56, 0, 0, 0]
                         }
                         SelectedInstructionKind::Store64 { .. } => {
-                            vec![0x4c, 0x89, 0x9c, 0x24, 56, 0, 0, 0]
+                            vec![
+                                0x4c, 0x8d, 0xa4, 0x24, 56, 0, 0, 0, 0x4d, 0x89, 0x9c, 0x24, 0, 0,
+                                0, 0,
+                            ]
                         }
                         SelectedInstructionKind::FrameAddress { .. } => {
                             vec![0x4c, 0x8d, 0x9c, 0x24, 56, 0, 0, 0]

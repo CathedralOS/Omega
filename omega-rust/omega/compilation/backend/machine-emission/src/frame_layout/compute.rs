@@ -163,8 +163,7 @@ fn function_layout(
                 slot.reservation_alignment(call_site.stack_alignment_bytes),
             ))
             || (slot.alignment > call_site.stack_alignment_bytes
-                && (slot.id.role != selected_instructions::OutgoingArgumentSlotRole::ValueCopy
-                    || environment.target().architecture != target::Architecture::Aarch64))
+                && slot.id.role != selected_instructions::OutgoingArgumentSlotRole::ValueCopy)
         {
             return Err(TargetFrameLayoutError::NonCanonicalLayout);
         }
@@ -186,8 +185,6 @@ fn function_layout(
     for (index, slot) in local_storage.iter().enumerate() {
         if slot.byte_size == 0
             || !slot.alignment.is_power_of_two()
-            || (slot.alignment > call_site.stack_alignment_bytes
-                && environment.target().architecture != target::Architecture::Aarch64)
             || local_storage[..index]
                 .iter()
                 .any(|earlier| earlier.id == slot.id)

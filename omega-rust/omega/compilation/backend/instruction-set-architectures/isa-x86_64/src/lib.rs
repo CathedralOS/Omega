@@ -72,8 +72,9 @@ mod semantic_unit_wrapper_encoding;
 pub use fma::{DecodedScalarFmaFormat, decode_vfmadd132_scalar};
 pub use frame_protocol::{
     X86_64FrameProtocolError, X86_64FrameSlot, X86_64StackProbe,
-    encode_system_v_amd64_frame_protocol, encode_x86_64_frame_address, encode_x86_64_frame_memory,
-    encode_x86_64_integer_constant, encode_x86_64_pointer_memory,
+    encode_system_v_amd64_frame_protocol, encode_x86_64_aligned_frame_address,
+    encode_x86_64_frame_address, encode_x86_64_frame_memory, encode_x86_64_integer_constant,
+    encode_x86_64_pointer_memory,
 };
 pub use ieee_float::{
     OMEGA_CANONICAL_MXCSR, encode_binary32_bits_to_xmm, encode_binary64_bits_to_xmm,
@@ -160,13 +161,15 @@ pub use selected_form_encoding::{
     X86_64ScalarCallFixup, X86_64ScalarCallFixupKind, X86_64ScalarCallFixupState,
     X86_64ScalarCallTemplateError, X86_64SelectedFormEncodingError,
     encode_x86_64_selected_dynamic_call_template, encode_x86_64_selected_form,
-    encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_jump_form,
-    encode_x86_64_selected_memory_form, encode_x86_64_selected_nonzero_branch_form,
+    encode_x86_64_selected_frame_form, encode_x86_64_selected_i64_less_than_branch_form,
+    encode_x86_64_selected_jump_form, encode_x86_64_selected_memory_form,
+    encode_x86_64_selected_nonzero_branch_form,
     encode_x86_64_selected_normalized_foreign_call_template,
     encode_x86_64_selected_scalar_call_template, encode_x86_64_selected_short_nonzero_branch_form,
     encode_x86_64_selected_u64_less_than_branch_form, validate_x86_64_selected_form_encoding,
-    validate_x86_64_selected_i64_less_than_branch_form, validate_x86_64_selected_jump_form,
-    validate_x86_64_selected_memory_form, validate_x86_64_selected_nonzero_branch_form,
+    validate_x86_64_selected_frame_form, validate_x86_64_selected_i64_less_than_branch_form,
+    validate_x86_64_selected_jump_form, validate_x86_64_selected_memory_form,
+    validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_normalized_foreign_call_template,
     validate_x86_64_selected_scalar_call_template,
     validate_x86_64_selected_short_nonzero_branch_form,
