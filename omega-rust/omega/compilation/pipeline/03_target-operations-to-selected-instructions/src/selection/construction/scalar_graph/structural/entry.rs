@@ -231,8 +231,13 @@ fn retain_owned_home(
     if !crate::selection::aggregate_result_input::parameter_home_required(source, place) {
         return Ok(());
     }
-    let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
     let shape = parameter.target.shape;
+    if shape.byte_size == 0 {
+        // Custody is still bound by the semantic edge; no payload address
+        // or slot exists for an empty owned arrival.
+        return Ok(());
+    }
+    let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
     builder
         .transport
         .local_slots
