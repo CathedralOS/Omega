@@ -1,5 +1,7 @@
 //! Declared Requires and crash ceilings describe invocation-entry operands.
 //! Body reads continue to use the independent current-storage namespace.
+//! Namespace qualification contributes no operand or data-owner obligation:
+//! resolution's nominal attachment, when present, is the owner identity.
 use crate::values::lower_machine_parameter_boolean_expression;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedOperatorFacts;
@@ -58,6 +60,9 @@ pub(crate) fn authored_entry_parameters<'program>(
     match &machine.attached_data {
         None if machine.attached_data_symbol.is_valid() => return None,
         None => {}
+        // A qualified declaration need not attach to data. Its explicit
+        // entry parameters still own the complete contract operand roster.
+        Some(_) if !machine.attached_data_symbol.is_valid() => {}
         Some(name) => {
             let mut owners = program
                 .data_definitions()

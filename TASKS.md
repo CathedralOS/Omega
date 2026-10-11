@@ -446,14 +446,14 @@ helper that passes does not close an item.
     it must run once in the selected arm and never in the unselected arm.
     Preserve captured operand snapshots through generic cloning and later
     effects (`runtime_declared_open_range_preserves_operand_snapshot_exit`).
-    Imported `Slice::range` still needs portable boundary planning, admitted
-    executable realization and returned extent guarantees. Preserve
+    Imported `Slice::range` still needs admitted executable realization and
+    returned extent guarantees. Preserve
     `pass/borrows/runtime_boundary_range_view_exit`: named and anonymous
     checked-provider results must retain the actual descriptor and backing
     loan in native and Terminal execution; overlapping backing mutation must
     reject (`fail/borrows/boundary_returned_view_keeps_backing_loan`). On macOS,
     `omega run --both tests/omega/pending/slices/runtime_imported_range_views_exit/main.omg`
-    stops at a missing boundary plan for its specialized `Slice::range`.
+    stops at zero selected provider rows for its specialized `Slice::range`.
     Preserve `pass/slices/runtime_borrowed_noncopy_array_argument_exit`: array
     fields and locals must lend views without copying their elements; returned
     views retain their backing loan (`fail/slices/noncopy_array_view_keeps_backing_loan`). Preserve

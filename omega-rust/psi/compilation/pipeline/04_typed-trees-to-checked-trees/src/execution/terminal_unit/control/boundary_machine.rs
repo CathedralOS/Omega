@@ -43,12 +43,10 @@ pub(crate) fn build_boundary_machine(
     // and a namespace-qualified requirement both get their runtime signature
     // from explicit parameters. Supply mode does not invent an owner; actual
     // data attachments retain their existing identity and custody.
-    let has_data_attachment = machine.attached_data.as_ref().is_some_and(|name| {
-        program
-            .data_definitions()
-            .iter()
-            .any(|data| data.name == *name)
-    });
+    // A same-spelled declaration in another package is not this machine's
+    // owner. Resolution retains the exact nominal attachment, or zero for a
+    // namespace-only qualifier.
+    let has_data_attachment = machine.attached_data_symbol.is_valid();
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
         if !has_data_attachment {
             let (structural, scalar) =
