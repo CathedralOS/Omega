@@ -263,23 +263,15 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
         };
         peak = peak.max(leaf_peak);
     }
-    if let Some((&offset, _)) = claimed.first_key_value() {
-        return Err(ObjectError::InvalidScalarStackEvidence { machine, offset });
-    }
-    if let Some((&offset, call)) = call_sites.first_key_value() {
-        return Err(ObjectError::InvalidInternalCallSite {
-            caller: machine,
-            owner: call.owner,
-            offset,
-        });
-    }
-    Ok((
-        ObjectScalarStack {
-            local_peak_bytes: peak,
-            stack_alignment: evidence.stack_alignment,
-        },
+    super::stack_mutation::scalar_stack_result(
+        &claimed,
+        &call_sites,
+        machine,
+        peak,
+        evidence.stack_alignment,
         validated_calls,
-    ))
+        None,
+    )
 }
 
 pub(crate) fn replay_scalar_conditional_region(

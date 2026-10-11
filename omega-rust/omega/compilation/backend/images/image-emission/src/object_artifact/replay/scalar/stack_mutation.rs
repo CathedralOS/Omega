@@ -8,7 +8,7 @@ use machine_code::{ScalarStackEvidence, ScalarStackMutation, ScalarStackMutation
 use semantic_vocabulary::MachineId;
 
 use super::super::unit::stack::{x86_64_stack_adjustment, x86_64_stack_release_preserving_flags};
-use crate::ObjectError;
+use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 use target::Architecture;
 
 pub(crate) fn validate_x86_scalar_mutation(
@@ -172,4 +172,41 @@ pub(crate) fn claimed_mutations_and_call_sites(
         call_sites.insert(call_start, *call);
     }
     Ok((claimed, call_sites))
+}
+
+/// Drain the claimed-mutation and call-site ledgers into the validated
+/// scalar stack answer: the first unclaimed mutation is invalid scalar
+/// stack evidence and the first unclaimed call site an invalid internal
+/// call site, so empty ledgers mean every observed byte and relocation
+/// joined the replay. `late_error` carries any replay-specific failure
+/// (e.g. unbalanced returns) that still ranks behind the ledger drains.
+pub(crate) fn scalar_stack_result(
+    claimed: &std::collections::BTreeMap<usize, ScalarStackMutation>,
+    call_sites: &std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
+    machine: MachineId,
+    peak: u32,
+    stack_alignment: u32,
+    validated_calls: Vec<ObjectScalarCallStack>,
+    late_error: Option<ObjectError>,
+) -> Result<(ObjectScalarStack, Vec<ObjectScalarCallStack>), ObjectError> {
+    if let Some((&offset, _)) = claimed.first_key_value() {
+        return Err(ObjectError::InvalidScalarStackEvidence { machine, offset });
+    }
+    if let Some((&offset, call)) = call_sites.first_key_value() {
+        return Err(ObjectError::InvalidInternalCallSite {
+            caller: machine,
+            owner: call.owner,
+            offset,
+        });
+    }
+    if let Some(error) = late_error {
+        return Err(error);
+    }
+    Ok((
+        ObjectScalarStack {
+            local_peak_bytes: peak,
+            stack_alignment,
+        },
+        validated_calls,
+    ))
 }

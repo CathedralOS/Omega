@@ -133,26 +133,15 @@ pub(crate) fn validate_linear_scalar_division_stack(
         &mut depth,
         &mut peak,
     )?;
-    if let Some((&offset, _)) = claimed.first_key_value() {
-        return Err(ObjectError::InvalidScalarStackEvidence { machine, offset });
-    }
-    if let Some((&offset, call)) = call_sites.first_key_value() {
-        return Err(ObjectError::InvalidInternalCallSite {
-            caller: machine,
-            owner: call.owner,
-            offset,
-        });
-    }
-    if depth != 0 {
-        return Err(ObjectError::MissingBalancedScalarReturn(machine));
-    }
-    Ok((
-        ObjectScalarStack {
-            local_peak_bytes: peak,
-            stack_alignment: evidence.stack_alignment,
-        },
+    super::stack_mutation::scalar_stack_result(
+        &claimed,
+        &call_sites,
+        machine,
+        peak,
+        evidence.stack_alignment,
         validated_calls,
-    ))
+        (depth != 0).then_some(ObjectError::MissingBalancedScalarReturn(machine)),
+    )
 }
 
 pub(crate) fn decode_exact_x86_instruction(

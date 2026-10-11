@@ -336,21 +336,13 @@ pub(crate) fn validate_boolean_shared_convergence_stack(
         &mut validated_calls,
         cleanup,
     )?);
-    if let Some((&offset, _)) = claimed.first_key_value() {
-        return Err(ObjectError::InvalidScalarStackEvidence { machine, offset });
-    }
-    if let Some((&offset, call)) = call_sites.first_key_value() {
-        return Err(ObjectError::InvalidInternalCallSite {
-            caller: machine,
-            owner: call.owner,
-            offset,
-        });
-    }
-    Ok((
-        ObjectScalarStack {
-            local_peak_bytes: peak,
-            stack_alignment: evidence.stack_alignment,
-        },
+    super::stack_mutation::scalar_stack_result(
+        &claimed,
+        &call_sites,
+        machine,
+        peak,
+        evidence.stack_alignment,
         validated_calls,
-    ))
+        None,
+    )
 }
