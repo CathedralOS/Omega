@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 
@@ -30,7 +31,11 @@ if arguments.route == 'invalid-control':
     result = execute('bounds', command)
     diagnostics = result.stdout + result.stderr
     fragment = (sample / 'controls/invalid_bounds/expected.txt').read_bytes().strip()
-    passed = result.returncode == 1 and fragment in diagnostics and b'cannot prove index' in diagnostics
+    error_lines = [line.strip() for line in diagnostics.splitlines() if line.lstrip().startswith(b'error:')]
+    bounds_error = re.compile(rb'error: cannot prove index `[^`]+` is within length 3')
+    passed = (result.returncode == 1 and fragment in diagnostics
+              and b'checked compilation failed for package `trophic_invalid_bounds` with 1 diagnostic(s)' in diagnostics
+              and len(error_lines) == 1 and bounds_error.fullmatch(error_lines[0]) is not None)
     records.append({'case': 'bounds', 'exit': result.returncode, 'passed': passed})
 elif arguments.route == 'check':
     command = [arguments.omega, '--check', str(root)]

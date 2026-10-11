@@ -214,7 +214,7 @@ pub(super) fn transformations(
 }
 
 /// The pressure domain one recovery step must relieve: the function and
-/// leader a `NoCompatibleHome` or `NoCommonCandidate` names, with the leader's member fragments
+/// leader a placement failure names, with the leader's member fragments
 /// collected once. Every roster candidate is scored against this one
 /// reconstruction; rebuilding the members per candidate made each step
 /// quadratic in the failed function's ties and transfers.
@@ -222,26 +222,34 @@ pub(super) struct FailedDomain<'ranges> {
     function: usize,
     ranges: &'ranges FunctionLiveRanges,
     members: std::collections::BTreeSet<VirtualRegisterId>,
+    intrinsic: bool,
 }
 
 impl<'ranges> FailedDomain<'ranges> {
-    /// The failure's domain, or `None` for any failure other than a pressure
-    /// failure in a function the ranges describe.
+    /// A placement-pressure component or a value-local empty common domain;
+    /// unrelated failures never enter recovery.
     pub(super) fn of(
         failure: &crate::RegisterHomeError,
         ranges: &'ranges ValidatedLiveRanges,
     ) -> Option<Self> {
-        let (crate::RegisterHomeError::NoCompatibleHome { function, register }
-        | crate::RegisterHomeError::NoCommonCandidate { function, register }) = failure
-        else {
-            return None;
+        let (function, register, intrinsic) = match failure {
+            crate::RegisterHomeError::NoCompatibleHome { function, register } => {
+                (*function, *register, false)
+            }
+            crate::RegisterHomeError::NoCommonCandidate { function, register } => {
+                (*function, *register, true)
+            }
+            _ => return None,
         };
-        let function_ranges = ranges.plan().functions.get(*function)?;
-        Some(Self::in_function(
-            *function,
-            function_ranges,
-            VirtualRegisterId(*register),
-        ))
+        let function_ranges = ranges.plan().functions.get(function)?;
+        let mut domain = Self::in_function(function, function_ranges, VirtualRegisterId(register));
+        if intrinsic {
+            // Empty point-domain intersection belongs to this value itself.
+            // Spilling neighbours cannot change its pinned uses or clobbers.
+            domain.members = std::collections::BTreeSet::from([VirtualRegisterId(register)]);
+            domain.intrinsic = true;
+        }
+        Some(domain)
     }
 
     pub(super) fn in_function(
@@ -253,6 +261,7 @@ impl<'ranges> FailedDomain<'ranges> {
             function,
             ranges,
             members: split_domain_members(ranges, leader),
+            intrinsic: false,
         }
     }
 
@@ -268,7 +277,10 @@ impl<'ranges> FailedDomain<'ranges> {
         }
         self.members
             .iter()
-            .filter(|member| **member == register || interferes(self.ranges, register, **member))
+            .filter(|member| {
+                **member == register
+                    || (!self.intrinsic && interferes(self.ranges, register, **member))
+            })
             .count()
     }
 
@@ -349,10 +361,14 @@ fn candidate_position(
     mut overlaps: impl FnMut(&(usize, VirtualRegisterId)) -> bool,
     relief: impl Fn(&(usize, VirtualRegisterId)) -> usize,
 ) -> Option<usize> {
-    let (crate::RegisterHomeError::NoCompatibleHome { function, register }
-    | crate::RegisterHomeError::NoCommonCandidate { function, register }) = failure
-    else {
-        return None;
+    let (function, register) = match failure {
+        crate::RegisterHomeError::NoCompatibleHome { function, register } => (function, register),
+        crate::RegisterHomeError::NoCommonCandidate { function, register } => {
+            return roster
+                .iter()
+                .position(|candidate| *candidate == (*function, VirtualRegisterId(*register)));
+        }
+        _ => return None,
     };
     roster
         .iter()
@@ -431,7 +447,7 @@ pub(crate) fn recover_after_declined_fixed_view_probe(
 }
 
 /// An active-resident rematerialization sweep whose rebuilt facts still
-/// report `NoCompatibleHome` or `NoCommonCandidate` hands custody here: recovery runs over the
+/// report `NoCompatibleHome` hands custody here: recovery runs over the
 /// rematerialized program and its rebuilt analyses, the recorded sweep stays
 /// the first transformation in the produced manifest.
 pub(crate) fn recover_after_active_resident_rematerialization(
@@ -443,7 +459,7 @@ pub(crate) fn recover_after_active_resident_rematerialization(
 }
 
 /// A completed selected-lowering run whose final facts still report
-/// `NoCompatibleHome` or `NoCommonCandidate` hands custody here: recovery runs over the run's
+/// `NoCompatibleHome` hands custody here: recovery runs over the run's
 /// current program and rebuilt analyses, the committed fold ledger and the
 /// suite completion stay recorded ahead of every spill step.
 pub(crate) fn recover_after_selected_lowering(
@@ -453,7 +469,7 @@ pub(crate) fn recover_after_selected_lowering(
 }
 
 /// A completed pre-allocation run whose final facts still report
-/// `NoCompatibleHome` or `NoCommonCandidate` hands custody here the same way: recovery runs over
+/// `NoCompatibleHome` hands custody here the same way: recovery runs over
 /// the run's current program and rebuilt analyses, the committed
 /// transformation ledger and the suite completion stay recorded ahead of
 /// every spill step.

@@ -38,7 +38,7 @@ partial flow report, but never a completed feasible result.
 All arithmetic declares Saturating. Its saturation is unreachable in admitted
 inputs: total raw or converted energy is at most 600000 hundredths; external
 supply and maintenance totals are each at most 300000; residual absolute values
-are below 700000. Intermediate diagnostics are below 2000000. These are far
+are at most 700000. Intermediate diagnostics are below 2000000. These are far
 inside i32. Private domain machinery has no numerics-library imports.
 
 `data/reference.py` independently computes rational results with Python Fraction.

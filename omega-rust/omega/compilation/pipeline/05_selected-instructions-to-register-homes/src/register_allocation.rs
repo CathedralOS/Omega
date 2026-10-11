@@ -3,22 +3,26 @@
 //! The route, in order: take the selected X-to-X evidence as produced; a completed
 //! selected-lowering or pre-allocation run probes assignment over its final
 //! facts — success takes `assignment::transformed` homes while residual
-//! `NoCompatibleHome` or `NoCommonCandidate` pressure hands the proven run, ledger and completion
+//! `NoCompatibleHome` or value-local `NoCommonCandidate` pressure hands the proven run,
+//! ledger and completion
 //! identity included, to `assignment::runtime_spill`; otherwise an
 //! admitted recovery rule takes `assignment::recovery`; otherwise legality is
 //! staged and the direct assignment either succeeds into `assignment::baseline`
 //! homes, splits authenticated entry-fixed-view transitions through the
 //! shared-source-exit fixed/precolored sequence in `assignment::recovery`, or,
-//! on `NoCompatibleHome` or `NoCommonCandidate` pressure, enters `assignment::runtime_spill`.
+//! on `NoCompatibleHome` or value-local `NoCommonCandidate` pressure, enters
+//! `assignment::runtime_spill`.
 //! A declared fixed-view rule whose segment-home probe reports a capacity
 //! decline — segment pressure or front-end work-budget exhaustion — hands
 //! the still-owned legality to `assignment::runtime_spill` before the
-//! sequence consumes custody, and residual `NoCompatibleHome` or `NoCommonCandidate` after
+//! sequence consumes custody, and residual `NoCompatibleHome` or value-local
+//! `NoCommonCandidate` after
 //! materialized copies enters it through the post-copy reanalysis — both
 //! compositions publish one `RetainedAllocation` like every other branch.
 //! The declared active-resident rule composes the same way: its proven
 //! rematerialization sweep stays a validated prefix, and residual
-//! `NoCompatibleHome` or `NoCommonCandidate` over the rebuilt facts hands that prefix — not the
+//! `NoCompatibleHome` or value-local `NoCommonCandidate` over the rebuilt facts hands
+//! that prefix — not the
 //! original legality — to `assignment::runtime_spill`.
 
 #[cfg(test)]
@@ -54,7 +58,8 @@ pub fn stage_register_allocation(
         SelectedInstructionOptimizationEvidence::Identity(ranges) => ranges,
         // A completed rewrite run composes with pressure recovery like every
         // other prefix: assignment probes the run's final facts, success keeps
-        // the transformed-homes route, and residual `NoCompatibleHome` or `NoCommonCandidate` hands
+        // the transformed-homes route, and residual `NoCompatibleHome` or value-local
+        // `NoCommonCandidate` hands
         // the run — not a rebuilt legality — to runtime spill so the produced
         // manifest keeps the suite's ledger and completion identity.
         SelectedInstructionOptimizationEvidence::LiteralFolds(run) => {

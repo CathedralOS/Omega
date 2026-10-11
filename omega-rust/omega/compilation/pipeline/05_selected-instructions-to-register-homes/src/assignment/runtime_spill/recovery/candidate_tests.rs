@@ -43,7 +43,7 @@ fn incompatible_interval_homes_choose_an_admitted_recovery_candidate() {
     let roster = [(2, VirtualRegisterId(9))];
     assert_eq!(
         candidate_position(
-            &RegisterHomeError::NoCommonCandidate {
+            &RegisterHomeError::NoLivePoints {
                 function: 2,
                 register: 9
             },
@@ -66,6 +66,34 @@ fn incompatible_interval_homes_choose_an_admitted_recovery_candidate() {
         ),
         None
     );
+}
+
+#[test]
+fn empty_common_domain_can_only_rewrite_the_failed_value() {
+    let failure = RegisterHomeError::NoCommonCandidate {
+        function: 2,
+        register: 9,
+    };
+    let roster = [
+        (2, VirtualRegisterId(7)),
+        (1, VirtualRegisterId(9)),
+        (2, VirtualRegisterId(9)),
+    ];
+    assert_eq!(
+        candidate_position(&failure, &roster, |_| true, |_| 100),
+        Some(2)
+    );
+    assert_eq!(
+        candidate_position(&failure, &roster[..2], |_| true, |_| 100),
+        None
+    );
+    let ranges = split_ranges(&[(9, 10)], &[], &[(9, 7)]);
+    let mut domain = FailedDomain::in_function(2, &ranges, VirtualRegisterId(9));
+    domain.members = std::collections::BTreeSet::from([VirtualRegisterId(9)]);
+    domain.intrinsic = true;
+    assert_eq!(domain.relief(2, VirtualRegisterId(9)), 1);
+    assert_eq!(domain.relief(2, VirtualRegisterId(7)), 0);
+    assert_eq!(domain.relief(2, VirtualRegisterId(10)), 0);
 }
 
 fn tie(use_register: u32, def_register: u32) -> DistinctUseDefTie {

@@ -31,7 +31,8 @@ fn fixed_view_reanalysis(
     stage_optimized_selected_reanalysis(copies).map_err(RegisterAllocationError::Reanalysis)
 }
 
-/// The composing sequence: residual `NoCompatibleHome` or `NoCommonCandidate` pressure after the
+/// The composing sequence: residual `NoCompatibleHome` or value-local `NoCommonCandidate`
+/// pressure after the
 /// copies does not fail the route — the reanalysis becomes runtime-spill
 /// recovery's source, so a pressured program that also needed fixed-view
 /// copies composes the two recoveries under one retained allocation. Any
@@ -95,7 +96,7 @@ fn fixed_view_allocation(
 /// The declared-rule composing form over an already-staged legality chain, so
 /// a pressured source exercises the same fixed-view sequence after legality
 /// staging — including the runtime-spill composition a residual
-/// `NoCompatibleHome` or `NoCommonCandidate` admits.
+/// `NoCompatibleHome` or value-local `NoCommonCandidate` admits.
 pub(crate) fn stage_shared_entry_fixed_view_register_allocation(
     legality: StagedOptimizedAllocationLegality,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
@@ -121,7 +122,8 @@ pub(crate) fn stage_leaf_local_fixed_view_register_allocation_composing(
 /// The declared active-resident route in its composing form: the sweep is
 /// proven as a validated prefix — transformed program plus rebuilt
 /// liveness, ranges, and legality — then assignment runs over those rebuilt
-/// facts. A residual `NoCompatibleHome` or `NoCommonCandidate` verdict does not fail the route or
+/// facts. A residual `NoCompatibleHome` or value-local `NoCommonCandidate` verdict does
+/// not fail the route or
 /// discard the proven rematerialization: the same prefix becomes
 /// runtime-spill recovery's source, so the recorded sweep stays first in
 /// the produced manifest and the declared selection binds through replayed
@@ -174,7 +176,8 @@ pub(crate) fn stage_active_resident_register_allocation(
 
 /// A completed selected-lowering run in its composing form: the suite stays
 /// the proven prefix — its fold ledger and completion identity record ahead
-/// of every recovery step — while residual `NoCompatibleHome` or `NoCommonCandidate` pressure over
+/// of every recovery step — while residual `NoCompatibleHome` or value-local
+/// `NoCommonCandidate` pressure over
 /// the run's final facts hands custody to runtime spill instead of failing
 /// the route. Any other assignment failure keeps the post-lowering homes
 /// error surface.
@@ -204,7 +207,8 @@ pub(crate) fn stage_selected_lowering_register_allocation(
 /// A completed pre-allocation run in its composing form: the suite stays
 /// the proven prefix — its committed transformation ledger and completion
 /// identity record ahead of every recovery step — while residual
-/// `NoCompatibleHome` or `NoCommonCandidate` pressure over the run's final facts hands custody to
+/// `NoCompatibleHome` or value-local `NoCommonCandidate` pressure over the run's final
+/// facts hands custody to
 /// runtime spill instead of failing the route. Any other assignment
 /// failure keeps the post-run homes error surface.
 pub(crate) fn stage_pre_allocation_register_allocation(

@@ -58,7 +58,8 @@ impl RuntimeSpillAllocation {
 /// the same legality plus the declined policy, so the produced allocation
 /// still binds the declared selection. An active-resident
 /// rematerialization sweep whose rebuilt facts still report
-/// `NoCompatibleHome` enters with that proven prefix: the rematerialization
+/// `NoCompatibleHome` or value-local `NoCommonCandidate` enters with that proven prefix:
+/// the rematerialization
 /// stays recorded ahead of every spill step. Completed rewrite suites enter
 /// the same way: a selected-lowering or pre-allocation run whose final facts
 /// still report pressure keeps its committed ledger and suite completion
