@@ -980,7 +980,6 @@ pub(super) fn structural_arm_judge<'program>(
             constructor.clone(),
             0,
         );
-        arm_judge.bump();
         std::sync::Arc::make_mut(&mut arm_judge.substitutions)
             .insert(0, (subject.clone(), constructor.clone()));
     }

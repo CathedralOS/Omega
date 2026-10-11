@@ -160,17 +160,16 @@ helper that passes does not close an item.
   longer a single hot spot: per-leaf judgment still spreads ~10^5–10^6
   calls across ~50 helpers (`resolve_at` 941k, `callee_term` 702k,
   `structural_term` 473k, specification equations 1.1M) because every
-  leaf clone re-walks deep Box/Vec terms. First interning leg landed
-  (`2f4a381c8c`): a resolve memo shared across each StructuralJudge
-  clone tree, keyed on (state epoch, term) with every Arc::make_mut
-  mutation stamping a fresh epoch — ~19.7s→~18.3s median, identical
-  diagnostics; memoizing inside `resolve_at`'s recursion measured a
-  wash (per-node Debug-render hashing costs what the hits save). The
-  remaining lever is still StructuralTerm interning itself (arena
-  handles so memo keys, equality, and dedup are O(1) on identity
-  rather than tree compare) — a representation redesign beyond one
-  leg. Restore the pinned 4–5s ordering and repin the rows only
-  after interning lands.
+  leaf clone re-walks deep Box/Vec terms. The remaining lever is
+  StructuralTerm interning or a resolved-subject cache with complete
+  representation identity and resolve-state custody. Semantic equality
+  deliberately erases observation authority and literal landing metadata;
+  it cannot key a cache that returns those payloads. Preserve raw versus
+  observed values, nested observation types, scalar/indexed authority and
+  literal landings across any representation repair. Arena handles should
+  make equality and dedup O(1) without merging those distinctions. Restore
+  the pinned 4–5s ordering and repin the rows only after the measured
+  representation repair meets it.
 
 - **REFERENCE-CUSTODY-JOIN-SCALING.** (new-scope) Investigate and remove
   avoidable compilation cost in reference-custody joins without weakening their

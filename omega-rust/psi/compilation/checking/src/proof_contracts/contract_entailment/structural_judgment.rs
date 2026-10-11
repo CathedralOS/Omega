@@ -241,20 +241,7 @@ pub(super) struct StructuralJudge<'program> {
     /// site (per-leaf clones all share the same cell).
     frame_resolver:
         Arc<std::sync::OnceLock<Option<crate::machine_calls::calls::CallFrameResolver<'program>>>>,
-    // Resolved terms depend only on this judge's accumulated substitutions,
-    // rewrites and case facts. Every mutation stamps a fresh epoch from the
-    // counter shared by every clone of this judge tree, so memo entries keyed
-    // (epoch, term) stay sound even after sibling clones diverge.
-    resolve_memo:
-        Arc<std::sync::Mutex<std::collections::HashMap<(u64, StructuralTerm), StructuralTerm>>>,
-    epochs: Arc<std::sync::atomic::AtomicU64>,
-    epoch: u64,
 }
-
-/// A memo hit that lands after this many entries is dropped with the rest of
-/// the table; resolution cost then degrades to the pre-memo path instead of
-/// growing memory without bound.
-const RESOLVE_MEMO_LIMIT: usize = 2_000_000;
 
 impl Clone for StructuralJudge<'_> {
     fn clone(&self) -> Self {
@@ -279,9 +266,6 @@ impl Clone for StructuralJudge<'_> {
             ring_licenses: self.ring_licenses.clone(),
             semiring_licenses: self.semiring_licenses.clone(),
             frame_resolver: Arc::clone(&self.frame_resolver),
-            resolve_memo: Arc::clone(&self.resolve_memo),
-            epochs: Arc::clone(&self.epochs),
-            epoch: self.epoch,
         }
     }
 }
@@ -354,7 +338,6 @@ impl<'program> StructuralJudge<'program> {
 
     /// Tag preservation does not preserve scalar premises or payload equations.
     pub(super) fn restrict_to_case_facts(&mut self) {
-        self.bump();
         self.case_facts_only = true;
         self.substitutions = Arc::new(Vec::new());
         self.rewrites = Arc::new(rewrite_table::RewriteTable::default());
@@ -418,9 +401,6 @@ impl<'program> StructuralJudge<'program> {
                 .machine(owner)
                 .map(|machine| licenses.semiring_licenses(program, machine))
                 .unwrap_or_default(),
-            resolve_memo: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-            epochs: Arc::new(std::sync::atomic::AtomicU64::new(0)),
-            epoch: 0,
         };
         for fact in requires {
             judge.intake(program, *fact);
@@ -579,7 +559,6 @@ impl<'program> StructuralJudge<'program> {
             let Some(subject) = self.declaration_term(binary.left) else {
                 return;
             };
-            self.bump();
             Arc::make_mut(&mut self.case_facts).push((
                 subject.clone(),
                 definition.symbol,
@@ -702,7 +681,6 @@ impl<'program> StructuralJudge<'program> {
                 _,
             ) => {
                 if !term_contains(&right, &left) {
-                    self.bump();
                     Arc::make_mut(&mut self.rewrites).push((left, right));
                 }
             }
@@ -715,21 +693,16 @@ impl<'program> StructuralJudge<'program> {
                 | StructuralTerm::ScalarBinary { .. },
             ) => {
                 if !term_contains(&left, &right) {
-                    self.bump();
                     Arc::make_mut(&mut self.rewrites).push((right, left));
                 }
             }
             (StructuralTerm::Variable(name), _) => {
                 if left != right {
-                    self.bump();
                     Arc::make_mut(&mut self.substitutions).push((name.clone(), right));
                 }
             }
             (_, StructuralTerm::Variable(name)) => {
-                if left != right {
-                    self.bump();
-                    Arc::make_mut(&mut self.substitutions).push((name.clone(), left));
-                }
+                Arc::make_mut(&mut self.substitutions).push((name.clone(), left));
             }
             _ => {}
         }
@@ -739,30 +712,12 @@ impl<'program> StructuralJudge<'program> {
     /// substitution chain resolves to wherever the cap lands, which only
     /// weakens judgments toward Unknown -- never unsound). Constructor
     /// fields resolve recursively under the same budget.
-    /// Every mutation of resolve-observable state (substitutions, rewrites,
-    /// case facts, guarantees and their flags) stamps a unique epoch first,
-    /// so a memo entry minted under an older state can never answer for a
-    /// newer one. Entries minted before a sibling clone diverged remain valid
-    /// for both: the stamped epoch identifies the shared prefix state exactly.
-    pub(super) fn bump(&mut self) {
-        self.epoch = self
-            .epochs
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-            + 1;
-    }
-
+    /// Semantic term equality deliberately ignores observation authority and
+    /// literal landing metadata. Resolution preserves those payloads, so an
+    /// equal term is not an interchangeable memoized result. Keep one general
+    /// resolver until a complete representation key and state custody exist.
     pub(super) fn resolve(&self, term: StructuralTerm) -> StructuralTerm {
-        let key = (self.epoch, term);
-        if let Some(hit) = self.resolve_memo.lock().expect("resolve memo").get(&key) {
-            return hit.clone();
-        }
-        let resolved = self.resolve_at(key.1.clone(), 0);
-        let mut memo = self.resolve_memo.lock().expect("resolve memo");
-        if memo.len() >= RESOLVE_MEMO_LIMIT {
-            memo.clear();
-        }
-        memo.insert(key, resolved.clone());
-        resolved
+        self.resolve_at(term, 0)
     }
 
     fn resolve_at(&self, mut term: StructuralTerm, depth: usize) -> StructuralTerm {
@@ -2021,7 +1976,6 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(super) fn intake_case_guarantee(&mut self, guarantee: &CaseGuarantee) {
-        self.bump();
         Arc::make_mut(&mut self.case_facts).push((
             guarantee.subject.clone(),
             guarantee.data,
@@ -2118,13 +2072,11 @@ impl<'program> StructuralJudge<'program> {
             (StructuralTerm::Variable(name), _)
                 if left != right && !term_contains(&right, &left) =>
             {
-                self.bump();
                 Arc::make_mut(&mut self.case_substitutions).push((name.clone(), right));
             }
             (_, StructuralTerm::Variable(name))
                 if left != right && !term_contains(&left, &right) =>
             {
-                self.bump();
                 Arc::make_mut(&mut self.case_substitutions).push((name.clone(), left));
             }
             (

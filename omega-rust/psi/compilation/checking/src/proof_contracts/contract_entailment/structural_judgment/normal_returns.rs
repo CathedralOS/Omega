@@ -531,7 +531,6 @@ impl<'program> StructuralJudge<'program> {
         // Retire a prior evaluation of this static node. Repeated edges are
         // distinct invocations; saved earlier values already retain their own
         // capture sequence and equations in the caller environment.
-        self.bump();
         std::sync::Arc::make_mut(&mut self.normal_results)
             .retain(|(source, _)| *source != expression);
         let mut children_to_evaluate = Vec::new();
@@ -696,7 +695,6 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn assume_normal_equation(&mut self, left: StructuralTerm, right: StructuralTerm) {
-        self.bump();
         std::sync::Arc::make_mut(&mut self.normal_guarantees).push((left.clone(), right.clone()));
         self.intake_equation(left, right, 0);
     }
@@ -967,7 +965,6 @@ impl<'program> StructuralJudge<'program> {
                 owner_symbol(&owner),
             );
         }
-        self.bump();
         std::sync::Arc::make_mut(&mut self.normal_results).push((expression, captured));
         for (left, right) in equations {
             std::sync::Arc::make_mut(&mut self.captured_result_equations)
@@ -984,7 +981,6 @@ impl<'program> StructuralJudge<'program> {
 
 impl NormalReturnPath<'_> {
     fn at_expression(mut self, expression: ExpressionHandle) -> Self {
-        self.judge.bump();
         std::sync::Arc::make_mut(&mut self.judge.normal_results)
             .retain(|(source, _)| *source != expression);
         std::sync::Arc::make_mut(&mut self.judge.normal_results)
