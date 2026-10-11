@@ -64,7 +64,7 @@ OMEGA_LIBRARY_ROOT="$PWD/source/library" omega update --project samples/cli/inde
 # Read and explicitly accept only the intended pending review decisions.
 omega update --resume --project samples/cli/independent/stoichiometric_batch_balance
 omega --check --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/main.omg
-omega run --both --keep --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/main.omg < samples/cli/independent/stoichiometric_batch_balance/data/water_first.stdin
+omega run --both --keep samples/cli/independent/stoichiometric_batch_balance/main.omg < samples/cli/independent/stoichiometric_batch_balance/data/water_first.stdin
 omega --target linux_x86_64 --build-dir samples/cli/independent/stoichiometric_batch_balance/build/native samples/cli/independent/stoichiometric_batch_balance/main.omg
 python3 samples/cli/independent/stoichiometric_batch_balance/validation/verify.py --omega /absolute/path/to/omega --mode native --executable /absolute/path/to/produced/application
 python3 samples/cli/independent/stoichiometric_batch_balance/validation/verify.py --omega /absolute/path/to/omega --mode both

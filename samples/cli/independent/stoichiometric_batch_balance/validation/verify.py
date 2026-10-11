@@ -32,7 +32,7 @@ for case in manifest["cases"]:
         command = [options.omega,"run"]
         if options.mode == "both":
             command.append("--both")
-        command += ["--keep", "--target", "linux_x86_64", str(root/"main.omg")]
+        command += ["--keep", str(root/"main.omg")]
     result = subprocess.run(command,input=raw,capture_output=True,timeout=180)
     (output/(name+".stdout")).write_bytes(result.stdout)
     (output/(name+".stderr")).write_bytes(result.stderr)
