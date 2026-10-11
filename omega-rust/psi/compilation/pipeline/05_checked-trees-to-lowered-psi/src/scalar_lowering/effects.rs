@@ -42,6 +42,7 @@ pub(crate) fn emit(
                     *structural_type,
                     source.clone(),
                     None,
+                    calls.structural_types,
                     *place,
                     operations,
                 )?;
