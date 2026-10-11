@@ -4,20 +4,22 @@
 //! supplied operation exactly once and returns its result unchanged; it may
 //! record duration, but it must not supply stage judgments or retry execution.
 
-/// One measured leg inside Terminal artifact production.
+/// One measured leg inside source compilation or Terminal artifact production.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(usize)]
-pub enum TerminalProductionStage {
+pub enum PsiCompilationStage {
     MachineSelection,
     Lowering,
     Optimization,
     EntryReceipt,
     Publication,
+    Resolution,
+    Typing,
 }
 
 /// Stable name, input and output labels for each production leg, in
-/// `TerminalProductionStage` declaration order.
-const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 5] = [
+/// `PsiCompilationStage` declaration order.
+const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 7] = [
     (
         "terminal-production/machine-selection",
         "CheckedTrees",
@@ -39,9 +41,11 @@ const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 5] = [
         "OptimizedLoweredPsi",
         "CanonicalTerminalArtifact",
     ),
+    ("Stage 03", "SyntaxTrees", "SymbolResolvedTrees"),
+    ("Stage 04", "SymbolResolvedTrees", "TypedTrees"),
 ];
 
-impl TerminalProductionStage {
+impl PsiCompilationStage {
     /// Stable name, input and output labels for this production leg.
     pub const fn observation_labels(self) -> (&'static str, &'static str, &'static str) {
         OBSERVATION_LABELS[self as usize]
@@ -49,10 +53,10 @@ impl TerminalProductionStage {
 }
 
 /// Caller-owned observation of one production leg.
-pub trait TerminalProductionObserver {
+pub trait PsiCompilationObserver {
     fn record_result<Value, Error>(
         &mut self,
-        stage: TerminalProductionStage,
+        stage: PsiCompilationStage,
         operation: impl FnOnce() -> Result<Value, Error>,
     ) -> Result<Value, Error>;
 }
@@ -60,10 +64,10 @@ pub trait TerminalProductionObserver {
 /// Execute the same production operation without report instrumentation.
 pub struct UnmeasuredProduction;
 
-impl TerminalProductionObserver for UnmeasuredProduction {
+impl PsiCompilationObserver for UnmeasuredProduction {
     fn record_result<Value, Error>(
         &mut self,
-        _stage: TerminalProductionStage,
+        _stage: PsiCompilationStage,
         operation: impl FnOnce() -> Result<Value, Error>,
     ) -> Result<Value, Error> {
         operation()

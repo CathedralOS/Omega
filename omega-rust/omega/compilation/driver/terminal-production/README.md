@@ -5,7 +5,7 @@ This product adapter supplies reporting and exclusion policy to the Psi-owned
 production facade; it owns neither stages nor another executable IR.
 
 Enter [terminal_production.rs](src/terminal_production.rs), then the
-[Psi sequence](../../../../psi/compilation/terminal-production/src/terminal_production.rs):
+[Psi sequence](../../../../psi/compilation/driver/src/terminal_production.rs):
 `checked-trees-to-lowered-psi` -> `lowered-psi-to-lowered-psi` ->
 `lowered-psi-to-terminal-psi`. `LoweredPsi` belongs to representations.
 Publication consumes the validated optimization-stage result, not an unoptimized
@@ -44,7 +44,7 @@ this coordinator. Its work is included in the lowering timing row; there is
 no separate caller-owned ledger-check leg.
 
 Terminal production owns its observation labels and failure classification.
-`TerminalProductionStage::observation_labels` supplies stable report names and
+`PsiCompilationStage::observation_labels` supplies stable report names and
 input/output labels; the Omega caller only merges their measured rows.
 `TerminalArtifactProductionError::diagnostics` distinguishes missing
 implementation, incomplete proof search and ordinary rejection. Neither requires

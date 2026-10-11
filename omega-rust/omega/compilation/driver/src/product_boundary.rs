@@ -56,3 +56,33 @@ fn retained_runtime_borrows_terminal_storage() {
     assert!(!source.contains("TerminalProgram::load("));
     assert!(!source.contains("semantic_bytes()"));
 }
+
+#[test]
+fn product_consumers_do_not_assemble_source_stages() {
+    for manifest in [
+        include_str!("../Cargo.toml"),
+        include_str!("../../products/Cargo.toml"),
+    ] {
+        for stage in [
+            "02_syntax-trees-to-symbol-resolved-trees",
+            "03_symbol-resolved-trees-to-typed-trees",
+        ] {
+            assert!(
+                !manifest.contains(stage),
+                "product consumer imports {stage}"
+            );
+        }
+    }
+    let source = include_str!("checked/checking/build_continuation.rs");
+    for operation in [
+        "complete_machine_bodies",
+        "join_generated_symbols",
+        "resolve_extension",
+        "evaluate_pre_resolution",
+    ] {
+        assert!(
+            !source.contains(operation),
+            "product coordinator assembles {operation}"
+        );
+    }
+}

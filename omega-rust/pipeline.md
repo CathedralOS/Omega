@@ -104,13 +104,17 @@ and storage; distinct roots still produce separate artifacts. Product constants
 requiring selected-provider evaluation reject until portable recipes cross this
 boundary; selected providers cannot inject completion roles into checked source.
 Accepted package roles enter source preparation before checking instead.
-Package-manager batches also retain separate
+Resolver/typing continuation now lives in the [Psi compiler](psi/compilation/driver/src/source_compilation.rs):
+one owner pairs the deferred resolver, typing arenas and evaluation obligations
+across Build and generated-source resumption. Product records cannot rearrange
+those stages or replace one half of the continuation. Package-manager batches also retain separate
 checked activations. These are unfinished ownership moves, not the intended route:
 
 | Input → output | Owner |
 | --- | --- |
 | Source files → assembled syntax | [package source preparation](omega/packages/compilation-inputs/src/source_assembly.rs) |
-| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compilation/driver/src/checked/checking.rs) |
+| Assembled syntax → completed typing | [Psi source continuation](psi/compilation/driver/src/source_compilation.rs), interrupted only for admitted Build execution and generated-source admission |
+| Completed typing → checked compilation | [source checking](omega/compilation/driver/src/checked/checking/source_checking.rs), still to move behind the Psi compiler facade |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compilation/driver/src/terminal/terminal_artifact.rs) |
 
 Package-owned source preparation now feeds the ordinary loading and parsing

@@ -5,14 +5,12 @@
 //! executes guests.
 
 use checked_trees::CheckedTrees;
-use psi_terminal_production::TerminalMachineSelection;
+use psi_compiler::TerminalMachineSelection;
 
 use crate::custody::{ProducedTerminalArtifact, TerminalProductionCustody};
-use crate::stage_timings::ProductProductionObserver;
+use crate::stage_timings::PsiStageTimings;
 
-pub use psi_terminal_production::{
-    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError,
-};
+pub use psi_compiler::{ProgramEntryTerminalReceiptError, TerminalArtifactProductionError};
 
 /// Checked source and exact machine selection for product compilation.
 pub struct TerminalProductionRequest<'a> {
@@ -51,17 +49,16 @@ impl<'a> TerminalProductionRequest<'a> {
         } = custody;
         let applications: Vec<_> = applications
             .iter()
-            .map(
-                |application| psi_terminal_production::TerminalApplicationCustody {
-                    entry_identity: application.entry_identity,
-                    entry_machine: application.entry_machine,
-                    admission: application.behavior_exclusions.as_ref().map(|policy| {
-                        policy as &dyn psi_terminal_production::TerminalCompositionAdmission
-                    }),
-                },
-            )
+            .map(|application| psi_compiler::TerminalApplicationCustody {
+                entry_identity: application.entry_identity,
+                entry_machine: application.entry_machine,
+                admission: application
+                    .behavior_exclusions
+                    .as_ref()
+                    .map(|policy| policy as &dyn psi_compiler::TerminalCompositionAdmission),
+            })
             .collect();
-        let produced = psi_terminal_production::TerminalProductionRequest {
+        let produced = psi_compiler::TerminalProductionRequest {
             checked: self.checked,
             exact_toolchain_sources: self.exact_toolchain_sources,
             machine: self.machine,
@@ -69,10 +66,10 @@ impl<'a> TerminalProductionRequest<'a> {
             optimization_selections: self.optimization_selections,
         }
         .produce(
-            psi_terminal_production::TerminalProductionCustody {
+            psi_compiler::TerminalProductionCustody {
                 applications: &applications,
             },
-            &mut ProductProductionObserver { timings },
+            &mut PsiStageTimings::new(timings),
         )?;
         Ok(produced)
     }

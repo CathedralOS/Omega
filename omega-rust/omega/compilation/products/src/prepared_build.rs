@@ -13,10 +13,8 @@ use std::sync::Arc;
 /// completes. Pending authored bodies and generated sources grant no execution.
 #[derive(Clone)]
 pub struct BuiltTypedProgram {
-    pub typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-    pub pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    pub source: psi_compiler::SourceContinuation,
     pub base_sources: Arc<source::SourceMap>,
-    pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     /// The exact successful Build language judgment, only when requested for

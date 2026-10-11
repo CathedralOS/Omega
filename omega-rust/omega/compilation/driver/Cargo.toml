@@ -30,7 +30,7 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 runtime-abi = { path = "../backend/runtime/runtime-abi" }
 numerics = { path = "../../../psi/foundation/numerics" }
 symbols = { path = "../../../psi/foundation/symbols" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+psi-compiler = { path = "../../../psi/compilation/driver" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 source = { path = "../../../psi/foundation/source" }
 backend-plan = { path = "../backend/plans/backend-plan" }
@@ -38,7 +38,6 @@ artifacts = { path = "../../foundation/artifacts" }
 build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
 validation = { path = "../../../psi/compilation/checking" }
 representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }

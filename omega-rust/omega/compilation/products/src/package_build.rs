@@ -42,7 +42,7 @@ impl PreparedPackageBuild {
         prepared: PreparedBuild,
     ) -> Result<Self, Vec<Diagnostic>> {
         let generated_sources = prepared.build_sources.package_generated_source_bundle(
-            prepared.built.typing.typed(),
+            prepared.built.source.typed(),
             &inputs,
             target,
             prepared

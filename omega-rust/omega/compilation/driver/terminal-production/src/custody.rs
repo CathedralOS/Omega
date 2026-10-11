@@ -1,7 +1,7 @@
 //! Product policy and reporting inputs for Psi-owned Terminal production.
 
 use artifacts::compile_timings::CompileTimings;
-pub use psi_terminal_production::ProducedTerminalArtifact;
+pub use psi_compiler::ProducedTerminalArtifact;
 
 /// Product admission reads the actual unoptimized composition, then releases
 /// the borrow before optimization. No checked-source or LoweredPsi sidecar is
@@ -14,7 +14,7 @@ pub struct TerminalProductionCustody<'a> {
 /// A target's admission and entry correspondence, independent of shared Psi work.
 pub struct TerminalApplicationCustody<'a> {
     pub entry_identity: Option<[u8; 32]>,
-    pub entry_machine: Option<psi_terminal_production::TerminalMachineSelection<'a>>,
+    pub entry_machine: Option<psi_compiler::TerminalMachineSelection<'a>>,
     pub behavior_exclusions: Option<TerminalBehaviorExclusions<'a>>,
 }
 
@@ -47,7 +47,7 @@ impl<'a> TerminalBehaviorExclusions<'a> {
     }
 }
 
-impl psi_terminal_production::TerminalCompositionAdmission for TerminalBehaviorExclusions<'_> {
+impl psi_compiler::TerminalCompositionAdmission for TerminalBehaviorExclusions<'_> {
     fn admit(
         &self,
         module: &terminal_psi::TerminalModule,

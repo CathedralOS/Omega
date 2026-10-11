@@ -1,10 +1,15 @@
 [package]
-name = "psi-terminal-production"
+name = "psi-compiler"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [dependencies]
+syntax-trees = { path = "../representations/syntax-trees" }
+typed-trees = { path = "../representations/typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+symbol-resolved-trees-to-typed-trees = { path = "../pipeline/03_symbol-resolved-trees-to-typed-trees" }
+build-time-evaluation = { path = "../compile-time" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
 diagnostics = { path = "../../foundation/diagnostics" }

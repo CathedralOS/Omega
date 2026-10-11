@@ -3,7 +3,7 @@
 //! Product reporting and custody around Psi-owned Terminal production.
 //!
 //! `TerminalProductionRequest::produce` adapts product timings and refusal
-//! reporting to `psi_terminal_production`; it contains no lowering sequence.
+//! reporting to `psi_compiler`; it contains no lowering sequence.
 //! Early compile-time jobs can depend on that Psi owner without importing this
 //! Omega driver. Checked-source custody stays beside the portable artifact.
 
@@ -14,7 +14,8 @@ pub use custody::{
     ProducedTerminalArtifact, TerminalApplicationCustody, TerminalBehaviorExclusions,
     TerminalProductionCustody,
 };
-pub use psi_terminal_production::{TerminalMachineSelection, TerminalProductionStage};
+pub use psi_compiler::{PsiCompilationStage, TerminalMachineSelection};
+pub use stage_timings::PsiStageTimings;
 pub use terminal_production::{
     ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
 };

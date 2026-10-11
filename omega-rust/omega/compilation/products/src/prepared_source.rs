@@ -2,8 +2,8 @@
 //!
 //! A child either reuses an exact typed frontier after live custody validation,
 //! or receives the parsed sources and an optional retention slot. The coordinator
-//! still calls assembly, resolution and typing explicitly; publication into the
-//! slot occurs only after those calls succeed. Neither product grants authority.
+//! owns package assembly while Psi owns resolution and typing; publication into
+//! the slot occurs only after preparation succeeds. Neither product grants authority.
 
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
@@ -17,10 +17,8 @@ use std::sync::{Arc, Mutex};
 /// This is a reusable compilation checkpoint, not a portable program form.
 #[derive(Clone)]
 pub struct TypedCompilationFrontier {
-    pub typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-    pub pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    pub source: psi_compiler::SourceContinuation,
     pub build_source_id: Option<source::SourceId>,
-    pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub source_file_count: usize,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     pub base_sources: Arc<source::SourceMap>,

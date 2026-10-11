@@ -1943,7 +1943,7 @@ then independent claimed restoration slices -> final closure.
   still reject. Record a precise dependency if the demanded closure itself
   cannot yet check; do not establish a permanent typed-tree execution exception.
   Current frontier: the shared stage 05-07 production operation is now owned by
-  `omega-rust/psi/compilation/terminal-production/`; the Omega product adapter
+  `omega-rust/psi/compilation/driver/`; the Omega product adapter
   delegates to it and retains product timing/report vocabulary. Fixed-array
   jobs now demand within the original executable roster, settle shared type
   prerequisites in one private arena and reject actual cycles with their chain.
@@ -2885,19 +2885,10 @@ crash and native exit behavior.
     borrows unoptimized Terminal semantics before optimization; exact service
     owners travel in declarations, without a retained lowering clone or source
     lookup. Callback facts carry source entry resources, not target ABI hashes.
-    Callback/provider-installation joins (`85568e8bed8`), the split of the
-    initial source-dependent selection from checking (`e2c8e888fd`),
-    unifying the settled views across targets (`a783b4f358`), and the const
-    exception (`99e3b75e65`) are done: `settle_initial_execution` records
-    every admitted target's selection over the shared typed product before
-    the first check runs, `unify_settled_execution_views` unions
-    declaration-scoped completions and shares storage between converged
-    views, and `reject_divergent_constant_providers` compares the provider
-    rows each pending fold selected — naming every pair of diverging targets
-    in that target's own diagnostics while leaving layout custody per
-    target. Remaining frontier: execution_settlement's Omega-00 installation
-    joins and the authored provider-requires roster the ensures work exposes
-    below.
+    Product source now checks once before provider settlement; selected
+    providers cannot rewrite its contracts or fold target constants into it.
+    Remaining frontier: execution_settlement's Omega-00 installation joins
+    and the authored provider-requires roster the ensures work exposes below.
   - `omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
     still joins frontend-dependent `provider-planning` and `selected-dispatch`
     decisions: calling plans, program-entry
@@ -2936,6 +2927,10 @@ crash and native exit behavior.
     generated runtime obligations (entry storage, view bounds), so
     agreement cannot be replayed until an authored requires roster —
     `source_checked_requires` at lowering — survives into the contract.
+    Current result-agreement checking also rejects the qualified-record
+    customer (`capabilities/runtime_qualified_record_return_exit`) with
+    `provider candidate result disagrees with its boundary`; repair that
+    representation agreement without weakening candidate contract admission.
 
   Acceptance (with **BUILD-EVALUATES-ONCE** and **OPERATOR-BOUNDARY-CALLS**):
   a two-target request runs Psi 00–07 once and produces one Terminal artifact;
@@ -2957,6 +2952,9 @@ crash and native exit behavior.
   - `compile` completes source, Build and Product checking once; realizations
     borrow the same checked storage; matching entry/optimization requests also
     share Terminal production and storage, with separate target admissions.
+    Psi owns resolver/typing and generated-source continuation; the product
+    driver and product carriers no longer import stages 02/03. Move source
+    checking and its preparation contracts behind the same Psi facade next.
     Move distinct entry roots, callbacks and the package-manager batch route
     behind whole-program shared checked/Terminal storage and
     retire its per-target typed copies. Remove `compile_checked_reusing_builds`

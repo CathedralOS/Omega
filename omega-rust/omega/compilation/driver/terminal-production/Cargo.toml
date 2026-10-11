@@ -18,4 +18,4 @@ artifacts = { path = "../../../foundation/artifacts" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
 
-psi-terminal-production = { path = "../../../../psi/compilation/terminal-production" }
+psi-compiler = { path = "../../../../psi/compilation/driver" }

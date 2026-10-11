@@ -400,14 +400,13 @@ dependencies = [
  "platform-custody",
  "program-entry-plan",
  "provider-planning",
+ "psi-compiler",
  "representation-planning",
  "runtime-abi",
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
- "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
  "task-plans",
@@ -453,16 +452,15 @@ dependencies = [
  "package-compilation",
  "proof-admission",
  "provider-planning",
+ "psi-compiler",
  "representation-planning",
  "runtime-abi",
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
  "symbols",
  "syntax-trees",
- "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
  "task-plans",
@@ -1583,9 +1581,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "psi-terminal-production"
+name = "psi-compiler"
 version = "0.1.0"
 dependencies = [
+ "build-time-evaluation",
  "checked-trees",
  "checked-trees-to-lowered-psi",
  "diagnostics",
@@ -1593,9 +1592,13 @@ dependencies = [
  "lowered-psi-to-terminal-psi",
  "optimization",
  "source",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
  "terminal-psi",
+ "typed-trees",
 ]
 
 [[package]]
@@ -2192,7 +2195,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "optimization",
- "psi-terminal-production",
+ "psi-compiler",
  "source",
  "symbols",
  "target",

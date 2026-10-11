@@ -77,6 +77,9 @@ The [checked entrance](src/checked/checking.rs) shows the lifecycle:
 [evaluate Build and continue generated source](src/checked/checking/build_continuation.rs),
 [check Product and seal source custody](src/checked/checking/source_checking.rs),
 then [settle each target](src/checked/checking/execution_settlement.rs).
+The Build coordinator calls the [Psi source continuation](../../../psi/compilation/driver/src/source_compilation.rs)
+for resolution, typing and generated-source completion. It owns package admission
+and Build authority, not the resolver/typing fixed points or their paired arenas.
 The product owner retains the complete checked result, its evaluated Build and
 source custody, and owns metadata and production-subject projections. Its shared
 Build records are data contracts consumed by evaluation and product assembly;

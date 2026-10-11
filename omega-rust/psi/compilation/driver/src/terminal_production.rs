@@ -9,7 +9,7 @@ use diagnostics::Diagnostic;
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 
 use crate::custody::{ProducedTerminalArtifact, TerminalProductionCustody};
-use crate::observation::{TerminalProductionObserver, TerminalProductionStage};
+use crate::observation::{PsiCompilationObserver, PsiCompilationStage};
 
 pub use lowered_psi_to_terminal_psi::ProgramEntryTerminalReceiptError;
 use lowered_psi_to_terminal_psi::{prepare_program_entry_receipt, rejoin_program_entry_receipt};
@@ -53,12 +53,12 @@ impl<'a> TerminalProductionRequest<'a> {
     pub fn produce(
         self,
         custody: TerminalProductionCustody<'_>,
-        observer: &mut impl TerminalProductionObserver,
+        observer: &mut impl PsiCompilationObserver,
     ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
         let TerminalProductionCustody { applications } = custody;
         let checked = self.checked;
         let lowered = observer
-            .record_result(TerminalProductionStage::Lowering, || {
+            .record_result(PsiCompilationStage::Lowering, || {
                 lower_machine(
                     self.checked,
                     self.machine,
@@ -76,7 +76,7 @@ impl<'a> TerminalProductionRequest<'a> {
                     return Ok(None);
                 }
                 let selection = observer
-                    .record_result(TerminalProductionStage::MachineSelection, || {
+                    .record_result(PsiCompilationStage::MachineSelection, || {
                         select_terminal_machine(
                             checked,
                             application.entry_machine.unwrap_or(self.machine),
@@ -98,7 +98,7 @@ impl<'a> TerminalProductionRequest<'a> {
             })
             .collect();
         let optimized = observer
-            .record_result(TerminalProductionStage::Optimization, || {
+            .record_result(PsiCompilationStage::Optimization, || {
                 run_psi_optimization(lowered, self.optimization_selections)
             })
             .map_err(TerminalArtifactProductionError::Optimization)?;
@@ -109,7 +109,7 @@ impl<'a> TerminalProductionRequest<'a> {
                 let entry_selection = admission?;
                 match (application.entry_identity, entry_selection) {
                     (Some(source_signature_identity), Some(selection)) => observer
-                        .record_result(TerminalProductionStage::EntryReceipt, || {
+                        .record_result(PsiCompilationStage::EntryReceipt, || {
                             prepare_program_entry_receipt(
                                 checked,
                                 selection,
@@ -127,7 +127,7 @@ impl<'a> TerminalProductionRequest<'a> {
             })
             .collect();
         let artifact = observer
-            .record_result(TerminalProductionStage::Publication, || {
+            .record_result(PsiCompilationStage::Publication, || {
                 lowered_psi_to_terminal_psi::finalize_terminal_artifact(optimized)
             })
             .map_err(TerminalArtifactProductionError::Artifact)?;
