@@ -24,6 +24,11 @@ def main():
     wide_input = (ROOT / 'data/wide_bands.stdin').read_bytes()
     assert hashlib.sha256(wide_input).hexdigest() == wide['input_sha256']
     cases.append((wide, wide_input, (ROOT / 'data/wide_bands.stdout').read_bytes()))
+    protocol = json.loads((ROOT / 'data/protocol_manifest.json').read_text())
+    for case in protocol['cases']:
+        payload = (ROOT / f"data/{case['name']}.stdin").read_bytes()
+        assert hashlib.sha256(payload).hexdigest() == case['input_sha256']
+        cases.append((case, payload, (ROOT / f"data/{case['name']}.stdout").read_bytes()))
     unique_input = (ROOT / 'data/unique.stdin').read_bytes()
     unique_output = (ROOT / 'data/unique.stdout').read_bytes()
     # These protocol/window variants retain an already frozen numerical oracle.

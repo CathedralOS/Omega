@@ -9,7 +9,7 @@ imported.
 
 ## Input
 
-One stdin line, at most 127 bytes including LF:
+One stdin line in the 128-byte destination (up to 128 bytes when LF is the last byte):
 
 ```text
 xmin xmax ymin ymax 3 ax ay lower upper bx by lower upper cx cy lower upper
@@ -18,7 +18,7 @@ xmin xmax ymin ymax 3 ax ay lower upper bx by lower upper cx cy lower upper
 All numbers are signed decimal integers with magnitude at most 20. Search
 windows are closed and ordered; radii are nonnegative and lower <= upper.
 Exactly three observations are required. Space, tab, CR and LF separate fields.
-EOF without LF is accepted. Empty stdin runs the exact (3,4) demonstration.
+EOF without LF is accepted below capacity. At capacity without LF, the provider returns Full without consuming lookahead and the application rejects. Empty stdin runs the exact (3,4) demonstration.
 Malformed input, full buffer, extra/missing fields and invalid bounds print
 `error invalid input` and exit 64. The application processes one record per
 invocation. Trailing records are outside this protocol.
@@ -91,7 +91,7 @@ omega update --resume --project "$sample"
 omega --check --target linux_x86_64 "$sample/main.omg"
 omega --target linux_x86_64 "$sample/main.omg"
 omega run --both "$sample/main.omg" < "$sample/data/unique.stdin"
-python3 "$sample/validate.py" "$sample/build/range_only_localization"
+python3 "$sample/validate.py" "$sample/build/omega-program"
 omega --check --target linux_x86_64 "$sample/intended_invalid/rejected.omg"
 ```
 
