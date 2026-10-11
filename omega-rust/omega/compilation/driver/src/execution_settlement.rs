@@ -29,13 +29,27 @@ pub(crate) fn settle_checked_execution(
     let selected_native_target = selected_target_profile
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
-    let boundary_calling_plan_realizations =
+    let mut boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
             typed,
             selected_native_target,
             &build_config.opaque_representation_selections,
             package_inputs,
         )?;
+    // Provider schemas and provenance commit to the complete calling
+    // application. Close target callback geometry before either captures it;
+    // otherwise nominal placements retain no private materialization and a
+    // later closure would invalidate the already-captured plan commitment.
+    // This consumes the shared source judgment, never another Psi check.
+    if selected_target_profile.is_some() {
+        provider_planning::calling_policy_plans::close_outbound_callback_materializations(
+            typed,
+            &mut boundary_calling_plan_realizations,
+            selected_native_target,
+            &build_config.opaque_representation_selections,
+            package_inputs,
+        )?;
+    }
     let opaque_representation_selections = &build_config.opaque_representation_selections;
     let x86_scalar_fma_provider = build_config
         .settings
@@ -150,4 +164,3 @@ pub(crate) fn settle_product_target(
         independent_components,
     }
 }
-

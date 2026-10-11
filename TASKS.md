@@ -4538,14 +4538,6 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   fixed stack pointer, padded home bounds and declared address-mask clobbers
   through spilling. Complete stack-based caller-area result protocols;
   these remain fenced. Linux/Windows artifact production is not invocation.
-  Restore callback occurrence custody across the source-to-target handoff
-  with **PIPELINE-ARCHITECTURE-ENFORCEMENT**. Public preparation of
-  `callback_owned_overaligned_record` rejects at
-  `review-evidence/src/capture/calling/application.rs` with detached calling
-  signature/context/plan/target; native production of that witness and
-  `callback_mixed_formal_entry` rejects at stage 00's `registrar_imports.rs`
-  for a missing private materialization. Keep both checks exact; accepted
-  review and genuine matching-host invocation must reach their authored exits.
   Preserve `pass/calls/callback_future_registration_cycle`:
   genuine macOS Arm64 `pthread_key_create` registers a destructor whose body
   can register itself; native `_exit` must exit 0 without invoking it.
