@@ -1,78 +1,69 @@
-NF01 CHECKPOINT — incomplete consumer execution acceptance
+NF01 current execution checkpoint — mutable/control/corpus qualification pending
 
-Base (fetched origin/main): 03e477fa424a9e6a2db7f49e17bf896ab3f76b48
-Worktree: /workspace/Omega/.codex/worktrees/nf01
-Branch: library/nf01
-Library checked revision: d22593b7b6bc3005d156fe8d3fdbb56cbb3a49ef
-Library source SHA256: be1003d5c143f775d943c4beac671ca2206cad62502fe323bd787fe65c4db803
-Final invalid source SHA256: ca85fc00490130fefb797ab4b6c19902f8f86ec2f7dadce5d1c6c55a1606ecde
-Final invalid check ran at d22593b7b6 plus the exact invalid source change
-included in this candidate. No library source changed after its passing check.
+Integration base: 30ec6a20142f4e79e236c20912455939df40ea96.
+Candidate source: 55430a67b24f2899db25f12c8129f35ac6fc4e5a.
+Worktree: /workspace/Omega/.codex/worktrees/nf01; branch library/w100-connected.
+Readonly executions began with the exact repair source subsequently committed
+in this candidate. Library and frozen expected results did not change.
+Fetched later main: 95344cda99e5495abf785d38e7b78289ab02cbed; rebase and
+current-main requalification remain required before normal queued publication.
 
-Executor: 5 visible Intel Xeon Platinum 8573C logical CPUs; cgroup cpu.max
-400000 100000 => effective quota 4 CPUs. System RAM 18882699264 bytes;
-cgroup memory.max 17179869184 bytes. Startup available RAM 18132148224 bytes.
-Startup available disk 32030916608 bytes, later 28552294400 bytes.
-One Rust build and one Omega invocation at most concurrently; optimized build
-was stopped on the parent's checkpoint request. No process remains running.
-Claims status timed out (exit 3); no successful claim registration.
+Frozen EXPECTED.txt SHA256:
+8e5fb1bb29b0c46ad757f72d72c9ebfb041e79403b2af19c2c226f8e9a4fcf38.
+Readonly source SHA256:
+1a6654e08fcf2bab9812505d9531b0964f26ffdf3da35778d743b9e2f44aaa26.
+Library source SHA256:
+7ad5f10ae1c80a233655df2037b095bdb13c3ad59eeba7bf44b1e2c6cae5b848.
 
-Build: PASS, exit 0, 2m06s, Rust compiler source base above.
-PATH=/workspace/.cargo/bin:$PATH CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup XDG_CACHE_HOME=/workspace/.cache mbx build -p omega
-No Rust compiler implementation was modified.
-Session-only CARGO_PROFILE_DEV_OPT_LEVEL=1 rebuild was stopped after ~3m;
-it is NOT a successful build and was never used for validation.
+Executor measured: effective CPU quota 4, 5 visible Intel Xeon Platinum8573C
+logical CPUs; host RAM18882699264 bytes; cgroup memory limit17179869184 bytes.
+Latest available disk20953145344 bytes; measured cgroup memory12450729984 bytes.
+No filesystem ownership or guard change. At most one Rust build and one Omega
+execution concurrently; OMEGA_CORPUS_JOBS=1 for corpus execution.
 
-Check: PASS, exit 0, library at d22593b7b6.
-XDG_CACHE_HOME=/workspace/.cache timeout 120s target/debug/omega --check source/library/numerics/main.omg
-Actual stdout:
-compiled 17 source file(s) from /workspace/Omega/.codex/worktrees/nf01/source/library/numerics/main.omg; wrote_output=false
+All commands below run at the worktree root with
+XDG_CACHE_HOME=/workspace/.cache; PATH=/workspace/.cargo/bin:$PATH,
+CARGO_HOME=/workspace/.cargo and RUSTUP_HOME=/workspace/.rustup for Rust.
+Omega invocation used the supported approved execution context for cache custody.
 
+Rust build: PASS (exit0,10.02s)
+CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega
+Affected crate check: PASS (exit0,20.28s)
+CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx check -p terminal-semantics -p target-operations-to-selected-instructions
+Product check: PASS (exit0,1m10s)
+CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx check -p omega
+Formatting: PASS
+cargo fmt -p terminal-semantics -p target-operations-to-selected-instructions -- --check
+Strict Clippy: FAIL exit101; 27 terminal-semantics /29 target-selection diagnostics.
+Commands and complete diagnostics are under evidence/w100-empty-anchor-*clippy.log.txt.
+Every cited source line exists in base30ec6a20; no independently executed base
+Clippy pass or current strict-Clippy pass is claimed.
 
-Intended rejection: OBSERVED, exit 1, final descriptor-based control.
-XDG_CACHE_HOME=/workspace/.cache timeout 120s target/debug/omega --check samples/cli/scientific/w100/nf01_shape_layout_contract/invalid_control/main.omg
-Actual diagnostic:
-cannot check prepared project: checked compilation failed for package `nf01_invalid_control` with 1 diagnostic(s)
-  error: cannot prove requires contract for call read_checked from last_of_invalid_layout: offset < backing.len (needs fact `index < backing.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+Readonly preparation: PASS exit0,3 source packages,0 changed source entries.
+timeout 600s target/debug/omega update --project samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer --target linux_x86_64
+Readonly check: PASS exit0,compiled26 source files.
+timeout 120s target/debug/omega --check samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg
+Readonly native: PASS, process exit41; native exit41, expected41.
+timeout 300s target/debug/omega run samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg
+Readonly Terminal: PASS, process exit41; native exit41; interp exit:41, expected41.
+timeout 300s target/debug/omega run --both samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg < /dev/null
+The consumer checks every authored coordinate, transpose, checked helper result,
+whole-layout overflow rejection, and empty-slice handling. These observations
+are compared to the frozen mathematical oracle, not just engine agreement.
 
-The control's arrival contracts establish backing length 6, shape 2x3,
-origin 1 and strides 1,2; coordinate (1,2) computes 6, outside 0..5.
-This is a checked-call contract rejection. Runtime Invalid/false handling is
-separate in the two valid consumer projects and remains unexecuted.
-The prior direct literal-6 control at d22593b7b6 rejected with:
-cannot check prepared project: checked compilation failed for package `nf01_invalid_control` with 1 diagnostic(s)
-  error: machine `main` state `entry` value call to `read_checked` violates required fact `index < backing.len`: the instantiated fact is structurally false
+Minimal empty literal backing regression: native0 /Terminal0, frozen expected0.
+Full source, baseline wrong-concrete-type rejection, subsequent missing physical
+home diagnostic, bounded typed-zero-extent/address-anchor fix, and successful
+runs are preserved in evidence/empty_slice_repair.txt and sibling logs.
+Wrong element control rejects empty i32 backing passed to &[u64], exit1.
 
-
-Consumer check: NOT PASSED. Prior source errors were repaired; the final
-consumer projects have not completed check. No native/Terminal claims.
-Native: NOT RUN, expected exits readonly=41, mutable=73.
-Terminal: NOT RUN, expected exits readonly=41, mutable=73.
-Exact remaining commands (each sequentially):
-XDG_CACHE_HOME=/workspace/.cache target/debug/omega update --project samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer --target linux_x86_64
-XDG_CACHE_HOME=/workspace/.cache target/debug/omega --check samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg
-XDG_CACHE_HOME=/workspace/.cache target/debug/omega run samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg
-XDG_CACHE_HOME=/workspace/.cache target/debug/omega run --both samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg < /dev/null
-Repeat with mutable_consumer. Inspect and accept the generated provider review
-before resume; no provider acceptance was published by this run.
-
-Provider preparation blocker: the exact readonly update above was terminated
-at ten minutes (exit 143) without final diagnostics. A compiled-review record
-for numerics was written at 23:19 UTC, length 52869 bytes, file
-7040c6fbf0dde014cef53289175495cd0355f1c23a26d3db6ede0ff4b65835cd.rec.
-No record for std and no completed lock/review were produced. The source
-library check independently passed. This stall is not attributed to a specific
-compiler defect without baseline reproduction.
-
-Sandbox custody blocker: default execution sees / owned by nobody and rejects:
-cache custody ancestry is owned by an unrelated user.
-require_escalated execution was approved and reached source validation with
-real filesystem ownership. No ownership mutation or custody bypass occurred.
-Other workers can request the same execution context; it is not an automatic
-permission for system changes. XDG_CACHE_HOME avoids the read-only home cache.
-
-Mathematical evidence (before native execution): EXPECTED.txt freezes exact
-matrix element and padding results. Independent Python enumeration verified
-GCD injectivity vs distinct enumerated offsets for 2401 shape/stride cases;
-division-based offset capacity vs direct integer arithmetic for 609375
-coordinates. These are mathematical checks, not Omega execution results.
+Mutable consumer: preparation REJECTED exit1, ordered statement call lowering
+at the negated mutable try_write result; native/Terminal not executed.
+Exact command: timeout600s target/debug/omega update --project samples/cli/scientific/w100/nf01_shape_layout_contract/mutable_consumer --target linux_x86_64
+Full source and diagnostics retained under evidence/mutable_consumer_ordered_call_source.omg.txt and w100-mutable-update.log.txt.
+Descriptor-based intended rejection: not yet rerun on repaired compiler.
+Focused corpus/native source-reader gates: pending.
+Independent reviewer approved bounds/injectivity math, scalar field proof
+repair fences and empty-array physical custody reasoning at source55430a67b2;
+execution acceptance remains separate from review. Prior initial checkpoint is
+preserved as evidence/EVIDENCE_original_checkpoint.txt and is historical.

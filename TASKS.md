@@ -85,7 +85,10 @@ Workflow is in [AGENTS.md](AGENTS.md), live assignments in the
   interfaces without active-worker prerequisites. First acceptance is a real
   descriptor-backed consumer through check, native and Terminal execution,
   with a separate intended-invalid source. Current frontier: qualify the
-  independent mutable consumer and descriptor-based static out-of-bounds control,
+  independent mutable consumer, whose negated mutable try_write call currently
+  rejects at ordered statement call lowering. Reduce on current main and repair
+  shared sequencing while preserving the authored source. Qualify the
+  descriptor-based static out-of-bounds control,
   then run the focused proof and empty-slice corpus/native source-reader gates.
   Continue on current main with the supported execution context;
   preserve unrelated work and land coherent qualified chunks through the queue.
