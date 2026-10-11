@@ -5430,3 +5430,5 @@ fail/termination/computed_result_rank_nondecreasing rejected 451ms expected @649
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 pass/calls/callback_owned_indirect_float_record checked 80190ms check-target:macos_arm64 @2afb09bae86c
 pass/calls/callback_owned_indirect_record checked 5435ms check-target:macos_arm64 @2afb09bae86c
+pass/collections/local_byte_array_input_state_loan_exit checked 5823ms check-target:linux_x86_64 @e73475f58248+wt
+pass/control_flow/runtime_wrapping_division_reused_inputs_exit checked 5142ms check-target:linux_x86_64 @e73475f58248+wt
