@@ -268,6 +268,26 @@ fn common_candidates(
             ),
     );
     if common.is_empty() {
+        // Each phase can have a legal home while one unsplit lifetime cannot:
+        // for example, a value survives a call and later has a fixed use.
+        // Invite the existing validated recovery to split or spill that range;
+        // no home is admitted until its rebuilt legality and assignment pass.
+        // Inspect every point independently: intersection stops at its first
+        // empty result, and an impossible individual phase must still refuse.
+        if register
+            .points
+            .iter()
+            .all(|point| !point.candidates.is_empty())
+            && register
+                .early_clobber_points
+                .iter()
+                .all(|point| !point.candidates.is_empty())
+        {
+            return Err(RegisterHomeError::NoCompatibleHome {
+                function,
+                register: register.virtual_register.0,
+            });
+        }
         return Err(RegisterHomeError::NoCommonCandidate {
             function,
             register: register.virtual_register.0,

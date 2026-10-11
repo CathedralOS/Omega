@@ -3,7 +3,7 @@
   "branch": "new061",
   "worktree": "/workspace/Omega/.codex/worktrees/new061",
   "compiler": "/workspace/cloud-setup/cache/mbx/targets/v1/2f988c84ddfb3f56428d7bb5ac5c281a097320e8e87200795d60a7b7bd41b530/debug/omega",
-  "compiler_sha256": "d5a9bee142eb8b21bd1ce4dce25fd362157a1e37c53d91c345ed2c307f083739",
+  "compiler_sha256": "b42b4defadd01b4e0cb75f235d8d41fcb570b395696c23d34fce74a2cc172e61",
   "rust_build": [
     "mbx",
     "build",
@@ -13,7 +13,7 @@
     "test"
   ],
   "rust_build_exit": 0,
-  "rust_build_duration": "3m42s",
+  "rust_build_duration": "20.02s",
   "cargo_build_jobs": 4,
   "rust_profile": "test optimized opt-level=1",
   "mbx_target_identity": "2f988c84ddfb3f56428d7bb5ac5c281a097320e8e87200795d60a7b7bd41b530",
@@ -29,5 +29,9 @@
   "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
   "library_root": "/workspace/Omega/.codex/worktrees/new061/source/library",
   "default_context_check_exit": 1,
-  "default_context_failure": "git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user"
+  "default_context_failure": "git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user",
+  "compiler_repairs": [
+    "rooted static state loans with captured ancestry",
+    "individually legal phase domains enter validated lifetime recovery"
+  ]
 }
