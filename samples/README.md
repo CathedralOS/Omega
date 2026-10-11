@@ -1,7 +1,15 @@
 # Omega Samples
 
 Samples are miniature Omega projects that pressure-test the language from a
-user-code point of view.
+user-code point of view. Each one is a program that runs: its `build.omg`
+binds a target's program entry, and its `main.omg` header documents the result
+with `// Expected exit: <n>` or `// Expected output contains: <text>`, so
+`tools/sample_native_gate.py` can hold it to that result. A check-only probe of
+one language behavior is a fixture under `tests/omega/{pass,fail}/<behavior>/`,
+not a sample; the existing `cli/probes/` projects predate this rule, and new
+probes go to the fixture tree. When the
+boards run dry, new samples at the language frontier are how the next real work
+is found.
 
 They are allowed to be rough while the language is moving, but each sample
 should still have a clear project shape:

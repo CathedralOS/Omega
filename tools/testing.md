@@ -484,6 +484,22 @@ It writes nothing into the working tree and needs no native toolchain, so it
 is the sweep to run before reporting sample coverage. About twelve minutes
 on eight workers for all 148 projects.
 
+`tools/sample_native_gate.py` runs each sample's `omega update`, then builds
+and runs it. Give it an optimized compiler: package review of a std-using
+sample costs about 160 s once per compiler build and about 8 s after the
+compiled-review cache holds std, against minutes per sample with the debug
+binary. A sample whose `build.omg` binds no `ProgramEntry` is a check-only
+probe; the gate checks it and reports it apart from the native score.
+
+```bash
+CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=../tgt-opt mbx build -p omega
+python3 tools/sample_native_gate.py --cli "$(realpath ../tgt-opt/debug/omega*)" \
+  --target windows_x86_64 --filter cli/ --jobs 8 --timeout 900 < /dev/null
+```
+
+Close stdin (`< /dev/null`) on any `omega` or gate command run in the
+background: `omega run` forwards stdin and otherwise waits at zero CPU.
+
 A sample is the product's own customer, so a cluster names a capability the
 language owes rather than a fixture to repair. Read the
 `provider absent on this host` cluster before treating a refusal as

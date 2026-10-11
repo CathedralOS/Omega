@@ -26,7 +26,11 @@ not a reason to move elsewhere. Without prior continuity, choose from
 `TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`; honor a named board.
 Choose a general capability that closes release requirements; real programs
 and relevant invalid controls demonstrate it. Squalr and Cathedral are customers,
-not source shapes to special-case or rewrite around gaps. After a completed
+not source shapes to special-case or rewrite around gaps. Prefer, in order: a
+regression `tools/native_watch.py` reports on main, a group of failing samples
+from `tools/sample_native_gate.py` with one demonstrated root cause, then a board
+item. When none is real, write new samples at the frontier and own what they
+reveal; do not split an item to stay busy. After a completed
 round or explicit handoff, measured iteration performance or test-environment
 friction may be the next owned outcome. Name its workflow, baseline and adequate
 target first; a minor incidental slowdown is not permission to abandon a feature.
@@ -122,6 +126,13 @@ behind, and a stale base rereads landed work and lengthens the landing rebase.
 A continuation retains its existing worktree base. Keep its name short; if a
 generated Windows path fails, measure the actual path before relocating work or
 changing compiler architecture.
+
+Keep the loop fast. Run samples and the corpus with an optimized compiler in its
+own target directory (`CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=<dir>
+mbx build -p omega`), and close stdin (`< /dev/null`) on every `omega` or gate
+command you run in the background: `omega run` forwards stdin and otherwise
+waits forever at zero CPU. A step that still takes minutes is a finding to
+measure and remove, not a wait.
 
 Read the existing module entrance and decision-site explanations before tracing
 the shared implementation and callers, preserving the Psi/Omega firewall

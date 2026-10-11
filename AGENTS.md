@@ -28,7 +28,9 @@ result. Squalr and Cathedral expose general compiler gaps, not special cases
 to recognize or applications to rewrite around missing language support.
 Iteration performance and the test environment are also first-class outcomes
 when a measured workflow obstructs development. They need a concrete acceptance
-and stopping point, not an open-ended optimization or testing campaign.
+and stopping point, not an open-ended optimization or testing campaign. A step
+that makes the sample-to-native loop slow is a workflow defect: measure where
+the time goes and remove the cause rather than waiting on it or working around it.
 
 - `omega-rust/` — the Rust reference producer: the working development
   compiler and differential comparator. Not canonical, not a language rung.
@@ -148,8 +150,10 @@ The rules that touch every edit:
   replaces them.
 - Language fixtures name the compiler behavior they pin
   (`tests/omega/{pass,fail,run}/<behavior>/`), not the sample that exposed
-  it; `samples/` are language pressure tests; a Rust test of one crate stays
-  beside that crate.
+  it; `samples/` are language pressure tests: runnable programs whose header
+  documents an `Expected exit` or `Expected output contains` oracle. A
+  check-only probe that binds no program entry pins one behavior and belongs
+  in the fixture tree. A Rust test of one crate stays beside that crate.
 - Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   board work, `rust-systems-programmer` for Rust implementation and review,
@@ -187,6 +191,20 @@ are byte-sensitive.
   its frontier rather than spawning a task. Split only independently assignable
   work; the original DRI still owns integration. Shared blockers are recorded
   once and linked from affected outcomes. Do not mine work to occupy agents.
+  Real work comes from programs: when no grouped outcome is ready, write new
+  samples at the language frontier and let their failures define the next
+  outcomes. Never split an existing item to keep an agent busy; narrow parallel
+  slices build duplicate routes for the same operation.
+- Overlap is expected. A Git conflict between outcomes is a design signal:
+  two owners are changing one decision point, so reconcile into one
+  implementation and record that shared owner on the board. Conflicts only
+  show textual overlap; semantic breakage lands without one, which is why
+  main must stay green on every host (below).
+- Main stays green on every supported host. No machine runs all three OSes,
+  so each host with a native golden runs `python tools/native_watch.py` on a
+  schedule ([testing](tools/testing.md#corpus-outcome-gate)). A regression it
+  reports is bisected to its first bad commit and recorded on the owning item
+  the same day; the owner repairs it before landing more capability work.
 - After an outcome or an explicit handoff, an agent may claim a bounded
   iteration-performance or test-environment outcome based on an experienced
   obstruction. Record the workflow and adequate target before repair; return
@@ -307,7 +325,9 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   linear — rebase onto `main` and fast-forward, never merge
   (`git config pull.rebase true`). Once a publish completes, remove the
   worktree and delete the candidate branch — a landed lane is dead
-  bookkeeping, not a record.
+  bookkeeping, not a record. Land only finished work: every commit builds on
+  its own, because main is bisected one commit at a time, and no commit says
+  its own validation or review is still pending. `landing.py` refuses both.
 - Before editing shared paths, check `python tools/claims.py status` for
   live session assignments and attempt to claim the work ([tools/claims](tools/claims.md)).
   Claims are advisory, not permission to develop. If coordination is unavailable
