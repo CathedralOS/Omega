@@ -100,6 +100,8 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn enter_lexical_scope(&mut self, _: SymbolHandle) {}
     fn leave_lexical_scope(&mut self) {}
     fn authored_selection(&mut self, _: crate::AuthoredDeclarationSelectionOccurrenceId) {}
+    /// Source scope is declaration custody, not permission to execute its body.
+    fn declaration_description_dependency(&mut self, _: SymbolHandle) {}
     /// Exact member body retained for a materialized target layout, distinct
     /// from an authored use of that member in portable source.
     fn layout_realization_dependency(&mut self, symbol: SymbolHandle) {
@@ -165,6 +167,9 @@ impl Extend<SymbolHandle> for ReferenceCollector {
     }
 }
 impl TypedReferences for ReferenceCollector {
+    fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+        self.descriptor_symbols.insert(symbol);
+    }
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
         if !self.classify_static_arguments.is_some_and(|classify| {
             classify(program, call) == StaticArgumentRole::DeclarationDescription
@@ -530,6 +535,36 @@ fn visit_symbol(retained: &mut impl TypedReferences, symbol: SymbolHandle) {
     retained.extend([symbol]);
 }
 
+/// A closed requirement is a generated root, not a child of its source trait.
+/// Its receipt supplies the original declaration and complete actuals; those
+/// remain dependencies even after executable retargeting erased static syntax.
+/// The application's supplying scope is descriptive custody only.
+fn visit_callable_symbol(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    symbol: SymbolHandle,
+) {
+    visit_symbol(retained, symbol);
+    let Some(application) = program.closed_requirement_application(symbol) else {
+        return;
+    };
+    visit_symbol(retained, application.declaring_trait);
+    visit_symbol(retained, application.template);
+    for reference in application
+        .trait_arguments
+        .iter()
+        .chain(application.local_arguments)
+    {
+        visit_type_reference(program, retained, *reference);
+    }
+    let source = program
+        .expression_table
+        .static_machine_application(application.application);
+    visit_symbol(retained, source.binding_declaration);
+    retained.declaration_description_dependency(source.lexical_owner);
+    visit_static_machine_bindings(program, retained, application.application);
+}
+
 /// Substitution removes a constant's Name node, not its declaration dependency.
 /// Every consumer of an owned occurrence still needs the declaration for value
 /// origins and independent initializer replay. Other retained targets are not
@@ -556,7 +591,7 @@ pub fn visit_static_argument(
     retained: &mut impl TypedReferences,
     argument: &StaticMachineArgument,
 ) {
-    visit_symbol(retained, argument.symbol);
+    visit_callable_symbol(program, retained, argument.symbol);
     visit_type_reference(program, retained, argument.type_reference);
     if let Some(application) = &argument.application {
         for nested in application.arguments.iter() {
@@ -1237,7 +1272,7 @@ fn visit_call_expression(
     expression: ExpressionHandle,
     call: &TableCallExpression,
 ) {
-    visit_symbol(retained, call.target_symbol);
+    visit_callable_symbol(program, retained, call.target_symbol);
     // Named operators can retain their complete call path before an exact
     // target is bound. Their declarations are dependencies even in contracts,
     // which have no executable value-origin row. Keep the canonical candidate
@@ -1317,7 +1352,7 @@ fn visit_statement(
             if let Some(occurrence) = call.authored_call_selection {
                 visit_authored_selection(program, retained, occurrence);
             }
-            visit_symbol(retained, call.target_symbol);
+            visit_callable_symbol(program, retained, call.target_symbol);
             for operator in crate::operator::named_statement_call_candidates(program, call) {
                 visit_symbol(retained, operator.symbol);
             }

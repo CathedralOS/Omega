@@ -364,6 +364,7 @@ pub fn retain_machine_roster(
 /// Unknown/orphan owners are deliberately retained for ordinary validation:
 /// absence is not authorization to discard malformed evidence.
 fn apply_declaration_sidecar_pruning(program: &mut TypedTrees, removed: &HashSet<SymbolHandle>) {
+    program.remove_trait_declaration_applications(|declaration| removed.contains(&declaration));
     let symbols = &program.symbols;
     let owner_removed = |mut symbol: SymbolHandle| {
         while symbol.is_valid() {

@@ -20,6 +20,35 @@ pub use requirement_instances::ClosedRequirementApplication;
 use crate::{TypedTrees, data, signature, types};
 use symbols::SymbolHandle;
 
+impl TypedTrees {
+    /// Project declaration-owned application rows with the declaration roster.
+    /// Backing arenas are not checking roots: a private evaluation projection
+    /// cannot retain an instance obligation after removing its known source
+    /// trait. Unknown owners remain obligations, and the original input keeps
+    /// its complete rows. Occurrence-owned machine selections are separate.
+    pub fn remove_trait_declaration_applications(
+        &mut self,
+        removed: impl Fn(SymbolHandle) -> bool,
+    ) {
+        let applications = self
+            .applied_callable_signatures
+            .iter()
+            .filter_map(|(handle, application)| match application.owner {
+                AppliedCallableOwner::Trait { declaration, .. }
+                | AppliedCallableOwner::RequirementInstance { declaration, .. }
+                    if removed(declaration) =>
+                {
+                    Some(handle)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for application in applications {
+            self.applied_callable_signatures.free(application);
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct AppliedCallableSignature {
     owner: AppliedCallableOwner,
