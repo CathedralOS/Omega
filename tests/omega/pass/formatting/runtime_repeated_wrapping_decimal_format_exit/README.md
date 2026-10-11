@@ -1,0 +1,1 @@
+Repeated wrapping divisions/remainders remain live across Console writes. Native and Terminal must print exactly five ASCII bytes, 1234 followed by one space, and exit zero. Oracle fixed before execution.

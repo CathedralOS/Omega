@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_guarded_local_byte_loan_exit");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

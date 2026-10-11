@@ -142,3 +142,9 @@ pass/text/runtime_decimal_scalar_across_output_exit built 20221ms exit:70 stdout
 pass/arithmetic/runtime_pinned_divide_input_across_call_exit built 13484ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d140c8f54f14+wt
 pass/float/owned_local_computed_float_store_exit built 63210ms exit:70 interpreter-exit:70 interpreter:agrees @6d6a4e9b3408
 run/calls/table_report_call_survival built 8660ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @b4606c96d11a
+pass/borrows/runtime_guarded_local_byte_loan_exit built 14468ms exit:0 interpreter-exit:0 interpreter:agrees @48c94ec2ea9c+wt
+pass/borrows/runtime_mixed_static_dynamic_loan_header_exit built 13875ms exit:0 interpreter-exit:0 interpreter:agrees @48c94ec2ea9c+wt
+pass/formatting/runtime_repeated_wrapping_decimal_format_exit built 11786ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @48c94ec2ea9c+wt
+pass/borrows/runtime_reference_array_pressure_exit built 10539ms exit:70 interpreter-exit:70 interpreter:agrees @48c94ec2ea9c+wt
+pass/arithmetic/runtime_pressure_trapping_add_exit built 13982ms exit:70 interpreter-exit:70 interpreter:agrees @48c94ec2ea9c+wt
+pass/operators/division_value_entry_selection built 13417ms exit:70 interpreter-exit:70 interpreter:agrees @48c94ec2ea9c+wt
