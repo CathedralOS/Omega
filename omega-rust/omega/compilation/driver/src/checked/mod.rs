@@ -30,6 +30,7 @@ pub(crate) use checking::{
     SettledCompletedSource, check_settled_source, prepare_checked_source, prepare_product_source,
     settle_completed_source,
 };
+pub(crate) use checking::execution_settlement::unify_settled_execution_views;
 pub use optimization_core::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,
 };

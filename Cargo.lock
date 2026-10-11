@@ -424,6 +424,7 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "artifacts",
  "backend-plan",
  "boundary-applications",

@@ -4,10 +4,13 @@
 //! Settlement is split from checking: [`settle_initial_execution`] records one
 //! target's initial source-dependent selection — calling plans, provider
 //! settlement, synchronous invocations and pending constant evaluation — as
-//! data over the shared typed product. [`check_selected_execution`] then binds
-//! that record to the language judgment. The driver settles every target
-//! before checking any, so per-target selection output is recorded provenance
-//! rather than interleaved mutation of the input the next target reuses.
+//! data over the shared typed product. [`unify_settled_execution_views`] then
+//! merges the settled views across targets — declaration-scoped completions
+//! union, converged views share one storage — and
+//! [`check_selected_execution`] binds that record to the language judgment.
+//! The driver settles every target before checking any, so per-target
+//! selection output is recorded provenance rather than interleaved mutation
+//! of the input the next target reuses.
 
 use artifacts::compile_timings::CompileTimings;
 use compilation_products::{CheckedCompilationInputs, PreparedProductSource};
@@ -19,10 +22,12 @@ use selected_dispatch::{
 };
 
 /// One target's initial source-dependent selection over the shared typed
-/// product. Settlement's typed mutations travel inside this record's private
-/// typed view; equal views across targets share one language judgment.
+/// product. Settlement's typed mutations travel inside this record's settled
+/// view; [`unify_settled_execution_views`] lets targets whose settlements
+/// converged share the same storage, and equal views share one language
+/// judgment.
 pub(crate) struct InitialExecutionSelection {
-    typed: typed_trees::TypedTrees,
+    typed: std::sync::Arc<typed_trees::TypedTrees>,
     computed_build_config: std::sync::Arc<compilation_products::ComputedBuildConfig>,
     admission: compilation_products::BuildAdmission,
     checked_provider_selection: provider_planning::CheckedProviderSelection,
@@ -138,13 +143,66 @@ pub(crate) fn settle_initial_execution(
         .evaluate_pending(&mut typed, pending_pre_checks)?;
     }
     Ok(InitialExecutionSelection {
-        typed,
+        typed: std::sync::Arc::new(typed),
         computed_build_config,
         admission,
         checked_provider_selection,
         x86_scalar_fma_provider,
         selected_build_machine_symbol,
     })
+}
+
+/// Unify the settled views across targets before any checking runs.
+///
+/// A boundary completion is a fact of the requirement declaration — the
+/// provider that selected the external row was only the discovery channel —
+/// so the view every target checks carries the union of every settle's
+/// discovered declarations. Views whose settlements then converged share one
+/// storage. Pending folds already landed inside each view: targets whose
+/// selected evaluations disagree keep their own view, while targets that
+/// folded to the same program converge.
+pub(crate) fn unify_settled_execution_views<'selection>(
+    selections: impl IntoIterator<Item = &'selection mut InitialExecutionSelection>,
+) {
+    let mut selections: Vec<&mut InitialExecutionSelection> =
+        selections.into_iter().collect();
+    if selections.len() < 2 {
+        return;
+    }
+    // A requirement's completion declaration is deterministic in the shared
+    // program: the same requirement can only produce the same declaration, so
+    // the first view that discovered it speaks for the union.
+    let mut union: Vec<typed_trees::BoundaryCompletionDeclaration> = Vec::new();
+    for selection in &selections {
+        for (_, declaration) in selection.typed.boundary_completion_declarations.iter() {
+            if !union
+                .iter()
+                .any(|declared| declared.requirement == declaration.requirement)
+            {
+                union.push(declaration.clone());
+            }
+        }
+    }
+    if !union.is_empty() {
+        let mut declarations = arena::Arena::default();
+        declarations.insert_many(union);
+        for selection in &mut selections {
+            let typed = std::sync::Arc::make_mut(&mut selection.typed);
+            if typed.boundary_completion_declarations != declarations {
+                typed.boundary_completion_declarations = declarations.clone();
+            }
+        }
+    }
+    for index in 0..selections.len() {
+        for next in index + 1..selections.len() {
+            if !std::sync::Arc::ptr_eq(&selections[index].typed, &selections[next].typed)
+                && *selections[index].typed == *selections[next].typed
+            {
+                let shared = selections[index].typed.clone();
+                selections[next].typed = shared;
+            }
+        }
+    }
 }
 
 /// Check one settled selection against the shared typed view it carries, then
@@ -234,9 +292,15 @@ pub(crate) fn check_selected_execution(
                     typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, retain)
                 }
                 None => {
-                    let retained_input =
-                        retain.then(|| (std::sync::Arc::new(typed.clone()), admission));
-                    typed_trees_to_typed_trees::prepare_typed_trees(typed, &preparation_request)
+                    // The retained judgment's input is the settled view
+                    // itself: an Arc clone keeps it beside the admission
+                    // snapshot instead of deep-cloning the whole program.
+                    let retained_input = retain.then(|| (typed.clone(), admission));
+                    typed_trees_to_typed_trees::prepare_typed_trees(
+                        std::sync::Arc::try_unwrap(typed)
+                            .unwrap_or_else(|shared| (*shared).clone()),
+                        &preparation_request,
+                    )
                         .and_then(|(typed, preparation)| {
                             typed_trees_to_checked_trees::lower_typed_trees_reusing(
                                 typed,

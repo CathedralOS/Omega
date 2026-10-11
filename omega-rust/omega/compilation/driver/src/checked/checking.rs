@@ -436,6 +436,16 @@ pub(crate) struct SettledCompletedSource {
     independent_components: IndependentComponentDiscovery,
 }
 
+impl SettledCompletedSource {
+    /// A successfully settled selection's view, for the driver's cross-target
+    /// unification pass; a failed settlement carries no view to unify.
+    pub(crate) fn selection_mut(
+        &mut self,
+    ) -> Option<&mut execution_settlement::InitialExecutionSelection> {
+        self.selection.as_mut().ok()
+    }
+}
+
 /// Settle one target's initial source-dependent selection against the shared
 /// typed product. Seal inputs move beside the selection so a failed settle
 /// still attributes its diagnostics the same way.

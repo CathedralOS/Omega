@@ -94,6 +94,19 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
             });
             selections.push(settled);
         }
+        // A boundary completion is a fact of the requirement it completes —
+        // whichever target's selection discovered the external row — so the
+        // settled views unify before checking: declaration-scoped facts
+        // union, and converged views share one storage. Targets whose
+        // pending folds diverged still check their own program.
+        crate::checked::unify_settled_execution_views(
+            selections.iter_mut().filter_map(|settled| {
+                settled
+                    .as_mut()
+                    .ok()
+                    .and_then(SettledCompletedSource::selection_mut)
+            }),
+        );
         // Psi already checks every target-scoped body in one compilation, so a
         // settled typed program that survives provider settlement unchanged
         // lets the next target take the same language judgment instead of
