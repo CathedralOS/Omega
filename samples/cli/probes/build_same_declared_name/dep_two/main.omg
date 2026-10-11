@@ -1,0 +1,3 @@
+pub machine other() -> i32 {
+    9
+}
