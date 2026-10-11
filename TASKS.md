@@ -4390,12 +4390,17 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `omega-rust/omega/compilation/backend/machine-emission/src/private_callback.rs`,
   and selected-call ABI transport.
 
-  `pass/calls/callback_private_materialization` currently reaches native
-  provider closure review but has no selected `WindowRegistrar::register`
-  provider (macOS Arm64, checked compile). Supply a genuine host provider;
-  the scalar control `pass/capabilities/callback_direct_install_compile`
-  uses a nonexistent import and is not execution acceptance. Preserve the
-  exact body-declaration, registrar and caller-scoped function-identity joins.
+  `pending/calls/private_callback_call_closure` supplies a genuine macOS Arm64
+  `pthread_once` provider, two calls sharing one control, and a callback that
+  calls an ordinary helper and Console. After public package review,
+  `omega run tests/omega/pending/calls/private_callback_call_closure/main.omg`
+  rejects at callback target lowering with `MissingBoundarySettlement`.
+  Derive the callback artifact's own provider/import closure from the selected
+  plans; its Terminal boundary and machine identities are not the enclosing
+  program's numeric identities. Preserve the exact body-declaration, registrar
+  and caller-scoped function-identity joins. The scalar control
+  `pass/capabilities/callback_direct_install_compile` uses a nonexistent import
+  and is not execution acceptance.
 
   The private channel still requires one function and refuses foreign-call
   and image-address custody. Carry the ordinary function/relocation closure

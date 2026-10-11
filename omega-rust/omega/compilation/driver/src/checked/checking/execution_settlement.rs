@@ -40,13 +40,27 @@ pub(crate) fn check_selected_execution(
     let selected_native_target = selected_target_profile
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
-    let boundary_calling_plan_realizations =
+    let mut boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
             &typed,
             selected_native_target,
             &build_config.opaque_representation_selections,
             package_inputs,
         )?;
+    // Provider schemas and selection provenance commit to the complete calling
+    // application. Close its native callback geometry before those consumers
+    // capture it, rather than changing their predecessor after Psi checking.
+    // Layout and policy evaluation consume typed structure; checked callback
+    // authority is still bound only after the language judgment below.
+    if let Some(profile) = selected_target_profile {
+        provider_planning::calling_policy_plans::close_outbound_callback_materializations(
+            &typed,
+            &mut boundary_calling_plan_realizations,
+            profile.native_target(),
+            &build_config.opaque_representation_selections,
+            package_inputs,
+        )?;
+    }
     let opaque_representation_selections = &build_config.opaque_representation_selections;
     let x86_scalar_fma_provider = build_config
         .settings
@@ -59,7 +73,7 @@ pub(crate) fn check_selected_execution(
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
     let provider_planning::CheckedProviderSelection {
-        settlement: mut providers,
+        settlement: providers,
         selected_provider_plan_facts,
         selected_provider_provenance,
     } = provider_planning::settle_checked_providers(
@@ -72,7 +86,6 @@ pub(crate) fn check_selected_execution(
         boundary_calling_plan_realizations,
         &build_config.opaque_representation_selections,
     )?;
-    let selected_native_target = selected_target_profile.map(target::TargetProfile::native_target);
     // Deferred const work decides the block; a surviving `size_of`/`align_of`
     // query must fold under this target's custody even when nothing else
     // deferred (e.g. a query in a purely runtime position).
@@ -102,10 +115,9 @@ pub(crate) fn check_selected_execution(
     }
     let root_grants = build_config.root_grant_selectors();
     let provider_request = ProviderCheckingRequest {
-        native_target: selected_native_target,
         package_inputs,
         selected_build_machine: selected_build_machine_symbol,
-        boundary_calling_plan_realizations: &mut providers.boundary_calling_plan_realizations,
+        boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
         opaque_representation_selections,
         provider_plans: &providers.provider_plans,
         selected_provider_plan_facts,

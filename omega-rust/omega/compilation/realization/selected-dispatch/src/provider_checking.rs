@@ -23,11 +23,12 @@ pub struct CheckedProviderProgram {
 /// Build-selected provider inputs. The compiler supplies these; this owner
 /// derives checking requests and binds the checked result to those selections.
 pub struct ProviderCheckingRequest<'a> {
-    pub native_target: Option<target::NativeTarget>,
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
     pub selected_build_machine: Option<symbols::SymbolHandle>,
+    /// Final calling applications captured by the provider schemas and plans.
+    /// Checked binding may join authority to them, never change their identity.
     pub boundary_calling_plan_realizations:
-        &'a mut [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+        &'a [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     pub opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
     pub provider_plans: &'a [effects::provider_plan::ProviderPlan],
@@ -89,15 +90,6 @@ impl ProviderCheckingInputs {
         program: Arc<CheckedProgram>,
         settlement: ProviderCheckingRequest<'_>,
     ) -> Result<CheckedProviderProgram, Vec<Diagnostic>> {
-        if let Some(native_target) = settlement.native_target {
-            provider_planning::calling_policy_plans::close_outbound_callback_materializations(
-                &program,
-                settlement.boundary_calling_plan_realizations,
-                native_target,
-                settlement.opaque_representation_selections,
-                settlement.package_inputs,
-            )?;
-        }
         let callback_placements =
             provider_planning::calling_policy_plans::validate_nominal_callback_placement_bindings(
                 &program,

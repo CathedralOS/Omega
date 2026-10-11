@@ -1779,3 +1779,4 @@ pass/slices/runtime_namespace_range_contract_exit built 3740ms exit:0 @be968c2c6
 pass/slices/runtime_forwarded_range_extent_snapshot_exit built 3964ms exit:0 @2a23b3a1e99d
 pass/slices/runtime_returned_range_extent_contract_exit built 3951ms exit:0 @2a23b3a1e99d
 run/calls/resultless_scalar_parameters built 5055ms exit:0 stdout:match stderr:match @10b02229ff8b
+pass/calls/resultless_native_callback_compile built 3475ms @9ae10c8a9412+wt

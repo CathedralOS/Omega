@@ -1833,10 +1833,10 @@ fail/layouts/plan_laid_dynamic_plan rejected 79ms expected @2d8ed253669f
 	plan-laid value type `Streamy<Pairish>`: policy `Streamy::plan` produced a dynamic plan; a dynamic plan cannot be a value type -- values need offsets, bytes need mints
 fail/layouts/plan_laid_policy_without_plan_machine rejected 43ms expected @2d8ed253669f
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
-fail/layouts/private_callback_slot_standalone_source_rejected rejected 37ms expected @693920652f41+wt
-	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
-fail/layouts/private_callback_slot_wrong_layout rejected 73ms expected @2d8ed253669f
-	plan-laid value type `Spread<ForeignRecord>`: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
+fail/layouts/private_callback_slot_standalone_source_rejected rejected 32ms expected @9ae10c8a9412+wt
+	plan-laid value type `Spread<ForeignRecord>`: error: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
+fail/layouts/private_callback_slot_wrong_layout rejected 32ms expected @9ae10c8a9412+wt
+	plan-laid value type `Spread<ForeignRecord>`: error: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
 fail/layouts/recast_integer_at_store_requires_fit rejected 52ms expected @8a4978545872+wt
 	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage
 fail/layouts/recursive_integer_at_requires_all_arrivals_fit rejected 406ms expected @cd0f1f2b1338
