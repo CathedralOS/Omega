@@ -1,0 +1,25 @@
+module main;
+use omega::language::core::binding;
+pub boundary trait Assert {
+    machine check(ok: bool) crashes Trap;
+}
+machine verify(ok: bool) -> bool
+crashes Trap
+{
+    transition ok { true -> pass() false -> fail() }
+    state pass() -> bool { true }
+    state fail() -> bool { crash Trap; }
+}
+pub data CheckingAssert { }
+machine CheckingAssert::check(ok: bool)
+satisfies Assert::check
+crashes Trap
+{
+    let verdict: bool = verify(ok);
+}
+pub data NoOpAssert { }
+machine NoOpAssert::check(ok: bool)
+satisfies Assert::check
+{
+    let verdict: bool = ok;
+}
