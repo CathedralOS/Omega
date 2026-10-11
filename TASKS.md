@@ -4515,12 +4515,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   Fixed ABI frames reserve alignment padding and round absolute home addresses;
   offsets alone do not establish alignment. Complete x86-64 over-aligned owned
   storage and stack-based caller-area result protocols; these remain fenced.
-  Public package preparation of the over-aligned witness currently rejects
-  unresolved nominal/source-backed toolchain ownership during review:
-  `omega update --project tests/omega/pass/calls/callback_owned_overaligned_record
-  --target macos_arm64 --offline`. Retain exact layout-wrapped type identity
-  through review so the actual `omega run` can acquire its accepted entry;
-  corpus execution alone does not establish this admission path.
+  Public package preparation depends on
+  **PROVIDER-SELECTION-AFTER-TERMINAL**'s source completion-role admission:
+  std currently rejects portable completion-role discovery before either
+  over-aligned witness can obtain its accepted entry binding.
   Preserve `pass/calls/callback_future_registration_cycle`:
   genuine macOS Arm64 `pthread_key_create` registers a destructor whose body
   can register itself; native `_exit` must exit 0 without invoking it.

@@ -13,7 +13,10 @@
 //!    every occurrence of the generic spelling to that plain name, so fields,
 //!    parameters, returns, locals, nested generic arguments, symbol resolution,
 //!    typing, validation, proof, and the interpreter all see one ordinary
-//!    record identity. The interpreter is name-keyed, so it needs nothing else.
+//!    record identity. The synthesized declaration retains its first authored
+//!    application span, and each rewritten use retains its own occurrence.
+//!    Generated spelling is not an ownership exemption: those spans join the
+//!    shell and its uses to managed source custody during ordinary resolution.
 //! 2. `compute_plan_laid_layouts` (POST-TYPING, after const-length
 //!    substitution): evaluates the policy at build time through the existing
 //!    L2/L3 pipeline (`compute_layout_plan` -- contract gate, plan validation),
@@ -39,6 +42,8 @@ pub(crate) use layout_installation::compute_plan_laid_layouts_in;
 pub struct PlanLaidRecord {
     /// Name of the synthesized data definition (`CLayout<GdtEntryish>`).
     pub synthetic_name: String,
+    /// The application is publishable only when both nominal inputs are public.
+    pub generated_is_public: bool,
     /// Qualified policy machine (`CLayout::plan`).
     pub policy_machine: String,
     /// The schema data definition the plan places.

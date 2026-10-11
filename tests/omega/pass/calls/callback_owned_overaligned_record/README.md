@@ -23,7 +23,7 @@ xcrun clang -O1 abi_probe.c -lffi -o /tmp/omega-alignment-probe
 /tmp/omega-alignment-probe
 ```
 
-The native corpus route executes this program. Public `omega update` currently
-rejects package review with an unresolved nominal/source-backed toolchain type
-owner for the layout-wrapped signature; `omega run` therefore cannot yet obtain
-the accepted entry binding. Do not bypass that review to claim CLI acceptance.
+Package preparation must review the layout-wrapped public signature with the
+authored application's managed source owner. The generated type is public only
+when both its policy and schema are public; generation cannot hide a public
+carrier or launder a private input.

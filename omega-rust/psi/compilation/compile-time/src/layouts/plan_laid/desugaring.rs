@@ -10,6 +10,7 @@ use syntax_trees::types::TypeReferenceNode;
 use super::PlanLaidRecord;
 
 struct IndexedData {
+    is_public: bool,
     has_type_parameters: bool,
     supply_mode: language_semantics::DataSupplyMode,
     lifetime_parameters: Vec<Identifier>,
@@ -37,6 +38,7 @@ pub fn desugar_plan_laid_value_types(
                 data_index.insert(
                     definition.name.as_str().to_string(),
                     IndexedData {
+                        is_public: definition.is_public,
                         has_type_parameters: !definition.type_parameters.is_empty()
                             || !definition.lifetime_parameters.is_empty(),
                         supply_mode: definition.supply_mode,
@@ -163,6 +165,7 @@ pub fn desugar_plan_laid_value_types(
         } else {
             records.push(PlanLaidRecord {
                 synthetic_name,
+                generated_is_public: base_info.is_public && schema_info.is_public,
                 policy_machine: format!("{base}::plan"),
                 schema_data: schema_name,
                 invocation_sources: vec![invocation_source],
@@ -177,6 +180,11 @@ pub fn desugar_plan_laid_value_types(
     // schema's members cloned under the instance name (member records share
     // type/expression handles with the schema -- same table, same program).
     for record in &records {
+        let Some(application_source) = record.invocation_sources.first().copied() else {
+            return Err(vec![Diagnostic::error(
+                "plan-laid value type lost its authored application provenance",
+            )]);
+        };
         let schema_info = &data_index[&record.schema_data];
         let members: Vec<DataMember> = syntax
             .tables
@@ -193,8 +201,15 @@ pub fn desugar_plan_laid_value_types(
             count += 1;
         }
         syntax.push_root_item(Item::Data(DataDefinition {
-            name: Identifier::generated(record.synthetic_name.as_str()),
-            is_public: false,
+            // The shell belongs to the authored application that created it,
+            // as with placed views. Its spelling is generated, but an absent
+            // span would orphan the symbol from managed source ownership and
+            // make both signature review and retained call identity reject.
+            // All additional uses remain in invocation_sources for admission.
+            name: Identifier::new(record.synthetic_name.as_str(), application_source),
+            // Applying a layout cannot hide a public carrier or publish a
+            // private policy/schema through the generated shell.
+            is_public: record.generated_is_public,
             supply_mode: language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: schema_info.lifetime_parameters.clone(),
             type_parameters: HandleSpan::default(),
@@ -208,9 +223,19 @@ pub fn desugar_plan_laid_value_types(
 
     // Rewrite the spellings to the synthesized instances' plain names.
     for rewrite in rewrites {
+        let TypeReferenceNode::Generic { base_name, .. } = syntax
+            .tables
+            .type_references
+            .type_reference(rewrite.type_reference)
+        else {
+            return Err(vec![Diagnostic::error(
+                "plan-laid value type lost its original application occurrence",
+            )]);
+        };
+        let application_source = base_name.source_span();
         syntax.tables.type_references.replace_type_reference(
             rewrite.type_reference,
-            TypeReferenceNode::Named(Identifier::generated(rewrite.synthetic_name)),
+            TypeReferenceNode::Named(Identifier::new(rewrite.synthetic_name, application_source)),
         );
     }
 

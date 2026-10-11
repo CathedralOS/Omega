@@ -6069,3 +6069,7 @@ run/contained_health_loop_command_branch checked 1918ms @a9ae30e1c334+wt
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/variant_decimal_runtime_division checked 11419ms check-target:linux_x86_64 @a9ae30e1c334+wt
 run/variant_record_normalization_repeats checked 13906ms check-target:linux_x86_64 @a9ae30e1c334+wt
+fail/layouts/public_layout_keeps_private_schema rejected 364ms expected @63dcd4df414+wt
+	public interface selects private data `LayoutPolicy<HiddenSchema>`
+fail/layouts/public_schema_keeps_private_layout rejected 370ms expected @63dcd4df414+wt
+	public interface selects private data `HiddenPolicy<RecordSchema>`
