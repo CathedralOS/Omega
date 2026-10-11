@@ -1,6 +1,11 @@
 NF01 reusable rank-two shape/layout contract — execution receipt
 
-Current integration base: 6121c00e4546376e663d396e443a4f20ee4d77f4.
+Validation base: 6121c00e4546376e663d396e443a4f20ee4d77f4.
+Publication integration base: 9fa24a5de5dab0498097bf2000eb6031754c09fd.
+Changes between these bases add only unrelated samples/cli/probes projects;
+compiler, package, consumer, oracle and fixture inputs are unchanged. Reused
+execution evidence under the repository's changed-input validation policy.
+An exact-candidate landing verify receipt is required after this rebase.
 Current implementation checkpoint: f04eab4d149c1d070da8f6d8ab7a58f6c89cb80f.
 Original assignment base: 03e477fa424a9e6a2db7f49e17bf896ab3f76b48.
 Worktree /workspace/Omega/.codex/worktrees/nf01; branch library/w100-connected.
@@ -50,7 +55,7 @@ Both package updates reported zero changed source entries in all3 packages.
 Intended-invalid check exit1: cannot prove read_checked requires
  offset < backing.len. This is compile rejection, not runtime Invalid.
 Check and --both commands are exactly those listed below for the prior snapshot,
-rerun on this current implementation. Full command arrays and elapsed seconds
+rerun on this current implementation. Selected command arrays and elapsed seconds
 are in evidence/w100-portable-gates.json; separate logs are named
 w100-{readonly,mutable,invalid}-portable-{check,both,update}.log.txt.
 Scoped Rust check exit0/47.43s:
