@@ -1,0 +1,3 @@
+pub machine inner_v() -> i32 {
+    2
+}
