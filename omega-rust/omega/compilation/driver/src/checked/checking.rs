@@ -97,6 +97,7 @@ fn prepare_typed_frontier(
         assembly_started.elapsed().as_micros(),
         artifacts::allocations::AllocationDelta::default(),
     );
+    let base_sources = syntax.sources.clone();
     let frontend_started = std::time::Instant::now();
     let frontier = build_continuation::lower_typed_frontier(
         source_file_count,
@@ -104,7 +105,11 @@ fn prepare_typed_frontier(
         child.build_execution_profile,
         child.package_inputs,
         &mut timings,
-    )?;
+    )
+    .map_err(|mut diagnostics| {
+        attribute_diagnostics(&mut diagnostics, &base_sources, child.package_inputs);
+        diagnostics
+    })?;
     // Preserve the report's inclusive Build ladder after separating preparation.
     timings.add_completed(
         artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
@@ -185,14 +190,18 @@ fn prepare_package_build_worker(
     };
     let prepared_source = request.retain_prepared_source.then(|| source.clone());
     let prepared = prepare_build_source(&request.root_path, source, child, owner.as_ref())?;
+    let base_sources = prepared.built.base_sources.clone();
     let result = PreparedPackageBuild::seal(
         request.root_path,
         selected_target,
-        inputs,
+        inputs.clone(),
         request.optimization_rollback,
         prepared,
     )
-    .map_err(CompileFailure::from);
+    .map_err(|mut diagnostics| {
+        attribute_diagnostics(&mut diagnostics, &base_sources, Some(&inputs));
+        CompileFailure::from(diagnostics)
+    });
     let prepared_source = result.as_ref().ok().and(prepared_source);
     Ok(PackageBuildOutcome {
         result,
@@ -323,6 +332,8 @@ fn prepare_build_source(
     child.admit_package_inputs()?;
 
     let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
+    let base_sources = frontier.base_sources.clone();
+    let package_inputs = child.package_inputs;
     let (built, build_sources) = timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
         build_continuation::evaluate_build_and_continue(
             root_path,
@@ -331,7 +342,8 @@ fn prepare_build_source(
             timings,
             pure_build_compilation,
         )
-    })?;
+    })
+    .map_err(|failure| attribute_failure(failure, &base_sources, package_inputs))?;
     Ok(PreparedBuild {
         built,
         build_sources,
@@ -360,13 +372,18 @@ fn complete_prepared_build(
         mut timings,
     } = prepared;
     let retained_build_check = built.retained_build_check.take();
+    let base_sources = built.base_sources.clone();
     let (typed, pending_pre_checks, computed_build_config, admission) =
         build_continuation::complete_product_frontend(
             built,
             &mut build_sources,
             package_inputs,
             &mut timings,
-        )?;
+        )
+        .map_err(|mut diagnostics| {
+            attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
+            diagnostics
+        })?;
     Ok(PreparedProductSource {
         typed,
         pending_pre_checks,
@@ -420,6 +437,7 @@ pub(crate) fn check_completed_source(
     let mut timings = source.timings.clone();
     let build_sources = source.build_sources.clone();
     let retained_build_check = source.retained_build_check.clone();
+    let symbol_sources = source.typed.symbols.source_map();
     let result = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
         execution_settlement::check_selected_execution(
             source,
@@ -440,10 +458,68 @@ pub(crate) fn check_completed_source(
             })
         })
     });
+    let result = result.map_err(|mut diagnostics| {
+        if let Some(sources) = symbol_sources.as_deref() {
+            attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+        }
+        diagnostics
+    });
     CheckedCompileOutcome {
         prepared_source: None,
         result: result.map_err(CompileFailure::from),
         independent_components,
+    }
+}
+
+/// Interpret each diagnostic's authored span against the compilation's
+/// retained source map while that map is still alive: staged path, line,
+/// column, and the owning package's display name. Error paths outside the
+/// map's reach render this record instead of rereading source storage.
+/// `attribute_diagnostics` through a compile failure. Consent requests
+/// carry no diagnostics to attribute.
+fn attribute_failure(
+    failure: CompileFailure,
+    sources: &source::SourceMap,
+    package_inputs: Option<&PackageCompilationInputs>,
+) -> CompileFailure {
+    match failure {
+        CompileFailure::Diagnostics(mut diagnostics) => {
+            attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+            CompileFailure::Diagnostics(diagnostics)
+        }
+        other => other,
+    }
+}
+
+fn attribute_diagnostics(
+    diagnostics: &mut [Diagnostic],
+    sources: &source::SourceMap,
+    package_inputs: Option<&PackageCompilationInputs>,
+) {
+    for diagnostic in diagnostics {
+        if diagnostic.resolved_location.is_some() {
+            continue;
+        }
+        let Some(source_span) = diagnostic.source_span else {
+            continue;
+        };
+        if source_span == source::SourceSpan::default() {
+            continue;
+        }
+        let Some(file) = sources.file_at(source_span) else {
+            continue;
+        };
+        let position = source::SourcePosition::of(&file.source, source_span.span.start);
+        let package = file
+            .package_identity
+            .and_then(|identity| package_inputs.and_then(|inputs| inputs.package_name(identity)))
+            .map(str::to_string);
+        diagnostic.resolved_location = Some(diagnostics::ResolvedSourceLocation {
+            package,
+            path: file.path.clone(),
+            line: position.line as u32,
+            column: position.column as u32,
+        });
     }
 }
 

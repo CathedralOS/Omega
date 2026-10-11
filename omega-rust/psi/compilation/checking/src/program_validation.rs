@@ -322,6 +322,7 @@ fn validate(
     let mut bound_lookup = (program, None);
     let mut proven_machine_contracts = Vec::new();
     for machine in program.machines() {
+        let machine_diagnostic_mark = diagnostics.len();
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
@@ -508,6 +509,7 @@ fn validate(
                 .iter_statements(state.statement_nodes)
                 .enumerate()
             {
+                let statement_diagnostic_mark = diagnostics.len();
                 let writable_roots = WritableRoots {
                     program,
                     machine,
@@ -644,6 +646,27 @@ fn validate(
                     &mut bound_lookup,
                     &mut diagnostics,
                 );
+                // Statement-adjacent checks above this point mint only
+                // message text; the statement under validation owns the
+                // authored position every consumer attributes them to.
+                if let Some(source_span) = statements::statement_source_span(program, statement) {
+                    for diagnostic in &mut diagnostics[statement_diagnostic_mark..] {
+                        if diagnostic.source_span.is_none() {
+                            diagnostic.source_span = Some(source_span);
+                        }
+                    }
+                }
+            }
+        }
+        // Machine-level checks mint only message text; the machine's own
+        // declaration owns their authored position.
+        let machine_source_span = program
+            .symbols
+            .symbol_provenance_source_span(machine.symbol)
+            .filter(|source_span| *source_span != source::SourceSpan::default());
+        for diagnostic in &mut diagnostics[machine_diagnostic_mark..] {
+            if diagnostic.source_span.is_none() {
+                diagnostic.source_span = machine_source_span;
             }
         }
     }

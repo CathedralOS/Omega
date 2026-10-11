@@ -29,6 +29,13 @@ impl SymbolTable {
         self.sources.as_deref()?.file_at(source_span)
     }
 
+    /// The retained authored source map, shared without copying. Consumers
+    /// that resolve diagnostic locations on a path where the program moves
+    /// away clone this handle rather than reading storage back.
+    pub fn source_map(&self) -> Option<std::sync::Arc<source::SourceMap>> {
+        self.sources.clone()
+    }
+
     /// Whether `symbol` was authored in the toolchain-owned build prelude
     /// translation unit.
     pub fn is_build_prelude_symbol(&self, symbol: SymbolHandle) -> bool {

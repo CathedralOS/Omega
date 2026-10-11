@@ -50,9 +50,29 @@ pub(super) fn render(
                 bytes.len() - shown
             )?;
         }
-        if let Some(location) = diagnostic.source_span {
-            // The error API retains no source map. Never infer a file path from
-            // unit order or reread mutable source to manufacture line numbers.
+        if let Some(location) = &diagnostic.resolved_location {
+            // The compilation resolved its own retained map: the failing
+            // package's name and the staged file's line:column. An
+            // unresolved span still prints only its unit coordinates --
+            // never infer a file path from unit order or reread mutable
+            // source to manufacture line numbers.
+            match &location.package {
+                Some(package) => write!(
+                    formatter,
+                    "\n    in package `{package}`, {}:{}:{}",
+                    location.path.display(),
+                    location.line,
+                    location.column
+                )?,
+                None => write!(
+                    formatter,
+                    "\n    at {}:{}:{}",
+                    location.path.display(),
+                    location.line,
+                    location.column
+                )?,
+            }
+        } else if let Some(location) = diagnostic.source_span {
             write!(
                 formatter,
                 "\n    source-unit {}, bytes {}..{}",

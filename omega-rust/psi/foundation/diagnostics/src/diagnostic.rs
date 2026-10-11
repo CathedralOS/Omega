@@ -1,4 +1,5 @@
 use std::fmt;
+use std::path::PathBuf;
 
 use source::SourceSpan;
 
@@ -14,6 +15,23 @@ pub struct Diagnostic {
     /// Optional authored source location. Semantic phases may attach this
     /// after frontend lowering when the relevant declaration span survives.
     pub source_span: Option<SourceSpan>,
+    /// Resolved source attribution: the `source_span` interpreted against the
+    /// compilation's retained source map at the boundary where that map is
+    /// still alive. Error paths outside the map's reach read this record
+    /// instead of rereading source storage.
+    pub resolved_location: Option<ResolvedSourceLocation>,
+}
+
+/// A `source_span` resolved against the compilation's source map: the staged
+/// path, its line:column, and the owning package's display name when the
+/// compilation was package-aware. The package key is deliberately not carried
+/// past this record — error paths name packages, they do not select them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedSourceLocation {
+    pub package: Option<String>,
+    pub path: PathBuf,
+    pub line: u32,
+    pub column: u32,
 }
 
 /// A named private provision a compilation exceeded — the
@@ -91,6 +109,7 @@ impl Diagnostic {
             message: message.into(),
             exceeded_provision: None,
             source_span: None,
+            resolved_location: None,
         }
     }
 
@@ -108,6 +127,7 @@ impl Diagnostic {
             message: message.into(),
             exceeded_provision: None,
             source_span: None,
+            resolved_location: None,
         }
     }
 

@@ -69,6 +69,7 @@ pub(super) fn validate_state_statement_node<'p>(
     ),
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let diagnostic_mark = diagnostics.len();
     if let Some(state) = current_state {
         placed_views::validate_statement(program, machine, state, statement, diagnostics);
     }
@@ -119,5 +120,46 @@ pub(super) fn validate_state_statement_node<'p>(
         StatementNode::Transition(_) => {
             transition_statements::validate(&scope, &mut outputs, statement)
         }
+    }
+    // A check mints only message text; the statement under validation owns
+    // the authored position every consumer attributes it to.
+    if let Some(source_span) = statement_source_span(program, statement) {
+        for diagnostic in &mut diagnostics[diagnostic_mark..] {
+            if diagnostic.source_span.is_none() {
+                diagnostic.source_span = Some(source_span);
+            }
+        }
+    }
+}
+
+/// The authored position a statement-level diagnostic belongs to. Variant
+/// payloads retain their own spans or expressions worth pointing at; a
+/// machine-free diagnostic reports no position rather than an invented one.
+pub(super) fn statement_source_span(
+    program: &dyn crate::CheckingInput,
+    statement: &StatementNode,
+) -> Option<source::SourceSpan> {
+    // Synthesized records retain the default span; reporting it would point
+    // at the map's first file. An absent span defers to the declaration's
+    // own provenance instead.
+    let authored = |source_span: source::SourceSpan| -> Option<source::SourceSpan> {
+        (source_span != source::SourceSpan::default()).then_some(source_span)
+    };
+    let expression_span = |handle: typed_trees::expression::ExpressionHandle| {
+        handle
+            .is_valid()
+            .then(|| program.expression_table.source_span(handle))
+            .and_then(authored)
+    };
+    match statement {
+        StatementNode::RootBinding(binding) => authored(binding.source_span),
+        StatementNode::AssemblyFact(fact) => expression_span(fact.expression),
+        StatementNode::Assignment(assignment) => {
+            expression_span(assignment.value).or_else(|| expression_span(assignment.target))
+        }
+        StatementNode::Call(call) => authored(call.source_span),
+        StatementNode::Expression(expression) => expression_span(*expression),
+        StatementNode::LocalData(local) => expression_span(local.initial_value),
+        StatementNode::Transition(transition) => authored(transition.source_span),
     }
 }
