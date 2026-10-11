@@ -5,13 +5,26 @@ use model::fill;
 machine decimal(console: &mut Binding<Console>, value: i32 in Wrapping,
                  divisor: i32 in Wrapping) reaches Console {
     transition divisor > 0 {
-        true -> digit(console, value, divisor)
+        true -> digit(console, value, divisor, 0)
         _ -> done()
     }
     state digit(console: &mut Binding<Console>, value: i32 in Wrapping,
-                 divisor: i32 in Wrapping) {
-        console.write_byte(((value / divisor) % 10 + 48) as i32);
-        transition { _ -> decimal(console, value, divisor / 10) }
+                 divisor: i32 in Wrapping, count: i32 in Wrapping) {
+        transition value >= divisor {
+            true -> digit(console, value - divisor, divisor, count + 1)
+            _ -> emit(console, value, divisor, count)
+        }
+    }
+    state emit(console: &mut Binding<Console>, remainder: i32 in Wrapping,
+                divisor: i32 in Wrapping, count: i32 in Wrapping) {
+        console.write_byte((count + 48) as i32);
+        transition divisor {
+            10000 -> decimal(console, remainder, 1000)
+            1000 -> decimal(console, remainder, 100)
+            100 -> decimal(console, remainder, 10)
+            10 -> decimal(console, remainder, 1)
+            _ -> done()
+        }
     }
     state done() { }
 }
@@ -54,7 +67,7 @@ machine map(console: &mut Binding<Console>, cavity: &Cavity, phase: bool) reache
     }
     state separator(console: &mut Binding<Console>, cavity: &Cavity, phase: bool,
                      index: i32 in Wrapping, bit: i32 in Wrapping) {
-        transition index % 4 == 3 {
+        transition (index & 3) == 3 {
             true -> newline(console, cavity, phase, index, bit)
             _ -> space(console, cavity, phase, index, bit)
         }

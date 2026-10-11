@@ -81,6 +81,10 @@ BFS distance map), `collections/heat_grid` (coordinate accumulation),
 This sample's two coupled phases, closure after vent consumption, permanent
 trapping, synchronous budget cut and cell-volume balance are different semantics.
 
+The private decimal writer uses bounded subtraction: each digit takes at most
+nine reductions. Its two-digit fields are at most 16, and its five-digit region
+masks are at most 65535. The fixed place-value sequence preserves leading zeroes.
+
 ## Commands
 
 From the repository root, with a compiler built from this checkout and its
