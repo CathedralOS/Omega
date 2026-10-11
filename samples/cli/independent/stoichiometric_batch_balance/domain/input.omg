@@ -1,0 +1,82 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::numeric_conversion;
+
+// ASCII decimal fields, whitespace separated, finite input <=1024 bytes.
+// Refuse malformed, oversized and extra fields before exposing any reaction.
+// Accumulation multiplies only values <=INT32_MAX, hence fits comfortably in i64.
+machine Main::read(context: &mut Main, input: &mut Input) reaches Console {
+    input.count = 0;
+    input.status = 0;
+    transition { _ -> scan(context, input, 0, false, 0) }
+    state scan(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
+        let observed: ByteRead = block context.console.read_byte();
+        transition observed {
+            ByteRead::Eof -> end(context, input, value, digits)
+            ByteRead::Byte { value: byte } -> byte_value(context, input, value, digits, consumed, byte)
+        }
+    }
+    state byte_value(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
+        transition consumed < 1024 {
+            true -> classify(context, input, value, digits, consumed + 1, byte)
+            false -> invalid(input)
+        }
+    }
+    state classify(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
+        transition byte >= 48 && byte <= 57 {
+            true -> digit(context, input, value, consumed, byte)
+            false -> separator(context, input, value, digits, consumed, byte)
+        }
+    }
+    state digit(context: &mut Main, input: &mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping, byte: i32) {
+        let wide: i64 in Wrapping = widen_i32_to_i64(byte) as i64 in Wrapping;
+        let next: i64 in Wrapping = value * 10 + wide - 48;
+        transition next <= 2147483647 {
+            true -> scan(context, input, next, true, consumed)
+            false -> invalid(input)
+        }
+    }
+    state separator(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
+        transition byte == 9 || byte == 10 || byte == 13 || byte == 32 {
+            true -> whitespace(context, input, value, digits, consumed)
+            false -> invalid(input)
+        }
+    }
+    state whitespace(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
+        transition digits {
+            true -> commit(context, input, value, consumed)
+            false -> scan(context, input, 0, false, consumed)
+        }
+    }
+    state commit(context: &mut Main, input: &mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping) {
+        transition input.count < 19 {
+            true -> store(context, input, value, consumed, input.count)
+            false -> invalid(input)
+        }
+    }
+    state store(context: &mut Main, input: &mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping, index: u64)
+    requires index < 19 {
+        input.values[index] = value;
+        input.count = index + 1;
+        transition { _ -> scan(context, input, 0, false, consumed) }
+    }
+    state end(context: &mut Main, input: &mut Input, value: i64 in Wrapping, digits: bool) {
+        transition digits {
+            true -> finish(input, value)
+            false -> done()
+        }
+    }
+    state finish(input: &mut Input, value: i64 in Wrapping) {
+        transition input.count < 19 {
+            true -> final_store(input, value, input.count)
+            false -> invalid(input)
+        }
+    }
+    state final_store(input: &mut Input, value: i64 in Wrapping, index: u64)
+    requires index < 19 {
+        input.values[index] = value;
+        input.count = index + 1;
+    }
+    state invalid(input: &mut Input) { input.status = 1; }
+    state done() { }
+}

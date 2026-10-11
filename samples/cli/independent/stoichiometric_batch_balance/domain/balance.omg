@@ -1,0 +1,89 @@
+module batch_balance;
+use batch_model;
+
+// All arithmetic is bounded independently of machine representation: atoms
+// <=16, coefficients <=8, and each elemental side <=256. Wrapping carriers
+// specify ordinary operators, but none of these operations can wrap.
+machine divisor(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
+    transition { _ -> reduce(left, right) }
+    state reduce(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
+        transition right != 0 {
+            true -> reduce(right, left % right)
+            false -> left
+        }
+    }
+}
+
+machine conserved(atoms: &[i64 in Wrapping; 4], a: i64 in Wrapping, b: i64 in Wrapping, c: i64 in Wrapping, d: i64 in Wrapping) -> bool {
+    atoms[0] * a + atoms[1] * b == atoms[2] * c + atoms[3] * d
+}
+
+// Fixed radix traversal visits coefficient tuples lexicographically. Only
+// primitive tuples count, so scalar multiples are not alternative balances.
+// Retaining the first tuple at a minimum sum gives the declared tie break.
+pub machine solve(reaction: &Reaction, result: &mut Balance) {
+    result.coefficients = [0, 0, 0, 0];
+    result.solutions = 0;
+    result.sum = 33;
+    transition { _ -> scan(reaction, result, 0) }
+    state scan(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping) {
+        transition ordinal < 4096 {
+            true -> decode(reaction, result, ordinal)
+            false -> done()
+        }
+    }
+    state decode(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping) {
+        let a: i64 in Wrapping = ordinal / 512 + 1;
+        let b: i64 in Wrapping = (ordinal / 64) % 8 + 1;
+        let c: i64 in Wrapping = (ordinal / 8) % 8 + 1;
+        let d: i64 in Wrapping = ordinal % 8 + 1;
+        transition a <= reaction.bound && b <= reaction.bound && c <= reaction.bound {
+            true -> fourth(reaction, result, ordinal, a, b, c, d)
+            false -> scan(reaction, result, ordinal + 1)
+        }
+    }
+    state fourth(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, a: i64 in Wrapping, b: i64 in Wrapping, c: i64 in Wrapping, d: i64 in Wrapping) {
+        transition reaction.species == 3 {
+            true -> absent(reaction, result, ordinal, a, b, c, d)
+            false -> present(reaction, result, ordinal, a, b, c, d)
+        }
+    }
+    state absent(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, a: i64 in Wrapping, b: i64 in Wrapping, c: i64 in Wrapping, d: i64 in Wrapping) {
+        transition d == 1 {
+            true -> consider(reaction, result, ordinal, a, b, c, 0)
+            false -> scan(reaction, result, ordinal + 1)
+        }
+    }
+    state present(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, a: i64 in Wrapping, b: i64 in Wrapping, c: i64 in Wrapping, d: i64 in Wrapping) {
+        transition d <= reaction.bound {
+            true -> consider(reaction, result, ordinal, a, b, c, d)
+            false -> scan(reaction, result, ordinal + 1)
+        }
+    }
+    state consider(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, a: i64 in Wrapping, b: i64 in Wrapping, c: i64 in Wrapping, d: i64 in Wrapping) {
+        let pair: i64 in Wrapping = divisor(a, b);
+        let triple: i64 in Wrapping = divisor(pair, c);
+        let common: i64 in Wrapping = divisor(triple, d);
+        let first: bool = conserved(&reaction.first, a, b, c, d);
+        let second: bool = conserved(&reaction.second, a, b, c, d);
+        let third: bool = conserved(&reaction.third, a, b, c, d);
+        transition common == 1 && first && second && third {
+            true -> accept(reaction, result, ordinal, a, b, c, d)
+            false -> scan(reaction, result, ordinal + 1)
+        }
+    }
+    state accept(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, a: i64 in Wrapping, b: i64 in Wrapping, c: i64 in Wrapping, d: i64 in Wrapping) {
+        result.solutions = result.solutions + 1;
+        let sum: i64 in Wrapping = a + b + c + d;
+        transition sum < result.sum {
+            true -> select(reaction, result, ordinal, a, b, c, d, sum)
+            false -> scan(reaction, result, ordinal + 1)
+        }
+    }
+    state select(reaction: &Reaction, result: &mut Balance, ordinal: i64 in Wrapping, a: i64 in Wrapping, b: i64 in Wrapping, c: i64 in Wrapping, d: i64 in Wrapping, sum: i64 in Wrapping) {
+        result.coefficients = [a, b, c, d];
+        result.sum = sum;
+        transition { _ -> scan(reaction, result, ordinal + 1) }
+    }
+    state done() { }
+}
