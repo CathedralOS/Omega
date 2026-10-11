@@ -945,11 +945,18 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
     .expect("valid normalized Windows import");
     let mechanism = |locator: &target::NormalizedForeignLocator, admission: [u8; 32]| {
         let commitment = task_plans::SameStackProviderPlanCommitment::from_digest(admission);
+        let identities = terminal_psi::TerminalIdentityTable::from(vec![
+            String::new(),
+            "Input::read".to_owned(),
+        ]);
+        let requirement_index = identities
+            .index_of("Input::read")
+            .expect("test requirement identity must intern");
         let contribution = task_plans::admit_same_stack_contribution(
             task_plans::SameStackContributionAdmissionCandidate {
                 provider_plan_report_identity: 7,
                 provider_plan_commitment: commitment,
-                requirement_identity: "Input::read".to_owned(),
+                requirement_identity: requirement_index,
                 receipt:
                     task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(3)
                         .unwrap(),
@@ -958,7 +965,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             },
             7,
             commitment,
-            "Input::read",
+            requirement_index,
         )
         .unwrap();
         target_operations::NormalizedForeignCallMechanism::Import {

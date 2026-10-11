@@ -13,10 +13,9 @@
 /// One by-value boundary edge's exact selected opaque application.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BoundaryOpaqueRepresentationApplication {
-    /// Canonical requirement identity of the boundary requirement whose
-    /// signature materialized this use (the package-qualified edge name, never
-    /// an arena handle).
-    pub requirement_identity: String,
+    /// Module identity-table index of the boundary requirement whose signature
+    /// materialized this use.
+    pub requirement_identity: terminal_psi::TerminalIdentityIndex,
     /// Shape-graph root where the selected carrier entered the materialized
     /// boundary signature. Two occurrences of the same opaque declaration in
     /// one signature keep distinct coordinates.

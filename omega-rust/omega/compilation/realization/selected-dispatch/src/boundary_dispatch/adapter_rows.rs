@@ -101,7 +101,7 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
     }) {
         return Ok(None);
     }
-    if row.requirement_identity.is_empty() {
+    if !row.requirement_identity.is_valid() {
         return Err(Diagnostic::error(format!(
             "selected checked-adapter row `{}` in ProviderPlan `{}` has no exact overload identity",
             row.method, plan.name,
@@ -111,13 +111,13 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
         .schema
         .methods
         .iter()
-        .filter(|method| plan.schema.row_binds_method(row, method))
+        .filter(|method| plan.schema.row_binds_method(row, method, &plan.identities))
         .collect::<Vec<_>>();
     let [method] = methods.as_slice() else {
         return Err(Diagnostic::error(format!(
             "selected checked-adapter row `{}` / `{}` in ProviderPlan `{}` binds {} exact schema methods",
             row.method,
-            row.requirement_identity,
+            plan.identities.text(row.requirement_identity),
             plan.name,
             methods.len(),
         )));
@@ -201,6 +201,7 @@ pub(crate) fn resolve_selected_adapter_row(
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
+    specialization_identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
     use effects::provider_plan::ProviderBinding;
 
@@ -226,6 +227,7 @@ pub(crate) fn resolve_selected_adapter_row(
                     requirement,
                     machine_identity,
                     specialization_rows,
+                    specialization_identities,
                 );
             }
             Some(SelectedAdapterTarget::TraitRequirement {
@@ -332,7 +334,9 @@ fn require_parameter_count(
     if actual != method.parameter_count {
         return Err(Diagnostic::error(format!(
             "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
-            plan.schema.identity_text(method.requirement_identity), actual, method.parameter_count,
+            plan.schema.identity_text(method.requirement_identity),
+            actual,
+            method.parameter_count,
         )));
     }
     Ok(())
@@ -347,6 +351,7 @@ fn resolve_top_level_requirement_adapter_row(
     requirement: &typed_trees::machine::Machine,
     machine_identity: &str,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
+    specialization_identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
     let requirement_name = requirement.name.as_str();
     if !requirement.symbol.is_valid() || !requirement.attached_data_symbol.is_valid() {
@@ -376,6 +381,7 @@ fn resolve_top_level_requirement_adapter_row(
             adapter,
             machine_identity,
             specialization_rows,
+            specialization_identities,
         );
     }
     let adapter_entry = exact_adapter_entry(typed, adapter, machine_identity)?;
@@ -434,6 +440,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
     adapter: &typed_trees::machine::Machine,
     machine_identity: &str,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
+    specialization_identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
     // This is a top-level machine requirement, not a named trait-map row.
     // Its template owns the authored satisfaction edge; specialization
@@ -451,16 +458,25 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
     let mut resolved = Vec::new();
     for specialization in specialization_rows.iter().filter(|specialization| {
         specialization.provider_plan_report_identity == plan.report_fingerprint()
-            && specialization.selected_requirement_identity == row.requirement_identity
-            && specialization.selected_machine_identity == *machine_identity
+            && specialization_identities.text(specialization.selected_requirement_identity)
+                == Some(plan.identities.text(row.requirement_identity))
+            && specialization_identities.text(specialization.selected_machine_identity)
+                == Some(machine_identity)
     }) {
         let Some(closed) = typed.machine_by_callable_identity(
-            typed.callable_identity_by_text(&specialization.requirement_identity),
+            typed.callable_identity_by_text(
+                specialization_identities
+                    .text(specialization.requirement_identity)
+                    .unwrap_or_default(),
+            ),
             declarations,
         ) else {
             return Err(Diagnostic::error(format!(
                 "selected provider plan `{}` specialization roster names closed requirement `{}` with no exact typed machine",
-                plan.name, specialization.requirement_identity,
+                plan.name,
+                specialization_identities
+                    .text(specialization.requirement_identity)
+                    .unwrap_or_default(),
             )));
         };
         let closed_receipts = typed
@@ -477,7 +493,9 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
         {
             return Err(Diagnostic::error(format!(
                 "selected specialization row `{}` does not name one retained closed instance of requirement template `{machine_identity}`",
-                specialization.requirement_identity,
+                specialization_identities
+                    .text(specialization.requirement_identity)
+                    .unwrap_or_default(),
             )));
         }
         let [closed_entry] = typed.machine_states(closed) else {
@@ -493,12 +511,19 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             )));
         }
         let Some(instance) = typed.machine_by_callable_identity(
-            typed.callable_identity_by_text(&specialization.machine_identity),
+            typed.callable_identity_by_text(
+                specialization_identities
+                    .text(specialization.machine_identity)
+                    .unwrap_or_default(),
+            ),
             declarations,
         ) else {
             return Err(Diagnostic::error(format!(
                 "selected provider plan `{}` specialization roster names provider instance `{}` with no exact typed machine",
-                plan.name, specialization.machine_identity,
+                plan.name,
+                specialization_identities
+                    .text(specialization.machine_identity)
+                    .unwrap_or_default(),
             )));
         };
         let instance_receipts = typed
@@ -511,7 +536,9 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
         if instance_receipts != 1 || !typed.machine_type_parameters(instance).is_empty() {
             return Err(Diagnostic::error(format!(
                 "selected specialization row `{}` does not name one retained specialization instance of checked adapter `{machine_identity}`",
-                specialization.machine_identity,
+                specialization_identities
+                    .text(specialization.machine_identity)
+                    .unwrap_or_default(),
             )));
         }
         if !provider_planning::provider_row_matches(
@@ -525,25 +552,34 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
         ) {
             return Err(Diagnostic::error(format!(
                 "selected provider instance `{}` does not belong to nominal provider `{}`",
-                specialization.machine_identity, plan.provider_type,
+                specialization_identities
+                    .text(specialization.machine_identity)
+                    .unwrap_or_default(),
+                plan.provider_type,
             )));
         }
         if !instance.supply_mode.is_checked_body() {
             return Err(Diagnostic::error(format!(
                 "selected provider instance `{}` is not a checked body",
-                specialization.machine_identity,
+                specialization_identities
+                    .text(specialization.machine_identity)
+                    .unwrap_or_default(),
             )));
         }
         let Some(instance_entry) = typed.machine_states(instance).first() else {
             return Err(Diagnostic::error(format!(
                 "selected provider instance `{}` has no executable entry state",
-                specialization.machine_identity,
+                specialization_identities
+                    .text(specialization.machine_identity)
+                    .unwrap_or_default(),
             )));
         };
         if !instance_entry.symbol.is_valid() {
             return Err(Diagnostic::error(format!(
                 "selected provider instance `{}` has no exact entry-state symbol",
-                specialization.machine_identity,
+                specialization_identities
+                    .text(specialization.machine_identity)
+                    .unwrap_or_default(),
             )));
         }
         let actual_parameters = typed.state_parameters(instance_entry);
@@ -553,7 +589,10 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             provider_plan_digest: *plan.identity_digest().as_bytes(),
             receiver_trait_name: closed.name.as_str().to_owned(),
             requirement: method.name.clone(),
-            requirement_identity: specialization.requirement_identity.clone(),
+            requirement_identity: specialization_identities
+                .text(specialization.requirement_identity)
+                .unwrap_or_default()
+                .to_owned(),
             requirement_symbol: closed_entry.symbol,
             adapter_target: instance.name.as_str().to_owned(),
             symbol: instance_entry.symbol,
@@ -610,9 +649,9 @@ fn resolve_family_adapter_row(
                 provider_plan_digest: *plan.identity_digest().as_bytes(),
                 requirement_symbol: signature.symbol,
                 requirement_identity: plan
-            .schema
-            .identity_text(method.requirement_identity)
-            .to_owned(),
+                    .schema
+                    .identity_text(method.requirement_identity)
+                    .to_owned(),
                 reason,
             },
         )]
@@ -728,9 +767,9 @@ fn resolve_family_adapter_row(
             receiver_trait_name: receiver_trait.name.as_str().to_owned(),
             requirement: method.name.clone(),
             requirement_identity: plan
-            .schema
-            .identity_text(method.requirement_identity)
-            .to_owned(),
+                .schema
+                .identity_text(method.requirement_identity)
+                .to_owned(),
             requirement_symbol: signature.symbol,
             adapter_target: instance.name.as_str().to_owned(),
             symbol: entry.symbol,

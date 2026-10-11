@@ -108,12 +108,17 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
         "package:test::Main::entry".to_owned(),
         "Main::entry".into(),
         "entry".into(),
-        "Main::entry()".into(),
+        terminal_psi::TerminalIdentityIndex(1),
         program_entry_plan::ProgramEntryReceiverSignature::ProvisionedMutable {
             source_position: 0,
-            normalized_type_identity: "Main".into(),
+            normalized_type_identity: terminal_psi::TerminalIdentityIndex(2),
         },
         Vec::new(),
+        terminal_psi::TerminalIdentityTable::from(vec![
+            String::new(),
+            "Main::entry()".to_owned(),
+            "Main".to_owned(),
+        ]),
     )
     .unwrap();
     assert!(!zero_valid_record_storage(
@@ -134,8 +139,8 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
             &declarations,
             &[field],
             &source,
-            "Main",
-            "Main",
+            terminal_psi::TerminalIdentityIndex(2),
+            terminal_psi::TerminalIdentityIndex(2),
             &Default::default(),
             super::ErasedRows {
                 services: &[],
@@ -1099,12 +1104,17 @@ fn hosted_receiver_binding(
         "package:test::Main::main".to_owned(),
         "Main".into(),
         "main".into(),
-        "Main::main".into(),
+        terminal_psi::TerminalIdentityIndex(1),
         program_entry_plan::ProgramEntryReceiverSignature::ProvisionedMutable {
             source_position: 0,
-            normalized_type_identity: "named(name(Main))".into(),
+            normalized_type_identity: terminal_psi::TerminalIdentityIndex(2),
         },
         Vec::new(),
+        terminal_psi::TerminalIdentityTable::from(vec![
+            String::new(),
+            "Main::main".to_owned(),
+            "named(name(Main))".to_owned(),
+        ]),
     )
     .expect("well-shaped source signature");
     let checked_entry = terminal_psi::CheckedProgramEntryTerminalReceipt::new(

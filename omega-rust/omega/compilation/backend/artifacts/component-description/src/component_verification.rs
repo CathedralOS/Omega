@@ -398,7 +398,7 @@ impl VerifiedComponent {
             } = &row.binding
             else {
                 return Err(IndependentRealizationMismatch::UncheckedRow {
-                    requirement_identity: row.requirement_identity.clone(),
+                    requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
                 });
             };
             let for_requirement = self
@@ -407,12 +407,12 @@ impl VerifiedComponent {
                 .iter()
                 .filter(|candidate| {
                     self.module.identities.text(candidate.requirement_identity)
-                        == Some(row.requirement_identity.as_str())
+                        == Some(plan.identities.text(row.requirement_identity))
                 })
                 .collect::<Vec<_>>();
             if for_requirement.is_empty() {
                 return Err(IndependentRealizationMismatch::MissingRealization {
-                    requirement_identity: row.requirement_identity.clone(),
+                    requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
                 });
             }
             let for_provider = for_requirement
@@ -424,7 +424,7 @@ impl VerifiedComponent {
                 .collect::<Vec<_>>();
             if for_provider.is_empty() {
                 return Err(IndependentRealizationMismatch::ProviderTypeMismatch {
-                    requirement_identity: row.requirement_identity.clone(),
+                    requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
                     selected_provider: plan.provider_type.clone(),
                 });
             }
@@ -439,14 +439,20 @@ impl VerifiedComponent {
             match exact.as_slice() {
                 [] => {
                     return Err(IndependentRealizationMismatch::MachineMismatch {
-                        requirement_identity: row.requirement_identity.clone(),
+                        requirement_identity: plan
+                            .identities
+                            .text(row.requirement_identity)
+                            .to_owned(),
                         selected_machine: machine_identity.to_owned(),
                     });
                 }
                 [_] => {}
                 _ => {
                     return Err(IndependentRealizationMismatch::DuplicateRealization {
-                        requirement_identity: row.requirement_identity.clone(),
+                        requirement_identity: plan
+                            .identities
+                            .text(row.requirement_identity)
+                            .to_owned(),
                     });
                 }
             }
@@ -454,7 +460,7 @@ impl VerifiedComponent {
             // module-derived roster; requiring the row here keeps the join
             // honest if a later description schema ever narrows exports.
             let export = requirement_export_identity(
-                &row.requirement_identity,
+                plan.identities.text(row.requirement_identity),
                 &plan.provider_type,
                 machine_identity,
             );
@@ -465,7 +471,7 @@ impl VerifiedComponent {
                 .any(|surface| surface.identity == export)
             {
                 return Err(IndependentRealizationMismatch::MissingExport {
-                    requirement_identity: row.requirement_identity.clone(),
+                    requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
                 });
             }
         }

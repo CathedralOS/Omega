@@ -20,19 +20,29 @@ pub(super) struct Reviewer<'a> {
     context: ReviewContext<'a>,
     expanded: BTreeSet<BoundaryMachineId>,
     leaves: BTreeMap<LeafKey, TerminalAuthorityClosureLeaf>,
+    identities: terminal_psi::TerminalIdentityTableBuilder,
 }
 
 impl<'a> Reviewer<'a> {
     pub(super) fn new(context: ReviewContext<'a>) -> Self {
         Self {
+            // Provider-side requirement text can be absent from the plan's
+            // table, so leaves mint into a review-local copy of it rather
+            // than resolving through `index_of`.
+            identities: context.input.plan().identities.clone().into_builder(),
             context,
             expanded: BTreeSet::new(),
             leaves: BTreeMap::new(),
         }
     }
 
-    pub(super) fn into_leaves(self) -> Vec<TerminalAuthorityClosureLeaf> {
-        self.leaves.into_values().collect()
+    pub(super) fn into_leaves(
+        self,
+    ) -> (
+        Vec<TerminalAuthorityClosureLeaf>,
+        terminal_psi::TerminalIdentityTable,
+    ) {
+        (self.leaves.into_values().collect(), self.identities.build())
     }
 
     pub(super) fn expand_boundary(&mut self, boundary: BoundaryMachineId) -> Result<(), String> {
@@ -77,7 +87,12 @@ impl<'a> Reviewer<'a> {
                 // instance for a closed requirement; the selected row's
                 // binding retains the authored generic provider template.
                 let realization_identity = specialization
-                    .map(|row| row.machine_identity.as_str())
+                    .and_then(|row| {
+                        self.context
+                            .selected
+                            .identities()
+                            .text(row.machine_identity)
+                    })
                     .unwrap_or(selected_plan.identity_text(*machine_identity));
                 let candidate = self
                     .context
@@ -116,7 +131,9 @@ impl<'a> Reviewer<'a> {
                 let schema = selected_plan.schema.identity_digest();
                 self.admit_leaf(
                     schema,
-                    &selected_row.requirement_identity,
+                    selected_plan
+                        .identities
+                        .text(selected_row.requirement_identity),
                     selected_plan.identity_digest(),
                     mechanism,
                 )?;
@@ -173,7 +190,7 @@ impl<'a> Reviewer<'a> {
             })?;
         let leaf = TerminalAuthorityClosureLeaf::new(
             schema,
-            requirement.to_owned(),
+            self.identities.intern(requirement),
             provider_plan,
             mechanism,
             exercised,

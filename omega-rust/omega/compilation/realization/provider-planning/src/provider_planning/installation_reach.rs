@@ -19,10 +19,17 @@ struct PendingInstallationReachRow<'a> {
 pub(super) fn derive_selected_installation_reach_resolutions(
     checked: &checked_trees::CheckedTrees,
     selected: &effects::SelectedProviderPlanFacts,
-) -> Result<Vec<effects::InstallationReachResolution>, Vec<diagnostics::Diagnostic>> {
+) -> Result<
+    (
+        Vec<effects::InstallationReachResolution>,
+        terminal_psi::TerminalIdentityTable,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
     let mut resolutions = Vec::new();
     let mut pending = Vec::new();
     let mut diagnostics = Vec::new();
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let provider_context =
         crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product);
     for plan in selected.plans() {
@@ -49,6 +56,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                         plan,
                         row,
                         requirement,
+                        &mut identities,
                         &mut resolutions,
                         &mut pending,
                         &mut diagnostics,
@@ -95,7 +103,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                             checked
                                 .typed
                                 .trait_requirement_callable_identity_text(owner, requirement)
-                                == row.requirement_identity
+                                == plan.identities.text(row.requirement_identity)
                         })
                         .map(move |requirement| (owner, requirement))
                 })
@@ -103,7 +111,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
             let [(_, requirement)] = requirements.as_slice() else {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "selected provider row `{}` resolves to {} exact typed requirements",
-                    row.requirement_identity,
+                    plan.identities.text(row.requirement_identity),
                     requirements.len()
                 )));
                 continue;
@@ -146,7 +154,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                                         checked,
                                         conformance.symbol,
                                         conformance.requirement_symbol,
-                                    ) == row.requirement_identity
+                                    ) == plan.identities.text(row.requirement_identity)
                                 }
                             })
                 })
@@ -154,7 +162,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
             let [realization] = realization_machines.as_slice() else {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "selected provider row `{}` resolves to {} exact realization machines for provider `{}`",
-                    row.requirement_identity,
+                    plan.identities.text(row.requirement_identity),
                     realization_machines.len(),
                     plan.provider_type
                 )));
@@ -176,16 +184,23 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                 plan,
                 realization,
                 envelope,
-                row.requirement_identity.clone(),
+                plan.identities.text(row.requirement_identity).to_owned(),
                 upper_bound,
+                &mut identities,
                 &mut resolutions,
                 &mut pending,
             );
         }
     }
-    substitute_nested_installation_reaches(checked, &mut resolutions, pending, &mut diagnostics);
+    substitute_nested_installation_reaches(
+        &mut identities,
+        checked,
+        &mut resolutions,
+        pending,
+        &mut diagnostics,
+    );
     if diagnostics.is_empty() {
-        Ok(resolutions)
+        Ok((resolutions, identities.build()))
     } else {
         Err(diagnostics)
     }
@@ -196,6 +211,7 @@ fn append_top_level_installation_reach_resolution<'a>(
     plan: &'a ProviderPlan,
     row: &ProviderPlanRow,
     requirement: &'a typed_trees::machine::Machine,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     resolutions: &mut Vec<effects::InstallationReachResolution>,
     pending: &mut Vec<PendingInstallationReachRow<'a>>,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
@@ -204,10 +220,10 @@ fn append_top_level_installation_reach_resolution<'a>(
         .typed
         .machine_callable_identity_text(requirement)
         .unwrap_or_default();
-    if row.requirement_identity != requirement_identity {
+    if plan.identities.text(row.requirement_identity) != requirement_identity.as_str() {
         diagnostics.push(diagnostics::Diagnostic::error(format!(
             "selected provider row `{}` does not retain exact top-level requirement `{requirement_identity}`",
-            row.requirement_identity,
+            plan.identities.text(row.requirement_identity),
         )));
         return;
     }
@@ -270,6 +286,7 @@ fn append_top_level_installation_reach_resolution<'a>(
         envelope,
         requirement_identity,
         upper_bound,
+        identities,
         resolutions,
         pending,
     );
@@ -298,12 +315,13 @@ fn record_installation_reach_row<'a>(
     envelope: &'a checked_trees::RealizedMachineContractEnvelope,
     requirement_identity: String,
     upper_bound: Vec<String>,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     resolutions: &mut Vec<effects::InstallationReachResolution>,
     pending: &mut Vec<PendingInstallationReachRow<'a>>,
 ) {
     if envelope.unresolved_installation_reaches.is_empty() {
         resolutions.push(effects::InstallationReachResolution {
-            requirement_identity,
+            requirement_identity: identities.intern(&requirement_identity),
             provider_plan_report_identity: plan.report_fingerprint(),
             upper_bound,
             resolved_row: envelope.effective_service_reach.clone(),
@@ -329,6 +347,7 @@ fn record_installation_reach_row<'a>(
 /// pass iterates to a fixpoint. A row whose nested requirements have no
 /// selected resolution in the closure remains unresolved and rejects.
 fn substitute_nested_installation_reaches(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     typed: &typed_trees::TypedTrees,
     resolutions: &mut Vec<effects::InstallationReachResolution>,
     mut pending: Vec<PendingInstallationReachRow<'_>>,
@@ -344,7 +363,12 @@ fn substitute_nested_installation_reaches(
     > = std::collections::BTreeMap::new();
     for resolution in resolutions.iter() {
         identity_publishers
-            .entry(resolution.requirement_identity.clone())
+            .entry(
+                identities
+                    .text(resolution.requirement_identity)
+                    .unwrap_or_default()
+                    .to_owned(),
+            )
             .or_default()
             .insert(resolution.provider_plan_report_identity);
     }
@@ -364,6 +388,7 @@ fn substitute_nested_installation_reaches(
                     nested_requirement_identity(typed, reach.requirement).and_then(|identity| {
                         plan_scoped_resolution(
                             resolutions,
+                            &identities,
                             &identity_publishers,
                             row.provider_plan_report_identity,
                             &identity,
@@ -381,7 +406,7 @@ fn substitute_nested_installation_reaches(
                 resolved_row.sort();
                 resolved_row.dedup();
                 resolutions.push(effects::InstallationReachResolution {
-                    requirement_identity: row.requirement_identity,
+                    requirement_identity: identities.intern(&row.requirement_identity),
                     provider_plan_report_identity: row.provider_plan_report_identity,
                     upper_bound: row.upper_bound,
                     resolved_row,
@@ -415,12 +440,13 @@ fn substitute_nested_installation_reaches(
 /// roster order.
 fn plan_scoped_resolution<'a>(
     resolutions: &'a [effects::InstallationReachResolution],
+    identities: &terminal_psi::TerminalIdentityTableBuilder,
     identity_publishers: &std::collections::BTreeMap<String, std::collections::BTreeSet<u64>>,
     provider_plan_report_identity: u64,
     requirement_identity: &str,
 ) -> Option<&'a effects::InstallationReachResolution> {
     if let Some(own) = resolutions.iter().find(|resolution| {
-        resolution.requirement_identity == requirement_identity
+        identities.text(resolution.requirement_identity) == Some(requirement_identity)
             && resolution.provider_plan_report_identity == provider_plan_report_identity
     }) {
         return Some(own);
@@ -431,9 +457,9 @@ fn plan_scoped_resolution<'a>(
     {
         return None;
     }
-    resolutions
-        .iter()
-        .find(|resolution| resolution.requirement_identity == requirement_identity)
+    resolutions.iter().find(|resolution| {
+        identities.text(resolution.requirement_identity) == Some(requirement_identity)
+    })
 }
 
 /// The requirement identity a nested installation-bound row refers to: a

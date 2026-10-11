@@ -79,7 +79,10 @@ fn integer_rows_preserve_builtin_omission_and_exact_selected_negation() {
         },
     );
     let occurrence = IntegerOccurrence {
-        terminal_machine: module.entry,
+        terminal_machine: match module.entry {
+            terminal_psi::TargetMachineCallable::Machine(machine) => machine,
+            _ => unreachable!("comparison fixture enters a machine"),
+        },
         terminal_operation: OperationId::new(1).unwrap(),
         provider_plan_index: 0,
         provider_plan_commitment: plans[0].identity_digest(),

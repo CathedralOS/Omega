@@ -32,7 +32,7 @@ pub enum ProgramEntryReceiverSignature {
     ProvisionedMutable {
         /// Formal declaration position, not a dense Terminal or ABI parameter index.
         source_position: u32,
-        normalized_type_identity: String,
+        normalized_type_identity: terminal_psi::TerminalIdentityIndex,
     },
 }
 
@@ -46,13 +46,13 @@ impl ProgramEntryReceiverSignature {
         }
     }
 
-    pub fn normalized_type_identity(&self) -> Option<&str> {
+    pub const fn normalized_type_identity(&self) -> Option<terminal_psi::TerminalIdentityIndex> {
         match self {
             Self::Free => None,
             Self::ProvisionedMutable {
                 normalized_type_identity,
                 ..
-            } => Some(normalized_type_identity),
+            } => Some(*normalized_type_identity),
         }
     }
 }
@@ -157,7 +157,7 @@ pub struct ProgramEntryVisibleParameterSignature {
     /// Receiver-excluded ordinal in the target schema's visible list. This is
     /// not a source formal index or an outbound ABI parameter index.
     visible_parameter_index: usize,
-    normalized_type_identity: String,
+    normalized_type_identity: terminal_psi::TerminalIdentityIndex,
     value_shape: calling_conventions::ValueShape,
     extent_value_layout: ProgramEntryExtentValueLayout,
     is_const: bool,
@@ -173,8 +173,8 @@ impl ProgramEntryVisibleParameterSignature {
         self.visible_parameter_index
     }
 
-    pub fn normalized_type_identity(&self) -> &str {
-        &self.normalized_type_identity
+    pub const fn normalized_type_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        self.normalized_type_identity
     }
 
     /// Exact address-free shape derived from this typed source declaration,
@@ -203,10 +203,15 @@ pub struct SelectedProgramEntrySignature {
     declaration: String,
     machine_name: String,
     state_name: String,
-    normalized_callable_identity: String,
+    normalized_callable_identity: terminal_psi::TerminalIdentityIndex,
     receiver: ProgramEntryReceiverSignature,
     visible_parameters: Vec<ProgramEntryVisibleParameterSignature>,
     result: ProgramEntryResultSignature,
+    /// Identity text every `TerminalIdentityIndex` on this signature and its
+    /// bound establishment rows resolves against. The signature is minted
+    /// beside the checked program, before a Terminal module exists; native
+    /// consumers rejoin these indices through the text, never the slot.
+    identities: terminal_psi::TerminalIdentityTable,
 }
 
 impl SelectedProgramEntrySignature {
@@ -215,9 +220,10 @@ impl SelectedProgramEntrySignature {
         declaration: String,
         machine_name: String,
         state_name: String,
-        normalized_callable_identity: String,
+        normalized_callable_identity: terminal_psi::TerminalIdentityIndex,
         receiver: ProgramEntryReceiverSignature,
         visible_parameters: Vec<ProgramEntryVisibleParameterSignature>,
+        identities: terminal_psi::TerminalIdentityTable,
     ) -> Result<Self, String> {
         let signature = Self {
             target_slot,
@@ -228,6 +234,7 @@ impl SelectedProgramEntrySignature {
             receiver,
             visible_parameters,
             result: ProgramEntryResultSignature::Unit,
+            identities,
         };
         signature.validate_capture()?;
         Ok(signature)
@@ -249,8 +256,22 @@ impl SelectedProgramEntrySignature {
         &self.state_name
     }
 
-    pub fn normalized_callable_identity(&self) -> &str {
-        &self.normalized_callable_identity
+    pub const fn normalized_callable_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        self.normalized_callable_identity
+    }
+
+    /// The plan-local table this signature's identity indices resolve
+    /// against — minted beside the checked program before the module's table
+    /// exists.
+    pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.identities
+    }
+
+    /// Replaces the table after late minting — bound establishments intern
+    /// their rows into the signature's table so all ProgramEntry identities
+    /// share one ordering.
+    pub fn set_identities(&mut self, identities: terminal_psi::TerminalIdentityTable) {
+        self.identities = identities;
     }
 
     pub const fn receiver(&self) -> &ProgramEntryReceiverSignature {
@@ -306,7 +327,12 @@ impl SelectedProgramEntrySignature {
         canonical.push(match self.target_slot.receiver {
             target::ProgramEntryReceiverProvisioning::NoneOrProvisionedZii => 1,
         });
-        push_string(&mut canonical, &self.normalized_callable_identity);
+        push_string(
+            &mut canonical,
+            self.identities
+                .text(self.normalized_callable_identity)
+                .unwrap_or_default(),
+        );
         match &self.receiver {
             ProgramEntryReceiverSignature::Free => canonical.push(1),
             ProgramEntryReceiverSignature::ProvisionedMutable {
@@ -316,7 +342,12 @@ impl SelectedProgramEntrySignature {
             } => {
                 canonical.push(2);
                 crate::codec_bytes::push_encoded(&mut canonical, source_position.to_le_bytes());
-                push_string(&mut canonical, normalized_type_identity);
+                push_string(
+                    &mut canonical,
+                    self.identities
+                        .text(*normalized_type_identity)
+                        .unwrap_or_default(),
+                );
             }
         }
         canonical.extend_from_slice(
@@ -334,7 +365,12 @@ impl SelectedProgramEntrySignature {
                     .expect("ProgramEntry parameter index fits u64")
                     .to_le_bytes(),
             );
-            push_string(&mut canonical, &parameter.normalized_type_identity);
+            push_string(
+                &mut canonical,
+                self.identities
+                    .text(parameter.normalized_type_identity)
+                    .unwrap_or_default(),
+            );
             push_shape(&mut canonical, parameter.value_shape);
             canonical.push(u8::from(parameter.is_const));
             canonical.push(u8::from(parameter.is_mutable));
@@ -362,7 +398,7 @@ impl SelectedProgramEntrySignature {
         if self.target_slot != self.target_slot.owner.program_entry_slot()
             || self.machine_name.is_empty()
             || self.state_name.is_empty()
-            || self.normalized_callable_identity.is_empty()
+            || self.normalized_callable_identity.is_absent()
             || self.result != ProgramEntryResultSignature::Unit
         {
             return Err("selected source signature is not one exact typed Unit entry".into());
@@ -370,9 +406,9 @@ impl SelectedProgramEntrySignature {
         if self
             .receiver
             .normalized_type_identity()
-            .is_some_and(str::is_empty)
+            .is_some_and(terminal_psi::TerminalIdentityIndex::is_absent)
             || self.visible_parameters.iter().any(|parameter| {
-                parameter.normalized_type_identity.is_empty()
+                parameter.normalized_type_identity.is_absent()
                     || parameter.value_shape.byte_size == 0
                     || parameter.value_shape.alignment == 0
                     || !parameter.value_shape.alignment.is_power_of_two()
@@ -392,7 +428,7 @@ impl SelectedProgramEntrySignature {
     pub fn visible_parameter(
         role: ProgramStorageEntryRootRole,
         visible_parameter_index: usize,
-        normalized_type_identity: String,
+        normalized_type_identity: terminal_psi::TerminalIdentityIndex,
         value_shape: calling_conventions::ValueShape,
         extent_value_layout: ProgramEntryExtentValueLayout,
         is_const: bool,

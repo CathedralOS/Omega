@@ -33,11 +33,14 @@ pub(in crate::legalization) fn validate_boundary_origins(
                 let declaration = unit
                     .boundary_machine(*boundary)
                     .ok_or_else(LegalizationError::custody)?;
-                if binding.requirement_identity()
-                    != unit
-                        .identities
-                        .text(declaration.identity)
-                        .unwrap_or_default()
+                // The admitted contribution indexes the selection identity
+                // table, carried beside the family realizations; the unit
+                // table only resolves the boundary's own identities.
+                let binding_identities = input
+                    .map(|input| input.target_family_realization_identities())
+                    .unwrap_or(&unit.identities);
+                if binding.requirement_identity(binding_identities)
+                    != unit.identities.text(declaration.identity)
                 {
                     let input = input.ok_or_else(LegalizationError::custody)?;
                     let plan_commitment = match &binding.mechanism {
@@ -60,11 +63,19 @@ pub(in crate::legalization) fn validate_boundary_origins(
                                 })
                             && ((row.head == *boundary
                                 && unit.identities.text(declaration.identity)
-                                    == Some(row.head_identity.as_str()))
+                                    == input
+                                        .target_family_realization_identities()
+                                        .text(row.head_identity))
                                 || (row.member == *boundary
                                     && unit.identities.text(declaration.identity)
-                                        == Some(row.member_identity.as_str())))
-                            && row.selected_requirement_identity == binding.requirement_identity()
+                                        == input
+                                            .target_family_realization_identities()
+                                            .text(row.member_identity)))
+                            && input
+                                .target_family_realization_identities()
+                                .text(row.selected_requirement_identity)
+                                == binding
+                                    .requirement_identity(input.target_family_realization_identities())
                             && row.provider_plan_report_identity
                                 == binding.provider_plan_report_identity()
                             && row.provider_plan_report_identity

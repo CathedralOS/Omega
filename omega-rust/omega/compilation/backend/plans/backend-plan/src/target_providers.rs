@@ -105,7 +105,7 @@ impl TerminalTargetProviderSelection {
                 // not executable specialization/family aliases. Such aliases
                 // must be published with their own checked relationships before
                 // they can replace these exact coordinates.
-                let requirement = row.requirement_identity.as_str();
+                let requirement = plan.identity_text(row.requirement_identity);
                 let mut matches =
                     self.checked_candidates
                         .iter()

@@ -227,7 +227,13 @@ fn hash_accepted_binding(digest: &mut DomainDigestEncoder, binding: &AcceptedSem
     digest.u64(binding.terminal_authority_permissions().len() as u64);
     for permission in binding.terminal_authority_permissions() {
         digest.raw(permission.service_schema().as_bytes());
-        digest.bytes(permission.requirement_identity().as_bytes());
+        digest.bytes(
+            binding
+                .terminal_authority_permission_identities()
+                .text(permission.requirement_identity())
+                .unwrap_or_default()
+                .as_bytes(),
+        );
         for class in permission.permitted().classes() {
             digest.byte(authority_class_tag(*class));
         }

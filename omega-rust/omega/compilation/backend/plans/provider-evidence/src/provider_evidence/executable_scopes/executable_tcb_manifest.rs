@@ -19,14 +19,14 @@ pub(crate) enum ContainmentGuarantee {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ContainmentEvidence {
     pub guarantee: ContainmentGuarantee,
-    pub evidence_identity: String,
+    pub evidence: String,
 }
 /// Policy/admission input for one exact opaque selected-provider row.
 ///
-/// Loader spellings remain only a binding match. `executable_identity` must
+/// Loader spellings remain only a binding match. `executable` must
 /// pin content, a signer/profile-owned platform identity, or another stable
 /// artifact identity supplied by the admitting policy. Scope completeness is
-/// independent: only `executable_closure_evidence_identity` claims that this
+/// independent: only `executable_closure_evidence` claims that this
 /// opaque executable cannot introduce unreported code in the named scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OpaqueExecutableAdmissionCandidate {
@@ -34,13 +34,13 @@ pub(crate) struct OpaqueExecutableAdmissionCandidate {
     pub provider_plan_report_identity: u64,
     pub provider_plan_digest: ProviderPlanDigest,
     pub method: String,
-    pub requirement_identity: String,
+    pub requirement: String,
     pub binding: OpaqueInProcessBinding,
-    pub executable_identity: String,
-    pub implementation_evidence_identity: String,
+    pub executable: String,
+    pub implementation_evidence: String,
     pub execution_scope: ExecutionScope,
     pub containment: Vec<ContainmentEvidence>,
-    pub executable_closure_evidence_identity: Option<String>,
+    pub executable_closure_evidence: Option<String>,
 }
 /// Sealed admission whose provider, requirement, binding, and evidence have
 /// been matched against the selected-provider closure.

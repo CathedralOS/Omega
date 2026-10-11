@@ -26,3 +26,4 @@ pub use boundary_applications::{
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
     coverage, demands, opaque_applications, realization,
 };
+mod source_guards;

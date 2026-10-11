@@ -121,19 +121,22 @@ impl ProviderPlanDigestEncoder {
         self.package_identity(method.requirement_owner_package_identity);
         self.string(identities.text(method.requirement_identity));
         self.len(method.parameter_count);
-        self.strings(&method.parameter_type_identities);
+        for identity in &method.parameter_type_identities {
+            self.string(identities.text(*identity));
+        }
 
         let mut entry_claims = method.entry_claims.iter().collect::<Vec<_>>();
-        entry_claims.sort_by(|left, right| {
-            left.parameter_index
-                .cmp(&right.parameter_index)
-                .then_with(|| left.carrier_identity.cmp(&right.carrier_identity))
-                .then_with(|| left.domain.cmp(&right.domain))
+        entry_claims.sort_by_cached_key(|claim| {
+            (
+                claim.parameter_index,
+                identities.text(claim.carrier_identity).to_owned(),
+                claim.domain.clone(),
+            )
         });
         self.len(entry_claims.len());
         for claim in entry_claims {
             self.len(claim.parameter_index);
-            self.string(&claim.carrier_identity);
+            self.string(identities.text(claim.carrier_identity));
             self.string(&claim.domain);
             self.byte(match claim.predicate_body {
                 language_semantics::DomainPredicateBody::Bodyless => 0,
@@ -152,12 +155,11 @@ impl ProviderPlanDigestEncoder {
             ) => 1,
         });
         self.bool(method.has_result);
-        match &method.result_type_identity {
-            Some(identity) => {
-                self.byte(1);
-                self.string(identity);
-            }
-            None => self.byte(0),
+        if !method.result_type_identity.is_valid() {
+            self.byte(0);
+        } else {
+            self.byte(1);
+            self.string(identities.text(method.result_type_identity));
         }
         let mut result_claims = method.result_claims.iter().collect::<Vec<_>>();
         result_claims.sort_by(|left, right| left.domain.cmp(&right.domain));

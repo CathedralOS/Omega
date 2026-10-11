@@ -137,3 +137,54 @@ fn service_schemas_carry_no_text_requirement_identities() {
         "service schemas must carry interned identity ids, not text: {violations:?}"
     );
 }
+
+/// Boundary declarations where identity text is legitimate: constructor
+/// parameters interning on arrival and the authored-exclusion `Service`
+/// payload, which names a callable schema identity as authored text.
+const ALLOWED: &[(&str, &str)] = &[(
+    "behavior_exclusions/authored.rs",
+    "Service { identity: String },",
+)];
+
+/// Every `file:line: name` in this crate's non-test sources, outside line
+/// comments, that declares a text identity. `allowed` pairs are
+/// `(file suffix, exact trimmed line)` so only the pinned declaration is
+/// exempt — a `pub` field of the same name still violates.
+fn violations(forbidden: &[&str], allowed: &[(&str, &str)]) -> Vec<String> {
+    let mut violations = Vec::new();
+    for (file, line_number, line) in source_lines("") {
+        for name in forbidden {
+            if line.contains(name)
+                && !allowed.iter().any(|(suffix, declaration)| {
+                    file.ends_with(suffix) && line.trim() == *declaration
+                })
+            {
+                violations.push(format!("{file}:{line_number}: {name}"));
+            }
+        }
+    }
+    violations.sort();
+    violations
+}
+
+/// Stored `*identity`/`identities` declarations carry interned
+/// `TerminalIdentityIndex` handles; text identity survives only on the
+/// boundary declarations pinned in `ALLOWED`.
+#[test]
+fn crate_carries_no_string_identity_fields() {
+    let violations = violations(
+        &[
+            concat!("identity", ": String"),
+            concat!("identity", ": Option<String>"),
+            concat!("identity", ": Vec<String>"),
+            concat!("identities", ": Vec<String>"),
+            concat!("identities", ": HashSet<String>"),
+            concat!("identities", ": BTreeSet<String>"),
+        ],
+        ALLOWED,
+    );
+    assert!(
+        violations.is_empty(),
+        "durable rows must carry interned identity indices, not text: {violations:?}"
+    );
+}

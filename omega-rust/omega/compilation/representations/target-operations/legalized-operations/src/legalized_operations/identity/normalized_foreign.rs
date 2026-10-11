@@ -162,7 +162,10 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
         contribution.provider_plan_report_identity().to_le_bytes(),
     );
     bytes.extend_from_slice(&contribution.provider_plan_commitment().as_bytes());
-    encode_string(bytes, contribution.requirement_identity());
+    // The admitted contribution indexes into the module identity table; the
+    // canonical encoding writes the index itself so encode and decode round-trip
+    // without the table.
+    crate::codec_bytes::push_encoded(bytes, contribution.requirement_identity().0.to_le_bytes());
     crate::codec_bytes::push_encoded(
         bytes,
         contribution.receipt().normalized_identity().to_le_bytes(),

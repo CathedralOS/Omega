@@ -48,7 +48,7 @@ pub(crate) fn extract_native_external_binding_rows(
                 plan,
                 plan.schema.identity_text(plan.schema.trait_name),
                 &row.method,
-                &row.requirement_identity,
+                plan.identities.text(row.requirement_identity),
             )
             .map_err(|diagnostic| vec![diagnostic])?;
             let compatibility_policy = match &binding {
@@ -66,7 +66,7 @@ pub(crate) fn extract_native_external_binding_rows(
                         plan.schema.identity_text(plan.schema.trait_name),
                         plan.schema.trait_package_identity,
                         &row.method,
-                        &row.requirement_identity,
+                        plan.identities.text(row.requirement_identity),
                         policy,
                         // Imports and syscalls have no dispatch-only table
                         // parameter; only a table function would.
@@ -91,7 +91,7 @@ pub(crate) fn extract_native_external_binding_rows(
                 },
                 trait_name: plan.schema.identity_text(plan.schema.trait_name).to_owned(),
                 method: row.method.clone(),
-                requirement_identity: row.requirement_identity.clone(),
+                requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
                 table_type: plan.provider_type.clone(),
                 boundary_entry_plan,
                 binding,
@@ -232,8 +232,7 @@ fn selected_source_boundary_entry_plan(
         if requirement_path != plan.schema.identity_text(plan.schema.trait_name)
             || requirement_method != method_name
             || method.requirement_owner != requirement_owner
-            || plan.schema.identity_text(method.requirement_identity)
-                != exact_requirement_identity
+            || plan.schema.identity_text(method.requirement_identity) != exact_requirement_identity
             || requirement_identity != exact_requirement_identity
         {
             return Err(Diagnostic::error(format!(

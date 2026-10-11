@@ -100,6 +100,9 @@ pub struct AcceptedSemanticBinding {
     normalized_schema_digest: ServiceSchemaDigest,
     selected_provider_plan_digest: Option<ProviderPlanDigest>,
     terminal_authority_permissions: Vec<ServiceTerminalAuthorityPermission>,
+    /// Identity table the permission rows' `requirement_identity` indices
+    /// resolve against.
+    terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 
 impl AcceptedSemanticBinding {
@@ -128,6 +131,9 @@ impl AcceptedSemanticBinding {
             normalized_schema_digest,
             selected_provider_plan_digest: Some(selected_provider_plan_digest),
             terminal_authority_permissions: Vec::new(),
+            terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable::from(
+                Vec::new(),
+            ),
         })
     }
 
@@ -165,6 +171,9 @@ impl AcceptedSemanticBinding {
             normalized_schema_digest,
             selected_provider_plan_digest: None,
             terminal_authority_permissions: Vec::new(),
+            terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable::from(
+                Vec::new(),
+            ),
         })
     }
 
@@ -175,6 +184,7 @@ impl AcceptedSemanticBinding {
     pub fn with_terminal_authority_permissions(
         mut self,
         mut permissions: Vec<ServiceTerminalAuthorityPermission>,
+        permission_identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<Self, &'static str> {
         if permissions
             .iter()
@@ -183,30 +193,44 @@ impl AcceptedSemanticBinding {
             return Err("terminal-authority permission names a different service schema");
         }
         if permissions.iter().any(|permission| {
-            permission.requirement_identity().is_empty()
-                || permission
-                    .requirement_identity()
-                    .chars()
-                    .any(char::is_control)
+            permission_identities
+                .text(permission.requirement_identity())
+                .is_none_or(|text| text.is_empty() || text.chars().any(char::is_control))
         }) {
             return Err("terminal-authority permission has an invalid requirement identity");
         }
         permissions.sort_by(|left, right| {
             left.service_schema()
                 .as_bytes()
-                .cmp(right.service_schema().as_bytes())
+                .cmp(&right.service_schema().as_bytes())
                 .then_with(|| {
-                    left.requirement_identity()
-                        .cmp(right.requirement_identity())
+                    permission_identities
+                        .text(left.requirement_identity())
+                        .cmp(&permission_identities.text(right.requirement_identity()))
                 })
         });
         if permissions.windows(2).any(|rows| {
             rows[0].service_schema() == rows[1].service_schema()
-                && rows[0].requirement_identity() == rows[1].requirement_identity()
+                && permission_identities.text(rows[0].requirement_identity())
+                    == permission_identities.text(rows[1].requirement_identity())
         }) {
             return Err("terminal-authority permissions repeat an exact requirement");
         }
+        let mut identities = self
+            .terminal_authority_permission_identities
+            .clone()
+            .into_builder();
+        for permission in &mut permissions {
+            permission.rekey_requirement_identity(
+                identities.intern(
+                    permission_identities
+                        .text(permission.requirement_identity())
+                        .unwrap_or_default(),
+                ),
+            );
+        }
         self.terminal_authority_permissions = permissions;
+        self.terminal_authority_permission_identities = identities.build();
         Ok(self)
     }
 
@@ -232,6 +256,13 @@ impl AcceptedSemanticBinding {
 
     pub fn terminal_authority_permissions(&self) -> &[ServiceTerminalAuthorityPermission] {
         &self.terminal_authority_permissions
+    }
+
+    /// The table the permission rows' `TerminalIdentityIndex` values index.
+    pub const fn terminal_authority_permission_identities(
+        &self,
+    ) -> &terminal_psi::TerminalIdentityTable {
+        &self.terminal_authority_permission_identities
     }
 }
 

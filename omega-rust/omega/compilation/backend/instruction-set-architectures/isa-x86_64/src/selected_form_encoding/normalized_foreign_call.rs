@@ -569,11 +569,18 @@ mod tests {
         }
         .unwrap();
         let commitment = task_plans::SameStackProviderPlanCommitment::from_digest([0x42; 32]);
+        let identities = terminal_psi::TerminalIdentityTable::from(vec![
+            String::new(),
+            "Foreign::leaf".to_owned(),
+        ]);
+        let requirement_index = identities
+            .index_of("Foreign::leaf")
+            .expect("test requirement identity must intern");
         let same_stack_contribution = task_plans::admit_same_stack_contribution(
             task_plans::SameStackContributionAdmissionCandidate {
                 provider_plan_report_identity: 0xA1,
                 provider_plan_commitment: commitment,
-                requirement_identity: "Foreign::leaf".into(),
+                requirement_identity: requirement_index,
                 receipt:
                     task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
                         0xA2,
@@ -584,7 +591,7 @@ mod tests {
             },
             0xA1,
             commitment,
-            "Foreign::leaf",
+            requirement_index,
         )
         .unwrap();
         let operation = OperationId::new(7).unwrap();

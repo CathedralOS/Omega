@@ -44,7 +44,7 @@ pub struct SameStackContributionAdmissionCandidate {
     pub provider_plan_report_identity: u64,
     /// Strong identity of the exact selected provider plan.
     pub provider_plan_commitment: SameStackProviderPlanCommitment,
-    pub requirement_identity: String,
+    pub requirement_identity: terminal_psi::TerminalIdentityIndex,
     pub receipt: SameStackContributionAdmissionReceiptId,
     pub bytes: u64,
     pub alignment: u64,
@@ -75,7 +75,7 @@ pub struct AdmittedSameStackContribution {
     commitment: SameStackContributionCommitment,
     provider_plan_report_identity: u64,
     provider_plan_commitment: SameStackProviderPlanCommitment,
-    requirement_identity: String,
+    requirement_identity: terminal_psi::TerminalIdentityIndex,
     receipt: SameStackContributionAdmissionReceiptId,
     bytes: u64,
     alignment: u64,
@@ -98,8 +98,8 @@ impl AdmittedSameStackContribution {
         self.provider_plan_commitment
     }
 
-    pub fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
+    pub const fn requirement_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        self.requirement_identity
     }
 
     pub const fn receipt(&self) -> SameStackContributionAdmissionReceiptId {
@@ -119,7 +119,7 @@ pub fn admit_same_stack_contribution(
     candidate: SameStackContributionAdmissionCandidate,
     selected_provider_plan_report_identity: u64,
     selected_provider_plan_commitment: SameStackProviderPlanCommitment,
-    selected_requirement_identity: &str,
+    selected_requirement_identity: terminal_psi::TerminalIdentityIndex,
 ) -> Result<AdmittedSameStackContribution, TaskPlanDiagnostic> {
     if selected_provider_plan_report_identity == 0 {
         return Err(TaskPlanDiagnostic(
@@ -145,16 +145,15 @@ pub fn admit_same_stack_contribution(
                 .into(),
         ));
     }
-    if selected_requirement_identity.is_empty() {
+    if selected_requirement_identity.is_absent() {
         return Err(TaskPlanDiagnostic(
-            "selected requirement identity for same-stack admission cannot be empty".into(),
+            "selected requirement identity for same-stack admission cannot be absent".into(),
         ));
     }
     if candidate.requirement_identity != selected_requirement_identity {
-        return Err(TaskPlanDiagnostic(format!(
-            "same-stack admission requirement identity {:?} does not match selected identity {selected_requirement_identity:?}",
-            candidate.requirement_identity
-        )));
+        return Err(TaskPlanDiagnostic(
+            "same-stack admission requirement identity does not match the selected identity".into(),
+        ));
     }
     if candidate.bytes == 0 {
         return Err(TaskPlanDiagnostic(
@@ -841,7 +840,9 @@ fn admitted_contribution_report_fingerprint(
     for byte in candidate.provider_plan_commitment.as_bytes() {
         hash.byte(byte);
     }
-    hash.string_framed(&candidate.requirement_identity);
+    // The requirement identity is a table index: hashing the index keeps the
+    // fingerprint table-free so admission can re-run at codec decode.
+    hash.u64(candidate.requirement_identity.0 as u64);
     hash.u64(candidate.receipt.normalized_identity());
     hash.u64(candidate.bytes);
     hash.u64(candidate.alignment);
@@ -855,7 +856,7 @@ fn admitted_contribution_commitment(
         crate::digest_encoder::DomainDigestEncoder::new(b"omega.task.same-stack-contribution.v1\0");
     hash.u64(candidate.provider_plan_report_identity);
     hash.raw(&candidate.provider_plan_commitment.as_bytes());
-    hash.string(&candidate.requirement_identity);
+    hash.raw(&candidate.requirement_identity.0.to_le_bytes());
     hash.raw(&candidate.receipt.normalized_identity().to_le_bytes());
     hash.u64(candidate.bytes);
     hash.u64(candidate.alignment);

@@ -63,7 +63,7 @@ pub(super) fn validate(
         ProgramEntryReceiverSignature::ProvisionedMutable {
             normalized_type_identity,
             ..
-        } if !normalized_type_identity.is_empty() => {}
+        } if !normalized_type_identity.is_absent() => {}
         _ => {
             return Err(ProgramStorageEntryDiagnostic(
                 "optimized semantic ProgramStorage entry requires an exact receiver signature"
@@ -108,7 +108,13 @@ pub(super) fn validate(
     }
 
     let method = selected_method(selected)?;
-    validate_method(method, semantic_application, [image_source, storage_source])?;
+    validate_method(
+        method,
+        selected.schema(),
+        semantic_application,
+        [image_source, storage_source],
+        source.identities(),
+    )?;
     let physical_contract = selected.physical_contract().ok_or_else(|| {
         ProgramStorageEntryDiagnostic(
             "optimized semantic ProgramStorage entry lost its paired physical plan".into(),
@@ -117,8 +123,10 @@ pub(super) fn validate(
     let validated_physical = semantic_application.admitted_physical_entry_plan();
     if physical_contract.boundary_entry_plan() != validated_physical.plan()
         || physical_contract.target_slot() != slot
-        || physical_contract.requirement_identity()
-            == selected.schema().identity_text(method.requirement_identity)
+        || physical_contract
+            .identities()
+            .text(physical_contract.requirement_identity())
+            == Some(selected.schema().identity_text(method.requirement_identity))
         || physical_contract.calling_plan_report_fingerprint()
             != validated_physical.contract_report_fingerprint()
         || physical_contract.calling_plan_report_fingerprint()
@@ -151,19 +159,20 @@ pub(super) fn validate(
     })
 }
 
-fn selected_method(
-    selected: &SelectedProgramStorageEntryPlan,
-) -> Result<&ServiceMethod, ProgramStorageEntryDiagnostic> {
+fn selected_method<'a>(
+    selected: &'a SelectedProgramStorageEntryPlan,
+) -> Result<&'a ServiceMethod, ProgramStorageEntryDiagnostic> {
     let matches = selected
         .schema()
         .methods
         .iter()
         .filter(|method| {
-            selected
-                .schema()
-                .identities
-                .id_at(selected.requirement_identity())
-                == Some(method.requirement_identity)
+            selected.schema().identities.id_at(
+                selected
+                    .identities()
+                    .text(selected.requirement_identity())
+                    .unwrap_or_default(),
+            ) == Some(method.requirement_identity)
         })
         .collect::<Vec<_>>();
     let [method] = matches.as_slice() else {
@@ -177,15 +186,17 @@ fn selected_method(
 
 fn validate_method(
     method: &ServiceMethod,
+    schema: &effects::provider_plan::ServiceSchema,
     semantic_application: &OptimizedProgramStorageSemanticCallingApplication<'_>,
     source: [&crate::ProgramEntryVisibleParameterSignature; 2],
+    plan_identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
     if method.requirement_owner != PROGRAM_STORAGE_ENTRY_OWNER
         || method.name != PROGRAM_STORAGE_ENTRY_METHOD
         || method.parameter_count != 2
         || method.parameter_type_identities.len() != 2
         || method.has_result
-        || method.result_type_identity.is_some()
+        || method.result_type_identity.is_valid()
         || !method.result_claims.is_empty()
         || !matches!(
             method.entry_claims.as_slice(),
@@ -213,7 +224,12 @@ fn validate_method(
         ));
     }
     for (index, parameter) in source.into_iter().enumerate() {
-        if method.parameter_type_identities[index] != parameter.normalized_type_identity() {
+        if Some(
+            schema
+                .identities
+                .text(method.parameter_type_identities[index]),
+        ) != plan_identities.text(parameter.normalized_type_identity())
+        {
             return Err(ProgramStorageEntryDiagnostic(format!(
                 "selected semantic ProgramStorage parameter {index} drifted from its checked source type"
             )));
@@ -229,17 +245,18 @@ fn validate_method(
                 claims.len()
             )));
         };
-        validate_claim(claim, index)?;
+        validate_claim(claim, schema, index)?;
     }
     Ok(())
 }
 
 fn validate_claim(
     claim: &ServiceEntryClaim,
+    schema: &effects::provider_plan::ServiceSchema,
     parameter_index: usize,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
     if claim.parameter_index != parameter_index
-        || claim.carrier_identity != EXTENT_CARRIER
+        || schema.identities.text(claim.carrier_identity) != EXTENT_CARRIER
         || claim.domain != GRANTED_DOMAIN
         || !claim.predicate_body.is_present()
         || claim.effective_carry != CarryPolicy::STRICT

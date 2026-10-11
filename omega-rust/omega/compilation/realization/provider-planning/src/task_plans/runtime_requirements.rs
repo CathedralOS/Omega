@@ -88,8 +88,9 @@ pub(crate) fn selected_task_runtime_provider(
                     method.requirement_owner
                         == program.typed.trait_declaration_path(requirement_owner)
                         && method.requirement_owner_package_identity == requirement_owner_package
-                        && plan.schema.identity_text(method.requirement_identity)
-                            == authored_requirement_identity
+                        && program.typed.callable_identity_by_text(
+                            plan.schema.identity_text(method.requirement_identity),
+                        ) == authored_requirement_identity
                 })
         })
         .collect::<Vec<_>>();
@@ -112,8 +113,9 @@ pub(crate) fn selected_task_runtime_provider(
         .filter(|method| {
             method.requirement_owner == program.typed.trait_declaration_path(requirement_owner)
                 && method.requirement_owner_package_identity == requirement_owner_package
-                && plan.schema.identity_text(method.requirement_identity)
-                    == authored_requirement_identity
+                && program.typed.callable_identity_by_text(
+                    plan.schema.identity_text(method.requirement_identity),
+                ) == authored_requirement_identity
         })
         .collect::<Vec<_>>();
     let [method] = requirements.as_slice() else {
@@ -128,17 +130,24 @@ pub(crate) fn selected_task_runtime_provider(
             ),
         })]);
     };
-    if plan.schema.identity_text(method.requirement_identity) != authored_requirement_identity {
+    if program
+        .typed
+        .callable_identity_by_text(plan.schema.identity_text(method.requirement_identity))
+        != authored_requirement_identity
+    {
         return Err(vec![Diagnostic::error(format!(
-            "selected TaskRuntime provider plan `{}` binds `{requirement_name}` as `{}`, but the activation call requires `{authored_requirement_identity}`",
+            "selected TaskRuntime provider plan `{}` binds `{requirement_name}` as `{}`, but the activation call requires `{}`",
             plan.name,
-            plan.schema.identity_text(method.requirement_identity)
+            plan.schema.identity_text(method.requirement_identity),
+            program
+                .typed
+                .callable_identity_text(authored_requirement_identity)
         ))]);
     }
     let covering_rows = plan
         .rows
         .iter()
-        .filter(|row| plan.schema.row_binds_method(row, method))
+        .filter(|row| plan.schema.row_binds_method(row, method, &plan.identities))
         .count();
     if covering_rows != 1 {
         return Err(vec![Diagnostic::error(format!(
@@ -151,10 +160,9 @@ pub(crate) fn selected_task_runtime_provider(
     Ok(SelectedTaskRuntimeProviderFact {
         runtime,
         provider_plan_name: plan.name.clone(),
-        requirement_identity: plan
-            .schema
-            .identity_text(method.requirement_identity)
-            .to_owned(),
+        requirement_identity: program
+            .typed
+            .callable_identity_by_text(plan.schema.identity_text(method.requirement_identity)),
     })
 }
 
@@ -165,7 +173,7 @@ pub(crate) fn exact_task_runtime_requirement<'program>(
     (
         &'program checked_trees::trait_definition::TraitDefinition,
         &'program checked_trees::signature::StateSignature,
-        String,
+        typed_trees::type_identity::CallableIdentityId,
     ),
     Vec<Diagnostic>,
 > {
@@ -202,6 +210,8 @@ pub(crate) fn exact_task_runtime_requirement<'program>(
             "TaskRuntime activation requirement must resolve uniquely within its exact owner",
         )]);
     }
-    let identity = program.trait_requirement_callable_identity_text(owner, signature);
+    let identity = program
+        .typed
+        .trait_requirement_callable_identity(owner, signature);
     Ok((owner, signature, identity))
 }

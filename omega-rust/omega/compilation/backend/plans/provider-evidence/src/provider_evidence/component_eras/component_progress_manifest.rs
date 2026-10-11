@@ -23,44 +23,48 @@ evidence_digest!(
 /// Source-handle-free input derived from checked call facts before composition.
 /// It names an obligation only; selected-plan identity is joined by
 /// `ComponentProgressManifest::bind`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedComponentProgressDemand {
-    pub provider_service_identity: String,
+    /// `*identity` fields index into the demand batch's identity table the
+    /// producer supplies alongside this value.
+    pub provider_service_identity: terminal_psi::TerminalIdentityIndex,
     pub provider_service_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub requirement_identity: String,
+    pub requirement_identity: terminal_psi::TerminalIdentityIndex,
     pub requirement_owner_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub profile_identity: String,
+    pub profile_identity: terminal_psi::TerminalIdentityIndex,
     pub subject_projections: Vec<String>,
-    pub origin_callable_identity: String,
-    pub origin_state_identity: String,
+    pub origin_callable_identity: terminal_psi::TerminalIdentityIndex,
+    pub origin_state_identity: terminal_psi::TerminalIdentityIndex,
     pub statement_ordinal: usize,
     pub call_ordinal: usize,
 }
 
-/// One bound establishment route in canonical text form: the schema's
-/// interned identity projected at bind time so the manifest record carries
-/// no process-local mint order.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+/// One bound establishment route: the schema's interned identity re-keyed
+/// into the manifest demand's `identities` table at bind time, so the record
+/// carries no process-local mint order.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManifestProgressRoute {
     pub kind: crate::provider_plan::ServiceProgressEstablishmentRouteKind,
-    pub requirement_identity: String,
+    pub requirement_identity: terminal_psi::TerminalIdentityIndex,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentBuildBoundProgressDemand {
-    pub provider_service_identity: String,
+    /// `*identity` fields and `establishment_routes[].requirement_identity`
+    /// index into the owning manifest's `identities` table.
+    pub provider_service_identity: terminal_psi::TerminalIdentityIndex,
     pub provider_service_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub requirement_identity: String,
+    pub requirement_identity: terminal_psi::TerminalIdentityIndex,
     pub requirement_owner_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub profile_identity: String,
+    pub profile_identity: terminal_psi::TerminalIdentityIndex,
     pub subject_projections: Vec<String>,
     pub establishment_routes: Vec<ManifestProgressRoute>,
     /// Non-authoritative coordinate for the exact selected plan committed by
     /// `provider_plan_digest` and the enclosing selected-closure digest.
     pub provider_plan_report_identity: u64,
     pub provider_plan_digest: ProviderPlanDigest,
-    pub origin_callable_identity: String,
-    pub origin_state_identity: String,
+    pub origin_callable_identity: terminal_psi::TerminalIdentityIndex,
+    pub origin_state_identity: terminal_psi::TerminalIdentityIndex,
     pub statement_ordinal: usize,
     pub call_ordinal: usize,
 }
@@ -70,7 +74,10 @@ pub struct ComponentBuildBoundProgressDemand {
 /// no mutable "discharged" bit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentProgressManifest {
-    entry_callable_identity: String,
+    entry_callable_identity: terminal_psi::TerminalIdentityIndex,
+    /// Manifest-local terminal identity table every interned `*identity`
+    /// field above and on `pending` rows resolves against.
+    identities: terminal_psi::TerminalIdentityTable,
     /// Non-authoritative compatibility/report coordinate. The selected
     /// closure digest below is the authority-bearing join.
     selected_provider_closure_report_identity: u64,
@@ -83,7 +90,8 @@ pub struct ComponentProgressManifest {
 
 impl ComponentProgressManifest {
     pub fn bind(
-        entry_callable_identity: String,
+        entry_callable_identity: &str,
+        demand_identities: &terminal_psi::TerminalIdentityTable,
         selected: &SelectedProviderPlanFacts,
         demands: Vec<CheckedComponentProgressDemand>,
     ) -> Result<Self, String> {
@@ -92,13 +100,30 @@ impl ComponentProgressManifest {
                 "component progress manifest requires an exact entry callable identity".into(),
             );
         }
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let entry = identities.intern(entry_callable_identity);
         let mut pending = Vec::with_capacity(demands.len());
         for demand in demands {
-            if demand.provider_service_identity.is_empty()
-                || demand.requirement_identity.is_empty()
-                || demand.profile_identity.is_empty()
-                || demand.origin_callable_identity.is_empty()
-                || demand.origin_state_identity.is_empty()
+            let provider_service_identity = demand_identities
+                .text(demand.provider_service_identity)
+                .unwrap_or_default();
+            let requirement_identity = demand_identities
+                .text(demand.requirement_identity)
+                .unwrap_or_default();
+            let profile_identity = demand_identities
+                .text(demand.profile_identity)
+                .unwrap_or_default();
+            let origin_callable_identity = demand_identities
+                .text(demand.origin_callable_identity)
+                .unwrap_or_default();
+            let origin_state_identity = demand_identities
+                .text(demand.origin_state_identity)
+                .unwrap_or_default();
+            if provider_service_identity.is_empty()
+                || requirement_identity.is_empty()
+                || profile_identity.is_empty()
+                || origin_callable_identity.is_empty()
+                || origin_state_identity.is_empty()
             {
                 return Err("component progress demand contains an empty semantic identity".into());
             }
@@ -106,9 +131,7 @@ impl ComponentProgressManifest {
                 .plans()
                 .iter()
                 .filter(|plan| {
-                    plan.schema
-                        .identities
-                        .id_at(&demand.provider_service_identity)
+                    plan.schema.identities.id_at(provider_service_identity)
                         == Some(plan.schema.trait_name)
                         && plan.schema.trait_package_identity
                             == demand.provider_service_package_identity
@@ -116,8 +139,7 @@ impl ComponentProgressManifest {
                 .collect::<Vec<_>>();
             let [plan] = matching_plans.as_slice() else {
                 return Err(format!(
-                    "build-bound progress demand for service `{}` resolves to {} selected provider plans; expected exactly one",
-                    demand.provider_service_identity,
+                    "build-bound progress demand for service `{provider_service_identity}` resolves to {} selected provider plans; expected exactly one",
                     matching_plans.len()
                 ));
             };
@@ -126,9 +148,7 @@ impl ComponentProgressManifest {
                 .methods
                 .iter()
                 .filter(|method| {
-                    plan.schema
-                        .identities
-                        .id_at(&demand.requirement_identity)
+                    plan.schema.identities.id_at(requirement_identity)
                         == Some(method.requirement_identity)
                         && method.requirement_owner_package_identity
                             == demand.requirement_owner_package_identity
@@ -136,8 +156,7 @@ impl ComponentProgressManifest {
                 .collect::<Vec<_>>();
             let [method] = matching_methods.as_slice() else {
                 return Err(format!(
-                    "build-bound progress demand `{}` resolves to {} methods in selected provider plan `{}`; expected exactly one",
-                    demand.requirement_identity,
+                    "build-bound progress demand `{requirement_identity}` resolves to {} methods in selected provider plan `{}`; expected exactly one",
                     matching_methods.len(),
                     plan.name
                 ));
@@ -147,67 +166,100 @@ impl ComponentProgressManifest {
                 .iter()
                 .filter(|premise| {
                     premise.subject == ServiceProgressSubject::ProviderReceiver
-                        && premise.profile == demand.profile_identity
+                        && premise.profile == profile_identity
                         && premise.subject_projections == demand.subject_projections
                 })
                 .collect::<Vec<_>>();
             let [premise] = matching_premises.as_slice() else {
                 return Err(format!(
-                    "build-bound progress demand `{}` / `{}` has {} exact provider-receiver premise matches in selected provider plan `{}`; expected one",
-                    demand.requirement_identity,
-                    demand.profile_identity,
+                    "build-bound progress demand `{requirement_identity}` / `{profile_identity}` has {} exact provider-receiver premise matches in selected provider plan `{}`; expected one",
                     matching_premises.len(),
                     plan.name
                 ));
             };
-            // The manifest record keeps the canonical text the schema's
-            // interner produced; order stays kind-then-text so this render
-            // matches the premise's schema ordering exactly.
+            // The manifest record keeps canonical identity ordering: routes
+            // mint into the demand's `identities` table and order stays
+            // kind-then-text, matching the premise's schema ordering exactly.
             let mut establishment_routes = premise
                 .establishment_routes
                 .iter()
                 .map(|route| ManifestProgressRoute {
                     kind: route.kind,
-                    requirement_identity: plan
-                        .schema
-                        .identity_text(route.requirement_identity)
-                        .to_owned(),
+                    requirement_identity: identities
+                        .intern(plan.schema.identity_text(route.requirement_identity)),
                 })
                 .collect::<Vec<_>>();
-            establishment_routes.sort();
+            establishment_routes.sort_by_cached_key(|route| {
+                (
+                    route.kind,
+                    identities
+                        .text(route.requirement_identity)
+                        .unwrap_or_default()
+                        .to_owned(),
+                )
+            });
             establishment_routes.dedup();
             pending.push(ComponentBuildBoundProgressDemand {
-                provider_service_identity: demand.provider_service_identity,
+                provider_service_identity: identities.intern(provider_service_identity),
                 provider_service_package_identity: demand.provider_service_package_identity,
-                requirement_identity: demand.requirement_identity,
+                requirement_identity: identities.intern(requirement_identity),
                 requirement_owner_package_identity: demand.requirement_owner_package_identity,
-                profile_identity: demand.profile_identity,
+                profile_identity: identities.intern(profile_identity),
                 subject_projections: demand.subject_projections,
                 establishment_routes,
                 provider_plan_report_identity: plan.report_fingerprint(),
                 provider_plan_digest: plan.identity_digest(),
-                origin_callable_identity: demand.origin_callable_identity,
-                origin_state_identity: demand.origin_state_identity,
+                origin_callable_identity: identities.intern(origin_callable_identity),
+                origin_state_identity: identities.intern(origin_state_identity),
                 statement_ordinal: demand.statement_ordinal,
                 call_ordinal: demand.call_ordinal,
             });
         }
-        pending.sort();
+        let identities = identities.build();
+        pending.sort_by_cached_key(|demand| {
+            (
+                identities
+                    .text(demand.provider_service_identity)
+                    .unwrap_or_default()
+                    .to_owned(),
+                identities
+                    .text(demand.requirement_identity)
+                    .unwrap_or_default()
+                    .to_owned(),
+                identities
+                    .text(demand.profile_identity)
+                    .unwrap_or_default()
+                    .to_owned(),
+                identities
+                    .text(demand.origin_callable_identity)
+                    .unwrap_or_default()
+                    .to_owned(),
+                identities
+                    .text(demand.origin_state_identity)
+                    .unwrap_or_default()
+                    .to_owned(),
+                demand.statement_ordinal,
+                demand.call_ordinal,
+            )
+        });
         pending.dedup();
         let selected_provider_closure_report_identity = selected.compatibility_report_identity();
         let selected_provider_closure_digest = selected.identity_digest();
         let compatibility_report_identity = compatibility_report_fingerprint(
-            &entry_callable_identity,
+            entry_callable_identity,
             selected_provider_closure_report_identity,
             &pending,
+            &identities,
         );
         let identity_digest = digest_manifest(
-            &entry_callable_identity,
+            entry_callable_identity,
             selected_provider_closure_digest,
             &pending,
+            &identities,
         );
         Ok(Self {
-            entry_callable_identity,
+            entry_callable_identity: entry,
+            identities,
             selected_provider_closure_report_identity,
             selected_provider_closure_digest,
             pending,
@@ -216,8 +268,16 @@ impl ComponentProgressManifest {
         })
     }
 
+    /// The manifest-local terminal identity table every `*identity` field on
+    /// the manifest and its `pending` rows resolves against.
+    pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.identities
+    }
+
     pub fn entry_callable_identity(&self) -> &str {
-        &self.entry_callable_identity
+        self.identities
+            .text(self.entry_callable_identity)
+            .unwrap_or_default()
     }
 
     /// Non-authoritative compact selected-closure coordinate. Admission also
@@ -250,29 +310,50 @@ fn digest_manifest(
     entry: &str,
     selected: SelectedProviderClosureDigest,
     pending: &[ComponentBuildBoundProgressDemand],
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> ComponentProgressManifestDigest {
     let mut encoder = ManifestDigestEncoder::new();
     encoder.string(entry);
     encoder.bytes(selected.as_bytes());
     encoder.len(pending.len());
     for demand in pending {
-        encoder.string(&demand.provider_service_identity);
+        encoder.string(
+            identities
+                .text(demand.provider_service_identity)
+                .unwrap_or_default(),
+        );
         encoder.package_identity(demand.provider_service_package_identity);
-        encoder.string(&demand.requirement_identity);
+        encoder.string(
+            identities
+                .text(demand.requirement_identity)
+                .unwrap_or_default(),
+        );
         encoder.package_identity(demand.requirement_owner_package_identity);
-        encoder.string(&demand.profile_identity);
+        encoder.string(identities.text(demand.profile_identity).unwrap_or_default());
         encoder.strings(&demand.subject_projections);
         encoder.len(demand.establishment_routes.len());
         for route in &demand.establishment_routes {
             encoder.string(route.kind.as_str());
-            encoder.string(&route.requirement_identity);
+            encoder.string(
+                identities
+                    .text(route.requirement_identity)
+                    .unwrap_or_default(),
+            );
         }
         // This remains a compact plan coordinate, but the selected closure
         // commitment above binds the exact uniquely indexed plans.
         encoder.u64(demand.provider_plan_report_identity);
         encoder.bytes(demand.provider_plan_digest.as_bytes());
-        encoder.string(&demand.origin_callable_identity);
-        encoder.string(&demand.origin_state_identity);
+        encoder.string(
+            identities
+                .text(demand.origin_callable_identity)
+                .unwrap_or_default(),
+        );
+        encoder.string(
+            identities
+                .text(demand.origin_state_identity)
+                .unwrap_or_default(),
+        );
         encoder.u64(demand.statement_ordinal as u64);
         encoder.u64(demand.call_ordinal as u64);
     }
@@ -321,13 +402,19 @@ fn compatibility_report_fingerprint(
     entry: &str,
     selected: u64,
     pending: &[ComponentBuildBoundProgressDemand],
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.bytes_framed(entry.as_bytes());
     hash.bytes_framed(&selected.to_le_bytes());
     hash.bytes_framed(&(pending.len() as u64).to_le_bytes());
     for demand in pending {
-        hash.bytes_framed(demand.provider_service_identity.as_bytes());
+        hash.bytes_framed(
+            identities
+                .text(demand.provider_service_identity)
+                .unwrap_or_default()
+                .as_bytes(),
+        );
         match demand.provider_service_package_identity {
             Some(identity) => {
                 hash.bytes_framed(&[1]);
@@ -335,7 +422,12 @@ fn compatibility_report_fingerprint(
             }
             None => hash.bytes_framed(&[0]),
         }
-        hash.bytes_framed(demand.requirement_identity.as_bytes());
+        hash.bytes_framed(
+            identities
+                .text(demand.requirement_identity)
+                .unwrap_or_default()
+                .as_bytes(),
+        );
         match demand.requirement_owner_package_identity {
             Some(identity) => {
                 hash.bytes_framed(&[1]);
@@ -343,7 +435,12 @@ fn compatibility_report_fingerprint(
             }
             None => hash.bytes_framed(&[0]),
         }
-        hash.bytes_framed(demand.profile_identity.as_bytes());
+        hash.bytes_framed(
+            identities
+                .text(demand.profile_identity)
+                .unwrap_or_default()
+                .as_bytes(),
+        );
         hash.bytes_framed(&(demand.subject_projections.len() as u64).to_le_bytes());
         for projection in &demand.subject_projections {
             hash.bytes_framed(projection.as_bytes());
@@ -351,11 +448,26 @@ fn compatibility_report_fingerprint(
         hash.bytes_framed(&(demand.establishment_routes.len() as u64).to_le_bytes());
         for route in &demand.establishment_routes {
             hash.bytes_framed(route.kind.as_str().as_bytes());
-            hash.bytes_framed(route.requirement_identity.as_bytes());
+            hash.bytes_framed(
+                identities
+                    .text(route.requirement_identity)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
         }
         hash.bytes_framed(&demand.provider_plan_report_identity.to_le_bytes());
-        hash.bytes_framed(demand.origin_callable_identity.as_bytes());
-        hash.bytes_framed(demand.origin_state_identity.as_bytes());
+        hash.bytes_framed(
+            identities
+                .text(demand.origin_callable_identity)
+                .unwrap_or_default()
+                .as_bytes(),
+        );
+        hash.bytes_framed(
+            identities
+                .text(demand.origin_state_identity)
+                .unwrap_or_default()
+                .as_bytes(),
+        );
         hash.bytes_framed(&(demand.statement_ordinal as u64).to_le_bytes());
         hash.bytes_framed(&(demand.call_ordinal as u64).to_le_bytes());
     }

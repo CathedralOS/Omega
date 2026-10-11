@@ -145,6 +145,7 @@ fn mint_toolchain_settled_plan(
     }
     let mut rows = Vec::with_capacity(leaves.len());
     let mut requirement_symbols = Vec::with_capacity(leaves.len());
+    let mut identities = ProviderIdentityTable::default();
     for leaf in leaves {
         let Some(method) = schema
             .methods
@@ -165,7 +166,8 @@ fn mint_toolchain_settled_plan(
         requirement_symbols.push(signature.symbol);
         rows.push(ProviderPlanRow {
             method: method.name.clone(),
-            requirement_identity: schema.identity_text(method.requirement_identity).to_owned(),
+            requirement_identity: identities
+                .intern(schema.identity_text(method.requirement_identity)),
             requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::Syscall {
                 number: leaf.number,
@@ -186,9 +188,9 @@ fn mint_toolchain_settled_plan(
         provider_type: provider.to_owned(),
         provider_type_package_identity: None,
         target: target_name.to_owned(),
-        identities: ProviderIdentityTable::default(),
         schema,
         rows,
+        identities,
         origin_package_identity: None,
         origin_package: "omega toolchain".to_owned(),
         digest_memo: Default::default(),

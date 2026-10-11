@@ -63,11 +63,17 @@ pub(crate) fn derive_fused_program_entry_establishments(
     entry: &provider_planning::program_entry::SelectedCompilerProgramEntry,
     selected: &[SelectedProviderReviewProvenance],
     permit_unsettled: bool,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>, Vec<Diagnostic>> {
     let source = entry.source_signature();
     let Some(receiver_identity) = source.receiver().normalized_type_identity() else {
         return Ok(Vec::new());
     };
+    let receiver_identity_text = source
+        .identities()
+        .text(receiver_identity)
+        .unwrap_or_default()
+        .to_owned();
     let matching_machines = checked
         .machines()
         .iter()
@@ -107,7 +113,11 @@ pub(crate) fn derive_fused_program_entry_establishments(
     }
     let receiver_parameter = context.parameter;
     let owner = context.definition;
-    if checked.normalized_type_identity_text(receiver_parameter.type_reference) != receiver_identity
+    if checked.normalized_type_identity_text(receiver_parameter.type_reference)
+        != source
+            .identities()
+            .text(receiver_identity)
+            .unwrap_or_default()
     {
         return Err(vec![Diagnostic::error(
             "selected ProgramEntry receiver identity drifted before Fused establishment",
@@ -244,7 +254,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
         .collect::<Vec<_>>();
     let [structural_type] = structural_types.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
-            "selected ProgramEntry receiver `{receiver_identity}` with attachment `{}` rejoins {} Terminal structural types; expected one (available: {})",
+            "selected ProgramEntry receiver `{receiver_identity_text}` with attachment `{}` rejoins {} Terminal structural types; expected one (available: {})",
             checked
                 .type_identity_text(*attachment_type_identity)
                 .unwrap_or_default(),
@@ -371,6 +381,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
             program_entry_plan::ProgramEntryFusedServiceEstablishment::requirement_identity_for_schema(&schema),
             schema.identity_digest(),
             selected_plan.plan.identity_digest(),
+            identities,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
         rows.push(row);
@@ -378,7 +389,14 @@ pub(crate) fn derive_fused_program_entry_establishments(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    rows.sort_by(|left, right| left.field_path().cmp(right.field_path()));
+    // Rows share the signature's table, so field-path order follows the
+    // rendered text ordering the String fields carried before.
+    rows.sort_by_cached_key(|row| {
+        row.field_path()
+            .iter()
+            .map(|segment| identities.text(*segment).unwrap_or_default().to_owned())
+            .collect::<Vec<_>>()
+    });
     if rows
         .windows(2)
         .any(|pair| pair[0].field_path() == pair[1].field_path())

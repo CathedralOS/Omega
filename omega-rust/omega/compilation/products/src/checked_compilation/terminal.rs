@@ -47,6 +47,10 @@ impl CheckedCompilation {
     ) -> Result<TerminalNativeProposalRequest<'input>, Vec<Diagnostic>> {
         let execution = self.execution();
         let providers = self.providers();
+        let (
+            package_terminal_authority_permissions,
+            package_terminal_authority_permission_identities,
+        ) = execution.terminal_authority_permissions();
         Ok(TerminalNativeProposalRequest {
             provider_declarations: execution.selected_provider_provenance.iter().map(|retained| {
                 let typed = &execution.program.typed;
@@ -91,7 +95,8 @@ impl CheckedCompilation {
             optimizations: selections.project_post_terminal(),
             external_bindings: &providers.external_binding_rows,
             behavior_exclusions: self.build().config.behavior_exclusions.as_slice(),
-            package_terminal_authority_permissions: execution.terminal_authority_permissions(),
+            package_terminal_authority_permissions,
+            package_terminal_authority_permission_identities,
             callback_placements: callback_placements.iter().map(|placement| placement.native.clone()).collect(),
             callback_thunks,
             x86_scalar_fma_provider: execution.x86_scalar_fma_provider,
@@ -165,7 +170,10 @@ impl CheckedCompilation {
                         terminal_psi_to_abstract_operations::SelectedFamilyRealizationSource {
                             head_identity: head.name.clone(),
                             target: plan.target.clone(),
-                            selected_requirement_identity: row.requirement_identity.clone(),
+                            selected_requirement_identity: plan
+                                .identities
+                                .text(row.requirement_identity)
+                                .to_owned(),
                             provider_plan_report_identity: plan.report_fingerprint(),
                             provider_plan_digest: plan.identity_digest(),
                         },

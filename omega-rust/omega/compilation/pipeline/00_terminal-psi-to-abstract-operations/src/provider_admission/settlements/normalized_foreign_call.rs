@@ -7,6 +7,7 @@ pub(super) fn rejoin_normalized_foreign_call(
     same_stack: &task_plans::AdmittedSameStackContribution,
     provider_plan_report_identity: u64,
     requirement: &str,
+    identities: &terminal_psi::TerminalIdentityTable,
     target: target::NativeTarget,
 ) -> Result<NormalizedForeignCallBinding, Vec<Diagnostic>> {
     let selected_commitment = task_plans::SameStackProviderPlanCommitment::from_digest(
@@ -14,7 +15,7 @@ pub(super) fn rejoin_normalized_foreign_call(
     );
     if same_stack.provider_plan_report_identity() != provider_plan_report_identity
         || same_stack.provider_plan_commitment() != selected_commitment
-        || same_stack.requirement_identity() != requirement
+        || identities.index_of(requirement) != Some(same_stack.requirement_identity())
     {
         return Err(vec![Diagnostic::error(format!(
             "normalized foreign realization for `{requirement}` does not carry same-stack custody for the exact selected provider row"
@@ -23,7 +24,7 @@ pub(super) fn rejoin_normalized_foreign_call(
     let selected_rows = selected_plan
         .rows
         .iter()
-        .filter(|row| row.requirement_identity == requirement)
+        .filter(|row| selected_plan.identities.text(row.requirement_identity) == requirement)
         .collect::<Vec<_>>();
     let [selected_row] = selected_rows.as_slice() else {
         return Err(vec![Diagnostic::error(format!(

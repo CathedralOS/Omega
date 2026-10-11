@@ -86,7 +86,15 @@ pub(crate) fn project_selected_installation_reach(
         .selected_provider_plan_facts
         .installation_reach_resolutions()
         .iter()
-        .filter(|resolution| resolution.requirement_identity == requirement_identity.path())
+        .filter(|resolution| {
+            compilation
+                .custody
+                .execution()
+                .selected_provider_plan_facts
+                .identities()
+                .text(resolution.requirement_identity)
+                == Some(requirement_identity.path())
+        })
         .collect::<Vec<_>>();
     let [retained] = retained.as_slice() else {
         return Err(vec![Diagnostic::error(format!(

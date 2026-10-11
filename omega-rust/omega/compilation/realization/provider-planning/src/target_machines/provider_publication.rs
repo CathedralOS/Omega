@@ -132,7 +132,7 @@ impl TargetProviderPublicationRequest<'_> {
                     candidate.plan.rows.iter().any(|row| {
                         selection
                             .subject
-                            .selects_schema(schema, &row.requirement_identity)
+                            .selects_schema(schema, candidate.plan.identity_text(row.requirement_identity))
                     })
                 })
             {
@@ -180,7 +180,7 @@ impl TargetProviderPublicationRequest<'_> {
                         .text(candidate.provider_declaration.identity())
                         == Some(provider)
                         && module.identities.text(candidate.requirement_identity)
-                            == Some(row.requirement_identity.as_str())
+                            == Some(plan.identity_text(row.requirement_identity))
                         && module
                             .machine(candidate.candidate)
                             .and_then(|machine| machine.declaration.as_ref())
@@ -190,7 +190,7 @@ impl TargetProviderPublicationRequest<'_> {
                             == Some(realization.as_str())
                 });
                 let candidate = matching.next().ok_or_else(|| {
-                    vec![Diagnostic::error(format!("selected provider requirement `{}` has no emitted exact declaration candidate", row.requirement_identity))]
+                    vec![Diagnostic::error(format!("selected provider requirement `{}` has no emitted exact declaration candidate", plan.identity_text(row.requirement_identity)))]
                 })?;
                 if matching.next().is_some() {
                     return Err(vec![Diagnostic::error(

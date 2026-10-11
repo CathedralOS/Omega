@@ -168,7 +168,7 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
         || plan.provider_type_package_identity != expected_provider_type_package
         || plan.schema != expected_schema
         || plan.schema.identity_text(method.requirement_identity) != slot
-        || row.requirement_identity != slot
+        || plan.identities.text(row.requirement_identity) != slot
         || !external_binding_matches_provider_binding(compilation, machine, binding, &row.binding)
     {
         return Err(vec![Diagnostic::error(format!(

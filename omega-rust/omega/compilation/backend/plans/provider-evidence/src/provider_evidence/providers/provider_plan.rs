@@ -90,9 +90,10 @@ pub enum ProviderBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanRow {
     pub method: String,
-    /// Exact requirement overload supplied by this row. It is always nonempty;
-    /// a method spelling is display/debug data, not dispatch identity.
-    pub requirement_identity: String,
+    /// Exact requirement overload supplied by this row, as an index into the
+    /// owning plan's `identities` table. It is always present; a method
+    /// spelling is display/debug data, not dispatch identity.
+    pub requirement_identity: ProviderIdentityId,
     /// First-occurrence-normalized equality partition for the target trait's
     /// lifetime application on this exact realization edge. Empty for a
     /// lifetime-free trait, operator, or top-level requirement.
@@ -282,19 +283,17 @@ impl ProviderPlan {
         }
 
         let mut rows = self.rows.iter().collect::<Vec<_>>();
-        rows.sort_by(|left, right| {
-            left.method
-                .cmp(&right.method)
-                .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
-                .then_with(|| {
-                    left.requirement_lifetime_partition
-                        .cmp(&right.requirement_lifetime_partition)
-                })
+        rows.sort_by_cached_key(|row| {
+            (
+                row.method.clone(),
+                self.identities.text(row.requirement_identity).to_owned(),
+                row.requirement_lifetime_partition.clone(),
+            )
         });
         encoder.len(rows.len());
         for row in rows {
             encoder.string(&row.method);
-            encoder.string(&row.requirement_identity);
+            encoder.string(self.identities.text(row.requirement_identity));
             encoder.len(row.requirement_lifetime_partition.len());
             for ordinal in &row.requirement_lifetime_partition {
                 encoder.u64(u64::from(*ordinal));
@@ -399,7 +398,7 @@ impl ProviderPlan {
             }
             for parameter in &method.parameter_type_identities {
                 rendered.push_str("\nmp:");
-                rendered.push_str(parameter);
+                rendered.push_str(self.schema.identities.text(*parameter));
             }
             let mut entry_claims = method.entry_claims.iter().collect::<Vec<_>>();
             entry_claims.sort_by(|left, right| {
@@ -412,16 +411,16 @@ impl ProviderPlan {
                 rendered.push_str(&format!(
                     "\nmc:{}/{}/{}/{}/{}/{}",
                     claim.parameter_index,
-                    claim.carrier_identity,
+                    self.schema.identities.text(claim.carrier_identity),
                     claim.domain,
                     claim.predicate_body.as_str(),
                     claim.authority_flow.as_str(),
                     claim.effective_carry,
                 ));
             }
-            if let Some(result) = &method.result_type_identity {
+            if method.result_type_identity.is_valid() {
                 rendered.push_str("\nmr:");
-                rendered.push_str(result);
+                rendered.push_str(self.schema.identities.text(method.result_type_identity));
             }
             let mut result_claims = method.result_claims.iter().collect::<Vec<_>>();
             result_claims.sort_by(|left, right| left.domain.cmp(&right.domain));
@@ -433,10 +432,11 @@ impl ProviderPlan {
             }
         }
         let mut rows: Vec<&ProviderPlanRow> = self.rows.iter().collect();
-        rows.sort_by(|left, right| {
-            left.method
-                .cmp(&right.method)
-                .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+        rows.sort_by_cached_key(|row| {
+            (
+                row.method.clone(),
+                self.identities.text(row.requirement_identity).to_owned(),
+            )
         });
         for row in rows {
             let binding_identity = match &row.binding {
@@ -460,10 +460,8 @@ impl ProviderPlan {
                     machine_identity,
                     machine_package_identity,
                 } => {
-                    let mut identity = format!(
-                        "CheckedAdapter:{}",
-                        self.identity_text(*machine_identity)
-                    );
+                    let mut identity =
+                        format!("CheckedAdapter:{}", self.identity_text(*machine_identity));
                     push_package_identity(
                         &mut identity,
                         "checked-adapter-package",
@@ -476,7 +474,7 @@ impl ProviderPlan {
             rendered.push_str(&format!(
                 "\nr:{}/{}/lifetimes:{:?}/{}",
                 row.method,
-                row.requirement_identity,
+                self.identities.text(row.requirement_identity),
                 row.requirement_lifetime_partition,
                 binding_identity
             ));
@@ -517,7 +515,7 @@ impl ProviderPlan {
             let count = self
                 .rows
                 .iter()
-                .filter(|row| self.schema.row_binds_method(row, method))
+                .filter(|row| self.schema.row_binds_method(row, method, &self.identities))
                 .count();
             if count == 0 {
                 errors.push(format!(
@@ -572,7 +570,8 @@ impl ProviderPlan {
             if method.name.is_empty() {
                 errors.push(format!(
                     "plan `{}` schema `{}` has a method with no readable drift name",
-                    self.name, self.schema.identity_text(self.schema.trait_name),
+                    self.name,
+                    self.schema.identity_text(self.schema.trait_name),
                 ));
             }
             if method.requirement_owner.is_empty() {
@@ -610,7 +609,7 @@ impl ProviderPlan {
                 ));
             }
             for (parameter_index, identity) in method.parameter_type_identities.iter().enumerate() {
-                if identity.is_empty() {
+                if !identity.is_valid() {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` parameter {} has no exact semantic type identity",
                         self.name,
@@ -732,7 +731,7 @@ impl ProviderPlan {
                         claim.parameter_index,
                     ));
                 }
-                if claim.carrier_identity.is_empty() {
+                if !claim.carrier_identity.is_valid() {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` entry claim for parameter {} has no exact carrier identity",
                         self.name,
@@ -755,12 +754,12 @@ impl ProviderPlan {
             for (index, pair) in method.entry_claims.windows(2).enumerate() {
                 let left = (
                     pair[0].parameter_index,
-                    pair[0].carrier_identity.as_str(),
+                    self.schema.identities.text(pair[0].carrier_identity),
                     pair[0].domain.as_str(),
                 );
                 let right = (
                     pair[1].parameter_index,
-                    pair[1].carrier_identity.as_str(),
+                    self.schema.identities.text(pair[1].carrier_identity),
                     pair[1].domain.as_str(),
                 );
                 if left >= right {
@@ -780,10 +779,11 @@ impl ProviderPlan {
             {
                 errors.push(format!(
                     "plan `{}` external completion requirement `{}` declares a normal result",
-                    self.name, self.schema.identity_text(method.requirement_identity)
+                    self.name,
+                    self.schema.identity_text(method.requirement_identity)
                 ));
             }
-            if method.has_result != method.result_type_identity.is_some() {
+            if method.has_result == !method.result_type_identity.is_valid() {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` result presence disagrees with its exact result type identity",
                     self.name,
@@ -791,10 +791,12 @@ impl ProviderPlan {
                     method.name,
                 ));
             }
-            if method
-                .result_type_identity
-                .as_ref()
-                .is_some_and(|identity| identity.is_empty())
+            if method.has_result
+                && self
+                    .schema
+                    .identities
+                    .text(method.result_type_identity)
+                    .is_empty()
             {
                 errors.push(format!(
                     "plan `{}` schema method `{}::{}` result has no exact semantic type identity",
@@ -804,7 +806,7 @@ impl ProviderPlan {
                 ));
             }
             for claim in &method.result_claims {
-                if !method.has_result || method.result_type_identity.is_none() {
+                if !method.has_result || !method.result_type_identity.is_valid() {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` retains a result claim without a real result",
                         self.name,
@@ -871,7 +873,7 @@ impl ProviderPlan {
             }
         }
         for row in &self.rows {
-            if row.requirement_identity.is_empty() {
+            if !row.requirement_identity.is_valid() {
                 errors.push(format!(
                     "plan `{}` row `{}` has no exact requirement identity",
                     self.name, row.method
@@ -986,7 +988,7 @@ impl ProviderPlan {
             let count = self
                 .rows
                 .iter()
-                .filter(|row| self.schema.row_binds_method(row, method))
+                .filter(|row| self.schema.row_binds_method(row, method, &self.identities))
                 .count();
             if count > 1 {
                 errors.push(format!(
@@ -1002,7 +1004,7 @@ impl ProviderPlan {
                 .schema
                 .methods
                 .iter()
-                .any(|method| self.schema.row_binds_method(row, method))
+                .any(|method| self.schema.row_binds_method(row, method, &self.identities))
             {
                 errors.push(format!(
                     "plan `{}` binds `{}`, which is not a `{}` method",
@@ -1022,14 +1024,14 @@ impl ProviderPlan {
         self.schema.methods.iter().all(|method| {
             self.rows
                 .iter()
-                .filter(|row| self.schema.row_binds_method(row, method))
+                .filter(|row| self.schema.row_binds_method(row, method, &self.identities))
                 .count()
                 == 1
         }) && self.rows.iter().all(|row| {
             self.schema
                 .methods
                 .iter()
-                .any(|method| self.schema.row_binds_method(row, method))
+                .any(|method| self.schema.row_binds_method(row, method, &self.identities))
         })
     }
 }

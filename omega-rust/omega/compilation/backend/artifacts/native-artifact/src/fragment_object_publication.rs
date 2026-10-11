@@ -109,12 +109,15 @@ pub fn publish_fragment_object(
                     format!("emitted object artifact replay failed: {error:?}"),
                 )
             })?;
-            let contract = bind_semantic_contract(entry).map_err(|error| {
-                crate::native_artifact_error(
-                    "semantic entry contract",
-                    format!("settlement did not bind its retained semantic contract: {error:?}"),
-                )
-            })?;
+            let contract = bind_semantic_contract(entry, &terminal.semantic_module().identities)
+                .map_err(|error| {
+                    crate::native_artifact_error(
+                        "semantic entry contract",
+                        format!(
+                            "settlement did not bind its retained semantic contract: {error:?}"
+                        ),
+                    )
+                })?;
             let receiver =
                 receiver_layout(&source_artifact, entry, &contract).map_err(|error| {
                     crate::native_artifact_error(

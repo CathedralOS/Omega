@@ -67,7 +67,7 @@ fn project_complete_adapters(
                 continue;
             };
             if plan.provider_type.is_empty()
-                || row.requirement_identity.is_empty()
+                || plan.identities.text(row.requirement_identity).is_empty()
                 || plan.identity_text(*machine_identity).is_empty()
                 || *machine_package_identity != plan.origin_package_identity
             {
@@ -82,13 +82,18 @@ fn project_complete_adapters(
             };
             for requirement in selected.selected_row_requirement_identities(
                 plan.report_fingerprint(),
-                &row.requirement_identity,
+                plan.identities.text(row.requirement_identity),
             ) {
                 let machine = selected
                     .specialized_requirement_row(requirement)
                     .map_or_else(
                         || plan.identity_text(*machine_identity),
-                        |specialization| specialization.machine_identity.as_str(),
+                        |specialization| {
+                            selected
+                                .identities()
+                                .text(specialization.machine_identity)
+                                .unwrap_or_default()
+                        },
                     );
                 if machine.is_empty() {
                     return Err("selected checked realization has an empty machine identity".into());
@@ -96,7 +101,10 @@ fn project_complete_adapters(
                 adapters.push(SelectedProviderAdapter {
                     provider_declaration: owner.clone(),
                     provider_plan_digest: plan.identity_digest(),
-                    selected_requirement_identity: row.requirement_identity.clone(),
+                    selected_requirement_identity: plan
+                        .identities
+                        .text(row.requirement_identity)
+                        .to_owned(),
                     requirement_identity: requirement.to_owned(),
                     provider_identity: plan.provider_type.clone(),
                     machine_identity: machine.to_owned(),

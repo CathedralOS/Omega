@@ -23,14 +23,17 @@ pub(super) fn prepare_system_calls<'plan>(
             let ProviderBinding::Syscall { number } = row.binding else {
                 continue;
             };
-            let requirement = row.requirement_identity.as_str();
+            let requirement = plan.identities.text(row.requirement_identity);
             if !demanded.contains(requirement) {
                 continue;
             }
             let count = plans
                 .iter()
-                .flat_map(|plan| &plan.rows)
-                .filter(|row| row.requirement_identity == requirement)
+                .flat_map(|plan| {
+                    plan.rows.iter().filter(move |row| {
+                        plan.identities.text(row.requirement_identity) == requirement
+                    })
+                })
                 .count();
             if count != 1 {
                 return Err(diagnostics::error_in_context(

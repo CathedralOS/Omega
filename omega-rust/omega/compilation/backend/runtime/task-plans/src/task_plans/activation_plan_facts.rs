@@ -25,7 +25,7 @@ commitment_digest!(
 pub struct SelectedTaskRuntimeProviderFact {
     pub runtime: TaskRuntimeId,
     pub provider_plan_name: String,
-    pub requirement_identity: String,
+    pub requirement_identity: typed_trees::type_identity::CallableIdentityId,
 }
 
 /// One target/layout-specific task activation elaborated by Omega after Psi

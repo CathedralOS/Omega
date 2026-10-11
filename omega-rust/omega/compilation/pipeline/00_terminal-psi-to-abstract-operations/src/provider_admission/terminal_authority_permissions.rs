@@ -11,42 +11,45 @@ use std::collections::BTreeSet;
 /// rule must be retained, with each divergence named on its own row.
 pub(crate) fn validate_retained_package_terminal_authority_permissions(
     retained: &[ServiceTerminalAuthorityPermission],
+    retained_identities: &terminal_psi::TerminalIdentityTable,
     accepted: &crate::provider_admission::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();
     for permission in retained {
-        let coordinate = (
-            permission.service_schema(),
-            permission.requirement_identity().to_owned(),
-        );
+        let requirement = retained_identities
+            .text(permission.requirement_identity())
+            .unwrap_or_default()
+            .to_owned();
+        let coordinate = (permission.service_schema(), requirement.clone());
         if !seen.insert(coordinate) {
             diagnostics.push(Diagnostic::error(format!(
-                "retained Terminal package permission custody repeats terminal-authority permission `{}` for one exact service schema",
-                permission.requirement_identity(),
+                "retained Terminal package permission custody repeats terminal-authority permission `{requirement}` for one exact service schema",
             )));
             continue;
         }
         match accepted.rows().iter().find(|row| {
             row.service_schema() == permission.service_schema()
-                && row.requirement_identity() == permission.requirement_identity()
+                && accepted.identities().text(row.requirement_identity())
+                    == Some(requirement.as_str())
         }) {
             Some(row) if row.permitted() == permission.permitted() => {}
             Some(_) => diagnostics.push(Diagnostic::error(format!(
-                "retained Terminal package permission for `{}` alters the accepted disposition",
-                permission.requirement_identity(),
+                "retained Terminal package permission for `{requirement}` alters the accepted disposition",
             ))),
             None => diagnostics.push(Diagnostic::error(format!(
-                "retained Terminal package permission for `{}` has no accepted package row",
-                permission.requirement_identity(),
+                "retained Terminal package permission for `{requirement}` has no accepted package row",
             ))),
         }
     }
     for row in accepted.rows() {
-        if !seen.contains(&(row.service_schema(), row.requirement_identity().to_owned())) {
+        let requirement = accepted
+            .identities()
+            .text(row.requirement_identity())
+            .unwrap_or_default();
+        if !seen.contains(&(row.service_schema(), requirement.to_owned())) {
             diagnostics.push(Diagnostic::error(format!(
-                "accepted package terminal-authority permission for `{}` was not retained",
-                row.requirement_identity(),
+                "accepted package terminal-authority permission for `{requirement}` was not retained",
             )));
         }
     }
@@ -68,18 +71,19 @@ pub(crate) fn validate_retained_package_terminal_authority_permissions(
 /// package axis.
 pub fn validate_package_terminal_authority_permission_custody<'a>(
     permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();
     for permission in permissions {
-        let coordinate = (
-            permission.service_schema(),
-            permission.requirement_identity().to_owned(),
-        );
+        let requirement = identities
+            .text(permission.requirement_identity())
+            .unwrap_or_default()
+            .to_owned();
+        let coordinate = (permission.service_schema(), requirement.clone());
         if !seen.insert(coordinate) {
             diagnostics.push(Diagnostic::error(format!(
-                "package permission custody repeats terminal-authority permission `{}` for one exact service schema",
-                permission.requirement_identity(),
+                "package permission custody repeats terminal-authority permission `{requirement}` for one exact service schema",
             )));
         }
     }

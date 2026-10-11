@@ -191,16 +191,22 @@ pub(super) fn candidate_semantic_binding_inputs(
             if review.key() == root
                 && review.checked_context().purpose() == DependencyPurpose::Product
             {
+                let mut permission_identities =
+                    terminal_psi::TerminalIdentityTableBuilder::default();
                 let settled_permission_rows = match role {
                     AcceptedSemanticBindingRole::FilesystemHostService => {
                         provider_admission::filesystem_host_permission_rows(
                             candidate.service_schema(),
+                            &mut permission_identities,
                         )
                         .ok()
                     }
                     AcceptedSemanticBindingRole::TimeHostService => {
-                        provider_admission::time_host_permission_rows(candidate.service_schema())
-                            .ok()
+                        provider_admission::time_host_permission_rows(
+                            candidate.service_schema(),
+                            &mut permission_identities,
+                        )
+                        .ok()
                     }
                     _ => None,
                 };
@@ -216,7 +222,10 @@ pub(super) fn candidate_semantic_binding_inputs(
                         }
                     })?;
                     binding = binding
-                        .with_terminal_authority_permissions(permissions)
+                        .with_terminal_authority_permissions(
+                            permissions,
+                            &permission_identities.snapshot(),
+                        )
                         .map_err(|_| {
                             CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
                                 consumer: review.key().clone(),
@@ -229,7 +238,10 @@ pub(super) fn candidate_semantic_binding_inputs(
                 // A hosted candidate may propose permissions, but only this
                 // invocation's product root may carry them into policy.
                 binding = binding
-                    .with_terminal_authority_permissions(Vec::new())
+                    .with_terminal_authority_permissions(
+                        Vec::new(),
+                        &terminal_psi::TerminalIdentityTable::from(vec![String::new()]),
+                    )
                     .map_err(|_| {
                         CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
                             consumer: review.key().clone(),
@@ -261,6 +273,7 @@ pub(super) fn candidate_semantic_binding_inputs(
 fn candidate_hosted_exit_permissions(
     provider: &ProviderPlan,
     role: AcceptedSemanticBindingRole,
+    permission_identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Option<Vec<ServiceTerminalAuthorityPermission>> {
     const LEAVES: [(&str, TerminalAuthorityClass, bool); 3] = [
         (
@@ -291,7 +304,8 @@ fn candidate_hosted_exit_permissions(
         }
         permissions.push(ServiceTerminalAuthorityPermission::new(
             provider.schema.identity_digest(),
-            provider.schema.identity_text(method.requirement_identity).to_owned(),
+            permission_identities
+                .intern(provider.schema.identity_text(method.requirement_identity)),
             TerminalAuthorityDisposition::from_classes([class]),
         ));
     }
@@ -634,9 +648,12 @@ pub(super) fn candidate_hosted_exit_bindings(
             provider.identity_digest(),
         )
         .map_err(|_| invalid())?;
+        let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let binding = binding
             .with_terminal_authority_permissions(
-                candidate_hosted_exit_permissions(provider, role).ok_or_else(invalid)?,
+                candidate_hosted_exit_permissions(provider, role, &mut permission_identities)
+                    .ok_or_else(invalid)?,
+                &permission_identities.snapshot(),
             )
             .map_err(|_| invalid())?;
         bindings.push(SemanticBindingReviewCandidate::new(
@@ -681,7 +698,7 @@ fn candidate_hosted_exit_methods(provider: &ProviderPlan) -> impl Iterator<Item 
             row.binding,
             ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Import { .. }
         ) {
-            provider.schema.method_for_row(row)
+            provider.schema.method_for_row(row, &provider.identities)
         } else {
             None
         }

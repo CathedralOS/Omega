@@ -132,7 +132,7 @@ pub fn provider_trait_application<'a>(
             definition.symbol == declaring_trait
                 && signature.symbol == requirement
                 && typed.trait_requirement_callable_identity_text(definition, signature)
-                    == row.requirement_identity
+                    == plan.identities.text(row.requirement_identity)
         });
     let application = matching.next()?;
     matching
@@ -178,7 +178,7 @@ pub(crate) fn named_provider_row<'a>(
             return false;
         };
         typed.trait_requirement_callable_identity_text(owner, requirement)
-            == row.requirement_identity
+            == plan.identities.text(row.requirement_identity)
     });
     let entry = matching.next()?;
     (matching.next().is_none() && context.contains(entry.realization_machine)).then_some(entry)

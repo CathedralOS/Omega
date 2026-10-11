@@ -42,7 +42,10 @@ pub(crate) fn stage_validated_optimized_program_storage_semantic_wrapper_object(
 > {
     // The receiver must be zero-valid so the wrapper's zero-fill establishes
     // it: an admission rule of this composition, not a replay of an input.
-    let contract = validation::bind_semantic_contract(&settlement)?;
+    let contract = validation::bind_semantic_contract(
+        &settlement,
+        &source.terminal().semantic_module().identities,
+    )?;
     validate_entry_shape(&source, &settlement, &contract)?;
     let object = construct_object(&settlement, &source, &encoding)?;
     let container = encode_sealed_optimized_program_storage_semantic_wrapper_object(&object)?;

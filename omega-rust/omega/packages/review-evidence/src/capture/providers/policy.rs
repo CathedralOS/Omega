@@ -122,7 +122,10 @@ fn project_plan(
             .rows
             .iter()
             .enumerate()
-            .filter(|(_, row)| row.requirement_identity == plan.schema.identity_text(method.requirement_identity))
+            .filter(|(_, row)| {
+                plan.identities.text(row.requirement_identity)
+                    == plan.schema.identity_text(method.requirement_identity)
+            })
             .map(|(index, _)| index)
             .collect::<Vec<_>>();
         if matching_rows.is_empty() && toolchain_settled {
@@ -140,6 +143,7 @@ fn project_plan(
             retained.provider.provider_type,
             retained.provider.row_requirements[*index],
             method,
+            &plan.schema.identities,
         )?);
     }
     let mut rows = rows::project(compilation, target, retained, toolchain_settled)?;

@@ -673,6 +673,11 @@ pub(crate) fn validate_binding(
         .checked_entry
         .receiver_eligibility()
         .ok_or_else(invalid)?;
+    let terminal = artifact
+        .fragment_replay
+        .as_ref()
+        .map(|replay| replay.terminal_module())
+        .ok_or_else(invalid)?;
     if !physical_contract_matches(&binding.physical, artifact.target)
         || eligibility.determined_evidence_fields() != binding.determined_evidence
         || binding.cleanup_occupancy
@@ -726,15 +731,21 @@ fn physical_contract_shape_matches(
     result_identity: &str,
     expected: &calling_conventions::ValidatedBoundaryEntryPlan,
 ) -> bool {
+    let identities = physical.identities();
     // Native settlement separately rejoins the accepted package requirement
     // identity. A package-qualified requirement is not the standalone spelling;
     // it must still carry these exact target-source bytes, role, and ABI/state.
     physical.target_slot() == slot
         && physical.target_package() == package
         && physical.target_package_source_digest() == package_source_digest
-        && !physical.requirement_identity().is_empty()
-        && physical.parameter_type_identities() == parameter_identities
-        && physical.result_type_identity() == result_identity
+        && !physical.requirement_identity().is_absent()
+        && physical.parameter_type_identities().len() == parameter_identities.len()
+        && physical
+            .parameter_type_identities()
+            .iter()
+            .zip(parameter_identities.iter())
+            .all(|(left, right)| Some(*left) == identities.index_of(right))
+        && Some(physical.result_type_identity()) == identities.index_of(result_identity)
         && physical.boundary_entry_plan() == expected.plan()
         && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
         && physical.guaranteed_entry_stack().is_none()
@@ -908,7 +919,10 @@ fn receiver_layout(
         || checked_entry.terminal_entry() != function.machine
         || checked_entry.terminal_psi_identity() != terminal_identity
         || source.receiver().source_position() != Some(source_position)
-        || source.receiver().normalized_type_identity()
+        || source
+            .receiver()
+            .normalized_type_identity()
+            .and_then(|identity| source.identities().text(identity))
             != terminal
                 .identities
                 .text(eligibility.source_receiver_type_identity())
@@ -978,10 +992,7 @@ fn receiver_layout(
         fields,
         source,
         receiver_identity,
-        terminal
-            .identities
-            .text(declaration.identity)
-            .unwrap_or_default(),
+        declaration.identity,
         &terminal.identities,
         ErasedRows {
             services,
@@ -1032,8 +1043,8 @@ fn validate_receiver_fields(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     fields: &[terminal_psi::StructuralFieldDeclaration],
     source: &SelectedProgramEntrySignature,
-    receiver_identity: &str,
-    attachment_type_identity: &str,
+    receiver_identity: terminal_psi::TerminalIdentityIndex,
+    attachment_type_identity: terminal_psi::TerminalIdentityIndex,
     identities: &terminal_psi::TerminalIdentityTable,
     rows: ErasedRows<'_>,
     field_path: &mut Vec<terminal_psi::TerminalIdentityIndex>,
@@ -1052,12 +1063,14 @@ fn validate_receiver_fields(
             // ones. Never recurse into their zero-payload type as zero-valid data.
             let type_identity = service_carrier.ok_or_else(invalid)?;
             field_path.push(field.identity);
+            // Service rows index the signature's plan-local table; the walked
+            // field path resolves against the module's table.
             let mut matches =
                 rows.services.iter().filter(|row| {
                     row.field_path().len() == field_path.len()
                         && row.field_path().iter().zip(field_path.iter()).all(
                             |(segment, identity)| {
-                                identities.text(*identity) == Some(segment.as_str())
+                                source.identities().text(*segment) == identities.text(*identity)
                             },
                         )
                 });
@@ -1083,9 +1096,10 @@ fn validate_receiver_fields(
                         || row.source_signature_identity() != source.identity()
                         || row.target_slot() != source.target_slot()
                         || row.receiver_type_identity() != receiver_identity
-                        || row.attachment_type_identity() != attachment_type_identity
-                        || row.carrier_type_identity()
-                            != identities.text(type_identity).unwrap_or_default() =>
+                        || source.identities().text(row.attachment_type_identity())
+                            != identities.text(attachment_type_identity)
+                        || source.identities().text(row.carrier_type_identity())
+                            != identities.text(type_identity) =>
                 {
                     Err(invalid())
                 }

@@ -33,7 +33,7 @@ pub(super) fn rejoin_system_call(
     let mut selected = selected_plan
         .rows
         .iter()
-        .filter(|row| row.requirement_identity == requirement);
+        .filter(|row| selected_plan.identities.text(row.requirement_identity) == requirement);
     let selected_row = selected
         .next()
         .ok_or_else(|| invalid("has no selected row"))?;

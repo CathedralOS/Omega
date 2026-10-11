@@ -32,7 +32,7 @@ pub(super) fn settle_boundary<'request>(
     if !selected_plan
         .rows
         .iter()
-        .any(|row| row.requirement_identity == requirement)
+        .any(|row| selected_plan.identities.text(row.requirement_identity) == requirement)
     {
         return Err(vec![Diagnostic::error(format!(
             "native provider execution for `{requirement}` is absent from selected plan `{}`",
@@ -58,6 +58,7 @@ pub(super) fn settle_boundary<'request>(
                     same_stack,
                     evidence.provider_plan_report_identity(),
                     requirement,
+                    request.selected_provider_plans.identities(),
                     request.target,
                 )?,
             )

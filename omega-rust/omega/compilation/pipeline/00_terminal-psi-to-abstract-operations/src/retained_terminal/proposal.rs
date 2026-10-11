@@ -28,6 +28,7 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
     pub behavior_exclusions: &'input [effects::AuthoredBehaviorExclusion],
     pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
+    pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     pub callback_placements: Vec<backend_plan::NativeCallbackPlacement>,
     pub callback_thunks: Vec<crate::TerminalCallbackThunkArtifact>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
@@ -57,6 +58,9 @@ fn close_family_realizations(
     );
     let module = artifact.semantic_module();
     let mut rows = Vec::new();
+    // The requirement text is provider-side and absent from the module table,
+    // so the rows mint into a proposal-local table rather than `index_of`.
+    let mut row_identities = terminal_psi::TerminalIdentityTableBuilder::default();
     for source in sources {
         let Some(head) = module.boundary_machines.iter().find(|boundary| {
             module.identities.text(boundary.identity) == Some(source.head_identity.as_str())
@@ -85,24 +89,19 @@ fn close_family_realizations(
             target: source.target.clone(),
             head: head.id,
             member: member.id,
-            head_identity: module
-                .identities
-                .text(head.identity)
-                .unwrap_or_default()
-                .to_owned(),
-            member_identity: module
-                .identities
-                .text(member.identity)
-                .unwrap_or_default()
-                .to_owned(),
-            selected_requirement_identity: source.selected_requirement_identity.clone(),
+            head_identity: row_identities
+                .intern(module.identities.text(head.identity).unwrap_or_default()),
+            member_identity: row_identities
+                .intern(module.identities.text(member.identity).unwrap_or_default()),
+            selected_requirement_identity: row_identities
+                .intern(&source.selected_requirement_identity),
             provider_plan_report_identity: source.provider_plan_report_identity,
             provider_plan_digest: source.provider_plan_digest,
         });
     }
     selected
         .clone()
-        .with_family_realization_rows(rows)
+        .with_family_realization_rows(rows, &row_identities.build())
         .map_err(error)
 }
 
@@ -232,6 +231,7 @@ pub fn project_terminal_native_realization_proposal(
             coverage: boundary_application_coverage,
         },
         request.package_terminal_authority_permissions,
+        request.package_terminal_authority_permission_identities,
         effects::authored_behavior_exclusion_set_in(request.behavior_exclusions, terminal_module),
     ))
 }

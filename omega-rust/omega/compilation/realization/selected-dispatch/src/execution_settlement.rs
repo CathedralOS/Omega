@@ -102,11 +102,27 @@ impl SelectedExecution {
     /// from the checked source independently, never from each other.
     pub fn terminal_authority_permissions(
         &self,
-    ) -> Vec<effects::ServiceTerminalAuthorityPermission> {
-        self.accepted_semantic_bindings()
-            .flat_map(|binding| binding.terminal_authority_permissions())
-            .cloned()
-            .collect()
+    ) -> (
+        Vec<effects::ServiceTerminalAuthorityPermission>,
+        terminal_psi::TerminalIdentityTable,
+    ) {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let mut permissions = Vec::new();
+        for binding in self.accepted_semantic_bindings() {
+            for permission in binding.terminal_authority_permissions() {
+                let mut permission = permission.clone();
+                permission.rekey_requirement_identity(
+                    identities.intern(
+                        binding
+                            .terminal_authority_permission_identities()
+                            .text(permission.requirement_identity())
+                            .unwrap_or_default(),
+                    ),
+                );
+                permissions.push(permission);
+            }
+        }
+        (permissions, identities.build())
     }
 
     /// Construct a non-authoritative review candidate for one exact package-
@@ -187,7 +203,10 @@ pub fn settle_selected_execution(
         let source = entry.source_signature();
         provider_planning::component_progress::ExactComponentProgressRoot::new(
             entry.machine_symbol(),
-            source.normalized_callable_identity(),
+            source
+                .identities()
+                .text(source.normalized_callable_identity())
+                .unwrap_or_default(),
         )
     });
     let component_progress =
@@ -267,13 +286,18 @@ pub fn settle_selected_execution(
             settlement.selected_target_profile,
         )?;
     if let Some(entry) = settlement.selected_program_entry.as_mut() {
+        // Establishments intern into the source signature's own identity
+        // table so every ProgramEntry identity shares one ordering.
+        let mut identities = entry.source_signature().identities().clone().into_builder();
         let establishments = crate::derive_fused_program_entry_establishments(
             &checked.program,
             settlement.calling_plans,
             entry,
             &settlement.selected_provider_provenance,
             settlement.permit_unsettled_fused_service_fields,
+            &mut identities,
         )?;
+        entry.set_source_identities(identities.build());
         entry
             .bind_fused_service_establishments(establishments)
             .map_err(|message| vec![Diagnostic::error(message)])?;

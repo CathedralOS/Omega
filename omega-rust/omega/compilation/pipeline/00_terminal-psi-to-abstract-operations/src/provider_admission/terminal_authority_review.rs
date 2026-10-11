@@ -48,13 +48,15 @@ pub(crate) fn review_terminal_authority_closure(
     for boundary in root_edges.boundaries {
         reviewer.expand_boundary(boundary)?;
     }
+    let (leaves, leaf_identities) = reviewer.into_leaves();
     TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
         terminal_artifact_identity,
         target_profile.native_target(),
         selected.identity_digest(),
         physical_policy.identity(),
         permission_policy.map(|policy| policy.identity()),
-        reviewer.into_leaves(),
+        leaves,
+        &leaf_identities,
     )
     .map_err(|error| format!("terminal-authority review receipt rejected: {error:?}"))
 }

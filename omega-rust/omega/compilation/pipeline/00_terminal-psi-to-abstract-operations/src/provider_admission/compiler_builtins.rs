@@ -165,18 +165,13 @@ pub(super) fn boundary_contract_matches_selected_schema(
     plan: &effects::provider_plan::ProviderPlan,
     requirement: &str,
 ) -> bool {
-    let mut matching = plan
-        .schema
-        .methods
-        .iter()
-        .filter(|method| {
-            plan.schema.identities.id_at(requirement.as_ref())
-                == Some(method.requirement_identity)
-        });
+    let mut matching = plan.schema.methods.iter().filter(|method| {
+        plan.schema.identities.id_at(requirement.as_ref()) == Some(method.requirement_identity)
+    });
     matching.next().is_some_and(|method| {
         method.completion == boundary.completion
-            && boundary.unconditional_termination
-                == (method.terminates_guarantee && method.termination_premises.is_empty())
+            && boundary.unconditional_termination == method.terminates_guarantee
+            && method.termination_premises.is_empty()
     }) && matching.next().is_none()
 }
 

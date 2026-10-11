@@ -371,19 +371,21 @@ fn validate_terminal_authority_permissions(
     schema: &effects::provider_plan::ServiceSchema,
 ) -> Result<(), Diagnostic> {
     for permission in binding.terminal_authority_permissions() {
+        let requirement_identity = binding
+            .terminal_authority_permission_identities()
+            .text(permission.requirement_identity())
+            .unwrap_or_default();
         let matches = schema
             .methods
             .iter()
             .filter(|method| {
-                schema.identity_text(method.requirement_identity)
-                    == permission.requirement_identity()
+                schema.identity_text(method.requirement_identity) == requirement_identity
             })
             .count();
         if matches != 1 {
             return Err(Diagnostic::error(format!(
-                "accepted semantic binding {:?} terminal-authority permission `{}` rejoins {matches} exact service methods instead of one",
+                "accepted semantic binding {:?} terminal-authority permission `{requirement_identity}` rejoins {matches} exact service methods instead of one",
                 binding.role(),
-                permission.requirement_identity(),
             )));
         }
     }

@@ -98,8 +98,10 @@ pub(super) fn resolve_services<'a>(
                 .iter()
                 .zip(&requirements)
                 .filter(|(method, _)| {
-                    schema.identity_text(method.requirement_identity)
-                        == supplied.requirement_identity()
+                    accepted
+                        .terminal_authority_permission_identities()
+                        .text(supplied.requirement_identity())
+                        == Some(schema.identity_text(method.requirement_identity))
                 })
                 .collect::<Vec<_>>();
             let [(_, requirement_symbol)] = matches.as_slice() else {

@@ -159,7 +159,10 @@ impl BehaviorExclusions {
             let Some(exercised) = leaf.exercised() else {
                 violations.push(format!(
                     "requirement `{}` has no physical authority classification for mechanism {:?}; requested exclusions cannot be established",
-                    leaf.requirement_identity(),
+                    closure_review
+                        .identities()
+                        .text(leaf.requirement_identity())
+                        .unwrap_or_default(),
                     leaf.mechanism(),
                 ));
                 continue;
@@ -168,7 +171,10 @@ impl BehaviorExclusions {
                 if self.excludes_physical_authority_class(class) {
                     violations.push(format!(
                         "requirement `{}` exercises excluded physical authority class {class:?} through mechanism {:?}",
-                        leaf.requirement_identity(),
+                        closure_review
+                            .identities()
+                            .text(leaf.requirement_identity())
+                            .unwrap_or_default(),
                         leaf.mechanism(),
                     ));
                 }
@@ -367,11 +373,15 @@ fn boundary_realization_coverage(
             if family_row.target != deployment_target
                 || head.is_none_or(|declaration| {
                     module.identities.text(declaration.identity)
-                        != Some(family_row.head_identity.as_str())
+                        != selected_provider_plans
+                            .identities()
+                            .text(family_row.head_identity)
                 })
                 || member.is_none_or(|declaration| {
                     module.identities.text(declaration.identity)
-                        != Some(family_row.member_identity.as_str())
+                        != selected_provider_plans
+                            .identities()
+                            .text(family_row.member_identity)
                 })
                 || selected_member.is_none_or(|selected| {
                     selected.callable != TargetMachineCallable::Boundary(family_row.member)
@@ -400,7 +410,7 @@ fn boundary_realization_coverage(
             for row in &plan.rows {
                 let row_matches = selected_provider_plans.selected_row_matches_requirement(
                     requirement_identity,
-                    &row.requirement_identity,
+                    plan.identities.text(row.requirement_identity),
                     plan.report_fingerprint(),
                 );
                 if !row_matches {
@@ -413,7 +423,11 @@ fn boundary_realization_coverage(
                         ..
                     } => {
                         let realization_identity = specialization
-                            .map(|row| row.machine_identity.as_str())
+                            .and_then(|row| {
+                                selected_provider_plans
+                                    .identities()
+                                    .text(row.machine_identity)
+                            })
                             .unwrap_or_else(|| plan.identity_text(*machine_identity));
                         let mut matched = false;
                         for candidate in candidates.iter().filter(|candidate| {

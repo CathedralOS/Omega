@@ -171,13 +171,21 @@ impl NormalizedForeignCallBinding {
         }
     }
 
-    pub fn requirement_identity(&self) -> &str {
+    /// The admitted contribution stores an index into the module identity
+    /// table; system-call bindings still carry text. `None` means the
+    /// contribution's index is outside the table.
+    pub fn requirement_identity<'identities>(
+        &'identities self,
+        identities: &'identities terminal_psi::TerminalIdentityTable,
+    ) -> Option<&'identities str> {
         match &self.mechanism {
             NormalizedForeignCallMechanism::Import {
                 same_stack_contribution,
                 ..
-            } => same_stack_contribution.requirement_identity(),
-            NormalizedForeignCallMechanism::SystemCall(binding) => &binding.requirement_identity,
+            } => identities.text(same_stack_contribution.requirement_identity()),
+            NormalizedForeignCallMechanism::SystemCall(binding) => {
+                Some(binding.requirement_identity.as_str())
+            }
         }
     }
 

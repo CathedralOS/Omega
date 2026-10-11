@@ -165,7 +165,7 @@ fn host_realized_methods(plan: &effects::provider_plan::ProviderPlan) -> Vec<&st
                     | effects::provider_plan::ProviderBinding::Import { .. }
             )
         })
-        .filter_map(|row| plan.schema.method_for_row(row))
+        .filter_map(|row| plan.schema.method_for_row(row, &plan.identities))
         .map(|method| method.name.as_str())
         .collect()
 }

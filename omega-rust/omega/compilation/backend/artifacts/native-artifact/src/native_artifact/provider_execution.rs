@@ -118,6 +118,7 @@ pub(super) fn replay_provider_executions(
                 .unwrap_or_default(),
             foreign,
             selected_provider_plans,
+            &module.identities,
         )
         .map_err(ProviderExecutionReplayError::Shared)?;
         required_executions.insert((
@@ -147,8 +148,18 @@ pub(super) fn validate_foreign_provider_binding(
     requirement: &str,
     foreign: &ObjectForeignCall,
     selected_provider_plans: &[NativeSelectedProviderPlan],
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<(), &'static str> {
-    if foreign.binding.requirement_identity() != requirement
+    // The admitted contribution indexes the selection facts table carried
+    // beside the plan's family realizations, never the module's table.
+    let binding_identities = selected_provider_plans
+        .iter()
+        .find(|plan| {
+            plan.report_identity == foreign.provider_execution.provider_plan_report_identity
+        })
+        .map(|plan| plan.family_realization_identities())
+        .unwrap_or(identities);
+    if foreign.binding.requirement_identity(binding_identities) != Some(requirement)
         || !foreign.binding.has_valid_entry_mechanism()
     {
         return Err("native external call binding differs from its requirement");
@@ -157,7 +168,9 @@ pub(super) fn validate_foreign_provider_binding(
         validate_foreign_stack_contribution(
             requirement,
             foreign.provider_execution,
-            contribution.requirement_identity(),
+            binding_identities
+                .text(contribution.requirement_identity())
+                .unwrap_or_default(),
             contribution.provider_plan_report_identity(),
             contribution.provider_plan_commitment().as_bytes(),
             selected_provider_plans,

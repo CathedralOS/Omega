@@ -44,3 +44,4 @@ pub use task_plans::{
     LiveCarryDemand, LiveCarryStorage, TaskArgumentLayout, ValidatedActivationPlan,
     validate_wcsu_activation_plan,
 };
+mod source_guards;

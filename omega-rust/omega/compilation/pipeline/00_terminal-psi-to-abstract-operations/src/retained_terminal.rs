@@ -70,6 +70,7 @@ pub struct TerminalNativeRealizationProposal {
     occurrences: TerminalNativeOccurrences,
     boundary_applications: TerminalNativeBoundaryApplications,
     package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
+    package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     behavior_exclusions: effects::BehaviorExclusions,
     target_provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
 }
@@ -90,15 +91,20 @@ impl TerminalNativeRealizationProposal {
         mut package_terminal_authority_permissions: Vec<
             effects::ServiceTerminalAuthorityPermission,
         >,
+        package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
         behavior_exclusions: effects::BehaviorExclusions,
     ) -> Self {
         package_terminal_authority_permissions.sort_by(|left, right| {
             left.service_schema()
                 .as_bytes()
-                .cmp(right.service_schema().as_bytes())
+                .cmp(&right.service_schema().as_bytes())
                 .then_with(|| {
-                    left.requirement_identity()
-                        .cmp(right.requirement_identity())
+                    package_terminal_authority_permission_identities
+                        .text(left.requirement_identity())
+                        .cmp(
+                            &package_terminal_authority_permission_identities
+                                .text(right.requirement_identity()),
+                        )
                 })
         });
         Self {
@@ -110,6 +116,7 @@ impl TerminalNativeRealizationProposal {
             occurrences,
             boundary_applications,
             package_terminal_authority_permissions,
+            package_terminal_authority_permission_identities,
             behavior_exclusions,
         }
     }
@@ -168,6 +175,14 @@ impl TerminalNativeRealizationProposal {
         &self,
     ) -> &[effects::ServiceTerminalAuthorityPermission] {
         &self.package_terminal_authority_permissions
+    }
+
+    /// The table the package permission rows' `TerminalIdentityIndex` values
+    /// index.
+    pub const fn package_terminal_authority_permission_identities(
+        &self,
+    ) -> &terminal_psi::TerminalIdentityTable {
+        &self.package_terminal_authority_permission_identities
     }
 
     /// Authored exclusions constrain canonical semantics and native mechanism

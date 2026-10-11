@@ -30,9 +30,14 @@ pub fn bind_optimized_program_storage_semantic_entry_contract(
     selected: &SelectedProgramStorageEntryPlan,
     source: &SelectedProgramEntrySignature,
     semantic_application: &OptimizedProgramStorageSemanticCallingApplication<'_>,
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<OptimizedProgramStorageSemanticEntryContract, ProgramStorageEntryDiagnostic> {
     let validated = validation::validate(target, selected, source, semantic_application)?;
-    Ok(construction::construct(validated))
+    Ok(construction::construct(
+        validated,
+        selected.schema(),
+        identities,
+    ))
 }
 
 /// Exact semantic calling-plan application custody carried through the native
@@ -114,8 +119,8 @@ pub enum OptimizedProgramStoragePhysicalEntryDisposition {
 pub struct OptimizedProgramStorageSemanticRoot {
     role: ProgramStorageEntryRootRole,
     parameter_index: usize,
-    carrier_identity: String,
-    parameter_type_identity: String,
+    carrier_identity: terminal_psi::TerminalIdentityIndex,
+    parameter_type_identity: terminal_psi::TerminalIdentityIndex,
     domain: String,
     effective_carry: CarryPolicy,
     shape: ValueShape,
@@ -131,8 +136,8 @@ impl OptimizedProgramStorageSemanticRoot {
         self.parameter_index
     }
 
-    pub fn carrier_identity(&self) -> &str {
-        &self.carrier_identity
+    pub const fn carrier_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        self.carrier_identity
     }
 
     pub fn domain(&self) -> &str {
@@ -160,7 +165,7 @@ impl OptimizedProgramStorageSemanticRoot {
 pub struct OptimizedProgramStorageSemanticEntryContract {
     target: target::NativeTarget,
     target_slot: target::ProgramEntrySlotDeclaration,
-    requirement_identity: String,
+    requirement_identity: terminal_psi::TerminalIdentityIndex,
     source_signature: SelectedProgramEntrySignature,
     source_signature_identity: ProgramEntrySignatureIdentity,
     semantic_boundary_entry_plan: BoundaryEntryPlan,
@@ -185,8 +190,8 @@ impl OptimizedProgramStorageSemanticEntryContract {
         self.target_slot
     }
 
-    pub fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
+    pub const fn requirement_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        self.requirement_identity
     }
 
     pub const fn source_signature(&self) -> &SelectedProgramEntrySignature {

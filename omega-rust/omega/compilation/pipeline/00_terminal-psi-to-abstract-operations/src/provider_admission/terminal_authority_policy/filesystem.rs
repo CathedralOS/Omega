@@ -154,6 +154,7 @@ pub(crate) fn filesystem_host_permission_row(
     schema: &ServiceSchema,
     service_schema: ServiceSchemaDigest,
     method: &ServiceMethod,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<ServiceTerminalAuthorityPermission, UnsettledFilesystemRequirement> {
     let facets = match settled_filesystem_cohort(&method.name) {
         Some(FilesystemCohortDisposition::Facets(facets)) => facets,
@@ -162,19 +163,20 @@ pub(crate) fn filesystem_host_permission_row(
     };
     Ok(ServiceTerminalAuthorityPermission::for_filesystem_facets(
         service_schema,
-        schema.identity_text(method.requirement_identity).to_owned(),
+        identities.intern(schema.identity_text(method.requirement_identity)),
         facets.iter().copied(),
     ))
 }
 
 pub fn filesystem_host_permission_rows(
     schema: &ServiceSchema,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<Vec<ServiceTerminalAuthorityPermission>, UnsettledFilesystemRequirement> {
     let digest = schema.identity_digest();
     schema
         .methods
         .iter()
-        .map(|method| filesystem_host_permission_row(schema, digest, method))
+        .map(|method| filesystem_host_permission_row(schema, digest, method, identities))
         .collect()
 }
 

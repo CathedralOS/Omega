@@ -25,11 +25,13 @@ pub(crate) fn validate_family_provider_custody(
     identity: &str,
     plan: &NativeSelectedProviderPlan,
 ) -> Result<(), &'static str> {
-    let Some(row) = plan
-        .family_realization_rows()
-        .iter()
-        .find(|row| row.head_identity == identity || row.member_identity == identity)
-    else {
+    let Some(row) = plan.family_realization_rows().iter().find(|row| {
+        plan.family_realization_identities().text(row.head_identity) == Some(identity)
+            || plan
+                .family_realization_identities()
+                .text(row.member_identity)
+                == Some(identity)
+    }) else {
         return Ok(());
     };
     if row.terminal != terminal
@@ -37,18 +39,30 @@ pub(crate) fn validate_family_provider_custody(
         || row.provider_plan_digest.as_bytes() != plan.plan_digest().as_bytes()
         || !target::TargetProfile::from_canonical_target_name(&row.target)
             .is_ok_and(|profile| profile.native_realization() == Some(target))
-        || !((row.head == boundary && row.head_identity == identity)
-            || (row.member == boundary && row.member_identity == identity))
+        || !((row.head == boundary
+            && plan.family_realization_identities().text(row.head_identity) == Some(identity))
+            || (row.member == boundary
+                && plan
+                    .family_realization_identities()
+                    .text(row.member_identity)
+                    == Some(identity)))
     {
         return Err("physical family provider changed its artifact, target, or selected plan");
     }
     for (boundary, identity) in [
-        (row.head, &row.head_identity),
-        (row.member, &row.member_identity),
+        (
+            row.head,
+            plan.family_realization_identities().text(row.head_identity),
+        ),
+        (
+            row.member,
+            plan.family_realization_identities()
+                .text(row.member_identity),
+        ),
     ] {
-        if !terminal_psi::find_boundary_machine(&module.boundary_machines, boundary).is_some_and(
-            |declaration| module.identities.text(declaration.identity) == Some(identity.as_str()),
-        ) {
+        if !terminal_psi::find_boundary_machine(&module.boundary_machines, boundary)
+            .is_some_and(|declaration| module.identities.text(declaration.identity) == identity)
+        {
             return Err("physical family provider changed its exact callable declaration");
         }
     }

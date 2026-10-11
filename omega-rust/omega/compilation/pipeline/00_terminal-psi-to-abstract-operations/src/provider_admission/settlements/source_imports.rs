@@ -269,7 +269,7 @@ fn join_import_coverage_rows<'input>(
             for (requirement, rows) in &mut demanded {
                 if selected_plans.selected_row_matches_requirement(
                     requirement,
-                    &row.requirement_identity,
+                    provider_plan.identities.text(row.requirement_identity),
                     provider_plan.report_fingerprint(),
                 ) {
                     rows.selected_count += 1;

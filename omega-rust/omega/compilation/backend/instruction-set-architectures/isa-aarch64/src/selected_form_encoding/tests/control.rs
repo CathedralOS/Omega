@@ -17,8 +17,20 @@ fn ret_x30_is_exact_and_separates_abi_result_custody_from_encoded_effects() {
     assert_eq!(encoded.bytes(), [0xc0, 0x03, 0x5f, 0xd6]);
     assert!(encoded.footprint().register_reads.is_empty());
     assert!(encoded.footprint().register_writes.is_empty());
-    assert_eq!(encoded.footprint().encoded.external_operand_reads, []);
-    assert_eq!(encoded.footprint().encoded.external_operand_writes, []);
+    assert!(
+        encoded
+            .footprint()
+            .encoded
+            .external_operand_reads
+            .is_empty()
+    );
+    assert!(
+        encoded
+            .footprint()
+            .encoded
+            .external_operand_writes
+            .is_empty()
+    );
     assert_eq!(encoded.footprint().encoded.implicit_unit_uses, x30.units);
     assert_eq!(encoded.footprint().encoded.implicit_unit_defs, pc.units);
     assert_eq!(
@@ -251,7 +263,13 @@ fn fused_cbnz_is_exact_rejects_nearby_opcodes_and_does_not_read_nzcv() {
             assert_eq!(encoded.footprint().register_reads, [source]);
             assert!(encoded.footprint().register_writes.is_empty());
             assert!(!encoded.footprint().writes_nzcv);
-            assert_eq!(encoded.footprint().encoded.external_operand_reads, []);
+            assert!(
+                encoded
+                    .footprint()
+                    .encoded
+                    .external_operand_reads
+                    .is_empty()
+            );
             assert_eq!(encoded.footprint().encoded.implicit_unit_uses, pc.units);
             assert_eq!(encoded.footprint().encoded.implicit_unit_defs, pc.units);
             assert!(

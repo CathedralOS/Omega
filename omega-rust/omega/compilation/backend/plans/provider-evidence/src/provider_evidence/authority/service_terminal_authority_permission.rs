@@ -16,19 +16,20 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceTerminalAuthorityPermission {
     service_schema: ServiceSchemaDigest,
-    requirement_identity: String,
+    /// Index into the permission policy's identity table.
+    requirement_identity: terminal_psi::TerminalIdentityIndex,
     permitted: TerminalAuthorityDisposition,
 }
 
 impl ServiceTerminalAuthorityPermission {
     pub fn new(
         service_schema: ServiceSchemaDigest,
-        requirement_identity: impl Into<String>,
+        requirement_identity: terminal_psi::TerminalIdentityIndex,
         permitted: TerminalAuthorityDisposition,
     ) -> Self {
         Self {
             service_schema,
-            requirement_identity: requirement_identity.into(),
+            requirement_identity,
             permitted,
         }
     }
@@ -38,7 +39,7 @@ impl ServiceTerminalAuthorityPermission {
     /// requirement identities; this helper performs no name-based inference.
     pub fn for_filesystem_facets(
         service_schema: ServiceSchemaDigest,
-        requirement_identity: impl Into<String>,
+        requirement_identity: terminal_psi::TerminalIdentityIndex,
         facets: impl IntoIterator<Item = PortableFilesystemAuthorityFacet>,
     ) -> Self {
         Self::new(
@@ -52,8 +53,18 @@ impl ServiceTerminalAuthorityPermission {
         self.service_schema
     }
 
-    pub fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
+    pub const fn requirement_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        self.requirement_identity
+    }
+
+    /// Re-keys this row to the same requirement under a different identity
+    /// table. Caller supplies the already-interned index.
+    #[doc(hidden)]
+    pub const fn rekey_requirement_identity(
+        &mut self,
+        requirement_identity: terminal_psi::TerminalIdentityIndex,
+    ) {
+        self.requirement_identity = requirement_identity;
     }
 
     pub const fn permitted(&self) -> &TerminalAuthorityDisposition {

@@ -526,7 +526,10 @@ pub(crate) fn derive_normalized_foreign_child(
     if validated_plan.plan() != &foreign.binding.boundary_entry_plan
         || foreign.binding.native_target() != Some(target)
         || !foreign.binding.has_valid_entry_mechanism()
-        || foreign.binding.requirement_identity() != selected_requirement
+        || foreign
+            .binding
+            .requirement_identity(selected_plan.family_realization_identities())
+            != Some(selected_requirement)
         || foreign.binding.provider_plan_report_identity() != selected_plan.report_identity()
     {
         return Err("normalized external child changed its binding or boundary plan");

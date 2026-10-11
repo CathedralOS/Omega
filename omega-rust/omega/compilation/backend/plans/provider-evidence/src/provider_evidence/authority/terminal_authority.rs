@@ -793,7 +793,8 @@ impl TerminalAuthorityPermissionPolicyIdentity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityClosureLeaf {
     service_schema: crate::provider_plan::ServiceSchemaDigest,
-    requirement_identity: String,
+    /// Index into the terminal module's `identities` table.
+    requirement_identity: terminal_psi::TerminalIdentityIndex,
     provider_plan: crate::provider_plan::ProviderPlanDigest,
     mechanism: TerminalMechanismIdentity,
     exercised: Option<TerminalAuthorityDisposition>,
@@ -803,7 +804,7 @@ pub struct TerminalAuthorityClosureLeaf {
 impl TerminalAuthorityClosureLeaf {
     pub fn new(
         service_schema: crate::provider_plan::ServiceSchemaDigest,
-        requirement_identity: String,
+        requirement_identity: terminal_psi::TerminalIdentityIndex,
         provider_plan: crate::provider_plan::ProviderPlanDigest,
         mechanism: TerminalMechanismIdentity,
         exercised: Option<TerminalAuthorityDisposition>,
@@ -822,7 +823,7 @@ impl TerminalAuthorityClosureLeaf {
     }
 
     fn validate(&self) -> Result<(), TerminalAuthorityClosureReviewBuildError> {
-        if self.requirement_identity.is_empty() {
+        if self.requirement_identity.is_absent() {
             return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
         }
         if let Some(permitted) = &self.permitted {
@@ -843,8 +844,8 @@ impl TerminalAuthorityClosureLeaf {
         self.service_schema
     }
 
-    pub fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
+    pub const fn requirement_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        self.requirement_identity
     }
 
     pub const fn provider_plan(&self) -> crate::provider_plan::ProviderPlanDigest {
@@ -885,6 +886,9 @@ pub struct TerminalAuthorityClosureReviewReceipt {
     physical_policy: TerminalAuthorityPolicyIdentity,
     permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
     leaves: Vec<TerminalAuthorityClosureLeaf>,
+    /// Module identity table the leaves' `requirement_identity` indices
+    /// resolve against.
+    identities: terminal_psi::TerminalIdentityTable,
     identity: [u8; 32],
 }
 
@@ -902,8 +906,9 @@ impl TerminalAuthorityClosureReviewReceipt {
         physical_policy: TerminalAuthorityPolicyIdentity,
         permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
         mut leaves: Vec<TerminalAuthorityClosureLeaf>,
+        identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<Self, TerminalAuthorityClosureReviewBuildError> {
-        leaves.sort_by(compare_closure_leaves);
+        leaves.sort_by(|left, right| compare_closure_leaves(left, right, identities));
         if leaves
             .windows(2)
             .any(|rows| same_closure_leaf_key(&rows[0], &rows[1]))
@@ -929,6 +934,7 @@ impl TerminalAuthorityClosureReviewReceipt {
             physical_policy,
             permission_policy,
             &leaves,
+            identities,
         );
         Ok(Self {
             terminal_artifact_identity,
@@ -937,8 +943,15 @@ impl TerminalAuthorityClosureReviewReceipt {
             physical_policy,
             permission_policy,
             leaves,
+            identities: identities.clone(),
             identity,
         })
+    }
+
+    /// The module identity table the closure leaves' `TerminalIdentityIndex`
+    /// values index.
+    pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.identities
     }
 
     pub const fn terminal_artifact_identity(&self) -> [u8; 32] {
@@ -988,11 +1001,16 @@ pub enum TerminalAuthorityClosureReviewBuildError {
 fn compare_closure_leaves(
     left: &TerminalAuthorityClosureLeaf,
     right: &TerminalAuthorityClosureLeaf,
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> std::cmp::Ordering {
     left.service_schema
         .as_bytes()
         .cmp(right.service_schema.as_bytes())
-        .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+        .then_with(|| {
+            identities
+                .text(left.requirement_identity)
+                .cmp(&identities.text(right.requirement_identity))
+        })
         .then_with(|| {
             left.provider_plan
                 .as_bytes()
@@ -1022,6 +1040,7 @@ fn terminal_authority_closure_review_identity(
     physical_policy: TerminalAuthorityPolicyIdentity,
     permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
     leaves: &[TerminalAuthorityClosureLeaf],
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> [u8; 32] {
     let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
         b"omega.terminal-authority.closure-review.v3\0",
@@ -1054,8 +1073,11 @@ fn terminal_authority_closure_review_identity(
     digest.raw(&(leaves.len() as u64).to_be_bytes());
     for leaf in leaves {
         digest.raw(leaf.service_schema.as_bytes());
-        digest.raw(&(leaf.requirement_identity.len() as u64).to_be_bytes());
-        digest.raw(leaf.requirement_identity.as_bytes());
+        let requirement = identities
+            .text(leaf.requirement_identity)
+            .unwrap_or_default();
+        digest.raw(&(requirement.len() as u64).to_be_bytes());
+        digest.raw(requirement.as_bytes());
         digest.raw(leaf.provider_plan.as_bytes());
         let mechanism = terminal_mechanism_identity_bytes(leaf.mechanism);
         digest.raw(&(mechanism.len() as u64).to_be_bytes());

@@ -59,7 +59,13 @@ pub(super) fn write(
                 "schema",
                 hexadecimal(*permission.service_schema().as_bytes()),
             )?;
-            writer.section("requirement", permission.requirement_identity())?;
+            writer.section(
+                "requirement",
+                binding
+                    .terminal_authority_permission_identities()
+                    .text(permission.requirement_identity())
+                    .unwrap_or_default(),
+            )?;
             writer.row("classes", permission.permitted().classes().len())?;
             for class in permission.permitted().classes() {
                 writer.row("class", class.canonical_tag())?;
@@ -129,6 +135,7 @@ pub(super) fn read(
         }
         budget.elements(count)?;
         budget.entries::<ServiceTerminalAuthorityPermission>(count)?;
+        let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let mut permissions: Vec<ServiceTerminalAuthorityPermission> = Vec::new();
         permissions
             .try_reserve_exact(count)
@@ -137,10 +144,9 @@ pub(super) fn read(
             let permission_schema =
                 ServiceSchemaDigest::from_digest(digest(reader.field("schema")?)?);
             let requirement = reader.section("requirement", MAXIMUM_POLICY_TEXT_BYTES)?;
-            if permissions
-                .last()
-                .is_some_and(|last| last.requirement_identity() >= requirement)
-            {
+            if permissions.last().is_some_and(|last| {
+                permission_identities.text(last.requirement_identity()) >= Some(requirement)
+            }) {
                 return Err(Error::InvalidFraming);
             }
             let count = reader.count("classes", TerminalAuthorityClass::ALL.len())?;
@@ -163,13 +169,13 @@ pub(super) fn read(
                 .map_err(|_| Error::InvalidFraming)?;
             permissions.push(ServiceTerminalAuthorityPermission::new(
                 permission_schema,
-                requirement,
+                permission_identities.intern(requirement),
                 disposition,
             ));
         }
         bindings.push(
             binding
-                .with_terminal_authority_permissions(permissions)
+                .with_terminal_authority_permissions(permissions, &permission_identities.build())
                 .map_err(|_| Error::InvalidFraming)?,
         );
     }
@@ -220,6 +226,7 @@ mod tests {
 
     fn sample() -> AcceptedPackageCompilation {
         let schema = ServiceSchemaDigest::from_digest([3; 32]);
+        let mut sample_identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let binding = AcceptedSemanticBinding::new(
             AcceptedSemanticBindingRole::ConsoleExitProcessI32,
             package(),
@@ -228,13 +235,16 @@ mod tests {
             ProviderPlanDigest::from_digest([5; 32]),
         )
         .unwrap()
-        .with_terminal_authority_permissions(vec![ServiceTerminalAuthorityPermission::new(
-            schema,
-            "exit_process(code: I32)",
-            TerminalAuthorityDisposition::from_classes(vec![
-                TerminalAuthorityClass::ProcessTermination,
-            ]),
-        )])
+        .with_terminal_authority_permissions(
+            vec![ServiceTerminalAuthorityPermission::new(
+                schema,
+                sample_identities.intern("exit_process(code: I32)"),
+                TerminalAuthorityDisposition::from_classes(vec![
+                    TerminalAuthorityClass::ProcessTermination,
+                ]),
+            )],
+            &sample_identities.build(),
+        )
         .unwrap();
         let service = AcceptedSemanticBinding::new_service(
             AcceptedSemanticBindingRole::TimeHostService,

@@ -38,7 +38,7 @@ pub(in crate::encoding::encode) fn method(
                 encoder.usize(claim.parameter_index)
             })?;
             encoder.field("carrier_identity", |encoder| {
-                encoder.string(&claim.carrier_identity)
+                encoder.string(method.identities.text(claim.carrier_identity))
             })?;
             encoder.field("domain", |encoder| encoder.string(&claim.domain))?;
             encoder.field("predicate_body", |encoder| {
