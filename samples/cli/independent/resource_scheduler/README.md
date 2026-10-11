@@ -126,8 +126,9 @@ approved per-command execution context, without changing ownership or guards.
 
 ## Review checkpoint
 
-See `validation/STATUS.md` for the recorded acceptance frontier. The package
-candidate checked, but the std capability review requires explicit approval;
-native and Terminal validation remain blocked. Frozen `.stdout` files are
-expected results, not observed execution output. Verify the distinct negative
-source check with `validation/check_rejection.py` and the saved command prefix.
+See `validation/STATUS.md` for the recorded baseline and validation results.
+All 53 native/Terminal cases pass the frozen independent oracle, and the distinct
+complete intended-invalid source rejects for its declared range. The bounded
+compiler repair preserves reused integer inputs across fixed-register divisions.
+The review bundle contains exact commands, source/binary hashes and observed
+artifacts. Independent review and normal main-only landing remain pending.
