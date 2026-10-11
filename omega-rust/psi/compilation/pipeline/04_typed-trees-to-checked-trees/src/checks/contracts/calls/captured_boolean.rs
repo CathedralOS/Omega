@@ -65,7 +65,9 @@ pub(super) fn judgment(
         }
         Some(seen)
     })();
-    if proven == Some(true) {
+    if proven == Some(true)
+        || captured_float_requirement(program, facts, state, call, expression) == Some(true)
+    {
         return Some(true);
     }
     // Ordinary proof routes observe the authored actual, not its initializer.
@@ -78,6 +80,38 @@ pub(super) fn judgment(
     } else {
         Some(false)
     }
+}
+
+/// A selected semantic equation describes this completed operand, not a replay
+/// of its runtime call. Closed terms and complete Integer carrier images can
+/// establish a Boolean consequence without claiming the Float value has
+/// substitution identity. Unknown projections remain unknown: they cannot read
+/// current mutable storage or inherit a different operand's classification.
+fn captured_float_requirement(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<bool> {
+    let (machine, target_state) =
+        validation::find_state(program, call.target_symbol).or_else(|| {
+            let machine = program.machine_by_symbol(call.target_symbol)?;
+            Some((machine, program.machine_states(machine).first()?))
+        })?;
+    let parameters = validation::call_target_parameters(program, call.target_symbol)?;
+    let arguments = call_values::captured_argument_expressions(program, facts, state, call)?;
+    crate::checks::operators::selected_float_boolean_requirement(
+        program,
+        facts,
+        machine.symbol,
+        target_state.symbol,
+        expression,
+        parameters,
+        &arguments,
+        state.machine_symbol,
+        state.state_symbol,
+    )
 }
 
 /// Reuse the ordinary Boolean evaluator with evidence-owned atoms. Scalar

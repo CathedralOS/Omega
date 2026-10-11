@@ -131,35 +131,6 @@ fn explicit_subject_call_requirement_proven(
     )
 }
 
-fn selected_float_requirement(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state_flow: &FlowStateFact,
-    call_flow: &FlowCallFact,
-    expression: ExpressionHandle,
-) -> Option<bool> {
-    let (machine, state) =
-        validation::find_state(program, call_flow.target_symbol).or_else(|| {
-            let machine = program.machine_by_symbol(call_flow.target_symbol)?;
-            Some((machine, program.machine_states(machine).first()?))
-        })?;
-    let parameters = validation::call_target_parameters(program, call_flow.target_symbol)?;
-    let arguments = super::super::call_values::captured_argument_expressions(
-        program, facts, state_flow, call_flow,
-    )?;
-    crate::checks::operators::selected_float_boolean_requirement(
-        program,
-        facts,
-        machine.symbol,
-        state.symbol,
-        expression,
-        parameters,
-        &arguments,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-    )
-}
-
 pub(super) fn proves(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -170,9 +141,7 @@ pub(super) fn proves(
     incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let proven = selected_float_requirement(program, facts, state_flow, call_flow, expression)
-        == Some(true)
-        || closed_boolean_value(program, &facts.operators, expression) == Some(true)
+    let proven = closed_boolean_value(program, &facts.operators, expression) == Some(true)
         || constant_extent_requirement_value(program, state_flow, expression) == Some(true)
         || super::super::call_bounds::proves(
             program,

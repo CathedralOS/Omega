@@ -1449,6 +1449,8 @@ fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 10ms expe
 	`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape (Wrapped, Wrapped); a second spelling needs a distinct operand shape or a separate owner
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 31ms expected @2d8ed253669f
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
+fail/float/captured_finite_requirement_precedes_source_repair rejected 23293ms expected @c9bf07d93a60+wt
+	cannot prove requires contract for call finite_captured from main: F32.is_finite(slot.value) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/closed_integer_conversion_predicate_retains_result rejected 1378ms expected @d0e40a213f35
 	cannot prove requires contract for call infinite_value from main: F32.is_infinite(F32.from_i32(1)) (needs fact `F32.is_infinite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/closed_integer_conversion_requires_exact_cast rejected 559ms expected @d0e40a213f35
