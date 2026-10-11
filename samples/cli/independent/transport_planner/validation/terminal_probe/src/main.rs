@@ -57,6 +57,7 @@ fn main() {
             + "\n";
         let observed = compiler::runtime::execute(TerminalRuntimeRequest {
             artifact,
+            provider_proposal: None,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
             fuel_allowance: 10_000_000,
@@ -93,6 +94,7 @@ fn main() {
     for (name, input) in manifest["invalid"].as_object().expect("invalid inputs") {
         let observed = compiler::runtime::execute(TerminalRuntimeRequest {
             artifact,
+            provider_proposal: None,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
             fuel_allowance: 10_000_000,
