@@ -1,0 +1,2 @@
+cannot check prepared project: checked compilation failed for package `invalid_use_wildcard` with 1 diagnostic(s)
+  error: .../main.omg:1:10: expected identifier, found punctuation `*`
