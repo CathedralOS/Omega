@@ -1,3 +1,26 @@
+Complete provider qualification at6f181f0c513fe7a44a8be86681396f17ed5fda90
+Actual base4b5eb415f13ec0ecc49c9a8f39dd990f4063553e; clean execution.
+Product rebuild0/383.330s; corpus runner0/35.200s.
+Classification update0/90.396s, sourcecheck0/29files/70.100s,
+native0/Terminal0/171.291s.
+Error budget update0/40.249s, sourcecheck0/29files/57.385s,
+native0/Terminal0/152.006s.
+Source gate0/118.554s:19fixtures,7checked/12intendedrejected,
+zero wrong reasons, lost successes, oracle failures or outcome moves.
+Runtime gate0/93.581s:5fixtures each native0/Terminal0.
+NF01mutable update0/184.428s, sourcecheck0/26files/46.152s,
+native73/Terminal73/46.057s. Invalid suffix source1/1.788s with
+expected explicit f64 literal in f32 diagnostic, distinct from runtime errors.
+Source identities, exact command arrays, full logs and measured resources are
+retained in evidence/*-4b5e-*. CPU5visible/quota4; memory limit16GiB,
+current14799482880bytes, OOM0; disk available6200700928bytes atmeasurement.
+Main f3c3255420f4d0eedcf5279fc17d51e7577f1f51 requires scoped reconciliation.
+Independent changed-input review found no affected execution conditions:
+NF02 has no computed float stores or slice operands; NF01 mutable stores
+integers and forwards named slices. Carrier/access lowering is unchanged.
+These native/Terminal results remain explicitly evidence at6f, not atf3.
+Fresh complete source checks and compiler controls follow on the rebased input.
+
 Partial changed-input qualification at87e7a0a919ff7630f8e989cb3bb0bcd325358867
 Base4f790ddf1e05ef13e112dab3c04f758bc60036f6; clean throughout execution.
 Product build0/121.116s; runner0/9.340s. Classification provider update0/82.190s,
