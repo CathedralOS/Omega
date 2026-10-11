@@ -81,19 +81,32 @@ inheritance, shared ancestry, six people, two contradictions and malformed input
 `validation/verify.py` requires full stdout byte equality, exact exit status and
 empty stderr, and records every case in JSON.
 
-Validation checkpoint: package preparation checked both source packages on compiler
-base `1ade44fe20d0979707c383846a4a25a40527209f`, but final `--check`
-stops at program-entry admission because the required package acceptance was
-rejected by automatic approval review. The 286 pending decisions include the
-repository std package's external supplies and filesystem/process capabilities,
-plus this application's console input/output/termination permissions. No denied
-acceptance was retried. Application native and Terminal runs have **not occurred**;
-the frozen 422-case oracle is pending execution, and landing is pending approval
-and runtime validation. The bounds control rejects for its intended rule.
+Validation passes on compiler base `343e19054f52b1b9939306e8ad27336f7890303c`
+with the accompanying terminal-call prefix repair. The complete application
+passes `--check` and native compilation. All **422 frozen native cases** agree
+on full stdout bytes, exact exit status and empty stderr, including all 399
+exhaustive tiny cases and 23 named valid, impossible and invalid-input cases.
+The four public `run --both` comparisons cover ambiguous observations, shared
+ancestry, impossible inheritance and invalid self-parent input; their native
+outputs match the frozen oracles and Terminal termination agrees in every case,
+without declines. That CLI comparison establishes termination agreement; it
+does not establish Terminal stdout equivalence.
 
-The bounded parser repair has two checked source controls and five intended
-rejections. Its std-free blocking control independently passes native and
-Terminal with exit 0 and empty streams. Combined suspension acknowledges correctly
-during checking; the separate complete `validation/reproductions/terminal_suspend_markers`
-project exposes an unsupported embedded Terminal signature on this compiler.
-That refusal is retained as evidence, not treated as application execution.
+The original project-local package review was accepted after explicit user
+approval. All 286 disclosed decisions retain their exact declaration meanings
+through the normal compiler-identity refresh: 140 callable, 140 external-supply,
+three terminal-permission and three dangerous-capability rows. The earlier
+rejected acceptance and its pending transaction remain preserved in the outcome
+evidence; no proposals or accepted locks were transplanted between origins.
+Acceptance is host-local and the ignored `omega.lock` is not distributed as a
+portable approval. The bounds control rejects specifically for its intended
+index rule. All 49 frozen fixture/oracle hashes remain unchanged.
+
+The accompanying parser repair has two checked source controls and five
+intended rejections, all passing on the validation compiler. Its std-free
+blocking control also passed native and Terminal in the original checkpoint.
+On original compiler base `1ade44fe20d0979707c383846a4a25a40527209f`, combined
+suspension checked but the separate complete
+`validation/reproductions/terminal_suspend_markers` project exposed an
+unsupported embedded Terminal signature. That historical refusal is retained
+as evidence; it was not an application runtime result.
