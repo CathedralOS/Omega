@@ -2816,6 +2816,12 @@ crash and native exit behavior.
     and its wrong-receiver rejection control: applied data storage must retain
     closed trait-contract operands, and direct/nested field discovery must carry
     the enclosing data applications into selection and establishment.
+    Preserve `providers/applied_binding_field_telescopes_exit` through both
+    engines: two applications of the same field declaration beneath one entry,
+    including nested wrappers, must retain distinct complete operands. Formal
+    type/const telescopes are checked without admitting runtime value operands;
+    a differently applied selected provider must still reject. Executable
+    requirement preparation checks closure after complete scope substitution.
     Region-bearing Binding admission still needs occurrence scopes through
     source inventory and requirement preparation, checked provider region-slot
     correspondence and application-plus-requirement joins through canonical

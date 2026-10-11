@@ -939,20 +939,12 @@ fn source_record(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
-    let TypeReferenceNode::Named { symbol, .. } =
-        checked.type_reference_table.type_reference(reference)
-    else {
-        // Refined nominal paths need their own zero-membership evidence. Do
-        // not strip those constraints merely to reach a nested byte field.
-        return None;
-    };
-    checked.data_definitions().iter().find(|definition| {
-        definition.symbol == *symbol
-            && checked.data_type_parameters(definition).is_empty()
-            // Checked zero membership, not absence of authored predicates,
-            // decides whether this nominal source can describe initial storage.
-            && !validation::data_requires_establishment(&checked.typed, definition)
-    })
+    // The exact retained application supplies substituted fields, not its
+    // open template. This shared lookup accepts Named and Generic carriers
+    // without stripping refinements, inventing operands or establishing zero.
+    checked
+        .closed_data_definition(reference)
+        .filter(|definition| !validation::data_requires_establishment(&checked.typed, definition))
 }
 
 fn zero_valid_byte_field(

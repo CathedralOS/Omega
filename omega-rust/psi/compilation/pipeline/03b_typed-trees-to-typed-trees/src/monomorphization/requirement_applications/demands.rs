@@ -18,19 +18,12 @@ pub(super) struct Demand {
 pub(super) fn collect(program: &TypedTrees) -> Vec<Demand> {
     let mut scopes = Vec::<AppliedTraitScope<'_>>::new();
     for root in program.applied_trait_roots() {
-        // Executable preparation still needs closed operands. Inspect the
-        // supplying telescope, not inherited binder leaves that its complete
-        // scope will resolve. Region-bearing admission remains fail-closed.
-        let arguments = program
-            .trait_type_parameters(root.declaration)
-            .iter()
-            .map(|parameter| root.parameter_argument(program, parameter.symbol))
-            .collect::<Vec<_>>();
-        if !root.declaration.lifetime_parameters.is_empty()
-            || program
-                .require_closed_application_operands(&arguments)
-                .is_err()
-        {
+        // Keep the complete supplying environment through materialization.
+        // Projecting a compound operand to its existing handle does not close
+        // its children. Executable preparation checks the materialized tuple
+        // once, before creating any instance; symbolic roots issue none.
+        // Region-bearing admission remains fail-closed.
+        if !root.declaration.lifetime_parameters.is_empty() {
             continue;
         }
         root.visit(program, &mut |scope| {

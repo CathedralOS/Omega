@@ -451,7 +451,14 @@ pub(crate) fn validate_type_reference_handle(
     owner: TypeReferenceOwner<'_>,
     type_parameter_scope: TypeParameterScope<'_>,
 ) {
-    validate_routed_service_carrier_placement(program, type_reference, owner, true, diagnostics);
+    validate_routed_service_carrier_placement(
+        program,
+        type_reference,
+        owner,
+        type_parameter_scope.lexical_owner,
+        true,
+        diagnostics,
+    );
     // `range-constraints-require-exact-domain`: a range constraint under a
     // non-Exact domain is ill-formed
     // (checked once per declared handle; the accessors walk nested
@@ -482,17 +489,28 @@ fn validate_routed_service_carrier_placement(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     owner: TypeReferenceOwner<'_>,
+    lexical_owner: symbols::SymbolHandle,
     direct: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    match typed_trees::service::classify_exact_bound_service_carrier(program, type_reference) {
+    // A declaration is checked under its own telescope, not under the closed
+    // receiver of a future invocation. Concrete carrier consumers separately
+    // require transitive closure; this check cannot issue an exact identity.
+    match typed_trees::service::inspect_service_carrier_contract(program, type_reference) {
         Err(error) => {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} uses an invalid routed service carrier: {error}"
             )));
             return;
         }
-        Ok(Some(_)) => {
+        Ok(Some(contract)) => {
+            if let Err(error) = program
+                .require_declared_application_operands(contract.arguments(program), lexical_owner)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses an invalid routed service carrier: {error}"
+                )));
+            }
             if !direct || !owner.allows_direct_routed_service_carrier() {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} places the routed `Binding<R>` carrier outside the first direct field/owned concrete-machine-parameter rung"
@@ -514,12 +532,13 @@ fn validate_routed_service_carrier_placement(
                     language_semantics::ReferenceAccess::Shared
                         | language_semantics::ReferenceAccess::Mutable
                 )
-                && typed_trees::service::classify_exact_bound_service_carrier(program, *referee)
+                && typed_trees::service::inspect_service_carrier_contract(program, *referee)
                     .is_ok_and(|carrier| carrier.is_some());
             validate_routed_service_carrier_placement(
                 program,
                 *referee,
                 owner,
+                lexical_owner,
                 direct_borrow,
                 diagnostics,
             );
@@ -529,6 +548,7 @@ fn validate_routed_service_carrier_placement(
                 program,
                 *base_type,
                 owner,
+                lexical_owner,
                 direct,
                 diagnostics,
             );
@@ -539,6 +559,7 @@ fn validate_routed_service_carrier_placement(
                 program,
                 *element_type,
                 owner,
+                lexical_owner,
                 false,
                 diagnostics,
             );
@@ -552,6 +573,7 @@ fn validate_routed_service_carrier_placement(
                     program,
                     *argument,
                     owner.generic_argument(),
+                    lexical_owner,
                     false,
                     diagnostics,
                 );
@@ -580,6 +602,7 @@ fn validate_routed_service_carrier_placement(
                     program,
                     origin,
                     owner.generic_argument(),
+                    lexical_owner,
                     false,
                     diagnostics,
                 );

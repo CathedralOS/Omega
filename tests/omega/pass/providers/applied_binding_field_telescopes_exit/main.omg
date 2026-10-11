@@ -1,0 +1,51 @@
+// Expected exit: 0. Two applications of one field declaration beneath one
+// entry owner must not share its supplying type operand or provider.
+use omega::language::core::binding;
+
+pub boundary trait Reading<Value> { machine read() -> i32; }
+pub boundary trait UnsignedReading: Reading<u64> { machine choose_unsigned() -> i32; }
+pub boundary trait BooleanReading: Reading<bool> { machine choose_boolean() -> i32; }
+UnsignedMap satisfies UnsignedReading {
+    Reading::read = unsigned_read;
+    UnsignedReading::choose_unsigned = choose_unsigned;
+}
+BooleanMap satisfies BooleanReading {
+    Reading::read = boolean_read;
+    BooleanReading::choose_boolean = choose_boolean;
+}
+machine unsigned_read() -> i32 { 37 }
+machine boolean_read() -> i32 { 53 }
+machine choose_unsigned() -> i32 { 19 }
+machine choose_boolean() -> i32 { 29 }
+
+data TargetProviders {}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<UnsignedReading, UnsignedMap>(defaults);
+    TargetProviders::select_provider<BooleanReading, BooleanMap>(defaults);
+}
+data Session<Value> { reading: Binding<Reading<Value>>; }
+data Wrapper<Value> { value: Value; }
+data Main<'record, Value> {
+    unsigned: Session<Value>;
+    boolean: Session<bool>;
+    nested: Wrapper<Wrapper<Session<Value>>>;
+}
+machine unsigned_observed(reading: &Binding<Reading<u64>>) -> i32 reaches Reading {
+    reading.read()
+}
+machine boolean_observed(reading: &Binding<Reading<bool>>) -> i32 reaches Reading {
+    reading.read()
+}
+machine Main::main<'activation>(main: &'activation mut Main<'activation, u64>)
+reaches Reading + UnsignedReading + BooleanReading crashes Trap {
+    let first: i32 = unsigned_observed(&main.unsigned.reading);
+    let second: i32 = boolean_observed(&main.boolean.reading);
+    let nested: i32 = unsigned_observed(&main.nested.value.value.reading);
+    let unsigned: i32 = UnsignedReading::choose_unsigned();
+    let boolean: i32 = BooleanReading::choose_boolean();
+    transition first == 37 && second == 53 && nested == 37 && unsigned == 19 && boolean == 29 {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

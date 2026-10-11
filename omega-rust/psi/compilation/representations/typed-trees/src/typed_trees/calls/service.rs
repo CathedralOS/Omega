@@ -7,12 +7,61 @@
 //! qualification spelled on it is rejected. The retired `Bound` qualification
 //! era survives only in these entry-point names, which still have callers that
 //! have not migrated; the classifier itself consults no domain.
+//!
+//! A declaration's contract may refer to its own formal operands. Inspecting
+//! that contract does not admit a closed service occurrence: selection and
+//! execution still require `ExactServiceCarrier` and transitive closure. Both
+//! judgments decode the same nominal shape, rather than recognizing separate
+//! template and concrete spellings.
 
 use crate::TypedTrees;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
 pub const SERVICE_CORE_SOURCE: &str = "binding.omg";
+
+/// Nominal contract inspection, without closed-application admission or an
+/// executable identity. The supplying telescope belongs to the occurrence.
+#[derive(Debug, Clone, Copy)]
+pub struct ServiceCarrierContract {
+    pub service_data: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub requirement_reference: TypeReferenceHandle,
+}
+
+impl ServiceCarrierContract {
+    pub fn arguments(self, program: &TypedTrees) -> &[TypeReferenceHandle] {
+        match program
+            .type_reference_table
+            .type_reference(self.requirement_reference)
+        {
+            TypeReferenceNode::Generic { arguments, .. } => program
+                .type_reference_table
+                .type_reference_handles(*arguments),
+            _ => &[],
+        }
+    }
+
+    /// Borrow the complete supplying environment. This constructs a logical
+    /// view, not proof that its operands are closed or its provider admitted.
+    pub fn application<'program>(
+        self,
+        program: &'program TypedTrees,
+        lexical_owner: SymbolHandle,
+        enclosing_data_applications: &[TypeReferenceHandle],
+    ) -> Option<crate::trait_definition::AppliedTraitScope<'program>> {
+        crate::trait_definition::AppliedTraitScope::new(
+            program,
+            program.trait_definition_by_symbol(self.requirement)?,
+            crate::trait_definition::TraitApplicationArguments {
+                lexical_owner,
+                enclosing_data_applications,
+                arguments: self.arguments(program),
+                lifetimes: &[],
+            },
+        )
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct ExactServiceCarrier {
@@ -58,16 +107,12 @@ impl ExactServiceCarrier {
         lexical_owner: SymbolHandle,
         enclosing_data_applications: &[TypeReferenceHandle],
     ) -> Option<crate::trait_definition::AppliedTraitScope<'program>> {
-        crate::trait_definition::AppliedTraitScope::new(
-            program,
-            program.trait_definition_by_symbol(self.requirement)?,
-            crate::trait_definition::TraitApplicationArguments {
-                lexical_owner,
-                enclosing_data_applications,
-                arguments: self.arguments(program),
-                lifetimes: &[],
-            },
-        )
+        ServiceCarrierContract {
+            service_data: self.service_data,
+            requirement: self.requirement,
+            requirement_reference: self.requirement_reference,
+        }
+        .application(program, lexical_owner, enclosing_data_applications)
     }
 }
 
@@ -118,6 +163,28 @@ pub fn classify_exact_bound_service_carrier(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Result<Option<ExactServiceCarrier>, String> {
+    let Some(contract) = inspect_service_carrier_contract(program, type_reference)? else {
+        return Ok(None);
+    };
+    program
+        .require_closed_application_operands(contract.arguments(program))
+        .map_err(str::to_owned)?;
+    Ok(Some(ExactServiceCarrier {
+        service_data: contract.service_data,
+        requirement: contract.requirement,
+        requirement_reference: contract.requirement_reference,
+        requirement_identity: program.normalized_type_identity(contract.requirement_reference),
+    }))
+}
+
+/// Decode the toolchain-owned contract once for formal checking and concrete
+/// admission. Ordinary declaration checking must also establish that every
+/// free operand belongs to its lexical telescope. Region-bearing applications
+/// remain refused until their provider/installation correspondence is retained.
+pub fn inspect_service_carrier_contract(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Result<Option<ServiceCarrierContract>, String> {
     let mut current = type_reference;
     let mut qualified = false;
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -199,15 +266,22 @@ pub fn classify_exact_bound_service_carrier(
             "the core `Binding` carrier requires a complete closed boundary application with retained exact regions; `{name}` remains open"
         ));
     }
-    program
-        .require_closed_application_operands(arguments)
-        .map_err(str::to_owned)?;
+    for argument in arguments {
+        if program
+            .region_free_scoped_type_identity(
+                crate::type_identity::TypeIdentityRequest::ordinary(*argument),
+                &[],
+            )
+            .is_none()
+        {
+            return Err("closed requirement needs a retained exact region application".to_owned());
+        }
+    }
 
-    Ok(Some(ExactServiceCarrier {
+    Ok(Some(ServiceCarrierContract {
         service_data: *base_symbol,
         requirement,
         requirement_reference,
-        requirement_identity: program.normalized_type_identity(requirement_reference),
     }))
 }
 

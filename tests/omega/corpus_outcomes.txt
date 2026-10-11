@@ -5285,6 +5285,10 @@ fail/providers/checked_boundary_operator_const_application_unselected rejected 9
 	unimplemented: portable provider-dependent constant recipes; target realization cannot fold selected values into checked source
 fail/providers/checked_boundary_operator_missing_contract rejected 1307ms expected @a9ae30e1c334+wt
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
+fail/providers/applied_binding_field_wrong_receiver rejected 5567ms expected @a8cedb3946d5+wt
+	selected ProgramEntry Binding field `Main<u64>::boolean::reading` requires a selected Fused provider for boundary `Reading`
+fail/providers/binding_formal_runtime_operand rejected 243ms expected @a8cedb3946d5+wt
+	machine `bad` state `entry` parameter `binding` uses an invalid routed service carrier: open operands do not close a requirement instance
 fail/providers/computed_binding_receiver_fabricated_carrier rejected 3603ms expected @a9ae30e1c334+wt
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
 fail/providers/consuming_requirement_without_provider rejected 23449ms expected @a9ae30e1c334+wt
@@ -6053,6 +6057,8 @@ pass/float/runtime_absolute_shared_call_operands_exit checked 142230ms check-tar
 pass/float/runtime_nested_float_min_max_exit checked 143720ms check-target:linux_x86_64 @e977d51d9986
 pass/float/runtime_resultless_law_equality_custody_exit checked 143939ms check-target:linux_x86_64 @e977d51d9986
 fail/providers/applied_entry_nested_binding_wrong_receiver rejected 5932ms expected @c61d64ccecc5+wt
+pass/providers/applied_binding_field_telescopes_exit checked 2857ms check-target:macos_arm64 @a8cedb3946d5+wt
+pass/providers/binding_formal_type_const_operands checked 477ms @a8cedb3946d5+wt
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
 pass/contracts/runtime_indexed_element_requirements_exit checked 2817ms check-target:macos_arm64 @6d847e2a233e
 pass/contracts/runtime_projected_element_requirements_exit checked 2774ms check-target:macos_arm64 @6d847e2a233e

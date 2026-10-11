@@ -42,6 +42,25 @@ impl TypedTrees {
         &self,
         arguments: &[types::TypeReferenceHandle],
     ) -> Result<(), &'static str> {
+        self.require_application_operand_bindings(arguments, SymbolHandle::invalid())
+    }
+
+    /// Formal declaration well-formedness is not concrete closure. Only type
+    /// binders from the supplying lexical chain may remain symbolic; runtime
+    /// values and foreign declaration binders still cannot become operands.
+    pub fn require_declared_application_operands(
+        &self,
+        arguments: &[types::TypeReferenceHandle],
+        lexical_owner: SymbolHandle,
+    ) -> Result<(), &'static str> {
+        self.require_application_operand_bindings(arguments, lexical_owner)
+    }
+
+    fn require_application_operand_bindings(
+        &self,
+        arguments: &[types::TypeReferenceHandle],
+        lexical_owner: SymbolHandle,
+    ) -> Result<(), &'static str> {
         let mut operands = ClosedOperands::default();
         for argument in arguments.iter() {
             crate::references::visit_type_reference(self, &mut operands, *argument);
@@ -69,6 +88,25 @@ impl TypedTrees {
             .iter()
             .filter(|symbol| symbol.is_valid())
             .any(|symbol| {
+                if self
+                    .data_type_parameter_by_symbol(*symbol)
+                    .is_some_and(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::data::TypeParameterKind::Type
+                                | crate::data::TypeParameterKind::Const { .. }
+                        )
+                    })
+                {
+                    let parent = self.symbols.get(*symbol).parent;
+                    let mut owner = lexical_owner;
+                    while owner.is_valid() {
+                        if parent == owner {
+                            return false;
+                        }
+                        owner = self.symbols.get(owner).parent;
+                    }
+                }
                 matches!(
                     self.symbols.get(*symbol).kind,
                     symbols::SymbolKind::TypeParameter

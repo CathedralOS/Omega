@@ -4,13 +4,23 @@
 
 use super::{AppliedDeclarationRegionScope, AppliedTraitScope};
 use crate::TypedTrees;
+use crate::data::DataDefinition;
+use crate::name::Identifier;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn append_data_application(
+pub(super) struct DataApplication<'program> {
+    pub declaration: &'program DataDefinition,
+    pub arguments: &'program [TypeReferenceHandle],
+    pub lifetimes: &'program [Identifier],
+}
+
+/// Read the authored nominal application even when storage preparation has
+/// replaced its visible node. Both field discovery and trait scopes must use
+/// this same decoding, not infer operands from a layout-equivalent record.
+pub(super) fn data_application(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
-    scope: &mut AppliedTraitScope<'_>,
-) -> Option<()> {
+) -> Option<DataApplication<'_>> {
     if !program
         .type_reference_table
         .contains_type_reference(reference)
@@ -55,6 +65,24 @@ pub(super) fn append_data_application(
     {
         return None;
     }
+    Some(DataApplication {
+        declaration,
+        arguments,
+        lifetimes,
+    })
+}
+
+pub(super) fn append_data_application(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    scope: &mut AppliedTraitScope<'_>,
+) -> Option<()> {
+    let DataApplication {
+        declaration,
+        arguments,
+        lifetimes,
+    } = data_application(program, reference)?;
+    let parameters = program.data_type_parameters(declaration);
     scope
         .substitution_scope_starts
         .push(scope.substitutions.len());

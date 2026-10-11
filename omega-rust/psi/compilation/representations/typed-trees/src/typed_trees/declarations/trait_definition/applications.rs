@@ -16,6 +16,7 @@ use symbols::SymbolHandle;
 mod regions;
 use regions::AppliedDeclarationRegionScope;
 mod enclosing;
+mod source_fields;
 
 impl TypedTrees {
     /// Source-owned application roots shared by logical signature preparation
@@ -44,21 +45,7 @@ impl TypedTrees {
                     .filter(|declaration| self.trait_type_parameters(declaration).is_empty())
                     .map(AppliedTraitScope::abstract_scope),
             )
-            .chain(
-                crate::references::collect_program_type_occurrences(self)
-                    .into_iter()
-                    .filter_map(|occurrence| {
-                        crate::service::classify_exact_bound_service_carrier(
-                            self,
-                            occurrence.reference,
-                        )
-                        .ok()
-                        .flatten()
-                        .and_then(|carrier| {
-                            carrier.application(self, occurrence.lexical_owner, &[])
-                        })
-                    }),
-            )
+            .chain(source_fields::service_application_roots(self))
             .collect()
     }
 }
@@ -127,6 +114,7 @@ fn project_type_reference<'scope>(
     scope_starts: &'scope [usize],
 ) -> AppliedTypeReference<'scope> {
     let mut visible = substitutions.len();
+    let mut visible_scopes = scope_starts.len();
     if reference.is_valid() {
         while let TypeReferenceNode::Named { symbol, .. } =
             program.type_reference_table.type_reference(reference)
@@ -142,19 +130,17 @@ fn project_type_reference<'scope>(
             if *replacement == reference {
                 break;
             }
-            visible = scope_starts
-                .iter()
-                .rev()
-                .find(|start| **start <= ordinal)
-                .copied()
-                .unwrap_or(0);
+            visible_scopes = scope_starts
+                .partition_point(|start| *start <= ordinal)
+                .saturating_sub(1);
+            visible = scope_starts.get(visible_scopes).copied().unwrap_or(0);
             reference = *replacement;
         }
     }
     AppliedTypeReference {
         reference,
         substitutions: &substitutions[..visible],
-        scope_starts: &scope_starts[..scope_starts.partition_point(|start| *start < visible)],
+        scope_starts: &scope_starts[..visible_scopes],
     }
 }
 
