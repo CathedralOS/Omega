@@ -12,4 +12,4 @@ round-to-nearest steps. The original worker source and validation are retained i
 
 The separate `invalid_suffix` project must reject an explicitly binary64 literal
 assigned to binary32. Runtime `InvalidTolerance` values in admitted programs are a
-separate error boundary. Current integration results and exact revisions are recorded in `EVIDENCE.txt`; final corpus replay and normal publication are pending.
+separate error boundary. Current integration results and exact revisions are recorded in `EVIDENCE.txt`; the scoped corpus replay is qualified. Rebase and qualification on the later provider-plan changes, exact-candidate landing verification, and normal publication remain pending.

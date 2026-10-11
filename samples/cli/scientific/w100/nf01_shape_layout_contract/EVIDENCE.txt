@@ -1,3 +1,19 @@
+NF01 publication and later connected qualification
+
+Published main commit:829e6b5808883ee2a4d59e00d9b051efd0a7d92e.
+Actual publication base:1f467fff02801f86dd45b3cace62c010f58376ef.
+Normal landing ticket633af389844c41b48ac86fefb6f21ca9 published, provenance
+recorded and remote main independently confirmed. All earlier pre-publication
+statements below describe retained historical checkpoints.
+Later connected candidate5c1a91948eabadc46acd576b44cb98b92751774c/base4ac
+freshly qualifies the unchanged complete mutable consumer:sourcecheck0/29files,
+native73/Terminal73/46.396s. Shared numeric policy now adds loaded source files;
+NF01 module, consumer and frozen oracle remain unchanged. Readonly41/41 and
+out-of-bounds source rejection retain their actual78ef execution revision below.
+Exact later command arrays/logs:../nf02_numeric_accuracy_policy/evidence/w100-nf01-4ac-*.
+NF01 has no remaining acceptance blocker; the later connected NF02 integration
+is separately awaiting qualification and publication against incoming main.
+
 Final changed-input qualification
 
 Implementation checkpoint: df0ed5971b7df39a4ad0d245e20155d9a60793b3.
