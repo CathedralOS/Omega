@@ -6,7 +6,11 @@
 //! public entry points differ only in the [`CopySource`] they read and the
 //! struct-literal field filter they apply. The walk appends children before
 //! their parent and reserves or inserts each span in walk order, so a copy
-//! appends the same rows whichever table it reads.
+//! appends the same rows whichever table it reads. Each copy retains one new
+//! handle per source occurrence: normalized DAG edges remain shared within
+//! the clone, while separate invocations and distinct authored nodes stay
+//! independent. Expanding a shared operand back into a tree would repeat its
+//! effects or detach later projections from its captured value.
 
 use crate::name::Identifier;
 use crate::typed_trees::remapped;
@@ -292,6 +296,34 @@ impl ExpressionTable {
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
     {
+        self.copy_subtree_with_occurrences(source, expression, retain, &mut Vec::new())
+    }
+
+    fn copy_expression_list<RetainField>(
+        &mut self,
+        source: CopySource<'_>,
+        expressions: &[ExpressionHandle],
+        retain: &RetainField,
+    ) -> HandleSpan<ExpressionHandle>
+    where
+        RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    {
+        self.copy_expression_list_with_occurrences(source, expressions, retain, &mut Vec::new())
+    }
+
+    fn copy_subtree_with_occurrences<RetainField>(
+        &mut self,
+        source: CopySource<'_>,
+        expression: ExpressionHandle,
+        retain: &RetainField,
+        copies: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
+    ) -> ExpressionHandle
+    where
+        RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    {
+        if let Some((_, copied)) = copies.iter().find(|(original, _)| *original == expression) {
+            return *copied;
+        }
         let origin = source.table(self);
         let source_span = origin.source_span(expression);
         let authority = origin.index_expression_authority(expression).cloned();
@@ -300,17 +332,19 @@ impl ExpressionTable {
             .collect::<Vec<_>>();
         let copied = match origin.expression(expression).clone() {
             ExpressionNode::Match(dispatch) => {
-                let subject = self.copy_subtree(source, dispatch.subject, retain);
+                let subject =
+                    self.copy_subtree_with_occurrences(source, dispatch.subject, retain, copies);
                 let source_arms = source.table(self).match_arms(dispatch.arms).to_vec();
                 let mut arms = Vec::with_capacity(source_arms.len());
                 for arm in source_arms {
                     let pattern = match arm.pattern {
-                        MatchPattern::Value(value) => {
-                            MatchPattern::Value(self.copy_subtree(source, value, retain))
-                        }
+                        MatchPattern::Value(value) => MatchPattern::Value(
+                            self.copy_subtree_with_occurrences(source, value, retain, copies),
+                        ),
                         MatchPattern::Wildcard => MatchPattern::Wildcard,
                     };
-                    let value = self.copy_subtree(source, arm.value, retain);
+                    let value =
+                        self.copy_subtree_with_occurrences(source, arm.value, retain, copies);
                     arms.push(TableMatchArm {
                         pattern,
                         value,
@@ -324,12 +358,13 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::ArrayLiteral(values) => {
-                let values = self.copy_expression_span(source, values, retain);
+                let values = self.copy_expression_span(source, values, retain, copies);
                 self.insert(ExpressionNode::ArrayLiteral(values))
             }
             ExpressionNode::Atomic(atomic) => {
-                let value = self.copy_subtree(source, atomic.value, retain);
-                let result = self.copy_optional_subtree(source, atomic.result, retain);
+                let value =
+                    self.copy_subtree_with_occurrences(source, atomic.value, retain, copies);
+                let result = self.copy_optional_subtree(source, atomic.result, retain, copies);
                 self.insert(ExpressionNode::Atomic(TableAtomicExpression {
                     value,
                     result,
@@ -338,8 +373,9 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Binary(binary) => {
-                let left = self.copy_subtree(source, binary.left, retain);
-                let right = self.copy_subtree(source, binary.right, retain);
+                let left = self.copy_subtree_with_occurrences(source, binary.left, retain, copies);
+                let right =
+                    self.copy_subtree_with_occurrences(source, binary.right, retain, copies);
                 self.insert(ExpressionNode::Binary(TableBinaryExpression {
                     left,
                     operator: binary.operator,
@@ -348,7 +384,7 @@ impl ExpressionTable {
             }
             ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(value)),
             ExpressionNode::Cast(cast) => {
-                let value = self.copy_subtree(source, cast.value, retain);
+                let value = self.copy_subtree_with_occurrences(source, cast.value, retain, copies);
                 let target_label = self.copy_name_path_members(source, cast.target_label);
                 let semantic_domain = self.copy_name_path_members(source, cast.semantic_domain);
                 self.insert(ExpressionNode::Cast(TableCastExpression {
@@ -365,8 +401,8 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Call(call) => {
-                let receiver = self.copy_optional_subtree(source, call.receiver, retain);
-                let arguments = self.copy_expression_span(source, call.arguments, retain);
+                let receiver = self.copy_optional_subtree(source, call.receiver, retain, copies);
+                let arguments = self.copy_expression_span(source, call.arguments, retain, copies);
                 let authored_machine_application =
                     self.copy_static_machine_application(source, call.authored_machine_application);
                 self.insert(ExpressionNode::Call(TableCallExpression {
@@ -391,8 +427,10 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::UndeterminedNaN(format))
             }
             ExpressionNode::Indexed(indexed) => {
-                let collection = self.copy_subtree(source, indexed.collection, retain);
-                let index = self.copy_subtree(source, indexed.index, retain);
+                let collection =
+                    self.copy_subtree_with_occurrences(source, indexed.collection, retain, copies);
+                let index =
+                    self.copy_subtree_with_occurrences(source, indexed.index, retain, copies);
                 self.insert(ExpressionNode::Indexed(TableIndexedExpression {
                     collection,
                     index,
@@ -400,7 +438,8 @@ impl ExpressionTable {
             }
             ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(value)),
             ExpressionNode::Member(member) => {
-                let receiver = self.copy_subtree(source, member.receiver, retain);
+                let receiver =
+                    self.copy_subtree_with_occurrences(source, member.receiver, retain, copies);
                 self.insert(ExpressionNode::Member(TableMemberExpression {
                     receiver,
                     member_symbol: member.member_symbol,
@@ -409,7 +448,8 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Borrow(borrow) => {
-                let target = self.copy_subtree(source, borrow.target, retain);
+                let target =
+                    self.copy_subtree_with_occurrences(source, borrow.target, retain, copies);
                 self.insert(ExpressionNode::Borrow(TableBorrowExpression {
                     target,
                     access: borrow.access,
@@ -427,8 +467,8 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Range(range) => {
-                let start = self.copy_optional_subtree(source, range.start, retain);
-                let end = self.copy_optional_subtree(source, range.end, retain);
+                let start = self.copy_optional_subtree(source, range.start, retain, copies);
+                let end = self.copy_optional_subtree(source, range.end, retain, copies);
                 self.insert(ExpressionNode::Range(TableRangeExpression {
                     start,
                     end,
@@ -436,7 +476,7 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::StructLiteral(literal) => {
-                let fields = self.copy_struct_literal_fields(source, &literal, retain);
+                let fields = self.copy_struct_literal_fields(source, &literal, retain, copies);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: literal.type_name,
                     type_symbol: literal.type_symbol,
@@ -447,7 +487,8 @@ impl ExpressionTable {
             }
             ExpressionNode::String(value) => self.insert(ExpressionNode::String(value)),
             ExpressionNode::Unary(unary) => {
-                let operand = self.copy_subtree(source, unary.operand, retain);
+                let operand =
+                    self.copy_subtree_with_occurrences(source, unary.operand, retain, copies);
                 self.insert(ExpressionNode::Unary(TableUnaryExpression {
                     operator: unary.operator,
                     operand,
@@ -465,6 +506,7 @@ impl ExpressionTable {
             }
             *self.index_expression_authority_mut(copied) = authority;
         }
+        copies.push((expression, copied));
         copied
     }
 
@@ -475,12 +517,13 @@ impl ExpressionTable {
         source: CopySource<'_>,
         expression: ExpressionHandle,
         retain: &RetainField,
+        copies: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
     ) -> ExpressionHandle
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
     {
         if expression.is_valid() {
-            self.copy_subtree(source, expression, retain)
+            self.copy_subtree_with_occurrences(source, expression, retain, copies)
         } else {
             ExpressionHandle::invalid()
         }
@@ -491,21 +534,23 @@ impl ExpressionTable {
         source: CopySource<'_>,
         expressions: HandleSpan<ExpressionHandle>,
         retain: &RetainField,
+        copies: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
     ) -> HandleSpan<ExpressionHandle>
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
     {
         let expressions = source.table(self).expression_handles(expressions).to_vec();
-        self.copy_expression_list(source, &expressions, retain)
+        self.copy_expression_list_with_occurrences(source, &expressions, retain, copies)
     }
 
     /// Reserves the copied span before copying its elements, so the span's
     /// rows precede every row its elements append.
-    fn copy_expression_list<RetainField>(
+    fn copy_expression_list_with_occurrences<RetainField>(
         &mut self,
         source: CopySource<'_>,
         expressions: &[ExpressionHandle],
         retain: &RetainField,
+        copies: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
     ) -> HandleSpan<ExpressionHandle>
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
@@ -518,7 +563,8 @@ impl ExpressionTable {
         );
 
         for (offset, expression) in expressions.iter().enumerate() {
-            let expression = self.copy_subtree(source, *expression, retain);
+            let expression =
+                self.copy_subtree_with_occurrences(source, *expression, retain, copies);
             self.set_expression_handle_at_offset(
                 copied,
                 offset
@@ -572,6 +618,7 @@ impl ExpressionTable {
         source: CopySource<'_>,
         literal: &TableStructLiteral,
         retain: &RetainField,
+        copies: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
     ) -> HandleSpan<TableStructLiteralField>
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
@@ -591,7 +638,7 @@ impl ExpressionTable {
         );
 
         for (offset, field) in retained.into_iter().enumerate() {
-            let value = self.copy_subtree(source, field.value, retain);
+            let value = self.copy_subtree_with_occurrences(source, field.value, retain, copies);
             self.set_struct_field_at_offset(
                 copied,
                 offset

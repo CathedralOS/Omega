@@ -53,14 +53,19 @@
 //! mutable formals still require an authored mutable borrow. Ordinary call
 //! checking owns access, storage lifetime and overlap admission; this rewrite
 //! grants no authority and never adds lending to the index argument.
+//! An omitted end projects `len` from that same collection handle. The source
+//! DAG retains this evaluation relationship through cloning and checking; the
+//! ordered call schedule observes the established operand, not another call
+//! or a delayed read of its original storage. Ordinary field resolution and
+//! collection lending still supply the declaration and access authority.
 //! Canonical floating comparisons already
 //! have a selected-comparison route, including arm-local match equality. A
 //! bodyless requirement keeps its exact occurrence and operands on that route:
 //! rewriting it to a bodyless call would erase the comparison computation,
 //! while reconstructing a match call would reevaluate its saved subject.
 //! Its provider still needs independent selection and realization. Body-bearing
-//! machines cannot use that route in place of executing their body. Open-ended
-//! range uses (`a[start..]`, `a[..]`) and other unsupported selections reject:
+//! machines cannot use that route in place of executing their body. Other
+//! unsupported selections reject:
 //! leaving a selection without executable supply could silently substitute
 //! builtin arithmetic, which the contract forbids.
 
@@ -294,8 +299,14 @@ pub(crate) fn bind_selected_operator_calls(
                 };
                 match range {
                     Some(range) => {
-                        match range_operands(program, &target.name, range, start_parameter, origin)
-                        {
+                        match range_operands(
+                            program,
+                            &target.name,
+                            collection,
+                            range,
+                            start_parameter,
+                            origin,
+                        ) {
                             Ok((start, end)) => {
                                 operands.push(start);
                                 operands.push(end);
@@ -572,21 +583,30 @@ fn indexed_collection_argument(
 /// stay builtin arithmetic, and a bare integer primitive can never match a
 /// direct token binding -- the semantic-home law keeps compiler primitives out
 /// of every declared operator family -- so an integer end operand guarantees
-/// the inserted `+` means the builtin one. An omitted end (`a[start..]`,
-/// `a[..]`) would need the collection's length, which a `[..]` telescope has
-/// no operand formation for, so those uses still reject.
+/// the inserted `+` means the builtin one. An omitted end is a length
+/// observation of the same evaluated collection occurrence. Do not clone the
+/// receiver here: later arguments must observe the collection snapshot, even
+/// when the start expression mutates its original storage.
 fn range_operands(
     program: &mut TypedTrees,
     machine_name: &str,
+    collection: ExpressionHandle,
     range: TableRangeExpression,
     start_parameter: Option<TypeReferenceHandle>,
     origin: CheckedValueOrigin,
 ) -> Result<(ExpressionHandle, ExpressionHandle), Diagnostic> {
-    if !range.end.is_valid() {
-        return Err(Diagnostic::error(format!(
-            "`{machine_name}` was selected for its fixed operator token `[..]` but the range use omits its end; the omitted endpoint would be the collection's length, which a declared telescope cannot form -- closed `start..end`, `..end`, `start..=end`, and `..=end` uses bind the declaration's own body",
-        )));
-    }
+    let end = if range.end.is_valid() {
+        range.end
+    } else {
+        program.expression_table.insert(ExpressionNode::Member(
+            typed_trees::expression::TableMemberExpression {
+                receiver: collection,
+                member: typed_trees::name::Identifier::generated("len"),
+                member_symbol: SymbolHandle::invalid(),
+                case_variant: None,
+            },
+        ))
+    };
     let start = if range.start.is_valid() {
         range.start
     } else {
@@ -603,7 +623,7 @@ fn range_operands(
             .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)))
     };
     if !range.end_inclusive {
-        return Ok((start, range.end));
+        return Ok((start, end));
     }
     let end_is_integer = expression_type_reference_for_origin(program, range.end, origin)
         .and_then(|type_reference| validation::unwrapped_type_reference(program, type_reference))

@@ -6,8 +6,9 @@
 //! its normal continuation retires the checked ordered residual complement.
 use super::{
     Argument, CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees, Computation,
-    Expansion, Handle, LoweringError, QualifiedScalarType, Site, literals, lower_scalar_call,
-    parameter, produced_values, storage, structural_arguments, subslices, unsupported,
+    EstablishedValue, Expansion, Handle, LoweringError, QualifiedScalarType, Site, literals,
+    lower_scalar_call, parameter, produced_values, storage, structural_arguments, subslices,
+    unsupported,
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::scalar_lowering::branch_states::prepared::{
@@ -19,7 +20,10 @@ use checked_trees::{
 };
 
 enum Operand {
-    Effect(LoweredScalarEffect),
+    Copy {
+        effect: LoweredScalarEffect,
+        value: EstablishedValue,
+    },
     Range {
         argument: checked_trees::CheckedUnitStructuralArgumentPlan,
         slot: subslices::Slot,
@@ -348,16 +352,37 @@ impl Expansion<'_> {
                     // A value argument snapshots readable contents now, before
                     // evaluating the next argument. Passing its original place
                     // would defer this read until the call, after later effects.
-                    operands.push(Operand::Effect(LoweredScalarEffect::CopyStructuralValue {
-                        source: site.bindings.structural_copy_source(
-                            identities,
-                            actual.place,
-                            &actual.path,
-                            self.structural_types,
-                        )?,
+                    let expression = self
+                        .checked
+                        .facts
+                        .flow
+                        .control
+                        .call_arguments
+                        .span(source.authored_arguments)
+                        .and_then(|arguments| arguments.get(position))
+                        .copied()
+                        .ok_or(LoweringError::Unsupported(
+                            "computed copy lost its authored operand",
+                        ))?;
+                    let value = EstablishedValue::Copied {
+                        expression,
                         place: slot.place,
                         structural_type: slot.structural_type,
-                    }));
+                        source: actual.clone(),
+                    };
+                    operands.push(Operand::Copy {
+                        effect: LoweredScalarEffect::CopyStructuralValue {
+                            source: site.bindings.structural_copy_source(
+                                identities,
+                                actual.place,
+                                &actual.path,
+                                self.structural_types,
+                            )?,
+                            place: slot.place,
+                            structural_type: slot.structural_type,
+                        },
+                        value,
+                    });
                     actual.place = slot.place;
                     actual.path.clear();
                     actual.selector_positions.clear();
@@ -569,6 +594,24 @@ impl Expansion<'_> {
         let mut continuation = self.binding(call_types, input_types.len(), target, call);
         for (ordinal, operand) in operands.iter().enumerate().rev() {
             let prefix = &prefixes[ordinal];
+            // CPS builds successors backwards, but only earlier operands are
+            // available at this evaluation point. Keep that lexical prefix
+            // scoped while nested calls or selected branches are expanded.
+            let established_prefix = self.established_values.len();
+            self.established_values
+                .extend(
+                    operands[..ordinal]
+                        .iter()
+                        .filter_map(|operand| match operand {
+                            Operand::Produced(slot) => Some(EstablishedValue::Produced {
+                                root: slot.root,
+                                place: slot.place,
+                                structural_type: slot.structural_type,
+                            }),
+                            Operand::Copy { value, .. } => Some(value.clone()),
+                            _ => None,
+                        }),
+                );
             continuation = match operand {
                 Operand::Scalar(argument)
                 | Operand::DispatchSelector(argument)
@@ -598,7 +641,7 @@ impl Expansion<'_> {
                     site,
                     active,
                 )?,
-                Operand::Effect(effect) => self.push(LoweredScalarBranchState {
+                Operand::Copy { effect, .. } => self.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),
                     erased_formal_types: Vec::new(),
@@ -645,6 +688,7 @@ impl Expansion<'_> {
                     )?
                 }
             };
+            self.established_values.truncate(established_prefix);
         }
         Ok(continuation)
     }

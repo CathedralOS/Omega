@@ -244,6 +244,19 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueHandle> {
+        // Normalization can share an evaluated operand with a later projection.
+        // Preserve that occurrence's value identity, not another producer for
+        // the same source. Different authored handles never share this root.
+        if let Some(root) = self.structural_values.root_for_expression(
+            self.state,
+            u32::try_from(self.statement_index).ok()?,
+            expression,
+        ) {
+            return (root.machine == self.machine
+                && self.program.normalized_type_identity(root.type_reference)
+                    == self.program.normalized_type_identity(expected))
+            .then_some(root.root);
+        }
         let kind = if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::String(_)

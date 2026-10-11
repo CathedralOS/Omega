@@ -5,6 +5,11 @@
 //! together with explicit stored-reference crossings; lowering consumes that plan.
 //! Reads through references use PrimitiveScalarRead because they observe a value
 //! without naming a canonical owned leaf. Terminal independently checks custody.
+//! A normalized projection can observe an earlier call operand's exact captured
+//! occurrence. The selected operand prefix supplies that home; copying a subtree
+//! rebases the declared field path to its snapshot. The observation neither
+//! repeats the producer nor disposes the enclosing call's temporary. Other
+//! authored reads of the original place retain their observation-time behavior.
 //! The same leaf declaration can occur below several children of one root.
 //! Bind the complete checked subject to its canonical carrier path, rather than
 //! conflating reads by final field identity or projected type alone.
@@ -56,7 +61,7 @@ impl super::Expansion<'_> {
     pub(super) fn structural_field(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-
+        source_expression: typed_trees::expression::ExpressionHandle,
         receiver: checked_trees::CheckedStructuralValueHandle,
         subject: &CheckedUnitStructuralArgumentPlan,
         field: symbols::SymbolHandle,
@@ -68,7 +73,115 @@ impl super::Expansion<'_> {
         let (machine, state) = crate::declarations::state_declaration(self.checked, site.state)?;
         let mut completed = None;
         let mut discards = Vec::new();
-        let expression = if receiver.is_valid() {
+        let receiver_expression = self
+            .checked
+            .expression_table
+            .member_node(source_expression)
+            .map(|member| member.receiver);
+        let established = self
+            .established_values
+            .iter()
+            .rev()
+            .find(|value| match value {
+                super::EstablishedValue::Produced { root, .. } => {
+                    receiver.is_valid() && *root == receiver
+                        || receiver_expression
+                            == Some(
+                                self.checked
+                                    .facts
+                                    .values
+                                    .structural_values
+                                    .nodes
+                                    .get(*root)
+                                    .expression,
+                            )
+                }
+                super::EstablishedValue::Copied { expression, .. } => {
+                    receiver_expression == Some(*expression)
+                }
+            })
+            .cloned();
+        let expression = if let Some(established) = established {
+            // This is an observation of a prior operand, not establishment or
+            // disposal. The owning call retains its normal cleanup frontier.
+            match established {
+                super::EstablishedValue::Produced { place, .. } if receiver.is_valid() => {
+                    completed_observation(
+                        self.fields,
+                        site.bindings,
+                        subject,
+                        field,
+                        primitive,
+                        place,
+                    )?
+                }
+                super::EstablishedValue::Produced {
+                    root,
+                    place,
+                    structural_type,
+                } => {
+                    let value = self.checked.facts.values.structural_values.nodes.get(root);
+                    let original = match &value.kind {
+                        checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
+                            source,
+                            ..
+                        }
+                        | checked_trees::CheckedStructuralValueKind::Place(source) => source,
+                        _ => {
+                            return unsupported(
+                                "captured field observation lost its established source",
+                            );
+                        }
+                    };
+                    let home = site.bindings.borrowed_structural_home(
+                        original,
+                        machine,
+                        self.checked.state_parameters(state),
+                    )?;
+                    let root_type = site.bindings.structural_argument_type(&home).ok_or(
+                        LoweringError::Unsupported(
+                            "captured field observation lost its established carrier",
+                        ),
+                    )?;
+                    let mut source =
+                        crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(
+                            home, Some(root_type),
+                        )?;
+                    source.path.extend(
+                        crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+                            identities, &original.path, root_type, self.structural_types,
+                        )?,
+                    );
+                    copied_observation(
+                        self.fields,
+                        site.bindings,
+                        self.structural_types,
+                        subject,
+                        field,
+                        primitive,
+                        place,
+                        structural_type,
+                        &source,
+                    )?
+                }
+                super::EstablishedValue::Copied {
+                    place,
+                    structural_type,
+                    source,
+                    ..
+                } => copied_observation(
+                    self.fields,
+                    site.bindings,
+                    self.structural_types,
+                    subject,
+                    field,
+                    primitive,
+                    place,
+                    structural_type,
+                    &source,
+                )?,
+            }
+        } else if receiver.is_valid() {
             let values = &self.checked.facts.values.structural_values;
             let root = values
                 .root_for_expression(
@@ -1237,7 +1350,7 @@ pub(super) fn observation(
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let binding = field_binding(fields, subject, field, primitive)?;
     let source = observation_source(binding, bindings, machine, parameters, subject)?;
-    observe(binding, bindings, source)
+    observe(binding, bindings, source, None)
 }
 
 pub(super) fn completed_observation(
@@ -1257,6 +1370,70 @@ pub(super) fn completed_observation(
             path: Vec::new(),
             access: terminal_psi::StructuralAccess::SharedBorrow,
         },
+        None,
+    )
+}
+
+/// A copied operand owns a subtree of the original observation root. Retain
+/// the same declared leaf while making its path relative to that snapshot.
+#[allow(clippy::too_many_arguments)]
+fn copied_observation(
+    fields: &[Binding],
+    bindings: &storage::ScalarBindings,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    subject: &CheckedUnitStructuralArgumentPlan,
+    field: symbols::SymbolHandle,
+    primitive: PrimitiveType,
+    place: semantic_vocabulary::PlaceId,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    source: &crate::emission::operation_emission::calls::PreparedStructuralArgument,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
+    let mut binding = field_binding(fields, subject, field, primitive)?.clone();
+    let prefix = source
+        .path
+        .iter()
+        .map(|segment| match segment {
+            PreparedStructuralPathSegment::Static(segment) => Ok(segment.clone()),
+            _ => Err(LoweringError::Unsupported(
+                "captured field observation requires its evaluated projection path",
+            )),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let root_type = source.root_type.ok_or(LoweringError::Unsupported(
+        "captured field observation lost its source carrier",
+    ))?;
+    let (canonical_prefix, selected_type) =
+        terminal_semantics::canonical_static_projection(types.iter(), root_type, &prefix).ok_or(
+            LoweringError::Unsupported("captured field observation lost its source projection"),
+        )?;
+    if selected_type.id != structural_type || root_type != binding.observation_root_type {
+        return unsupported("captured field observation changes its operand carrier");
+    }
+    binding.primitive_path = binding
+        .primitive_path
+        .strip_prefix(prefix.as_slice())
+        .ok_or(LoweringError::Unsupported(
+            "captured field observation lost its relative path",
+        ))?
+        .to_vec();
+    binding.path = binding
+        .path
+        .strip_prefix(canonical_prefix.as_slice())
+        .ok_or(LoweringError::Unsupported(
+            "captured field observation lost its relative canonical path",
+        ))?
+        .to_vec();
+    binding.observation_root_type = structural_type;
+    observe(
+        &binding,
+        bindings,
+        terminal_psi::StructuralArgument {
+            place,
+            path: Vec::new(),
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+        },
+        Some(structural_type),
     )
 }
 
@@ -1325,20 +1502,22 @@ fn observe(
     binding: &Binding,
     bindings: &storage::ScalarBindings,
     home: terminal_psi::StructuralArgument,
+    captured_type: Option<semantic_vocabulary::StructuralTypeId>,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let source = home.place;
     let scalar_type = binding.scalar_type;
-    let primitive_path = if binding.loan_source.is_none() && binding.receiver.is_none() {
-        bindings.structural_observation_path(
-            &home,
-            binding.observation_root_type,
-            &binding.primitive_path,
-        )?
-    } else {
-        let mut path = home.path.clone();
-        path.extend_from_slice(&binding.primitive_path);
-        path
-    };
+    let primitive_path =
+        if captured_type.is_none() && binding.loan_source.is_none() && binding.receiver.is_none() {
+            bindings.structural_observation_path(
+                &home,
+                binding.observation_root_type,
+                &binding.primitive_path,
+            )?
+        } else {
+            let mut path = home.path.clone();
+            path.extend_from_slice(&binding.primitive_path);
+            path
+        };
     let mut carrier_path = home.path.clone();
     carrier_path.extend_from_slice(&binding.carrier_path);
     let crosses_reference = primitive_path.contains(&terminal_psi::StructuralPathSegment::Referent);
@@ -1463,6 +1642,7 @@ fn observe(
                 source,
                 bindings
                     .structural_place_type(source)
+                    .or(captured_type)
                     .unwrap_or(binding.observation_root_type),
                 path,
                 bindings.structural_declarations(),

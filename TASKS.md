@@ -425,12 +425,14 @@ helper that passes does not close an item.
     at exit 0: exact immediate lineage and every sibling's closure must remain
     independent of projection compatibility. Unknown index pairs and use of
     the parent before its last child ends must still reject.
-    Bind an omitted end to the already evaluated collection before
-    `as_slice_views` can migrate to `&main.entries[..]`. Preserve the guarded
-    effectful producer in
-    `pending/operators/runtime_declared_open_range_evaluates_collection_once_exit`:
+    Migrate `as_slice_views` to `&main.entries[..]` through the selected
+    declaration's admitted executable supply. Preserve the guarded effectful
+    producer in
+    `pass/operators/runtime_declared_open_range_evaluates_collection_once_exit`:
     it must run once in the selected arm and never in the unselected arm.
-    A duplicated length-receiver expression is not normalization. The imported
+    Preserve captured operand snapshots through generic cloning and later
+    effects (`runtime_declared_open_range_preserves_operand_snapshot_exit`).
+    The imported
     `Slice::range` also needs its admitted executable realization; do not
     bypass its selected declaration or substitute builtin slicing.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs

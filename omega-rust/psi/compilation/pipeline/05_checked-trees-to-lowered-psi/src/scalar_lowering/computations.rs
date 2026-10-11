@@ -57,6 +57,21 @@ struct Site<'a> {
     bindings: &'a storage::ScalarBindings,
 }
 
+#[derive(Clone)]
+enum EstablishedValue {
+    Produced {
+        root: checked_trees::CheckedStructuralValueHandle,
+        place: semantic_vocabulary::PlaceId,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+    },
+    Copied {
+        expression: typed_trees::expression::ExpressionHandle,
+        place: semantic_vocabulary::PlaceId,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        source: crate::emission::operation_emission::calls::PreparedStructuralArgument,
+    },
+}
+
 pub(crate) struct Expansion<'a> {
     checked: &'a CheckedTrees,
     structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
@@ -79,6 +94,10 @@ pub(crate) struct Expansion<'a> {
     fields: &'a [fields::Binding],
     /// Selection-local computations already carried in the current input prefix.
     completed: Vec<(Computation, usize)>,
+    /// Earlier structural operands on the selected evaluation path. A later
+    /// projection observes their established homes without replaying producers
+    /// or acquiring ownership of the enclosing call's temporary.
+    established_values: Vec<EstablishedValue>,
 }
 
 impl<'a> Expansion<'a> {
@@ -104,6 +123,7 @@ impl<'a> Expansion<'a> {
             cases: Vec::new(),
             fields: &[],
             completed: Vec::new(),
+            established_values: Vec::new(),
         }
     }
 
@@ -518,12 +538,14 @@ impl<'a> Expansion<'a> {
                 active,
             )?,
             CheckedScalarComputationKind::StructuralField {
+                source_expression,
                 receiver_value,
                 subject,
                 field,
                 ..
             } => self.structural_field(
                 identities,
+                source_expression,
                 receiver_value,
                 &subject,
                 field,
