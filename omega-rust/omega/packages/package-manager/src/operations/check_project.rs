@@ -96,13 +96,12 @@ impl fmt::Display for CheckPreparedLocalProjectError {
             Self::Prepare(error) => write!(formatter, "{error}"),
             Self::Review(error) => write!(formatter, "cannot check prepared project: {error}"),
             Self::TrustAdmission(diagnostics) => {
-                write!(formatter, "cannot admit package trust: {diagnostics:?}")
+                write!(formatter, "cannot admit package trust:")?;
+                crate::review::render_diagnostics(formatter, diagnostics)
             }
             Self::ProofProduct(diagnostics) => {
-                write!(
-                    formatter,
-                    "cannot satisfy the requested proof product: {diagnostics:?}"
-                )
+                write!(formatter, "cannot satisfy the requested proof product:")?;
+                crate::review::render_diagnostics(formatter, diagnostics)
             }
             Self::Report(message) => formatter.write_str(message),
         }

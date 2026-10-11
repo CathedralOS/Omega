@@ -2,6 +2,7 @@
 
 mod audit;
 mod candidate;
+pub(crate) use candidate::render_diagnostics;
 mod compare;
 mod decision;
 mod restricted_build_grants;

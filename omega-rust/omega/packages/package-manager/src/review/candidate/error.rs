@@ -17,6 +17,7 @@ use std::io;
 use std::path::PathBuf;
 
 mod diagnostic_output;
+pub(crate) use diagnostic_output::render_diagnostics;
 
 #[derive(Debug)]
 pub enum CompileResolvedPackageReviewsError {

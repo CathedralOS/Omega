@@ -30,6 +30,16 @@ pub(super) fn render(
         )?;
     }
     write!(formatter, "` with {} diagnostic(s)", diagnostics.len())?;
+    render_diagnostics(formatter, diagnostics)
+}
+
+/// One indented, bounded and escaped line per diagnostic, with its resolved
+/// location. Operation errors that carry bare diagnostics share this form
+/// instead of printing their Rust `Debug` representation.
+pub(crate) fn render_diagnostics(
+    formatter: &mut fmt::Formatter<'_>,
+    diagnostics: &[Diagnostic],
+) -> fmt::Result {
     for diagnostic in diagnostics.iter().take(MAXIMUM_DIAGNOSTICS) {
         let severity = match diagnostic.severity {
             DiagnosticSeverity::Error => "error",

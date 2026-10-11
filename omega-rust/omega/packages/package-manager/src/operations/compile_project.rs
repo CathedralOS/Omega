@@ -137,13 +137,12 @@ impl fmt::Display for CompilePreparedLocalProjectNativeError {
                 package.name().as_str(),
             ),
             Self::TrustAdmission(diagnostics) => {
-                write!(formatter, "cannot admit package trust: {diagnostics:?}")
+                write!(formatter, "cannot admit package trust:")?;
+                crate::review::render_diagnostics(formatter, diagnostics)
             }
             Self::Native(diagnostics) => {
-                write!(
-                    formatter,
-                    "cannot realize accepted package production: {diagnostics:?}"
-                )
+                write!(formatter, "cannot realize accepted package production:")?;
+                crate::review::render_diagnostics(formatter, diagnostics)
             }
         }
     }
