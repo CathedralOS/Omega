@@ -10,10 +10,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--executable', required=True)
 parser.add_argument('--output', default=str(root / 'build' / 'validation.json'))
 options = parser.parse_args()
-manifest = json.loads((root / 'data/oracles.json').read_text())
-assert manifest['integer_tolerance'] == 0
+manifest_paths = [root / 'data/oracles.json', root / 'data/supplemental-oracles.json']
+manifests = [json.loads(path.read_text()) for path in manifest_paths]
+assert all(manifest['integer_tolerance'] == 0 for manifest in manifests)
 results = []
-for case in manifest['cases']:
+for case in [case for manifest in manifests for case in manifest['cases']]:
     name = case['name']
     input_bytes = (root / f'data/{name}.stdin').read_bytes()
     expected = (root / f'data/{name}.stdout').read_bytes()
@@ -28,6 +29,7 @@ for case in manifest['cases']:
 output = Path(options.output)
 output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps({'oracle_sha256': hashlib.sha256((root/'data/oracles.json').read_bytes()).hexdigest(),
+                              'oracle_hashes': {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in manifest_paths},
                               'executable_sha256': hashlib.sha256(Path(options.executable).read_bytes()).hexdigest(),
                               'passed': sum(item['passed'] for item in results), 'total': len(results),
                               'results': results}, indent=2)+'\n')

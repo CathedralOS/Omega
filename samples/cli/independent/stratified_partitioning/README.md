@@ -62,6 +62,13 @@ reversed order, identical repeats, CR/tab whitespace, EOF without a final newlin
 singleton strata, impossible exact balance,
 empty strata, one group, and 15 malformed runtime inputs.
 
+`data/supplemental-oracles.json` adds one high-bit variant, independently frozen
+before its own first execution. Fifteen records in group 1 and one in group 8,
+all in stratum 1 at fraction 1/9, force mask 128 and scaled error 7. This checks
+the selected highest group bit and three-digit output. `supplemental-freeze.md`
+records the hand calculation and hash. Validation runs all 71 cases while
+preserving the original 70-case freeze.
+
 `invalid/` is a separate complete intended-invalid application. Its seventeenth
 array-slot write must reject at checking, independent of the runtime-invalid
 inputs to the valid application. It uses `control.omg` so positive sample discovery
