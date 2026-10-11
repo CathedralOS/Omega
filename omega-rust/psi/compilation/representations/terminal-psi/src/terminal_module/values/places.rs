@@ -673,6 +673,7 @@ mod tests {
     #[test]
     fn structural_use_mapping_distinguishes_stores_from_establishments() {
         let mut store = OperationKind::StoreStructuralField {
+            disposition: crate::StructuralStoreDisposition::Vacant,
             destination: place(1),
             path: vec![runtime()],
             field: StructuralFieldId::new(1),

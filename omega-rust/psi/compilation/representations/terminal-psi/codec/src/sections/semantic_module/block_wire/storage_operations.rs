@@ -895,11 +895,17 @@ pub(super) fn decode_move_structural_field(
 pub(super) fn encode_store_structural_field(
     writer: &mut Writer,
     destination: PlaceId,
+    disposition: terminal_psi::StructuralStoreDisposition,
     path: Vec<StructuralPathSegment>,
     field: Option<StructuralFieldId>,
     value: StructuralArgument,
 ) -> Result<(), CodecError> {
-    writer.u8(operation_tags::STORE_STRUCTURAL_FIELD);
+    writer.u8(match disposition {
+        terminal_psi::StructuralStoreDisposition::Vacant => operation_tags::STORE_STRUCTURAL_FIELD,
+        terminal_psi::StructuralStoreDisposition::ReplaceUnrestricted => {
+            operation_tags::REPLACE_UNRESTRICTED_STRUCTURAL_FIELD
+        }
+    });
     writer.id(destination);
     encode_structural_path(writer, "structural field store path", &path)?;
     encode_optional_field(writer, field);
@@ -911,8 +917,10 @@ pub(super) fn encode_store_structural_field(
 
 pub(super) fn decode_store_structural_field(
     reader: &mut Reader<'_>,
+    disposition: terminal_psi::StructuralStoreDisposition,
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::StoreStructuralField {
+        disposition,
         destination: reader.id("PlaceId")?,
         path: decode_structural_path(reader)?,
         field: decode_optional_field(reader)?,

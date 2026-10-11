@@ -234,3 +234,6 @@ pub(super) const ESTABLISH_STORAGE_VIEW_REFERENCE: u8 = 111;
 pub(super) const ELEMENT_VIEW_LENGTH: u8 = 112;
 /// Primitive replacement with an exact declaration-owned receiving restriction.
 pub(super) const RESTRICTED_WRITE_ONLY_PRIMITIVE_STORE: u8 = 116;
+
+/// Whole-value replacement of intact unrestricted storage.
+pub(super) const REPLACE_UNRESTRICTED_STRUCTURAL_FIELD: u8 = 118;

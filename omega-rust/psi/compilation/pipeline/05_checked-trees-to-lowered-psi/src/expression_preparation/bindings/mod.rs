@@ -255,18 +255,14 @@ impl ScalarBindings {
         _machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<StructuralArgument, LoweringError> {
-        if !matches!(
-            argument.access,
-            checked_trees::CheckedStructuralAccess::SharedBorrow
-                | checked_trees::CheckedStructuralAccess::MutableBorrow
-        ) {
-            return unsupported("computed argument requires readable borrowed access");
+        let access = structural_paths::terminal_access(argument.access);
+        if access == StructuralAccess::Owned {
+            return unsupported("computed argument requires borrowed access");
         }
-        let supports_borrow = |source| {
-            matches!(source, terminal_psi::mutating_access_pair_pattern!())
-                || (source == StructuralAccess::SharedBorrow
-                    && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
-        };
+        // Resolving a home establishes no observation of its contents. Each
+        // consumer requests its actual access: a write-only reborrow can locate
+        // existing storage, while a read must still request readable custody.
+        let supports_borrow = |source| access.admits(source);
         if let Some(captured) = self.captured_formal_home(argument)? {
             if !supports_borrow(captured.access) {
                 return unsupported("captured formal observation widens source access");
@@ -508,7 +504,7 @@ impl ScalarBindings {
         self.borrowed_structural_argument(identities, checked, argument, machine, parameters)
     }
 
-    /// Bind an exact shared or mutable loan to its existing structural home.
+    /// Bind a loan at its declared access to its existing structural home.
     pub(crate) fn borrowed_structural_argument(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -518,14 +514,6 @@ impl ScalarBindings {
         machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<StructuralArgument, LoweringError> {
-        // Not `terminal_access`: only a shared or mutable loan binds here.
-        let access = match argument.access {
-            checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-            checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                StructuralAccess::MutableBorrow
-            }
-            _ => return unsupported("computed argument requires readable borrowed access"),
-        };
         let mut source = self.borrowed_structural_home(argument, machine, parameters)?;
         let root = self
             .structural_argument_type(&source)
@@ -545,7 +533,6 @@ impl ScalarBindings {
             &mut std::iter::empty(),
             None,
         )?);
-        source.access = access;
         Ok(source)
     }
 

@@ -119,7 +119,7 @@ impl OperationFrame<'_, '_> {
                 self.byte_sequence_store(identities, store)
             }
             CheckedStoreLeaf::SumField => self.sum_field_store(identities, store),
-            CheckedStoreLeaf::WindowRepair {
+            CheckedStoreLeaf::StructuralStore {
                 type_identity,
                 opening_binding,
             } => {

@@ -334,13 +334,17 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             super::encode_optional_field(bytes, *field);
         }
         O::StoreStructuralField {
+            disposition,
             psi_operation,
             destination,
             path,
             field,
             value,
         } => {
-            bytes.u8(82);
+            bytes.u8(match disposition {
+                terminal_psi::StructuralStoreDisposition::Vacant => 82,
+                terminal_psi::StructuralStoreDisposition::ReplaceUnrestricted => 117,
+            });
             bytes.id(*psi_operation);
             encode_window_root(bytes, destination);
             bytes.slice(path, encode_structural_path_segment);

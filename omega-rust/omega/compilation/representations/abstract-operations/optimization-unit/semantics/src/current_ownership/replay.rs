@@ -307,6 +307,12 @@ pub(super) fn validate_current_ownership_cfg(
                     root.structural_type(),
                     path,
                     *field,
+                    match &node.operation {
+                        O::StoreStructuralField { disposition, .. } => {
+                            disposition.required_access()
+                        }
+                        _ => terminal_psi::StructuralAccess::MutableBorrow,
+                    },
                 )
                 .is_some_and(|selected| {
                     consumed.iter().all(|absent| {

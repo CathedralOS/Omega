@@ -51,6 +51,7 @@ pub(in crate::legalization) fn extent(
     field: Option<StructuralFieldId>,
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
+    required_access: StructuralAccess,
 ) -> Result<WindowExtent, LegalizationError> {
     let referent = if matches!(path.first(), Some(StructuralPathSegment::Referent)) {
         if root.parameter().is_some() {
@@ -62,7 +63,7 @@ pub(in crate::legalization) fn extent(
             &plan.structural_types,
             root.place(),
             path,
-            terminal_psi::StructuralAccess::MutableBorrow,
+            required_access,
         )
         .ok_or(LegalizationError::custody())?;
         if referent.carrier_type != root.structural_type()
@@ -86,18 +87,16 @@ pub(in crate::legalization) fn extent(
             parameter.structural_type
         }
         abstract_operations::StructuralWindowRoot::Parameter(root) => {
-            if !matches!(
-                root.access,
-                StructuralAccess::Owned | StructuralAccess::MutableBorrow
-            ) || !(function.structural_parameters.contains(root)
-                || (function
-                    .blocks
-                    .iter()
-                    .any(|block| block.structural_parameters.contains(root))
-                    && abstract_operations::control_flow::address_joins::is_address_join_in(
-                        root,
-                        &plan.structural_types,
-                    )))
+            if !required_access.admits(root.access)
+                || !(function.structural_parameters.contains(root)
+                    || (function
+                        .blocks
+                        .iter()
+                        .any(|block| block.structural_parameters.contains(root))
+                        && abstract_operations::control_flow::address_joins::is_address_join_in(
+                            root,
+                            &plan.structural_types,
+                        )))
                 || (root.access == StructuralAccess::MutableBorrow
                     && function
                         .entry_claim_declarations
@@ -131,6 +130,7 @@ pub(in crate::legalization) fn extent(
                             .flat_map(|block| &block.structural_parameters),
                     ),
                     loan.root.origins().into_iter().map(|origin| origin.root),
+                    required_access,
                     |place| {
                         optimization_unit_semantics::structural_place_supports_window_restoration(
                             function, place,
@@ -186,7 +186,15 @@ pub(in crate::legalization) fn moved(
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
 ) -> Result<WindowExtent, LegalizationError> {
-    let extent = extent(function, root, path, field, plan, custody)?;
+    let extent = extent(
+        function,
+        root,
+        path,
+        field,
+        plan,
+        custody,
+        StructuralAccess::MutableBorrow,
+    )?;
     if result.structural_type != extent.field_type {
         return Err(LegalizationError::custody());
     }

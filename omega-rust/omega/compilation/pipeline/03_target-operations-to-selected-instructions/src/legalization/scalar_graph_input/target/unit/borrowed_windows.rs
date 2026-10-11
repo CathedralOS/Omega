@@ -70,6 +70,7 @@ pub(super) fn validate(
                 indices,
             },
             AbstractOperation::StoreStructuralField {
+                disposition,
                 psi_operation: expected_operation,
                 destination: expected_destination,
                 path: expected_path,
@@ -84,6 +85,7 @@ pub(super) fn validate(
                 *expected_field,
                 plan,
                 custody,
+                disposition.required_access(),
             )?;
             if psi_operation != expected_operation
                 || destination != expected_destination

@@ -297,15 +297,12 @@ pub enum AbstractOperation {
         source: PlaceId,
         path: super::StructuralCopyPath,
     },
-    /// Reseat one whole owned structural subtree into the exact field
-    /// `path` + `field` beneath `destination`, closing the restoration window
-    /// `MoveStructuralField` opened there. `destination` retains the window
-    /// root's complete authority; `value` is the consumed whole-place owned
-    /// argument whose declared type the verifier matched to the declared
-    /// field. This is only the repair of an open hole — it never replaces a
-    /// live field and it re-disposes nothing. `field: None` with an empty
-    /// path reseats the whole referent a root window vacated.
+    /// Install a completed whole subtree under the retained root authority.
+    /// The Terminal disposition distinguishes vacant restoration/initialization
+    /// from intact unrestricted replacement. Exact type, qualifications and
+    /// incoming custody survive optimization independently of physical layout.
     StoreStructuralField {
+        disposition: terminal_psi::StructuralStoreDisposition,
         psi_operation: OperationId,
         destination: super::StructuralWindowRoot,
         path: Vec<StructuralPathSegment>,

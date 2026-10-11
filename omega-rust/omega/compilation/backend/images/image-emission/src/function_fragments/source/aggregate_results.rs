@@ -115,7 +115,7 @@ pub(super) fn operation(
         }
         // The window's reseat retains its exact destination, spelled field and
         // the consumed value's producer home, and writes that root.
-        AbstractOperation::StoreStructuralField { psi_operation, destination, path, field, value } => {
+        AbstractOperation::StoreStructuralField { psi_operation, destination, path, field, value, .. } => {
             graph.operations().filter(|row| match row {
                 TargetUnitOperation::StoreStructuralField { psi_operation: retained, destination: retained_destination, path: retained_path, field: retained_field, value: retained_value, indices, .. }
                     if retained == psi_operation && retained_destination == destination && retained_path == path

@@ -369,6 +369,9 @@ impl Expansion<'_> {
                     machine,
                     self.checked.state_parameters(state),
                 )?;
+                if !terminal_psi::StructuralAccess::SharedBorrow.admits(source.access) {
+                    return unsupported("case observation requires readable source custody");
+                }
                 if argument.path.iter().any(|segment| {
                     matches!(
                         segment,

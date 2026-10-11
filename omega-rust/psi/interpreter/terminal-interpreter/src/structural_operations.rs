@@ -817,7 +817,8 @@ impl TerminalExecution<'_> {
         if self.structural_values.contains_key(&result.place) {
             return Err(malformed());
         }
-        let selected = self.structural_window_hole(source, path, field)?;
+        let selected =
+            self.structural_window_hole(source, path, field, StructuralAccess::MutableBorrow)?;
         if selected.structural_type != result.structural_type
             || result
                 .qualifications
@@ -857,6 +858,7 @@ impl TerminalExecution<'_> {
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let OperationKind::StoreStructuralField {
+            disposition,
             destination,
             ref path,
             field,
@@ -871,7 +873,21 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let selected = self.structural_window_hole(destination, path, field)?;
+        let machine = self
+            .program
+            .machines()
+            .get(&self.current_machine)
+            .ok_or_else(malformed)?;
+        if !terminal_semantics::structural_store_value_admitted(
+            machine,
+            self.program.structural_types().values(),
+            disposition,
+            value.place,
+        ) {
+            return Err(malformed());
+        }
+        let selected =
+            self.structural_window_hole(destination, path, field, disposition.required_access())?;
         let field_type = selected.structural_type;
         let hole = StructuralRuntimePlace::from(&selected);
         let (required, projected_required) =
@@ -1048,6 +1064,7 @@ impl TerminalExecution<'_> {
         root: semantic_vocabulary::PlaceId,
         path: &[StructuralPathSegment],
         field: Option<semantic_vocabulary::StructuralFieldId>,
+        required_access: StructuralAccess,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
         let storage = self.structural_values.get(&root).ok_or_else(malformed)?;
         // A view never owns its elements. Its selected element (already
@@ -1086,7 +1103,7 @@ impl TerminalExecution<'_> {
             self.resolve_reference_call_arguments(&[StructuralArgument {
                 place: root,
                 path: path[..prefix_length].to_vec(),
-                access: StructuralAccess::MutableBorrow,
+                access: required_access,
             }])?
             .pop()
             .ok_or_else(malformed)?
@@ -1105,7 +1122,7 @@ impl TerminalExecution<'_> {
                 .iter()
                 .chain(machine.block_structural_parameters())
                 .any(|parameter| {
-                    parameter.access == StructuralAccess::MutableBorrow
+                    required_access.admits_referent(parameter.access)
                         && parameter.multiplicity != StructuralMultiplicity::Linear
                         && self
                             .structural_values
@@ -1236,21 +1253,21 @@ impl TerminalExecution<'_> {
             .iter()
             .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar)))
             .collect();
-        if vacate {
+        for retired in std::iter::once(to).chain(vacate.then_some(from)) {
             self.structural_scalar_fields
-                .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
+                .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, retired));
             self.structural_byte_sequence_fields
-                .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
+                .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, retired));
             self.structural_byte_storage
-                .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+                .retain(|carrier, _| Self::survives_subtree_prune(carrier, retired));
             self.structural_cases
-                .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+                .retain(|carrier, _| Self::survives_subtree_prune(carrier, retired));
             self.reference_referents
-                .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+                .retain(|carrier, _| Self::survives_subtree_prune(carrier, retired));
             self.structural_element_view_fields
-                .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+                .retain(|carrier, _| Self::survives_subtree_prune(carrier, retired));
             self.structural_primitive_storage
-                .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+                .retain(|carrier, _| Self::survives_subtree_prune(carrier, retired));
         }
         self.structural_scalar_fields.extend(staged_scalars);
         self.structural_byte_sequence_fields

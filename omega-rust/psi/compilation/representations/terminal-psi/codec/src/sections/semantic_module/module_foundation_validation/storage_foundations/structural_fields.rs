@@ -258,7 +258,14 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     // A moved value retains its declared linear frontier. Result claim-path
     // structure is checked by the common result foundation; current custody
     // and its transfer are not a second storage-shape classification here.
-    let Some(root_type) = window_root_type(module, machine, *source, path, *field) else {
+    let Some(root_type) = window_root_type(
+        module,
+        machine,
+        *source,
+        path,
+        *field,
+        terminal_psi::StructuralAccess::MutableBorrow,
+    ) else {
         return malformed("structural field move requires a mutable-borrowed parameter");
     };
     let field_type = window_field_type(module, root_type, path, *field)?;
@@ -282,6 +289,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     operation: &Operation,
 ) -> Result<(), CodecError> {
     let OperationKind::StoreStructuralField {
+        disposition,
         destination,
         path,
         field,
@@ -293,10 +301,25 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if operation.result != OperationResult::Unit {
         return malformed("structural field store declares a non-Unit result");
     }
-    if value.access != terminal_psi::StructuralAccess::Owned || !value.path.is_empty() {
+    if value.access != terminal_psi::StructuralAccess::Owned
+        || !value.path.is_empty()
+        || !terminal_semantics::structural_store_value_admitted(
+            machine,
+            module.structural_types.iter(),
+            *disposition,
+            value.place,
+        )
+    {
         return malformed("structural field store value must be a whole owned place");
     }
-    let Some(root_type) = window_root_type(module, machine, *destination, path, *field) else {
+    let Some(root_type) = window_root_type(
+        module,
+        machine,
+        *destination,
+        path,
+        *field,
+        disposition.required_access(),
+    ) else {
         return malformed("structural field store requires a mutable-borrowed parameter");
     };
     let field_type = window_field_type(module, root_type, path, *field)?;
@@ -329,10 +352,11 @@ fn window_root_type(
     place: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
+    required_access: terminal_psi::StructuralAccess,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
     if !terminal_semantics::structural_window_selects_child(path, field) {
         if path.is_empty() {
-            return mutable_borrowed_parameter_type(machine, place);
+            return mutable_borrowed_parameter_type(machine, place, required_access);
         }
         // Serialization proves the carrier and referent geometry. Ordered
         // custody must additionally authenticate the reference's backing as
@@ -340,7 +364,7 @@ fn window_root_type(
         if path.first() != Some(&terminal_psi::StructuralPathSegment::Referent) {
             return None;
         }
-        let root_type = borrowed_field_store_root_type(machine, place)?;
+        let root_type = borrowed_field_store_root_type(machine, place, required_access)?;
         module
             .structural_types
             .iter()
@@ -349,14 +373,14 @@ fn window_root_type(
                     && matches!(
                         declaration.shape,
                         terminal_psi::StructuralTypeShape::Reference {
-                            access: terminal_psi::StructuralAccess::MutableBorrow,
+                            access,
                             ..
-                        }
+                        } if required_access.admits_referent(access)
                     )
             })
             .then_some(root_type)
     } else {
-        borrowed_field_store_root_type(machine, place)
+        borrowed_field_store_root_type(machine, place, required_access)
     }
 }
 
@@ -368,16 +392,14 @@ fn window_root_type(
 fn borrowed_field_store_root_type(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
+    required_access: terminal_psi::StructuralAccess,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
     if let Some(parameter) = machine
         .structural_parameters
         .iter()
         .chain(machine.block_structural_parameters())
         .find(|parameter| parameter.place == place)
-        && matches!(
-            parameter.access,
-            terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::MutableBorrow
-        )
+        && required_access.admits(parameter.access)
         && (parameter.access == terminal_psi::StructuralAccess::Owned
             || matches!(
                 parameter.multiplicity,
@@ -398,6 +420,7 @@ fn borrowed_field_store_root_type(
 fn mutable_borrowed_parameter_type(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
+    required_access: terminal_psi::StructuralAccess,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
     machine
         .structural_parameters
@@ -405,7 +428,7 @@ fn mutable_borrowed_parameter_type(
         .chain(machine.block_structural_parameters())
         .find(|parameter| {
             parameter.place == place
-                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                && required_access.admits_referent(parameter.access)
                 && matches!(
                     parameter.multiplicity,
                     terminal_psi::nonlinear_multiplicity_pair_pattern!()

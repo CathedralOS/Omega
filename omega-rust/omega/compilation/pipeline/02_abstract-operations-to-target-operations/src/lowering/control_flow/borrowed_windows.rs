@@ -1,4 +1,7 @@
-//! Borrowed-window field replacement realized as two byte copies.
+//! Borrowed structural moves and stores realized as whole-value byte copies.
+//! An intact unrestricted replacement emits only the store. Its retained
+//! disposition grants write-only destination access without manufacturing an
+//! extraction or reading the displaced value.
 //!
 //! `MoveStructuralField` vacates one declared field beneath a mutable-borrowed
 //! parameter into a fresh owned result; `StoreStructuralField` reseats exactly
@@ -63,10 +66,28 @@ pub(super) fn move_field(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let referent = window_referent(function, live, types, source, path)?;
-    if !window_root(function, prepared, live, source)
-        || !root_window_loan(function, live, source, path, *field)
-    {
+    let referent = window_referent(
+        function,
+        live,
+        types,
+        source,
+        path,
+        StructuralAccess::MutableBorrow,
+    )?;
+    if !window_root(
+        function,
+        prepared,
+        live,
+        source,
+        StructuralAccess::MutableBorrow,
+    ) || !root_window_loan(
+        function,
+        live,
+        source,
+        path,
+        *field,
+        StructuralAccess::MutableBorrow,
+    ) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (geometry_type, geometry_path) = referent
@@ -129,6 +150,7 @@ pub(super) fn store_field(
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
     let AbstractOperation::StoreStructuralField {
+        disposition,
         psi_operation,
         destination,
         path,
@@ -138,10 +160,28 @@ pub(super) fn store_field(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let referent = window_referent(function, live, types, destination, path)?;
-    if !window_root(function, prepared, live, destination)
-        || !root_window_loan(function, live, destination, path, *field)
-        || value.access != StructuralAccess::Owned
+    let referent = window_referent(
+        function,
+        live,
+        types,
+        destination,
+        path,
+        disposition.required_access(),
+    )?;
+    if !window_root(
+        function,
+        prepared,
+        live,
+        destination,
+        disposition.required_access(),
+    ) || !root_window_loan(
+        function,
+        live,
+        destination,
+        path,
+        *field,
+        disposition.required_access(),
+    ) || value.access != StructuralAccess::Owned
         || !value.path.is_empty()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -246,6 +286,7 @@ pub(super) fn window_referent(
     types: &StructuralTypeLookup<'_>,
     root: &abstract_operations::StructuralWindowRoot,
     path: &[StructuralPathSegment],
+    required_access: StructuralAccess,
 ) -> Result<Option<super::references::ReferentProjection>, LoweringError> {
     if !matches!(path.first(), Some(StructuralPathSegment::Referent)) {
         return Ok(None);
@@ -253,14 +294,9 @@ pub(super) fn window_referent(
     if root.parameter().is_some() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let referent = super::references::referent_projection(
-        live,
-        types,
-        root.place(),
-        path,
-        terminal_psi::StructuralAccess::MutableBorrow,
-    )
-    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let referent =
+        super::references::referent_projection(live, types, root.place(), path, required_access)
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if referent.carrier_type != root.structural_type() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -276,6 +312,7 @@ fn root_window_loan(
     root: &abstract_operations::StructuralWindowRoot,
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
+    required_access: StructuralAccess,
 ) -> bool {
     if terminal_semantics::structural_window_selects_child(path, field) {
         return true;
@@ -300,6 +337,7 @@ fn root_window_loan(
                 .flat_map(|block| &block.structural_parameters),
         ),
         loan.root.origins().into_iter().map(|origin| origin.root),
+        required_access,
         |place| {
             live.structural_homes.get(&place).is_some_and(|home| {
                 home.access() == StructuralAccess::Owned
@@ -335,6 +373,7 @@ fn window_root(
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     root: &abstract_operations::StructuralWindowRoot,
+    required_access: StructuralAccess,
 ) -> bool {
     match root {
         abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => live
@@ -349,17 +388,14 @@ fn window_root(
                     && parameter.access == StructuralAccess::Owned
             }),
         abstract_operations::StructuralWindowRoot::Parameter(root) => {
-            matches!(
-                root.access,
-                StructuralAccess::Owned | StructuralAccess::MutableBorrow
-            ) && ((function.structural_parameters.contains(root)
-                && super::structural_case::parameter_root(prepared, root.place).is_some_and(
-                    |parameter| {
+            required_access.admits(root.access)
+                && ((function.structural_parameters.contains(root)
+                    && prepared.parameter(root.place).is_some_and(|parameter| {
                         parameter.access == root.access
                             && parameter.structural_type == root.structural_type
-                    },
-                ))
-                || super::transfers::address_parameter(function, live, root.place) == Some(root))
+                    }))
+                    || super::transfers::address_parameter(function, live, root.place)
+                        == Some(root))
         }
         // An owned local home's authority is its live home row: the producer
         // completed it under transferable custody. Its original claims do not

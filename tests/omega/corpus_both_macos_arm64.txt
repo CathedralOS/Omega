@@ -855,3 +855,6 @@ pass/targets/runtime_family_nested_nominal_callback_conjunction_exit built 2885m
 pass/targets/runtime_family_nominal_callback_application_exit built 2833ms exit:0 interpreter-exit:0 interpreter:agrees @8ef927ca678b
 pass/targets/runtime_family_nominal_callback_conjunction_exit built 2827ms exit:0 interpreter-exit:0 interpreter:agrees @8ef927ca678b
 pass/traits/applied_nominal_callback_proposition_contract checked 448ms @8ef927ca678b
+pass/borrow/runtime_write_only_captured_record_copy_exit built 4330ms exit:0 interpreter-exit:0 interpreter:agrees @2e62c6e27183+wt
+pass/borrow/runtime_write_only_indexed_record_copy_exit built 4415ms exit:0 interpreter-exit:0 interpreter:agrees @2e62c6e27183+wt
+pass/borrow/runtime_write_only_sum_copy_exit built 4218ms exit:0 interpreter-exit:0 interpreter:agrees @2e62c6e27183+wt

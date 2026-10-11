@@ -66,8 +66,8 @@ pub(super) fn lower(
                         path: crate::expression_preparation::bindings::structural_paths::prepare_argument_path(identities, &argument.path, slot.structural_type, structural_types)?,
                         access: match argument.access {
                             checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
-                            access => readable_borrowed_access(access).ok_or(
-                                LoweringError::Unsupported("computed owner requires transfer or readable lending"),
+                            access => borrowed_access(access).ok_or(
+                                LoweringError::Unsupported("computed owner requires transfer or lending"),
                             )?,
                         },
                     });
@@ -111,9 +111,9 @@ pub(super) fn lower(
             // lends; any other referent binds a structural place.
             let Some(primitive) = parameter.primitive_referent else {
                 if let Some(range) = subslices::range(argument) {
-                    let access = readable_borrowed_access(argument.access).ok_or(
+                    let access = borrowed_access(argument.access).ok_or(
                         LoweringError::Unsupported(
-                            "computed range requires readable borrowed access",
+                            "computed range requires borrowed access",
                         ),
                     )?;
                     let slot = subslices
@@ -143,9 +143,9 @@ pub(super) fn lower(
                     place: source.place,
                     root_type: bindings.structural_place_type(source.place),
                     path,
-                    access: readable_borrowed_access(argument.access).ok_or(
+                    access: borrowed_access(argument.access).ok_or(
                         LoweringError::Unsupported(
-                            "computed argument requires readable borrowed access",
+                            "computed argument requires borrowed access",
                         ),
                     )?,
                 });
@@ -156,9 +156,7 @@ pub(super) fn lower(
         .collect()
 }
 
-fn readable_borrowed_access(
-    access: checked_trees::CheckedStructuralAccess,
-) -> Option<StructuralAccess> {
+fn borrowed_access(access: checked_trees::CheckedStructuralAccess) -> Option<StructuralAccess> {
     match access {
         checked_trees::CheckedStructuralAccess::SharedBorrow => {
             Some(StructuralAccess::SharedBorrow)
@@ -166,6 +164,9 @@ fn readable_borrowed_access(
         checked_trees::CheckedStructuralAccess::MutableBorrow => {
             Some(StructuralAccess::MutableBorrow)
         }
-        _ => None,
+        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+            Some(StructuralAccess::WriteOnlyBorrow)
+        }
+        checked_trees::CheckedStructuralAccess::Owned => None,
     }
 }

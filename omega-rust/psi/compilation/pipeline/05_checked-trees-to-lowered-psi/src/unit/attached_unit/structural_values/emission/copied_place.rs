@@ -18,6 +18,9 @@ impl Emission<'_, '_, '_> {
 
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
+        if source.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+            return super::unsupported("copied value requires readable source custody");
+        }
         let authored = crate::declarations::state_declaration(self.checked, self.state)?;
         let bindings = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
             .with_structural_parameters(&self.evaluation.structural_parameters)

@@ -1,3 +1,22 @@
+/// Disposition of the previous contents of a whole structural store.
+/// Vacancy is established by extraction or checked owned cleanup/construction.
+/// Intact replacement requires a matching unrestricted value with no claims
+/// or contained loan resources; it never reads or extracts the old contents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StructuralStoreDisposition {
+    Vacant,
+    ReplaceUnrestricted,
+}
+
+impl StructuralStoreDisposition {
+    pub fn required_access(self) -> crate::StructuralAccess {
+        match self {
+            Self::Vacant => crate::StructuralAccess::MutableBorrow,
+            Self::ReplaceUnrestricted => crate::StructuralAccess::WriteOnlyBorrow,
+        }
+    }
+}
+
 use crate::{
     ClaimTransfer, CompletionReceipt, CrashRouteBucket, OutcomeSpecificCallEvidence,
     StructuralArgument, StructuralMultiplicity, StructuralPathQualification, StructuralPathSegment,
@@ -423,15 +442,15 @@ pub enum OperationKind {
         path: Vec<StructuralPathSegment>,
         field: Option<StructuralFieldId>,
     },
-    /// Move one already-owned structural subtree into the exact vacant field
-    /// `path` + `field` beneath `destination`, closing the restoration window
-    /// `MoveStructuralField` opened there. The target must name that open
-    /// window exactly — a store into storage that was never vacated is a
-    /// replacement-with-cleanup contract this operation does not carry. The
-    /// moved `value` is consumed like an owned call argument, once; it is not
-    /// re-disposed at the store. `field: None` with an empty `path` reseats the
-    /// whole referent a root window vacated.
+    /// Install a completed owned subtree at the exact `path` + `field`.
+    /// `Vacant` restores an exact extraction window or initializes owned storage
+    /// after its checked disposition. `ReplaceUnrestricted` overwrites intact,
+    /// freely discardable contents without observation or extraction. Both
+    /// preserve exact type, memberships, selected storage and loan exclusions.
+    /// The whole incoming value transfers once. An empty path with no field
+    /// selects the complete referent.
     StoreStructuralField {
+        disposition: StructuralStoreDisposition,
         destination: PlaceId,
         path: Vec<StructuralPathSegment>,
         field: Option<StructuralFieldId>,

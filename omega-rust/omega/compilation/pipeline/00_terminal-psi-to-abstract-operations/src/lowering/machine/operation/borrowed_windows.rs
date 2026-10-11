@@ -1,4 +1,8 @@
-//! Borrowed-storage restoration windows transported into abstract custody.
+//! Borrowed structural installation transported into abstract custody.
+//! Stores retain the distinction between vacant restoration and intact
+//! unrestricted replacement. Only restoration requires readable mutable
+//! custody; replacement uses write-only access and independently checks that
+//! the exact value carries no conserved or retained permission resources.
 //!
 //! `MoveStructuralField` vacates one declared structural field beneath a
 //! mutable-borrowed parameter; `StoreStructuralField` reseats exactly
@@ -46,6 +50,7 @@ pub(super) fn lower(
             field,
         } => lower_move(operation, machine, structural_types, *source, path, *field),
         OperationKind::StoreStructuralField {
+            disposition,
             destination,
             path,
             field,
@@ -55,6 +60,7 @@ pub(super) fn lower(
             machine,
             structural_types,
             *destination,
+            *disposition,
             path,
             *field,
             value,
@@ -87,9 +93,16 @@ fn lower_move(
     ) {
         return Err(invalid());
     }
-    let source = borrowed_window_root(machine, source).ok_or_else(invalid)?;
-    let projection =
-        declared_window_projection(structural_types, &source, path, field).ok_or_else(invalid)?;
+    let source = borrowed_window_root(machine, source, StructuralAccess::MutableBorrow)
+        .ok_or_else(invalid)?;
+    let projection = declared_window_projection(
+        structural_types,
+        &source,
+        path,
+        field,
+        StructuralAccess::MutableBorrow,
+    )
+    .ok_or_else(invalid)?;
     let signature = source_signature(machine, source.place()).ok_or_else(invalid)?;
     let (qualifications, projected) = terminal_psi::StructuralPathQualification::select_restorable(
         signature.qualifications,
@@ -119,20 +132,34 @@ fn lower_store(
     machine: &TerminalMachine,
     structural_types: &[StructuralTypeDeclaration],
     destination: PlaceId,
+    disposition: terminal_psi::StructuralStoreDisposition,
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
     value: &StructuralArgument,
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidBorrowedStorageWindow(operation.id);
     if operation.result != OperationResult::Unit
+        || !terminal_semantics::structural_store_value_admitted(
+            machine,
+            structural_types.iter(),
+            disposition,
+            value.place,
+        )
         || value.access != StructuralAccess::Owned
         || !value.path.is_empty()
     {
         return Err(invalid());
     }
-    let destination = borrowed_window_root(machine, destination).ok_or_else(invalid)?;
-    let projection = declared_window_projection(structural_types, &destination, path, field)
+    let destination = borrowed_window_root(machine, destination, disposition.required_access())
         .ok_or_else(invalid)?;
+    let projection = declared_window_projection(
+        structural_types,
+        &destination,
+        path,
+        field,
+        disposition.required_access(),
+    )
+    .ok_or_else(invalid)?;
     let signature = source_signature(machine, destination.place()).ok_or_else(invalid)?;
     let (required, required_projected) =
         terminal_psi::StructuralPathQualification::select_restorable(
@@ -156,6 +183,7 @@ fn lower_store(
         return Err(invalid());
     }
     Ok(AbstractOperation::StoreStructuralField {
+        disposition,
         psi_operation: operation.id,
         destination,
         path: path.to_vec(),
@@ -172,13 +200,17 @@ fn lower_store(
 /// returned reference's loan authority. Here the shared storage query retains
 /// that producer and result; field geometry never treats an owned reference
 /// carrier as ownership of its referent.
-fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralWindowRoot> {
+fn borrowed_window_root(
+    machine: &TerminalMachine,
+    place: PlaceId,
+    required_access: StructuralAccess,
+) -> Option<StructuralWindowRoot> {
     // A block arrival retains its own declaration and place. Edge verification
     // transfers the loan; it does not turn that arrival into an ABI parameter.
     if let Some(parameter) =
         exact_parameter(machine, place).or_else(|| block_parameter(machine, place).cloned())
         && (parameter.access == StructuralAccess::Owned
-            || (parameter.access == StructuralAccess::MutableBorrow
+            || (required_access.admits_referent(parameter.access)
                 && matches!(
                     parameter.multiplicity,
                     terminal_psi::nonlinear_multiplicity_pair_pattern!()
@@ -239,6 +271,7 @@ fn declared_window_projection(
     root: &StructuralWindowRoot,
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
+    required_access: StructuralAccess,
 ) -> Option<terminal_semantics::StructuralWindowProjection> {
     // The carrier owns its permission, not the referent bytes. Only the
     // explicit crossing changes geometry; keep the original root and path on
@@ -247,19 +280,14 @@ fn declared_window_projection(
         if root.parameter().is_some() {
             return None;
         }
-        let StructuralTypeShape::Reference {
-            referent,
-            access: StructuralAccess::MutableBorrow,
-        } = terminal_psi::find_structural_type(structural_types, root.structural_type())?.shape
+        let StructuralTypeShape::Reference { access, .. } =
+            terminal_psi::find_structural_type(structural_types, root.structural_type())?.shape
         else {
             return None;
         };
-        if root.multiplicity() != StructuralMultiplicity::Affine
+        if !required_access.admits_referent(access)
+            || root.multiplicity() != StructuralMultiplicity::Affine
             || matches!(root, StructuralWindowRoot::OwnedResult { result, .. } if !result.qualification_establishments.is_empty())
-            || !matches!(
-                terminal_psi::find_structural_type(structural_types, referent)?.shape,
-                StructuralTypeShape::Record { .. }
-            )
         {
             return None;
         }

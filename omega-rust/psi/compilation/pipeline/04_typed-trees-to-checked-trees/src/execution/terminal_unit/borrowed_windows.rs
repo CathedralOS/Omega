@@ -5,8 +5,9 @@
 //! root may remain partially moved under its checked residual disposal plan.
 //! The replacement may be the removed value, a
 //! construction, or a call result: its custody belongs to the ordinary result
-//! bindings, not to the hole. An occupied destination first displaces its old
-//! value; an already-open hole must not be read or disposed again. The lowered
+//! bindings, not to the hole. An occupied destination displaces conserved old
+//! custody before installation; an unrestricted replacement needs no old-value
+//! observation. An already-open hole must not be read or disposed again. The lowered
 //! emitter feeds these operations through `BorrowedWindowLedger`, and independent
 //! verification reconstructs both restoration debt and the values' custody.
 //! An empty path selects the exclusive parameter's whole referent. It shares
@@ -110,7 +111,7 @@ fn owned_assignment_source(
             && (!crate::checks::type_reference_is_reference(program, local.type_reference)
                 || (place.segments.is_empty()
                     && replacement_type
-                        == Some(validation::structural_type_identity(
+                        == Some(validation::stored_structural_type_identity(
                             program,
                             local.type_reference,
                             &[],
@@ -161,7 +162,7 @@ pub(super) fn capture_assignment_destination(
             .structural_values
             .root_for_expression(state.symbol, statement_index, assignment.value)
             .map(|value| {
-                validation::structural_type_identity(program, value.type_reference, &[], &[])
+                validation::stored_structural_type_identity(program, value.type_reference, &[], &[])
             }),
     );
     if matches!(
@@ -213,6 +214,7 @@ pub(super) fn capture_assignment_destination(
             ordinal,
             parameters,
             &access,
+            language_semantics::ReferenceAccess::WriteOnly,
             &|expression| selectors.runtime_segment(expression),
         )?;
         (place.source, place.path)
@@ -271,6 +273,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
     statement_index: usize,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     place: &CanonicalPlace,
+    required_access: language_semantics::ReferenceAccess,
     selector: &dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>,
 ) -> Option<WindowPlace> {
     let root_symbol = place.root.as_symbol()?;
@@ -293,8 +296,17 @@ pub(in crate::execution::terminal_unit) fn window_place(
     let (source, path, restoration_required) = if let Some((_, local)) = local {
         let borrowed = crate::checks::type_reference_is_reference(program, local.type_reference);
         if borrowed
-            && super::reference_results::mutable_borrowed_parts(program, local.type_reference)?.1
-                != CheckedStructuralAccess::MutableBorrow
+            && !matches!(
+                (
+                    required_access,
+                    validation::reference_shell(program, local.type_reference)?.access
+                ),
+                (_, language_semantics::ReferenceAccess::Mutable)
+                    | (
+                        language_semantics::ReferenceAccess::WriteOnly,
+                        language_semantics::ReferenceAccess::WriteOnly
+                    )
+            )
         {
             return None;
         }
@@ -322,8 +334,10 @@ pub(in crate::execution::terminal_unit) fn window_place(
         if !matches!(
             parameter.access,
             CheckedStructuralAccess::Owned | CheckedStructuralAccess::MutableBorrow
-        ) || (parameter.access == CheckedStructuralAccess::MutableBorrow
-            && parameter.multiplicity == Multiplicity::Linear)
+        ) && !(required_access == language_semantics::ReferenceAccess::WriteOnly
+            && parameter.access == CheckedStructuralAccess::WriteOnlyBorrow)
+            || (parameter.access == CheckedStructuralAccess::MutableBorrow
+                && parameter.multiplicity == Multiplicity::Linear)
             || (parameter.access == CheckedStructuralAccess::Owned && storage.segments.is_empty())
         {
             return None;
@@ -337,7 +351,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
             storage.segments.as_slice(),
-            parameter.access == CheckedStructuralAccess::MutableBorrow,
+            parameter.access != CheckedStructuralAccess::Owned,
         )
     };
     let lower_path = |segments: &[PlaceSegment]| {
@@ -492,6 +506,7 @@ impl OpenWindows {
             index,
             structural_parameters,
             &place,
+            language_semantics::ReferenceAccess::Mutable,
             &|expression| {
                 super::calls::value_index_segment(
                     program,
@@ -550,6 +565,7 @@ impl OpenWindows {
             ordinal,
             structural_parameters,
             &place,
+            language_semantics::ReferenceAccess::Mutable,
             &|selector| {
                 super::calls::value_index_segment(
                     program,
@@ -777,6 +793,7 @@ impl OpenWindows {
                     index,
                     structural_parameters,
                     &access_place,
+                    language_semantics::ReferenceAccess::WriteOnly,
                     &|expression| selectors.runtime_segment(expression),
                 )?;
                 let opening_binding = match self.open.iter().position(|open| {
@@ -785,11 +802,16 @@ impl OpenWindows {
                     Some(position) => Some(self.open.remove(position).opening_binding),
                     None => None,
                 };
-                let needs_displacement = opening_binding.is_none();
+                // Unrestricted contents have no old-value obligation to extract.
+                // This is the same whole-value installation through owned,
+                // mutable and write-only storage; affine replacement still
+                // retains its explicit displacement and cleanup.
+                let needs_displacement = opening_binding.is_none()
+                    && produced.multiplicity != Multiplicity::Unrestricted;
                 (
                     place.source,
                     place.path,
-                    Some(opening_binding.unwrap_or(displaced_ordinal)),
+                    opening_binding.or(needs_displacement.then_some(displaced_ordinal)),
                     needs_displacement,
                     needs_displacement && produced.multiplicity == Multiplicity::Affine,
                 )
@@ -834,7 +856,7 @@ impl OpenWindows {
         let leaf = if owned_rebind && place.path.is_empty() {
             checked_trees::CheckedStoreLeaf::OwnedRebind { type_identity }
         } else {
-            checked_trees::CheckedStoreLeaf::WindowRepair {
+            checked_trees::CheckedStoreLeaf::StructuralStore {
                 type_identity,
                 opening_binding,
             }

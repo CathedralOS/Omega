@@ -134,6 +134,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 results,
                 operations,
                 pending: &pending,
+                at_exit: false,
                 transported_loans: &transported_loans,
             },
         )?;
@@ -161,6 +162,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 results,
                 operations,
                 pending: &pending,
+                at_exit: false,
                 transported_loans: &transported_loans,
             },
             operation,
@@ -192,6 +194,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 results,
                 operations,
                 pending: &pending,
+                at_exit: false,
                 transported_loans: &transported_loans,
             };
             if boundary <= statement_index && facts.borrow.loan_group(loans)?.all(|(loan, _)| retirement.children_retired(loan)) && !operations.iter().any(|operation| {
@@ -276,6 +279,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             results,
             operations,
             pending: &pending,
+            at_exit: false,
             transported_loans: &transported_loans,
         };
         let local_loans = validation::reference_result_custody::local_record_loans(
@@ -389,6 +393,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             results,
             operations,
             pending: &pending,
+            at_exit: false,
             transported_loans: &transported_loans,
         }
         .backing_releases()?;
@@ -490,7 +495,63 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         }
     }
     pending.sort_by_key(|(boundary, _)| *boundary);
-    for (_, release) in &pending {
+    let authored_state = program.state_by_symbol(state)?;
+    let statement_index = authored_state.statement_nodes.count();
+    let transported_loans = super::reference_retirement::transport::collect(
+        program,
+        facts,
+        machine,
+        authored_state,
+        results,
+        operations,
+    )?;
+    // Lexical last use does not order descriptor death: a parent's last
+    // authored use can form a child that lives until this same completion.
+    // Reuse statement retirement's exact holder dependencies, allowing only
+    // already scheduled exit releases to satisfy them. Computed backing
+    // holders participate in the same fixed point rather than a later pass.
+    let mut scheduled = Vec::new();
+    loop {
+        let retirement = super::reference_retirement::Retirement {
+            program,
+            facts,
+            machine,
+            state: authored_state,
+            statement_index,
+            results,
+            operations,
+            pending: &scheduled,
+            at_exit: true,
+            transported_loans: &transported_loans,
+        };
+        let mut next = None;
+        for (index, (_, operation)) in pending.iter().enumerate() {
+            let CheckedUnitEffectOperationPlan::ReleaseReference { loans, .. } = operation else {
+                return None;
+            };
+            if facts
+                .borrow
+                .loan_group(*loans)?
+                .all(|(loan, _)| retirement.children_retired(loan))
+            {
+                next = Some(index);
+                break;
+            }
+        }
+        if let Some(index) = next {
+            scheduled.push(pending.remove(index).1);
+            continue;
+        }
+        let releases = retirement.backing_releases()?;
+        if releases.is_empty() {
+            if !pending.is_empty() {
+                return None;
+            }
+            break;
+        }
+        scheduled.extend(releases);
+    }
+    for release in &scheduled {
         if let CheckedUnitEffectOperationPlan::ReleaseReference {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
             defer_to_exit: false,
@@ -507,35 +568,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             *discard = false;
         }
     }
-    operations.extend(pending.into_iter().map(|(_, operation)| operation));
-    let authored_state = program.state_by_symbol(state)?;
-    let statement_index = authored_state.statement_nodes.count();
-    let transported_loans = super::reference_retirement::transport::collect(
-        program,
-        facts,
-        machine,
-        authored_state,
-        results,
-        operations,
-    )?;
-    loop {
-        let releases = super::reference_retirement::Retirement {
-            program,
-            facts,
-            machine,
-            state: authored_state,
-            statement_index,
-            results,
-            operations,
-            pending: &[],
-            transported_loans: &transported_loans,
-        }
-        .backing_releases()?;
-        if releases.is_empty() {
-            break;
-        }
-        operations.extend(releases);
-    }
+    operations.extend(scheduled);
     Some(())
 }
 

@@ -161,6 +161,7 @@ pub(super) fn window_hole(
     root: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
+    required_access: StructuralAccess,
 ) -> Option<Vec<terminal_psi::StructuralPathSegment>> {
     let (geometry_root, suffix) = if matches!(
         path.first(),
@@ -171,7 +172,7 @@ pub(super) fn window_hole(
             types,
             place,
             path,
-            terminal_psi::StructuralAccess::MutableBorrow,
+            required_access,
         )?
     } else {
         (root, path)
@@ -202,6 +203,7 @@ fn check_window_access(
     root: &abstract_operations::StructuralWindowRoot,
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
+    required_access: StructuralAccess,
 ) -> Result<(), OptimizationUnitValidationError> {
     let crosses_reference = matches!(
         path.first(),
@@ -217,7 +219,7 @@ fn check_window_access(
             root.place(),
             path,
             field,
-            StructuralAccess::MutableBorrow,
+            required_access,
         )?;
         if !terminal_semantics::structural_window_selects_child(path, field) {
             let origin = live
@@ -232,6 +234,7 @@ fn check_window_access(
                         .flat_map(|block| &block.structural_parameters),
                 ),
                 origin,
+                required_access,
                 |place| crate::structural_place_supports_window_restoration(function, place),
             ) {
                 return Err(invalid(
@@ -250,6 +253,7 @@ fn check_window_access(
         root.structural_type(),
         path,
         field,
+        required_access,
     )
     .ok_or_else(|| {
         invalid(
@@ -1287,9 +1291,11 @@ pub(super) fn apply_operation(
                 source,
                 path,
                 *field,
+                StructuralAccess::MutableBorrow,
             )?;
         }
         O::StoreStructuralField {
+            disposition,
             destination,
             path,
             field,
@@ -1304,6 +1310,7 @@ pub(super) fn apply_operation(
                 destination,
                 path,
                 *field,
+                disposition.required_access(),
             )?;
         }
         O::StructuralLeafCopy {

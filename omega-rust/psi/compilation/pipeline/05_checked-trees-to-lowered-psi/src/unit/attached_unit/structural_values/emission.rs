@@ -355,6 +355,7 @@ pub(crate) fn emit(
         // apply in emission order after the root's establishment.
         for operation in &emission.operations.operations {
             if let OperationKind::StoreStructuralField {
+                disposition: _,
                 destination,
                 path,
                 field: Some(field),

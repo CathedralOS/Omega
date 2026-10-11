@@ -3,6 +3,11 @@
 //! same exact place. Detached bytes and claims belong to the new value, not
 //! to an alias that a later store can overwrite. Owned partial roots retain
 //! their checked residual custody; only borrowed roots owe restoration.
+//! An intact freely discardable value needs no extraction. Its completed
+//! replacement uses the same store with ReplaceUnrestricted disposition and
+//! write-only authority; receiving checks still enforce exact type, resource
+//! freedom and validity. A reference descriptor owns its pointer, not the
+//! selected backing, so this distinction follows every Referent crossing.
 //!
 //! The source checker (`typed-trees-to-checked-trees`
 //! `checks/multiplicity/borrowed_windows.rs`) admits a consuming move through
@@ -200,6 +205,7 @@ impl BorrowedWindowLedger {
         let place = resolve_window_place(
             identities,
             destination,
+            StructuralAccess::WriteOnlyBorrow,
             parameters,
             evaluation.evaluation,
             operations,
@@ -344,6 +350,7 @@ impl BorrowedWindowLedger {
         let place = resolve_window_place(
             identities,
             moved,
+            StructuralAccess::MutableBorrow,
             parameters,
             evaluation.evaluation,
             operations,
@@ -419,10 +426,10 @@ impl BorrowedWindowLedger {
         Ok(moved_place)
     }
 
-    /// Emit `StoreStructuralField` reseating the open window at
-    /// `destination`, the checked place the restoring assignment names, with
-    /// `value`. The destination must be an open hole exactly; the value must
-    /// be a whole owned place of the hole's declared type.
+    /// Install a whole completed value at the checked destination. An opening
+    /// names exact restoration debt; without one, intact borrowed storage
+    /// requires unrestricted replacement custody. Both retain the destination
+    /// captured before the RHS and its exact declared type.
     pub(crate) fn emit_store(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -442,6 +449,7 @@ impl BorrowedWindowLedger {
         let place = resolve_window_place(
             identities,
             destination,
+            StructuralAccess::WriteOnlyBorrow,
             parameters,
             evaluation.evaluation,
             operations,
@@ -482,8 +490,22 @@ impl BorrowedWindowLedger {
                 ));
             }
         }
+        let unrestricted = parameters
+            .iter()
+            .find(|parameter| parameter.place == value.place)
+            .map(|parameter| parameter.multiplicity)
+            .or_else(|| {
+                operations.operations.iter().find_map(|operation| {
+                    operation
+                        .result
+                        .structural()
+                        .filter(|result| result.place == value.place)
+                        .map(|result| result.multiplicity)
+                })
+            })
+            == Some(StructuralMultiplicity::Unrestricted);
         if index.is_none()
-            && (place.restoration_required
+            && ((place.restoration_required && !unrestricted)
                 || self.open.iter().any(|absent| {
                     absent.source == source
                         && paths_overlap(&absent.checked_path, &place.checked_path)
@@ -551,6 +573,11 @@ impl BorrowedWindowLedger {
         operations.push_leaf(
             OperationResult::Unit,
             OperationKind::StoreStructuralField {
+                disposition: if index.is_none() && place.restoration_required {
+                    terminal_psi::StructuralStoreDisposition::ReplaceUnrestricted
+                } else {
+                    terminal_psi::StructuralStoreDisposition::Vacant
+                },
                 destination: source,
                 path,
                 field: place.field,
@@ -623,6 +650,7 @@ pub(crate) struct WindowEvaluation<'a, 'calls> {
 fn resolve_window_place(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     plan: &CheckedUnitStructuralArgumentPlan,
+    required_access: StructuralAccess,
     parameters: &[StructuralParameterDeclaration],
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
     operations: &OperationBuffer,
@@ -639,10 +667,7 @@ fn resolve_window_place(
                 let parameter = parameters
                     .get(parameter_index as usize)
                     .ok_or_else(|| unpinned(&spelling, "the parameter root is not declared"))?;
-                if !matches!(
-                    parameter.access,
-                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
-                ) {
+                if !required_access.admits(parameter.access) {
                     return Err(unpinned(
                         &spelling,
                         "the root is not an exclusive `&mut` borrow: shared and write-only loans \
@@ -663,7 +688,7 @@ fn resolve_window_place(
                 (
                     parameter.place,
                     parameter.structural_type,
-                    parameter.access == StructuralAccess::MutableBorrow,
+                    parameter.access != StructuralAccess::Owned,
                     parameter.qualifications.clone(),
                     parameter.projected_qualifications.clone(),
                 )
@@ -748,6 +773,22 @@ fn resolve_window_place(
             };
             unpinned(&spelling, reason)
         })?;
+    // Owning a reference/view descriptor never owns its backing storage.
+    let restoration_required = restoration_required
+        || steps.iter().any(|step| {
+            matches!(
+                step,
+                ProjectionStep::Static(StructuralPathSegment::Referent)
+            )
+        })
+        || terminal_psi::find_structural_type(structural_types, root_type).is_some_and(
+            |declaration| {
+                matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                )
+            },
+        );
     let (field, hole_type) = match leaf {
         WindowLeaf::Field(field) => {
             let Some(hole_type) = field.field_type.as_structural() else {

@@ -618,9 +618,19 @@ pub(crate) fn validate_structural_root_operations(
                     // parameter row, a declared structural field beneath the
                     // spelled path, and a fresh operation-result place of
                     // exactly that type under clean exact-once custody.
-                    let valid = borrowed_window_root(function, source, &place_kinds)
-                        && window_field_type(function, structural_types, source, path, *field)
-                            == Some(result.structural_type)
+                    let valid = borrowed_window_root(
+                        function,
+                        source,
+                        &place_kinds,
+                        terminal_psi::StructuralAccess::MutableBorrow,
+                    ) && window_field_type(
+                        function,
+                        structural_types,
+                        source,
+                        path,
+                        *field,
+                        terminal_psi::StructuralAccess::MutableBorrow,
+                    ) == Some(result.structural_type)
                         && root_window_loan(source, path, *field)
                         && result.qualifications.is_empty()
                         && result.projected_qualifications.is_empty()
@@ -637,6 +647,7 @@ pub(crate) fn validate_structural_root_operations(
                     }
                 }
                 O::StoreStructuralField {
+                    disposition,
                     destination,
                     path,
                     field,
@@ -648,8 +659,12 @@ pub(crate) fn validate_structural_root_operations(
                     // type. Whether a window is open there is debt evidence
                     // the Terminal verifier retained; the unit keeps the
                     // static contract honest.
-                    let valid = borrowed_window_root(function, destination, &place_kinds)
-                        && root_window_loan(destination, path, *field)
+                    let valid = borrowed_window_root(
+                        function,
+                        destination,
+                        &place_kinds,
+                        disposition.required_access(),
+                    ) && root_window_loan(destination, path, *field)
                         && value.access == terminal_psi::StructuralAccess::Owned
                         && value.path.is_empty()
                         && window_field_type(
@@ -658,14 +673,34 @@ pub(crate) fn validate_structural_root_operations(
                             destination,
                             path,
                             *field,
+                            disposition.required_access(),
                         )
                         .is_some_and(|field_type| {
                             crate::unit_validation::operation_contracts::structural_source_contract(
                                 function,
                                 value.place,
-)
+                            )
                             .is_some_and(|signature| {
                                 signature.structural_type == field_type
+                                    && (*disposition
+                                        == terminal_psi::StructuralStoreDisposition::Vacant
+                                        || terminal_semantics::unrestricted_store_value(
+                                            structural_types.values().copied(),
+                                            field_type,
+                                            signature.multiplicity,
+                                            function
+                                                .entry_claim_declarations
+                                                .iter()
+                                                .chain(&function.block_entry_claims)
+                                                .any(|claim| claim.input == value.place)
+                                                || function
+                                                    .content_entry_claims
+                                                    .iter()
+                                                    .any(|claim| claim.input.root == value.place)
+                                                || signature.operation_result().is_some_and(
+                                                    |result| !result.claims.is_empty(),
+                                                ),
+                                        ))
                                     && signature.is_unqualified()
                             })
                         });
@@ -1083,6 +1118,7 @@ fn borrowed_window_root(
     function: &PsiOptimizationFunction,
     root: &abstract_operations::StructuralWindowRoot,
     place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
+    required_access: terminal_psi::StructuralAccess,
 ) -> bool {
     match root {
         abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
@@ -1105,7 +1141,7 @@ fn borrowed_window_root(
                 .chain(function.block_structural_parameters())
                 .find(|candidate| candidate.place == parameter.place)
                 == Some(parameter)
-                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                && required_access.admits_referent(parameter.access)
                 && matches!(
                     parameter.multiplicity,
                     terminal_psi::StructuralMultiplicity::Unrestricted
@@ -1191,6 +1227,7 @@ fn window_field_type(
     root: &abstract_operations::StructuralWindowRoot,
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
+    required_access: terminal_psi::StructuralAccess,
 ) -> Option<StructuralTypeId> {
     let (root, path) = if matches!(
         path.first(),
@@ -1204,7 +1241,7 @@ fn window_field_type(
             structural_types,
             root.place(),
             path,
-            terminal_psi::StructuralAccess::MutableBorrow,
+            required_access,
         )?
     } else {
         (root.structural_type(), path)

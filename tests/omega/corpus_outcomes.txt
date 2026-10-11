@@ -6166,3 +6166,6 @@ fail/termination/ranked_index_call_prefix_write rejected 635ms expected @2be890c
 	cannot prove requires contract for call scan from countdown: remaining - 1 <= 9 (needs fact `remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
 pass/targets/runtime_family_callback_guarantee_conjunction_exit checked 2751ms check-target:macos_arm64 @8ef927ca678b
+pass/borrow/runtime_write_only_captured_record_copy_exit checked 4227ms check-target:macos_arm64 @2e62c6e27183+wt
+pass/borrow/runtime_write_only_indexed_record_copy_exit checked 4227ms check-target:macos_arm64 @2e62c6e27183+wt
+pass/borrow/runtime_write_only_sum_copy_exit checked 4097ms check-target:macos_arm64 @2e62c6e27183+wt

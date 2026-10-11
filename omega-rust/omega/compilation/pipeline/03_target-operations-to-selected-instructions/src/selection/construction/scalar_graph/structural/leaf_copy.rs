@@ -173,6 +173,7 @@ pub(super) fn reseat(
                 destination.access,
                 terminal_psi::StructuralAccess::Owned
                     | terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
             ) && (source.structural.as_ref().is_some_and(|signature| {
                 signature
                     .parameters
@@ -220,7 +221,7 @@ pub(super) fn reseat(
             source,
             destination,
             path,
-            terminal_psi::StructuralAccess::MutableBorrow,
+            terminal_psi::StructuralAccess::WriteOnlyBorrow,
         )
         .ok_or(invalid())?;
         super::reference::load(builder, row, destination.place(), root)?

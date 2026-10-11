@@ -752,7 +752,10 @@ defines the complete product bar.
     parent-first guarantees and child prerequisites at that captured receiver.
     Keep `pass/ownership/runtime_{borrowed,whole_borrowed}_window_crash_exit`
     (Trap) for projected and retained-alias whole-referent abandonment without
-    repair or normal cleanup; qualify these on the remaining native hosts.
+    repair or normal cleanup. The whole-referent interpreter traps, but this
+    macOS host times out reaping the native trap on the earlier compiler too;
+    retain its oracle and qualify on hosts that can reap trap exits (the same
+    host limitation recorded under **TRANSITION-TAIL-CALL-TO-MACHINE**).
     Keep `fail/ownership/borrowed_window_crash_does_not_repair_return` for a
     returning sibling that still owes restoration despite a later crash.
     Keep `pass/ownership/runtime_borrowed_projected_linear_return_exit` (0)
@@ -4202,14 +4205,21 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     before original-backing foreign output transport. Source checking rejects
     them today; preserve `fail/borrow/opaque_write_only_boundary`. ABI shape and
     a host output offer do not prove native non-observation;
-  - general aggregate and `[copy]` sum replacement beyond scalar-field record
-    literals, preserving displaced custody and whole-value validity;
+  - aggregate replacement carrying retained reference resources or conserved
+    displaced custody, preserving whole-value validity without observing old
+    contents through write-only access;
   - runtime domain-qualified byte-field replacement with encoding evidence;
   - computed IEEE store/readback (through **FLOAT-PROVIDERS**; the mutable
     controls stop in caller guard planning);
-  - computed-index aggregate replacement and local affine backing through the
-    complete state and cleanup route. Reuse the existing computed-selector and
-    scalar-source plans.
+  - a scalar selector read through `&mut u64` is captured as a reference alias:
+    `cells[position] = reset(&mut position, incoming)` rejects the later write
+    while `__hoist_14` remains borrowed. Capture the indexing operation's required
+    operand value while preserving declared operator access. Local affine
+    backing still needs the complete state and cleanup route.
+
+  Preserve `borrow/runtime_write_only_{indexed_record,captured_record,sum}_copy_exit`
+  (0): whole-value installation, untouched neighbors, copied sources and
+  captured selectors, with child-before-parent reference retirement.
 
   Coordinate sequencing with **STATE-LOCAL-VALUE-FRONTIER**, reference identity
   with **STRUCTURAL-BORROW-IDENTITY**, mutable dynamic dispatch with

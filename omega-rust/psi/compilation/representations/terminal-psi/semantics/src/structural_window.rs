@@ -31,6 +31,7 @@ pub struct StructuralWindowProjection {
 pub fn structural_window_origins<'parameters>(
     parameters: impl Iterator<Item = &'parameters terminal_psi::StructuralParameterDeclaration> + Clone,
     origins: impl IntoIterator<Item = PlaceId>,
+    required_access: terminal_psi::StructuralAccess,
     mut live_storage: impl FnMut(PlaceId) -> bool,
 ) -> bool {
     let mut found_origin = false;
@@ -39,7 +40,7 @@ pub fn structural_window_origins<'parameters>(
         if !live_storage(root)
             && !parameters.clone().any(|parameter| {
                 parameter.place == root
-                    && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                    && required_access.admits_referent(parameter.access)
                     && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
                     && parameter.qualifications.is_empty()
                     && parameter.projected_qualifications.is_empty()

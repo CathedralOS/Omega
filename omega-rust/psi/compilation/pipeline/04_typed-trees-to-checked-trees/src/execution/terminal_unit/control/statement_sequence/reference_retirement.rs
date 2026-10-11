@@ -43,6 +43,9 @@ pub(super) struct Retirement<'a> {
     pub(super) results: &'a Results,
     pub(super) operations: &'a [CheckedUnitEffectOperationPlan],
     pub(super) pending: &'a [CheckedUnitEffectOperationPlan],
+    /// Deferred edge releases count only once completion schedules them.
+    /// Ordinary statement expiry cannot consume a future edge's custody.
+    pub(super) at_exit: bool,
     pub(super) transported_loans: &'a transport::TransportedLoans,
 }
 
@@ -752,10 +755,11 @@ impl Retirement<'_> {
                     statement_index,
                     loans,
                     selection_complements,
-                    defer_to_exit: false,
+                    defer_to_exit,
                     ..
                 } => {
-                    *statement_index <= self.statement_index
+                    (!*defer_to_exit || self.at_exit)
+                        && *statement_index <= self.statement_index
                         && (self.facts.borrow.loans_contain(*loans, handle)
                             || selection_complements.iter().any(|complement| {
                                 selections::disposes_candidate(self, handle, complement)

@@ -280,6 +280,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             field,
         } => storage_operations::encode_move_structural_field(writer, source, path, field)?,
         OperationKind::StoreStructuralField {
+            disposition,
             destination,
             path,
             field,
@@ -287,6 +288,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         } => storage_operations::encode_store_structural_field(
             writer,
             destination,
+            disposition,
             path,
             field,
             value,
@@ -843,7 +845,16 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
             storage_operations::decode_move_structural_field(reader)?
         }
         operation_tags::STORE_STRUCTURAL_FIELD => {
-            storage_operations::decode_store_structural_field(reader)?
+            storage_operations::decode_store_structural_field(
+                reader,
+                terminal_psi::StructuralStoreDisposition::Vacant,
+            )?
+        }
+        operation_tags::REPLACE_UNRESTRICTED_STRUCTURAL_FIELD => {
+            storage_operations::decode_store_structural_field(
+                reader,
+                terminal_psi::StructuralStoreDisposition::ReplaceUnrestricted,
+            )?
         }
         operation_tags::ESTABLISH_SCALAR_ARRAY => {
             value_operations::decode_establish_scalar_array(reader)?

@@ -1859,6 +1859,7 @@ pub(in crate::legalization) fn apply(
             )?;
         }
         AbstractOperation::StoreStructuralField {
+            disposition,
             destination,
             path,
             field,
@@ -1872,6 +1873,7 @@ pub(in crate::legalization) fn apply(
                 *field,
                 plan,
                 custody,
+                disposition.required_access(),
             )?;
             relocate_subtree_leaves(
                 custody,

@@ -1384,6 +1384,9 @@ fn copied_observation(
     source: &crate::emission::operation_emission::calls::PreparedStructuralArgument,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
+    if !terminal_psi::StructuralAccess::SharedBorrow.admits(source.access) {
+        return unsupported("captured field observation requires readable source custody");
+    }
     let mut binding = field_binding(fields, subject, field, primitive)?.clone();
     let prefix = source
         .path
@@ -1438,6 +1441,9 @@ fn field_binding<'a>(
     field: symbols::SymbolHandle,
     primitive: PrimitiveType,
 ) -> Result<&'a Binding, LoweringError> {
+    if subject.access == checked_trees::CheckedStructuralAccess::WriteOnlyBorrow {
+        return unsupported("field observation requires readable source custody");
+    }
     let scalar_type = terminal_scalar_type(primitive)?;
     let mut matching = fields.iter().filter(|binding| {
         binding.symbol == field && binding.subject == *subject && binding.scalar_type == scalar_type
@@ -1499,6 +1505,9 @@ fn observe(
     home: terminal_psi::StructuralArgument,
     captured_type: Option<semantic_vocabulary::StructuralTypeId>,
 ) -> Result<LoweredDirectExpression, LoweringError> {
+    if !terminal_psi::StructuralAccess::SharedBorrow.admits(home.access) {
+        return unsupported("field observation requires readable source custody");
+    }
     let source = home.place;
     let scalar_type = binding.scalar_type;
     let primitive_path =

@@ -132,7 +132,16 @@ and an unresolved projection conservatively pins its whole spelled root. Opaque
 ingress identities bound interference without identifying a runtime pointer or
 granting permission to repair another carrier's debt.
 
-Whole-value assignment through an exclusive loan (`referent = value` where
+Whole-value replacement of intact freely discardable contents is distinct from
+restoring a vacancy. Its operation retains that disposition and the exact
+incoming value's unrestricted custody, with no contained claims or loan
+resources to discard. It requires write authority, exact receiving validity,
+and no overlapping open window or live descendant loan. It does not extract
+or observe the old contents. A missing extraction alone proves neither vacancy
+nor permission to discard. The whole replacement installs tag and payload
+together and preserves neighboring storage.
+
+Whole-value assignment displacing an obligation through an exclusive loan (`referent = value` where
 `referent: &mut T`) is the same window rooted at the loan itself: the move names
 no field and an empty path, vacating the whole referent, and the store reseats
 it. Only a mutable-borrowed machine or block parameter opens a root window; an

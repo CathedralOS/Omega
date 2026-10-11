@@ -48,7 +48,7 @@ impl CheckedStorePlan {
     pub fn installed_value(&self) -> Option<&CheckedUnitStructuralArgumentPlan> {
         match (&self.destination.leaf, &self.value) {
             (
-                CheckedStoreLeaf::WindowRepair { .. } | CheckedStoreLeaf::OwnedRebind { .. },
+                CheckedStoreLeaf::StructuralStore { .. } | CheckedStoreLeaf::OwnedRebind { .. },
                 CheckedStoreValue::Place(value),
             ) => Some(value),
             _ => None,
@@ -58,7 +58,7 @@ impl CheckedStorePlan {
     pub fn installed_value_mut(&mut self) -> Option<&mut CheckedUnitStructuralArgumentPlan> {
         match (&self.destination.leaf, &mut self.value) {
             (
-                CheckedStoreLeaf::WindowRepair { .. } | CheckedStoreLeaf::OwnedRebind { .. },
+                CheckedStoreLeaf::StructuralStore { .. } | CheckedStoreLeaf::OwnedRebind { .. },
                 CheckedStoreValue::Place(value),
             ) => Some(value),
             _ => None,
@@ -73,7 +73,7 @@ impl CheckedStorePlan {
         &self,
         structural_parameters: &[CheckedUnitStructuralParameterPlan],
     ) -> Option<CheckedUnitStructuralArgumentPlan> {
-        let (CheckedStoreLeaf::WindowRepair { type_identity, .. }
+        let (CheckedStoreLeaf::StructuralStore { type_identity, .. }
         | CheckedStoreLeaf::OwnedRebind { type_identity }) = &self.destination.leaf
         else {
             return None;
@@ -180,18 +180,17 @@ pub enum CheckedStoreLeaf {
     /// its borrowed window: the stored value is a whole owned place copied
     /// in, or a case literal established in place.
     SumField,
-    /// The hole of an open borrowed window, restored whole: the path names
-    /// the vacated place below an exclusive borrowed parameter or an owned
-    /// local, `type_identity` its declared type, and the stored value is a
-    /// whole owned binding of that type. The checked multiplicity gate
-    /// proved the hole open; the repair closes the window's restoration debt.
-    WindowRepair {
+    /// Install a completed whole value at its captured structural destination.
+    /// An extraction binding identifies restoration debt. Without one, owned
+    /// storage has its checked old-value disposition, while intact borrowed
+    /// storage requires unrestricted contents with no cleanup obligation.
+    StructuralStore {
         type_identity: TypeIdentityId,
         /// Result coordinate of the extraction that opened this hole. The
         /// source checker establishes storage equality; lowering must not
         /// infer it from selector evaluation coordinates. None denotes an
-        /// owned home with no extraction debt; its previous contents may
-        /// already have been retired in place by old-value cleanup.
+        /// store with no extraction debt: owned old contents were disposed in
+        /// place, or unrestricted borrowed contents need no displacement.
         opening_binding: Option<u32>,
     },
     /// A whole owned binding (local or formal, with an empty path) rebound to a whole owned value
