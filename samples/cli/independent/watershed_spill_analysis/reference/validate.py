@@ -36,7 +36,7 @@ for name,case in manifest['cases'].items():
     assert result.stdout==expected, (name,'stdout differs',result.stdout,expected)
     assert f'interp exit: {case["exit"]}'.encode() in result.stderr and b'DECLINED' not in result.stderr and b'DIVERGENCE' not in result.stderr, (name,'Terminal comparison unavailable',result.stderr)
     print(name, 'exact stdout/exit; native and Terminal agree',flush=True)
-result=run('intended_invalid',['--check',str(root/'intended_invalid/main.omg')])
+result=run('intended_invalid',['--check',str(root/'intended_invalid/invalid.omg')])
 assert result.returncode==1, ('intended-invalid must reject',result.returncode)
 assert b'index' in result.stderr.lower() and (b'bound' in result.stderr.lower() or b'prove' in result.stderr.lower()), result.stderr
 print('intended-invalid: independently rejected for index bounds')
