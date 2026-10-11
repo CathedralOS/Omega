@@ -1,20 +1,26 @@
-// The checked ordering surface of normalized atomics: orderings ride as
-// checked source data on every operation kind.
-data Main { hits: i32 in Wrapping; }
+// The normalized atomic operations carry their memory ordering as
+// checked source data on every call: GlobalOrder on load, store,
+// fetch, swap, and compare-exchange success; ReceivePublish on
+// read-modify-write; Receive on a read-only failure ordering.
+// Width-generic: AtomicU64 admits the same family; AtomicBool admits
+// only the non-arithmetic load/store pair.
+data Main {
+    counter: AtomicU32;
+    wide: AtomicU64;
+    flag: AtomicBool;
+}
 machine Main::main(main: &mut Main) {
-    let mut counter: AtomicU32;
-    let mut wide: AtomicU64;
-    let mut flag: AtomicBool;
-    counter.store(10, GlobalOrder);
-    let observed: u32 in Wrapping = counter.load(GlobalOrder);
-    let prior: u32 in Wrapping = counter.fetch_add(5, ReceivePublish);
-    let displaced: u32 in Wrapping = counter.swap(20, GlobalOrder);
-    let cas_prior: u32 in Wrapping = counter.compare_exchange(20, 30, GlobalOrder, Receive);
-    wide.store(11, GlobalOrder);
-    let wide_seen: u64 in Wrapping = wide.load(GlobalOrder);
-    let wide_prior: u64 in Wrapping = wide.fetch_add(3, ReceivePublish);
-    flag.store(true, Publish);
-    let seen: bool = flag.load(Receive);
-    let pair: u32 in Wrapping = observed + prior + displaced + cas_prior;
-    main.hits = main.hits + 1;
+    main.counter.store(10, GlobalOrder);
+    let observed: u32 in Wrapping = main.counter.load(GlobalOrder);
+    let prior: u32 in Wrapping = main.counter.fetch_add(5, ReceivePublish);
+    let displaced: u32 in Wrapping = main.counter.swap(20, GlobalOrder);
+    let cas_prior: u32 in Wrapping = main.counter.compare_exchange(20, 30, GlobalOrder, Receive);
+    main.wide.store(7, GlobalOrder);
+    let wide_observed: u64 in Wrapping = main.wide.load(GlobalOrder);
+    let wide_prior: u64 in Wrapping = main.wide.fetch_sub(3, ReceivePublish);
+    main.flag.store(true, Publish);
+    let flag_seen: bool = main.flag.load(Receive);
+    main.counter.store(77, Publish);
+    let received: u32 in Wrapping = main.counter.load(Receive);
+    let cas_relaxed: u32 in Wrapping = main.counter.compare_exchange(1, 2, NoOrdering, NoOrdering);
 }
