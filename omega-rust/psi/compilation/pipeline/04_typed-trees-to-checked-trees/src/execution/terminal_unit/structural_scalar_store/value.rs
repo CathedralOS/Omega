@@ -10,7 +10,6 @@
 use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, ExpressionNode, PrimitiveType,
 };
-use super::destination::Root;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 
 /// Where the assignment's right-hand side was evaluated.
@@ -32,13 +31,12 @@ pub(in crate::execution::terminal_unit) enum AssignmentSource {
 }
 
 /// Select the scalar value an authored assignment stores into a leaf of
-/// `primitive_type`, then apply the root lane's value policy.
+/// `primitive_type`, then apply the value policy.
 pub(super) fn assignment_value(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    root: &Root<'_>,
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
@@ -76,7 +74,7 @@ pub(super) fn assignment_value(
         )?,
     };
     trace.phase("structural field store: pure source: value shape");
-    admits(root, primitive_type, &value).then_some(value)
+    admits(primitive_type, &value).then_some(value)
 }
 
 /// The checked value at one role coordinate: a computation rooted there, or
@@ -127,15 +125,11 @@ pub(super) fn authored_value(
 /// Floating stores forward existing bits: an authored IEEE literal or an
 /// already-defined scalar (parameter, local, or a leaf read out of existing
 /// structural storage). A floating operation in a pure expression has no
-/// selected provider, so it is refused. The scalar-graph lane evaluates only
-/// those already-defined sources, so it also refuses a floating computation;
-/// the attached lane's computation retains its own selected operations and
-/// call correspondence.
-fn admits(
-    root: &Root<'_>,
-    primitive_type: PrimitiveType,
-    value: &checked_trees::CheckedScalarStoreValue,
-) -> bool {
+/// selected provider, so it is refused. A checked computation retains its own
+/// selected operations and call correspondence regardless of whether the
+/// destination is borrowed parameter storage or an owned local. Destination
+/// authority is checked independently by the store planner.
+fn admits(primitive_type: PrimitiveType, value: &checked_trees::CheckedScalarStoreValue) -> bool {
     if !matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64) {
         return true;
     }
@@ -148,9 +142,7 @@ fn admits(
                 | CheckedScalarExpression::StructuralParameterField { .. }
                 | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
         ),
-        checked_trees::CheckedScalarStoreValue::Computation(_) => {
-            matches!(root, Root::Parameter { .. })
-        }
+        checked_trees::CheckedScalarStoreValue::Computation(_) => true,
         checked_trees::CheckedScalarStoreValue::ScalarResult { .. } => true,
     }
 }
@@ -182,7 +174,6 @@ pub(super) fn byte_value(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    root: &Root<'_>,
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
@@ -193,7 +184,6 @@ pub(super) fn byte_value(
         facts,
         machine,
         state,
-        root,
         statement_index,
         assignment,
         source,

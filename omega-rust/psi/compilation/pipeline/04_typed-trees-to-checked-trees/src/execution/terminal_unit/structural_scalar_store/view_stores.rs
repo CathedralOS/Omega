@@ -95,7 +95,6 @@ pub(super) fn plan(
         facts,
         machine,
         state,
-        &destination.root,
         statement_index,
         assignment,
         source,

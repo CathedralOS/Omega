@@ -580,7 +580,6 @@ fn plan_assignment(
             facts,
             machine,
             state,
-            &destination.root,
             statement_index,
             assignment,
             source,
