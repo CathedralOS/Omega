@@ -4,6 +4,7 @@ use super::{
 };
 mod difference_matrix;
 mod intervals;
+mod integer_operations;
 mod polynomial_bounds;
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
 mod mathematical_terms;

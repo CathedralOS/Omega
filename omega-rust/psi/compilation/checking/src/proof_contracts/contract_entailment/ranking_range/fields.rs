@@ -577,32 +577,19 @@ fn completed_source_value(
             let [left, right] = operands.as_ref();
             let left = completed_source_value(program, machine, state, engine, left, &[])?;
             let right = completed_source_value(program, machine, state, engine, right, &[])?;
-            if !integer_value_lands(engine, primitive, &left)
-                || !integer_value_lands(engine, primitive, &right)
-            {
+            let value = engine.integer_binary_value(*operator, left.clone(), right.clone())?;
+            if !engine.integer_operation_lands(*operator, primitive, &left, &right, &value) {
                 return None;
             }
-            let value = match operator {
-                BinaryOperator::Add => left.add(&right),
-                BinaryOperator::Subtract => left.sub(&right),
-                BinaryOperator::Multiply => left.checked_mul(&right)?,
-                _ => return None,
-            };
-            integer_value_lands(engine, primitive, &value).then_some(value)
+            engine.install_integer_division_bounds(*operator, &left, &right, &value);
+            Some(value)
         }
         _ => None,
     }
 }
 
 fn integer_value_lands(engine: &Engine<'_>, primitive: PrimitiveType, value: &Polynomial) -> bool {
-    let Some((minimum, maximum)) = super::integer_carrier_bounds(primitive) else {
-        return false;
-    };
-    let prove = |difference: Polynomial| {
-        engine.prove_at_least(&engine.substituted(&difference), &BigInt::zero())
-    };
-    prove(value.sub(&Polynomial::constant(minimum)))
-        && prove(Polynomial::constant(maximum).sub(value))
+    engine.integer_value_lands(primitive, value)
 }
 
 /// The declared type of an exact member chain rooted at a state formal:

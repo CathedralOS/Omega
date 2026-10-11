@@ -1043,6 +1043,24 @@ pub(super) fn fold_scalar_binary(
     } else {
         (numerics::bignum::BigInt::zero(), modulus.sub(&one))
     };
+    // Literals substituted into an operation still owe operand landing. In
+    // particular MIN % -1 cannot fold to zero under Exact/Trapping: the common
+    // quotient is unrepresentable even though the remainder fits. Keep the
+    // operation visible so later formation checks cannot lose it to folding.
+    if left < &minimum || left > &maximum || right < &minimum || right > &maximum {
+        return None;
+    }
+    if matches!(
+        domain,
+        numerics::arithmetic::ArithmeticDomain::Exact
+            | numerics::arithmetic::ArithmeticDomain::Trapping
+    ) && matches!(operator, BinaryOperator::Divide | BinaryOperator::Modulo)
+    {
+        let (quotient, _) = left.div_rem(right)?;
+        if quotient < minimum || quotient > maximum {
+            return None;
+        }
+    }
     match domain {
         numerics::arithmetic::ArithmeticDomain::Exact
         | numerics::arithmetic::ArithmeticDomain::Trapping => {

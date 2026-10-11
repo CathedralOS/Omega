@@ -1492,16 +1492,19 @@ defines the complete product bar.
   equation controls reject; private helper bodies supply no caller evidence.
 
   Remaining:
-  - Carry non-polynomial public result equations through completed arrivals.
-    A selected `observe(value: i32)` requiring `0 < value && value <= 9`
-    and ensuring `result == value / 2` leaves
+  - Carry remaining non-polynomial public result equations through completed
+    arrivals. A selected `observe(value: i32)` requiring `0 < value && value <= 9`
+    and ensuring `result == value >> 1` leaves
     `countdown(reader.observe(remaining))` unable to prove the receiving bounds
     or rank range `0..=9` under `remaining > 0` on macOS ARM64. Reuse the
     admitted integer-operation owner over captured operands, preserving
-    totality, policy and intermediate carrier bounds. Keep
-    `runtime_computed_result_rank_arrivals_exit` for direct, nested, saved and
-    projected polynomial results, plus its overflow, policy, alternative-result,
-    missing-premise and nondecreasing controls. Preserve
+    count validity, policy and intermediate carrier bounds. Keep
+    `runtime_quotient_result_rank_arrivals_exit` for quotient/remainder results
+    through direct, nested, saved and projected arrivals, variable divisors and
+    signed truncation. Division by one, missing premises, alternative results,
+    wrong result fields, zero divisors and signed quotient overflow must reject.
+    Keep `runtime_computed_result_rank_arrivals_exit` for polynomial results
+    and its intermediate overflow and policy controls. Preserve
     `runtime_selected_result_ranked_arrival_exit` and
     `external_result_ranked_arrival_compile`, with missing-guarantee,
     unguarded and stale-prefix controls. External execution also

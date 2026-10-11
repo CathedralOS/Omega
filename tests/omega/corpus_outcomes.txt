@@ -5432,3 +5432,15 @@ pass/calls/callback_owned_indirect_float_record checked 80190ms check-target:mac
 pass/calls/callback_owned_indirect_record checked 5435ms check-target:macos_arm64 @2afb09bae86c
 pass/collections/local_byte_array_input_state_loan_exit checked 5823ms check-target:linux_x86_64 @e73475f58248+wt
 pass/control_flow/runtime_wrapping_division_reused_inputs_exit checked 5142ms check-target:linux_x86_64 @e73475f58248+wt
+fail/contracts/returned_integer_operation_wrong_operand rejected 520ms expected @9412eb149c68
+	cannot prove ensures contract for exit from quotient at statement 0: result.actual == right / 2
+	cannot prove ensures contract for exit from remainder at statement 0: result.actual == right % 2
+fail/termination/quotient_result_rank_alternative_results rejected 504ms expected @9412eb149c68
+	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+fail/termination/quotient_result_rank_missing_precondition rejected 512ms expected @9412eb149c68
+	cannot prove requires contract for call observe from countdown: remaining > 0 && remaining <= 9 (needs fact `value > 0 && value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call countdown from countdown: reader.observe(remaining) >= 0 && reader.observe(remaining) <= 9 (needs fact `remaining >= 0 && remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+fail/termination/quotient_result_rank_nondecreasing rejected 507ms expected @9412eb149c68
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+pass/termination/runtime_quotient_result_rank_arrivals_exit checked 2847ms check-target:macos_arm64 @9412eb149c68

@@ -383,23 +383,15 @@ impl<'program> Engine<'program> {
         };
         let dividend = self.normalize(binary.left)?;
         let divisor = self.normalize(binary.right)?;
-        let positive_divisor = self.prove_at_least(&divisor, &BigInt::from_i64(1));
-        let nonnegative_dividend = self.prove_at_least(&dividend, &BigInt::zero());
-        let value = match binary.operator {
-            BinaryOperator::Divide => self.integer_quotient(dividend, divisor)?,
-            BinaryOperator::Modulo => {
-                let value = self.integer_remainder(dividend, divisor.clone(), true)?;
-                // The admitted source owner established an unsigned remainder
-                // operation. Re-derive its correlated strict upper bound only
-                // after the scoped hypotheses independently prove both
-                // unsigned nonnegativity and a positive exact divisor subject.
-                if positive_divisor && nonnegative_dividend {
-                    self.bounds.push((divisor.sub(&value), BigInt::from_i64(1)));
-                }
-                value
-            }
-            _ => return None,
-        };
+        if !matches!(
+            binary.operator,
+            BinaryOperator::Divide | BinaryOperator::Modulo
+        ) {
+            return None;
+        }
+        let value =
+            self.integer_binary_value(binary.operator, dividend.clone(), divisor.clone())?;
+        self.install_integer_division_bounds(binary.operator, &dividend, &divisor, &value);
         self.bind_strict_occurrence(expression, value).then_some(())
     }
 

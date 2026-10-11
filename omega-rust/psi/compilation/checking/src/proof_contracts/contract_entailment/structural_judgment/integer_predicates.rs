@@ -7,12 +7,99 @@
 //! query-local atom per complete value identity. No source expression is replayed,
 //! no caller state is reread, and no future call guarantee enters the premises.
 //! Wrapping/saturating operations remain opaque values rather than integer laws;
-//! source formation independently checks every executable Exact operation.
+//! Each expanded operation retains its carrier formation obligation until the
+//! authenticated premises establish it, independently of the requested goal.
 
 use super::super::{BigInt, Engine, Polynomial};
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use numerics::arithmetic::ArithmeticDomain;
+use std::ops::Range;
 use typed_trees::expression::BinaryOperator;
+use typed_trees::types::PrimitiveType;
+
+type Comparison = (BinaryOperator, Polynomial, Polynomial);
+
+struct ObservedOperation {
+    operator: BinaryOperator,
+    primitive: PrimitiveType,
+    operands: [Polynomial; 2],
+    value: Polynomial,
+    children: Range<usize>,
+    admitted: bool,
+}
+
+/// Query-local preparation is deliberately separate from admission. Only a
+/// formed premise may enter the engine; an equation involving division cannot
+/// establish its own nonzero divisor. The requested comparison never enters
+/// this premise worklist. Children are admitted before their consuming node,
+/// including nodes whose normalized value cancelled out of the comparison.
+struct IntegerObservations<'program> {
+    engine: Engine<'program>,
+    atoms: Vec<StructuralTerm>,
+    operations: Vec<ObservedOperation>,
+    carrier_facts: Vec<Comparison>,
+}
+
+impl IntegerObservations<'_> {
+    fn admitted(&self, operations: Range<usize>) -> bool {
+        self.operations[operations]
+            .iter()
+            .all(|operation| operation.admitted)
+    }
+
+    fn install_premises(&mut self, premises: &mut Vec<(Comparison, Range<usize>)>) -> bool {
+        if !self
+            .engine
+            .install_hypotheses(std::mem::take(&mut self.carrier_facts))
+        {
+            return false;
+        }
+        loop {
+            let mut changed = false;
+            let mut index = 0;
+            while index < premises.len() {
+                if self.admitted(premises[index].1.clone()) {
+                    let (comparison, _) = premises.remove(index);
+                    if !self.engine.install_hypotheses(vec![comparison]) {
+                        return false;
+                    }
+                    changed = true;
+                } else {
+                    index += 1;
+                }
+            }
+            self.engine.refresh_opaque_intervals();
+            for index in 0..self.operations.len() {
+                let operation = &self.operations[index];
+                if !self.admitted(operation.children.clone()) {
+                    continue;
+                }
+                let [left, right] = &operation.operands;
+                if operation.admitted
+                    || self.engine.integer_operation_lands(
+                        operation.operator,
+                        operation.primitive,
+                        left,
+                        right,
+                        &operation.value,
+                    )
+                {
+                    changed |= self.engine.install_integer_division_bounds(
+                        operation.operator,
+                        left,
+                        right,
+                        &operation.value,
+                    );
+                    changed |= !operation.admitted;
+                    self.operations[index].admitted = true;
+                }
+            }
+            if !changed {
+                return true;
+            }
+        }
+    }
+}
 
 impl StructuralJudge<'_> {
     pub(in crate::proof_contracts::contract_entailment) fn judge_observed_predicate(
@@ -36,10 +123,17 @@ impl StructuralJudge<'_> {
         if !self.runtime_body_values || self.case_facts_only {
             return false;
         }
-        let mut atoms = Vec::new();
-        let Some((operator, left, right)) = self.integer_comparison(predicate, &mut atoms) else {
+        let mut observations = IntegerObservations {
+            engine: Engine::for_explicit_bindings(self.program),
+            atoms: Vec::new(),
+            operations: Vec::new(),
+            carrier_facts: Vec::new(),
+        };
+        let Some((operator, left, right)) = self.integer_comparison(predicate, &mut observations)
+        else {
             return false;
         };
+        let goal_operations = 0..observations.operations.len();
         let mut comparisons = Vec::new();
         for (predicate, truth) in &self.rewrites {
             let truth = self.resolve(truth.clone());
@@ -53,19 +147,23 @@ impl StructuralJudge<'_> {
             else {
                 continue;
             };
-            let Some((operator, left, right)) = self.integer_comparison(predicate, &mut atoms)
+            let start = observations.operations.len();
+            let Some((operator, left, right)) =
+                self.integer_comparison(predicate, &mut observations)
             else {
                 continue;
             };
-            comparisons.push((if holds { operator } else { negate(operator) }, left, right));
+            comparisons.push((
+                (if holds { operator } else { negate(operator) }, left, right),
+                start..observations.operations.len(),
+            ));
         }
-        let mut engine = Engine::for_explicit_bindings(self.program);
-        engine
-            .parameter_atoms
-            .extend((0..atoms.len()).map(atom_name));
-        if !engine.install_hypotheses(comparisons) {
+        if !observations.install_premises(&mut comparisons)
+            || !observations.admitted(goal_operations)
+        {
             return false;
         }
+        let engine = &observations.engine;
         let proves = |difference: Polynomial, minimum| {
             engine.prove_at_least(&engine.substituted(&difference), &BigInt::from_i64(minimum))
         };
@@ -83,7 +181,7 @@ impl StructuralJudge<'_> {
     fn integer_comparison(
         &self,
         predicate: &StructuralTerm,
-        atoms: &mut Vec<StructuralTerm>,
+        observations: &mut IntegerObservations<'_>,
     ) -> Option<(BinaryOperator, Polynomial, Polynomial)> {
         let StructuralTerm::ScalarBinary {
             references,
@@ -125,15 +223,16 @@ impl StructuralJudge<'_> {
         }
         Some((
             *operator,
-            self.integer_value(&left, atoms, 0)?,
-            self.integer_value(&right, atoms, 0)?,
+            self.integer_value(&left, meaning[0].0, observations, 0)?,
+            self.integer_value(&right, meaning[1].0, observations, 0)?,
         ))
     }
 
     fn integer_value(
         &self,
         value: &StructuralTerm,
-        atoms: &mut Vec<StructuralTerm>,
+        primitive: PrimitiveType,
+        observations: &mut IntegerObservations<'_>,
         depth: usize,
     ) -> Option<Polynomial> {
         if depth >= 64 {
@@ -159,7 +258,11 @@ impl StructuralJudge<'_> {
             })
             && matches!(
                 operator,
-                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
             )
         {
             if ![left, right]
@@ -175,22 +278,56 @@ impl StructuralJudge<'_> {
             {
                 return None;
             }
-            let left = self.integer_value(left, atoms, depth + 1)?;
-            let right = self.integer_value(right, atoms, depth + 1)?;
-            return Some(match operator {
-                BinaryOperator::Add => left.add(&right),
-                BinaryOperator::Subtract => left.sub(&right),
-                BinaryOperator::Multiply => left.checked_mul(&right)?,
-                _ => unreachable!(),
+            if meaning[0].0 != meaning[1].0 || meaning[0].0 != primitive {
+                return None;
+            }
+            let start = observations.operations.len();
+            let left = self.integer_value(left, primitive, observations, depth + 1)?;
+            let right = self.integer_value(right, primitive, observations, depth + 1)?;
+            let value =
+                observations
+                    .engine
+                    .integer_binary_value(*operator, left.clone(), right.clone())?;
+            observations.operations.push(ObservedOperation {
+                operator: *operator,
+                primitive,
+                operands: [left, right],
+                value: value.clone(),
+                children: start..observations.operations.len(),
+                admitted: false,
             });
+            return Some(value);
         }
-        let position = if let Some(position) = atoms.iter().position(|atom| atom == value) {
-            position
-        } else {
-            atoms.push(value.clone());
-            atoms.len() - 1
-        };
-        Some(Polynomial::atom(atom_name(position)))
+        let position =
+            if let Some(position) = observations.atoms.iter().position(|atom| atom == value) {
+                position
+            } else {
+                observations.atoms.push(value.clone());
+                let position = observations.atoms.len() - 1;
+                observations
+                    .engine
+                    .parameter_atoms
+                    .push(atom_name(position));
+                position
+            };
+        let value = Polynomial::atom(atom_name(position));
+        // A complete observed value has its selected operand's carrier. These
+        // intrinsic bounds apply only to opaque leaves, never to a computation
+        // waiting to prove formation or to an anonymous integer literal.
+        let (minimum, maximum) = primitive.integer_bounds()?;
+        observations.carrier_facts.extend([
+            (
+                BinaryOperator::GreaterOrEqual,
+                value.clone(),
+                Polynomial::constant(BigInt::from_i128(minimum)),
+            ),
+            (
+                BinaryOperator::LessOrEqual,
+                value.clone(),
+                Polynomial::constant(BigInt::from_i128(maximum)),
+            ),
+        ]);
+        Some(value)
     }
 }
 

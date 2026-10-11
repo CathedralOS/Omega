@@ -518,6 +518,40 @@ pub(super) fn structural_term(
                     extent as u64,
                 )));
             }
+            // Contract projections can retain an unresolved member handle even
+            // when the receiver's declared record fixes the field. Rejoin that
+            // declaration rather than turning the projection into opaque source
+            // text: substitution must still be able to reach a returned record.
+            let receiver_type = if let Some((owner, parameters)) = frame {
+                crate::parameter_expression_result_type_reference(
+                    program,
+                    owner,
+                    parameters,
+                    member.receiver,
+                )
+            } else {
+                scope.and_then(|(machine, state, _)| {
+                    crate::expression_result_type_reference(
+                        program,
+                        machine,
+                        state,
+                        member.receiver,
+                    )
+                })
+            };
+            let declared_field = receiver_type
+                .and_then(|reference| {
+                    let data =
+                        crate::value_custody::places::data_definition_for_type(program, reference)?;
+                    crate::value_custody::places::exact_data_member_field(
+                        program,
+                        data,
+                        member.member_symbol,
+                        member.member.as_str(),
+                        member.case_variant.as_ref().map(|case| case.as_str()),
+                    )
+                })
+                .is_some();
             // A field read off a value receiver: when the receiver termifies
             // to a closed constructor (a struct literal, an immutable local
             // tracing to one, or a nested projection already resolved), the
@@ -537,7 +571,7 @@ pub(super) fn structural_term(
                     }),
                 Some(
                     subject @ (StructuralTerm::Variable(_) | StructuralTerm::Projection { .. }),
-                ) if is_length_member => Some(StructuralTerm::Projection {
+                ) if is_length_member || declared_field => Some(StructuralTerm::Projection {
                     subject: Box::new(subject),
                     path: member.member.as_str().to_owned(),
                 }),
