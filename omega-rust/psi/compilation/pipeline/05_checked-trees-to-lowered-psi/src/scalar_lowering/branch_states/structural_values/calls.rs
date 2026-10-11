@@ -314,18 +314,13 @@ impl Preparation<'_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         binding: &checked_trees::CheckedUnitStructuralResultBindingPlan,
     ) -> Result<super::super::super::StructuralOperationResult, LoweringError> {
-        let declaration = terminal_psi::structural_type_by_identity(
+        let declaration = crate::terminal_identities::structural_declaration_by_identity(
             self.types,
-            identities.intern(
-                &self
-                    .checked
-                    .type_identity_text(binding.type_identity)
-                    .unwrap_or_default(),
-            ),
-        )
-        .ok_or(LoweringError::Unsupported(
+            identities,
+            self.checked,
+            binding.type_identity,
             "structural operand result lost its carrier",
-        ))?;
+        )?;
         let multiplicity = match binding.multiplicity {
             Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
             Multiplicity::Affine => StructuralMultiplicity::Affine,

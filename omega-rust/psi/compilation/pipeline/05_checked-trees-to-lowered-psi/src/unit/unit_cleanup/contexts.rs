@@ -196,17 +196,13 @@ pub(crate) fn prepare_signature(
                 "nominal cleanup hook lacks a complete callable prerequisite roster",
             );
         }
-        let structural_type = terminal_psi::structural_type_by_identity(
+        let structural_type = crate::terminal_identities::structural_declaration_by_identity(
             types,
-            identities.intern(
-                &checked
-                    .type_identity_text(hook.type_identity)
-                    .unwrap_or_default(),
-            ),
-        )
-        .ok_or(LoweringError::Unsupported(
+            identities,
+            checked,
+            hook.type_identity,
             "nominal cleanup hook owner type is absent",
-        ))?
+        )?
         .id;
         if predicate_parameters.is_empty() {
             // Reserve through the closure allocator, but publish no executable

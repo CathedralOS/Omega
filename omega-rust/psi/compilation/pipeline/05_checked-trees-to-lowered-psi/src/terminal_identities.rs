@@ -101,6 +101,28 @@ pub(crate) fn lookup_type_id(
         ))
 }
 
+/// The structural declaration carrying one checked type identity. Lowering
+/// joins checked values to the declaration roster through the identity's
+/// retained text, so `type_identity` is any checked `TypeIdentityId`;
+/// `absent_message` names the lost value when no declaration carries it.
+pub(crate) fn structural_declaration_by_identity<'types>(
+    types: &'types [terminal_psi::StructuralTypeDeclaration],
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &checked_trees::CheckedTrees,
+    type_identity: typed_trees::type_identity::TypeIdentityId,
+    absent_message: &'static str,
+) -> Result<&'types terminal_psi::StructuralTypeDeclaration, LoweringError> {
+    terminal_psi::structural_type_by_identity(
+        types,
+        identities.intern(
+            &checked
+                .type_identity_text(type_identity)
+                .unwrap_or_default(),
+        ),
+    )
+    .ok_or(LoweringError::Unsupported(absent_message))
+}
+
 /// A semantic domain family instantiated on one exact structural carrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct StructuralDomainBinding {

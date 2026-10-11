@@ -55,13 +55,13 @@ pub(super) fn reserve(
         return unsupported("computed enum membership disagrees with its retained owner");
     }
     let identity = checked.normalized_type_identity(root.type_reference);
-    let declaration = terminal_psi::structural_type_by_identity(
+    let declaration = crate::terminal_identities::structural_declaration_by_identity(
         types,
-        identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
-    )
-    .ok_or(LoweringError::Unsupported(
+        identities,
+        checked,
+        identity,
         "computed enum membership has no carrier namespace",
-    ))?;
+    )?;
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return unsupported("computed enum membership requires a payload-free sum");
     };

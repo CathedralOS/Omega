@@ -143,13 +143,13 @@ pub(crate) fn reserve(
     place: PlaceId,
 ) -> Result<Slot, LoweringError> {
     let identity = checked.normalized_type_identity(source.type_reference);
-    let declaration = terminal_psi::structural_type_by_identity(
+    let declaration = crate::terminal_identities::structural_declaration_by_identity(
         types,
-        identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
-    )
-    .ok_or(LoweringError::Unsupported(
+        identities,
+        checked,
+        identity,
         "computed case has no structural type namespace",
-    ))?;
+    )?;
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return unsupported("computed case requires a plain sum");
     };

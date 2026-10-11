@@ -141,14 +141,14 @@ pub(crate) fn element_type(
             .ok_or(LoweringError::Unsupported(
                 "byte view lost its element identity",
             ))?;
-            terminal_psi::structural_type_by_identity(
+            crate::terminal_identities::structural_declaration_by_identity(
                 declarations,
-                identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
+                identities,
+                checked,
+                identity,
+                "byte view lost its element carrier",
             )
             .map(|declaration| declaration.id)
-            .ok_or(LoweringError::Unsupported(
-                "byte view lost its element carrier",
-            ))
         }
         _ => unsupported("element view has no descriptor carrier"),
     }
@@ -355,17 +355,13 @@ pub(crate) fn storage(
             .ok_or(LoweringError::Unsupported(
                 "range collection has no exact Terminal type",
             ))?;
-    let view = terminal_psi::structural_type_by_identity(
+    let view = crate::terminal_identities::structural_declaration_by_identity(
         declarations,
-        identities.intern(
-            &checked
-                .type_identity_text(argument.type_identity)
-                .unwrap_or_default(),
-        ),
-    )
-    .ok_or(LoweringError::Unsupported(
+        identities,
+        checked,
+        argument.type_identity,
         "range result has no exact Terminal type",
-    ))?;
+    )?;
     let collection_element = match collection.shape {
         terminal_psi::StructuralTypeShape::FixedArray { element, .. } => Some(element),
         terminal_psi::StructuralTypeShape::ByteSequence(

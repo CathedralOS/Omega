@@ -800,19 +800,15 @@ impl Expansion<'_> {
                         Ok((slot.place, path))
                     },
                 )?;
-                let structural_type = terminal_psi::structural_type_by_identity(
-                    self.structural_types,
-                    identities.intern(
-                        &self
-                            .checked
-                            .type_identity_text(action.type_identity())
-                            .unwrap_or_default(),
-                    ),
-                )
-                .map(|declaration| declaration.id)
-                .ok_or(LoweringError::Unsupported(
-                    "temporary cleanup has no structural type",
-                ))?;
+                let structural_type =
+                    crate::terminal_identities::structural_declaration_by_identity(
+                        self.structural_types,
+                        identities,
+                        self.checked,
+                        action.type_identity(),
+                        "temporary cleanup has no structural type",
+                    )?
+                    .id;
                 actions.push(match action {
                     checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {
                         PreparedNormalCleanupAction::Resolved(

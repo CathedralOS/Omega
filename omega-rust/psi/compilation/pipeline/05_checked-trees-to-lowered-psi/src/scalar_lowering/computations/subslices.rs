@@ -61,17 +61,14 @@ pub(crate) fn prepare(
                 let bytes = range.family
                     == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
                 if let Some(existing) = slots.iter().find(|slot| slot.expression == expression) {
-                    let declaration = terminal_psi::structural_type_by_identity(
-                        types,
-                        identities.intern(
-                            &checked
-                                .type_identity_text(argument.type_identity)
-                                .unwrap_or_default(),
-                        ),
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "computed range has no structural type namespace",
-                    ))?;
+                    let declaration =
+                        crate::terminal_identities::structural_declaration_by_identity(
+                            types,
+                            identities,
+                            checked,
+                            argument.type_identity,
+                            "computed range has no structural type namespace",
+                        )?;
                     if existing.structural_type != declaration.id || existing.bytes != bytes {
                         return unsupported("computed range occurrence has conflicting types");
                     }
@@ -105,17 +102,13 @@ fn reserve(
         range(argument).ok_or(LoweringError::Unsupported("computed range lost its source"))?;
     let bytes =
         range.family == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
-    let declaration = terminal_psi::structural_type_by_identity(
+    let declaration = crate::terminal_identities::structural_declaration_by_identity(
         types,
-        identities.intern(
-            &checked
-                .type_identity_text(argument.type_identity)
-                .unwrap_or_default(),
-        ),
-    )
-    .ok_or(LoweringError::Unsupported(
+        identities,
+        checked,
+        argument.type_identity,
         "computed range has no structural type namespace",
-    ))?;
+    )?;
     let storage = view_ranges::storage(identities, checked, state, statement, argument, types)?;
     let whole_view = storage
         .requires_establishment()
