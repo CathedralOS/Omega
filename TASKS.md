@@ -2441,10 +2441,8 @@ crash and native exit behavior.
     lifetime relation; an unrelated-lifetime input is not a fallback candidate.
     Retirement separately retains possible transfers and
     proves which source paths transfer on every arm.
-    Remaining: the Console loop-ranking dependency under **PSI-TARGET-FAMILIES**
-    blocks ordinary std package admission; this prevents the public helper
-    and descriptor sample commands before their own compilation. Runtime-indexed
-    shared constrained-field reads still require cross-host execution coverage
+    Remaining: runtime-indexed shared constrained-field reads still require
+    cross-host execution coverage
     under **PLACED-ACCESS-NATIVE-OPS**; preserve the
     [unchanged authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md).
     Preserve the slice-return controls below at their authored exits, including

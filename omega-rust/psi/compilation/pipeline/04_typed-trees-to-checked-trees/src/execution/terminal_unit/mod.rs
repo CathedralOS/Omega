@@ -1073,6 +1073,19 @@ pub(super) fn scalar_operand_shapes(
     Some(shapes.types.into_values().collect())
 }
 
+/// Scalar and Unit value construction share the exact formation dependency.
+/// The source identity names the borrowed leaf; a computed containing value
+/// retains its own storage separately through `scalar_operand_shapes`.
+pub(super) fn reference_backing_shapes(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    source_identity: typed_trees::type_identity::TypeIdentityId,
+) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
+    let mut shapes = ShapeCollector::new(program);
+    shapes.add_reference_backing(reference, source_identity, &[])?;
+    Some(shapes.types.into_values().collect())
+}
+
 /// Construction and structural results share the same closed sum admission.
 /// The namespace includes real value types even when no parameter names them.
 pub(super) fn scalar_case_value_shapes(
@@ -1112,6 +1125,15 @@ fn value_leaf_type_identities(
             }
             checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 identities.push(source.type_identity);
+            }
+            checked_trees::CheckedStructuralValueKind::Reference {
+                source,
+                source_value,
+            } => {
+                identities.push(source.type_identity);
+                if source_value.is_valid() {
+                    pending.push(*source_value);
+                }
             }
             checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
                 pending.push(*source);

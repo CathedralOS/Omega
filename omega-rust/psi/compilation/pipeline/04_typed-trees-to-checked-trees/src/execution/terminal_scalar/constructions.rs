@@ -34,10 +34,10 @@ pub(crate) fn retain_shapes(
     state: SymbolHandle,
     shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
 ) -> Option<()> {
-    // A stored reference publishes only its pointer shape. Its computed
-    // backing is a separate value demand, including when no signature or
-    // other expression mentions that storage type. Follow retained value
-    // edges, never transitive pointee types or speculative arena nodes.
+    // A stored reference publishes only its pointer shape. Forming one also
+    // demands actual backing storage, whether named or computed. Follow the
+    // retained formation/value edges, never transitive pointee types or
+    // speculative arena nodes; recursive pointer catalogs stay finite.
     let mut retained_values = Vec::new();
     for (_, root) in structural_values
         .roots
@@ -49,17 +49,30 @@ pub(crate) fn retain_shapes(
                 continue;
             }
             retained_values.push(value);
-            if let checked_trees::CheckedStructuralValueKind::Reference { source_value, .. } =
-                structural_values.nodes.get(value).kind
-                && source_value.is_valid()
+            if let checked_trees::CheckedStructuralValueKind::Reference {
+                source,
+                source_value,
+            } = &structural_values.nodes.get(value).kind
             {
                 retain_declarations(
                     shapes,
-                    super::super::terminal_unit::scalar_operand_shapes(
+                    super::super::terminal_unit::reference_backing_shapes(
                         program,
-                        structural_values.nodes.get(source_value).type_reference,
+                        structural_values.nodes.get(value).type_reference,
+                        source.type_identity,
                     )?,
                 )?;
+                if source_value.is_valid() {
+                    // A projected computed source also owns its complete
+                    // containing storage, independently of the borrowed leaf.
+                    retain_declarations(
+                        shapes,
+                        super::super::terminal_unit::scalar_operand_shapes(
+                            program,
+                            structural_values.nodes.get(*source_value).type_reference,
+                        )?,
+                    )?;
+                }
             }
         }
     }

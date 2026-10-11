@@ -5309,3 +5309,4 @@ fail/providers/applied_binding_mutable_result_live_source_write rejected 430ms e
 	statement 1 mutates `value` while local borrow `borrowed` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/providers/applied_binding_mutable_result_shared_source rejected 220ms expected @e259521ddc2d+wt
 	argument `value` for state `borrow_mut` is declared `&mut` (`&mut i32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+pass/borrows/runtime_stored_boolean_reference_exit checked 2644ms check-target:macos_arm64 @e6e0563889f4+wt

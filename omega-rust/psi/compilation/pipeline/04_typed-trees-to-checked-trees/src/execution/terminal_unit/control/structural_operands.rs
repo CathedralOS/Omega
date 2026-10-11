@@ -354,7 +354,15 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     let _ = shapes.add_type(*leaf, &binders, &[])?;
                 }
             }
-            checked_trees::CheckedStructuralValueKind::Reference { source_value, .. } => {
+            checked_trees::CheckedStructuralValueKind::Reference {
+                source,
+                source_value,
+            } => {
+                shapes.add_reference_backing(
+                    plans.nodes.get(value).type_reference,
+                    source.type_identity,
+                    &machine_binders(program, machine),
+                )?;
                 if source_value.is_valid() {
                     pending.push(*source_value);
                 }

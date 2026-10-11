@@ -391,6 +391,21 @@ impl<'program> ShapeCollector<'program> {
         Some(identity)
     }
 
+    /// A checked reference formation demands the storage of its exact source
+    /// leaf. Peel only the newly formed loan: an inner reference remains a
+    /// stored descriptor. This is an operation dependency, not permission to
+    /// expand the pointees of every reference field in the type catalog.
+    pub(in crate::execution::terminal_unit) fn add_reference_backing(
+        &mut self,
+        reference: TypeReferenceHandle,
+        source_identity: typed_trees::type_identity::TypeIdentityId,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<()> {
+        let shell = validation::reference_shell(self.program, reference)?;
+        let identity = self.add_stored_type(shell.referee, binders, &[])?;
+        (identity == source_identity).then_some(())
+    }
+
     /// The primitive a registered identity names when its catalog row is a
     /// primitive scalar. A borrowed formal registers its peeled referent, so
     /// this is the primitive a `&u8` or `&mut i64` formal lends.
