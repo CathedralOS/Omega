@@ -1,0 +1,9 @@
+// Complete intended-invalid control: Exact signed addition has no upper bound.
+use omega_language_std::console;
+machine unchecked_timestamp(anchor: i64, elapsed: i64) -> i64 {
+    anchor + elapsed
+}
+machine main() reaches Console {
+    let timestamp: i64 = unchecked_timestamp(9223372036854775807, 1);
+    Console::exit_process(0);
+}
