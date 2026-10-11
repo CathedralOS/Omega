@@ -1,3 +1,4 @@
+use omega::language::core::float_operations;
 use domain::model;
 use domain::geometry;
 // Independent distance checks inspect all vertices and edge midpoints. Squared

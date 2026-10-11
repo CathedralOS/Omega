@@ -1,3 +1,4 @@
+use omega::language::core::float_operations;
 use domain::model;
 pub machine absolute(value: f64) -> f64 {
     transition value < 0.0 { true -> (0.0 - value) false -> (value) }
