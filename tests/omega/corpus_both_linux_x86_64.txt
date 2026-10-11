@@ -171,3 +171,9 @@ pass/control_flow/runtime_selected_parent_state_loan_exit built 6609ms exit:0 in
 pass/control_flow/static_bounded_byte_state_loan_exit built 6885ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
 pass/storage/computed_float_local_view_store_exit built 105741ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
 pass/text/incoming_bounded_byte_dynamic_call_exit built 6907ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
+pass/float/coherent_field_energy_scattering_exit built 123676ms exit:0 interpreter-exit:0 interpreter:agrees @8e62b89228ab
+pass/float/constructor_requirement_result_policy_exit built 90869ms exit:0 interpreter-exit:0 interpreter:agrees @8e62b89228ab+wt
+pass/float/float_saturating_arithmetic_exit built 89142ms exit:77 interpreter-exit:77 interpreter:agrees @8e62b89228ab
+pass/float/guarded_scalar_state_contract_exit built 93676ms exit:0 interpreter-exit:0 interpreter:agrees @8e62b89228ab+wt
+pass/float/live_division_operand_across_call_exit built 5931ms exit:0 interpreter-exit:0 interpreter:agrees @8e62b89228ab
+pass/float/live_float_parameter_across_call_exit built 89521ms exit:0 interpreter-exit:0 interpreter:agrees @8e62b89228ab

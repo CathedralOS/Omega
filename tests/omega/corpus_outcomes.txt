@@ -5248,3 +5248,10 @@ fail/traits/dyn_structural_result_reuse_input rejected 362ms expected @1a78955bf
 	cannot use `token` in machine `probe` state `entry` (statement 3) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/traits/dyn_structural_result_unpromised_domain rejected 514ms expected @1a78955bfb8c
 	cannot prove requires contract for call consume from probe: Factory.dyn Factory::make(Plain as dyn Factory) in Token::Issued
+fail/float/unguarded_scalar_state_contract rejected 20837ms expected @8e62b89228ab+wt
+	cannot prove requires contract for call bounded from unchecked: value == value && value >= -100.0 && value <= 100.0 (needs fact `value == value && value >= -100.0 && value <= 100.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+pass/float/coherent_field_energy_scattering_exit checked 108293ms check-target:macos_arm64 @8e62b89228ab+wt
+pass/float/constructor_requirement_result_policy_exit checked 94207ms check-target:macos_arm64 @8e62b89228ab+wt
+pass/float/guarded_scalar_state_contract_exit checked 95264ms check-target:macos_arm64 @8e62b89228ab+wt
+pass/float/live_division_operand_across_call_exit checked 6105ms check-target:macos_arm64 @8e62b89228ab+wt
+pass/float/live_float_parameter_across_call_exit checked 90024ms check-target:macos_arm64 @8e62b89228ab+wt
