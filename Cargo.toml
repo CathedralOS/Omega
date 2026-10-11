@@ -2,6 +2,7 @@
 members = [
     "samples/cli/independent/travel_time_tomography/validation/terminal",
     "omega-rust/omega/application/cli",
+    "samples/cli/independent/pareto_experiment_selection/validation",
     "omega-rust/psi/foundation/arena",
     "omega-rust/psi/foundation/build-time-values",
     "omega-rust/psi/foundation/access-plans",

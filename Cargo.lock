@@ -790,6 +790,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ind11-terminal-validation"
+version = "0.1.0"
+dependencies = [
+ "compiler",
+ "package-manager",
+ "target",
+ "terminal-interpreter",
+]
+
+[[package]]
 name = "installation-evidence"
 version = "0.1.0"
 dependencies = [
