@@ -7,9 +7,7 @@
 
 use super::super::{Builder, ExpressionHandle, ExpressionNode, PrimitiveType, TypeReferenceNode};
 use super::place_types::{needs_copied_place_root, projection_root_expression};
-use super::value_predicates::{
-    is_view_element_copy, plain_or_policy_scalar_field, shared_record_reference,
-};
+use super::value_predicates::{is_view_element_copy, plain_or_policy_scalar_field};
 use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -290,10 +288,9 @@ impl Builder<'_, '_> {
     /// referent stays owned by its established root; the authored target's
     /// canonical root and path become a `SharedBorrow` source so lowering can
     /// rejoin borrowed custody at the selection's block parameter instead of
-    /// moving a child. `shared_record_reference` pins the referent to a
-    /// carrier the pipeline can build -- a record, or a primitive whose
-    /// structural shape is its own scalar -- and the target must be the exact
-    /// place semantics admitted: an existing or computed root under record
+    /// moving a child. The ordinary producer and type catalog determine the
+    /// referent's representation, not a record-only contents list. The target
+    /// must be the exact place semantics admitted: an existing or computed root under record
     /// fields and literal fixed indexes, whose projected leaf type must equal
     /// the declared referent. A computed root retains its backing producer;
     /// the descriptor owns neither that backing nor its cleanup obligations.
@@ -308,7 +305,11 @@ impl Builder<'_, '_> {
         if borrow.access != language_semantics::ReferenceAccess::Shared {
             return None;
         }
-        let referent = shared_record_reference(self.program, expected)?;
+        let shell = validation::reference_shell(self.program, expected)?;
+        if shell.access != borrow.access {
+            return None;
+        }
+        let referent = shell.referee;
         let place = validation::canonical_place_from_expression_in_state(
             self.program,
             self.state,

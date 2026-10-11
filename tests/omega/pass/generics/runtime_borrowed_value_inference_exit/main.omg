@@ -12,6 +12,7 @@ machine accept<Payload>(payload: &Payload) -> bool { true }
 
 machine read(envelope: &Envelope<i32>) -> i32 { envelope.payload }
 machine read_nested(envelope: &Envelope<&Envelope<i32>>) -> i32 { envelope.payload.payload }
+machine read_array(envelope: &Envelope<&[Envelope<i32>; 1]>) -> i32 { envelope.payload[0].payload }
 
 machine identity<'storage, Payload>(payload: &'storage Payload) -> &'storage Payload {
     payload
@@ -33,8 +34,9 @@ machine main() crashes Trap {
     let constructed: i32 = read(&Envelope { payload: 91i32 });
     let nested: i32 = read_nested(&Envelope { payload: &Envelope { payload: 37i32 } });
     let array: bool = accept(&[Envelope { payload: 19i32 }]);
+    let array_leaf: i32 = read_array(&Envelope { payload: &[Envelope { payload: 47i32 }] });
     drop(token);
-    transition observed == 73 && forwarded == 73 && accepted && constructed == 91 && nested == 37 && array {
+    transition observed == 73 && forwarded == 73 && accepted && constructed == 91 && nested == 37 && array && array_leaf == 47 {
         true -> done()
         false -> bad()
     }

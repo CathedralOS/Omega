@@ -2340,9 +2340,9 @@ pub fn parts(
 }
 
 /// One stored carrier leaf's referent and exact access. Shared, mutable and
-/// write-only loans use the same nominal storage relation; access remains
-/// independent of the descriptor's representation. Slice views and
-/// unclassified referees remain outside this stored-leaf operation.
+/// write-only loans use the same stored-reference relation; access remains
+/// independent of the descriptor's representation. Slice and byte views
+/// retain their distinct descriptors, not this pointer carrier.
 /// Every consumer of the leaf family — the
 /// reference-record classifier, ingress reconstruction, construction-source
 /// rosters and formal forwarding — asks this one question so the admitted
@@ -2352,12 +2352,7 @@ pub fn stored_loan_parts(
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     crate::reference_shell(program, reference)
-        .filter(|shell| {
-            matches!(
-                program.type_reference_table.type_reference(shell.referee),
-                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-            )
-        })
+        .filter(|_| crate::stores_reference_shape(program, reference, &[]))
         .map(|shell| (shell.referee, shell.access.into()))
 }
 
@@ -2375,24 +2370,15 @@ pub fn mutable_borrowed_parts(
         .map(|shell| (shell.referee, CheckedStructuralAccess::MutableBorrow))
 }
 
-/// The nominal referee beneath a `&'a V` shared-borrowed view, with constraint
-/// shells peeled. The referent's storage lives in the caller's frame like
-/// `parts`' loan — it just cannot be written through. The referee must
-/// be a nominal type or application: choosing a generic application does not
-/// change the carrier's loan semantics or demand transitive pointee storage.
+/// A shared stored pointer's referee, with constraint shells peeled. The
+/// referent stays in its owner's frame, regardless of its source type family;
+/// registering the pointer never demands transitive pointee storage.
 pub fn shared_borrowed_parts(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-    crate::reference_shell(program, reference)
-        .filter(|shell| {
-            shell.access == language_semantics::ReferenceAccess::Shared
-                && matches!(
-                    program.type_reference_table.type_reference(shell.referee),
-                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                )
-        })
-        .map(|shell| (shell.referee, CheckedStructuralAccess::SharedBorrow))
+    stored_loan_parts(program, reference)
+        .filter(|(_, access)| *access == CheckedStructuralAccess::SharedBorrow)
 }
 
 /// Whether `reference` is any caller-frame borrow carrier — `&mut T` or
@@ -2407,7 +2393,7 @@ pub fn has_borrowed_parts(
 }
 
 /// The referee beneath any `& T` place-loan carrier, with constraint shells
-/// peeled but without `shared_borrowed_parts`' named-referent restriction. A
+/// peeled, including byte and slice views with distinct descriptors. A
 /// `&[u8; 48]` loan names the array's storage in the caller's frame just as
 /// a `&u32` does — the same coverage `mutable_borrowed_parts` gives the
 /// exclusive side. Callers that need the shared reference-result shape keep

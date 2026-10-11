@@ -318,11 +318,10 @@ impl<'program> ShapeCollector<'program> {
         if shell.access != access {
             return None;
         }
-        let referee = if access == language_semantics::ReferenceAccess::Shared {
-            borrowed_view_referent(self.program, reference, access)?
-        } else {
-            shell.referee
-        };
+        // A stored pointer does not depend on the referent's source family.
+        // Storage demands collect that referent independently; classifying it
+        // as a named view here would reject fixed-array backing during cleanup.
+        let referee = shell.referee;
         let referent_identity =
             validation::structural_type_identity(self.program, referee, binders, substitutions);
         self.add_reference_shape(
