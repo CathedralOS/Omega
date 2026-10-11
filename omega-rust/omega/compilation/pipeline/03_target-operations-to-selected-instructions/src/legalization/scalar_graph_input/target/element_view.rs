@@ -354,7 +354,6 @@ impl Checker<'_> {
         backing
             && parameter.structural_type == root_structural_type
             && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-            && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty()
             && self.optimized.structural_places.iter().any(|declaration| {
                 declaration.id == place
@@ -368,7 +367,7 @@ impl Checker<'_> {
     }
 
     /// The local aggregate at `place` is the owned, non-linear, claim-free
-    /// and unqualified result of exactly `producer`, which runs before
+    /// result of exactly `producer`, which runs before
     /// `consumer`: earlier in the consumer's block or in a dominating block.
     fn local_home_precedes(
         &self,
@@ -401,7 +400,6 @@ impl Checker<'_> {
                 terminal_psi::StructuralMultiplicity::Unrestricted
                     | terminal_psi::StructuralMultiplicity::Affine
             )
-            && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
             && result.claims.is_empty()
             && self.optimized.structural_places.iter().any(|declaration| {

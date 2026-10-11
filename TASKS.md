@@ -1684,8 +1684,10 @@ defines the complete product bar.
   through member, view and return transport; shared view-coordinate composition
   preserves nested array dimensions. Native projection consumes each view
   backing once, and fixed-operand allocation reuses its prepared occurrence
-  slots within the existing work cap. The focused native/Terminal selection
-  executes 23 of 24 programs at their authored exits. The remaining
+  slots within the existing work cap. Plain views of qualified byte owners
+  preserve live contents across locals, calls and state arrivals in native and
+  Terminal execution. The focused selection executes 24 of 25 programs at
+  their authored exits. The remaining
   `pass/text/qualified_byte_state_snapshot_exit` still rejects the same
   `StructuralByteSequenceFieldStore` as the pre-change compiler at native
   function-fragment accounting. Close that snapshot-store frontier, retain the

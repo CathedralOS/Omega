@@ -126,7 +126,6 @@ impl<'a> ElementViewBackings<'a> {
             || (source.access == StructuralAccess::MutableBorrow
                 && parameter.access != StructuralAccess::MutableBorrow)
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
             || !descriptor_carrier
         {
@@ -798,6 +797,8 @@ fn established_source(
     if !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!()) {
         return Err(invalid());
     }
+    // Declared domains constrain contents, not the backing layout. The source
+    // keeps those obligations; this operation only lends an unqualified view.
     let (root_structural_type, backing) =
         if let Some(semantic) = function.structural_parameter(source.place) {
             if !matches!(
@@ -809,7 +810,6 @@ fn established_source(
                     terminal_psi::mutating_access_pair_pattern!()
                 ))
                 || semantic.multiplicity != StructuralMultiplicity::Unrestricted
-                || !semantic.qualifications.is_empty()
                 || !semantic.projected_qualifications.is_empty()
             {
                 return Err(invalid());
@@ -1034,7 +1034,6 @@ fn live_aggregate_backing(
             home.multiplicity(),
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
-        || !home.qualifications().is_empty()
         || !home.projected_qualifications().is_empty()
         || home.has_claims()
     {

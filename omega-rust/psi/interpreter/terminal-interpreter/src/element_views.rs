@@ -477,11 +477,6 @@ impl TerminalExecution<'_> {
                 .values()
                 .any(|claim| claim.place == Some(result.place))
             || self.live_affine_discard_at(result.place).is_some()
-            || (source.path.is_empty()
-                && self
-                    .structural_values
-                    .get(&source.place)
-                    .is_some_and(|value| !value.qualifications.is_empty()))
         {
             return Err(malformed());
         }

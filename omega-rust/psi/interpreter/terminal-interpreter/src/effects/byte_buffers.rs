@@ -553,15 +553,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let binding = self
-            .byte_sequence_values
-            .get(&argument.place)
-            .ok_or_else(malformed)?;
-        let ByteSequenceBinding::Immutable(bytes) =
-            self.reborrow_byte_sequence_binding(binding, owner, StructuralAccess::SharedBorrow)?
-        else {
-            return Err(malformed());
-        };
+        let (_, bytes) = self.bounded_owner_snapshot(argument)?;
         if !terminal_semantics::byte_literal_qualifications_hold_in(
             self.program.catalogs.structural_domains.iter(),
             parameter.structural_type,
@@ -693,31 +685,74 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let binding = self
-            .byte_sequence_values
-            .get(&argument.place)
-            .ok_or_else(malformed)?;
-        let bytes = match binding {
-            ByteSequenceBinding::Immutable(bytes) => bytes.clone(),
-            ByteSequenceBinding::MutableField { field, .. } => {
-                binding.validate_mutable_referent(&self.program.structural_types(), value)?;
-                self.structural_byte_sequence_fields
-                    .get(field)
-                    .ok_or_else(malformed)?
-                    .clone()
-            }
-            ByteSequenceBinding::MutableOwner { home, .. } => {
-                binding.validate_mutable_referent(&self.program.structural_types(), value)?;
-                self.byte_owner_bytes(*home)?.clone()
-            }
-            ByteSequenceBinding::MutableArray { .. } => {
-                return Err(malformed());
-            }
-        };
+        let (_, bytes) = self.bounded_owner_snapshot(argument)?;
         Ok((
             value.clone(),
             ByteSequenceBinding::Immutable(bytes.with_descriptor_home(value.clone())),
         ))
+    }
+
+    /// Read a bounded owner's current bytes at its exact storage coordinate.
+    /// This source join supplies no destination type or domain. Whole owners
+    /// and owner fields use their existing live bindings; neither replays a
+    /// constructor or lends field-replacement authority to the shared snapshot.
+    pub(crate) fn bounded_owner_snapshot(
+        &self,
+        argument: &StructuralArgument,
+    ) -> Result<(StructuralRuntimePlace, ByteSequenceView), TerminalInterpretError> {
+        if argument.access != StructuralAccess::SharedBorrow {
+            return Err(malformed());
+        }
+        let (coordinate, bytes, capacity) = if argument.path.is_empty() {
+            let value = self
+                .structural_values
+                .get(&argument.place)
+                .ok_or_else(malformed)?;
+            let Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                capacity,
+            })) = self
+                .program
+                .structural_types()
+                .get(&value.structural_type)
+                .map(|row| &row.shape)
+            else {
+                return Err(malformed());
+            };
+            let binding = self
+                .byte_sequence_values
+                .get(&argument.place)
+                .ok_or_else(malformed)?;
+            let ByteSequenceBinding::Immutable(bytes) = self.reborrow_byte_sequence_binding(
+                binding,
+                value,
+                StructuralAccess::SharedBorrow,
+            )?
+            else {
+                return Err(malformed());
+            };
+            (StructuralRuntimePlace::from(value), bytes, *capacity)
+        } else {
+            let (mut parent, identity, field) = self.structural_field_binding_frame(argument)?;
+            let Some(ByteSequenceCarrier::BoundedOwned { capacity }) =
+                field.field_type.byte_sequence_carrier()
+            else {
+                return Err(malformed());
+            };
+            let bytes = self
+                .structural_byte_sequence_fields
+                .get(&StructuralByteSequenceRuntimeField {
+                    parent: StructuralRuntimePlace::from(&parent),
+                    field: field.id,
+                })
+                .ok_or_else(malformed)?
+                .clone();
+            parent.path.push(StructuralPathSegment::Field(identity));
+            (StructuralRuntimePlace::from(&parent), bytes, capacity)
+        };
+        if bytes.len() as u128 > u128::from(capacity) {
+            return Err(malformed());
+        }
+        Ok((coordinate, bytes))
     }
 
     /// Bind a shared byte-view argument to one initialized inline byte field.

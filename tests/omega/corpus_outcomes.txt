@@ -6088,3 +6088,4 @@ fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms e
 	cannot prove ensures contract for exit from impossible at statement 1: false
 pass/collections/runtime_offset_view_case_observation_exit checked 2717ms check-target:macos_arm64 @1e469c9b15bb
 pass/domains/runtime_selected_nested_field_domain_exit checked 2724ms check-target:macos_arm64 @1e469c9b15bb
+pass/text/runtime_qualified_owner_view_open_exit checked 3079ms check-target:macos_arm64 @b7075f98d14c+wt

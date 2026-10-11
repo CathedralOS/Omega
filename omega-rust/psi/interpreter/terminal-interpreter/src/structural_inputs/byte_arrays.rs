@@ -3,10 +3,9 @@ pub(crate) mod storage;
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::custody::{resolve_single_structural_argument, resolve_structural_arguments};
+use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::ScalarType;
@@ -298,58 +297,22 @@ impl TerminalExecution<'_> {
         }
         if source.access == StructuralAccess::SharedBorrow {
             // An owned bounded byte carrier keeps its live byte sequence in
-            // the field store; the shared snapshot binds exactly that live
+            // its storage home; the shared snapshot binds exactly that live
             // sequence, not the declared capacity.
             if matches!(
                 collection.extent,
                 terminal_semantics::CollectionExtent::LiveLength { .. }
             ) {
-                let Some((StructuralPathSegment::Field(identity), prefix)) =
-                    source.path.split_last()
-                else {
-                    return Err(malformed());
+                let (coordinate, bytes) = self.bounded_owner_snapshot(source)?;
+                let value = TerminalStructuralValue {
+                    opaque_identity: coordinate.opaque_identity,
+                    structural_type: view_type,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    path: coordinate.path,
                 };
-                let parent = resolve_structural_arguments(
-                    &self.program.structural_types(),
-                    &self.structural_values,
-                    &[StructuralArgument {
-                        place: source.place,
-                        path: prefix.to_vec(),
-                        access: source.access,
-                    }],
-                )?
-                .pop()
-                .ok_or_else(malformed)?;
-                let Some(fields) = self.program.record_fields(&parent.structural_type) else {
-                    return Err(malformed());
-                };
-                let field = terminal_psi::live_field_by_identity(fields, *identity)
-                    .ok_or_else(malformed)?;
-                if !matches!(
-                    field.field_type.byte_sequence_carrier(),
-                    Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
-                ) {
-                    return Err(malformed());
-                }
-                let bytes = self
-                    .structural_byte_sequence_fields
-                    .get(&StructuralByteSequenceRuntimeField {
-                        parent: StructuralRuntimePlace::from(&parent),
-                        field: field.id,
-                    })
-                    .ok_or_else(malformed)?
-                    .bytes()
-                    .to_vec();
-                return Ok((
-                    TerminalStructuralValue {
-                        opaque_identity: source.place.get(),
-                        structural_type: view_type,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                        path: Vec::new(),
-                    },
-                    ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),
-                ));
+                let bytes = bytes.with_descriptor_home(value.clone());
+                return Ok((value, ByteSequenceBinding::Immutable(bytes)));
             }
             // Shared inline collections retain the existing primitive snapshot
             // semantics, including genuinely empty initialized arrays. Host

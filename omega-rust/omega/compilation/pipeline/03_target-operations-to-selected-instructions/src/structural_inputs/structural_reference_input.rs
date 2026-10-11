@@ -973,7 +973,6 @@ pub(crate) fn collection_view_region_geometry(
                     argument.access,
                     terminal_psi::reading_borrow_pair_pattern!()
                 )))
-        || !source.qualifications.is_empty()
         || !source.projected_qualifications.is_empty()
     {
         return None;

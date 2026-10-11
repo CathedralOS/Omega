@@ -40,8 +40,8 @@ Verified again on 2026-10-11 on macOS ARM64 with the optimized Rust reference
 compiler (`CARGO_PROFILE_DEV_OPT_LEVEL=1`). Both commands printed
 `A bottomless dark room near the dungeon heart.`, paths, command help and the
 goodbye message, then exited 0. The input route repeated help in response to
-the authored command. Compilation plus execution took 23.92 seconds for EOF
-and 22.98 seconds for help/exit; normal offline package refresh completed first.
+the authored command. Compilation plus execution took 28.44 seconds for EOF
+and 23.14 seconds for help/exit; normal offline package refresh completed first.
 These measurements establish those two routes on this host, not every gameplay
 path or another host, and are not a controlled comparison with older compilers.
 
