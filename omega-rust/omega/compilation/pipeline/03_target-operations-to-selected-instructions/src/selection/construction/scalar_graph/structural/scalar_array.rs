@@ -14,26 +14,18 @@ pub(super) fn establish(
 ) -> Result<(), SelectedInstructionError> {
     let (established, shape, stores) = crate::selection::scalar_array_input::storage(source, row)
         .ok_or_else(|| SelectedInstructionError::custody())?;
-    if shape.byte_size == 0 {
-        // The semantic result remains in the exact source frontier. No address,
-        // physical home or access exists; retain construction before the next
-        // executable instruction, including the block's terminator.
-        builder.pending_provenance.operations.push(row.operation);
-        builder
-            .pending_provenance
-            .fuel
-            .extend(row.fuel.iter().cloned());
-        return Ok(());
-    }
+    // Empty arrays still lend an address, like empty records and zeroed values.
+    // The anchor supplies physical custody without adding semantic elements;
+    // the exact empty store sequence below performs no payload access.
     let slot = builder.transport.push_structural_local_slot(
         row.operation,
         established.place,
-        shape.byte_size,
+        shape.byte_size.max(1),
         shape.alignment,
     );
     // The address instruction charges construction once; payload stores carry
     // exact operand provenance without introducing additional semantic work.
-    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;
+    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size.max(1), true)?;
     for (element, scalar, offset, width) in stores {
         let (_, value, _, actual) = builder
             .resolve(element)

@@ -236,7 +236,10 @@ pub fn fixed_element_array_extent<'types>(
     let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
         return None;
     };
-    if length == 0 || element != expected_element {
+    // An empty backing still forms a typed view with extent zero. Its
+    // element declaration and loan custody remain mandatory; the extent
+    // grants no indexed access and does not fabricate an element value.
+    if element != expected_element {
         return None;
     }
     Some(length)
