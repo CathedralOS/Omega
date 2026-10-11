@@ -109,10 +109,16 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static 
     {
         return Err("internal crash interface has a published or bodyless callable owner");
     }
+    // The checker infers a crash summary only from checked bodies: the
+    // callable's own, or, for a portable target-family head (a bodiless
+    // `Requirement`), its exact members' bodies, which the head carries as
+    // its family envelope. Other bodiless supplies never have one.
     if let PackagePolicyInferredCrash::Complete { causes } = &crash.inferred {
         ordered(causes)?;
-        if callable.supply != PackageReviewCallableSupply::CheckedBody
-            || !crash.published.is_empty()
+        if !matches!(
+            callable.supply,
+            PackageReviewCallableSupply::CheckedBody | PackageReviewCallableSupply::Requirement
+        ) || !crash.published.is_empty()
         {
             return Err("inferred callable crash summary has no checked body-only owner");
         }
