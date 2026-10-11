@@ -3043,6 +3043,29 @@ crash and native exit behavior.
   well-formed 64-hex digest then lands in the build's accepted-assumption
   records, a malformed spelling still rejects at its authored span, and
   the staged controls are flipped/removed accordingly.
+- **TERMINAL-ARTIFACT-DEBUG-MAP-IDENTITY.** (new-scope) `omega
+  inspect-terminal --machine entry <root.omg>` still fails on every
+  program with `Artifact(Debug(SemanticIdentityMismatch { ... }))` —
+  the produced artifact's embedded debug-map program fingerprint never
+  equals the identity recomputed from the artifact's own module by
+  `validate_debug_map`
+  (`omega-rust/psi/compilation/representations/terminal-psi/codec/src/sections/debug_map.rs`).
+  413b97bf8f0 bound companions to the completed semantic module and
+  removed this item, but the freestanding reproduction persists:
+  `pub machine entry() -> i32 { 42 }` under a trivial application
+  `build.omg` reports expected `2e3838a7...`, actual `f8c62c4c...`.
+  `--machine` resolves bare leaf names only — qualified spellings
+  (`tgtbase::entry`, `tgtbase::main::entry`, `tgtbase.entry`,
+  `omega::tgtbase::entry`) all reject
+  `Lowering(MachineNotFound(...))` despite the `<qualified>` usage
+  string; name resolution precedes artifact identity (bogus names
+  reject legibly). Acceptance: `inspect-terminal --machine <name>`
+  on a freestanding program prints that machine's terminal artifact
+  instead of failing production; the embedded debug-map semantic
+  equals the artifact module's recomputed identity, a corrupted
+  artifact still rejects, and the usage string and the lookup agree
+  on the accepted name form.
+
 - **ALPHA-BOOTSTRAP-TARGET-PANIC.** (new-scope) `omega --check
   --target alpha_bootstrap <root.omg>` panics the compiler:
   `internal error: entered unreachable code:
@@ -3053,12 +3076,14 @@ crash and native exit behavior.
   code comment at `native_target()` says selection rejects it through
   `NativeTarget::from_omega_target_name` "before any caller reaches
   native planning" — the `--target` CLI path reaches `native_target()`
-  without that guard. Reproduced freestanding: any trivial `main.omg`
-  panics the whole `omega-compile` thread instead of rejecting with a
-  legible diagnostic. Acceptance: `--target alpha_bootstrap` exits
-  with a legible "target not realizable by this compiler" diagnostic
-  (exit 1), never panics, for both `--check` and `run` paths; the
-  guard lives at CLI/target-selection, not in `native_target()`.
+  without that guard. Reproduced on EVERY target-resolving command
+  (`--check`, `run`, `inspect-terminal --machine`, `audit packages
+  --target`): any trivial `main.omg` panics the whole `omega-compile`
+  thread instead of rejecting with a legible diagnostic. Acceptance:
+  `--target alpha_bootstrap` exits with a legible "target not
+  realizable by this compiler" diagnostic (exit 1), never panics, on
+  every command surface that resolves target names; the guard lives
+  at CLI/target-selection, not in `native_target()`.
 
 ## Lowering simplification
 

@@ -1,0 +1,7 @@
+machine first() -> i32 {
+    0
+}
+use kit::main;
+machine entry() -> i32 {
+    v()
+}
