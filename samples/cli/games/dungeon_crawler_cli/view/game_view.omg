@@ -1,4 +1,4 @@
-use platform::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 use player::player_state;
 use rooms::map;

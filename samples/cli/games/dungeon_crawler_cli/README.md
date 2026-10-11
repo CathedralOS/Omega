@@ -6,7 +6,7 @@ What it is trying to prove:
 
 - an attached entry machine with one `&mut self` receiver can drive a stateful
   terminal application
-- console input/output is isolated behind a platform machine
+- console input/output goes through the standard library `Console` boundary
 - room entry is explicit and visible in the state graph
 - level data can be hardcoded without hardcoding traversal logic
 - the game loop can act like a render loop where each submitted line advances a frame
@@ -80,7 +80,6 @@ Sample layout:
 - `generation/`: small deterministic dungeon generation
 - `rooms/`, `inventory/`, `events/`, `combat/`, `player/`, `enemies/`,
   and `rewards/`: domain-owned models plus their behavior
-- `platform/`: console boundary
 
 The build declares the std dependency and binds `Main::main` explicitly for
 Windows x64, Linux x64/ARM64 and macOS ARM64. Ordinary target defaults select
