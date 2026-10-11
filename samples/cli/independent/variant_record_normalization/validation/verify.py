@@ -7,6 +7,9 @@ parser.add_argument('--output', default=None)
 arguments = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
 manifest = json.loads((root / 'validation/oracle.json').read_text())
+supplement = json.loads((root / 'validation/review_oracle.json').read_text())
+assert not (manifest['cases'].keys() & supplement['cases'].keys())
+manifest['cases'].update(supplement['cases'])
 output = Path(arguments.output) if arguments.output else root / 'build/validation'
 output.mkdir(parents=True, exist_ok=True)
 results = []

@@ -32,13 +32,21 @@ def simulate(text):
     locked = False
     merged = conflicts = rejected = 0
     output = ['VARIANT_NORMALIZATION|1']
-    for line_number, raw in enumerate(text.splitlines(keepends=True), 1):
-        if line_number > 512:
-            output.append('FATAL|record_capacity')
-            rejected += 1
-            break
+    # Console reads LF bytes only. CR, VT, FF and Unicode separators remain
+    # bytes of the same record and cannot split off a valid variant.
+    pieces = text.split('\n')
+    records = [piece + '\n' for piece in pieces[:-1]]
+    if pieces[-1]:
+        records.append(pieces[-1])
+    for line_number, raw in enumerate(records, 1):
         if len(raw.encode()) >= 64 and not (len(raw.encode()) == 64 and raw.endswith('\n')):
             output.append('FATAL|line_capacity')
+            rejected += 1
+            break
+        # Reader overflow occurs before the successfully read record reaches
+        # the batch-capacity gate, including the 513th attempted line.
+        if line_number > 512:
+            output.append('FATAL|record_capacity')
             rejected += 1
             break
         line = raw.removesuffix('\n')

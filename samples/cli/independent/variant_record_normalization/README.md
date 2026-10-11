@@ -89,7 +89,12 @@ all calculations are integer and numerical tolerance is **zero**.
 Expected data were frozen at commits `0fc5a0fb52` and `e0470cf6aa`, before check,
 native or Terminal execution. The second commit adds the stream capacity case.
 `validation/oracle.json` records each expected exit and input/output SHA-256.
-Never regenerate expected files from observed output.
+Never regenerate expected files from observed output. Independent review identified
+LF-only segmentation and overlapping capacity precedence issues in the reference
+implementation. The corrected oracle preserves all original 41 outcomes and the
+original manifest hash. `validation/review_oracle.json` freezes eight supplemental
+controls before runtime execution, including CR, VT, FF, NEL, Unicode separator,
+NUL, and an overlong 513th line. The executable verifier compares all 49 cases.
 
 ## Commands
 
