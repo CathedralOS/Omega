@@ -18,6 +18,8 @@ use terminal_codec::CanonicalTerminalArtifact;
 
 /// Independent native custody beside one canonical Terminal product.
 pub struct NativeAdmissionRequest<'request, 'execution> {
+    /// Exact retained callable selected by the application's checked custody.
+    pub entry: terminal_psi::TargetMachineCallable,
     /// Exact provider custody plus the receiving authority policies.
     /// An absent permission policy makes no receiver-admission claim; it is
     /// neither an empty policy nor permission inferred from accepted packages.
@@ -46,8 +48,13 @@ pub fn admit_native_realization<'execution>(
     artifact: &CanonicalTerminalArtifact,
     request: &NativeAdmissionRequest<'_, 'execution>,
 ) -> Result<AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
-    let input = VerifiedNativeArtifactInput::prepare(artifact, request.providers.profile, &[])
-        .map_err(artifact_lowering_error)?;
+    let input = VerifiedNativeArtifactInput::prepare(
+        artifact,
+        request.providers.profile,
+        request.entry,
+        &[],
+    )
+    .map_err(artifact_lowering_error)?;
     let input = input
         .select_target_execution(
             artifact,

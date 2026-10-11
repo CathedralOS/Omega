@@ -1,9 +1,8 @@
-//! Produce each checked entry closure once, with independent target admission.
+//! Produce one checked program with all authored roots, then admit each use.
 //!
-//! Terminal has one entry today. Targets selecting the same source closure,
-//! entry and Psi optimization share its artifact; different roots remain
-//! distinct products. Target signatures, exclusion judgments and native
-//! proposals never participate in portable production identity.
+//! Entry selection belongs to an application, not portable production identity.
+//! The shared artifact retains every Build root independently of the requested
+//! targets. Signatures, exclusion judgments and native proposals stay per use.
 
 use crate::checked::CheckedCompilation;
 use crate::execution_settlement::SelectedProviderCustody;
@@ -77,7 +76,6 @@ pub(crate) struct ProducedTerminalApplication {
 }
 
 struct TerminalEntry {
-    portable_machine: symbols::SymbolHandle,
     selected_machine: symbols::SymbolHandle,
     signature_identity: [u8; 32],
     target: target::TargetProfile,
@@ -92,37 +90,19 @@ pub(crate) fn produce_retained_terminal_artifacts(
     let entries: Vec<_> = requests
         .iter()
         .map(|request| {
-            let (program_typed, entry, provenance) = match &request.view {
+            let (entry, provenance) = match &request.view {
                 TerminalProductionView::Selection(selection) => (
-                    &selection.checked.program.typed,
                     selection.selected_program_entry.as_ref(),
                     selection.selected_provider_provenance.as_slice(),
                 ),
                 TerminalProductionView::Installed(checked) => (
-                    &checked.execution().program.typed,
                     checked.execution().selected_program_entry.as_ref(),
                     checked.execution().selected_provider_provenance.as_slice(),
                 ),
             };
             admit_terminal_production(entry, provenance).map(|entry| {
                 let selected_machine = entry.machine_symbol();
-                let typed = program_typed;
-                let portable_machine = typed
-                    .target_machine_families
-                    .iter()
-                    .find(|family| {
-                        (family.canonical == selected_machine
-                            || family
-                                .members
-                                .iter()
-                                .any(|member| member.machine == selected_machine))
-                            && typed
-                                .machine_by_symbol(family.canonical)
-                                .is_some_and(|machine| machine.target_family_interface)
-                    })
-                    .map_or(selected_machine, |family| family.canonical);
                 TerminalEntry {
-                    portable_machine,
                     selected_machine,
                     signature_identity: entry.source_signature().identity().bytes(),
                     target: entry.source_signature().target_slot().owner,
@@ -136,7 +116,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
         .map(|entry| entry.as_ref().err().cloned().map(Err))
         .collect();
     for (request_index, entry) in entries.iter().enumerate() {
-        let Ok(entry) = entry else {
+        let Ok(_) = entry else {
             continue;
         };
         let request = &requests[request_index];
@@ -152,12 +132,8 @@ pub(crate) fn produce_retained_terminal_artifacts(
         let group = groups.iter_mut().find(|group| {
             let first_index = group[0];
             let first = &requests[first_index];
-            entries[first_index]
-                .as_ref()
-                .is_ok_and(|first_entry| first_entry.portable_machine == entry.portable_machine)
-                && program_pointer(&first.view) == program_pointer(&request.view)
+            program_pointer(&first.view) == program_pointer(&request.view)
                 && std::ptr::eq(first.view.sources(), request.view.sources())
-
                 && first.selections.project_psi() == request.selections.project_psi()
         });
         if let Some(group) = group {
@@ -212,10 +188,9 @@ pub(crate) fn produce_retained_terminal_artifacts(
             Ok(entry) => {
                 let first = &requests[first_index];
                 let (program_typed, checked_program) = match &first.view {
-                    TerminalProductionView::Selection(selection) => (
-                        &selection.checked.program.typed,
-                        &selection.checked.program,
-                    ),
+                    TerminalProductionView::Selection(selection) => {
+                        (&selection.checked.program.typed, &selection.checked.program)
+                    }
                     TerminalProductionView::Installed(checked) => (
                         &checked.execution().program.typed,
                         &checked.execution().program,
@@ -235,16 +210,36 @@ pub(crate) fn produce_retained_terminal_artifacts(
                         .chain(&first.view.build().config.provider_selections),
                 )
                 .and_then(|boundary_roots| {
+                    let mut machines = first.view.build().config.program_roots();
+                    if machines.is_empty() {
+                        machines.push(entry.selected_machine);
+                    }
+                    // Normalize the default to its portable family head; exact
+                    // application receipts still name the selected declaration.
+                    let typed = program_typed;
+                    let default = machines[0];
+                    let default = typed
+                        .target_machine_families
+                        .iter()
+                        .find(|family| {
+                            (family.canonical == default
+                                || family
+                                    .members
+                                    .iter()
+                                    .any(|member| member.machine == default))
+                                && typed
+                                    .machine_by_symbol(family.canonical)
+                                    .is_some_and(|machine| machine.target_family_interface)
+                        })
+                        .map_or(default, |family| family.canonical);
                     terminal_production::TerminalProductionRequest {
                         checked: checked_program,
-                        exact_toolchain_sources: first
-                            .view
-                            .sources()
-                            .exact_toolchain_sources(),
-                        machine: terminal_production::TerminalMachineSelection::Symbol(
-                            entry.portable_machine,
-                        ),
-                        boundary_roots: &boundary_roots,
+                        exact_toolchain_sources: first.view.sources().exact_toolchain_sources(),
+                        machine: terminal_production::TerminalMachineSelection::Symbol(default),
+                        roots: terminal_production::TerminalProgramRoots {
+                            machines: &machines,
+                            boundaries: &boundary_roots,
+                        },
                         optimization_selections: first
                             .selections
                             .project_psi()
@@ -271,10 +266,11 @@ pub(crate) fn produce_retained_terminal_artifacts(
         for &request_index in &group[1..] {
             // The shared cost is visible in each product report; per-leg rows
             // remain on the producing request, not fabricated executions.
-            requests[request_index]
-                .view
-                .timings()
-                .add_completed(TERMINAL_PRODUCTION_STAGE, elapsed, AllocationDelta::default());
+            requests[request_index].view.timings().add_completed(
+                TERMINAL_PRODUCTION_STAGE,
+                elapsed,
+                AllocationDelta::default(),
+            );
         }
         match produced {
             Err(diagnostics) => {
@@ -316,12 +312,11 @@ pub(crate) fn produce_retained_terminal_artifacts(
 /// Product admission is a selection-custody check: an Independent edge has no
 /// product carrier yet, and production requires one exact selected entry.
 fn admit_terminal_production<'a>(
-    selected_program_entry: Option<&'a provider_planning::program_entry::SelectedCompilerProgramEntry>,
+    selected_program_entry: Option<
+        &'a provider_planning::program_entry::SelectedCompilerProgramEntry,
+    >,
     provenance: &[provider_planning::SelectedProviderReviewProvenance],
-) -> Result<
-    &'a provider_planning::program_entry::SelectedCompilerProgramEntry,
-    Vec<Diagnostic>,
-> {
+) -> Result<&'a provider_planning::program_entry::SelectedCompilerProgramEntry, Vec<Diagnostic>> {
     provider_planning::verify_selected_compositions_are_realized(provenance)?;
     // Preserve the build operand's lexical package choice, including when
     // another package contains a machine with the same display name.

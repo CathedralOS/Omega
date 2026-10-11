@@ -48,6 +48,17 @@ pub struct BuildConfig {
 }
 
 impl BuildConfig {
+    /// All authored entry declarations, independently of realization targets.
+    pub fn program_roots(&self) -> Vec<symbols::SymbolHandle> {
+        let mut roots: Vec<_> = self
+            .root_bindings
+            .iter()
+            .map(|binding| binding.implementation_symbol)
+            .collect();
+        roots.sort_unstable_by_key(|root| (root.arena_index(), root.generation()));
+        roots.dedup();
+        roots
+    }
     /// The selector paths of the accepted root grants, as trust reconstruction
     /// and provider checking name them.
     pub fn root_grant_selectors(&self) -> Vec<String> {
@@ -79,16 +90,7 @@ impl BuildConfig {
         effective
             .effective()
             .contains(optimization_core::Optimization::CheckedTreeProductPruning)
-            .then(|| {
-                let mut roots: Vec<_> = self
-                    .root_bindings
-                    .iter()
-                    .map(|binding| binding.implementation_symbol)
-                    .collect();
-                roots.sort_unstable_by_key(|root| (root.arena_index(), root.generation()));
-                roots.dedup();
-                roots
-            })
+            .then(|| self.program_roots())
     }
 }
 

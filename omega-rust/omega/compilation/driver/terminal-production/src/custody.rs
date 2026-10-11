@@ -51,6 +51,7 @@ impl psi_compiler::TerminalCompositionAdmission for TerminalBehaviorExclusions<'
     fn admit(
         &self,
         module: &terminal_psi::TerminalModule,
+        entry: semantic_vocabulary::MachineId,
         provenance: &terminal_psi::TerminalMachineProvenance,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         trust_model::verify_entry_behavior_exclusions(
@@ -58,6 +59,7 @@ impl psi_compiler::TerminalCompositionAdmission for TerminalBehaviorExclusions<'
             self.providers,
             self.profile,
             module,
+            entry,
             provenance,
         )
     }

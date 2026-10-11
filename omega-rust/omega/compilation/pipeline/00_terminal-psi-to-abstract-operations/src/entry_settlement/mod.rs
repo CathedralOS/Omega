@@ -57,11 +57,12 @@ pub fn validate_native_program_entry_settlement(
         slot.owner.target_name(),
     );
     let entry = selections
-        .entry(artifact.view().identity(), module.entry)
+        .entry(
+            artifact.view().identity(),
+            module,
+            terminal_psi::TargetMachineCallable::Machine(checked_entry.terminal_entry()),
+        )
         .map_err(|error| NativeProgramEntrySettlementError::TargetFamily(error.to_string()))?;
-    if entry != checked_entry.terminal_entry() {
-        return Err(NativeProgramEntrySettlementError::TerminalEntrySubstitution);
-    }
     let entry_count = module
         .machines
         .iter()

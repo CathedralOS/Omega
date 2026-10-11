@@ -23,7 +23,7 @@ pub(super) fn discover(
     plans: UnitPlans<'_>,
     entry: symbols::SymbolHandle,
     unit_roots: &[symbols::SymbolHandle],
-    boundary_roots: &[symbols::SymbolHandle],
+    program_roots: crate::TerminalProgramRoots<'_>,
     scalar_entry: bool,
 ) -> Result<CheckedCallCatalog, LoweringError> {
     let mut retained_roots = unit_roots.to_vec();
@@ -32,7 +32,7 @@ pub(super) fn discover(
     // Keep the complete supplied roster, even methods no body invokes; a
     // missing checked plan rejects rather than narrowing a whole-trait default.
     let mut retained_boundary_roots = Vec::new();
-    for boundary in boundary_roots {
+    for boundary in program_roots.boundaries {
         if let Some((_, signature)) = checked.trait_machine_signature(*boundary) {
             retained_boundary_roots.extend(
                 checked
@@ -46,28 +46,30 @@ pub(super) fn discover(
     for boundary in &retained_boundary_roots {
         super::unique_unit_boundary(plans, *boundary)?;
     }
-    // Target families are portable product surface, not entry reachability.
+    // Authored roots and target families are portable product surface, not
+    // reachability from whichever application happens to be requested first.
     // Discover each contract head and implementation before allocating shared
     // namespaces. An independent head retains its opaque checked plan even
     // when no call demands it; it supplies no implementation or authority.
-    for callable in super::target_families::runtime_families(checked)?
-        .into_iter()
-        .flat_map(|family| {
-            std::iter::once(family.canonical).chain(
-                family
-                    .members
-                    .iter()
-                    .filter(|member| member.machine != family.canonical)
-                    .map(|member| member.machine),
-            )
-        })
-    {
+    for callable in program_roots.machines.iter().copied().chain(
+        super::target_families::runtime_families(checked)?
+            .into_iter()
+            .flat_map(|family| {
+                std::iter::once(family.canonical).chain(
+                    family
+                        .members
+                        .iter()
+                        .filter(|member| member.machine != family.canonical)
+                        .map(|member| member.machine),
+                )
+            }),
+    ) {
         let machine =
             checked
                 .typed
                 .machine_by_symbol(callable)
                 .ok_or(LoweringError::Unsupported(
-                    "target-family callable is absent from checked input",
+                    "program-root callable is absent from checked input",
                 ))?;
         // A retained body's satisfaction edges are interface roots even
         // when no operation invokes those requirements. The checked planner

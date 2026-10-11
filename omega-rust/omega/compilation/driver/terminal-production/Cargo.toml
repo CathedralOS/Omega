@@ -11,6 +11,7 @@ trust-model = { path = "../../realization/trust-model" }
 target = { path = "../../backend/target" }
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
 optimization = { path = "../../../../psi/foundation/optimization-selections" }
 

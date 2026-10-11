@@ -14,7 +14,7 @@ pub use custody::{
     ProducedTerminalArtifact, TerminalApplicationCustody, TerminalBehaviorExclusions,
     TerminalProductionCustody,
 };
-pub use psi_compiler::{PsiCompilationStage, TerminalMachineSelection};
+pub use psi_compiler::{PsiCompilationStage, TerminalMachineSelection, TerminalProgramRoots};
 pub use stage_timings::PsiStageTimings;
 pub use terminal_production::{
     ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,

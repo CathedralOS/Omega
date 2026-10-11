@@ -29,11 +29,13 @@ use terminal_psi::{TerminalMachine, TerminalModule};
 /// transitions name are pulled into the next round's closure.
 pub(super) fn prune(
     module: &mut TerminalModule,
+    application_roots: &[semantic_vocabulary::MachineId],
     sidecar_operations: &BTreeSet<OperationId>,
     sidecar_edges: &BTreeSet<EdgeId>,
     sidecar_values: &BTreeSet<ValueId>,
 ) {
-    let mut kept = super::retention::retained_machines(module);
+    let mut kept =
+        super::retention::retained_machines_with_roots(module, application_roots.iter().copied());
     loop {
         if module
             .machines

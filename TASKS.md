@@ -2939,7 +2939,6 @@ crash and native exit behavior.
     sites replay (`capabilities/runtime_qualified_record_return_exit`
     runs clean). Conversion work must not weaken candidate contract
     admission.
->>>>>>> 8a5662b88c3 (psi: carry the authored requires roster into MachineContract and replay provider agreement)
 
   Acceptance (with **BUILD-EVALUATES-ONCE** and **OPERATOR-BOUNDARY-CALLS**):
   a two-target request runs Psi 00–07 once and produces one Terminal artifact;
@@ -2959,8 +2958,9 @@ crash and native exit behavior.
   then Omega 00–09 and emission per realization, per the
   [pipeline](omega-rust/pipeline.md). Closes after the items above.
   - `compile` completes source, Build and Product checking once; realizations
-    borrow the same checked storage; matching entry/optimization requests also
-    share Terminal production and storage, with separate target admissions.
+    borrow the same checked storage; matching Psi-optimization requests share
+    Terminal production and storage across distinct Build entry roots, with
+    separate target admissions and exact per-application execution entries.
     Psi owns resolver/typing and generated-source continuation; the product
     driver, Build evaluator and product carriers no longer import stages
     02/03/03b/04. Psi owns preparation, retained-check matching, checking and
@@ -2972,7 +2972,7 @@ crash and native exit behavior.
     static/executed provider-selection decoder and returns Product defaults
     before pruning, shared across targets outside Build admission. Join the
     remaining source/package assembly contracts to this facade.
-    Move distinct entry roots, callbacks and the package-manager batch route
+    Move callbacks and the package-manager batch route
     behind whole-program shared checked/Terminal storage and
     retire its per-target typed copies. Remove `compile_checked_reusing_builds`
     and package-manager's `CandidateSourcePreparation` as package invocations

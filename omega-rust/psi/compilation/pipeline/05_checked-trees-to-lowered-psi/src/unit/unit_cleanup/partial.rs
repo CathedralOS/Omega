@@ -14,7 +14,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
-    boundary_roots: &[symbols::SymbolHandle],
+    program_roots: crate::TerminalProgramRoots<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     let plan = &partial.machine;
@@ -28,7 +28,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
                 checked,
                 plan.machine,
                 &[plan.machine],
-                boundary_roots,
+                program_roots,
                 exact_toolchain_sources,
             )
         },

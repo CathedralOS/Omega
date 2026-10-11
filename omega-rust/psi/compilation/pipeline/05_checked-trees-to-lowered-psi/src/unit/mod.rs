@@ -100,7 +100,7 @@ pub(crate) fn lower_unit_plan_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: CheckedUnitPlan<'_>,
-    boundary_roots: &[symbols::SymbolHandle],
+    program_roots: crate::TerminalProgramRoots<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<LoweredSelectedMachine, LoweringError> {
     Ok(match plan {
@@ -109,7 +109,7 @@ pub(crate) fn lower_unit_plan_machine(
                 identities,
                 checked,
                 plan,
-                boundary_roots,
+                program_roots,
                 exact_toolchain_sources,
             )?,
             LoweringCompletion {
@@ -121,7 +121,7 @@ pub(crate) fn lower_unit_plan_machine(
                 identities,
                 checked,
                 plan,
-                boundary_roots,
+                program_roots,
                 exact_toolchain_sources,
             )?,
             LoweringCompletion {
@@ -133,7 +133,7 @@ pub(crate) fn lower_unit_plan_machine(
                 identities,
                 checked,
                 plan.machine,
-                boundary_roots,
+                program_roots,
                 exact_toolchain_sources,
             )?,
             LoweringCompletion {

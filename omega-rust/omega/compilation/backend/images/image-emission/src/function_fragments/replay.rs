@@ -73,7 +73,11 @@ impl FragmentReplay {
             return Err("native object target differs from its admitted deployment profile");
         }
         selections
-            .entry(identity, artifact.semantic_module().entry)
+            .entry(
+                identity,
+                artifact.semantic_module(),
+                terminal_psi::TargetMachineCallable::Machine(entry),
+            )
             .map(Some)
             .map_err(|_| "native object entry has no executable member at its admitted deployment")
     }

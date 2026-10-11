@@ -130,7 +130,7 @@ pub(crate) struct UnitClosureRequest<'a> {
     pub(crate) plans: UnitPlans<'a>,
     pub(crate) entry: symbols::SymbolHandle,
     pub(crate) unit_roots: &'a [symbols::SymbolHandle],
-    pub(crate) boundary_roots: &'a [symbols::SymbolHandle],
+    pub(crate) program_roots: crate::TerminalProgramRoots<'a>,
     pub(crate) exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub(crate) scalar_entry: bool,
 }
@@ -141,14 +141,14 @@ impl<'a> UnitClosureRequest<'a> {
         checked: &'a CheckedTrees,
         entry: symbols::SymbolHandle,
         roots: &'a [symbols::SymbolHandle],
-        boundary_roots: &'a [symbols::SymbolHandle],
+        program_roots: crate::TerminalProgramRoots<'a>,
         exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     ) -> Self {
         Self {
             plans: UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
             entry,
             unit_roots: roots,
-            boundary_roots,
+            program_roots,
             exact_toolchain_sources,
             scalar_entry: false,
         }
@@ -162,7 +162,7 @@ pub(crate) fn lower_unit_effect_closure(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
-    boundary_roots: &[symbols::SymbolHandle],
+    program_roots: crate::TerminalProgramRoots<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_unit_closure(
@@ -172,7 +172,7 @@ pub(crate) fn lower_unit_effect_closure(
             checked,
             entry,
             &[entry],
-            boundary_roots,
+            program_roots,
             exact_toolchain_sources,
         ),
     )
@@ -185,7 +185,7 @@ pub(crate) fn lower_scalar_effect_closure(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
-    boundary_roots: &[symbols::SymbolHandle],
+    program_roots: crate::TerminalProgramRoots<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_unit_closure(
@@ -193,7 +193,7 @@ pub(crate) fn lower_scalar_effect_closure(
         checked,
         &UnitClosureRequest {
             scalar_entry: true,
-            ..UnitClosureRequest::unit(checked, entry, &[], boundary_roots, exact_toolchain_sources)
+            ..UnitClosureRequest::unit(checked, entry, &[], program_roots, exact_toolchain_sources)
         },
     )
 }
@@ -210,7 +210,7 @@ pub(crate) fn lower_unit_closure(
         plans,
         entry,
         unit_roots,
-        boundary_roots,
+        program_roots,
         exact_toolchain_sources,
         scalar_entry,
     } = *request;
@@ -226,7 +226,7 @@ pub(crate) fn lower_unit_closure(
         plans,
         entry,
         unit_roots,
-        boundary_roots,
+        program_roots,
         scalar_entry,
     )?;
     let closure = call_catalog.operations;
@@ -559,6 +559,16 @@ pub(crate) fn lower_unit_closure(
     // The verifier reads the roster in exactly (machine, header) order.
     scalar_block_invariants.sort_by_key(|invariant| (invariant.machine, invariant.header));
 
+    let mut retained_roots = Vec::with_capacity(program_roots.machines.len());
+    for root in program_roots.machines {
+        // A bodyless family head is retained in the interface catalog. Every
+        // body root must resolve exactly; missing roots cannot disappear in DCE.
+        if let terminal_psi::TargetMachineCallable::Machine(machine) =
+            target_families::callable(*root, &machine_ids, &lowered_boundary_parameters)?
+        {
+            retained_roots.push(machine);
+        }
+    }
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             callback_applications: Vec::new(),
@@ -600,6 +610,7 @@ pub(crate) fn lower_unit_closure(
             target_layout_applications,
         },
         debug_map: None,
+        retained_roots,
         source_call_occurrences: occurrences.source_calls,
         selected_ieee_float_comparison_occurrences: occurrences.ieee_float_comparisons,
         selected_integer_comparison_occurrences: occurrences.integer_comparisons,

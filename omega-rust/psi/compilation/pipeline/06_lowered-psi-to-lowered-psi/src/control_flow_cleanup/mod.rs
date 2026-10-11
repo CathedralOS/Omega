@@ -80,6 +80,7 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
     }
     machines::prune(
         &mut after.semantic_module,
+        &before.retained_roots,
         &sidecar_operations,
         &sidecar_edges,
         &sidecar_values,

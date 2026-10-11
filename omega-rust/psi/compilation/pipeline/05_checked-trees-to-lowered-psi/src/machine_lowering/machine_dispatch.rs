@@ -55,7 +55,7 @@ pub(crate) fn lower_selected_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
-    boundary_roots: &[symbols::SymbolHandle],
+    program_roots: crate::TerminalProgramRoots<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<LoweredSelectedMachine, LoweringError> {
     // A portable head owns a checked contract and complete member catalog,
@@ -76,7 +76,7 @@ pub(crate) fn lower_selected_machine(
                     checked,
                     selection.machine,
                     &[],
-                    boundary_roots,
+                    program_roots,
                     exact_toolchain_sources,
                 ),
             )?,
@@ -93,7 +93,7 @@ pub(crate) fn lower_selected_machine(
             identities,
             checked,
             plan,
-            boundary_roots,
+            program_roots,
             exact_toolchain_sources,
         );
     }
@@ -125,7 +125,7 @@ pub(crate) fn lower_selected_machine(
                 identities,
                 checked,
                 selection.machine,
-                boundary_roots,
+                program_roots,
                 exact_toolchain_sources,
             )?,
             LoweringCompletion {
@@ -150,7 +150,7 @@ pub(crate) fn lower_selected_machine(
             identities,
             checked,
             selection.machine,
-            boundary_roots,
+            program_roots,
             exact_toolchain_sources,
         )?,
         LoweringCompletion {

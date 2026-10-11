@@ -874,22 +874,21 @@ fn receiver_layout(
     }
     let terminal_identity =
         terminal_codec::terminal_psi_identity(terminal).map_err(|_| invalid())?;
-    let selected_entry =
-        terminal_installation::resolve_target_machine_entry(terminal, profile.target_name())
-            .map_err(|_| invalid())?;
+    let selected_entry = checked_entry.terminal_entry();
     if let Some(selections) = replay.target_machine_selections() {
         if selections.target() != profile.target_name()
             || selections
-                .entry(terminal_identity, terminal.entry)
+                .entry(
+                    terminal_identity,
+                    terminal,
+                    terminal_psi::TargetMachineCallable::Machine(selected_entry),
+                )
                 .map_err(|_| invalid())?
                 != selected_entry
         {
             return Err(invalid());
         }
-    } else if matches!(
-        terminal.entry,
-        terminal_psi::TargetMachineCallable::Boundary(_)
-    ) {
+    } else if terminal.entry != terminal_psi::TargetMachineCallable::Machine(selected_entry) {
         return Err(invalid());
     }
     let eligibility = checked_entry.receiver_eligibility().ok_or_else(invalid)?;

@@ -26,6 +26,7 @@ impl VerifiedNativeArtifactInput {
     pub fn prepare(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         profile: target::TargetProfile,
+        root: terminal_psi::TargetMachineCallable,
         establishments: &[TerminalPlacedViewEstablishment],
     ) -> Result<Self, ArtifactLoweringError> {
         let module = artifact.semantic_module();
@@ -34,7 +35,7 @@ impl VerifiedNativeArtifactInput {
             profile.target_name(),
         );
         let entry = selections
-            .entry(artifact.view().identity(), module.entry)
+            .entry(artifact.view().identity(), module, root)
             .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
         lower_decoded_native_module(module, entry, Some(selections))?
             .try_into_native_input(establishments)
@@ -63,14 +64,13 @@ impl VerifiedNativeArtifactInput {
             artifact.view(),
             profile.target_name(),
         );
-        let entry = selections
-            .entry(artifact.view().identity(), artifact.semantic_module().entry)
+        selections
+            .entry(
+                artifact.view().identity(),
+                artifact.semantic_module(),
+                terminal_psi::TargetMachineCallable::Machine(input.plan().entry),
+            )
             .map_err(|error| crate::NativeExecutionScopeError::TargetFamily(error.to_string()))?;
-        if entry != input.plan().entry {
-            return Err(crate::NativeExecutionScopeError::TargetFamily(
-                "native entry preparation and deployment selection disagree".to_owned(),
-            ));
-        }
         let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
             .map_err(|error| crate::NativeExecutionScopeError::TargetLayout(error.to_string()))?;
         if !layouts.resolved_records().is_empty() {

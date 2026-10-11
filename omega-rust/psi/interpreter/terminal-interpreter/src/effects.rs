@@ -136,6 +136,7 @@ pub use terminal_installation::{
 /// adapters or external-completion authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalRuntimeSupplies {
+    pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
     pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
@@ -156,6 +157,9 @@ pub(crate) enum AdmittedBoundarySupply {
 /// choose imports on its behalf. Actual adapters remain instance-bound.
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalRuntimeSupplyRequest<'installation> {
+    /// Requested retained callable; absence selects the artifact's default.
+    /// This supplies no parameter backing or host/provider authority.
+    pub entry: Option<terminal_psi::TargetMachineCallable>,
     pub installation: Option<&'installation terminal_installation::AdmittedProviderSelections>,
     pub host_imports: &'installation [BoundaryMachineId],
     /// Exact catalog selections, independently of provider or host authority.
@@ -168,6 +172,7 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
     fn from(selected: &terminal_installation::AdmittedProviderSelections) -> Self {
         Self {
             terminal_psi: selected.terminal_psi(),
+            entry: None,
             supplies: selected
                 .providers()
                 .map(|(boundary, machine)| {

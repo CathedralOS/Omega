@@ -17,7 +17,7 @@ pub struct TerminalProductionRequest<'a> {
     pub checked: &'a CheckedTrees,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub machine: TerminalMachineSelection<'a>,
-    pub boundary_roots: &'a [symbols::SymbolHandle],
+    pub roots: psi_compiler::TerminalProgramRoots<'a>,
     pub optimization_selections: optimization::PsiOptimizationSelections,
 }
 
@@ -31,7 +31,7 @@ impl<'a> TerminalProductionRequest<'a> {
             checked,
             exact_toolchain_sources,
             machine,
-            boundary_roots: &[],
+            roots: psi_compiler::TerminalProgramRoots::default(),
             optimization_selections: optimization::PsiOptimizationSelections::default(),
         }
     }
@@ -62,7 +62,7 @@ impl<'a> TerminalProductionRequest<'a> {
             checked: self.checked,
             exact_toolchain_sources: self.exact_toolchain_sources,
             machine: self.machine,
-            boundary_roots: self.boundary_roots,
+            roots: self.roots,
             optimization_selections: self.optimization_selections,
         }
         .produce(

@@ -40,29 +40,12 @@ pub fn prepare_program_entry_receipt(
     // The receipt names one exact source member, while the immutable module
     // can be rooted at its independent portable family contract. Declaration
     // identity, not roster position or display spelling, rejoins that member.
-    let declaration_identity = checked
-        .exact_owner_nominal_identity(selection.machine, exact_toolchain_sources)
-        .and_then(|identity| checked.type_identity_text(identity))
-        .ok_or(ProgramEntryTerminalReceiptError::MissingEntryDeclaration)?;
-    let entry_matches = optimized_lowered
-        .semantic_module
-        .machines
-        .iter()
-        .filter(|machine| {
-            machine.declaration.as_ref().is_some_and(|declaration| {
-                optimized_lowered
-                    .semantic_module
-                    .identities
-                    .text(declaration.machine.identity())
-                    == Some(declaration_identity.as_str())
-            })
-        })
-        .collect::<Vec<_>>();
-    let [entry] = entry_matches.as_slice() else {
-        return Err(ProgramEntryTerminalReceiptError::TerminalEntryMultiplicity(
-            entry_matches.len(),
-        ));
-    };
+    let entry = retained_source_machine(
+        checked,
+        selection.machine,
+        exact_toolchain_sources,
+        &optimized_lowered.semantic_module,
+    )?;
     if entry.result != TerminalMachineResult::Unit {
         return Err(ProgramEntryTerminalReceiptError::NonUnitEntry);
     }
@@ -86,6 +69,36 @@ pub fn prepare_program_entry_receipt(
         entry.id,
         receiver_eligibility,
     ))
+}
+
+/// Rejoin one checked declaration to its unique retained body. This identifies
+/// an application subject, not permission to execute it or backing for inputs.
+pub fn retained_source_machine<'module>(
+    checked: &CheckedTrees,
+    source: symbols::SymbolHandle,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    module: &'module terminal_psi::TerminalModule,
+) -> Result<&'module terminal_psi::TerminalMachine, ProgramEntryTerminalReceiptError> {
+    let declaration_identity = checked
+        .exact_owner_nominal_identity(source, exact_toolchain_sources)
+        .and_then(|identity| checked.type_identity_text(identity))
+        .ok_or(ProgramEntryTerminalReceiptError::MissingEntryDeclaration)?;
+    let entry_matches = module
+        .machines
+        .iter()
+        .filter(|machine| {
+            machine.declaration.as_ref().is_some_and(|declaration| {
+                module.identities.text(declaration.machine.identity())
+                    == Some(declaration_identity.as_str())
+            })
+        })
+        .collect::<Vec<_>>();
+    let [entry] = entry_matches.as_slice() else {
+        return Err(ProgramEntryTerminalReceiptError::TerminalEntryMultiplicity(
+            entry_matches.len(),
+        ));
+    };
+    Ok(entry)
 }
 
 /// Rejoin a prepared receipt to the exact semantics that publication retained.

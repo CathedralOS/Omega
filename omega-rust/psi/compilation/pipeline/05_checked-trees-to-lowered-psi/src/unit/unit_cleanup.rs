@@ -124,14 +124,14 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
-    boundary_roots: &[symbols::SymbolHandle],
+    program_roots: crate::TerminalProgramRoots<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_ordered_nominal_affine_unit_cleanup_machine(
         identities,
         checked,
         nominal,
-        boundary_roots,
+        program_roots,
         exact_toolchain_sources,
     )
 }
@@ -701,14 +701,14 @@ pub(crate) fn lower_partial_affine_unit_cleanup_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
-    boundary_roots: &[symbols::SymbolHandle],
+    program_roots: crate::TerminalProgramRoots<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     partial::lower_partial_affine_unit_cleanup_machine(
         identities,
         checked,
         partial,
-        boundary_roots,
+        program_roots,
         exact_toolchain_sources,
     )
 }

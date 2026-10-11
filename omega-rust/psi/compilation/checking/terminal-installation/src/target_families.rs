@@ -50,13 +50,32 @@ impl AdmittedTargetMachineSelections {
     pub fn entry(
         &self,
         identity: TerminalPsiIdentity,
+        module: &terminal_psi::TerminalModule,
         root: TargetMachineCallable,
     ) -> Result<semantic_vocabulary::MachineId, TargetMachineSelectionError> {
         if self.terminal_psi != identity {
             return Err(TargetMachineSelectionError::TerminalIdentityMismatch);
         }
         match root {
-            TargetMachineCallable::Machine(machine) => Ok(machine),
+            TargetMachineCallable::Machine(machine) => {
+                if module.machine(machine).is_none() {
+                    return Err(TargetMachineSelectionError::NonExecutableEntry {
+                        head: root,
+                        target: self.target.clone(),
+                    });
+                }
+                for family in &module.target_machine_families {
+                    if family.members.iter().any(|member| member.callable == root)
+                        && self.member(family.canonical)?.callable() != root
+                    {
+                        return Err(TargetMachineSelectionError::NonExecutableEntry {
+                            head: family.canonical,
+                            target: self.target.clone(),
+                        });
+                    }
+                }
+                Ok(machine)
+            }
             head @ TargetMachineCallable::Boundary(_) => {
                 let member = self.member(head)?;
                 executable_entry(head, member, &self.target)

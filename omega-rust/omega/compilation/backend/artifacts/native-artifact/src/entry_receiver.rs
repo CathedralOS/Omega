@@ -35,7 +35,11 @@ pub fn admit_executable_entry_receiver(
         source_profile.target_name(),
     );
     let selected_entry = selections
-        .entry(artifact.view().identity(), terminal.entry)
+        .entry(
+            artifact.view().identity(),
+            terminal,
+            terminal_psi::TargetMachineCallable::Machine(plan.entry),
+        )
         .map_err(|error| {
             crate::native_artifact_error("ProgramEntry receiver provisioning", error)
         })?;
@@ -46,14 +50,12 @@ pub fn admit_executable_entry_receiver(
             .optimization_input()
             .target_machine_selections()
             .is_some_and(|retained| retained != &selections)
-        || matches!(
-            terminal.entry,
-            terminal_psi::TargetMachineCallable::Boundary(_)
-        ) && (input
-            .optimization_input()
-            .target_machine_selections()
-            .is_none()
-            || program_entry.checked_entry.is_none())
+        || terminal.entry != terminal_psi::TargetMachineCallable::Machine(plan.entry)
+            && (input
+                .optimization_input()
+                .target_machine_selections()
+                .is_none()
+                || program_entry.checked_entry.is_none())
         || program_entry.checked_entry.is_some_and(|receipt| {
             receipt.terminal_entry() != selected_entry
                 || receipt.source_signature_identity() != program_entry.source().identity().bytes()

@@ -40,6 +40,7 @@ pub use source_compilation::{
 };
 
 pub use checked_trees_to_lowered_psi::TerminalMachineSelection;
+pub use checked_trees_to_lowered_psi::TerminalProgramRoots;
 pub use custody::{
     ProducedTerminalArtifact, TerminalApplicationCustody, TerminalProductionCustody,
 };

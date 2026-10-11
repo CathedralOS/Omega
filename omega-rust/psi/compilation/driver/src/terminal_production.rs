@@ -19,9 +19,9 @@ pub struct TerminalProductionRequest<'a> {
     pub checked: &'a CheckedTrees,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub machine: TerminalMachineSelection<'a>,
-    /// Complete checked interface roots requested by the owning product.
-    /// These retain declarations/candidates and introduce no runtime call.
-    pub boundary_roots: &'a [symbols::SymbolHandle],
+    /// Complete callable/interface roots requested by the owning product.
+    /// These retain bodies/declarations without granting execution authority.
+    pub roots: crate::TerminalProgramRoots<'a>,
     pub optimization_selections: optimization::PsiOptimizationSelections,
 }
 
@@ -36,7 +36,7 @@ impl<'a> TerminalProductionRequest<'a> {
             checked,
             exact_toolchain_sources,
             machine,
-            boundary_roots: &[],
+            roots: crate::TerminalProgramRoots::default(),
             optimization_selections: optimization::PsiOptimizationSelections::default(),
         }
     }
@@ -63,7 +63,7 @@ impl<'a> TerminalProductionRequest<'a> {
                     self.checked,
                     self.machine,
                     self.exact_toolchain_sources,
-                    self.boundary_roots,
+                    self.roots,
                 )
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
@@ -86,13 +86,22 @@ impl<'a> TerminalProductionRequest<'a> {
                         TerminalArtifactProductionError::Lowering(error).diagnostics()
                     })?;
                 if let Some(admission) = application.admission {
+                    let entry = lowered_psi_to_terminal_psi::retained_source_machine(
+                        checked,
+                        selection.machine,
+                        self.exact_toolchain_sources,
+                        &lowered.semantic_module,
+                    )
+                    .map_err(|error| {
+                        TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
+                    })?;
                     let provenance = lowered_machine_provenance(
                         checked,
                         &lowered,
                         selection.machine,
                         self.exact_toolchain_sources,
                     );
-                    admission.admit(&lowered.semantic_module, &provenance)?;
+                    admission.admit(&lowered.semantic_module, entry.id, &provenance)?;
                 }
                 Ok(Some(selection))
             })

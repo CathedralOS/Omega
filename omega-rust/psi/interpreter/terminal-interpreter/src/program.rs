@@ -57,14 +57,26 @@ impl AdmittedTerminalProgram<'_> {
         if installation.is_some_and(|installation| installation.terminal_psi != self.identity) {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
-        let root = self.catalogs.entry;
+        let root = installation
+            .and_then(|supplies| supplies.entry)
+            .unwrap_or(self.catalogs.entry);
         let selected = installation.and_then(|installation| installation.target_machines.as_ref());
         let machine = match selected {
             Some(selected) => selected
-                .entry(self.identity, root)
+                .entry(self.identity, &self.catalogs, root)
                 .map_err(TerminalInterpretError::TargetMachineSelection)?,
             None => match root {
-                terminal_psi::TargetMachineCallable::Machine(machine) => machine,
+                terminal_psi::TargetMachineCallable::Machine(machine) => {
+                    if self
+                        .catalogs
+                        .target_machine_families
+                        .iter()
+                        .any(|family| family.members.iter().any(|member| member.callable == root))
+                    {
+                        return Err(TerminalInterpretError::TargetMachineSelectionMissing(root));
+                    }
+                    machine
+                }
                 terminal_psi::TargetMachineCallable::Boundary(_) => {
                     return Err(TerminalInterpretError::TargetMachineSelectionMissing(root));
                 }
@@ -368,15 +380,18 @@ impl<'artifact> TerminalProgram<'artifact> {
             .map(TerminalRuntimeSupplies::from)
             .unwrap_or_else(|| TerminalRuntimeSupplies {
                 terminal_psi: self.program.identity,
+                entry: None,
                 supplies: BTreeMap::new(),
                 assumed_bindings: Vec::new(),
                 target_machines: None,
                 target_layouts: None,
             });
         installation.target_machines = request.target_machines.cloned();
+        installation.entry = request.entry;
         installation.target_layouts = request.target_layouts.cloned().map(std::sync::Arc::new);
         self.program
             .validate_layout_selection(Some(&installation))?;
+        self.program.resolve_entry(Some(&installation))?;
         for &boundary in request.host_imports {
             let rejected = |reason| TerminalInterpretError::RuntimeSupplySelectionRejected {
                 boundary,

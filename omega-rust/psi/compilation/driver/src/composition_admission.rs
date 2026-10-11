@@ -12,6 +12,7 @@ pub trait TerminalCompositionAdmission {
     fn admit(
         &self,
         module: &TerminalModule,
+        entry: semantic_vocabulary::MachineId,
         provenance: &TerminalMachineProvenance,
     ) -> Result<(), Vec<Diagnostic>>;
 }

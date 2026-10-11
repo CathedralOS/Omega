@@ -6100,3 +6100,8 @@ fail/traits/owned_row_captured_region_not_invocation rejected 353ms expected @21
 	machine `Reader::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: fresh invocation lifetime telescope is not universally refined
 pass/traits/default_row_captured_invocation_regions_exit checked 2765ms check-target:macos_arm64 @21c44dfab69b
 pass/traits/default_row_domain_region_scopes checked 485ms @21c44dfab69b
+fail/targets/distinct_roots_exclusion_selected_body rejected 12971ms expected @ad0459650859+wt
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: crash cause Trap is reachable in machine `trapping` (Terminal machine 2) at crash terminator in block 2
+	the selected composition retains crash cause Trap through machine `trapping` (Terminal machine 2) declared here
+pass/targets/shared_program_distinct_roots_exit checked 6993ms check-target:macos_arm64 @ad0459650859+wt

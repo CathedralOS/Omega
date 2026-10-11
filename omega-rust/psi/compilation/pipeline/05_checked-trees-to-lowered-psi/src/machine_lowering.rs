@@ -48,7 +48,7 @@ pub fn lower_machine(
     checked: &CheckedTrees,
     machine: TerminalMachineSelection<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    boundary_roots: &[symbols::SymbolHandle],
+    program_roots: crate::TerminalProgramRoots<'_>,
 ) -> Result<LoweredPsi, LoweringError> {
     // One builder owns the complete closure's identities. Body construction
     // snapshots only a prefix: declaration, evidence and application retention
@@ -61,7 +61,7 @@ pub fn lower_machine(
         checked,
         selection,
         exact_toolchain_sources,
-        boundary_roots,
+        program_roots,
     )?;
     boundary_applications::retain(
         &mut identities,
@@ -209,7 +209,7 @@ fn lower_terminal_selection(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    boundary_roots: &[symbols::SymbolHandle],
+    program_roots: crate::TerminalProgramRoots<'_>,
 ) -> Result<(LoweredPsi, LoweringCompletion), LoweringError> {
     let LoweredSelectedMachine {
         terminal: mut lowered,
@@ -219,7 +219,7 @@ fn lower_terminal_selection(
         identities,
         checked,
         selection,
-        boundary_roots,
+        program_roots,
         exact_toolchain_sources,
     )?;
     if lowered.semantic_module.target_machine_families.len()

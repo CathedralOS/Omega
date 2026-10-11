@@ -23,6 +23,10 @@ pub struct LoweredPsi {
     pub selected_ieee_float_comparison_occurrences:
         Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub semantic_module: TerminalModule,
+    /// Explicit application roots kept through optimization. Publication need
+    /// not encode this producer demand: entry receipts name the exact retained
+    /// declarations in the completed artifact, and confer no runtime authority.
+    pub retained_roots: Vec<semantic_vocabulary::MachineId>,
     /// Replaceable presentation metadata. The public producer always fills
     /// this after semantic identities are final; private builders leave it
     /// empty until that finalization step.

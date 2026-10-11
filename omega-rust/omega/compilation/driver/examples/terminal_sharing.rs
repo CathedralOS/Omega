@@ -1,8 +1,8 @@
 //! Measure real two-target production, outside parallel corpus counter traffic.
 //!
 //! `cargo run -p compiler --example terminal_sharing` compiles the existing
-//! qualified-record customer for Windows and Linux. This does not execute a
-//! foreign-host image or claim whole-program/multiple-entry convergence.
+//! distinct-entry customer for Windows and Linux. Both native products must
+//! borrow one Terminal allocation; this does not execute a foreign-host image.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
@@ -12,7 +12,7 @@ use compiler::{CompileRequest, RequestedCompileProduct};
 
 fn main() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/capabilities/runtime_qualified_record_return_exit/main.omg");
+        .join("tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
         Some("windows_x86_64"),

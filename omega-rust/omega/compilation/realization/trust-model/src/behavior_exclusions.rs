@@ -24,6 +24,7 @@ pub fn verify_entry_behavior_exclusions(
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     profile: target::TargetProfile,
     module: &terminal_psi::TerminalModule,
+    entry: semantic_vocabulary::MachineId,
     provenance: &TerminalMachineProvenance,
 ) -> Result<(), Vec<Diagnostic>> {
     if authored.is_empty() {
@@ -37,12 +38,6 @@ pub fn verify_entry_behavior_exclusions(
     }
     // This is admission of a selected execution, not a rewrite of the
     // portable root or a demand on every retained sibling's private body.
-    let entry = terminal_installation::resolve_target_machine_entry(module, profile.target_name())
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "behavior exclusion entry selection failed: {error}",
-            ))]
-        })?;
     let report = establish_behavior_exclusions(
         module,
         &[entry],

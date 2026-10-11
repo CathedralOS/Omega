@@ -122,6 +122,7 @@ impl PreparedRetainedNativeProviders<'_> {
         crate::admit_native_realization(
             artifact,
             &crate::NativeAdmissionRequest {
+                entry: artifact.semantic_module().entry,
                 boundary_application_coverage: Some(&proposal.boundary_applications.coverage),
                 behavior_exclusions: &proposal.behavior_exclusions,
                 providers: ProviderAdmissionRequest {
@@ -153,6 +154,9 @@ impl PreparedRetainedNativeProviders<'_> {
     ) -> crate::NativeAdmissionRequest<'request, 'request> {
         let proposal = self.proposal;
         crate::NativeAdmissionRequest {
+            entry: terminal_psi::TargetMachineCallable::Machine(
+                proposal.program_entry().checked_entry().terminal_entry(),
+            ),
             boundary_application_coverage: Some(&proposal.boundary_applications().coverage),
             behavior_exclusions: proposal.behavior_exclusions(),
             providers: ProviderAdmissionRequest {

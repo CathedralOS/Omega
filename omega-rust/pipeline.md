@@ -99,8 +99,12 @@ typing and checks Product before its target loop. Targets borrow the same checke
 arenas and sealed source custody, and settle providers without rewriting source
 contracts or rehashing the consumed source closure. Checked-tree
 pruning retains all Build-declared roots, not one target's selected entry.
-Targets selecting the same entry and Psi optimizations share Terminal production
-and storage; distinct roots still produce separate artifacts. Product constants
+Targets selecting the same Psi optimizations share Terminal production and
+storage, including distinct Build entry roots. Lowering retains all authored
+roots and optimization preserves them. Each application selects its exact
+retained entry through source-signature custody; native and interpreted
+execution do not rewrite the artifact's default entry. Callback bodies still
+have separate production and must join the shared program closure. Product constants
 requiring selected-provider evaluation reject until portable recipes cross this
 boundary; selected providers cannot inject completion roles into checked source.
 Accepted package roles enter source preparation before checking instead.

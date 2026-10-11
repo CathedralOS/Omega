@@ -17,4 +17,5 @@ pub use result_policy_verification::verify_boundary_result_policies;
 
 pub use entry_receipt::{
     ProgramEntryTerminalReceiptError, prepare_program_entry_receipt, rejoin_program_entry_receipt,
+    retained_source_machine,
 };

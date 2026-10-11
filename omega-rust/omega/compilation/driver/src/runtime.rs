@@ -174,8 +174,12 @@ pub fn execute(
         ));
     }
     let checked_installation = proposed_installation.as_ref().or(retained_installation);
-    let target_machines = request
-        .target
+    let execution_target = request.target.or_else(|| {
+        request
+            .provisions
+            .map(|provisions| provisions.target_slot().owner.target_name())
+    });
+    let target_machines = execution_target
         .map(|target| terminal_interpreter::admit_target_machine_selections(artifact, target));
     let target_layouts = target_machines
         .as_ref()
@@ -202,6 +206,9 @@ pub fn execute(
     }
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            entry: request
+                .provisions
+                .map(|provisions| terminal_psi::TargetMachineCallable::Machine(provisions.entry())),
             installation: checked_installation,
             host_imports: &host_imports,
             target_machines: target_machines.as_ref(),
