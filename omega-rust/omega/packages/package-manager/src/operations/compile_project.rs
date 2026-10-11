@@ -9,7 +9,7 @@ use super::accepted_compilation::{AcceptedCompilationRequest, compile_accepted_p
 
 use super::prepare_project::PreparedProjectTarget;
 use super::{PrepareLocalProjectError, PreparedLocalProject};
-use crate::build_session::PackageSourcePreparation;
+use crate::build_session::{PackageBuildSession, PackageSourcePreparation};
 use crate::declarations::PackageKey;
 use crate::review::CompileResolvedPackageReviewsError;
 use compiler::{CompileReport, OptimizationRollback};
@@ -210,7 +210,27 @@ pub fn compile_prepared_local_project_for_native_targets(
         .collect();
     let mut retained_checks = compilation_products::RetainedCompilationChecks::default();
     let target_count = targets.len();
-    targets
+    // The whole batch borrows one invocation: sponsors, staging and the pure
+    // Build store persist across targets rather than replenishing per compile.
+    let mut session = match PackageBuildSession::create(&build_dir) {
+        Ok(session) => session,
+        Err(error) => {
+            let message = error.to_string();
+            return targets
+                .iter()
+                .map(|target| CompiledProjectTargetOutcome {
+                    target: target.profile,
+                    result: Err(CompilePreparedLocalProjectNativeError::Review(
+                        CompileResolvedPackageReviewsError::Compilation {
+                            package: source_closure.graph().root().clone(),
+                            diagnostics: vec![Diagnostic::error(message.clone())],
+                        },
+                    )),
+                })
+                .collect();
+        }
+    };
+    let outcomes = targets
         .into_iter()
         .enumerate()
         .map(|(index, prepared_target)| {
@@ -219,12 +239,12 @@ pub fn compile_prepared_local_project_for_native_targets(
                 prepared_target,
                 &source_closure,
                 &entry_path,
-                &build_dir,
                 build_snapshot.as_ref(),
                 &optimization_rollback,
                 terminal_authority_policy.clone(),
                 receiving_terminal_authority_permission_policy.clone(),
                 timings,
+                &mut session,
                 &mut preparation,
                 &mut retained_checks,
                 index + 1 < target_count,
@@ -234,7 +254,12 @@ pub fn compile_prepared_local_project_for_native_targets(
                 result,
             }
         })
-        .collect()
+        .collect::<Vec<_>>();
+    // Staging cleanup is disposal work, not a target outcome; the shared
+    // Drop would otherwise swallow it silently.
+    let _ = session.close();
+
+    outcomes
 }
 
 /// Produce one prepared target inside the shared request. A locked target's
@@ -247,12 +272,12 @@ fn compile_one_prepared_target(
     prepared_target: PreparedProjectTarget,
     source_closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
     entry_path: &Path,
-    build_dir: &Path,
     build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     optimization_rollback: &OptimizationRollback,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     timings: bool,
+    session: &mut PackageBuildSession,
     preparation: &mut PackageSourcePreparation,
     retained_checks: &mut compilation_products::RetainedCompilationChecks,
     retain_for_successors: bool,
@@ -270,13 +295,11 @@ fn compile_one_prepared_target(
         .accepted
         .map_err(CompilePreparedLocalProjectNativeError::Prepare)?;
     let target_closure = source_closure.for_exact_target(target_profile);
-    let target_build_dir = build_dir.join(target_profile.target_name());
     let checked = compile_accepted_project(
         AcceptedCompilationRequest {
             closure: &target_closure,
             accepted: accepted_target.as_ref(),
             entry: entry_path,
-            build_root: &target_build_dir,
             snapshot: build_snapshot,
             verify: false,
             timings,
@@ -285,6 +308,7 @@ fn compile_one_prepared_target(
                 retain: retain_for_successors,
             },
         },
+        session,
         preparation,
     )
     .map_err(CompilePreparedLocalProjectNativeError::Review)?;

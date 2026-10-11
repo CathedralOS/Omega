@@ -3,7 +3,7 @@
 use super::accepted_compilation::{AcceptedCompilationRequest, compile_accepted_project};
 use super::prepare_project::PreparedProjectTarget;
 use super::{PrepareLocalProjectError, PreparedLocalProject};
-use crate::build_session::PackageSourcePreparation;
+use crate::build_session::{PackageBuildSession, PackageSourcePreparation};
 use crate::review::CompileResolvedPackageReviewsError;
 use compiler::CompileReport;
 use diagnostics::Diagnostic;
@@ -135,19 +135,21 @@ pub fn check_prepared_local_project_for_inspection(
         .map_err(|error| failure(error.to_string()))?;
     // Inspection consumes accepted compilation inputs, but never arms the
     // lock's restricted-action grants or turns observed trust into admission.
-    compile_accepted_project(
+    let mut session = PackageBuildSession::create(build_dir)?;
+    let result = compile_accepted_project(
         AcceptedCompilationRequest {
             closure: &source_closure.for_exact_target(target_profile),
             accepted: accepted.as_ref(),
             entry: &entry_path,
-            build_root: build_dir,
             snapshot: None,
             verify: true,
             timings: false,
             settled_check_reuse: compiler::SettledCheckReuse::default(),
         },
+        &mut session,
         &mut PackageSourcePreparation::for_closure(&source_closure),
-    )
+    );
+    session.dispose(result)
 }
 
 /// One target's check result inside a shared multi-target request. A failing
@@ -187,7 +189,27 @@ pub fn check_prepared_local_project_for_targets(
         .collect();
     let mut retained_checks = compilation_products::RetainedCompilationChecks::default();
     let target_count = targets.len();
-    targets
+    // The whole batch borrows one invocation: sponsors, staging and the pure
+    // Build store persist across targets rather than replenishing per check.
+    let mut session = match PackageBuildSession::create(&build_dir) {
+        Ok(session) => session,
+        Err(error) => {
+            let message = error.to_string();
+            return targets
+                .iter()
+                .map(|target| CheckedProjectTargetOutcome {
+                    target: target.profile,
+                    result: Err(CheckPreparedLocalProjectError::Review(
+                        CompileResolvedPackageReviewsError::Compilation {
+                            package: source_closure.graph().root().clone(),
+                            diagnostics: vec![Diagnostic::error(message.clone())],
+                        },
+                    )),
+                })
+                .collect();
+        }
+    };
+    let outcomes = targets
         .into_iter()
         .enumerate()
         .map(|(index, prepared_target)| {
@@ -196,10 +218,10 @@ pub fn check_prepared_local_project_for_targets(
                 prepared_target,
                 &source_closure,
                 &entry_path,
-                &build_dir.join(profile.target_name()),
                 build_snapshot.as_ref(),
                 verify,
                 timings,
+                &mut session,
                 &mut preparation,
                 &mut retained_checks,
                 index + 1 < target_count,
@@ -209,7 +231,12 @@ pub fn check_prepared_local_project_for_targets(
                 result,
             }
         })
-        .collect()
+        .collect::<Vec<_>>();
+    // Staging cleanup is disposal work, not a target outcome; the shared
+    // Drop would otherwise swallow it silently.
+    let _ = session.close();
+
+    outcomes
 }
 
 /// Check one prepared target, staging into `target_build_dir`. Checked
@@ -221,10 +248,10 @@ fn check_one_prepared_target(
     prepared_target: PreparedProjectTarget,
     source_closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
     entry_path: &Path,
-    target_build_dir: &Path,
     build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     verify: bool,
     timings: bool,
+    session: &mut PackageBuildSession,
     preparation: &mut PackageSourcePreparation,
     retained_checks: &mut compilation_products::RetainedCompilationChecks,
     retain_for_successors: bool,
@@ -238,7 +265,6 @@ fn check_one_prepared_target(
             closure: &source_closure.for_exact_target(profile),
             accepted: accepted_target.as_ref(),
             entry: entry_path,
-            build_root: target_build_dir,
             snapshot: build_snapshot,
             verify,
             timings,
@@ -247,6 +273,7 @@ fn check_one_prepared_target(
                 retain: retain_for_successors,
             },
         },
+        session,
         preparation,
     )
     .map_err(CheckPreparedLocalProjectError::Review)?;

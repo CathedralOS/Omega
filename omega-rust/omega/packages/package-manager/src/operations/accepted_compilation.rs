@@ -34,7 +34,6 @@ pub(super) struct AcceptedCompilationRequest<'request> {
     pub closure: &'request ExactTargetPackageSourceClosure<'request>,
     pub accepted: Option<&'request PackageLockTarget>,
     pub entry: &'request Path,
-    pub build_root: &'request Path,
     pub snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
     pub verify: bool,
     pub timings: bool,
@@ -60,8 +59,13 @@ fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
 
 /// Validate acceptance, execute required Builds dependency-first, then check the
 /// consumer once. No review projection or discovery/bound compilation is called.
+///
+/// The caller owns the invocation: one session covers every target of a batch
+/// request instead of each target entering its own checked activation with a
+/// fresh grant budget and staging owner. Disposal stays with that owner.
 pub(super) fn compile_accepted_project(
     request: AcceptedCompilationRequest<'_>,
+    session: &mut PackageBuildSession,
     preparation: &mut PackageSourcePreparation,
 ) -> Result<CheckedCompilation, Error> {
     let root = request.closure.source_closure().graph().root();
@@ -71,11 +75,11 @@ pub(super) fn compile_accepted_project(
             .map_err(|error| failure(root, error))?;
     }
     preparation.size_for(request.closure.source_closure());
-    let mut session = PackageBuildSession::create(request.build_root)?;
-    let result = compile_occurrences(&request, &mut session, preparation);
+    preparation.pure_build_compilation = session.pure_build_compilation();
+    let result = compile_occurrences(&request, session, preparation);
     // Loaded Rust identity is immutable; the external library is not. Reject
     // edits during compilation instead of labeling mixed inputs as accepted.
-    let result = result.and_then(|checked| {
+    result.and_then(|checked| {
         let current = compiler_input_identity().map_err(|error| failure(root, error))?;
         if current != compiler_identity {
             return Err(failure(
@@ -84,8 +88,7 @@ pub(super) fn compile_accepted_project(
             ));
         }
         Ok(checked)
-    });
-    session.dispose(result)
+    })
 }
 
 fn compile_occurrences(
