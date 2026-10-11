@@ -1,0 +1,19 @@
+// Complete valid-source control. A local fixed array is borrowed as a slice
+// on a state edge. The source checker admits this ordinary view presentation;
+// native lowering must form the slice descriptor rather than reject the loan.
+// Expected exit: 0.
+// Expected output contains: 3456
+use omega_language_std::console;
+
+machine main() reaches Console {
+    let bytes: [u8; 4] = [51, 52, 53, 54];
+    transition true {
+        true -> emit(&bytes)
+        false -> failed()
+    }
+    state emit(bytes: &[u8]) {
+        Console::write_line(bytes);
+        Console::exit_process(0);
+    }
+    state failed() { Console::exit_process(1); }
+}

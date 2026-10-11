@@ -1,0 +1,30 @@
+use omega_language_std::console;
+use omega::language::core::numeric_conversion;
+
+// Decimal output is private, so the application needs no formatting package.
+pub machine number(value: i32 in Wrapping)
+reaches Console
+invokes Console;
+{
+    transition value < 0 {
+        true -> negative(value)
+        false -> digits(value)
+    }
+    state negative(value: i32 in Wrapping) {
+        Console::write("-");
+        transition { _ -> digits(-value) }
+    }
+    state digits(value: i32 in Wrapping) {
+        transition value >= 10 {
+            true -> prefix(value)
+            false -> last(value)
+        }
+    }
+    state prefix(value: i32 in Wrapping) {
+        number(value / 10);
+        Console::write_byte((value % 10 + 48) as i32);
+    }
+    state last(value: i32 in Wrapping) {
+        Console::write_byte((value + 48) as i32);
+    }
+}
