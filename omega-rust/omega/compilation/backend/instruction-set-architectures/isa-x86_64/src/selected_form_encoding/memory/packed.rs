@@ -17,9 +17,7 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<Request, X86_64SelectedFormEncodingError> {
-    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
-        return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
-    }
+    super::super::request_validation::guard_canonical(physical)?;
     let invalid = X86_64SelectedFormEncodingError::EncodedFormMismatch;
     let (load, width, offset) = match kind {
         SelectedInstructionKind::LoadPacked { byte_offset, width } => {

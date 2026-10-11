@@ -287,9 +287,7 @@ fn validate_i64_less_than_branch_request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
-        return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
-    }
+    super::request_validation::guard_canonical(physical)?;
     if alternative.family != MachineAlternativeFamily::ConditionalBranchI64LessThan
         || alternative.variant > 1
     {
@@ -302,9 +300,7 @@ fn validate_less_than_branch_request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
-        return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
-    }
+    super::request_validation::guard_canonical(physical)?;
     if alternative.family != MachineAlternativeFamily::ConditionalBranchU64LessThan
         || alternative.variant > 1
     {
@@ -318,9 +314,7 @@ fn validate_branch_request(
     alternative: MachineAlternativeKey,
     family: MachineAlternativeFamily,
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
-        return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
-    }
+    super::request_validation::guard_canonical(physical)?;
     if alternative != (MachineAlternativeKey { family, variant: 0 }) {
         return Err(X86_64SelectedFormEncodingError::AlternativeMismatch);
     }

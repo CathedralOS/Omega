@@ -9,15 +9,24 @@ use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, SaturatingOperation, SelectedInstructionKind,
 };
 
+/// Every encoder entrypoint first rejects a foreign register model — the
+/// canonical x86-64 view roster is the only one these encodings can name.
+pub(crate) fn guard_canonical(
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<(), X86_64SelectedFormEncodingError> {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
+        return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_request(
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
-        return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
-    }
+    guard_canonical(physical)?;
     let (family, count, variants) = family_and_operand_count(kind)?;
     if alternative.family != family || !variants.contains(&alternative.variant) {
         return Err(X86_64SelectedFormEncodingError::AlternativeMismatch);

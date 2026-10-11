@@ -116,9 +116,7 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<[u8; 3], X86_64SelectedFormEncodingError> {
-    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
-        return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
-    }
+    super::request_validation::guard_canonical(physical)?;
     if alternative
         != (MachineAlternativeKey {
             family: MachineAlternativeFamily::ZeroBytes,
