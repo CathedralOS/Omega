@@ -31,9 +31,14 @@ or custody policy was weakened. Default synthetic-root custody failed;
 approved per-command escalated compiler runs retained UID1000/rootUID0.
 No package acceptance was denied or retried after denial.
 
-Current frontier: the full application is accepted on Linux x86-64. The clean
-candidate, Git bundle/patch, source hashes, raw outputs and retained ELF are
-prepared for independent review through Library transfer. Independent review
-and main-only queue publication remain; neither is asserted complete. Claims
-registration remains unconfirmed after bounded coordination timeouts. No
-macOS ARM64 or Windows x86-64 executor was available for runtime validation.
+Delivery: the full application is accepted on Linux x86-64. Library transfer
+was downloaded and verified: 230 entry hashes, 58 source hashes, Git bundle,
+patch and all 20 native cases from the consumed ELF. A read-only independent
+GPT-6.1 Sol Medium review approved e8c36213530dc848ea1f812e37e10ac03c539611
+and rebased 0410756128fbfb75e86e778cfa671e9c53b82438 with no material findings.
+All reviewed sample bytes were identical; the reviewer independently recomputed
+the nine valid oracle cases without changing fixtures. This final record changes
+documentation only. Publication uses the normal main-only queue; its exact
+remote revision and receipt are recorded in the external delivery manifest.
+Claims registration remains unconfirmed after bounded coordination timeouts.
+No macOS ARM64 or Windows x86-64 executor was available for runtime validation.
