@@ -32,7 +32,7 @@ pub(super) fn establish(
     if row.result.is_some()
         || result.place != *destination
         // A mutable loan's result carries the exclusive custody's affine
-        // multiplicity; the descriptor's 16-byte shape is custody-independent.
+        // multiplicity; descriptor layout is independent of loan custody.
         || !matches!(
             result.multiplicity,
             terminal_psi::StructuralMultiplicity::Unrestricted
@@ -158,6 +158,18 @@ pub(super) fn establish(
     }
     let field_offset = geometry.offset;
     let element_count = geometry.extent;
+    let descriptor = terminal_semantics::collection_view_descriptor(
+        &declaration.shape,
+        Some(element_count),
+        *region,
+        &source.path,
+        signature.structural_type(*element),
+    )
+    .ok_or_else(invalid)?;
+    let descriptor_size = match descriptor {
+        terminal_semantics::CollectionViewDescriptor::StoredLength => 16,
+        terminal_semantics::CollectionViewDescriptor::DeclaredLength(_) => 8,
+    };
     // An empty view has no dereferenceable payload. Keep its independently
     // checked backing identity, but do not require a slot for a zero-byte
     // array or invent dummy storage. Its descriptor is the empty (0, 0) view.
@@ -224,7 +236,7 @@ pub(super) fn establish(
         .local_slots
         .push(SelectedLocalStorageSlot {
             id: slot,
-            byte_size: 16,
+            byte_size: descriptor_size,
             alignment: 8,
         });
     let backing = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
@@ -343,8 +355,10 @@ pub(super) fn establish(
         }
     };
     store(builder, row, slot, 0, backing)?;
-    store(builder, row, slot, 8, length)?;
-    let descriptor = address(builder, row, slot, 0, 16, true)?;
+    if descriptor == terminal_semantics::CollectionViewDescriptor::StoredLength {
+        store(builder, row, slot, 8, length)?;
+    }
+    let descriptor = address(builder, row, slot, 0, descriptor_size, true)?;
     builder.transport.pointers.push((*destination, descriptor));
     Ok(())
 }

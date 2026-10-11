@@ -23,6 +23,9 @@ pub(crate) enum ByteSequenceBinding {
         offset: u64,
         length: u64,
         referent: TerminalStructuralValue,
+        /// A compiler-owned fixed descriptor has its own identity, separate
+        /// from the borrowed array. Ordinary borrowed formals use the referent.
+        descriptor_home: Option<TerminalStructuralValue>,
     },
     MutableField {
         field: StructuralByteSequenceRuntimeField,
@@ -81,6 +84,7 @@ impl ByteSequenceBinding {
             offset,
             length,
             referent,
+            descriptor_home,
         } = self
         {
             let (backing_path, exact_window) = match referent.path.split_last() {
@@ -95,7 +99,13 @@ impl ByteSequenceBinding {
                             == Some(*length),
                 ),
             };
-            return if value == referent
+            return if value == descriptor_home.as_ref().unwrap_or(referent)
+                && descriptor_home.as_ref().is_none_or(|home| {
+                    home.path.is_empty()
+                        && home.structural_type == referent.structural_type
+                        && home.qualifications.is_empty()
+                        && home.projected_qualifications.is_empty()
+                })
                 && array.referent.opaque_identity == referent.opaque_identity
                 && array.referent.path == backing_path
                 && exact_window
@@ -337,6 +347,69 @@ impl TerminalExecution<'_> {
             .matches_descriptor_home(&selected)
             .then(|| bytes.clone())
             .ok_or_else(malformed)
+    }
+
+    /// Transfer a fixed view's descriptor with its exact producer custody.
+    /// Ownership applies to the descriptor, never the caller's bytes: retain
+    /// the binding's existing home/window and exclusive/shared permission.
+    /// A mutable descriptor is affine; only a shared descriptor is copyable.
+    pub(crate) fn prepare_owned_byte_descriptor_argument(
+        &self,
+        parameter: &terminal_psi::StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+        resolved: &TerminalStructuralValue,
+    ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
+    {
+        let Some(StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedView { access, capacity },
+        )) = self
+            .program
+            .structural_types()
+            .get(&parameter.structural_type)
+            .map(|declaration| &declaration.shape)
+        else {
+            return Ok(None);
+        };
+        if parameter.access != StructuralAccess::Owned {
+            return Ok(None);
+        }
+        let owned_source = self
+            .owned_block_source(argument.place)
+            .is_some_and(|source| {
+                source.access == StructuralAccess::Owned
+                    && source.structural_type == parameter.structural_type
+                    && source.multiplicity == parameter.multiplicity
+            })
+            || self.owned_result_matches(argument.place, parameter);
+        if !owned_source
+            || argument.access != StructuralAccess::Owned
+            || !argument.path.is_empty()
+            || parameter.structural_type != resolved.structural_type
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !resolved.qualifications.is_empty()
+            || !resolved.projected_qualifications.is_empty()
+        {
+            return Err(malformed());
+        }
+        let binding = self.byte_descriptor_binding(argument, resolved)?;
+        let permission_matches = match &binding {
+            ByteSequenceBinding::Immutable(_) => {
+                parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && matches!(access, None | Some(StructuralAccess::SharedBorrow))
+            }
+            ByteSequenceBinding::MutableArray { .. } => {
+                parameter.multiplicity == StructuralMultiplicity::Affine
+                    && matches!(access, None | Some(StructuralAccess::MutableBorrow))
+            }
+            ByteSequenceBinding::MutableField { .. } | ByteSequenceBinding::MutableOwner { .. } => {
+                false
+            }
+        };
+        if !permission_matches || self.byte_descriptor_length(&binding, resolved)? != *capacity {
+            return Err(malformed());
+        }
+        Ok(Some((resolved.clone(), binding)))
     }
 
     pub(crate) fn prepare_shared_descriptor_argument(

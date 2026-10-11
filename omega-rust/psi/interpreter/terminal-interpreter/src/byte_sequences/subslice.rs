@@ -206,6 +206,7 @@ impl TerminalExecution<'_> {
                         offset: start,
                         length: end - start,
                         referent: destination.clone(),
+                        descriptor_home: None,
                     };
                     narrowed.validate_mutable_referent(
                         &self.program.structural_types(),

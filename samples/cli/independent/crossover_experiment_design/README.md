@@ -65,14 +65,14 @@ checkout's `source/library`. Substitute a current-main verified binary for
 `$OMEGA`; retain its path, hash and source revision in validation evidence.
 
 ```sh
-python3 samples/cli/independent/crossover_experiment_design/reference.py
+python3 -B samples/cli/independent/crossover_experiment_design/reference.py
 $OMEGA update --project samples/cli/independent/crossover_experiment_design --target linux_x86_64
 # Inspect the generated review and accept only the exact bundled std proposal;
 # then use the normal saved-review --resume route.
 $OMEGA update --resume --project samples/cli/independent/crossover_experiment_design
 $OMEGA --check --target linux_x86_64 --build-dir samples/cli/independent/crossover_experiment_design/build/check samples/cli/independent/crossover_experiment_design/main.omg
 $OMEGA --target linux_x86_64 --build-dir samples/cli/independent/crossover_experiment_design/build/native samples/cli/independent/crossover_experiment_design/main.omg
-python3 samples/cli/independent/crossover_experiment_design/validate.py <emitted-executable> --omega "$OMEGA" --terminal
+python3 -B samples/cli/independent/crossover_experiment_design/validate.py <emitted-executable> --omega "$OMEGA" --terminal
 $OMEGA --check --target linux_x86_64 --build-dir samples/cli/independent/crossover_experiment_design/build/invalid samples/cli/independent/crossover_experiment_design/invalid/main.omg
 ```
 
@@ -82,3 +82,20 @@ invalid project and is deliberately excluded from positive sample acceptance.
 Terminal comparison in the CLI compares termination only; exact stdout is
 independently checked against the native output, and `DECLINED` is not agreement.
 Retained output/logs belong in ignored `build/`; source/data never depend on them.
+
+## Execution evidence
+
+On Linux x86-64, the complete application passed source checking, all 19 exact
+native output/exit oracles, and six native/Terminal comparisons. The Terminal
+cases cover two- and three-treatment feasible allocations, six-subject pair
+balance, a forbidden edge, carryover infeasibility and malformed input.
+
+Current main `39dd9145f461a75017141b7459913354bfee021c` initially rejected
+native production at the ordinary `&input` state-edge loan. The accompanying
+compiler repair keeps fixed byte references in their existing bounded view
+carrier, captures selected addresses across state forwarding, and validates
+their exact declared extent through codec, native and Terminal consumers. A
+shared descriptor is copyable; a mutable descriptor retains affine custody.
+The repair preserves backing access, alias and lifetime checks. Detailed
+commands, binary/source hashes, reviews and logs are supplied in the ADD17
+review bundle. Independent review and main publication remain separate gates.

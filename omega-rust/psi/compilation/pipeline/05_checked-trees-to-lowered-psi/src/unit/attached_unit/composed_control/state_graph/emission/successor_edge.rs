@@ -358,9 +358,14 @@ impl StateGraphEmission<'_, '_> {
                                 let (source_place, source_path) = match subject.source {
                                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
                                         if let Some(parent) = self.captured_loans.parent_carrier(position, parameter_index) => {
-                                            let mut parent_path = vec![terminal_psi::StructuralPathSegment::Referent];
+                                            let mut parent_path = if terminal_psi::find_structural_type(
+                                                &self.catalogs.structural_types, parent.structural_type,
+                                            ).is_some_and(|declaration| matches!(declaration.shape,
+                                                terminal_psi::StructuralTypeShape::Reference { .. })) {
+                                                vec![terminal_psi::StructuralPathSegment::Referent]
+                                            } else { Vec::new() };
                                             parent_path.extend(path);
-                                            (parent, parent_path)
+                                            (parent.place, parent_path)
                                         }
                                     _ => (root, path),
                                 };
@@ -374,11 +379,17 @@ impl StateGraphEmission<'_, '_> {
                                         statement_index: edge.statement_ordinal as usize,
                                         expression: formation_expression,
                                     },
-                                    carrier_type, source, None, place_id(allocate_dense(&mut self.catalogs.next_place)?), operations,
+                                    carrier_type, source, None, &self.catalogs.structural_types,
+                                    place_id(allocate_dense(&mut self.catalogs.next_place)?), operations,
                                 )?;
                                 captured_loans.push((group, carrier.id));
                                 self.structural_places.push(carrier);
-                                argument_path = vec![terminal_psi::StructuralPathSegment::Referent];
+                                argument_path = if terminal_psi::find_structural_type(
+                                    &self.catalogs.structural_types, carrier_type,
+                                ).is_some_and(|declaration| matches!(declaration.shape,
+                                    terminal_psi::StructuralTypeShape::Reference { .. })) {
+                                    vec![terminal_psi::StructuralPathSegment::Referent]
+                                } else { Vec::new() };
                                 carrier.id
                             } else {
                                 argument_path = path;

@@ -20,12 +20,58 @@ fn element_view_result_place(
                 && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
                     // A `&[u8]` view is the same establishment over `u8`
                     // elements; the byte carrier keeps no element field.
-                    || row.shape.is_borrowed_byte_view())
+                    || row.shape.is_borrowed_byte_view()
+                    || (row.shape.is_borrowed_byte_carrier()
+                        && fixed_descriptor_establishment(module, machine, operation, &row.shape)))
         }) && machine.structural_places.iter().any(|row| {
         row.id == result.place
             && matches!(row.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
                     if producer == operation.id && structural_type == result.structural_type)
     })
+}
+
+fn fixed_descriptor_establishment(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    shape: &StructuralTypeShape,
+) -> bool {
+    let (source, element, region) = match &operation.kind {
+        OperationKind::EstablishElementView {
+            source,
+            element,
+            region,
+            ..
+        }
+        | OperationKind::EstablishMutableElementView {
+            source,
+            element,
+            region,
+            ..
+        } => (source, *element, *region),
+        _ => return false,
+    };
+    let extent = place_structural_type(machine, source.place)
+        .and_then(|root| validate_structural_path(module, root, &source.path).ok())
+        .and_then(|collection| {
+            terminal_semantics::collection_backing(
+                module.structural_types.iter(),
+                collection,
+                element,
+            )
+        })
+        .map(|backing| backing.extent);
+    terminal_semantics::collection_view_descriptor(
+        shape,
+        extent,
+        region,
+        &source.path,
+        module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == element),
+    )
+    .is_some()
 }
 
 pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_establish_element_view(

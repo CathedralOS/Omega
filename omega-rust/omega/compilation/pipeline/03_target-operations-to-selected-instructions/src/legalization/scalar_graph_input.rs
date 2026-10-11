@@ -319,10 +319,12 @@ pub(super) fn match_input(
                         terminal_psi::StructuralTypeShape::ElementView { element: declared } => {
                             declared == element
                         }
-                        // A `&[u8]` result declares its view over the `u8`
-                        // element instead of an `ElementView` shell.
+                        // Byte view carriers declare an implicit exact `u8`
+                        // element instead of an `ElementView` shell. The
+                        // independent geometry audit checks declared extent
+                        // and the complete producer/source coordinate.
                         terminal_psi::StructuralTypeShape::ByteSequence(_) => {
-                            declaration.shape.is_borrowed_byte_view()
+                            declaration.shape.is_borrowed_byte_carrier()
                                 && unit.structural_types.iter().any(|element_declaration| {
                                     element_declaration.id == *element
                                         && matches!(

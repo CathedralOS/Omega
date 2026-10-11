@@ -1,7 +1,9 @@
 //! Address descriptors and their borrowed state views have separate custody.
-//! A selected formation owns bounds evaluation. Its affine descriptor travels
+//! A selected formation owns bounds evaluation. Its descriptor travels
 //! beside the authored referent, through whole forwarding, and dies where that
-//! referent's state chain ends. Caller storage never becomes owned transport.
+//! referent's state chain ends. Mutable descriptors retain affine custody;
+//! shared fixed byte descriptors are copyable. Caller storage never becomes
+//! owned transport.
 //! Static geometry needs no new capture, but every projected descendant keeps
 //! its lineage: a static child can still depend on a dynamic ancestor address.
 use crate::LoweringError;
@@ -137,6 +139,7 @@ impl CapturedLoans {
         // A static incoming edge to the same header forms the same descriptor;
         // headers with only static geometry keep their canonical place route.
         let mut types: Vec<(usize, TypeIdentityId)> = Vec::new();
+        let mut shared_byte_carriers = Vec::new();
         for (position, state) in plan
             .states
             .iter()
@@ -173,6 +176,30 @@ impl CapturedLoans {
                             }
                         } else {
                             types.push((group, *carrier_type_identity));
+                        }
+                        let carrier = crate::terminal_identities::lookup_type_id(
+                            &catalogs.type_ids,
+                            carrier_type_identity,
+                        )?;
+                        if plan.states[target].structural_parameters
+                            [transfer.target_parameter_index as usize]
+                            .access
+                            == checked_trees::CheckedStructuralAccess::SharedBorrow
+                            && terminal_psi::find_structural_type(
+                                &catalogs.structural_types,
+                                carrier,
+                            )
+                            .is_some_and(|declaration| {
+                                matches!(
+                                    declaration.shape,
+                                    terminal_psi::StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                                    )
+                                )
+                            })
+                            && !shared_byte_carriers.contains(&group)
+                        {
+                            shared_byte_carriers.push(group);
                         }
                     }
                 }
@@ -296,6 +323,9 @@ impl CapturedLoans {
         for (group, _) in &mut types {
             *group = root(&links, *group);
         }
+        for group in &mut shared_byte_carriers {
+            *group = root(&links, *group);
+        }
         types.sort_by_key(|(group, _)| *group);
         types.dedup_by_key(|(group, _)| *group);
         for (child, parent) in &mut parents {
@@ -368,7 +398,15 @@ impl CapturedLoans {
                             LoweringError::Unsupported("captured loan roster exceeds u32")
                         })?,
                         structural_type,
-                        multiplicity: StructuralMultiplicity::Affine,
+                        // Shared bounded byte views are copy descriptors, while
+                        // exclusive views and generic references own affine
+                        // lifetime resources. Transport keeps that producer
+                        // contract instead of imposing a reference-only one.
+                        multiplicity: if shared_byte_carriers.contains(group) {
+                            StructuralMultiplicity::Unrestricted
+                        } else {
+                            StructuralMultiplicity::Affine
+                        },
                         access: StructuralAccess::Owned,
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
@@ -412,12 +450,16 @@ impl CapturedLoans {
             .map(|owner| owner.declaration.clone())
     }
 
-    pub(super) fn parent_carrier(&self, state: usize, parameter: u32) -> Option<PlaceId> {
+    pub(super) fn parent_carrier(
+        &self,
+        state: usize,
+        parameter: u32,
+    ) -> Option<&StructuralParameterDeclaration> {
         let group = *self.nodes.get(state)?.get(parameter as usize)?;
         self.owners[state]
             .iter()
             .find(|owner| owner.group == group)
-            .map(|owner| owner.declaration.place)
+            .map(|owner| &owner.declaration)
     }
 
     pub(super) fn arrivals(
@@ -489,6 +531,9 @@ impl CapturedLoans {
             // block parameter. Follow that exact owned binding, rather than
             // disposing the already consumed header place at a later exit.
             for owner in owners {
+                if owner.declaration.multiplicity != StructuralMultiplicity::Affine {
+                    continue;
+                }
                 let mut region = vec![(headers[position], owner.declaration.place)];
                 let mut cursor = 0;
                 while cursor < region.len() {

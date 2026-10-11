@@ -163,6 +163,7 @@ impl TerminalExecution<'_> {
                         offset: 0,
                         length,
                         referent: root.clone(),
+                        descriptor_home: None,
                     }
                 } else {
                     ByteSequenceBinding::Immutable(bytes.clone())
@@ -272,8 +273,17 @@ impl TerminalExecution<'_> {
             let mut value = value.clone();
             value.structural_type = view_type;
             match &mut binding {
-                ByteSequenceBinding::MutableArray { referent, .. } => {
-                    *referent = value.clone();
+                ByteSequenceBinding::MutableArray {
+                    referent,
+                    descriptor_home,
+                    ..
+                } => {
+                    if descriptor_home.is_some() {
+                        *descriptor_home = Some(value.clone());
+                        referent.structural_type = view_type;
+                    } else {
+                        *referent = value.clone();
+                    }
                     binding.validate_mutable_referent(&self.program.structural_types(), &value)?;
                 }
                 ByteSequenceBinding::Immutable(bytes) => {
@@ -409,6 +419,7 @@ impl TerminalExecution<'_> {
             offset: 0,
             length,
             referent: referent.clone(),
+            descriptor_home: None,
         };
         binding.validate_mutable_referent(&self.program.structural_types(), &referent)?;
         Ok((referent, binding))
@@ -475,10 +486,30 @@ impl TerminalExecution<'_> {
             if qualified || value.structural_type != parameter.structural_type {
                 return Err(malformed());
             }
-            return Ok(Some((
-                value.clone(),
-                self.reborrow_byte_sequence_binding(binding, value, parameter.access)?,
-            )));
+            let mut borrowed =
+                self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
+            // A formal borrows the original array, not the owned descriptor.
+            // Rejoin its referent identity after validating the descriptor home;
+            // this keeps a simultaneous descriptor move disjoint from the loan.
+            let referent = if let ByteSequenceBinding::MutableArray {
+                referent,
+                descriptor_home: Some(_),
+                ..
+            } = binding
+            {
+                if let ByteSequenceBinding::MutableArray {
+                    descriptor_home, ..
+                } = &mut borrowed
+                {
+                    *descriptor_home = None;
+                } else if let ByteSequenceBinding::Immutable(bytes) = &mut borrowed {
+                    *bytes = bytes.clone().with_descriptor_home(referent.clone());
+                }
+                referent.clone()
+            } else {
+                value.clone()
+            };
+            return Ok(Some((referent, borrowed)));
         }
         // A genuine array projection resolves to its own structural type. The
         // bounded byte-field presentation remains owned by its separate path.
@@ -616,6 +647,7 @@ impl TerminalExecution<'_> {
                 offset: window.offset,
                 length: window.length,
                 referent,
+                descriptor_home: None,
             },
         )))
     }

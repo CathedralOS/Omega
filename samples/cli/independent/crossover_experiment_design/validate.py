@@ -4,6 +4,10 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import sys
+
+# Validation must not add Python bytecode to the reviewed source package.
+sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parent
 parser = argparse.ArgumentParser()

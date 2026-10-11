@@ -82,7 +82,8 @@ pub use call_composition::{
     validate_call_composition_semantic_rows,
 };
 pub use collection_backing::{
-    CollectionBacking, CollectionExtent, CollectionStorage, collection_backing,
+    CollectionBacking, CollectionExtent, CollectionStorage, CollectionViewDescriptor,
+    collection_backing, collection_view_descriptor,
 };
 pub use partial_affine::partial_affine_residuals;
 pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_referent};

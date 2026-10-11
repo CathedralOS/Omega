@@ -36,6 +36,53 @@ pub struct CollectionBacking {
     pub storage: CollectionStorage,
 }
 
+/// Geometry of the produced descriptor, independently of backing permission.
+/// A fixed byte view keeps one pointer and obtains length from its declaration;
+/// dynamic byte and element views store their length beside the pointer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CollectionViewDescriptor {
+    StoredLength,
+    DeclaredLength(u64),
+}
+
+/// Rejoin descriptor geometry to its declared whole backing. This grants no
+/// access, initialization, index proof or lifetime. Fixed views cannot turn a
+/// capacity bound on live storage, a ranged window, or representation bytes
+/// into an exact array extent; dynamic views retain their existing judgments.
+pub fn collection_view_descriptor(
+    shape: &StructuralTypeShape,
+    extent: Option<CollectionExtent>,
+    region: terminal_psi::ElementViewRegion,
+    source_path: &[terminal_psi::StructuralPathSegment],
+    element: Option<&StructuralTypeDeclaration>,
+) -> Option<CollectionViewDescriptor> {
+    match shape {
+        StructuralTypeShape::ElementView { .. }
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => {
+            Some(CollectionViewDescriptor::StoredLength)
+        }
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+            capacity, ..
+        }) if extent == Some(CollectionExtent::Fixed(*capacity))
+            && element.is_some_and(|declaration| {
+                declaration.scalar_restriction.is_none()
+                    && matches!(declaration.shape,
+                    StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                        if integer.sign() == IntegerSign::Unsigned
+                            && integer.bits() == 8 && !integer.is_address())
+            })
+            && region == terminal_psi::ElementViewRegion::WholeCollection
+            && !matches!(
+                source_path.last(),
+                Some(terminal_psi::StructuralPathSegment::FixedByteRange { .. })
+            ) =>
+        {
+            Some(CollectionViewDescriptor::DeclaredLength(*capacity))
+        }
+        _ => None,
+    }
+}
+
 /// Match a collection to the establishment's exact element declaration.
 /// Bounded byte backing has implicit primitive `u8` elements; another scalar
 /// with the same width, or an owned/dynamic byte carrier, cannot substitute.

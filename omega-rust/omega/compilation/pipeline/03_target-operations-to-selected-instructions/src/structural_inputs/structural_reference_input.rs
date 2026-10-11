@@ -928,7 +928,7 @@ pub(crate) fn collection_view_region_geometry(
         StructuralTypeShape::ElementView {
             element: view_element,
         } => Some(*view_element),
-        shape if shape.is_borrowed_byte_view() => None,
+        shape if shape.is_borrowed_byte_carrier() => None,
         _ => return None,
     };
     let (tip, offset, elements) =
@@ -991,6 +991,13 @@ pub(crate) fn collection_view_region_geometry(
         return None;
     }
     let extent = backing.extent;
+    terminal_semantics::collection_view_descriptor(
+        &find_structural_type(declarations, view_type)?.shape,
+        Some(extent),
+        region,
+        &argument.path,
+        find_structural_type(declarations, element),
+    )?;
     let element_stride = align(
         shape(element, declarations)?.byte_size,
         shape(element, declarations)?.alignment,

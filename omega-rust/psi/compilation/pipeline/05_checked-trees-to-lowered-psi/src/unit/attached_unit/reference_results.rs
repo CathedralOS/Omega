@@ -26,6 +26,7 @@ pub(super) fn emit(
     source: StructuralArgument,
     storage: Option<terminal_psi::ReferenceStorageView>,
     types: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
@@ -35,6 +36,7 @@ pub(super) fn emit(
         structural_type,
         source,
         storage,
+        declarations,
         place_id(allocate_dense(next_place)?),
         operations,
     )
@@ -45,10 +47,73 @@ pub(crate) fn emit_carrier(
     structural_type: StructuralTypeId,
     source: StructuralArgument,
     storage: Option<terminal_psi::ReferenceStorageView>,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
     place: semantic_vocabulary::PlaceId,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let id = operations.allocate();
+    // A captured loan keeps the carrier its type declares. Ordinary
+    // references own affine lifetime resources; fixed byte views use the
+    // collection descriptor operation and its shared/exclusive multiplicity.
+    // Both routes retain the exact evaluated source and loan provenance below.
+    let declaration = terminal_psi::find_structural_type(declarations, structural_type)
+        .ok_or(LoweringError::Unsupported("loan carrier type is missing"))?;
+    let (kind, multiplicity) = match declaration.shape {
+        terminal_psi::StructuralTypeShape::Reference { .. } => (
+            OperationKind::EstablishReference {
+                source: source.clone(),
+                storage,
+            },
+            StructuralMultiplicity::Affine,
+        ),
+        terminal_psi::StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedView { .. },
+        ) if storage.is_none() => {
+            let scalar = crate::emission::scalar_types::terminal_scalar_type(
+                checked_trees::types::PrimitiveType::U8,
+            )?;
+            let element = declarations
+                .iter()
+                .find(|declaration| {
+                    declaration.shape == terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "byte loan carrier has no u8 declaration",
+                ))?
+                .id;
+            let region = terminal_psi::ElementViewRegion::WholeCollection;
+            match source.access {
+                terminal_psi::StructuralAccess::SharedBorrow => (
+                    OperationKind::EstablishElementView {
+                        destination: place,
+                        source: source.clone(),
+                        element,
+                        region,
+                    },
+                    StructuralMultiplicity::Unrestricted,
+                ),
+                terminal_psi::StructuralAccess::MutableBorrow => (
+                    OperationKind::EstablishMutableElementView {
+                        destination: place,
+                        source: source.clone(),
+                        element,
+                        region,
+                    },
+                    StructuralMultiplicity::Affine,
+                ),
+                _ => {
+                    return Err(LoweringError::Unsupported(
+                        "byte loan carrier has no readable access",
+                    ));
+                }
+            }
+        }
+        _ => {
+            return Err(LoweringError::Unsupported(
+                "loan carrier has no formation operation",
+            ));
+        }
+    };
     // The ordinary and constructed-reference routes share this capture. The
     // lowered source is already evaluated, including every selector snapshot.
     // These rows associate checked occurrences with emitted coordinates; they
@@ -78,12 +143,8 @@ pub(crate) fn emit_carrier(
         static_reach_binding: None,
         suspension_crossing: None,
         id,
-        result: structural_result_declaration(
-            place,
-            structural_type,
-            StructuralMultiplicity::Affine,
-        ),
-        kind: OperationKind::EstablishReference { source, storage },
+        result: structural_result_declaration(place, structural_type, multiplicity),
+        kind,
     });
     Ok(StructuralPlaceDeclaration {
         id: place,

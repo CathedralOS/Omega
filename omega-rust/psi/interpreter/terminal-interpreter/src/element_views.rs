@@ -461,7 +461,7 @@ impl TerminalExecution<'_> {
                 element: view_element,
             } if *view_element == element => {}
             StructuralTypeShape::ByteSequence(_)
-                if descriptor.is_borrowed_byte_view()
+                if descriptor.is_borrowed_byte_carrier()
                     && element_scalar
                         == Some(ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?,
@@ -489,6 +489,7 @@ impl TerminalExecution<'_> {
         // it is not a child type or storage-home path. Resolve the backing first
         // and apply the selected extent through the same narrowing operation
         // used by a subsequent subslice.
+        let formation_path = &source.path;
         let (backing_path, selected_window) = match source.path.split_last() {
             Some((StructuralPathSegment::FixedByteRange { start, end }, backing)) => {
                 if region != ElementViewRegion::WholeCollection || start > end {
@@ -516,6 +517,20 @@ impl TerminalExecution<'_> {
             root_type,
             &source.path,
         )?;
+        let extent = terminal_semantics::collection_backing(
+            self.program.structural_types().values(),
+            collection_type,
+            element,
+        )
+        .map(|backing| backing.extent);
+        terminal_semantics::collection_view_descriptor(
+            descriptor,
+            extent,
+            region,
+            formation_path,
+            self.program.structural_types().get(&element),
+        )
+        .ok_or_else(malformed)?;
         if let Some(window) = &selected_window {
             let StructuralTypeShape::FixedArray {
                 element: source_element,
@@ -669,7 +684,7 @@ impl TerminalExecution<'_> {
         )
         .ok_or_else(malformed)?;
         if collection.storage == terminal_semantics::CollectionStorage::Borrowed
-            && !descriptor.is_borrowed_byte_view()
+            && !descriptor.is_borrowed_byte_carrier()
         {
             return Err(malformed());
         }
@@ -731,7 +746,27 @@ impl TerminalExecution<'_> {
                     (value, binding)
                 };
                 let binding = if access == StructuralAccess::MutableBorrow {
-                    descriptor_value = value;
+                    let mut binding = binding;
+                    if matches!(
+                        descriptor,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                        )
+                    ) {
+                        // The owned pointer carrier and borrowed array have
+                        // distinct identities, as an ordinary reference does.
+                        // Its backing/window stays in the exact array binding.
+                        let crate::byte_sequences::binding::ByteSequenceBinding::MutableArray {
+                            descriptor_home,
+                            ..
+                        } = &mut binding
+                        else {
+                            return Err(malformed());
+                        };
+                        *descriptor_home = Some(descriptor_value.clone());
+                    } else {
+                        descriptor_value = value;
+                    }
                     binding
                 } else {
                     crate::byte_sequences::binding::ByteSequenceBinding::Immutable(

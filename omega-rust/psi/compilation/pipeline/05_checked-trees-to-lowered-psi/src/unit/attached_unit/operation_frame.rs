@@ -408,6 +408,7 @@ impl OperationFrame<'_, '_> {
             argument,
             storage,
             self.type_ids,
+            self.structural_types.declarations(),
             self.next_place,
             self.operations,
         )?;

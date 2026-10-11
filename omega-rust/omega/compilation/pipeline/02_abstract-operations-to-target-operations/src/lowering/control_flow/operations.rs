@@ -469,15 +469,13 @@ pub(super) fn lower_operation(
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            // The mutable loan's affine custody ends at scope exit: record
-            // the view place's result home so edge and return cleanup admit
-            // its no-code discard alongside other affine result homes.
-            if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
-                let home =
-                    super::aggregate_results::home(*psi_operation, result, structural_types)?;
-                if live.structural_homes.insert(*destination, home).is_some() {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
+            // Both shared and mutable establishments own their descriptor,
+            // while the backing access remains the view's separate permission.
+            // Record the exact producer contract for forwarding copyable shared
+            // descriptors as well as cleaning up affine mutable descriptors.
+            let home = super::aggregate_results::home(*psi_operation, result, structural_types)?;
+            if live.structural_homes.insert(*destination, home).is_some() {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             operations.push(TargetUnitOperation::EstablishElementView {
                 result: result.clone(),

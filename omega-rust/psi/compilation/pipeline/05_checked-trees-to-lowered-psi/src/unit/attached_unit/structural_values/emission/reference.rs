@@ -119,6 +119,7 @@ impl Emission<'_, '_, '_> {
                 self.structural_type,
                 argument,
                 None,
+                &self.structural_types[..],
                 super::super::super::place_id(super::super::super::allocate_dense(
                     self.next_place,
                 )?),

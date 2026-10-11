@@ -83,6 +83,7 @@ impl BlockBindings {
                 .live_claims
                 .retain(|_, claim| claim.place != Some(source));
             execution.structural_values.remove(&source);
+            execution.byte_sequence_values.remove(&source);
             execution.scalar_array_values.remove(&source);
             execution.element_view_values.remove(&source);
             execution.primitive_loan_values.remove(&source);

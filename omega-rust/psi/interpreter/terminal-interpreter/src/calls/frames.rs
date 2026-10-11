@@ -108,6 +108,14 @@ impl TerminalExecution<'_> {
                 continue;
             };
             if let Some((value, binding)) =
+                self.prepare_owned_byte_descriptor_argument(parameter, argument, resolved)?
+            {
+                if value != *resolved || values.insert(parameter.place, binding).is_some() {
+                    return Err(malformed());
+                }
+                continue;
+            }
+            if let Some((value, binding)) =
                 self.prepare_shared_descriptor_argument(parameter, argument)?
             {
                 if value != *resolved || values.insert(parameter.place, binding).is_some() {
