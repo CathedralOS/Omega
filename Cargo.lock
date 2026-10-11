@@ -2137,7 +2137,6 @@ dependencies = [
  "semantic-vocabulary",
  "symbols",
  "terminal-psi",
- "typed-trees",
 ]
 
 [[package]]

@@ -62,7 +62,13 @@ pub(crate) fn selected_task_runtime_provider(
     typed: &checked_trees::typed_trees::TypedTrees,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     selection: &TaskStartSelection,
-) -> Result<SelectedTaskRuntimeProviderFact, Vec<Diagnostic>> {
+) -> Result<
+    (
+        SelectedTaskRuntimeProviderFact,
+        checked_trees::typed_trees::type_identity::CallableIdentityId,
+    ),
+    Vec<Diagnostic>,
+> {
     let (requirement_owner, _, authored_requirement_identity) =
         exact_task_runtime_requirement(typed, selection)?;
     let requirement_owner_package = typed
@@ -145,12 +151,15 @@ pub(crate) fn selected_task_runtime_provider(
     }
     let runtime = TaskRuntimeId::from_normalized_identity(plan.report_fingerprint())
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    Ok(SelectedTaskRuntimeProviderFact {
-        runtime,
-        provider_plan_name: plan.name.clone(),
-        requirement_identity: typed
-            .callable_identity_by_text(plan.schema.identity_text(method.requirement_identity)),
-    })
+    // The local callable handle is used only to derive the specialization
+    // commitment. It cannot travel in runtime evidence without its typed arena.
+    Ok((
+        SelectedTaskRuntimeProviderFact {
+            runtime,
+            provider_plan_name: plan.name.clone(),
+        },
+        authored_requirement_identity,
+    ))
 }
 
 pub(crate) fn exact_task_runtime_requirement<'program>(

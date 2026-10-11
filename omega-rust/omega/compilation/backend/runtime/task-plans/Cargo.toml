@@ -14,4 +14,3 @@ optimization-core = { path = "../../../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 symbols = { path = "../../../../../psi/foundation/symbols" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
-typed-trees = { path = "../../../../../psi/compilation/representations/typed-trees" }

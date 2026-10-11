@@ -53,11 +53,8 @@ pub fn elaborate_task_activation_plans(
     let mut activations = Vec::new();
 
     for selection in selections {
-        let selected_runtime = selected_task_runtime_provider(
-            typed,
-            selected_provider_plans,
-            &selection,
-        )?;
+        let (selected_runtime, runtime_requirement) =
+            selected_task_runtime_provider(typed, selected_provider_plans, &selection)?;
         let (target_machine, entry) = exact_task_activation_target(
             typed,
             selection.target_machine,
@@ -88,7 +85,7 @@ pub fn elaborate_task_activation_plans(
             target_machine,
             entry,
             contract,
-            &typed.callable_identity_text(selected_runtime.requirement_identity),
+            &typed.callable_identity_text(runtime_requirement),
         )?;
         let suspension = exact_task_machine_suspension(
             check_facts,
@@ -104,8 +101,7 @@ pub fn elaborate_task_activation_plans(
             contract.report_fingerprint,
             MachineContractId::from_normalized_identity,
         )?;
-        let entry_report_fingerprint =
-            entry_report_fingerprint(typed, target_machine, entry);
+        let entry_report_fingerprint = entry_report_fingerprint(typed, target_machine, entry);
         let entry_id = normalized_id(
             entry_report_fingerprint,
             MachineEntryId::from_normalized_identity,

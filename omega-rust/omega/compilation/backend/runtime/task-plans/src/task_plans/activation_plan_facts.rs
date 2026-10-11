@@ -20,12 +20,12 @@ commitment_digest!(
 
 /// Exact selected runtime evidence paired with one Omega activation plan.
 /// This is post-check provider realization state, not part of Psi checked
-/// semantics.
+/// semantics. Source-local requirement handles remain in derivation; their
+/// canonical identities are covered by the activation's specialization commitment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedTaskRuntimeProviderFact {
     pub runtime: TaskRuntimeId,
     pub provider_plan_name: String,
-    pub requirement_identity: typed_trees::type_identity::CallableIdentityId,
 }
 
 /// One target/layout-specific task activation elaborated by Omega after Psi
