@@ -1,0 +1,38 @@
+// A guarded arrival establishes a dependent index proposition. Capturing and
+// forwarding that scalar retains the proposition while the count is unchanged;
+// the final indexed read must consume it through ordinary operand normalization.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main where count <= 11 {
+    console: Binding<Console>;
+    items: [u8; 12];
+    count: u32;
+    cursor: u32;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.items[6] = 42;
+    main.count = 8;
+    main.cursor = 6;
+    transition main.cursor <= main.count {
+        true -> read(main, main.cursor)
+        false -> bad(main)
+    }
+
+    state read(main: &mut Main, index: u32) requires index <= main.count {
+        let captured: u32 = index;
+        transition { _ -> deeper(main, captured) }
+    }
+
+    state deeper(main: &mut Main, index: u32) requires index <= main.count {
+        let observed: u8 = main.items[index];
+        transition observed == 42 {
+            true -> done(main)
+            false -> bad(main)
+        }
+    }
+
+    state done(main: &mut Main) { main.console.exit_process(0); }
+    state bad(main: &mut Main) { main.console.exit_process(86); }
+}

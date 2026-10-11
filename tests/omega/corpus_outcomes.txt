@@ -1038,6 +1038,7 @@ pass/dependent/runtime_dynamic_record_replacement_exit checked 12503ms check-tar
 pass/dependent/runtime_requires_guarded_call_exit checked 13584ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/dependent/runtime_reserved_container_domain_establishment_exit checked 12419ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/dependent/runtime_sibling_len_index_exit checked 12406ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/dependent/runtime_state_dependent_index_forward_exit checked 4265ms check-target:macos_arm64 @fd8672848bf+wt
 pass/dependent/state_arrival_byte_predicate_guarded_compile checked 1878ms @a9ae30e1c334+wt
 pass/dependent/state_arrival_contract_guarded_compile checked 1651ms @a9ae30e1c334+wt
 pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 2256ms @a9ae30e1c334+wt
@@ -3950,10 +3951,10 @@ fail/dependent/data_where_two_data_parameters_have_no_data_binding rejected 853m
 	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `first` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/data_where_whole_read_during_window_rejected rejected 874ms expected @a9ae30e1c334+wt
 	the next whole-value read of `map` occurs inside an OPEN invariant window: a prior write left data `Map`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-fail/dependent/dependent_arg_unrelated_rejected rejected 2715ms expected @a9ae30e1c334+wt
-	machine `Main::main` state `read` local data `__hoist_30` declares a range whose bound is not a constant integer expression; a non-constant bound cannot be enforced (it would silently behave unbounded). A dependent maximum (`[0..=<parameter>.<field>]` on a subject parameter) is supported on machine STATE PARAMETERS whose named field carries an enforced literal integer range
-fail/dependent/dependent_forward_after_write_rejected rejected 2766ms expected @a9ae30e1c334+wt
-	machine `Main::main` state `deeper` local data `__hoist_30` declares a range whose bound is not a constant integer expression; a non-constant bound cannot be enforced (it would silently behave unbounded). A dependent maximum (`[0..=<parameter>.<field>]` on a subject parameter) is supported on machine STATE PARAMETERS whose named field carries an enforced literal integer range
+fail/dependent/dependent_arg_unrelated_rejected rejected 1632ms expected @fd8672848bf+wt
+	cannot prove requires contract for call read from Main::main: main.j <= main.count (needs fact `i <= main.count` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/dependent/dependent_forward_after_write_rejected rejected 1624ms expected @fd8672848bf+wt
+	cannot prove requires contract for call deeper from Main::main: i <= main.count (needs fact `k <= main.count` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/dependent/dependent_range_on_field_rejected rejected 2969ms expected @a9ae30e1c334+wt
 	data `Main` field `cursor` declares a range whose bound is not a constant integer expression; a non-constant bound cannot be enforced (it would silently behave unbounded). A dependent maximum (`[0..=<parameter>.<field>]` on a subject parameter) is supported on machine STATE PARAMETERS whose named field carries an enforced literal integer range
 fail/dependent/dynamic_record_replacement_preserves_unknown_debt rejected 908ms expected @a9ae30e1c334+wt

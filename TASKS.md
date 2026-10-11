@@ -175,23 +175,6 @@ helper that passes does not close an item.
   resolved-subject memo is the next leg — then restore the pinned
   order of magnitude and repin the rows.
 
-- **DEPENDENT-STATE-PARAM-HOIST.** (new-scope) Restore the authored dependent
-  maximum on state parameters so the transition-argument route is reachable
-  again. `fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`
-  pin the "satisfies dependent parameter" rejection at the transition
-  argument; both now reject earlier on a synthesized local: "machine
-  `Main::main` state `read`/`deeper` local data `__hoist_30` declares a range
-  whose bound is not a constant integer expression ... A dependent maximum
-  (`[0..=<parameter>.<field>]` on a subject parameter) is supported on
-  machine STATE PARAMETERS". The fixtures declare exactly that supported
-  shape (`i: u32 [0..=main.count]` on the state parameter, `main.count`
-  carrying an enforced literal range), but the hoist lowers the range onto a
-  local data item whose provenance the dependent-maximum gate cannot see, so
-  the supported shape is rejected as a plain non-constant bound and the
-  authored route below is dead. Carry state-parameter provenance through the
-  hoist (or admit the supported dependent maximum on the lowered local), then
-  re-pin the fixtures' `expected.txt` to the authored fragment.
-
 - **REFERENCE-CUSTODY-JOIN-SCALING.** (new-scope) Investigate and remove
   avoidable compilation cost in reference-custody joins without weakening their
   semantics. The former `custody-join-build-cost` escalation is engineering
@@ -1631,7 +1614,9 @@ defines the complete product bar.
     suffixes). A mutable parameter's `requires` constrains arrival where the old
     suffix was store-enforced: re-prove dependent reads after a write
     (`pass/termination/rank_range_mutable_bounded_endpoint` plus negative
-    mutation controls).
+    mutation controls). Keep `pass/dependent/runtime_state_dependent_index_forward_exit`
+    and `fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`
+    as controls for captured state arguments and invalidated bound observations.
   - Library: 12 integer suffixes remain, each blocked in the Rust reference.
     `Duration.subsecond_nanoseconds` (`source/library/std/time.omg`): in data
     `where` form, `pub const Duration::MAX` (read by
