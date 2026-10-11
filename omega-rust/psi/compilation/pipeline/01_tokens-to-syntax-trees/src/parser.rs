@@ -137,6 +137,25 @@ pub fn parse_source_units(lexed: LexedSources) -> Result<ParsedSyntaxPages, Vec<
     parse_source_pages_with_count(lexed_sources, lexed_sources.len().max(1), 1)
 }
 
+/// Stack budget for the parallel parse workers. Expression and type parsing
+/// recurse on authored nesting depth, so page workers need the same budget
+/// the compile thread provisions (`COMPILE_STACK_SIZE` in the driver), not
+/// the host's default thread stack. The stage owns this pool so every
+/// caller — CLI, tests, and embedding drivers — gets the contract without
+/// configuring the process-wide Rayon pool.
+const PARSE_STACK_SIZE: usize = 256 * 1024 * 1024;
+
+fn parse_thread_pool() -> &'static rayon::ThreadPool {
+    static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .thread_name(|index| format!("omega-parse-{index}"))
+            .stack_size(PARSE_STACK_SIZE)
+            .build()
+            .expect("parser worker pool must spawn")
+    })
+}
+
 fn parse_source_pages_with_count(
     lexed_sources: &[tokens::LexedSource],
     desired_pages: usize,
@@ -160,11 +179,14 @@ fn parse_source_pages_with_count(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let parsed_pages = page_reservations
-        .into_par_iter()
-        .zip(lexed_sources.par_chunks(chunk_size))
-        .map(|(page, sources)| parse_source_page(page, sources))
-        .collect::<Vec<_>>()
+    let parsed_pages = parse_thread_pool()
+        .install(|| {
+            page_reservations
+                .into_par_iter()
+                .zip(lexed_sources.par_chunks(chunk_size))
+                .map(|(page, sources)| parse_source_page(page, sources))
+                .collect::<Vec<_>>()
+        })
         .into_iter()
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
 
