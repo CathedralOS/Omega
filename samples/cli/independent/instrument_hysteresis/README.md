@@ -89,3 +89,11 @@ view have no common home (stage 05). No source pattern, function identity or
 weakened custody/legality check is introduced. The focused regressions are
 `runtime_cut_byte_view_cycle_exit` and `call_surviving_return_exit`; their
 observations and the original refusal logs belong in the review bundle.
+
+Independent review required retained producer-chain traversal as well. The
+chained-cut fixture exposed an earlier state-graph handoff dropping established
+locals; it now uses the existing contextual-bindings builder at that join.
+Both missing joins were reproduced on the integrated main compiler without
+weakening custody checks. The complete application source and frozen numeric
+oracles remain unchanged. Final bundle evidence identifies the integration
+base, exact compiler and runner hashes, commands and acceptance results.

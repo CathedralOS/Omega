@@ -353,7 +353,9 @@ impl StateGraphEmission<'_, '_> {
                 },
             );
         }
-        let bindings = evaluation.scalar_bindings.clone();
+        // Successors observe every local the state body established, through
+        // the same custody-preserving context ordinary arguments consume.
+        let bindings = evaluation.contextual_bindings();
         let mut branch_guard = None;
         // The shared scalar decision is recorded under the true arm's
         // transition ordinal — the named successor's for `Conditional`, or the

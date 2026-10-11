@@ -40,8 +40,15 @@ It found a retained-cut composition gap: a cut of a dynamic cut has an
 operation-result source. Root traversal now resolves retained producers before
 requiring block parameters, preserving bounds and the cycle set. The source
 repair and guarded chained-cut regression passed independent source review.
-Final work: integrated-main acceptance, normal queue publication and refreshed
-verified Library bundle.
+The integrated-main runner reproduced the preceding state-local handoff
+failure (`computed borrow lost its established local`). Reusing the existing
+contextual-bindings builder retains the state body's established local custody.
+With only that join repaired, the chained fixture reproduces native
+SourceCustodyMismatch at byte_view_homes.rs:166, machine 7, operation 136.
+Restoring the approved retained-producer traversal completes this composition.
+The state handoff repair also passed independent source review.
+Final acceptance, publication and transfer evidence is recorded in the Library
+bundle; generated per-command results remain outside source inputs.
 There is no application execution blocker. The claims service remains unavailable,
 so registration/release of the uncertain ticket cannot be confirmed.
 Original base binary SHA256:
