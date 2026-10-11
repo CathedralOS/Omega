@@ -1,3 +1,16 @@
+Partial changed-input qualification at87e7a0a919ff7630f8e989cb3bb0bcd325358867
+Base4f790ddf1e05ef13e112dab3c04f758bc60036f6; clean throughout execution.
+Product build0/121.116s; runner0/9.340s. Classification provider update0/82.190s,
+sourcecheck0/29files/68.816s, native0/213.574s. Error-budget update0/61.241s.
+Its sourcecheck was voluntarily terminated (signal15/51.207s) after published
+main4b5eb415f13 changed provider identity transport in receiving plans, making
+fresh native and Terminal qualification necessary. This cancellation is not a
+compiler rejection. Error-budget native and remaining4f gates were not run.
+The3e49 complete qualification below remains evidence at its actual revision.
+Next integration must qualify both complete consumers, source/runtime controls,
+NF01mutableboth73 and independent invalid suffix on the new provider identity.
+Exact partial commands/results and resource measurements: evidence/*-4f79-*.
+
 Latest complete connected policy qualification (publication pending)
 
 Clean execution revision6178dfc303b74b0f39c8cc7207132e9d8a6427b1.
