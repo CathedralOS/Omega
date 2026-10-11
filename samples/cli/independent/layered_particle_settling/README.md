@@ -57,9 +57,12 @@ uses exact rational arithmetic for every discrete trace, and analytic square
 roots for terminal balances. `data/frozen.json` and `frozen.sha256` preserve it.
 Trace output permits one microunit for floating rounding/truncation boundaries;
 force residual checks permit absolute 1e-8. Bisection's speed bracket after 40
-halvings is at most 8/2^40; analytic terminal speed tolerance is 1e-8. A printed
-zero alone cannot establish that force tolerance: the application checks the
-unquantized residual at runtime. Event rows, layer choices, counts, exits and
+halvings is at most 8/2^40, supporting the frozen analytic terminal speed
+tolerance of 1e-8. The validator compares printed terminal speeds only at
+microunit precision; it does not measure that tighter raw speed tolerance.
+The raw speed bound relies on the bisection interval and runtime force checks.
+A printed zero alone cannot establish the force tolerance: the application
+checks the unquantized residual at runtime. Event rows, layer choices, counts, exits and
 invalid messages must match exactly. The validator never recalculates expected
 results, performs acceptance, or accepts a wrong-reason control rejection.
 

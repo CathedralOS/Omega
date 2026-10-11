@@ -54,6 +54,8 @@ def main():
             diagnostic=result.stderr.decode(errors='replace')+result.stdout.decode(errors='replace')
             assert result.returncode==1, (result.returncode,diagnostic)
             assert (control/'expected_error.txt').read_text().strip() in diagnostic, diagnostic
+            assert 'with 1 diagnostic(s)' in diagnostic,diagnostic
+            assert diagnostic.count('  error: ')==1,diagnostic
             assert 'unimplemented:' not in diagnostic,diagnostic
         else:
             if arguments.route=='native':
