@@ -863,15 +863,16 @@ fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bo
 mod call_paths;
 
 /// Ingress reference leaves identify external pointees, not descriptor storage.
-/// Ordinary origin fields still suspend their exact storage regions; unresolved
-/// declarations cannot establish disjointness. This matches lowering's custody
-/// geometry without changing the identities retained across owned transfers.
-fn is_suspended_storage_region(
+/// Ordinary origin fields protect their exact storage regions. Shared access
+/// may coexist with shared loans; writes, moves and disposal may not. Unknown
+/// permissions remain conflicting, never evidence of disjointness or access.
+fn storage_access_conflicts(
     function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     place: PlaceId,
     path: &[StructuralPathSegment],
+    requested: StructuralAccess,
 ) -> bool {
     let origin_overlaps = |origin_path: &[StructuralPathSegment]| {
         let Some(origin) = source_contract(function, custody, place)
@@ -883,16 +884,30 @@ fn is_suspended_storage_region(
         !matches!(origin.shape, StructuralTypeShape::Reference { .. })
             && terminal_semantics::structural_paths_may_overlap(path, origin_path)
     };
-    custody
-        .leaves
-        .values()
-        .any(|reference| match &reference.root {
+    custody.leaves.values().any(|reference| {
+        let permission = leaf_type(
+            types,
+            reference.contract.structural_type(),
+            &reference.identity.1,
+        )
+        .and_then(|identity| find_structural_type(types, identity))
+        .and_then(|declaration| match declaration.shape {
+            StructuralTypeShape::Reference { access, .. } => Some(access),
+            _ => None,
+        });
+        if requested == StructuralAccess::SharedBorrow
+            && permission == Some(StructuralAccess::SharedBorrow)
+        {
+            return false;
+        }
+        match &reference.root {
             Root::Place(root) => *root == place,
             Root::Ingress(root, origin) => *root == place && origin_overlaps(origin),
             Root::Alternatives(origins) => origins
                 .iter()
                 .any(|origin| origin.root == place && origin_overlaps(&origin.path)),
-        })
+        }
+    })
 }
 
 /// Validate every structural call argument under reference custody. Owned
@@ -951,8 +966,14 @@ fn call_arguments(
             // bytes being transferred. Use the same declaration-derived
             // storage judgment as disposition instead of treating a copied
             // descriptor's origin slot as a loan into its former owner.
-            if is_suspended_storage_region(function, custody, types, argument.place, &argument.path)
-            {
+            if storage_access_conflicts(
+                function,
+                custody,
+                types,
+                argument.place,
+                &argument.path,
+                argument.access,
+            ) {
                 return Err(invalid());
             }
             normalized.push((
@@ -1351,7 +1372,14 @@ fn discard_residual(
 ) -> Result<(), LegalizationError> {
     let root = source_contract(function, custody, discard.place).ok_or(invalid())?;
     if leaf_type(types, root, &discard.path) != Some(discard.structural_type)
-        || is_suspended_storage_region(function, custody, types, discard.place, &discard.path)
+        || storage_access_conflicts(
+            function,
+            custody,
+            types,
+            discard.place,
+            &discard.path,
+            StructuralAccess::Owned,
+        )
     {
         return Err(invalid());
     }
@@ -2095,12 +2123,13 @@ fn apply_cleanup_actions(
                     || source_contract(function, custody, cleanup.place)
                         .and_then(|root| leaf_type(types, root, &cleanup.path))
                         != Some(cleanup.structural_type)
-                    || is_suspended_storage_region(
+                    || storage_access_conflicts(
                         function,
                         custody,
                         types,
                         cleanup.place,
                         &cleanup.path,
+                        StructuralAccess::Owned,
                     )
                 {
                     return Err(invalid());
@@ -2112,7 +2141,14 @@ fn apply_cleanup_actions(
             }
         };
         // A suspended referent root cannot be discarded while its loan lives.
-        if is_suspended_storage_region(function, custody, types, place, &[]) {
+        if storage_access_conflicts(
+            function,
+            custody,
+            types,
+            place,
+            &[],
+            StructuralAccess::Owned,
+        ) {
             return Err(invalid());
         }
         discard_owned(function, custody, types, place)?;

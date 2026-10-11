@@ -1,0 +1,23 @@
+use omega_language_std::console;
+
+data Value { payload: u64; }
+data Carrier { value: &Value; }
+data View { carrier: &Carrier; }
+data Main { unused: u64; }
+
+machine read(carrier: &Carrier, view: &View) -> bool {
+    carrier.value.payload == 73 && view.carrier.value.payload == 73
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let value: Value = Value { payload: 73 };
+    let carrier: Carrier = Carrier { value: &value };
+    let view: View = View { carrier: &carrier };
+    let observed: bool = read(&carrier, &view);
+    transition observed {
+        true -> done()
+        _ -> failed()
+    }
+    state done() { Console::exit_process(0); }
+    state failed() { Console::exit_process(71); }
+}
