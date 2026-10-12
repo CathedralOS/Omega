@@ -383,6 +383,7 @@ fn evaluate_application_group(
                 admission: Default::default(),
             },
             &evaluation_domain,
+            &mut Vec::new(),
         )?;
         for (expression, source_span) in endpoint_leaves {
             let value = typed

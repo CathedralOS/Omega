@@ -177,6 +177,7 @@ impl IntegerPosition {
         program: &TypedTrees,
         admission: &BuildTimeAdmissionPlan,
         value: &BigInt,
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<(), String> {
         // Snapshot integers use i64 bits even for u64. Check the decoded exact
         // value, never a signed compatibility interval or merely its kind.
@@ -191,7 +192,7 @@ impl IntegerPosition {
         }
         for (symbol, name) in &self.domains {
             match crate::const_evaluation::const_domain_facts::evaluate_closed_membership(
-                program, admission, *symbol, value,
+                program, admission, *symbol, value, inputs,
             )? {
                 Some(true) => {}
                 Some(false) => {

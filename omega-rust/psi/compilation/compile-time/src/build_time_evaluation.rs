@@ -513,11 +513,17 @@ impl PreCheckEvaluation {
         range_endpoints::source_constant_demands(typed, &self.domain, &mut demands)?;
         const_domain_facts::source_constant_demands(typed, &self.domain, &mut demands);
         let bodies = match crate::source_constants::source_provider_bodies(
-            typed, &self.domain, &demands, selections,
+            typed,
+            &self.domain,
+            &demands,
+            selections,
         )? {
             crate::source_constants::SourceProviderBodies::Complete(bodies) => bodies,
             crate::source_constants::SourceProviderBodies::Retained(reason) => {
-                return Ok(crate::SourceConstantOutcome::Retained { continuation: self, reason });
+                return Ok(crate::SourceConstantOutcome::Retained {
+                    continuation: self,
+                    reason,
+                });
             }
         };
         // Target observations retain their original operands. Until this
@@ -529,13 +535,22 @@ impl PreCheckEvaluation {
                 reason: "portable source layout observation remains a retained recipe",
             });
         }
-        self.evaluate_selected_operators(typed, SelectedBuildTimeOperators {
-            operators: &[], provider_bodies: &bodies, admission,
-        })?;
+        let mut executed_inputs = Vec::new();
+        self.evaluate_selected_operators(
+            typed,
+            SelectedBuildTimeOperators {
+                operators: &[],
+                provider_bodies: &bodies,
+                admission,
+            },
+            &mut executed_inputs,
+        )?;
         Ok(crate::SourceConstantOutcome::Completed {
-            supplies: bodies.into_iter().map(|body| crate::SourceConstantSupply {
-                body,
-            }).collect(),
+            supplies: bodies
+                .into_iter()
+                .map(|body| crate::SourceConstantSupply { body })
+                .collect(),
+            executed_inputs,
         })
     }
 
@@ -551,16 +566,19 @@ impl PreCheckEvaluation {
         mut self,
         typed: &mut typed_trees::TypedTrees,
         selected: SelectedBuildTimeOperators<'_>,
+
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         const_lengths::evaluate_selected_array_lengths(
             typed,
             self.selection_authority.clone(),
             selected,
             &self.domain,
+            inputs,
         )?;
         self.selected_operators = selected.operators.to_vec();
         self.provider_bodies = selected.provider_bodies.to_vec();
-        self.evaluate_admitted(typed, selected.admission)
+        self.evaluate_admitted(typed, selected.admission, inputs)
     }
 
     /// Consume the exact continuation produced before name resolution.
@@ -572,19 +590,26 @@ impl PreCheckEvaluation {
         self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        self.evaluate_admitted(typed, BuildTimeCheckingAdmission::default())
+        self.evaluate_admitted(
+            typed,
+            BuildTimeCheckingAdmission::default(),
+            &mut Vec::new(),
+        )
     }
 
     fn evaluate_admitted(
         mut self,
         typed: &mut typed_trees::TypedTrees,
         admission: BuildTimeCheckingAdmission<'_>,
+
+        inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         const_lengths::evaluate_admitted_array_lengths(
             typed,
             self.selection_authority.clone(),
             &self.domain,
             admission,
+            inputs,
         )?;
         range_endpoints::evaluate_selected_range_endpoints(
             typed,
@@ -595,6 +620,7 @@ impl PreCheckEvaluation {
                 admission,
             },
             &self.domain,
+            inputs,
         )?;
         const_domain_facts::evaluate_selected_domain_facts(
             typed,
@@ -605,6 +631,7 @@ impl PreCheckEvaluation {
                 admission,
             },
             &self.domain,
+            inputs,
         )?;
         const_applications::evaluate_selected_const_applications(
             typed,
@@ -615,6 +642,7 @@ impl PreCheckEvaluation {
                 admission,
             },
             &mut self.domain,
+            inputs,
         )?;
         const_initializers::validate_retained_invocations(
             typed,

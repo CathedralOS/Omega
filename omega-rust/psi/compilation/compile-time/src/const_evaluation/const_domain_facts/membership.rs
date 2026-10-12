@@ -14,6 +14,8 @@ pub(super) fn evaluate_membership(
     typed: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
     pending: &PendingMembership,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<Option<bool>, String> {
     let Some(domain) = typed.domain_definition(pending.membership.domain_symbol) else {
         return Ok(None);
@@ -30,7 +32,14 @@ pub(super) fn evaluate_membership(
         )
     })?;
 
-    evaluate_domain_facts(typed, admission, domain, value, &mut vec![domain.symbol])
+    evaluate_domain_facts(
+        typed,
+        admission,
+        domain,
+        value,
+        &mut vec![domain.symbol],
+        inputs,
+    )
 }
 
 /// Membership of one already-evaluated closed integer in a declared domain.
@@ -45,6 +54,8 @@ pub(in crate::const_evaluation) fn evaluate_closed_membership(
     admission: &BuildTimeAdmissionPlan,
     domain_symbol: symbols::SymbolHandle,
     value: &numerics::bignum::BigInt,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<Option<bool>, String> {
     let Some(domain) = typed.domain_definition(domain_symbol) else {
         return Ok(None);
@@ -54,7 +65,14 @@ pub(in crate::const_evaluation) fn evaluate_closed_membership(
             "the concrete value `{value}` does not fit the build-time evaluator's signed integer boundary"
         )
     })?;
-    evaluate_domain_facts(typed, admission, domain, value, &mut vec![domain.symbol])
+    evaluate_domain_facts(
+        typed,
+        admission,
+        domain,
+        value,
+        &mut vec![domain.symbol],
+        inputs,
+    )
 }
 
 /// The machine a direct subject fact call invokes, or `None` when the fact
@@ -111,9 +129,10 @@ pub(super) fn domain_facts_need_operator_selection(
 ) -> bool {
     let mut demands = crate::source_constants::SourceConstantDemands::default();
     source_constant_demands(typed, domain_symbol, &mut demands, visiting);
-    demands.machines.iter().any(|machine| {
-        admission.closure_needs_operator_selection(typed, *machine, facts)
-    })
+    demands
+        .machines
+        .iter()
+        .any(|machine| admission.closure_needs_operator_selection(typed, *machine, facts))
 }
 
 pub(super) fn source_constant_demands(
@@ -125,7 +144,9 @@ pub(super) fn source_constant_demands(
     if visiting.contains(&domain_symbol) {
         return;
     }
-    let Some(domain) = typed.domain_definition(domain_symbol) else { return; };
+    let Some(domain) = typed.domain_definition(domain_symbol) else {
+        return;
+    };
     visiting.push(domain_symbol);
     for fact in typed.proof_facts.span_or_empty(domain.facts) {
         match fact {
@@ -134,9 +155,9 @@ pub(super) fn source_constant_demands(
                     demands.machine(machine.symbol);
                 }
             }
-            ProofFact::Membership(membership) => source_constant_demands(
-                typed, membership.domain_symbol, demands, visiting,
-            ),
+            ProofFact::Membership(membership) => {
+                source_constant_demands(typed, membership.domain_symbol, demands, visiting)
+            }
             ProofFact::Proposition(_) => {}
         }
     }
@@ -149,6 +170,8 @@ fn evaluate_machine_fact(
     domain: &typed_trees::domain::DomainDefinition,
     expression: ExpressionHandle,
     subject_value: i64,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<Option<bool>, String> {
     let Some((machine, state)) = resolve_fact_machine(typed, domain, expression) else {
         return Ok(None);
@@ -183,12 +206,17 @@ fn evaluate_machine_fact(
         ));
     }
 
-    let fact_holds = match admission.evaluate_const_evaluable_machine_for_invocation(
+    let measured = admission.evaluate_const_evaluable_machine_symbol_for_invocation_measured(
         typed,
-        machine_name,
+        machine.symbol,
         vec![BuildTimeValue::Int(subject_value)],
         crate::BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression)),
-    )? {
+    )?;
+    let (result, _, executed_input) = measured.into_parts_with_checked_input();
+    if let Some(executed_input) = executed_input {
+        inputs.push(executed_input);
+    }
+    let fact_holds = match result {
         BuildTimeValue::Bool(holds) => holds,
         other => {
             return Err(format!(
@@ -205,6 +233,8 @@ fn evaluate_domain_facts(
     domain: &typed_trees::domain::DomainDefinition,
     subject_value: i64,
     visiting: &mut Vec<symbols::SymbolHandle>,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<Option<bool>, String> {
     for fact in typed.proof_facts.span_or_empty(domain.facts) {
         match fact {
@@ -215,6 +245,7 @@ fn evaluate_domain_facts(
                     domain,
                     *expression,
                     subject_value,
+                    inputs,
                 )? {
                     Some(value) => Some(ConstProofValue::Boolean(value)),
                     None => {
@@ -255,6 +286,7 @@ fn evaluate_domain_facts(
                     membership.domain_symbol,
                     nested_value,
                     visiting,
+                    inputs,
                 )? {
                     Some(true) => {}
                     Some(false) => return Ok(Some(false)),
@@ -273,6 +305,7 @@ fn evaluate_nested_domain_membership(
     domain_symbol: symbols::SymbolHandle,
     subject_value: i64,
     visiting: &mut Vec<symbols::SymbolHandle>,
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<Option<bool>, String> {
     if visiting.contains(&domain_symbol) {
         return Ok(None);
@@ -282,7 +315,7 @@ fn evaluate_nested_domain_membership(
     };
 
     visiting.push(domain_symbol);
-    let result = evaluate_domain_facts(typed, admission, domain, subject_value, visiting);
+    let result = evaluate_domain_facts(typed, admission, domain, subject_value, visiting, inputs);
     visiting.pop();
     result
 }
