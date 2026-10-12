@@ -447,11 +447,43 @@ fn trace_source_constant_inputs(original: &OriginalCheckedSourceInput) {
         return;
     }
     eprintln!(
-        "source-constant-inputs coverage={:?} supplies={} executed={}",
+        "source-constant-inputs coverage={:?} supplies={} executed={} snapshots={} source-preparation={}",
         original.source_constant_coverage(),
         original.source_constants().len(),
         original.executed_constant_inputs().len(),
+        original.snapshot_admissions().len(),
+        original.source_preparation_inputs().len(),
     );
+    for (phase, inputs) in [
+        ("final", original.snapshot_admissions().to_vec()),
+        (
+            "source-preparation",
+            original
+                .source_preparation_inputs()
+                .iter()
+                .filter_map(|input| match input {
+                    build_time_evaluation::CheckedConstantInput::SnapshotAdmission(input) => {
+                        Some(input.clone())
+                    }
+                    _ => None,
+                })
+                .collect(),
+        ),
+    ] {
+        for (ordinal, input) in inputs.iter().enumerate() {
+            eprintln!(
+                "source-constant-snapshot phase={phase} ordinal={ordinal} checked-original={} owner={:?} call={:?} probe-owner={:?} probe-call={:?} return={:?} operands={:?} endpoints={:?}",
+                input.original_checked_program().is_some(),
+                input.probe_source_owner(),
+                input.original_call(),
+                input.probe_owner(),
+                input.probe_call(),
+                input.original_return_type(),
+                input.operands(),
+                input.endpoint_stand_ins()
+            );
+        }
+    }
     for (ordinal, input) in original.executed_constant_inputs().iter().enumerate() {
         let checked = input.checked();
         let symbols = &checked.symbols;
