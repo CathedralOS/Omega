@@ -418,6 +418,7 @@ impl TypeReferenceTable {
         Ok(())
     }
 
+    #[track_caller]
     pub fn constant_origins(
         &self,
         reference: TypeReferenceHandle,
@@ -425,6 +426,13 @@ impl TypeReferenceTable {
         let owner = Handle::from_parts(reference.arena_index(), reference.generation());
         if !self.type_references.is_valid(reference) || !self.constant_origin_spans.is_valid(owner)
         {
+            if std::env::var_os("OMEGA_TYPE_ORIGIN_TRACE").is_some() {
+                eprintln!("type-origin-refusal reference={reference:?} type_valid={} origin_valid={} type_rows={} origin_rows={} caller={} node={:?}",
+                    self.type_references.is_valid(reference), self.constant_origin_spans.is_valid(owner),
+                    self.type_references.len(), self.constant_origin_spans.len(),
+                    std::panic::Location::caller(),
+                    self.type_references.is_valid(reference).then(|| self.type_references.get(reference)));
+            }
             return Err("constant type origin has a stale receiving type");
         }
         let span = *self.constant_origin_spans.get(owner);
