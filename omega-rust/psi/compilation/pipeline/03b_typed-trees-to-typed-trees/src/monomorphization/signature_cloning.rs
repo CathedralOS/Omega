@@ -157,6 +157,24 @@ fn copy_signature_payload(
     symbols: &[(SymbolHandle, SymbolHandle)],
 ) -> Result<AppliedSignatureCopy, Diagnostic> {
     let formals = source.state_signature_parameters(signature);
+    // Canonical actuals are produced before the copied header work domain.
+    // Their children belong to supplying prefixes and cannot be revisited as
+    // occurrences of the receiving telescope during the later substitutions.
+    let applied_substitutions = program
+        .materialize_trait_application_substitutions(&scope.environment())
+        .map_err(Diagnostic::error)?;
+    if applied_substitutions.len() != scope.substitutions.len()
+        || applied_substitutions
+            .iter()
+            .zip(&scope.substitutions)
+            .any(|((applied, _), (original, _))| applied != original)
+    {
+        return Err(Diagnostic::error(
+            "applied signature lost its original substitution frames",
+        ));
+    }
+    let carriers =
+        materialize_receiving_carriers(source, program, scope, &applied_substitutions, symbols)?;
     let binding_expression_start = program.expression_table.expression_count() + 1;
     let mut application_bindings = bindings.to_vec();
     super::body_cloning::copy_binding_type_payloads(
@@ -242,15 +260,15 @@ fn copy_signature_payload(
         .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();
+    let mut work = HeaderSubstitutionWork::capture(program, type_start, expression_start);
     let mut end = scope.substitutions.len();
     for start in scope.substitution_scope_starts.iter().rev() {
         substitute_telescope(
             source,
             program,
-            &scope.substitutions[*start..end],
-            symbols,
-            type_start,
-            expression_start,
+            &applied_substitutions[*start..end],
+            &carriers,
+            &mut work,
         )?;
         end = *start;
     }
@@ -298,23 +316,32 @@ pub(super) fn copy_scoped_type_reference(
     reference: TypeReferenceHandle,
     scope: &AppliedTraitScope<'_>,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
+    let applied_substitutions = program
+        .materialize_trait_application_substitutions(&scope.environment())
+        .map_err(Diagnostic::error)?;
+    if applied_substitutions.len() != scope.substitutions.len()
+        || applied_substitutions
+            .iter()
+            .zip(&scope.substitutions)
+            .any(|((applied, _), (original, _))| applied != original)
+    {
+        return Err(Diagnostic::error(
+            "applied type lost its original substitution frames",
+        ));
+    }
+    let carriers =
+        materialize_receiving_carriers(source, program, scope, &applied_substitutions, &[])?;
     let type_start = program.type_reference_table.type_reference_count() + 1;
     let expression_start = program.expression_table.expression_count() + 1;
     let copied = copy_type_reference(Some(source), program, reference, &[]);
     copy_cloned_expression_type_payloads(Some(source), program, expression_start, &[])?;
+    let mut work = HeaderSubstitutionWork::capture(program, type_start, expression_start);
     let mut end = scope.substitutions.len();
     for start in scope.substitution_scope_starts.iter().rev() {
-        let substitutions = scope.substitutions.get(*start..end).ok_or_else(|| {
+        let substitutions = applied_substitutions.get(*start..end).ok_or_else(|| {
             Diagnostic::error("applied type lost its simultaneous telescope boundaries")
         })?;
-        substitute_telescope(
-            source,
-            program,
-            substitutions,
-            &[],
-            type_start,
-            expression_start,
-        )?;
+        substitute_telescope(source, program, substitutions, &carriers, &mut work)?;
         end = *start;
     }
     if end != 0 {
@@ -325,31 +352,67 @@ pub(super) fn copy_scoped_type_reference(
     Ok(copied)
 }
 
-/// Capture source-owned occurrences before copying any actual. Sequentially
-/// scanning fresh arguments would substitute a simultaneous telescope into its
-/// own caller operands and could capture same-spelled or recursive binders.
-fn substitute_telescope(
+/// The copied header alone owns receiving occurrences. Each occurrence is
+/// consumed by its innermost matching telescope; later outer frames must not
+/// scan fresh supplying graphs or recapture a same-symbol caller operand.
+struct HeaderSubstitutionWork {
+    named: Vec<(TypeReferenceHandle, SymbolHandle)>,
+    arrays: Vec<(TypeReferenceHandle, SymbolHandle)>,
+    values: Vec<(typed_trees::expression::ExpressionHandle, SymbolHandle)>,
+}
+
+impl HeaderSubstitutionWork {
+    fn capture(program: &TypedTrees, type_start: usize, expression_start: usize) -> Self {
+        Self {
+            named: program
+                .type_reference_table
+                .named_references()
+                .filter(|(handle, _, _)| handle.arena_index() as usize >= type_start)
+                .map(|(handle, binder, _)| (handle, binder))
+                .collect(),
+            arrays: program
+                .type_reference_table
+                .fixed_array_lengths()
+                .filter(|(handle, _)| handle.arena_index() as usize >= type_start)
+                .filter_map(|(handle, length)| match length {
+                    FixedArrayLength::ConstParameter { symbol, .. } => Some((handle, *symbol)),
+                    _ => None,
+                })
+                .collect(),
+            values: program
+                .expression_table
+                .iter_expressions()
+                .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+                .filter_map(|(handle, expression)| {
+                    let typed_trees::expression::ExpressionNode::Name(path) = expression else {
+                        return None;
+                    };
+                    (path.symbol == path.head_symbol
+                        && program
+                            .expression_table
+                            .name_path_members(path.members)
+                            .len()
+                            == 1)
+                        .then_some((handle, path.symbol))
+                })
+                .collect(),
+        }
+    }
+}
+
+/// Carrier graphs belong to the receiving declarations, unlike actual graphs.
+/// Copy their cohort before substitutions append any supplying payload. Apply
+/// all type/extent frames first, so expression landing reads complete declared
+/// carriers even when an inner const parameter depends on an outer type slot.
+fn materialize_receiving_carriers(
     source: &dyn validation::CheckingInput,
     program: &mut TypedTrees,
+    scope: &AppliedTraitScope<'_>,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     symbols: &[(SymbolHandle, SymbolHandle)],
-    type_start: usize,
-    expression_start: usize,
-) -> Result<(), Diagnostic> {
-    if substitutions
-        .iter()
-        .enumerate()
-        .any(|(ordinal, (binder, _))| {
-            substitutions[..ordinal]
-                .iter()
-                .any(|(previous, _)| previous == binder)
-        })
-    {
-        return Err(Diagnostic::error(
-            "applied signature repeats a binder in one simultaneous telescope",
-        ));
-    }
-    let carrier_expression_start = program.expression_table.expression_count() + 1;
+) -> Result<Vec<(SymbolHandle, TypeReferenceHandle)>, Diagnostic> {
+    let type_start = program.type_reference_table.type_reference_count() + 1;
+    let expression_start = program.expression_table.expression_count() + 1;
     let mut carriers = Vec::new();
     for (binder, _) in substitutions {
         let parameter = source
@@ -368,59 +431,93 @@ fn substitute_telescope(
             ));
         }
     }
-    copy_cloned_expression_type_payloads(Some(source), program, carrier_expression_start, symbols)?;
-    let occurrences = program
-        .type_reference_table
-        .named_references()
-        .filter(|(handle, _, _)| handle.arena_index() as usize >= type_start)
-        .filter_map(|(handle, binder, _)| {
+    copy_cloned_expression_type_payloads(Some(source), program, expression_start, symbols)?;
+    let mut work = HeaderSubstitutionWork::capture(program, type_start, expression_start);
+    let mut values = HeaderSubstitutionWork {
+        named: Vec::new(),
+        arrays: Vec::new(),
+        values: std::mem::take(&mut work.values),
+    };
+    for receiving in [&mut work, &mut values] {
+        let mut end = substitutions.len();
+        for start in scope.substitution_scope_starts.iter().rev() {
+            let group = substitutions.get(*start..end).ok_or_else(|| {
+                Diagnostic::error("receiving carrier lost its original simultaneous telescope")
+            })?;
+            substitute_telescope(source, program, group, &carriers, receiving)?;
+            end = *start;
+        }
+        if end != 0 {
+            return Err(Diagnostic::error(
+                "receiving carrier lost its complete original scope",
+            ));
+        }
+    }
+    Ok(carriers)
+}
+
+/// Capture source-owned occurrences before copying any actual. Sequentially
+/// scanning fresh arguments would substitute a simultaneous telescope into its
+/// own caller operands and could capture same-spelled or recursive binders.
+fn substitute_telescope(
+    source: &dyn validation::CheckingInput,
+    program: &mut TypedTrees,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    carriers: &[(SymbolHandle, TypeReferenceHandle)],
+    work: &mut HeaderSubstitutionWork,
+) -> Result<(), Diagnostic> {
+    if substitutions
+        .iter()
+        .enumerate()
+        .any(|(ordinal, (binder, _))| {
+            substitutions[..ordinal]
+                .iter()
+                .any(|(previous, _)| previous == binder)
+        })
+    {
+        return Err(Diagnostic::error(
+            "applied signature repeats a binder in one simultaneous telescope",
+        ));
+    }
+    let occurrences = work
+        .named
+        .iter()
+        .filter_map(|(handle, binder)| {
             substitutions
                 .iter()
-                .find(|(parameter, _)| *parameter == binder)
-                .map(|(_, actual)| (handle, *actual))
+                .find(|(parameter, _)| parameter == binder)
+                .map(|(_, actual)| (*handle, *actual))
         })
         .collect::<Vec<_>>();
-    let arrays = program
-        .type_reference_table
-        .fixed_array_lengths()
-        .filter(|(handle, _)| handle.arena_index() as usize >= type_start)
-        .filter_map(|(handle, length)| match length {
-            FixedArrayLength::ConstParameter { symbol, .. } => substitutions
+    let arrays = work
+        .arrays
+        .iter()
+        .filter_map(|(handle, binder)| {
+            substitutions
                 .iter()
-                .find(|(parameter, _)| parameter == symbol)
-                .map(|(_, actual)| (handle, *actual)),
-            _ => None,
+                .find(|(parameter, _)| parameter == binder)
+                .map(|(_, actual)| (*handle, *actual))
         })
         .collect::<Vec<_>>();
-    let values = program
-        .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
-        .filter_map(|(handle, expression)| {
-            let typed_trees::expression::ExpressionNode::Name(path) = expression else {
-                return None;
-            };
-            if path.symbol != path.head_symbol
-                || program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    != 1
-            {
-                return None;
-            }
-            let (_, carrier) = carriers.iter().find(|(binder, _)| *binder == path.symbol)?;
+    let values = work
+        .values
+        .iter()
+        .filter_map(|(handle, binder)| {
+            let (_, carrier) = carriers
+                .iter()
+                .rev()
+                .find(|(parameter, _)| parameter == binder)?;
             let (_, actual) = substitutions
                 .iter()
-                .find(|(binder, _)| *binder == path.symbol)?;
-            Some((handle, *actual, *carrier))
+                .find(|(parameter, _)| parameter == binder)?;
+            Some((*handle, *actual, *carrier))
         })
         .collect::<Vec<_>>();
     // Actuals live in the original scope's owner. Each use copies that graph
     // without reapplying the current telescope to the actual's own children.
     for (occurrence, actual) in occurrences {
         let replacement =
-            super::body_cloning::copy_type_reference_payloads(Some(source), program, actual, &[])?;
+            super::body_cloning::copy_type_reference_payloads(None, program, actual, &[])?;
         program
             .type_reference_table
             .substitute_from(occurrence, replacement)
@@ -428,13 +525,13 @@ fn substitute_telescope(
     }
     for (array, actual) in arrays {
         let TypeReferenceNode::Named { symbol, name } =
-            source.type_reference_table.type_reference(actual)
+            program.type_reference_table.type_reference(actual).clone()
         else {
             return Err(Diagnostic::error(
                 "applied array extent has no canonical const value",
             ));
         };
-        if symbolic_const_binder(source, *symbol) {
+        if symbolic_const_binder(source, symbol) {
             let TypeReferenceNode::FixedArray { element_type, .. } =
                 program.type_reference_table.type_reference(array)
             else {
@@ -442,10 +539,7 @@ fn substitute_telescope(
             };
             let replacement = TypeReferenceNode::FixedArray {
                 element_type: *element_type,
-                length: FixedArrayLength::ConstParameter {
-                    symbol: *symbol,
-                    name: name.clone(),
-                },
+                length: FixedArrayLength::ConstParameter { symbol, name },
             };
             program
                 .type_reference_table
@@ -462,22 +556,18 @@ fn substitute_telescope(
             .set_fixed_array_length(array, value);
     }
     for (occurrence, actual, carrier) in values {
-        let value = match source.type_reference_table.type_reference(actual) {
-            TypeReferenceNode::Named { symbol, name } if symbolic_const_binder(source, *symbol) => {
+        let value = match program.type_reference_table.type_reference(actual).clone() {
+            TypeReferenceNode::Named { symbol, name } if symbolic_const_binder(source, symbol) => {
                 let expression = super::body_rewriting::insert_subject_name(
                     &mut program.expression_table,
-                    name.clone(),
-                    *symbol,
+                    name,
+                    symbol,
                 );
                 program.expression_table.expression(expression).clone()
             }
             TypeReferenceNode::ConstExpression(_) => {
-                let actual = super::body_cloning::copy_type_reference_payloads(
-                    Some(source),
-                    program,
-                    actual,
-                    &[],
-                )?;
+                let actual =
+                    super::body_cloning::copy_type_reference_payloads(None, program, actual, &[])?;
                 let TypeReferenceNode::ConstExpression(expression) =
                     program.type_reference_table.type_reference(actual)
                 else {
@@ -486,12 +576,8 @@ fn substitute_telescope(
                 program.expression_table.expression(*expression).clone()
             }
             _ => {
-                let actual = super::body_cloning::copy_type_reference_payloads(
-                    Some(source),
-                    program,
-                    actual,
-                    &[],
-                )?;
+                let actual =
+                    super::body_cloning::copy_type_reference_payloads(None, program, actual, &[])?;
                 const_values::value(program, actual, carrier).ok_or_else(|| Diagnostic::error(
                     "applied requirement cannot materialize a const binder as its declared public carrier",
                 ))?
@@ -499,6 +585,21 @@ fn substitute_telescope(
         };
         *program.expression_table.expression_mut(occurrence) = value;
     }
+    work.named.retain(|(_, binder)| {
+        !substitutions
+            .iter()
+            .any(|(parameter, _)| parameter == binder)
+    });
+    work.arrays.retain(|(_, binder)| {
+        !substitutions
+            .iter()
+            .any(|(parameter, _)| parameter == binder)
+    });
+    work.values.retain(|(_, binder)| {
+        !substitutions
+            .iter()
+            .any(|(parameter, _)| parameter == binder)
+    });
     Ok(())
 }
 

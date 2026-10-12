@@ -123,6 +123,8 @@ pub struct AppliedMachineCallable<'a> {
 
 #[derive(Default)]
 struct CallableApplication {
+    /// Active payload graph only; repeated DAG children are copied independently.
+    type_payload_visits: Vec<types::TypeReferenceHandle>,
     region_scope: SymbolHandle,
     /// Complete captured application during materialization. Local callable
     /// binders remain in `lifetimes` and mask same-spelled captured regions.
