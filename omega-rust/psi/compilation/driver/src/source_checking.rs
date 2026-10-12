@@ -84,7 +84,7 @@ pub enum SourceConstantInputCoverage {
 /// Only the actual check operation constructs this immutable input record.
 /// It is compiler-local source custody, not a portable artifact, complete
 /// semantic-dependency commitment, receiving authority or installation.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalCheckedSourceInput {
     checked: Arc<checked_trees::CheckedTrees>,
     source_constants: Arc<[build_time_evaluation::SourceConstantSupply]>,
