@@ -637,9 +637,10 @@ fn ieee_literal_retained<'operation>(
 
 /// A `ByteSequenceLength` on a bounded byte view realizes as its statically
 /// known capacity: the fold emits no scalar definition row, so retention
-/// admits the statically-known carrier directly. Only arrival parameters and
-/// literal establishments name the carrier here — view-produced places and
-/// non-empty source paths still require their exact retained row.
+/// admits the statically-known carrier directly. The source's declared type
+/// owns that extent independently of whether an arrival, literal or ordinary
+/// producer established the descriptor. Source replay still owns the complete
+/// projection and its custody; this query accounts only for the length fold.
 fn bounded_view_length_is_static(
     abstracted: &AbstractFunction,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -648,14 +649,14 @@ fn bounded_view_length_is_static(
     let AbstractOperation::ByteSequenceLength { source, .. } = operation else {
         return false;
     };
-    if !source.path.is_empty() {
-        return false;
-    }
     let Some(root) = abstracted
         .arrival_parameter(source.place)
         .map(|parameter| parameter.structural_type)
         .or_else(|| {
             abstracted.operations.iter().find_map(|operation| {
+                if let Some((_, result)) = operation.structural_result() {
+                    return (result.place == source.place).then_some(result.structural_type);
+                }
                 let AbstractOperation::EstablishByteSequenceLiteral {
                     place,
                     structural_type,
@@ -670,15 +671,15 @@ fn bounded_view_length_is_static(
     else {
         return false;
     };
-    structural_types.iter().any(|declaration| {
-        declaration.id == root
-            && matches!(
+    terminal_semantics::runtime_structural_path_tip(structural_types.iter(), root, &source.path)
+        .is_some_and(|declaration| {
+            matches!(
                 declaration.shape,
                 terminal_psi::StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedView { .. }
                 )
             )
-    })
+        })
 }
 
 /// Restrict publication to the Unit graph's unique byte-operation membership.

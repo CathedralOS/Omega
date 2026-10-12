@@ -5,6 +5,9 @@
 //! A computed source retains its ordinary backing producer. Establish it at
 //! this operand's evaluation point, then lend its home; flattening it into a
 //! place-only plan loses both its evaluation schedule and its storage identity.
+//! Once a destination is not the referent alias, the shared carrier producer
+//! selects its declared representation. Repeating an outer Reference shape
+//! test here would exclude fixed byte views, whose carrier is a descriptor.
 
 use super::{Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinuation};
 use super::{lookup_type_id, unsupported};
@@ -38,10 +41,10 @@ impl Emission<'_, '_, '_> {
         )?;
         let (machine, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let referent_type = lookup_type_id(self.type_ids, &source.type_identity)?;
-        let referent =
-            terminal_psi::find_structural_type(&self.structural_types[..], referent_type).ok_or(
-                LoweringError::Unsupported("reference referent type is missing"),
-            )?;
+        let referent = terminal_psi::find_structural_type(self.structural_types, referent_type)
+            .ok_or(LoweringError::Unsupported(
+                "reference referent type is missing",
+            ))?;
         // Direct primitive storage needs its original mutable home. Existing
         // structural projections, parameters and immutable homes retain their
         // established join, including shared root qualification custody.
@@ -225,37 +228,26 @@ impl Emission<'_, '_, '_> {
                 self.direct_borrow(argument)
             };
         }
-        let declaration =
-            terminal_psi::find_structural_type(&self.structural_types[..], self.structural_type)
-                .ok_or(LoweringError::Unsupported(
-                    "reference value type is missing",
-                ))?;
-        if let StructuralTypeShape::Reference { .. } = &declaration.shape {
-            let storage = super::super::super::reference_results::publish_storage(
-                storage,
-                self.next_value,
-                self.operations,
-            )?
-            .map(|(view, value)| {
-                self.values.push(value);
-                view
-            });
-            let carrier = super::super::super::reference_results::emit_carrier(
-                formation,
-                self.structural_type,
-                argument,
-                storage,
-                &self.structural_types[..],
-                super::super::super::place_id(super::super::super::allocate_dense(
-                    self.next_place,
-                )?),
-                self.operations,
-            )?;
-            let place = carrier.id;
-            self.temporary_places.push(carrier);
-            return self.completed(identities, place, continuation);
-        }
-
-        unsupported("reference destination is neither its carrier nor referent")
+        let storage = super::super::super::reference_results::publish_storage(
+            storage,
+            self.next_value,
+            self.operations,
+        )?
+        .map(|(view, value)| {
+            self.values.push(value);
+            view
+        });
+        let carrier = super::super::super::reference_results::emit_carrier(
+            formation,
+            self.structural_type,
+            argument,
+            storage,
+            self.structural_types,
+            super::super::super::place_id(super::super::super::allocate_dense(self.next_place)?),
+            self.operations,
+        )?;
+        let place = carrier.id;
+        self.temporary_places.push(carrier);
+        self.completed(identities, place, continuation)
     }
 }

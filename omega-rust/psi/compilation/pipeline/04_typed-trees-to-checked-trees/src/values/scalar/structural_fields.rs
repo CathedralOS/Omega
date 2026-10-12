@@ -158,29 +158,18 @@ pub(crate) fn view_local_root(
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
     let (symbol, local) = whole_local_binding(program, parameters, expression)?;
-    // Either borrowed view family resolves the same `ViewLocal` root: reads
-    // through an exclusive `&mut [T]`/`&mut R` loan re-view the lent
-    // element exactly as the shared sibling's reads observe the shared
-    // place. The root records no access side; the producing
-    // establishment's custody decides whether the read composes with
-    // concurrent uses.
+    // Root custody follows the readable reference shell, not its descriptor
+    // geometry. Fixed-array loans and runtime-length views observe the same
+    // established local; classifying only slice/named carriers loses the
+    // fixed loan before element selection. Establishment and each read still
+    // enforce the access, extent and lifetime of the retained declaration.
     (!local.is_mutable
-        && (crate::execution::terminal_unit::types::borrowed_slice_view(
-            program,
-            local.type_reference,
-        ) || crate::execution::terminal_unit::types::borrowed_named_view(
-            program,
-            local.type_reference,
-        ) || crate::execution::terminal_unit::types::element_view_shell(
-            program,
-            local.type_reference,
-            &[],
-        )
-        .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Mutable)
-            || crate::execution::terminal_unit::types::mutable_borrowed_view(
-                program,
-                local.type_reference,
-            )))
+        && validation::reference_shell(program, local.type_reference).is_some_and(|shell| {
+            matches!(
+                shell.access,
+                language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+            )
+        }))
     .then_some((symbol, local.type_reference))
 }
 

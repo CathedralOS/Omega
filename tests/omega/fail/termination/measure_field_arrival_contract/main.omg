@@ -1,7 +1,7 @@
-data Countdown {
-    remaining: u64 [0..=5];
-    limit: u64 [0..=5];
-    spare: u64 [0..=5];
+data Countdown where remaining <= 5, limit <= 5, spare <= 5 {
+    remaining: u64;
+    limit: u64;
+    spare: u64;
 }
 
 measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }

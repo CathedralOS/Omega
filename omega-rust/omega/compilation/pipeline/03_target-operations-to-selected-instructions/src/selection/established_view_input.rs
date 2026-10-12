@@ -305,7 +305,7 @@ pub(super) fn accepts(
                         && if element_view_source {
                             matches!(declaration.shape, StructuralTypeShape::ElementView { element: declared } if declared == *element)
                         } else {
-                            declaration.shape.is_borrowed_byte_view()
+                            declaration.shape.is_borrowed_byte_carrier()
                         }
                 })
             {

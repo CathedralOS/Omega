@@ -371,6 +371,19 @@ impl TerminalExecution<'_> {
         writing: bool,
         path: &[StructuralPathSegment],
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        self.primitive_home_access(self.capture_primitive_home(place)?, writing, path)
+    }
+
+    /// A stored reference crosses into its captured backing independently of
+    /// the activation that currently holds its descriptor. Collection loans
+    /// retain their supplying home, so a callee must resolve that suspended
+    /// caller's pointer before selecting the primitive suffix.
+    fn reference_primitive_access(
+        &self,
+        owner: &TerminalStructuralValue,
+        writing: bool,
+        path: &[StructuralPathSegment],
+    ) -> Result<Option<(PrimitiveStorage, ScalarType, bool)>, TerminalInterpretError> {
         if let Some(crossing) = path
             .iter()
             .rposition(|segment| *segment == StructuralPathSegment::Referent)
@@ -382,14 +395,13 @@ impl TerminalExecution<'_> {
             };
             // Resolve the captured pointer before applying the primitive
             // suffix. Its descriptor home is never the referent's storage.
-            let (referent, view) =
-                self.resolve_live_view_projection(place, &path[..=crossing], access)?;
+            let (referent, view) = self
+                .resolve_reference_view_path(owner, &path[..=crossing], access)?
+                .ok_or_else(malformed)?;
             if let Some(view) = view {
-                return self.aggregate_view_primitive_access(
-                    &referent,
-                    view,
-                    &path[crossing + 1..],
-                );
+                return self
+                    .aggregate_view_primitive_access(&referent, view, &path[crossing + 1..])
+                    .map(Some);
             }
             let suffix = &path[crossing + 1..];
             // A retained byte region selects its scalar interpretation from
@@ -400,7 +412,7 @@ impl TerminalExecution<'_> {
             if let Some((storage, scalar_type)) =
                 self.reference_byte_region_access(&referent, &projected)?
             {
-                return Ok((storage, scalar_type, !writing));
+                return Ok(Some((storage, scalar_type, !writing)));
             }
             let projection_type = if writing {
                 terminal_semantics::primitive_projection_type
@@ -414,7 +426,9 @@ impl TerminalExecution<'_> {
             )
             .ok_or_else(malformed)?;
             if suffix.is_empty() {
-                let carrier = self.resolve_live_projection(place, &path[..crossing], access)?;
+                let (carrier, _) = self
+                    .resolve_reference_view_path(owner, &path[..crossing], access)?
+                    .ok_or_else(malformed)?;
                 if let Some(captured) = self
                     .reference_referents
                     .get(&StructuralRuntimePlace::from(&carrier))
@@ -425,7 +439,7 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    return Ok((loan.storage.clone(), scalar_type, !writing));
+                    return Ok(Some((loan.storage.clone(), scalar_type, !writing)));
                 }
             }
             let canonical_path = if writing {
@@ -439,9 +453,11 @@ impl TerminalExecution<'_> {
                 suffix,
             )
             .ok_or_else(malformed)?;
-            return self.primitive_view_access(&referent, canonical.as_slice(), scalar_type, false);
+            return self
+                .primitive_view_access(&referent, canonical.as_slice(), scalar_type, false)
+                .map(Some);
         }
-        self.primitive_home_access(self.capture_primitive_home(place)?, writing, path)
+        Ok(None)
     }
 
     /// A selected element of a byte carrier is a `u8`. A borrowed view's
@@ -719,6 +735,16 @@ impl TerminalExecution<'_> {
         };
         if machine_id != home.machine {
             return Err(malformed());
+        }
+        if path.contains(&StructuralPathSegment::Referent) {
+            self.primitive_home_contract(home, writing, path)?;
+            let owner = structural_values.get(&place).ok_or_else(malformed)?;
+            if owner.structural_type != home.structural_type {
+                return Err(malformed());
+            }
+            if let Some(storage) = self.reference_primitive_access(owner, writing, path)? {
+                return Ok(storage);
+            }
         }
         if let Some(loan) = element_view_values.get(&place)
             && matches!(

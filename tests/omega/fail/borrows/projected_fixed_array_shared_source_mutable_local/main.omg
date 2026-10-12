@@ -1,0 +1,5 @@
+data Storage { bytes: [u8; 16]; }
+
+machine violate(storage: &Storage) {
+    let requested: &mut [u8; 16] = &mut storage.bytes;
+}

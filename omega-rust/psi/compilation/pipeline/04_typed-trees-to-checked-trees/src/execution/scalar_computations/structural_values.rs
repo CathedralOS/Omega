@@ -345,8 +345,7 @@ impl Builder<'_, '_> {
                 }
                 _ => return None,
             }
-        } else if validation::reference_result_custody::stored_loan_parts(self.program, expected)
-            .is_some()
+        } else if validation::reference_shell(self.program, expected).is_some()
             && match self.program.expression_table.expression(expression) {
                 // Borrowed formals denote ingress referents; unlike retained
                 // locals, they do not own stored descriptor values to move.

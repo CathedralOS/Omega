@@ -348,7 +348,7 @@ fn view_argument(
             TargetStructuralArgumentSource::EstablishedElementView {
                 psi_operation: producer,
             }
-        } else if shape.is_borrowed_byte_view() {
+        } else if shape.is_borrowed_byte_carrier() {
             TargetStructuralArgumentSource::EstablishedByteView {
                 psi_operation: producer,
             }

@@ -37,8 +37,9 @@ pub(crate) fn formed_view_type(
     }
     let reference =
         validation::expression_result_type_reference(program, machine, state, expression)?;
-    let (referee, access) =
-        validation::reference_result_custody::stored_loan_parts(program, reference)?;
+    let shell = validation::reference_shell(program, reference)?;
+    let referee = shell.referee;
+    let access = CheckedStructuralAccess::from(shell.access);
     (access == CheckedStructuralAccess::from(formation.access)
         && program.normalized_type_identity(referee)
             == program.normalized_type_identity(formation.view_type))
@@ -56,8 +57,12 @@ pub(crate) fn capture(
         typed_trees::expression::ExpressionHandle,
     ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
 ) -> Option<ReferenceCapture> {
-    let (referent, access) =
-        validation::reference_result_custody::stored_loan_parts(program, reference)?;
+    // Formation captures borrowed storage for every reference descriptor.
+    // The pointer-roster query excludes byte/slice descriptors by design;
+    // using it here would erase a fixed-byte local's actual establishment.
+    let shell = validation::reference_shell(program, reference)?;
+    let referent = shell.referee;
+    let access = CheckedStructuralAccess::from(shell.access);
     let formation = validation::reference_formation_source(program, expression)?;
     if CheckedStructuralAccess::from(formation.access) != access {
         return None;

@@ -195,23 +195,55 @@ fn prepare_structural_argument_projection(
         let carrier = carriers.next().ok_or(LoweringError::Unsupported(
             "borrowed argument lost its published carrier",
         ))?;
-        if carriers.next().is_some()
-            || !matches!(carrier.shape,
-                terminal_psi::StructuralTypeShape::Reference { referent, access }
-                    if referent == logical_root.id
-                        && structural_access_can_supply(access, requested))
-        {
+        if carriers.next().is_some() {
+            return Err(LoweringError::Unsupported(
+                "borrowed argument published carrier is ambiguous",
+            ));
+        }
+        // Ordinary references name a separate referent declaration. Fixed
+        // byte views instead publish the backing pointer with its extent in
+        // the carrier type; byte projections already address that backing.
+        // Match that exact extent without adding a Reference-only dereference
+        // or widening the access established by the source home.
+        let presents_root = match (&carrier.shape, &logical_root.shape) {
+            (terminal_psi::StructuralTypeShape::Reference { referent, access }, _) => {
+                if *referent != logical_root.id || !structural_access_can_supply(*access, requested)
+                {
+                    false
+                } else {
+                    prepared.push(PreparedStructuralPathSegment::Static(
+                        StructuralPathSegment::Referent,
+                    ));
+                    true
+                }
+            }
+            (
+                terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+                ),
+                _,
+            ) => {
+                terminal_semantics::borrowed_referent_matches(
+                    types.iter(),
+                    logical_root.id,
+                    carrier.id,
+                ) && access.is_none_or(|access| structural_access_can_supply(access, requested))
+            }
+            _ => false,
+        };
+        if !presents_root {
             return Err(LoweringError::Unsupported(
                 "borrowed argument changes its published root or reference access",
             ));
         }
-        prepared.push(PreparedStructuralPathSegment::Static(
-            StructuralPathSegment::Referent,
-        ));
-        // The plan's own path spells that same hop when its projection begins
-        // at the reference's referent; replaying it would dereference the
-        // referent root a second time.
-        if matches!(remainder.first(), Some(CheckedUnitStructuralPathSegment::Referent)) {
+        // The plan may spell the logical hop already consumed by the carrier
+        // presentation above. Ordinary references emitted that hop explicitly;
+        // fixed byte views address their array backing implicitly. Neither
+        // may dereference the logical referent a second time.
+        if matches!(
+            remainder.first(),
+            Some(CheckedUnitStructuralPathSegment::Referent)
+        ) {
             remainder = &remainder[1..];
         }
     }

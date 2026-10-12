@@ -299,6 +299,9 @@ fn referent_pointer(
             target.source_byte_offset,
         )?
     } else {
+        // A whole descriptor, including a single-word fixed byte carrier,
+        // keeps its own address under this borrowed ABI. Only an element
+        // projection or array presentation lends its backing directly.
         structural::place_pointer(builder, operation, pointer_place, target.source_byte_offset)?
     };
     let pointer = if thin_scalar.is_some() {

@@ -1,6 +1,8 @@
 //! Reconstruct borrowed descriptor access from the legalized source chain.
 //! Descriptor geometry and source permission are separate; affine custody is
 //! required for a mutable result but never supplies its parent's authority.
+//! Fixed byte pointers and dynamic byte descriptors borrow the same way;
+//! this query never reads a length word or decides their physical layout.
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind as I};
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralAccess as A, StructuralMultiplicity as M, StructuralTypeShape};
@@ -87,7 +89,8 @@ fn view_access_with_budget(
                 || (!parameter.qualifications.is_empty()
                     && !(parameter.access == A::SharedBorrow
                         && signature.structural_types.iter().any(|row| {
-                            row.id == parameter.structural_type && row.shape.is_borrowed_byte_view()
+                            row.id == parameter.structural_type
+                                && row.shape.is_borrowed_byte_carrier()
                         })))
                 || !parameter.projected_qualifications.is_empty()
                 || !matches!(parameter.access, A::SharedBorrow | A::MutableBorrow)
@@ -96,7 +99,7 @@ fn view_access_with_budget(
                 || !signature.structural_types.iter().any(|row| {
                     row.id == parameter.structural_type
                         && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
-                            || row.shape.is_borrowed_byte_view())
+                            || row.shape.is_borrowed_byte_carrier())
                 })
             {
                 return None;
@@ -123,7 +126,7 @@ fn view_access_with_budget(
             || !signature.structural_types.iter().any(|row| {
                 row.id == structural_type
                     && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
-                        || row.shape.is_borrowed_byte_view())
+                        || row.shape.is_borrowed_byte_carrier())
             })
         {
             return None;
@@ -205,7 +208,7 @@ fn view_access_with_budget(
                     || source.path.contains(&terminal_psi::StructuralPathSegment::Referent)
                     || !signature.structural_types.iter().any(|row| row.id == structural_type && (
                         matches!(row.shape, StructuralTypeShape::ElementView { element: declared } if declared == *element)
-                        || row.shape.is_borrowed_byte_view() && signature.structural_types.iter().any(|leaf|
+                        || row.shape.is_borrowed_byte_carrier() && signature.structural_types.iter().any(|leaf|
                             leaf.id == *element && matches!(leaf.shape,
                                 StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
                                 if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8))))) {
@@ -237,7 +240,7 @@ fn projected_source_access(
     let mut authority = if types.iter().any(|row| {
         row.id == current
             && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
-                || row.shape.is_borrowed_byte_view())
+                || row.shape.is_borrowed_byte_carrier())
     }) {
         view_access_with_budget(function, source.place, budget)?
     } else if let Some(parameter) = signature

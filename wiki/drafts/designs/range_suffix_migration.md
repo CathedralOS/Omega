@@ -197,6 +197,22 @@ bounds, not the selected subject's identity or evidence of strict decrease:
 the six missing-equation, wrong-subject and opaque-completion controls retain
 their original refusals.
 
+## Audited field-selected endpoints and unrelated arrays
+
+The [endpoint group inventory](../../../tests/omega/pass/termination/measure_field_rank_endpoint/README.md#historical-scalar-declarations)
+reconciles nine declarations at `a16c1ae91f0`, `fba85426683`,
+`c3300162d8b` and `95171450b11`: eight bounded `u64` fields keep their
+containing-data upper bounds, and `walk.ceiling` retains both five and ten
+as ordinary arrival requirements. Unsigned carriers retain field zero floors.
+The computed-limit control's bare `limit` was never a bounded declaration.
+
+The original field-selected walk and the original walk carrying the unrelated
+65,536-byte array now have full runtime observations. Their measures and
+recursive bodies remain unchanged. The matching invalid programs still refuse
+broken callee premises, replaced endpoints and overflowing computed endpoints.
+The projected-array local-borrow regression closes the encountered carrier
+join through actual first/last byte reads, not a source-shaped shortcut.
+
 ## Audited mutual call and computed-copy arrivals
 
 Eleven scalar suffixes retain ordinary arrival propositions and unsigned zero

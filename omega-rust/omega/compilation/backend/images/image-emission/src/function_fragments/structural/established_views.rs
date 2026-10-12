@@ -29,7 +29,7 @@ pub(super) fn location(
         | abstract_operations::AbstractOperation::EstablishElementView { psi_operation, .. }
         if *psi_operation == producer)
     });
-    let byte_size = match producers.next() {
+    match producers.next() {
         // A whole-view forward's argument type is the view type; an element
         // loan's root type is. `root_structural_type` covers both, and a
         // mutable view's affine result supplies the same descriptor residence.
@@ -42,10 +42,7 @@ pub(super) fn location(
                 )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
-                && result.claims.is_empty() =>
-        {
-            16
-        }
+                && result.claims.is_empty() => {}
         Some(abstract_operations::AbstractOperation::ElementViewSubslice { result, .. })
             if result.place == argument.place
                 && result.structural_type == argument.root_structural_type
@@ -55,10 +52,7 @@ pub(super) fn location(
                 )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
-                && result.claims.is_empty() =>
-        {
-            16
-        }
+                && result.claims.is_empty() => {}
         Some(abstract_operations::AbstractOperation::EstablishElementView { result, .. })
             if result.place == argument.place
                 && result.structural_type == argument.root_structural_type
@@ -68,17 +62,14 @@ pub(super) fn location(
                 )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
-                && result.claims.is_empty() =>
-        {
-            16
-        }
+                && result.claims.is_empty() => {}
         // A literal's octets live in read-only image storage; its activation
         // holds only the two-word descriptor.
         Some(abstract_operations::AbstractOperation::EstablishByteSequenceLiteral {
             place,
             structural_type,
             ..
-        }) if place.id == argument.place && structural_type.id == argument.structural_type => 16,
+        }) if place.id == argument.place && structural_type.id == argument.structural_type => {}
         _ => return Err(invalid()),
     };
     if producers.next().is_some() {
@@ -93,7 +84,6 @@ pub(super) fn location(
             place: argument.place,
         },
         selected_instructions::SelectedMemoryAccessOrigin::Operation(producer),
-        byte_size,
     )
 }
 
@@ -142,7 +132,6 @@ pub(super) fn block_location(
         argument,
         LocalStorageSlotId::StructuralBlockParameter { block, place },
         selected_instructions::SelectedMemoryAccessOrigin::Block(block),
-        16,
     )
 }
 
@@ -152,13 +141,29 @@ fn local_location(
     argument: &TargetStructuralArgument,
     slot: LocalStorageSlotId,
     origin: selected_instructions::SelectedMemoryAccessOrigin,
-    byte_size: u32,
 ) -> Result<StructuralSourceLocation, Error> {
     let invalid = || Error::Mismatch("local view differs from current descriptor custody");
+    let declarations = &selected
+        .structural
+        .as_ref()
+        .ok_or_else(invalid)?
+        .structural_types;
+    let declaration =
+        terminal_psi::find_structural_type(declarations, argument.root_structural_type)
+            .ok_or_else(invalid)?;
+    // Residence follows the retained carrier, not its source spelling or loan
+    // access. Dynamic descriptors store a length; fixed byte views retain one
+    // backing pointer and obtain their extent from the declaration.
+    let byte_size = match declaration.shape {
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+        | StructuralTypeShape::ElementView { .. } => 16,
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView { .. }) => 8,
+        _ => return Err(invalid()),
+    };
     // A whole forward ships the descriptor as the argument; an element loan
     // ships the projected element's address, so its access, projection and
     // shape differ — the descriptor residence it checks is identical. Shared
-    // and mutable whole views use the same two-word home. The admitted pipeline
+    // and mutable whole views use the same declared home. The admitted pipeline
     // already checked the exact source authority; publication rejoins physical
     // residence without converting the borrowed descriptor into an owned value.
     let element_loan = !argument.path.is_empty();
@@ -182,33 +187,11 @@ fn local_location(
         argument.access,
         terminal_psi::reading_borrow_pair_pattern!()
     ) || argument.root_structural_type != argument.structural_type
-        || argument.shape != ValueShape::borrowed_reference(16, 8)
+        || argument.shape != ValueShape::borrowed_reference(byte_size, 8)
         || argument.source_byte_offset != 0
         || argument.fixed_array_length.is_some()
         || argument.element_stride.is_some()
     {
-        return Err(invalid());
-    }
-    let declarations = &selected
-        .structural
-        .as_ref()
-        .ok_or_else(invalid)?
-        .structural_types;
-    // The view type is the argument's own type on a forward and its root on
-    // an element loan.
-    let view_type = if element_loan {
-        argument.root_structural_type
-    } else {
-        argument.structural_type
-    };
-    if !declarations.iter().any(|declaration| {
-        declaration.id == view_type
-            && matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
-                    | StructuralTypeShape::ElementView { .. }
-            )
-    }) {
         return Err(invalid());
     }
     let mut selected_slots = selected
@@ -249,7 +232,7 @@ fn local_location(
             && access.byte_offset == 0
     });
     let access = accesses.next().ok_or_else(invalid)?;
-    if accesses.next().is_some() || access.byte_offset != 0 || access.byte_count != 16 {
+    if accesses.next().is_some() || access.byte_offset != 0 || access.byte_count != byte_size {
         return Err(invalid());
     }
     let mut instructions = selected

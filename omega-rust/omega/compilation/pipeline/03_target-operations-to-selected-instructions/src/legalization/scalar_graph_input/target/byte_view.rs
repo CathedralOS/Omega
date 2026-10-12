@@ -147,7 +147,7 @@ impl Checker<'_> {
             && self.byte_view(view, source, &[])
     }
 
-    /// The operation at `psi_operation` establishes a borrowed `&[u8]` view at
+    /// The operation at `psi_operation` establishes a borrowed byte view at
     /// `source`: its declared result is the borrowed byte-view type and its
     /// element is the `u8` scalar exactly.
     fn established_byte_view(
@@ -182,7 +182,7 @@ impl Checker<'_> {
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty()
                 && terminal_psi::find_structural_type(self.types, structural_type)
-                    .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
+                    .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
                 && terminal_psi::find_structural_type(self.types, *element).is_some_and(
                     |declaration| {
                         matches!(

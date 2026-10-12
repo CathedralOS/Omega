@@ -96,8 +96,8 @@ pub(crate) fn emit_carrier(
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let id = operations.allocate();
     // A captured loan keeps the carrier its type declares. Ordinary
-    // references own affine lifetime resources; fixed byte views use the
-    // collection descriptor operation and its shared/exclusive multiplicity.
+    // references own affine lifetime resources; collection views use their
+    // descriptor operation and its shared/exclusive multiplicity.
     // Both routes retain the exact evaluated source and loan provenance below.
     let declaration = terminal_psi::find_structural_type(declarations, structural_type)
         .ok_or(LoweringError::Unsupported("loan carrier type is missing"))?;
@@ -110,22 +110,30 @@ pub(crate) fn emit_carrier(
             StructuralMultiplicity::Affine,
         ),
         terminal_psi::StructuralTypeShape::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BoundedView { .. },
-        ) if storage.is_none() => {
-            let scalar = crate::emission::scalar_types::terminal_scalar_type(
-                checked_trees::types::PrimitiveType::U8,
-            )?;
-            let element = declarations
-                .iter()
-                .find(|declaration| {
-                    declaration.scalar_restriction.is_none()
-                        && declaration.shape
-                            == terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar)
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "byte loan carrier has no u8 declaration",
-                ))?
-                .id;
+            terminal_psi::byte_sequence_view_carrier_pattern!(),
+        )
+        | terminal_psi::StructuralTypeShape::ElementView { .. }
+            if storage.is_none() =>
+        {
+            let element = match declaration.shape {
+                terminal_psi::StructuralTypeShape::ElementView { element } => element,
+                _ => {
+                    let scalar = crate::emission::scalar_types::terminal_scalar_type(
+                        checked_trees::types::PrimitiveType::U8,
+                    )?;
+                    declarations
+                        .iter()
+                        .find(|declaration| {
+                            declaration.scalar_restriction.is_none()
+                                && declaration.shape
+                                    == terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar)
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "byte loan carrier has no u8 declaration",
+                        ))?
+                        .id
+                }
+            };
             let region = terminal_psi::ElementViewRegion::WholeCollection;
             match source.access {
                 terminal_psi::StructuralAccess::SharedBorrow => (

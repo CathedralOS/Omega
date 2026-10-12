@@ -1743,6 +1743,12 @@ defines the complete product bar.
   `fail/termination/rank_arrival_*` controls (data predicates keep field bounds
   through result equations and fresh guarded reception; bounds alone neither
   identify the previous rank nor grant descent),
+  `pass/termination/{measure_field_rank_endpoint,rank_arrival_unobserved_array_extent_compile}`,
+  `pass/borrows/runtime_projected_fixed_byte_array_local_exit` and
+  `fail/termination/measure_field_{arrival_contract,limit_changed,computed_limit_overflow}`
+  (field bounds retain their default predicates without conserving replaced
+  endpoints or hiding call requirements; unrelated fixed arrays and captured
+  projected byte carriers remain ordinary data, not additional rank subjects),
   `pass/termination/rank_range_{declared_step_copies,call_declared_step_copy}`.
 
   The 16 recursive filesystem parameter suffixes remain unmigrated. Their

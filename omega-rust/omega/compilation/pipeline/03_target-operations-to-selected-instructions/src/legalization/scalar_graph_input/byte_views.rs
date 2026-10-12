@@ -176,7 +176,7 @@ pub(super) fn view_type(
             super::literals::declaration_producer(function, place).map(|(_, identity)| identity)
         })?;
     let declaration = terminal_psi::find_structural_type(types, identity)?;
-    (declaration.shape.is_borrowed_byte_view()
+    (declaration.shape.is_borrowed_byte_carrier()
         || matches!(
             declaration.shape,
             terminal_psi::StructuralTypeShape::ElementView { .. }
@@ -302,36 +302,8 @@ pub(super) fn contains_readable_bytes(
     view_type(function, place, types).is_some_and(|identity| {
         types
             .iter()
-            .any(|row| row.id == identity && row.shape.is_borrowed_byte_view())
-    }) || bounded_view_arrival(function, place, types)
-        || reads_owner_layout(function, place, types)
-}
-
-fn bounded_view_arrival(
-    function: &PsiOptimizationFunction,
-    place: semantic_vocabulary::PlaceId,
-    types: &[terminal_psi::StructuralTypeDeclaration],
-) -> bool {
-    bounded_view_capacity(function, place, types).is_some()
-}
-
-/// The static extent of a bounded view arriving at `place`. Target lowering
-/// answers that view's length observation with this capacity as an
-/// immediate, never a descriptor load.
-pub(super) fn bounded_view_capacity(
-    function: &PsiOptimizationFunction,
-    place: semantic_vocabulary::PlaceId,
-    types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<u64> {
-    let parameter = function.arrival_parameter(place)?;
-    terminal_psi::find_structural_type(types, parameter.structural_type).and_then(|declaration| {
-        match declaration.shape {
-            terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
-            ) => Some(capacity),
-            _ => None,
-        }
-    })
+            .any(|row| row.id == identity && row.shape.is_borrowed_byte_carrier())
+    }) || reads_owner_layout(function, place, types)
 }
 
 /// Exact completed descriptor home; it carries no ownership of borrowed bytes.

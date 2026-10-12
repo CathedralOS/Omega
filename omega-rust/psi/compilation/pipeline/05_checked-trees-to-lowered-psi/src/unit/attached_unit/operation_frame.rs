@@ -517,9 +517,9 @@ impl OperationFrame<'_, '_> {
             }
             terminal_psi::StructuralTypeShape::ElementView { .. }
             | terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                terminal_psi::byte_sequence_view_carrier_pattern!(),
             ) => {
-                // Slice descriptors retire through ordinary carrier cleanup.
+                // Fixed and runtime-length descriptors retire through ordinary carrier cleanup.
                 // Their captured loan boundary does not change their geometry
                 // into a stored reference or consume their borrowed backing.
                 self.evaluation.continue_cleanup_regions(
