@@ -1,0 +1,177 @@
+// Millidegree trigonometry for the survey traverse. Azimuths arrive as
+// integers in [0, 360000) millidegrees, so the quadrant fold uses exact
+// integer division/remainder before any float evaluation: only the
+// remainder in [0, 45000] millidegrees is converted to radians, with the
+// conversion factor carried as a double-double pair (K_HI + K_LO) so the
+// product r * K stays within a few units in the last place of the true
+// value. The independent sweep of all 360000 arguments lives in
+// data/reference.py; the runtime startup check in main.omg enforces the
+// frozen probe tolerance before any input is trusted.
+use omega::language::core::float_operations;
+
+// pi / 180000 split into a high part (exact product for r <= 45000) and
+// the residual tail.
+const K_HI: f64 = 0.000017453292519500;
+const K_LO: f64 = 4.4329638701143260e-16;
+
+machine radians(remainder: i64 in Wrapping) -> f64 requires 0 <= remainder && remainder <= 45000 {
+    let r: f64 = remainder as f64;
+    transition { _ -> (r * K_HI + r * K_LO) }
+}
+
+// Odd Taylor for sin(x) on |x| <= pi/4 through x^17, Horner over x*x.
+// Truncation error is bounded by x^19/19! < 1e-19 on the reduced domain.
+machine sin_poly(x: f64) -> f64 {
+    let xx: f64 = x * x;
+    let mut p: f64 = 0.0000000000000028114572543455208;
+    let mut term: f64 = xx * p;
+    p = -0.0000000000007647163731819816476 + term;
+    term = xx * p;
+    p = 0.0000000001605904383682161460 + term;
+    term = xx * p;
+    p = -0.0000000250521083854417188 + term;
+    term = xx * p;
+    p = 0.0000027557319223985891 + term;
+    term = xx * p;
+    p = -0.0001984126984126984 + term;
+    term = xx * p;
+    p = 0.0083333333333333333 + term;
+    term = xx * p;
+    p = -0.1666666666666666667 + term;
+    let mut tail: f64 = x * xx;
+    tail = tail * p;
+    transition { _ -> (x + tail) }
+}
+
+// Even Taylor for cos(x) on |x| <= pi/4 through x^18, Horner over x*x.
+// Truncation error is bounded by x^20/20! < 2e-21 on the reduced domain.
+machine cos_poly(x: f64) -> f64 {
+    let xx: f64 = x * x;
+    let mut p: f64 = -0.0000000000000001561920696858623;
+    let mut term: f64 = xx * p;
+    p = 0.0000000000000477947733238738505 + term;
+    term = xx * p;
+    p = -0.0000000000114707455977297251 + term;
+    term = xx * p;
+    p = 0.0000000020876756987868099 + term;
+    term = xx * p;
+    p = -0.0000002755731922398589065 + term;
+    term = xx * p;
+    p = 0.0000248015873015873016 + term;
+    term = xx * p;
+    p = -0.0013888888888888889 + term;
+    term = xx * p;
+    p = 0.0416666666666666667 + term;
+    term = xx * p;
+    p = -0.5 + term;
+    transition { _ -> (1.0 + xx * p) }
+}
+
+// Base sine/cosine of the quadrant remainder in [0, 90000] millidegrees,
+// folded onto its complement so every polynomial input stays inside pi/4.
+machine base_sin(remainder: i64 in Wrapping) -> f64 requires 0 <= remainder && remainder < 90000 {
+    transition remainder <= 45000 {
+        true -> small(remainder)
+        false -> complement(remainder)
+    }
+    state small(remainder: i64 in Wrapping) -> f64 {
+        let x: f64 = radians(remainder);
+        let s: f64 = sin_poly(x);
+        transition { _ -> (s) }
+    }
+    state complement(remainder: i64 in Wrapping) -> f64 {
+        let x: f64 = radians(90000 - remainder);
+        let c: f64 = cos_poly(x);
+        transition { _ -> (c) }
+    }
+}
+
+machine base_cos(remainder: i64 in Wrapping) -> f64 requires 0 <= remainder && remainder < 90000 {
+    transition remainder <= 45000 {
+        true -> small(remainder)
+        false -> complement(remainder)
+    }
+    state small(remainder: i64 in Wrapping) -> f64 {
+        let x: f64 = radians(remainder);
+        let c: f64 = cos_poly(x);
+        transition { _ -> (c) }
+    }
+    state complement(remainder: i64 in Wrapping) -> f64 {
+        let x: f64 = radians(90000 - remainder);
+        let s: f64 = sin_poly(x);
+        transition { _ -> (s) }
+    }
+}
+
+// sin of an integer millidegree azimuth; callers bound mdeg to
+// [0, 360000). Quadrant signs follow the exact integer quadrant.
+pub machine sin_mdeg(mdeg: i64 in Wrapping) -> f64 {
+    let wrap: i64 in Wrapping = mdeg % 360000;
+    transition wrap < 0 {
+        true -> fold(wrap + 360000)
+        false -> fold(wrap)
+    }
+    state fold(m: i64 in Wrapping) -> f64 requires 0 <= m && m < 360000 {
+        transition { _ -> quadrant(m / 90000, m % 90000) }
+    }
+    state quadrant(quadrant: i64 in Wrapping, remainder: i64 in Wrapping) -> f64 requires 0 <= quadrant && quadrant <= 3 && 0 <= remainder && remainder < 90000 {
+        transition quadrant {
+        0 -> q0(remainder)
+        1 -> q1(remainder)
+        2 -> q2(remainder)
+        _ -> q3(remainder)
+        }
+    }
+    state q0(remainder: i64 in Wrapping) -> f64 requires 0 <= remainder && remainder < 90000 {
+        let s: f64 = base_sin(remainder);
+        transition { _ -> (s) }
+    }
+    state q1(remainder: i64 in Wrapping) -> f64 requires 0 <= remainder && remainder < 90000 {
+        let c: f64 = base_cos(remainder);
+        transition { _ -> (c) }
+    }
+    state q2(remainder: i64 in Wrapping) -> f64 requires 0 <= remainder && remainder < 90000 {
+        let s: f64 = base_sin(remainder);
+        transition { _ -> (0.0 - s) }
+    }
+    state q3(remainder: i64 in Wrapping) -> f64 requires 0 <= remainder && remainder < 90000 {
+        let c: f64 = base_cos(remainder);
+        transition { _ -> (0.0 - c) }
+    }
+}
+
+// cos of an integer millidegree azimuth on the same exact fold.
+pub machine cos_mdeg(mdeg: i64 in Wrapping) -> f64 {
+    let wrap: i64 in Wrapping = mdeg % 360000;
+    transition wrap < 0 {
+        true -> fold(wrap + 360000)
+        false -> fold(wrap)
+    }
+    state fold(m: i64 in Wrapping) -> f64 requires 0 <= m && m < 360000 {
+        transition { _ -> quadrant(m / 90000, m % 90000) }
+    }
+    state quadrant(quadrant: i64 in Wrapping, remainder: i64 in Wrapping) -> f64 requires 0 <= quadrant && quadrant <= 3 && 0 <= remainder && remainder < 90000 {
+        transition quadrant {
+        0 -> q0(remainder)
+        1 -> q1(remainder)
+        2 -> q2(remainder)
+        _ -> q3(remainder)
+        }
+    }
+    state q0(remainder: i64 in Wrapping) -> f64 requires 0 <= remainder && remainder < 90000 {
+        let c: f64 = base_cos(remainder);
+        transition { _ -> (c) }
+    }
+    state q1(remainder: i64 in Wrapping) -> f64 requires 0 <= remainder && remainder < 90000 {
+        let s: f64 = base_sin(remainder);
+        transition { _ -> (0.0 - s) }
+    }
+    state q2(remainder: i64 in Wrapping) -> f64 requires 0 <= remainder && remainder < 90000 {
+        let c: f64 = base_cos(remainder);
+        transition { _ -> (0.0 - c) }
+    }
+    state q3(remainder: i64 in Wrapping) -> f64 requires 0 <= remainder && remainder < 90000 {
+        let s: f64 = base_sin(remainder);
+        transition { _ -> (s) }
+    }
+}

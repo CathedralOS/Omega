@@ -1,0 +1,17 @@
+// Intended-invalid control: the eight-leg bearing table is written at
+// literal slot 8, one past its end. The collection bounds rule must
+// reject this source during checking, before package admission or any
+// execution; the pinned diagnostic is in expected.txt.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data InvalidMain {
+    console: Binding<Console>;
+    bearing: [i64 in Wrapping; 8];
+}
+
+machine InvalidMain::main(context: &mut InvalidMain) reaches Console {
+    context.bearing[8] = 270000;
+    context.console.write_line("unreachable");
+    context.console.exit_process(0);
+}

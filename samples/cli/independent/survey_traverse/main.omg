@@ -1,0 +1,93 @@
+// Survey traverse customer: bounded azimuth/distance legs in millidegrees
+// and millimetres, reduced through the authored millidegree trig, adjusted
+// by Bowditch and reported with signed fixed-decimal bounds. Startup
+// probes pin the trig accuracy against frozen expectations before any
+// input is trusted; malformed records exit 2, a failed precision grade
+// exits 3, and a probe failure exits 4.
+// Expected exit: 2.
+// Expected output contains: ERROR invalid input
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::float_operations;
+use survey::model;
+use survey::input;
+use survey::traverse;
+use survey::report;
+use survey::millidegree;
+
+data Main {
+    console: Binding<Console>;
+    input: [u8; 512];
+    traverse: Traverse;
+    adjusted: Adjusted;
+}
+
+machine probe(value: f64, expected: f64) -> bool {
+    transition { _ -> (abs(value - expected) < 0.000000001) }
+}
+
+machine probes() -> bool {
+    let s45: f64 = sin_mdeg(45000);
+    let s90: f64 = sin_mdeg(90000);
+    let s225: f64 = sin_mdeg(225000);
+    let c135: f64 = cos_mdeg(135000);
+    transition { _ -> (probe(s45, 0.70710678118654752) &&
+                      probe(s90, 1.0) &&
+                      probe(s225, 0.0 - 0.70710678118654752) &&
+                      probe(c135, 0.0 - 0.70710678118654752)) }
+}
+
+machine Main::main(context: &mut Main) reaches Console
+crashes Trap
+{
+    transition probes() { true -> read(context) false -> oracle_error(context) }
+    state oracle_error(context: &mut Main) {
+        context.console.write_line("ERROR internal oracle");
+        context.console.exit_process(4);
+    }
+    state read(context: &mut Main) {
+        let observed: LineReadResult = block context.console.read_line(&mut context.input);
+        transition observed {
+            LineReadResult::LineComplete { count } -> complete(context, count)
+            LineReadResult::EndOfInput { count } -> eof(context, count)
+            _ -> invalid(context)
+        }
+    }
+    state complete(context: &mut Main, count: u64) {
+        transition count >= 1 && count <= 481 && context.input[count - 1] == 10 {
+            true -> feed(context, count - 1)
+            false -> invalid(context)
+        }
+    }
+    state eof(context: &mut Main, count: u64) {
+        transition count <= 480 { true -> feed(context, count) false -> invalid(context) }
+    }
+    state feed(context: &mut Main, count: u64) requires count <= 512 {
+        let accepted: bool = parse(&context.input, count, &mut context.traverse);
+        transition accepted { true -> run(context) false -> invalid(context) }
+    }
+    state run(context: &mut Main) {
+        compute(&context.traverse, &mut context.adjusted);
+        transition context.adjusted.valid {
+            true -> report_state(context)
+            false -> invariant(context)
+        }
+    }
+    state report_state(context: &mut Main) {
+        report(&mut context.console, &context.traverse, &context.adjusted);
+        transition context.adjusted.grade_ok {
+            true -> passed(context)
+            false -> failed(context)
+        }
+    }
+    state passed(context: &mut Main) { context.console.exit_process(0); }
+    state failed(context: &mut Main) { context.console.exit_process(3); }
+    state invalid(context: &mut Main) {
+        context.console.write_line("ERROR invalid input");
+        context.console.exit_process(2);
+    }
+    state invariant(context: &mut Main) {
+        context.console.write_line("ERROR internal invariant");
+        context.console.exit_process(70);
+    }
+}

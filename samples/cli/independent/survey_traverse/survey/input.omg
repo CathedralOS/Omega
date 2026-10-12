@@ -1,0 +1,182 @@
+// Bounded traverse input parser. One record occupies a single line of at
+// most 480 bytes (an optional LF may terminate it; bare EOF is accepted):
+//   <legs> <bearing_0> <distance_0> ... <bearing_{n-1}> <distance_{n-1}>
+// Tokens are unsigned decimal integers separated by runs of spaces or
+// tabs. legs must be 3..8, each bearing 0..359999 millidegrees and each
+// distance 1..2000000 millimetres. Leading separators and trailing
+// separators at end-of-record are accepted; any other byte, missing
+// token, extra token or range violation rejects the record.
+use survey::model;
+
+// Result of one token scan. `after` is the cursor position immediately
+// past the token's digits, and status is 0 (token ends at a separator),
+// 1 (token ends at end-of-record), 2 (malformed) or 3 (end-of-record,
+// no token read).
+pub data Token { value: i64 in Wrapping; after: u64; status: u64; }
+
+machine token(input: &[u8; 512], count: u64, cursor: u64, out: &mut Token)
+requires count <= 512 {
+    transition { _ -> skip(input, count, cursor, out) }
+    state skip(input: &[u8; 512], count: u64, cursor: u64, out: &mut Token)
+    requires count <= 512 {
+        transition cursor < count {
+            true -> classify(input, count, cursor, out, (input[cursor] as u64))
+            false -> none(out)
+        }
+    }
+    state classify(input: &[u8; 512], count: u64, cursor: u64, out: &mut Token, byte: u64)
+    requires cursor < count && count <= 512 {
+        transition byte == 32 || byte == 9 {
+            true -> skip(input, count, cursor + 1, out)
+            false -> digit(input, count, cursor, out, byte)
+        }
+    }
+    state digit(input: &[u8; 512], count: u64, cursor: u64, out: &mut Token, byte: u64)
+    requires cursor < count && count <= 512 {
+        transition byte >= 48 && byte <= 57 {
+            true -> first(input, count, cursor, out, byte)
+            false -> malformed(out)
+        }
+    }
+    state first(input: &[u8; 512], count: u64, cursor: u64, out: &mut Token, byte: u64)
+    requires cursor < count && count <= 512 && 48 <= byte && byte <= 57 {
+        transition { _ -> accumulate(input, count, cursor + 1, out, byte - 48, 1) }
+    }
+    state accumulate(input: &[u8; 512], count: u64, cursor: u64, out: &mut Token, value: u64, digits: u64)
+    requires count <= 512 && cursor <= count && value <= 9999999 && digits <= 7 {
+        transition cursor < count {
+            true -> next(input, count, cursor, out, value, digits, (input[cursor] as u64))
+            false -> store(out, value, cursor, 1)
+        }
+    }
+    state next(input: &[u8; 512], count: u64, cursor: u64, out: &mut Token, value: u64, digits: u64, byte: u64)
+    requires cursor < count && count <= 512 && value <= 9999999 && digits <= 7 {
+        transition byte >= 48 && byte <= 57 {
+            true -> grow(input, count, cursor, out, value, digits, byte)
+            false -> ending(input, count, cursor, out, value, byte)
+        }
+    }
+    state grow(input: &[u8; 512], count: u64, cursor: u64, out: &mut Token, value: u64, digits: u64, byte: u64)
+    requires cursor < count && count <= 512 && value <= 9999999 && digits <= 7 && 48 <= byte && byte <= 57 {
+        transition digits <= 6 && value <= 999999 {
+            true -> accumulate(input, count, cursor + 1, out, value * 10 + byte - 48, digits + 1)
+            false -> malformed(out)
+        }
+    }
+    state ending(input: &[u8; 512], count: u64, cursor: u64, out: &mut Token, value: u64, byte: u64)
+    requires cursor < count && value <= 9999999 {
+        transition byte == 32 || byte == 9 {
+            true -> store(out, value, cursor, 0)
+            false -> malformed(out)
+        }
+    }
+    state store(out: &mut Token, value: u64, after: u64, status: u64)
+    requires value <= 9999999 {
+        out.value = value as i64 in Wrapping;
+        out.after = after;
+        out.status = status;
+    }
+    state malformed(out: &mut Token) {
+        out.value = 0;
+        out.after = 0;
+        out.status = 2;
+    }
+    state none(out: &mut Token) {
+        out.value = 0;
+        out.after = 0;
+        out.status = 3;
+    }
+}
+
+// Stores one checked field; false means a malformed or out-of-range
+// token. The end-of-record status is legal anywhere a token is legal.
+machine leg_field(result: &Token, traverse: &mut Traverse, slot: u64, bearing: bool) -> bool
+requires slot < 8 {
+    transition result.status == 0 || result.status == 1 {
+        true -> range(traverse, slot, bearing, result.value)
+        false -> false
+    }
+    state range(traverse: &mut Traverse, slot: u64, bearing: bool, value: i64 in Wrapping) -> bool
+    requires slot < 8 {
+        transition bearing {
+            true -> check_bearing(traverse, slot, value)
+            false -> check_distance(traverse, slot, value)
+        }
+    }
+    state check_bearing(traverse: &mut Traverse, slot: u64, value: i64 in Wrapping) -> bool
+    requires slot < 8 {
+        transition value >= 0 && value < 360000 {
+            true -> store_bearing(traverse, slot, value)
+            false -> false
+        }
+    }
+    state store_bearing(traverse: &mut Traverse, slot: u64, value: i64 in Wrapping) -> bool
+    requires slot < 8 {
+        traverse.bearing[slot] = value;
+        transition { _ -> true }
+    }
+    state check_distance(traverse: &mut Traverse, slot: u64, value: i64 in Wrapping) -> bool
+    requires slot < 8 {
+        transition value >= 1 && value <= 2000000 {
+            true -> store_distance(traverse, slot, value)
+            false -> false
+        }
+    }
+    state store_distance(traverse: &mut Traverse, slot: u64, value: i64 in Wrapping) -> bool
+    requires slot < 8 {
+        traverse.distance[slot] = value;
+        transition { _ -> true }
+    }
+}
+
+// Parses the whole record into `traverse`; false means malformed input.
+// `count` is the record length excluding an optional trailing LF.
+pub machine parse(input: &[u8; 512], count: u64, traverse: &mut Traverse) -> bool
+requires count <= 512 {
+    let mut head: Token = Token { value: 0, after: 0, status: 3 };
+    token(input, count, 0, &mut head);
+    transition head.status == 0 || head.status == 1 {
+        true -> legs(input, count, head.after, head.value, traverse)
+        false -> false
+    }
+    state legs(input: &[u8; 512], count: u64, cursor: u64, legs: i64 in Wrapping, traverse: &mut Traverse) -> bool {
+        transition legs >= 3 && legs <= 8 {
+            true -> begin(input, count, cursor, traverse, (legs as u64))
+            false -> false
+        }
+    }
+    state begin(input: &[u8; 512], count: u64, cursor: u64, traverse: &mut Traverse, legs: u64) -> bool
+    requires count <= 512 && 3 <= legs && legs <= 8 {
+        traverse.legs = legs as i64 in Wrapping;
+        transition { _ -> bearing(input, count, cursor, traverse, legs, 0) }
+    }
+    state bearing(input: &[u8; 512], count: u64, cursor: u64, traverse: &mut Traverse, legs: u64, slot: u64) -> bool
+    requires count <= 512 && legs <= 8 && slot < legs {
+        let mut result: Token = Token { value: 0, after: 0, status: 2 };
+        token(input, count, cursor, &mut result);
+        let fine: bool = leg_field(&result, traverse, slot, true);
+        transition fine { true -> distance(input, count, result, traverse, legs, slot) false -> false }
+    }
+    state distance(input: &[u8; 512], count: u64, result: Token, traverse: &mut Traverse, legs: u64, slot: u64) -> bool
+    requires count <= 512 && legs <= 8 && slot < legs {
+        let mut second: Token = Token { value: 0, after: 0, status: 2 };
+        token(input, count, result.after, &mut second);
+        let fine: bool = leg_field(&second, traverse, slot, false);
+        transition fine { true -> more(input, count, second, traverse, legs, slot) false -> false }
+    }
+    state more(input: &[u8; 512], count: u64, result: Token, traverse: &mut Traverse, legs: u64, slot: u64) -> bool
+    requires count <= 512 && legs <= 8 && slot < legs {
+        transition (slot + 1) < legs {
+            true -> bearing(input, count, result.after, traverse, legs, slot + 1)
+            false -> tail(input, count, result)
+        }
+    }
+    // Trailing separators may close the record; anything else is extra
+    // input and rejects.
+    state tail(input: &[u8; 512], count: u64, result: Token) -> bool
+    requires count <= 512 {
+        let mut extra: Token = Token { value: 0, after: 0, status: 2 };
+        token(input, count, result.after, &mut extra);
+        transition { _ -> (extra.status == 3) }
+    }
+}

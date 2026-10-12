@@ -1,0 +1,30 @@
+// Survey traverse model: a bounded closed-or-open traverse of at most
+// eight legs. Each leg carries an integer azimuth in millidegrees
+// [0, 360000) clockwise from north and an integer distance in
+// millimetres. All angular reduction is done on the integer millidegree
+// before any float conversion, so quadrant decisions are exact.
+pub data Traverse {
+    legs: i64 in Wrapping;
+    bearing: [i64 in Wrapping; 8];
+    distance: [i64 in Wrapping; 8];
+}
+// Adjusted results: raw departures/latitudes, Bowditch corrections,
+// station coordinates, and the signed easting/northing report bounds.
+pub data Adjusted {
+    dep: [f64; 8];
+    lat: [f64; 8];
+    adj_dep: [f64; 8];
+    adj_lat: [f64; 8];
+    east: [f64; 9];
+    north: [f64; 9];
+    sum_dep: f64;
+    sum_lat: f64;
+    misclosure: f64;
+    perimeter: i64 in Wrapping;
+    grade_ok: bool;
+    valid: bool;
+    e_min: f64;
+    e_max: f64;
+    n_min: f64;
+    n_max: f64;
+}

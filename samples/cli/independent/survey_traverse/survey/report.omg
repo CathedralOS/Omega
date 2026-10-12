@@ -1,0 +1,166 @@
+// Deterministic traverse report. Signed values use a fixed
+// sign + eight integer digits + six decimals layout; magnitudes are
+// bounded by the 2000000 mm per-leg and eight-leg input limits so the
+// scaled integer always fits i64. Rounding is half-up on the magnitude
+// with the sign carried separately; a negative zero prints as +0.
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::numeric_conversion;
+use omega::language::core::float_operations;
+use survey::model;
+
+machine fixed6(console: &mut Binding<Console>, value: f64) reaches Console {
+    let mut bytes: [u8; 16] = "+00000000.000000";
+    transition value < 0.0 {
+        true -> negative(console, &mut bytes, value)
+        _ -> positive(console, &mut bytes, value)
+    }
+    state negative(console: &mut Binding<Console>, bytes: &mut [u8; 16], value: f64) {
+        bytes[0] = 45;
+        let scaled: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
+        transition { _ -> digits(console, bytes, scaled as i64 in Wrapping, 15) }
+    }
+    state positive(console: &mut Binding<Console>, bytes: &mut [u8; 16], value: f64) {
+        let scaled: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
+        transition { _ -> digits(console, bytes, scaled as i64 in Wrapping, 15) }
+    }
+    state digits(console: &mut Binding<Console>, bytes: &mut [u8; 16],
+                 remaining: i64 in Wrapping, position: i32 in Wrapping)
+    requires position >= 0 && position <= 15 {
+        transition position > 0 {
+            true -> separator(console, bytes, remaining, position)
+            _ -> emit(console, bytes)
+        }
+    }
+    state separator(console: &mut Binding<Console>, bytes: &mut [u8; 16],
+                    remaining: i64 in Wrapping, position: i32 in Wrapping)
+    requires position >= 0 && position <= 15 {
+        transition position == 9 {
+            true -> digits(console, bytes, remaining, position - 1)
+            _ -> store(console, bytes, remaining, position)
+        }
+    }
+    state store(console: &mut Binding<Console>, bytes: &mut [u8; 16],
+                remaining: i64 in Wrapping, position: i32 in Wrapping)
+    requires position >= 0 && position <= 15 {
+        let digit: i32 = narrow_i64_to_i32_trapping((remaining % 10 + 48) as i64);
+        bytes[position] = narrow_i32_to_u8_trapping(digit);
+        transition { _ -> digits(console, bytes, remaining / 10, position - 1) }
+    }
+    state emit(console: &mut Binding<Console>, bytes: &[u8; 16]) { console.write(bytes); }
+}
+
+// Plain unsigned decimal for legs, perimeters and precision ratios.
+machine uint(console: &mut Binding<Console>, value: i64 in Wrapping) reaches Console {
+    transition { _ -> digit(console, value, 1000000000000000000, false) }
+    state digit(console: &mut Binding<Console>, value: i64 in Wrapping,
+                divisor: i64 in Wrapping, started: bool) {
+        transition divisor > 0 { true -> choose(console, value, divisor, started) false -> done(console) }
+    }
+    state choose(console: &mut Binding<Console>, value: i64 in Wrapping,
+                 divisor: i64 in Wrapping, started: bool) requires divisor > 0 {
+        let quotient: i64 in Wrapping = value / divisor;
+        transition quotient > 0 || started || divisor == 1 {
+            true -> emit(console, value, divisor, quotient)
+            false -> digit(console, value, divisor / 10, false)
+        }
+    }
+    state emit(console: &mut Binding<Console>, value: i64 in Wrapping,
+               divisor: i64 in Wrapping, quotient: i64 in Wrapping) requires divisor > 0 {
+        console.write_byte(narrow_i64_to_i32_trapping((quotient + 48) as i64));
+        transition { _ -> digit(console, value % divisor, divisor / 10, true) }
+    }
+    state done(console: &mut Binding<Console>) {}
+}
+
+pub machine report(console: &mut Binding<Console>, traverse: &Traverse,
+                   adjusted: &Adjusted) reaches Console
+invokes console;
+crashes Trap
+{
+    console.write("traverse legs=");
+    uint(console, traverse.legs);
+    console.write(" perimeter=");
+    uint(console, adjusted.perimeter);
+    console.write_line("");
+    console.write("misclosure dep=");
+    fixed6(console, adjusted.sum_dep);
+    console.write(" lat=");
+    fixed6(console, adjusted.sum_lat);
+    console.write(" length=");
+    fixed6(console, adjusted.misclosure);
+    console.write(" precision=");
+    transition adjusted.misclosure == 0.0 {
+        true -> exact(console, traverse, adjusted)
+        false -> ratio(console, traverse, adjusted)
+    }
+    state exact(console: &mut Binding<Console>, traverse: &Traverse, adjusted: &Adjusted) {
+        console.write_line("exact");
+        transition { _ -> grade(console, traverse, adjusted) }
+    }
+    state ratio(console: &mut Binding<Console>, traverse: &Traverse, adjusted: &Adjusted) {
+        let perimeter_f: f64 = F64::from_i64(adjusted.perimeter);
+        let ratio: i64 in Saturating = I64::from_f64(perimeter_f / adjusted.misclosure);
+        console.write("1:");
+        uint(console, ratio as i64 in Wrapping);
+        console.write_line("");
+        transition { _ -> grade(console, traverse, adjusted) }
+    }
+    state grade(console: &mut Binding<Console>, traverse: &Traverse, adjusted: &Adjusted) {
+        transition adjusted.grade_ok {
+            true -> legs(console, traverse, adjusted, 0)
+            false -> failed(console)
+        }
+    }
+    state legs(console: &mut Binding<Console>, traverse: &Traverse, adjusted: &Adjusted, slot: u64) requires slot <= 9 {
+        transition slot < 8 && (slot as i64 in Wrapping) < traverse.legs {
+            true -> leg(console, traverse, adjusted, slot)
+            false -> stations(console, traverse, adjusted, 0)
+        }
+    }
+    state leg(console: &mut Binding<Console>, traverse: &Traverse, adjusted: &Adjusted, slot: u64) requires slot <= 8 {
+        console.write("leg ");
+        uint(console, slot as i64 in Wrapping);
+        console.write(" dep=");
+        fixed6(console, adjusted.dep[slot]);
+        console.write(" lat=");
+        fixed6(console, adjusted.lat[slot]);
+        console.write(" adj_dep=");
+        fixed6(console, adjusted.adj_dep[slot]);
+        console.write(" adj_lat=");
+        fixed6(console, adjusted.adj_lat[slot]);
+        console.write_line("");
+        transition { _ -> legs(console, traverse, adjusted, slot + 1) }
+    }
+    state stations(console: &mut Binding<Console>, traverse: &Traverse, adjusted: &Adjusted, station: u64) requires station <= 9 {
+        transition station <= 8 && (station as i64 in Wrapping) <= traverse.legs {
+            true -> station(console, traverse, adjusted, station)
+            false -> bounds(console, traverse, adjusted)
+        }
+    }
+    state station(console: &mut Binding<Console>, traverse: &Traverse, adjusted: &Adjusted, index: u64) requires index <= 8 {
+        console.write("station ");
+        uint(console, index as i64 in Wrapping);
+        console.write(" e=");
+        fixed6(console, adjusted.east[index]);
+        console.write(" n=");
+        fixed6(console, adjusted.north[index]);
+        console.write_line("");
+        transition { _ -> stations(console, traverse, adjusted, index + 1) }
+    }
+    state bounds(console: &mut Binding<Console>, traverse: &Traverse, adjusted: &Adjusted) {
+        console.write("bounds e_min=");
+        fixed6(console, adjusted.e_min);
+        console.write(" e_max=");
+        fixed6(console, adjusted.e_max);
+        console.write(" n_min=");
+        fixed6(console, adjusted.n_min);
+        console.write(" n_max=");
+        fixed6(console, adjusted.n_max);
+        console.write_line("");
+        console.write_line("grade=PASS");
+    }
+    state failed(console: &mut Binding<Console>) {
+        console.write_line("grade=FAIL");
+    }
+}

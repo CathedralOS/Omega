@@ -1,0 +1,112 @@
+// Traverse reduction: raw departures/latitudes from the authored
+// millidegree sine/cosine, the linear misclosure, a Bowditch (compass
+// rule) adjustment proportional to leg length, adjusted station
+// coordinates, and the signed easting/northing report bounds. The
+// precision grade requires misclosure no worse than 1:1000 of the
+// perimeter; a failure is a reported outcome, not an invariant error.
+use survey::model;
+use survey::millidegree;
+use omega::language::core::float_operations;
+
+pub machine compute(traverse: &Traverse, adjusted: &mut Adjusted) {
+    adjusted.sum_dep = 0.0;
+    adjusted.sum_lat = 0.0;
+    adjusted.perimeter = 0;
+    adjusted.east[0] = 0.0;
+    adjusted.north[0] = 0.0;
+    transition { _ -> leg(traverse, adjusted, 0) }
+    state leg(traverse: &Traverse, adjusted: &mut Adjusted, slot: u64) requires slot <= 9 {
+        transition slot < 8 && (slot as i64 in Wrapping) < traverse.legs {
+            true -> measure(traverse, adjusted, slot)
+            false -> close(traverse, adjusted)
+        }
+    }
+    state measure(traverse: &Traverse, adjusted: &mut Adjusted, slot: u64) requires slot <= 8 {
+        let distance: f64 = F64::from_i64(traverse.distance[slot]);
+        adjusted.dep[slot] = distance * sin_mdeg(traverse.bearing[slot]);
+        adjusted.lat[slot] = distance * cos_mdeg(traverse.bearing[slot]);
+        adjusted.sum_dep = adjusted.sum_dep + adjusted.dep[slot];
+        adjusted.sum_lat = adjusted.sum_lat + adjusted.lat[slot];
+        adjusted.perimeter = adjusted.perimeter + traverse.distance[slot];
+        transition { _ -> leg(traverse, adjusted, slot + 1) }
+    }
+    state close(traverse: &Traverse, adjusted: &mut Adjusted) {
+        adjusted.misclosure = sqrt(adjusted.sum_dep * adjusted.sum_dep +
+                                   adjusted.sum_lat * adjusted.sum_lat);
+        let perimeter_f: f64 = F64::from_i64(adjusted.perimeter);
+        // Grade 1:1000: misclosure * 1000 <= perimeter passes.
+        adjusted.grade_ok = adjusted.misclosure * 1000.0 <= perimeter_f;
+        transition adjusted.grade_ok { true -> adjust(traverse, adjusted, 0) false -> done(adjusted) }
+    }
+    state adjust(traverse: &Traverse, adjusted: &mut Adjusted, slot: u64) requires slot <= 9 {
+        transition slot < 8 && (slot as i64 in Wrapping) < traverse.legs {
+            true -> bowditch(traverse, adjusted, slot)
+            false -> bounds(traverse, adjusted)
+        }
+    }
+    state bowditch(traverse: &Traverse, adjusted: &mut Adjusted, slot: u64) requires slot <= 8 {
+        let perimeter_f: f64 = F64::from_i64(adjusted.perimeter);
+        let share: f64 = F64::from_i64(traverse.distance[slot]) / perimeter_f;
+        adjusted.adj_dep[slot] = 0.0 - adjusted.sum_dep * share;
+        adjusted.adj_lat[slot] = 0.0 - adjusted.sum_lat * share;
+        adjusted.east[slot + 1] = adjusted.east[slot] + adjusted.dep[slot] + adjusted.adj_dep[slot];
+        adjusted.north[slot + 1] = adjusted.north[slot] + adjusted.lat[slot] + adjusted.adj_lat[slot];
+        transition { _ -> adjust(traverse, adjusted, slot + 1) }
+    }
+    state bounds(traverse: &Traverse, adjusted: &mut Adjusted) {
+        adjusted.e_min = adjusted.east[0];
+        adjusted.e_max = adjusted.east[0];
+        adjusted.n_min = adjusted.north[0];
+        adjusted.n_max = adjusted.north[0];
+        transition { _ -> scan(traverse, adjusted, 1) }
+    }
+    state scan(traverse: &Traverse, adjusted: &mut Adjusted, station: u64) requires station <= 9 {
+        transition station <= 8 && (station as i64 in Wrapping) <= traverse.legs {
+            true -> compare(traverse, adjusted, station)
+            false -> done(adjusted)
+        }
+    }
+    state compare(traverse: &Traverse, adjusted: &mut Adjusted, station: u64) requires station <= 9 {
+        transition adjusted.east[station] < adjusted.e_min {
+            true -> lower_e(traverse, adjusted, station)
+            false -> high_e(traverse, adjusted, station)
+        }
+    }
+    state lower_e(traverse: &Traverse, adjusted: &mut Adjusted, station: u64) requires station <= 9 {
+        adjusted.e_min = adjusted.east[station];
+        transition { _ -> high_e(traverse, adjusted, station) }
+    }
+    state high_e(traverse: &Traverse, adjusted: &mut Adjusted, station: u64) requires station <= 9 {
+        transition adjusted.east[station] > adjusted.e_max {
+            true -> raise_e(traverse, adjusted, station)
+            false -> low_n(traverse, adjusted, station)
+        }
+    }
+    state raise_e(traverse: &Traverse, adjusted: &mut Adjusted, station: u64) requires station <= 9 {
+        adjusted.e_max = adjusted.east[station];
+        transition { _ -> low_n(traverse, adjusted, station) }
+    }
+    state low_n(traverse: &Traverse, adjusted: &mut Adjusted, station: u64) requires station <= 9 {
+        transition adjusted.north[station] < adjusted.n_min {
+            true -> lower_n(traverse, adjusted, station)
+            false -> high_n(traverse, adjusted, station)
+        }
+    }
+    state lower_n(traverse: &Traverse, adjusted: &mut Adjusted, station: u64) requires station <= 9 {
+        adjusted.n_min = adjusted.north[station];
+        transition { _ -> high_n(traverse, adjusted, station) }
+    }
+    state high_n(traverse: &Traverse, adjusted: &mut Adjusted, station: u64) requires station <= 9 {
+        transition adjusted.north[station] > adjusted.n_max {
+            true -> raise_n(traverse, adjusted, station)
+            false -> scan(traverse, adjusted, station + 1)
+        }
+    }
+    state raise_n(traverse: &Traverse, adjusted: &mut Adjusted, station: u64) requires station <= 9 {
+        adjusted.n_max = adjusted.north[station];
+        transition { _ -> scan(traverse, adjusted, station + 1) }
+    }
+    state done(adjusted: &mut Adjusted) {
+        adjusted.valid = true;
+    }
+}
