@@ -46,8 +46,9 @@ pub(crate) enum SubstitutionSemantics {
     Simultaneous,
 }
 
-/// Whether a normalized identity retains the local declaration namespace or
-/// the exact package owner. The toolchain namespace is distinct in both forms.
+/// Normalized identities retain every known nominal owner. Ordinary identity
+/// supports unmanaged local declarations and erases regions; package-qualified
+/// identity additionally records missing owners for portable commitments.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TypeIdentityQualification {
     #[default]
@@ -350,16 +351,17 @@ impl TypeIdentityContext<'_> {
             }
             return "missing-local-nominal".to_owned();
         }
-        // Toolchain declarations and authored declarations can have the same
-        // visible path: lookup admits an authored `Source` beside Build's
-        // toolchain `Source`. Erasing that namespace merges unrelated carriers
-        // before structural retention. Source-free compiler atoms retain their
-        // closed scalar identities; package qualification remains the stronger
-        // identity used across independently compiled package graphs.
+        // Package-relative paths are not nominal identity: two dependencies
+        // may both declare values::Token. Layout and ordinary correspondence
+        // must retain their known owners just as portable commitments do.
+        // Focused unmanaged inputs still use local paths; this compatibility
+        // entrance cannot erase an owner supplied by package graph preparation.
+        // Source-free compiler atoms keep the existing closed scalar spelling.
         if self.qualification == TypeIdentityQualification::Ordinary
             && (program.symbols.builtin_type_atom(symbol).is_some()
-                || program.symbols.symbol_source_origin(symbol)
-                    != Some(source::SourceOrigin::Toolchain))
+                || (program.symbols.symbol_package_identity(symbol).is_none()
+                    && program.symbols.symbol_source_origin(symbol)
+                        != Some(source::SourceOrigin::Toolchain)))
         {
             return path;
         }

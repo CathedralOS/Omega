@@ -128,7 +128,7 @@ fn normalized_declared_domain_identity(
     // Tagged<First> with Tagged<Second> merely because their domain head agrees.
     // Each argument uses the same supplying substitution context as the base.
     if context.qualification == TypeIdentityQualification::Ordinary && domain.arguments.is_empty() {
-        return ordinary_name;
+        return context.name(program, domain.symbol, &ordinary_name);
     }
     compound(
         "declared-domain",
