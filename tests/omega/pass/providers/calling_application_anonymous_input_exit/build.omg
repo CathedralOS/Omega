@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "calling_application_region_scopes_exit");
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}
