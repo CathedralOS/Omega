@@ -25,18 +25,21 @@ pub(super) fn guarded_self_loop<'program>(
         .statement_table
         .indexed_statements(state.statement_nodes)
         .find_map(|(index, candidate)| std::ptr::eq(candidate, statement).then_some(index))?;
-    let (destination, arguments) = crate::checks::termination::source_state_transfer(
+    let transfer = crate::checks::termination::source_state_transfer(
         program,
         machine,
         state,
         statement_index,
         transition.target,
     )?;
-    if destination != state.symbol {
+    if transfer.destination != state.symbol {
         return None;
     }
 
-    Some(GuardedSelfLoop { guard, arguments })
+    Some(GuardedSelfLoop {
+        guard,
+        arguments: transfer.arguments,
+    })
 }
 
 /// A fact at one exact edge, including failed earlier tests.
@@ -51,7 +54,9 @@ pub(super) struct GuardedEdge<'program> {
     pub(super) statement_ordinal: usize,
     pub(super) is_continuation: bool,
     pub(super) guards: Vec<GuardFact>,
-    /// Authored actual expressions on the named edge.
+    /// Receiver of a whole-call source arrival; zero for a Named state edge.
+    pub(super) receiver: ExpressionHandle,
+    /// Authored actual expressions on the exact source edge.
     pub(super) arguments: &'program [ExpressionHandle],
 }
 
@@ -75,22 +80,21 @@ pub(super) fn edges_to_state<'program>(
             return Vec::new();
         };
         let Some(transition) = statement.as_transition() else {
-            if let Some((destination, arguments)) =
-                crate::checks::termination::source_state_transfer(
-                    program,
-                    machine,
-                    source,
-                    statement_ordinal,
-                    Default::default(),
-                )
-                && destination == target_symbol
+            if let Some(transfer) = crate::checks::termination::source_state_transfer(
+                program,
+                machine,
+                source,
+                statement_ordinal,
+                Default::default(),
+            ) && transfer.destination == target_symbol
             {
                 edges.push(GuardedEdge {
                     target: Default::default(),
                     statement_ordinal,
                     is_continuation: false,
                     guards: previous.clone(),
-                    arguments,
+                    receiver: transfer.receiver,
+                    arguments: transfer.arguments,
                 });
             }
             previous.clear();
@@ -109,7 +113,7 @@ pub(super) fn edges_to_state<'program>(
             if !target_handle.is_valid() {
                 continue;
             }
-            let Some((destination, arguments)) = crate::checks::termination::source_state_transfer(
+            let Some(transfer) = crate::checks::termination::source_state_transfer(
                 program,
                 machine,
                 source,
@@ -118,7 +122,7 @@ pub(super) fn edges_to_state<'program>(
             ) else {
                 continue;
             };
-            if destination != target_symbol {
+            if transfer.destination != target_symbol {
                 continue;
             }
             let mut guards = previous.clone();
@@ -133,7 +137,8 @@ pub(super) fn edges_to_state<'program>(
                 statement_ordinal,
                 is_continuation,
                 guards,
-                arguments,
+                receiver: transfer.receiver,
+                arguments: transfer.arguments,
             });
         }
         if let Some(expression) = guard
