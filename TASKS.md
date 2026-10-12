@@ -5558,9 +5558,16 @@ wait for Cathedral's instruction coverage. The interpreter is
   forwarding; one scalar binder, a common result, dispatch around a region-sized
   operation; no handwritten suffix methods. Demonstrated by
   `tests/omega/run/dyn_finite_family_runtime_dispatch` (native and
-  interpreter exit 70) plus fail controls
-  `tests/omega/fail/traits/dyn_finite_family_unproved_membership` and
-  `.../dyn_finite_family_wrong_tuple`.
+  interpreter exit 70; roster written 64,16,16,32 to pin deterministic
+  normalization of alternative order and duplicates),
+  `tests/omega/run/dyn_finite_family_owned_carrier` (a linear Packet moves
+  once into a unit-result family call through a `&mut` subject, native and
+  interpreter exit 70) and `tests/omega/run/dyn_finite_family_correlated`
+  (two-binder correlated tuples (16,4)/(32,8), native and interpreter exit
+  70), plus fail controls
+  `tests/omega/fail/traits/dyn_finite_family_unproved_membership`,
+  `.../dyn_finite_family_wrong_tuple` and
+  `.../dyn_finite_family_narrowed_provider`.
 
   - Runtime roster membership: `validate_family_tuple`
     (`omega-rust/psi/compilation/checking/src/machine_calls/calls/dynamic_requirement.rs`)
@@ -5580,13 +5587,17 @@ wait for Cathedral's instruction coverage. The interpreter is
     interpreter/native execution resolves the row from those slots. Tuple
     tables are source-produced from the named conformance's roster.
 
-  Frontier: once-only moves/cleanup through family selection, forwarding and
-  storage (leaf structural-parameter minting for owned/linear carriers is
-  unverified past the reference-argument customer), escaping variable-shaped
-  results, alternative-order/duplicate roster normalization coverage beyond
-  the corpus pass fixture, target-ineligible bodies, const-only inputs
-  without a checked bridge, and the compile/code-size vs explicit-branch
-  measurement.
+  Frontier: uniform structural results through family dispatch (a
+  same-shaped `Packet` return reaches lowering's "does not yet cover
+  non-scalar results"; the merge needs structural block parameters with
+  per-leaf result publication), escaping variable-shaped results (a result
+  type mentioning a family binder, e.g. `-> [u8; Width]`, needs an authored
+  sum or descriptor path), structural field reads inside machines carrying
+  entry claims or `&mut` subjects remain a pre-existing target-stage
+  restriction independent of family dispatch, target-ineligible bodies,
+  const-only inputs without a checked bridge, and the compile/code-size vs
+  explicit-branch measurement (expansion emits the authored block structure
+  an explicit branch chain would; no improvement claimed).
 
   Acceptance: pass/fail/run fixtures preserve effects, index identity and
   once-only moves/cleanup through selection, forwarding and storage;

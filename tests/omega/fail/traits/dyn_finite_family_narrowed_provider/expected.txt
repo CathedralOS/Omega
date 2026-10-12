@@ -1,0 +1,1 @@
+realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not require

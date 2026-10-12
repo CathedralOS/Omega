@@ -147,10 +147,14 @@ impl OperationFrame<'_, '_> {
             );
         }
         if !family_actuals.is_empty() {
-            let Some(merge_result) = result.scalar() else {
-                return unsupported(
-                    "dynamic family dispatch does not yet cover non-scalar results",
-                );
+            let merge_result = match &result {
+                OperationResult::Unit => None,
+                OperationResult::Scalar(declaration) => Some(*declaration),
+                OperationResult::Structural(_) => {
+                    return unsupported(
+                        "dynamic family dispatch does not yet cover non-scalar results",
+                    );
+                }
             };
             let dispatch = &self.operations.dynamic_dispatch;
             let roster: Vec<Vec<String>> = dispatch
@@ -187,7 +191,7 @@ impl OperationFrame<'_, '_> {
                 &roster,
                 &family_actuals,
                 &family_actual_types,
-                Some(merge_result),
+                merge_result,
                 |operations, _next_value, tuple_index, produced| {
                     let operation = first_leaf
                         .take()
@@ -223,7 +227,12 @@ impl OperationFrame<'_, '_> {
             self.evaluation.block_structural_parameters = span.structural_parameters;
             self.evaluation.operation_start = span.operation_start;
             dispatch_result?;
-            return self.bind_scalar_result(identities, call.coordinate, merge_result);
+            return match merge_result {
+                Some(merge_result) => {
+                    self.bind_scalar_result(identities, call.coordinate, merge_result)
+                }
+                None => Ok(()),
+            };
         }
         if declaration.is_none() {
             self.record_source_call(call.coordinate, None, id, call.target.machine)?;
