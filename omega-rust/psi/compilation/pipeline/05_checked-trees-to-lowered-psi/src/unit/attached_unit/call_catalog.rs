@@ -10,7 +10,7 @@ use super::bodies::UnitPlans;
 use super::{
     CheckedScalarCallee, CheckedTrees, CheckedUnitProviderCandidate, LoweringError, UnitBody,
     checked_scalar_call_closure_with_structural_roots, checked_unit_call_closure_including,
-    checked_unit_provider_candidates, reject_recursive_unit_closure, unsupported,
+    checked_unit_provider_candidates, unsupported,
 };
 pub(super) struct CheckedCallCatalog {
     pub(super) operations: Vec<symbols::SymbolHandle>,
@@ -293,7 +293,12 @@ pub(super) fn discover(
         {
             return unsupported("scalar helper is absent from the Unit machine closure");
         }
-        reject_recursive_unit_closure(plans, &closure)?;
+        // This finite roster names callable declarations, not active invocations.
+        // Discovery deduplicates recursive edges; attached_unit allocates every
+        // signature and machine identity before emitting any body. Ordinary
+        // calls use separate invocation frames, so a cyclic roster needs no
+        // alternate lowering route. Source call requirements and custody are
+        // still checked before these plans reach the catalog.
         return Ok(CheckedCallCatalog {
             operations: closure,
             providers: candidates,

@@ -1,0 +1,13 @@
+// Permitting a cyclic callable roster must preserve call preconditions.
+use omega_language_std::console;
+machine recurse(value: u64)
+requires value > 0
+{
+    transition value > 1 { true -> next(value) false -> done() }
+    state next(value: u64) { recurse(value - 1); }
+    state done() { }
+}
+machine main() reaches Console {
+    recurse(0);
+    Console::exit_process(0);
+}

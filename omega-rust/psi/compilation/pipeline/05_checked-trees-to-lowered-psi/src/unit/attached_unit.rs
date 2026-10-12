@@ -102,7 +102,7 @@ pub(crate) use boundaries::{lower_boundary_result, retain_unit_boundary};
 pub(crate) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
 use call_closure::{
-    checked_scalar_call_closure_with_structural_roots, reject_recursive_unit_closure,
+    checked_scalar_call_closure_with_structural_roots,
     unique_unit_boundary,
 };
 pub(crate) use call_closure::{

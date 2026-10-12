@@ -271,39 +271,3 @@ fn unit_closure_target(
         _ => None,
     }
 }
-
-pub(super) fn reject_recursive_unit_closure(
-    plans: UnitPlans<'_>,
-    closure: &[symbols::SymbolHandle],
-) -> Result<(), LoweringError> {
-    fn visit(
-        plans: UnitPlans<'_>,
-        symbol: symbols::SymbolHandle,
-        active: &mut Vec<symbols::SymbolHandle>,
-        complete: &mut Vec<symbols::SymbolHandle>,
-    ) -> Result<(), LoweringError> {
-        if active.contains(&symbol) {
-            return unsupported("recursive Unit call closure is not yet terminal");
-        }
-        if complete.contains(&symbol) {
-            return Ok(());
-        }
-        active.push(symbol);
-        for target in UnitBody::find(plans, symbol)?
-            .operations()
-            .filter_map(|operation| unit_closure_target(plans, operation))
-        {
-            visit(plans, target, active, complete)?;
-        }
-        active.pop();
-        complete.push(symbol);
-        Ok(())
-    }
-
-    let mut active = Vec::new();
-    let mut complete = Vec::new();
-    for symbol in closure {
-        visit(plans, *symbol, &mut active, &mut complete)?;
-    }
-    Ok(())
-}
