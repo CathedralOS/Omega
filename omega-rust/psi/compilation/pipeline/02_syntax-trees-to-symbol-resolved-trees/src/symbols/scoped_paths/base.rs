@@ -1,16 +1,19 @@
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
 
 use super::super::lookup::{
     child_indexed_symbol_by_kinds, child_or_attached_data_child_symbol_by_kinds,
     child_symbol_by_kinds,
 };
 
-pub(super) fn resolve_base_symbol(
+/// Preserve absence versus ambiguity for compound namespace selection. Only
+/// absence permits a longer certified address; ambiguity cannot be resolved by
+/// choosing the sole declaration that happens to have the requested descendant.
+pub(super) fn resolve_base_lookup(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     member: &symbol_resolved_trees::name::DiagnosticName,
-) -> SymbolHandle {
+) -> SymbolLookup {
     if state_symbol.is_valid() {
         let lexical_symbol = child_symbol_by_kinds(
             symbols,
@@ -19,7 +22,7 @@ pub(super) fn resolve_base_symbol(
             member.as_str(),
         );
         if lexical_symbol.is_valid() {
-            return lexical_symbol;
+            return SymbolLookup::Unique(lexical_symbol);
         }
     }
 
@@ -36,24 +39,23 @@ pub(super) fn resolve_base_symbol(
         member.as_str(),
     );
     if machine_child.is_valid() {
-        return machine_child;
+        return SymbolLookup::Unique(machine_child);
     }
 
-    symbols
-        .find_top_level_by_name_and_kinds_from_source(
-            member.as_str(),
-            &[
-                SymbolKind::BuiltinType,
-                SymbolKind::Const,
-                SymbolKind::Data,
-                SymbolKind::Machine,
-                SymbolKind::Trait,
-                SymbolKind::Conformance,
-                SymbolKind::Module,
-            ],
-            member.source_span(),
-        )
-        .unwrap_or_else(SymbolHandle::invalid)
+    symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+        member.as_str(),
+        &[
+            SymbolKind::BuiltinType,
+            SymbolKind::Const,
+            SymbolKind::Data,
+            SymbolKind::Machine,
+            SymbolKind::Trait,
+            SymbolKind::Conformance,
+            SymbolKind::Module,
+        ],
+        member.source_span(),
+        |_| true,
+    )
 }
 
 pub(super) fn resolve_base_indexed_symbol(

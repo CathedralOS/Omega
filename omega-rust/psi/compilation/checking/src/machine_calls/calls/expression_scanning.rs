@@ -676,6 +676,16 @@ fn validate_expression_call_bounds(
         && !placed_accessor
         && machine_state_by_symbol(program, call.target_symbol).is_some()
     {
+        if program
+            .expression_table
+            .name_path_node(call.receiver)
+            .is_some_and(|path| !path.head_symbol.is_valid() || !path.symbol.is_valid())
+        {
+            diagnostics.push(Diagnostic::error(
+                "machine call has no resolved declaration namespace; its head is unavailable or ambiguous",
+            ));
+            return;
+        }
         diagnostics.push(Diagnostic::error(
             "value-qualified machine calls are retired; use a declaration namespace and explicit arguments",
         ));

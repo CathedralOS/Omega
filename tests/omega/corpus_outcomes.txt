@@ -2391,6 +2391,8 @@ fail/memory/bump_allocator_restated_resident_index_mismatch rejected 1316ms expe
 	index compatibility condition `index-equality:Resident:exercise::entry:statement-4:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/memory/weak_vacant_qualifier_drop rejected 889ms expected @a9ae30e1c334+wt
 	implicit domain strengthening in construction of `Weak` field `e` assumes `Vacant`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target
+fail/modules/ambiguous_attached_machine_carrier rejected 140ms expected @61ba1df9375e+wt
+	machine call has no resolved declaration namespace; its head is unavailable or ambiguous
 fail/modules/ambiguous_imported_data rejected 568ms expected @a9ae30e1c334+wt
 	duplicate data `Point`
 	data `Main` field `p` references unknown data type `Point`
@@ -3290,6 +3292,13 @@ fail/targets/family_owned_result_reuse_rejected rejected 1243ms expected @a9ae30
 	cannot use `receipt` in machine `main` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/targets/family_private_projected_membership_rejected rejected 1923ms expected @a9ae30e1c334+wt
 	cannot prove initializer of `receipt` in main is in domain `Receipt::Positive`; an annotation cannot establish routed qualification
+fail/targets/imported_target_family_private_member rejected 1192ms expected @61ba1df9375e+wt
+	package `imported_target_family_private_member` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `Carrier::private_value::private_value`
+fail/targets/imported_target_family_shadowed_alias rejected 771ms expected @61ba1df9375e+wt
+	machine `inspect` state `entry`: value call `Carrier.value(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+	machine `inspect` state `entry` uses a static path through runtime binding `family_import_kit`; use `.` to select a field or callable through a value
+fail/targets/imported_target_family_sibling_exposure rejected 725ms expected @61ba1df9375e+wt
+	machine `read` state `entry`: value call `Carrier.value(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 fail/targets/inactive_external_locator_target_rejected rejected 174ms expected @a9ae30e1c334+wt
 	ordinary external `via` returned an invalid locator: foreign locator MachODylibSymbol is not applicable to selected target `windows_x86_64`
 fail/targets/portable_family_private_result_fact_rejected rejected 1700ms expected @a9ae30e1c334+wt
@@ -6123,6 +6132,7 @@ pass/targets/private_target_supplies_remain_disclosed checked 8039ms check-targe
 pass/targets/provider_family_private_contracts_exit checked 10777ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/retained_target_family_bodies checked 10952ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/retained_target_provider_family_exit checked 11966ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/targets/imported_target_family_heads_exit checked 3669ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/targets/runtime_closed_generic_attached_family_exit checked 11032ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/runtime_family_applied_nominal_visitor_exit checked 11013ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/runtime_family_callback_guarantee_conjunction_exit checked 2751ms check-target:macos_arm64 @8ef927ca678b

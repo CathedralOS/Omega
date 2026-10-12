@@ -25,29 +25,34 @@ pub(super) fn is_declaration_namespace(
     let Some(path) = program.expression_table.name_path_node(expression) else {
         return false;
     };
+    let is_namespace = |symbol: symbols::SymbolHandle| {
+        symbol.is_valid()
+            && matches!(
+                program.symbols.get(symbol).kind,
+                symbols::SymbolKind::Module
+                    | symbols::SymbolKind::Data
+                    | symbols::SymbolKind::Trait
+                    | symbols::SymbolKind::Domain
+                    | symbols::SymbolKind::BuiltinType
+                    | symbols::SymbolKind::Machine
+                    | symbols::SymbolKind::Conformance
+                    | symbols::SymbolKind::ConformanceParameter
+            )
+    };
+    // Loader-certified package aliases have no declaration symbol. The
+    // resolved endpoints must still be exact namespaces, and every retained
+    // intermediate declaration must agree. A lexical value at either end
+    // cannot become a namespace merely because its suffix spells a type.
     [path.head_symbol, path.symbol]
         .into_iter()
-        .chain(
-            program
-                .expression_table
-                .name_path_member_symbols(path.member_symbols)
-                .iter()
-                .copied(),
-        )
-        .all(|symbol| {
-            symbol.is_valid()
-                && matches!(
-                    program.symbols.get(symbol).kind,
-                    symbols::SymbolKind::Module
-                        | symbols::SymbolKind::Data
-                        | symbols::SymbolKind::Trait
-                        | symbols::SymbolKind::Domain
-                        | symbols::SymbolKind::BuiltinType
-                        | symbols::SymbolKind::Machine
-                        | symbols::SymbolKind::Conformance
-                        | symbols::SymbolKind::ConformanceParameter
-                )
-        })
+        .all(is_namespace)
+        && program
+            .expression_table
+            .name_path_member_symbols(path.member_symbols)
+            .iter()
+            .copied()
+            .filter(|symbol| symbol.is_valid())
+            .all(is_namespace)
 }
 
 /// FROZEN DECISION 13 residue (value-position complement of `validate_call_node`).

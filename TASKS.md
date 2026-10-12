@@ -2723,11 +2723,11 @@ crash and native exit behavior.
   - `TypedTrees::target_machine_families` records member handles;
     `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols/target_siblings.rs`
     binds same-target calls.
-  - Repair cross-package resolution of public generated family heads under
-    ordinary import and visibility rules; do not require a second authored
-    head. Exercise filesystem `read_dir_count`, `read_dir_nth`,
-    `remove_dir_all`, `open_with` and `lock` from a consumer package, retaining
-    private-name refusals and exact target-member dispatch.
+  - Exercise filesystem `read_dir_count`, `read_dir_nth`, `remove_dir_all`,
+    `open_with` and `lock` from a consumer package once its portable binding
+    is supplied by **FILESYSTEM-PLATFORM-SERVICES** under
+    `portable-service-per-family-binding-carrier` in
+    [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
   - The common lowering route retains runtime bodies and opaque contracts,
     including unreachable members and uncatalogued tags, in Terminal family
     rows; inspection exposes tags and exact callable ids. Semantic conformance

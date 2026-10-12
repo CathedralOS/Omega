@@ -585,7 +585,12 @@ impl SymbolTable {
         reference: SourceSpan,
         matches_candidate: &mut impl FnMut(SymbolHandle) -> bool,
     ) -> Option<SymbolLookup> {
-        if self.module_symbols.is_empty() {
+        // A package need not author a module declaration to have an imported
+        // namespace. In particular, generated target-family heads retain the
+        // member's source, which may be another loaded file of the dependency.
+        // The loader-certified alias below supplies that package address;
+        // exact-file imports still own unqualified exposure.
+        if self.module_symbols.is_empty() && !self.has_namespace_context(reference) {
             return None;
         }
         let qualified = name.contains("::");
@@ -733,10 +738,14 @@ impl SymbolTable {
             let same_package = self
                 .symbol_provenance_source_span(candidate)
                 .is_some_and(|span| self.same_source_package(reference, span));
-            let legacy_path = qualified
+            // Installed vocabulary has the same qualification-independent
+            // availability as the bare-name route. Loaded user declarations
+            // still require their package or an authored import below.
+            let installed_path = qualified
                 && !is_module
                 && !self.symbol_module(candidate).is_valid()
-                && self.name(candidate) == name;
+                && self.name(candidate) == name
+                && self.symbol_source_origin(candidate) != Some(source::SourceOrigin::User);
             let imported_path = import_bindings.iter().any(|scope| {
                 let binding = scope.binding;
                 let import = binding
@@ -823,7 +832,7 @@ impl SymbolTable {
             {
                 carrier_domain_matches.push(candidate);
             }
-            if legacy_path
+            if installed_path
                 || (direct_path && same_package)
                 || imported_path
                 || (!qualified

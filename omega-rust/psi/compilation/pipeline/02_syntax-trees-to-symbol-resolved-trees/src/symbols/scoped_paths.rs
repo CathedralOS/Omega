@@ -1,8 +1,8 @@
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
 
 mod base;
 
-use self::base::{resolve_base_indexed_symbol, resolve_base_symbol};
+use self::base::resolve_base_indexed_symbol;
 use super::lookup::{child_indexed_symbol_by_kinds, child_or_attached_data_child_symbol_by_kinds};
 
 /// The symbol kinds a scoped path may resolve through at each member:
@@ -28,9 +28,10 @@ pub(super) fn resolve_state_scoped_table_path(
     resolve_state_scoped_table_members(symbols, machine_symbol, state_symbol, members, None)
 }
 
-/// Resolve every authored segment of a table name path. An empty result means
-/// that at least one segment could not be resolved; callers must not retain a
-/// partially valid path because that would hide the exact failed selection.
+/// Retain each authored segment's declaration where it has one. Package-alias
+/// segments have zero identities; their complete prefix selects one exact
+/// declaration. An empty result means that selection or a descendant failed,
+/// so callers must not retain a partially selected suffix.
 pub(super) fn resolve_state_scoped_table_path_member_symbols(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
@@ -43,11 +44,16 @@ pub(super) fn resolve_state_scoped_table_path_member_symbols(
         return Vec::new();
     }
 
-    let head = resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[0]);
+    let (head, prefix_length) = resolve_path_head(symbols, machine_symbol, state_symbol, members);
     if !head.is_valid() {
         return Vec::new();
     }
-    let resolved = resolve_path_members_from_head(symbols, head, &members[1..]);
+    let suffix = resolve_path_members_from_head(symbols, head, &members[prefix_length..]);
+    // Package aliases are address segments, not invented declaration symbols.
+    // The selected declaration owns the static prefix; only real descendants
+    // contribute identities to the remaining member-selection chain.
+    let mut resolved = vec![SymbolHandle::invalid(); prefix_length - 1];
+    resolved.extend(suffix);
 
     if resolved.len() == members.len() {
         resolved
@@ -103,13 +109,13 @@ pub(super) fn resolve_state_scoped_members(
         return invalid_symbol_pair();
     }
 
-    let head = resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[0]);
+    let (head, prefix_length) = resolve_path_head(symbols, machine_symbol, state_symbol, members);
     if !head.is_valid() {
         return invalid_symbol_pair();
     }
     let mut current = head;
 
-    for member in &members[1..] {
+    for member in &members[prefix_length..] {
         current = child_or_attached_data_child_symbol_by_kinds(
             symbols,
             current,
@@ -135,24 +141,28 @@ fn resolve_state_scoped_table_members(
         return invalid_symbol_pair();
     }
 
-    let head = if let Some(last_index) = indexed_last_member.filter(|_| members.len() == 1) {
-        resolve_base_indexed_symbol(
-            symbols,
-            machine_symbol,
-            state_symbol,
-            members[0].as_str(),
-            last_index,
-        )
-    } else {
-        resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[0])
-    };
+    let (head, prefix_length) =
+        if let Some(last_index) = indexed_last_member.filter(|_| members.len() == 1) {
+            (
+                resolve_base_indexed_symbol(
+                    symbols,
+                    machine_symbol,
+                    state_symbol,
+                    members[0].as_str(),
+                    last_index,
+                ),
+                1,
+            )
+        } else {
+            resolve_path_head(symbols, machine_symbol, state_symbol, members)
+        };
     if !head.is_valid() {
         return invalid_symbol_pair();
     }
     let mut current = head;
 
-    for (offset, member) in members[1..].iter().enumerate() {
-        let is_last = offset + 2 == members.len();
+    for (offset, member) in members[prefix_length..].iter().enumerate() {
+        let is_last = offset + prefix_length + 1 == members.len();
         current = if let Some(last_index) = indexed_last_member.filter(|_| is_last) {
             child_indexed_symbol_by_kinds(
                 symbols,
@@ -175,6 +185,37 @@ fn resolve_state_scoped_table_members(
     }
 
     (head, current)
+}
+
+/// Lexical values own their suffix before static-address lookup. When the
+/// first segment is not a declaration (a loader-certified package alias),
+/// select the longest exact declaration prefix through ordinary name law.
+/// This is the same operation for a call receiver and an ordinary name path;
+/// aliases never become runtime values or grant visibility to another package.
+fn resolve_path_head(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    members: &[symbol_resolved_trees::name::DiagnosticName],
+) -> (SymbolHandle, usize) {
+    match base::resolve_base_lookup(symbols, machine_symbol, state_symbol, &members[0]) {
+        SymbolLookup::Unique(head) => return (head, 1),
+        SymbolLookup::Ambiguous { .. } => return (SymbolHandle::invalid(), 1),
+        SymbolLookup::NotFound => {}
+    }
+    for prefix_length in (2..=members.len()).rev() {
+        let prefix = &members[..prefix_length];
+        let name = symbol_resolved_trees::name::DiagnosticName::new(
+            prefix.joined_path(),
+            super::lookup::diagnostic_path_source_span(prefix),
+        );
+        match base::resolve_base_lookup(symbols, machine_symbol, state_symbol, &name) {
+            SymbolLookup::Unique(selected) => return (selected, prefix_length),
+            SymbolLookup::Ambiguous { .. } => return (SymbolHandle::invalid(), 1),
+            SymbolLookup::NotFound => {}
+        }
+    }
+    (SymbolHandle::invalid(), 1)
 }
 
 pub(super) fn invalid_symbol_pair() -> (SymbolHandle, SymbolHandle) {

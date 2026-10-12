@@ -30,8 +30,10 @@ use omega::language::core::numeric_conversion;
 // HERE -- not from the target defs -- because the impl machines are part of
 // THIS wrapper (they attach to `data Filesystem` and return its result enums);
 // importing them from the target defs dragged wrapper machines into raw-seam
-// programs that have no `Filesystem` at all (file_journal broke). The
-// pre-resolution target filter keeps exactly one target's copies live.
+// programs that have no `Filesystem` at all (file_journal broke). Psi checks
+// every target body and synthesizes a portable family head. Omega selects
+// the exact body per realization; consumer imports name that head without
+// exposing private target helpers.
 use targets::windows_x86_64::filesystem_impl;
 use targets::macos_arm64::filesystem_impl;
 use targets::macos_x86_64::filesystem_impl;

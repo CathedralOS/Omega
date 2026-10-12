@@ -1,0 +1,4 @@
+use family_import_kit::carrier;
+use helper;
+data Main { carrier: Carrier; }
+machine Main::main(main: &mut Main) { _ = read(main); }
