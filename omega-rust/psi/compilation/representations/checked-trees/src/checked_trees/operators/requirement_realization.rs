@@ -61,6 +61,15 @@ pub enum RequirementRealization<'program> {
     },
 }
 
+impl RequirementRealization<'_> {
+    pub fn is_compiler_intrinsic(self) -> bool {
+        matches!(
+            self,
+            Self::Conversion(_) | Self::PrimitiveFloatBinary { .. }
+        )
+    }
+}
+
 /// Exact identity of one destination-owned conversion: source carrier,
 /// destination carrier and the destination's arithmetic domain, beside the
 /// declared parameter type the argument lands at.
@@ -189,12 +198,18 @@ impl<'program> RequirementResolution<'program, '_> {
                     signature: operator,
                 })?
             }
-            symbols::SymbolKind::State => {
-                let machine = self.program.machine_by_symbol(symbol.parent)?;
+            symbols::SymbolKind::Machine | symbols::SymbolKind::State => {
+                let owner = if symbol.kind == symbols::SymbolKind::State {
+                    symbol.parent
+                } else {
+                    target_symbol
+                };
+                let machine = self.program.machine_by_symbol(owner)?;
                 if machine.body_is_present
                     || machine.supply_mode != MachineSupplyMode::TopLevelRequirement
                     || !self.program.machine_type_parameters(machine).is_empty()
-                    || self.program.machine_states(machine).first()?.symbol != target_symbol
+                    || (symbol.kind == symbols::SymbolKind::State
+                        && self.program.machine_states(machine).first()?.symbol != target_symbol)
                 {
                     return None;
                 }
