@@ -12,9 +12,7 @@ use crate::lowering::statement::match_subject_hoisting::{
 use crate::lowering::statement::place_operand_capture::{
     SelectorCapture, capture_address_operands, capture_reference_initializer_selectors,
 };
-use crate::lowering::statement::value_call_hoisting::{
-    hoist_scalar_value_call_comparison, hoist_terminal_value_machine_call,
-};
+use crate::lowering::statement::value_call_hoisting::hoist_scalar_value_call_comparison;
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -305,23 +303,10 @@ pub(crate) fn lower_statement_node(
                 &mut hoisted,
                 OperandHoisting::Computation,
             );
-            // A free or direct-self value-machine call as the trailing return
-            // (`state go(..) -> f64 { ..; self.sin(x) }`) hoists into the
-            // let-bound spelling, exactly as the transition-value face.
-            // Trailing returns are unconditional, so no guard gate applies.
-            let expression = if matches!(
-                lowerer.current_state_return_type,
-                None | Some(TypeReference::Unit)
-            ) {
-                // Preserve the authored terminal expression in a Unit context.
-                // This does not classify the callee or discard its result:
-                // checking must still require an actual Unit-producing call.
-                // A synthetic local would instead require value storage and
-                // return-type inference for a call that may have no value.
-                expression
-            } else {
-                hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted)
-            };
+            // Keep the completing operation at its authored position for all
+            // result and argument carriers. A synthetic local would turn a
+            // whole tail invocation into a non-tail initializer. Typed result
+            // elaboration and checked completion own its ordinary value route.
             hoisted.push(Statement::Expression(expression));
             Ok(hoisted)
         }
@@ -378,26 +363,15 @@ pub(crate) fn lower_statement_node(
                     transition.guard,
                     syntax::statement::TransitionGuardNode::Always
                 );
-            let mut target = lower_transition_target_node(
+            let target = lower_transition_target_node(
                 lowerer,
                 syntax_trees,
                 transition.target,
                 &mut hoisted,
                 unconditional,
             )?;
-            // Shared terminal-call normalization preserves checked scalar return
-            // computations in both trailing expressions and transition arms.
-            // Other unconditional calls retain the let-bound route. A guarded arm's calls are not moved at all:
-            // they stay at their authored evaluation point inside the arm,
-            // where the arm evaluates them left to right only when it is
-            // selected, and checking reads each result there.
-            if unconditional && let TransitionTarget::Value(expression) = target {
-                let rewritten =
-                    hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
-                if rewritten != expression {
-                    target = TransitionTarget::Value(rewritten);
-                }
-            }
+            // A value arm retains its completing operation just like a final
+            // expression. Its operands remain at the arm's evaluation point.
             // A continuation arm runs only when the guard fails, so its calls
             // are never hoisted ahead of the transition either. A lone
             // wildcard arm of an Always transition keeps its target intact
