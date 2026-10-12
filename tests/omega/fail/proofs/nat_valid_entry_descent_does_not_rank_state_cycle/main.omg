@@ -1,0 +1,17 @@
+// The entry call descends correctly. Its evidence cannot rank the independent
+// sibling-state cycle reached from Zero.
+use omega::language::core::nat;
+
+machine descend_or_loop(n: Nat) -> Nat
+terminates by n;
+{
+    transition n {
+        Nat::Zero -> spin(n)
+        Nat::Succ { prev } -> (descend_or_loop(prev))
+    }
+    state spin(n: Nat) -> Nat {
+        spin(n)
+    }
+}
+
+machine main() {}
