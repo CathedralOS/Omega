@@ -11,7 +11,6 @@ use crate::preparation::generic_data::uses::{
 
 use crate::preparation::generic_data::EvaluatedConst;
 
-use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
 use arena::HandleSpan;
 use syntax_trees::expression::ExpressionHandle;
