@@ -38,7 +38,13 @@ pub(crate) fn rewrite_terminal_tail_calls(
         if call.target.as_str() != entry_callable.as_str() {
             continue;
         }
-        if call.receiver.is_valid() {
+        // A state backedge has no static application or call envelope. Keep
+        // those calls intact for ordinary operand, predicate and effect checks.
+        if call.receiver.is_valid()
+            || !call.machine_arguments.is_empty()
+            || call.operational_acknowledgement.acknowledges_suspend
+            || call.operational_acknowledgement.acknowledges_block
+        {
             continue;
         }
         let arguments = syntax_trees
