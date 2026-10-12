@@ -76,29 +76,31 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
         let Some(call) = program.expression_table.source_call_node(expression) else {
             continue;
         };
-        if call.authored_machine_application.is_valid()
-            || (call.machine_arguments.is_empty()
-                && !has_region_telescope(program, call.target_symbol))
+        if !call.authored_machine_application.is_valid()
+            && call.machine_arguments.is_empty()
+            && !has_region_telescope(program, call.target_symbol)
         {
             continue;
         }
-        let call = call.clone();
-        let mut arguments = call.machine_arguments.to_vec();
-        typed_trees::expression::StaticMachineArgument::retain_authored_positions(&mut arguments);
-        let application = program.expression_table.retain_static_machine_application(
-            call.target_symbol,
-            call.target,
-            &arguments,
+        if !call.authored_machine_application.is_valid() {
+            let mut arguments = call.machine_arguments.to_vec();
+            typed_trees::expression::StaticMachineArgument::retain_authored_positions(
+                &mut arguments,
+            );
+            program
+                .expression_table
+                .source_call_node_mut(expression)
+                .expect("retaining static positions preserves the original occurrence")
+                .machine_arguments = arguments.into_boxed_slice();
+        }
+        // Inventory and specialization share one source issuer. In particular,
+        // a local trait requirement has no boundary header or ordinary machine
+        // specialization pass that could fill an absent declaration later.
+        crate::monomorphization::applications::retain_authored_call(
+            program,
+            crate::monomorphization::CallSite::Expression(expression),
+            owner,
         );
-        program
-            .expression_table
-            .static_machine_application_mut(application)
-            .lexical_owner = owner;
-        let call = program
-            .expression_table
-            .source_call_node_mut(expression)
-            .expect("retaining a source application does not replace its original call");
-        call.authored_machine_application = application;
     }
     let statement_calls = program
         .machines()
@@ -110,30 +112,31 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
                     .iter_statements(state.statement_nodes)
                     .filter_map(|(handle, statement)| {
                         let call = statement.as_call()?;
-                        ((!call.machine_arguments.is_empty()
-                            || has_region_telescope(program, call.target_symbol))
-                            && !call.authored_machine_application.is_valid())
+                        (!call.machine_arguments.is_empty()
+                            || has_region_telescope(program, call.target_symbol)
+                            || call.authored_machine_application.is_valid())
                         .then(|| (handle, machine.symbol, call.clone()))
                     })
             })
         })
         .collect::<Vec<_>>();
     for (handle, owner, call) in statement_calls {
-        let mut arguments = call.machine_arguments.to_vec();
-        typed_trees::expression::StaticMachineArgument::retain_authored_positions(&mut arguments);
-        let application = program.expression_table.retain_static_machine_application(
-            call.target_symbol,
-            call.target,
-            &arguments,
+        if !call.authored_machine_application.is_valid() {
+            let mut arguments = call.machine_arguments.to_vec();
+            typed_trees::expression::StaticMachineArgument::retain_authored_positions(
+                &mut arguments,
+            );
+            let StatementNode::Call(original) = program.statement_table.statement_mut(handle)
+            else {
+                unreachable!("retaining static positions preserves the original call");
+            };
+            original.machine_arguments = arguments.into_boxed_slice();
+        }
+        crate::monomorphization::applications::retain_authored_call(
+            program,
+            crate::monomorphization::CallSite::Statement(handle),
+            owner,
         );
-        program
-            .expression_table
-            .static_machine_application_mut(application)
-            .lexical_owner = owner;
-        let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
-            unreachable!("retaining a source application does not replace its call");
-        };
-        call.authored_machine_application = application;
     }
     retain_receiver_contexts(program);
 }
