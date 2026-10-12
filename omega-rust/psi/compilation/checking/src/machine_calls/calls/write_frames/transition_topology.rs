@@ -129,6 +129,7 @@ fn transfer_subgraph_is_acyclic(
     state: &State,
     visiting: &mut Vec<SymbolHandle>,
     complete: &mut Vec<SymbolHandle>,
+    terminal_entry: SymbolHandle,
 ) -> bool {
     if complete.contains(&state.symbol) {
         return true;
@@ -146,8 +147,17 @@ fn transfer_subgraph_is_acyclic(
             return false;
         };
         for transfer in transfers {
-            if !transfer_subgraph_is_acyclic(program, machine, transfer.target, visiting, complete)
-            {
+            if transfer.target.symbol == terminal_entry {
+                continue;
+            }
+            if !transfer_subgraph_is_acyclic(
+                program,
+                machine,
+                transfer.target,
+                visiting,
+                complete,
+                terminal_entry,
+            ) {
                 return false;
             }
         }
@@ -189,6 +199,7 @@ pub(super) fn transition_transfer_subgraph_is_acyclic(
         transfer.target,
         &mut Vec::new(),
         &mut Vec::new(),
+        SymbolHandle::invalid(),
     )
 }
 
@@ -199,7 +210,35 @@ pub(crate) fn state_transfer_subgraph_is_acyclic(
     machine: &Machine,
     state: &State,
 ) -> bool {
-    transfer_subgraph_is_acyclic(program, machine, state, &mut Vec::new(), &mut Vec::new())
+    transfer_subgraph_is_acyclic(
+        program,
+        machine,
+        state,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        SymbolHandle::invalid(),
+    )
+}
+
+/// Proof-prefix topology treats current entry calls as terminal mathematical
+/// applications. This view supplies no Requires or descent decision. Genuine
+/// sibling-state cycles retain the same complete traversal and rejection.
+pub(crate) fn state_transfer_subgraph_is_acyclic_before_entry_calls(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+) -> bool {
+    let Some(entry) = program.machine_states(machine).first() else {
+        return false;
+    };
+    transfer_subgraph_is_acyclic(
+        program,
+        machine,
+        state,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        entry.symbol,
+    )
 }
 
 pub(super) fn named_transition_target_state<'program>(
