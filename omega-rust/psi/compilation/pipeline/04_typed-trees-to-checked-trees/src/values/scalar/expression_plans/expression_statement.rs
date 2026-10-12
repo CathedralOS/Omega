@@ -7,7 +7,25 @@ use super::{
     retain_expression_call_arguments,
 };
 
-pub(crate) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHandle) {
+pub(crate) fn plan(mut planner: StatementPlanner<'_, '_>, expression: ExpressionHandle) {
+    let transfer = validation::current_entry_tail_call(
+        planner.program,
+        planner.machine,
+        planner.state,
+        planner.statement_index,
+        expression,
+    )
+    .map(|call| {
+        planner
+            .program
+            .expression_table
+            .expression_handles(call.arguments)
+    });
+    if let Some(arguments) = transfer
+        && let Some(entry) = planner.states.first()
+    {
+        super::transition::arguments_plan(planner.reborrow(), entry, arguments, false);
+    }
     let StatementPlanner {
         program,
         operators,
@@ -44,7 +62,8 @@ pub(crate) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
         source_bindings,
         binding_symbols,
     );
-    if !unit_statement
+    if transfer.is_none()
+        && !unit_statement
         && let Some(result_type) = result_type
         && let Some(return_expression) = lower_return_expression(
             program,

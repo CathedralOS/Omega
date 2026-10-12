@@ -364,7 +364,8 @@ pub(super) fn build_traced(
         trace.state(Some(state.symbol));
         let (structural, scalar) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
-        let terminator_index = terminator_statement_index(statements, &result);
+        let terminator_index =
+            terminator_statement_index(program, &facts.flow, owner, state, &result);
         let terminator_statement_ordinal = u32::try_from(terminator_index).ok()?;
         trace.phase("state graph: state flow");
         let flow = state_flow(facts, owner.symbol, state.symbol)?;
@@ -379,16 +380,26 @@ pub(super) fn build_traced(
         // sequence before its return edge. Its operand calls belong to that
         // sequence too; excluding the tail statement loses their exact flow
         // occurrences when outer_calls reconstructs the constructor roots.
-        let operation_end = if matches!(
-            statements.get(terminator_index),
-            Some(StatementNode::Expression(_))
-        ) && facts
-            .values
-            .structural_values
-            .root_at(state.symbol, u32::try_from(terminator_index).ok()?)
-            .is_some()
-            || matches!(statements.get(terminator_index), Some(StatementNode::Expression(expression))
-                if matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_)))
+        let bare_tail = crate::execution::tail_transfers::tail(
+            program,
+            &facts.flow,
+            owner,
+            state,
+            terminator_index,
+            Default::default(),
+        )
+        .is_some();
+        let operation_end = if !bare_tail
+            && (matches!(
+                statements.get(terminator_index),
+                Some(StatementNode::Expression(_))
+            ) && facts
+                .values
+                .structural_values
+                .root_at(state.symbol, u32::try_from(terminator_index).ok()?)
+                .is_some()
+                || matches!(statements.get(terminator_index), Some(StatementNode::Expression(expression))
+                if matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_))))
         {
             terminator_index.checked_add(1)?
         } else if control::terminal_named_call(program, owner, state, terminator_index)

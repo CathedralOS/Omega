@@ -30,7 +30,6 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::TransitionTargetNode;
 use validation::ScopedArithmeticValue;
 
 /// The live scalar transfer owner covers mutable writes within one exact
@@ -111,15 +110,14 @@ fn prove_edge(
     edge: &patterns::GuardedEdge<'_>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
-    let transition = program
-        .statement_table
-        .statement_at(source, edge.statement_ordinal)?
-        .as_transition()?;
-    let selected = if edge.is_continuation {
-        transition.continuation
-    } else {
-        transition.target
-    };
+    let selected = edge.target;
+    crate::checks::termination::source_state_transfer(
+        program,
+        machine,
+        source,
+        edge.statement_ordinal,
+        selected,
+    )?;
     let values = CurrentScalarValues::at(
         program,
         machine,
@@ -128,10 +126,6 @@ fn prove_edge(
         selected,
         frames,
     )?;
-    let TransitionTargetNode::Named { .. } = program.statement_table.transition_target(selected)
-    else {
-        return None;
-    };
     // The arriving value of the target formal at `position`.
     let arriving = |position: u32| {
         values

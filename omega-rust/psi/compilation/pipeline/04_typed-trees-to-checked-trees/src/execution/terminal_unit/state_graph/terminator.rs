@@ -79,6 +79,45 @@ pub(super) fn build(
             trace,
         )
     };
+    // A checked whole-call exit already owns an ordinary successor. Keep its
+    // actual captures and do not schedule a returning invocation first.
+    let tail_target = match &statements[terminator_index..] {
+        [StatementNode::Expression(_)] => Some(Default::default()),
+        [StatementNode::Transition(transition)]
+            if transition.guard == TransitionGuardNode::Always
+                && transition.exit == TransitionExit::Ordinary
+                && !transition.continuation.is_valid() =>
+        {
+            Some(transition.target)
+        }
+        _ => None,
+    };
+    if let Some(jump) = tail_target.and_then(|target| {
+        crate::execution::tail_transfers::tail(
+            program,
+            &facts.flow,
+            machine,
+            state,
+            terminator_index,
+            target,
+        )
+    }) {
+        return Some(CheckedComposedUnitControlTerminatorPlan::Jump {
+            successor: super::successors::successor_target(
+                program,
+                facts,
+                fused,
+                state_index,
+                signatures,
+                operations,
+                jump,
+                ordinal,
+                edge_calls,
+                shapes,
+                trace,
+            )?,
+        });
+    }
     // Bare expressions and unconditional value arms are the same completion.
     // Keep one producer/operand schedule instead of making the bare spelling
     // admit only literals and case constructors while transitions admit loans.
@@ -291,6 +330,32 @@ pub(super) fn build(
                             },
                             Vec::new(),
                         )));
+                    }
+                    if crate::execution::tail_transfers::tail(
+                        program,
+                        &facts.flow,
+                        machine,
+                        state,
+                        edge_ordinal as usize,
+                        transition.target,
+                    )
+                    .is_some()
+                    {
+                        return successor(
+                            program,
+                            facts,
+                            fused,
+                            state_index,
+                            signatures,
+                            operations,
+                            transition,
+                            edge_ordinal,
+                            SuccessorEdge::Conditional,
+                            edge_calls,
+                            shapes,
+                            trace,
+                        )
+                        .map(Ok);
                     }
                     if let TransitionTargetNode::Value(expression) =
                         program.statement_table.transition_target(transition.target)

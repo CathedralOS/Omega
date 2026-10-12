@@ -316,6 +316,7 @@ pub(crate) fn build_check_facts(
     } = prepared;
     flow.guarded_exits = crate::execution::terminal_scalar::build_checked_guarded_exit_plans(
         program,
+        &flow,
         &values.scalar_expressions,
         &values.scalar_computations,
     );
