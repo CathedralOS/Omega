@@ -1655,6 +1655,11 @@ defines the complete product bar.
     and `fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`
     as controls for captured state arguments and invalidated bound observations.
   Canonical controls to keep: `pass/collections/runtime_argmax_index_exit`,
+  `pass/arithmetic/runtime_widened_result_predicates_exit` and
+  `fail/arithmetic/{widened_result_does_not_grant_stricter_bound,widened_result_predicate_invalid_write}`
+  (all 12 historical widening-result bounds remain published postconditions;
+  their result facts establish ordinary record predicates and survive calls
+  and state transport without granting stronger bounds),
   `pass/time/runtime_duration_core_exit`,
   `pass/time/runtime_duration_units_and_scaling_exit`,
   `pass/time/runtime_checked_time_arith_exit` and

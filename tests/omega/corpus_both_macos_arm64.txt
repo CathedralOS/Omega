@@ -871,3 +871,4 @@ pass/borrow/runtime_write_only_local_affine_aggregate_exit built 4440ms exit:0 i
 pass/borrow/runtime_write_only_utf8_field_exit built 4449ms exit:0 interpreter-exit:0 interpreter:agrees @7fa075570fe9
 pass/calling/calling_count_boundaries_exit built 7768ms exit:70 interpreter-exit:70 interpreter:agrees @a14ec34a59ab+wt
 pass/control_flow/runtime_owned_state_parallel_swap_exit built 6282ms exit:70 interpreter-exit:70 interpreter:agrees @a14ec34a59ab+wt
+pass/arithmetic/runtime_widened_result_predicates_exit built 6400ms exit:70 interpreter-exit:70 interpreter:agrees @44e66b7d2fb4+wt

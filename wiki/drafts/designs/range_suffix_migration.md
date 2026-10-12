@@ -113,3 +113,26 @@ aggregates and observes the exact upper bounds, including nested placements.
 `calling/call_plan_count_invalid_handback` rejects a mutable write above the
 declared count. Existing mutable-descriptor and nested case/array host programs
 constrain ordinary ABI transport of this vocabulary.
+
+## Audited numeric widening results
+
+All 12 result suffixes in `source/library/core/numeric_conversion.omg` at
+`c1303f89d4` now publish their original bounds through `ensures`, with unchanged
+result carriers and exact conversions. No replacement nominal domain remains.
+The additional value equality on `widen_u32_to_u64` preserves its mathematical
+input; it does not grant const-index eligibility or change result type identity.
+
+| Source carrier and declarations | Original result suffix | Canonical result guarantee |
+|---|---|---|
+| `widen_u8_to_{u16,u32,u64,i16,i32,i64}` | `[0..=255]` | `result >= 0 && result <= 255` |
+| `widen_u16_to_{u32,u64,i32,i64}` | `[0..=65535]` | `result >= 0 && result <= 65535` |
+| `widen_u32_to_{u64,i64}` | `[0..=4294967295]` | `result >= 0 && result <= 4294967295` |
+
+`arithmetic/runtime_widened_result_predicates_exit` uses runtime byte input,
+constructs a 12-field record from the published guarantees, and carries the
+record through a helper return and state before observing each exact endpoint.
+The stricter-bound and invalid-write controls distinguish published upper
+bounds from unjustified narrowing, and nonnegative signed results from their
+wider signed carriers. Existing `core/numeric_widening_published_ranges` and
+`core/numeric_widening_preserves_values` also constrain Exact arithmetic and
+sign/zero extension.
