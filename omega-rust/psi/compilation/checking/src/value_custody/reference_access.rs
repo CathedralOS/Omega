@@ -5,6 +5,18 @@
 //! over its referent. Declared reference forwarding preserves every enclosing
 //! access, while lifetime, exclusivity, element/domain correspondence and
 //! storage admission remain independent checks at their existing owners.
+//!
+//! A loan's access is spelled where the loan is formed: `&mut place`,
+//! `&write place`, a compiler-owned `as_mut_slice` view, or -- for a bare
+//! window `coll[a..b]`, which carries no spelling of its own -- the
+//! initialized declaration that binds it. A call parameter or constructed
+//! field is declared by another author, so a bare window there is the shared
+//! loan the `[..]` adaptation forms (`Slice::range` takes `&[T]`), and
+//! mutable lending is spelled `&mut coll[a..b]`: the spec keeps named-call
+//! argument admission unchanged by the indexing adaptation. Whether a
+//! declaration binding may keep spelling the window's access is
+//! `bare-range-reference-access` in `OWNER_QUESTIONS.md`; this judgment
+//! preserves the corpus's current binding rule until that decision lands.
 
 use super::expression_types::declared_reference_access;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -27,8 +39,12 @@ pub(crate) enum ReferenceAccessRefusal {
     },
 }
 
-/// The shared access rule for every receiving reference leaf;
-/// it grants no loan and never derives permission from a destination type.
+/// The shared access rule for every receiving reference leaf; it grants no
+/// loan and never derives permission from a destination type. `binding_access`
+/// is the access an initialized declaration spells for the value it binds
+/// (`let held: &mut [T] = ...`), which is the only receiving declaration whose
+/// spelling counts as the loan's own; a call argument or constructed field
+/// passes `None`.
 pub(crate) fn receiving_reference_access_refusal(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -36,6 +52,7 @@ pub(crate) fn receiving_reference_access_refusal(
     prior_statements: &[typed_trees::statement::StatementNode],
     value: ExpressionHandle,
     required: TypeReferenceHandle,
+    binding_access: Option<language_semantics::ReferenceAccess>,
 ) -> Option<ReferenceAccessRefusal> {
     use language_semantics::ReferenceAccess;
     // Selection completes one of the retained arm values. Every possible
@@ -57,12 +74,13 @@ pub(crate) fn receiving_reference_access_refusal(
                     prior_statements,
                     arm.value,
                     required,
+                    binding_access,
                 )
             });
     }
     let expected_access = declared_reference_access(program, required);
     let completed_borrow =
-        completed_reference_borrow_source(program, machine, state, value, expected_access);
+        completed_reference_borrow_source(program, machine, state, value, binding_access);
     let supplied_access = completed_borrow
         .map(|(_, access)| access)
         .or_else(|| declared_call_reference_access(program, value));
@@ -100,18 +118,18 @@ pub(crate) fn is_reference_destination(
     declared_reference_access(program, required).is_some()
 }
 
-/// A completed borrowing operation retains its exact storage source and
-/// source-selected access. The call-shape owner excludes declared machines
-/// with the same spelling; the receiver's actual carrier distinguishes the
-/// compiler collection operation. Window geometry retains its selected builtin
-/// meaning. Neither a receiving reference type nor a slot's mutability can
-/// supply access, and this query establishes no extent or loan.
+/// A completed borrowing operation retains its exact storage source and the
+/// access spelled at its formation. The call-shape owner excludes declared
+/// machines with the same spelling; the receiver's actual carrier distinguishes
+/// the compiler collection operation. Window geometry retains its selected
+/// builtin meaning. Neither a receiving parameter or field type nor a slot's
+/// mutability can supply access, and this query establishes no extent or loan.
 fn completed_reference_borrow_source(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
-    expected_access: Option<language_semantics::ReferenceAccess>,
+    binding_access: Option<language_semantics::ReferenceAccess>,
 ) -> Option<(ExpressionHandle, language_semantics::ReferenceAccess)> {
     use language_semantics::ReferenceAccess;
     use language_semantics::declaration_selection::CollectionViewOperation;
@@ -160,17 +178,18 @@ fn completed_reference_borrow_source(
             if !crate::collection_operations::type_reference_is_collection(program, reference) {
                 return None;
             }
-            // A range view borrows its collection under the receiving
-            // destination's declared access: `coll[a..b]` has no borrow
-            // spelling of its own, so the `&`/`&mut`/`&write` shell being
-            // bound selects the loan. A collection that is itself a declared
-            // reference already carries that access on its own type; only a
-            // data collection takes the destination's. Exclusivity then
-            // rejoins the collection's own place permission below rather
-            // than trusting the destination or the slot.
+            // `coll[a..b]` has no borrow spelling of its own. The declaration
+            // binding it spells the window's access (`let held: &mut [T] =
+            // coll[a..b]`); at a call or constructed field nobody at the
+            // formation spelled one, so the window is the shared loan the
+            // `[..]` adaptation forms and `&mut coll[a..b]` lends mutably.
+            // The collection's own declared access never widens a bare
+            // window: a `&mut [T]` parameter forwards as `coll`, not as a
+            // window of itself. Exclusivity rejoins the collection's own
+            // place permission below rather than trusting the binding.
             Some((
                 indexed.collection,
-                declared_reference_access(program, reference).or(expected_access)?,
+                binding_access.unwrap_or(ReferenceAccess::Shared),
             ))
         }
         _ => None,

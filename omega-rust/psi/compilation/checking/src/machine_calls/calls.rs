@@ -236,6 +236,8 @@ fn report_argument_reference_access(
     use crate::value_custody::reference_access::{
         ReferenceAccessRefusal, receiving_reference_access_refusal,
     };
+    // The parameter's `&mut` is the callee's spelling, not the caller's: a
+    // bare window argument lends shared access until spelled `&mut ...`.
     let Some(refusal) = receiving_reference_access_refusal(
         program,
         machine,
@@ -243,6 +245,7 @@ fn report_argument_reference_access(
         prior_statements,
         argument,
         parameter.type_reference,
+        None,
     ) else {
         return false;
     };

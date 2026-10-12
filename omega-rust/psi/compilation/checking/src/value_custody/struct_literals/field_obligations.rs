@@ -85,6 +85,7 @@ pub(super) fn enforce_construction_field_obligations(
                     prior_statements,
                     field.value,
                     field_type,
+                    None,
                 )
             {
                 let reason = match refusal {

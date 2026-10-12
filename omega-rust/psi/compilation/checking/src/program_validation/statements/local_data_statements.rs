@@ -120,7 +120,11 @@ pub(super) fn validate(
             // Receiving a loan in a local has the same access obligation as
             // passing it to a call or storing it in a constructed field. The
             // selected source, not the local's declared access or an unrelated
-            // exclusive sibling, supplies permission over its backing.
+            // exclusive sibling, supplies permission over its backing. The
+            // binding's own annotation only spells the access of a bare
+            // window it forms (`let held: &mut [T] = coll[a..b]`), the
+            // corpus's current rule while `bare-range-reference-access` in
+            // `OWNER_QUESTIONS.md` is open; the source still has to permit it.
             if let Some(refusal) =
                 crate::value_custody::reference_access::receiving_reference_access_refusal(
                     program,
@@ -129,6 +133,10 @@ pub(super) fn validate(
                     prior_statements,
                     local_data.initial_value,
                     local_data.type_reference,
+                    crate::value_custody::expression_types::declared_reference_access(
+                        program,
+                        local_data.type_reference,
+                    ),
                 )
             {
                 let reason = match refusal {

@@ -309,8 +309,8 @@ fail/borrow/bounded_reference_store_preserves_range rejected 947ms expected @a9c
 	cannot prove assignment value `2` satisfies bounded target `position` in `reset.entry`; expected 0..=1
 fail/borrow/lifetime_argument_arity rejected 863ms expected @a9ae30e1c334+wt
 	data `PairView` expected 2 lifetime arguments but got 1
-fail/borrow/method_view_receiver_unrelated_field_write rejected 23524ms unexpected @a9ae30e1c334+wt
-	terminal-artifact production requires one exact selected program entry
+fail/borrow/method_view_receiver_unrelated_field_write rejected 2845ms expected @9c4d1c444502+wt
+	statement 1 mutates `main.bag.other` while local borrow `cell` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrow/multi_source_view_source_write rejected 1619ms expected @a9ae30e1c334+wt
 	statement 1 mutates `second` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrow/nested_aggregate_result_invalidated rejected 1511ms expected @a9ae30e1c334+wt
@@ -530,8 +530,8 @@ fail/borrows/local_record_move_under_shared_loan rejected 1911ms expected @a9ae3
 	state `take` receives an owned value while local borrow `alias` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/local_record_result_call_mut_and_shared_argument rejected 1878ms expected @a9ae30e1c334+wt
 	state `absorb` receives `tally` as both mutable and read-only
-fail/borrows/local_record_view_result_holds_loan rejected 3862ms unexpected @a9ae30e1c334+wt
-	terminal-artifact production requires one exact selected program entry
+fail/borrows/local_record_view_result_holds_loan rejected 909ms expected @9c4d1c444502+wt
+	statement 2 mutates `tally.hits` while local borrow `cell` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/local_subslice_live_parent_mutable_argument rejected 1626ms expected @a9ae30e1c334+wt
 	state `zero` receives `view` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	state `swap_out` receives `view` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -3108,6 +3108,8 @@ fail/relevance/static_proof_borrow_requires_storage rejected 820ms expected @a9a
 	machine `Natural::inspect` state `inspect` parameter `value` mentions proof-only `Natural`, which has no runtime layout
 fail/relevance/static_proof_result_cannot_materialize rejected 836ms expected @a9ae30e1c334+wt
 	call to proof machine `answer` has no runtime result; use it only in a proof or erased context, or as a statement citation
+fail/slices/bare_subslice_call_cannot_lend_mutable rejected 240ms expected @9c4d1c444502+wt
+	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/byte_view_element_reference_without_bound rejected 1727ms expected @a9ae30e1c334+wt
 	cannot prove index `0` is within unknown slice length of `bytes` in first::entry
 fail/slices/call_endpoint_view_backing_write rejected 1520ms expected @a9ae30e1c334+wt
@@ -3216,8 +3218,8 @@ fail/slices/scalar_dynamic_store_missing_range rejected 3927ms expected @a9ae30e
 	cannot prove assignment value `value` satisfies bounded target `items[__hoist_14]` in `write.entry`; expected 0..=100
 fail/slices/scalar_store_does_not_establish_sibling rejected 1694ms expected @a9ae30e1c334+wt
 	reading `values[1]` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `u64[in Positive]`
-fail/slices/shared_subslice_state_cannot_lend_mutable rejected 3589ms unexpected @a9ae30e1c334+wt
-	terminal-artifact production requires one exact selected program entry
+fail/slices/shared_subslice_state_cannot_lend_mutable rejected 178ms expected @9c4d1c444502+wt
+	argument `items` for state `forwarded` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/signed_slice_index_upper_only rejected 1654ms unexpected @a9ae30e1c334+wt
 	cannot prove index `__hoist_14` is non-negative
 fail/slices/signed_slice_range_upper_only rejected 1708ms expected @a9ae30e1c334+wt
@@ -3340,8 +3342,8 @@ fail/tasks/task_runtime_provider_contract_narrowing rejected 1350ms expected @a9
 	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` does not refine `Target`: it may block, but the requirement omits `blocks;`
 fail/tasks/task_runtime_selected_provider_missing rejected 1678ms expected @a9ae30e1c334+wt
 	TaskRuntime boundary slot has no retained selected provider plan
-fail/termination/bounded_distance_inverted rejected 3261ms unexpected @a9ae30e1c334+wt
-	terminal-artifact production requires one exact selected program entry
+fail/termination/bounded_distance_inverted rejected 1100ms expected @9c4d1c444502+wt
+	cannot prove the `terminates by` ranking for machine Main::walk: `terminates by (limit, index)` inverts the named bounded distance -- `Nat::BoundedDistance` ranks `(lower, upper)`, which descends as the lower value climbs; write `terminates by (index, limit) -> Nat::BoundedDistance`
 fail/termination/bounded_distance_moving_call_bound rejected 4018ms expected @d988854a6e10+wt
 	machine call cycle: `first`, `second` -- rank range membership, pinned endpoints, or nonincrease is unproven at a call site; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/bounded_distance_stalled_cursor_exit_state rejected 1563ms expected @a9ae30e1c334+wt
