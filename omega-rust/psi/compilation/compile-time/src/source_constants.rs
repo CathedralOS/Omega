@@ -289,7 +289,10 @@ pub struct SourceConstantSupply {
 /// The same one-shot continuation remains available when a source dependency
 /// cannot yet be completed portably. A retained recipe is never a Const value.
 pub enum SourceConstantOutcome {
-    Completed { supplies: Vec<SourceConstantSupply> },
+    Completed {
+        supplies: Vec<SourceConstantSupply>,
+        executed_inputs: Vec<checked_interpreter::ExecutedCheckedConstantInput>,
+    },
     Retained {
         continuation: crate::PreCheckEvaluation,
         reason: &'static str,

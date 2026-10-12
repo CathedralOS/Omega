@@ -169,6 +169,8 @@ pub(crate) fn evaluate_selected_const_applications(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     selected: crate::SelectedBuildTimeOperators<'_>,
     domain: &mut EvaluationDomain,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<(), Vec<Diagnostic>> {
     let crate::SelectedBuildTimeOperators {
         operators,
@@ -209,6 +211,7 @@ pub(crate) fn evaluate_selected_const_applications(
             admission,
             &mut warnings,
             domain,
+            inputs,
         ) {
             Ok(round) => round,
             Err(errors) => {
@@ -770,6 +773,8 @@ fn evaluate_application_round(
     admission: crate::BuildTimeCheckingAdmission<'_>,
     warnings: &mut Vec<Diagnostic>,
     domain: &EvaluationDomain,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<ApplicationRound, Vec<Diagnostic>> {
     // Bind exact authored provider occurrences before cloning specializations,
     // on a private copy: the caller's tree keeps its authored selection and
@@ -781,7 +786,11 @@ fn evaluate_application_round(
         operators,
         selection_authority.clone(),
         domain,
-        &plan.calls.iter().map(|call| call.machine).collect::<Vec<_>>(),
+        &plan
+            .calls
+            .iter()
+            .map(|call| call.machine)
+            .collect::<Vec<_>>(),
         admission,
     )?;
     let execution = prepared.typed();
@@ -791,6 +800,7 @@ fn evaluate_application_round(
         diagnostics: Vec::new(),
     };
     for application in &plan.applications {
+        let input_frontier = inputs.len();
         match evaluate_const_application(
             execution,
             &admission,
@@ -799,9 +809,11 @@ fn evaluate_application_round(
             selection_authority.as_ref(),
             checking_admission,
             warnings,
+            inputs,
         ) {
             Ok(fold) => round.folds.push(fold),
             Err(reason) => {
+                inputs.truncate(input_frontier);
                 round.diagnostics.push(
                     Diagnostic::error(format!(
                         "const-generic application: const evaluation failed: {reason}"
@@ -822,6 +834,8 @@ fn evaluate_const_application(
     authority_owner: Option<&std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     checking_admission: crate::BuildTimeCheckingAdmission<'_>,
     warnings: &mut Vec<Diagnostic>,
+
+    inputs: &mut Vec<checked_interpreter::ExecutedCheckedConstantInput>,
 ) -> Result<ApplicationFold, String> {
     require_closed_expression_custody(execution, application.root, selection_authority)?;
     let destination = application
@@ -848,6 +862,7 @@ fn evaluate_const_application(
             application.root,
             carrier,
             &invocation,
+            inputs,
         )?;
     for warning in additions {
         if !warnings.contains(&warning) {
