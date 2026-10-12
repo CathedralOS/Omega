@@ -630,6 +630,12 @@ pub(crate) struct EquationTemplate<'template> {
     pub(crate) type_equations: &'template [TypeEquation],
 }
 
+pub(crate) struct CompletedEquationArguments {
+    pub(crate) references: Vec<TypeReferenceHandle>,
+    /// Original const operands are distinct from mathematical assignments.
+    pub(crate) integer_operands: Vec<TypeReferenceHandle>,
+}
+
 pub(crate) fn complete_equation_arguments(
     syntax: &mut SyntaxTrees,
     base_info: EquationTemplate<'_>,
@@ -639,8 +645,8 @@ pub(crate) fn complete_equation_arguments(
     const_values: &HashMap<String, i128>,
     selection: Option<&declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
-) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
-    let bindings = {
+) -> Result<CompletedEquationArguments, Diagnostic> {
+    let (bindings, integer_operands) = {
         let mut solver = Solver::new(
             &mut *syntax,
             base_info,
@@ -651,10 +657,10 @@ pub(crate) fn complete_equation_arguments(
             selection,
         );
         solver.solve(warnings)?;
-        solver.bindings
+        (solver.bindings, solver.integer_operands)
     };
     let mut tuple = supplied.to_vec();
-    for binding in bindings.into_iter().skip(supplied.len()) {
+    for (position, binding) in bindings.into_iter().enumerate().skip(supplied.len()) {
         let node = match binding {
             Some(Binding::Type(handle)) => {
                 tuple.push(handle);
@@ -664,6 +670,10 @@ pub(crate) fn complete_equation_arguments(
                 TypeReferenceNode::Named(Identifier::new(name.as_str(), name.source_span()))
             }
             Some(Binding::Integer(value)) => {
+                if integer_operands[position].is_valid() {
+                    tuple.push(integer_operands[position]);
+                    continue;
+                }
                 TypeReferenceNode::Named(Identifier::generated(value.to_string()))
             }
             Some(Binding::Boolean(value)) => TypeReferenceNode::Named(Identifier::generated(
@@ -675,7 +685,10 @@ pub(crate) fn complete_equation_arguments(
         };
         tuple.push(syntax.tables.type_references.insert(node));
     }
-    Ok(tuple)
+    Ok(CompletedEquationArguments {
+        references: tuple,
+        integer_operands,
+    })
 }
 
 #[derive(Clone)]
@@ -715,7 +728,7 @@ struct Solver<'a, 's> {
     selection: Option<&'a declaration_selection::ConstantSelection<'s>>,
     supplied_count: usize,
     /// Exact source operands, distinct from value-only matching scratch.
-    original_supplied: Vec<TypeReferenceHandle>,
+    integer_operands: Vec<TypeReferenceHandle>,
     bindings: Vec<Option<Binding>>,
     settled: Vec<bool>,
 }
@@ -752,6 +765,11 @@ impl<'a, 's> Solver<'a, 's> {
                 Binding::Type(*argument)
             });
         }
+        let mut integer_operands = original_supplied.to_vec();
+        integer_operands.resize(
+            base_info.parameter_names.len(),
+            TypeReferenceHandle::invalid(),
+        );
         Self {
             syntax,
             base_info,
@@ -759,7 +777,7 @@ impl<'a, 's> Solver<'a, 's> {
             const_values,
             selection,
             supplied_count: supplied.len(),
-            original_supplied: original_supplied.to_vec(),
+            integer_operands,
             bindings,
             settled: vec![false; base_info.type_equations.len()],
         }
