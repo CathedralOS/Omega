@@ -1,6 +1,8 @@
 //! Snapshot backing separately from the reference's executable source spelling.
 //! The shared current-body descriptor replay owns stores, calls and arrivals.
 //! This audit neither replays a source initializer nor invents a view origin.
+//! Error closures retain the rejecting call site; passing the track-caller
+//! constructor as a function pointer reports Rust's adapter instead.
 use super::*;
 use std::borrow::Cow;
 use terminal_semantics::borrowed_storage::{Projection, Region};
@@ -88,7 +90,7 @@ pub(super) fn prepare(
     let Some(graph) = graph else {
         return Ok(observations);
     };
-    let current = descriptor_machine(&graph, function.machine).ok_or_else(invalid)?;
+    let current = descriptor_machine(&graph, function.machine).ok_or_else(|| invalid())?;
     let mut analysis = DescriptorAnalysis::new(types, &graph);
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
@@ -99,7 +101,7 @@ pub(super) fn prepare(
             if observations.positions.insert(operation, position).is_some() {
                 return Err(invalid());
             }
-            let step = current.flow.get(&position).ok_or_else(invalid)?;
+            let step = current.flow.get(&position).ok_or_else(|| invalid())?;
             let mut slots = BTreeSet::new();
             for input in &step.inputs {
                 let Some(ty) = current.place_types.get(&input.root) else {
@@ -111,8 +113,8 @@ pub(super) fn prepare(
                 let ty = *current
                     .place_types
                     .get(&location.root)
-                    .ok_or_else(invalid)?;
-                let path = descriptor_path(types, ty, &location.path).ok_or_else(invalid)?;
+                    .ok_or_else(|| invalid())?;
+                let path = descriptor_path(types, ty, &location.path).ok_or_else(|| invalid())?;
                 let origins = analysis
                     .symbolic_source_origins(function.machine, position, &location)
                     .and_then(|origins| {
@@ -146,22 +148,20 @@ pub(super) fn capture(
     operation: OperationId,
     root: &Root,
 ) -> Result<(Vec<Backing>, Vec<(PlaceId, Vec<StructuralPathSegment>)>), LegalizationError> {
-    let ty = source_contract(function, custody, source.place).ok_or_else(invalid)?;
-    let slots = descriptor_slots(types, source.place, ty).ok_or_else(invalid)?;
-    let mut descriptor = None;
-    for location in slots {
-        let path = descriptor_path(types, ty, &location.path).ok_or_else(invalid)?;
-        // Naming the descriptor itself borrows its storage. Only crossing into
-        // its contents uses the backing captured in that descriptor instance.
-        if source.path.len() > path.len()
-            && source.path.starts_with(&path)
-            && descriptor
-                .as_ref()
-                .is_none_or(|prior: &Vec<StructuralPathSegment>| prior.len() < path.len())
-        {
-            descriptor = Some(path);
-        }
-    }
+    let ty = source_contract(function, custody, source.place).ok_or_else(|| invalid())?;
+    // Formation already authenticated the complete source projection. Inspect
+    // only its materialized prefixes: an intermediate Case selector has no
+    // endpoint, and unrelated reference fields are not part of this borrow.
+    // Enumerating the whole type here would demand an unbounded catalog for a
+    // growing reference edge even when the operation never follows that edge.
+    // Naming a descriptor itself borrows its storage; only a proper prefix
+    // crosses into the backing captured by that descriptor instance.
+    let descriptor = (0..source.path.len()).find_map(|length| {
+        let path = &source.path[..length];
+        let carrier = leaf_type(types, ty, path)?;
+        terminal_semantics::descriptor_results::is_shared_descriptor(types.iter(), carrier)
+            .then(|| path.to_vec())
+    });
     if let Some(path) = descriptor {
         let mut backing = custody
             .descriptor_backing
@@ -170,12 +170,12 @@ pub(super) fn capture(
             .and_then(Option::as_ref)
             .filter(|origins| !origins.is_empty())
             .cloned()
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         let position = *custody
             .descriptor_backing
             .positions
             .get(&operation)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         let mut parents = Vec::new();
         for origin in &mut backing {
             if let Backing::Descriptor {
@@ -197,7 +197,7 @@ pub(super) fn capture(
                         .descriptor_backing
                         .ordering
                         .as_ref()
-                        .ok_or_else(invalid)?,
+                        .ok_or_else(|| invalid())?,
                 );
                 // A view formed through a live reference retains that parent
                 // even though its runtime descriptor is independently owned.

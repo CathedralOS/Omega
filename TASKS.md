@@ -3378,14 +3378,15 @@ of a check the same flow already performed, not the check itself.
   checking-side substitution;
   borrowed array payload observations retain their indexed scalar endpoints.
   Qualify case-qualified descriptor storage without granting permissions to
-  inactive payloads. On macOS ARM64, `corpus_gate.py --both --filter
-  runtime_case_qualified_reference_storage_exit` independently audits
-  `SourceCustodyMismatch` at machine 10, operation 209 on base `67234e097fe`,
-  although public execution succeeds. Retain its growing `Chain` and mixed-case
-  controls; repair the producer/audit correspondence without restoring native
-  permission replay or a whole-operation borrow preflight. Include qualified
-  descriptor replacement and detached-copy content observations in qualification;
-  runtime local observations cannot acquire entry-contract provenance.
+  inactive payloads; retain the growing `Chain` and mixed-case controls in
+  `runtime_case_qualified_reference_storage_exit`, including independent custody
+  auditing. On macOS ARM64, extending that witness with a `ChainHolder` record
+  whose field contains `Chain<'storage, i32>` still loses the constructed local
+  at stage 04's structural call binding. A named `&view[0]` from a local byte
+  slice separately fails Terminal lowering's direct-root reborrow identity.
+  Carry these compositions through execution, without restoring native
+  permission replay. Include qualified descriptor replacement and detached-copy
+  content observations; local observations cannot acquire entry provenance.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete
