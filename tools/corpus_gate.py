@@ -1173,6 +1173,15 @@ def main() -> int:
         if options.record:
             print("corpus_gate: --compare measures a base; it does not record a golden")
             return usage_error
+        if not (options.filter or options.shard
+                or os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", "").strip()
+                or os.environ.get("OMEGA_CORPUS_SHARD", "").strip()):
+            # Both sides of an unfiltered comparison run the whole corpus,
+            # about two hours here: scheduled workload, not a loop check.
+            print("corpus_gate: --compare runs the selection twice; name the "
+                  "fixtures the change can move with --filter <group>/,... "
+                  "(or sample with --shard k/N)")
+            return usage_error
         compare_revision = git_out("rev-parse", "--verify", f"{options.compare}^{{commit}}")
         if not compare_revision:
             print(f"corpus_gate: --compare names no commit: {options.compare}")

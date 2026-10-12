@@ -255,6 +255,10 @@ python3 tools/corpus_gate.py --compare origin/main --filter calls/,host/
 python3 tools/corpus_gate.py --compare origin/main --native --filter calls/
 ```
 
+Name the fixtures the change can move: `--compare` refuses to run without
+`--filter` or `--shard`, because both sides of an unfiltered comparison run the
+whole corpus, about two hours on a Windows host.
+
 The base is built from its commit in a separate worktree (`build/cmp`) with its
 own build directory, so neither uncommitted edits nor artifacts from this tree
 can leak into it. A run exits 1 when any fixture loses its outcome, its
