@@ -657,6 +657,27 @@ class SwarmTests(unittest.TestCase):
         path.write_text(json.dumps(record), encoding="utf-8")
         return path
 
+    def test_local_prompt_renders_shared_host_guidance_on_supported_hosts(self):
+        template = (LAUNCH.parent / "prompt_template_local.md").read_text(
+            encoding="utf-8")
+        record = manifest({"host": "local"})
+        state = {"ahead": 0, "worktree": self.repository / "worker",
+                 "branch": "swarm/w9-alpha"}
+        for system, machine in (("Linux", "x86_64"), ("Windows", "AMD64"),
+                                ("Darwin", "arm64")):
+            with self.subTest(system=system), mock.patch.object(
+                    self.module.platform, "system", return_value=system), \
+                    mock.patch.object(self.module.platform, "machine",
+                                      return_value=machine):
+                prompt = self.module.render_local_prompt(
+                    template, record, record["sessions"][0], self.repository,
+                    state)
+                self.assertNotIn("{host_block}", prompt)
+                self.assertNotIn("{build_tool}", prompt)
+                self.assertIn("local-swarm/host-setup.md", prompt)
+                self.assertIn("CARGO_TARGET_DIR", prompt)
+                self.assertIn("stdin=subprocess.DEVNULL", prompt)
+
     def run_local(self, manifest_path):
         arguments = argparse.Namespace(
             manifest=str(manifest_path), layer=None, sessions=None,

@@ -10,6 +10,12 @@ Follow [AGENTS.md](../../../AGENTS.md), [advance](../advance/SKILL.md),
 [landing](../../../tools/landing.md). The user controls scope and duration.
 Skill maintenance does not launch agents.
 
+Use [host setup and build admission](host-setup.md) before dispatch. Local
+subagents share one machine, not just one conversation: discover its actual
+OS/architecture, CPU quota, memory, disk, native tools and retained cache state.
+Reuse valid measurements. Ask only for unresolved scope, model/effort or authorized
+width; do not make the user inventory their machine.
+
 ## Prepare and dispatch
 
 Inspect main, host capacity, live claims and in-flight assignments. Assign
@@ -30,6 +36,17 @@ a distinct worktree from fetched main. Never reset/stash another owner's work.
 Use actual in-session agent tools and returned handles, not detached shell agents.
 Respect runtime capacity and the shared CPU/memory budget; workers on one host
 are not independent machines. Schedule builds explicitly using actual capacity.
+Agent slots and expensive-build slots are separate. Begin with one expensive
+build at a time when shared-host contention is unmeasured; keep other agents
+editing their own outcomes. Increase build overlap only after a same-host
+comparison improves useful throughput without memory/disk pressure or worse
+E2E latency. Do not infer a universal agent count or Cargo jobs cap from CPU count.
+
+Keep worktree targets independent and reuse the host's supported MBX action
+cache. Never force a common `CARGO_TARGET_DIR` across editing agents. Prefer a
+stable worktree for an ongoing outcome; a same-checkout no-op does not prove a
+new worktree's cache hits. Check pressure before builds and close delegated stdin
+using the native host's supported entrypoint.
 
 Dispatch outcome, acceptance, DRI, failure, next action, dependencies, design,
 exact worktree/base and publication permission. Agents reread the short assignment
