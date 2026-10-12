@@ -1,0 +1,14 @@
+// A named self-entry transition owes the same strict structural descent as
+// an expression call. Selecting a successor case does not shrink its root.
+use omega::language::core::nat;
+
+machine spin(n: Nat) -> Nat
+terminates by n;
+{
+    transition n {
+        Nat::Zero -> Nat::Zero
+        Nat::Succ { prev } -> (spin(n))
+    }
+}
+
+machine main() {}
