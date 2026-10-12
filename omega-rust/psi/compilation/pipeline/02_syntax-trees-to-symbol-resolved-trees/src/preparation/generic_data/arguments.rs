@@ -197,15 +197,20 @@ pub(crate) fn canonicalize_lifetime_bearing_type_argument(
                 outer_lifetime_parameters,
                 outer_lifetime_arguments,
             )?;
-            Some(
-                syntax
-                    .tables
-                    .type_references
-                    .insert(TypeReferenceNode::FixedArray {
-                        element_type,
-                        length: FixedArrayLength::Literal(length),
-                    }),
-            )
+            let operand = syntax
+                .type_references
+                .fixed_array_length_operand(type_reference);
+            let array = syntax
+                .tables
+                .type_references
+                .insert(TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Literal(length),
+                });
+            syntax
+                .type_references
+                .retain_fixed_array_length_operand(array, operand);
+            Some(array)
         }
         _ => Some(type_reference),
     }

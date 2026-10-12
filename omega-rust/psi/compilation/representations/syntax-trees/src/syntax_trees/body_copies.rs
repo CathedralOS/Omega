@@ -307,8 +307,16 @@ impl SyntaxCopy<'_> {
                 length,
             } => {
                 let element_type = self.copy_type_reference_handle(other, *element_type);
-                self.type_references
-                    .insert_fixed_array(element_type, length.clone())
+                let array = self
+                    .type_references
+                    .insert_fixed_array(element_type, length.clone());
+                let operand = other.type_references.fixed_array_length_operand(handle);
+                if operand.is_valid() {
+                    let operand = self.copy_type_reference_handle(other, operand);
+                    self.type_references
+                        .retain_fixed_array_length_operand(array, operand);
+                }
+                array
             }
             TypeReferenceNode::Slice { element_type } => {
                 let element_type = self.copy_type_reference_handle(other, *element_type);

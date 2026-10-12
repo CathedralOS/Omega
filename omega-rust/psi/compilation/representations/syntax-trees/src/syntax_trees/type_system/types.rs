@@ -20,6 +20,15 @@ pub struct TypeReferenceTable {
     integer_range_normalizations: Arena<RetainedIntegerRangeNormalization>,
     pending_const_arguments: Arena<PendingConstArgument>,
     supplied_operand_owners: Arena<SuppliedOperandOwner>,
+    fixed_array_length_operands: Arena<FixedArrayLengthOperand>,
+}
+
+/// A fixed array's original scalar extent, independent of closed geometry.
+/// The source producer supplies the graph; a cardinality never issues it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct FixedArrayLengthOperand {
+    array: TypeReferenceHandle,
+    operand: TypeReferenceHandle,
 }
 
 /// The exact declaration supplying a substituted operand. This is syntax
@@ -143,6 +152,7 @@ impl TypeReferenceTable {
             integer_range_normalizations: Arena::with_generation(generation),
             pending_const_arguments: Arena::with_generation(generation),
             supplied_operand_owners: Arena::with_generation(generation),
+            fixed_array_length_operands: Arena::with_generation(generation),
         }
     }
 
@@ -171,6 +181,8 @@ impl TypeReferenceTable {
             .adopt(other.pending_const_arguments);
         self.supplied_operand_owners
             .adopt(other.supplied_operand_owners);
+        self.fixed_array_length_operands
+            .adopt(other.fixed_array_length_operands);
     }
 
     pub(crate) fn begin_page(&mut self, generation: u32) {
@@ -188,6 +200,7 @@ impl TypeReferenceTable {
         self.integer_range_normalizations.begin_page(generation);
         self.pending_const_arguments.begin_page(generation);
         self.supplied_operand_owners.begin_page(generation);
+        self.fixed_array_length_operands.begin_page(generation);
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
@@ -794,6 +807,44 @@ impl TypeReferenceTable {
         })
     }
 
+    /// Retain the source extent or a genuinely supplied substituted operand.
+    /// An invalid operand clears custody; it does not reconstruct a value.
+    pub fn retain_fixed_array_length_operand(
+        &mut self,
+        array: TypeReferenceHandle,
+        operand: TypeReferenceHandle,
+    ) {
+        assert!(matches!(
+            self.type_reference(array),
+            TypeReferenceNode::FixedArray { .. }
+        ));
+        let retained = self
+            .fixed_array_length_operands
+            .iter()
+            .find_map(|(handle, row)| (row.array == array).then_some(handle));
+        if let Some(retained) = retained {
+            self.fixed_array_length_operands.get_mut(retained).operand = operand;
+        } else if operand.is_valid() {
+            self.fixed_array_length_operands
+                .insert(FixedArrayLengthOperand { array, operand });
+        }
+    }
+
+    pub fn fixed_array_length_operand(&self, array: TypeReferenceHandle) -> TypeReferenceHandle {
+        if !array.is_valid()
+            || !matches!(
+                self.type_reference(array),
+                TypeReferenceNode::FixedArray { .. }
+            )
+        {
+            return TypeReferenceHandle::invalid();
+        }
+        self.fixed_array_length_operands
+            .iter()
+            .find_map(|(_, row)| (row.array == array).then_some(row.operand))
+            .unwrap_or_default()
+    }
+
     pub fn insert_slice(&mut self, element_type: TypeReferenceHandle) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Slice { element_type })
     }
@@ -865,6 +916,7 @@ impl TypeReferenceTable {
             return;
         }
         let node = self.type_reference(source).clone();
+        let array_operand = self.fixed_array_length_operand(source);
         let normalization = self.const_argument_normalization(source).cloned();
         let declaration = self.const_argument_declaration(source).cloned();
         let application = self.generic_application_origin(source);
@@ -889,6 +941,12 @@ impl TypeReferenceTable {
                 TypeReferenceHandle::invalid();
         }
         self.replace_type_reference(destination, node);
+        if matches!(
+            self.type_reference(destination),
+            TypeReferenceNode::FixedArray { .. }
+        ) {
+            self.retain_fixed_array_length_operand(destination, array_operand);
+        }
         if let Some(declaration) = declaration {
             self.retain_const_argument_declaration(destination, declaration);
         }
