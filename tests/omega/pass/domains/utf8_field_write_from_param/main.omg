@@ -1,23 +1,27 @@
-// #66 GAP (field write from a `&[u8] in Utf8` PARAM): a domained-slice-view
-// parameter stored into a LOCAL aggregate's `&[u8] in Utf8` field lowers to the
-// same 16-byte descriptor `CopyRuntimeStorage` path. The local shape is
-// intentional: an elided call-scoped parameter cannot soundly escape into a
-// persistent machine field. This still pins data-field layout through
-// `Reference { Constrained { Slice } }` as the fat `{ptr, len}` descriptor;
-// before the layout fix the field was a thin 8-byte pointer and the copy
-// silently dropped its length.
-domain [u8]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-data Slot {
-    out: &[u8] in Utf8;
-}
+// A qualified slice parameter replaces a local record's complete descriptor.
+// Literal-backed descriptors have no activation-local parent. Replacement
+// preserves a sibling and detached copies, including their original extents.
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+data Slot { out: &[u8] in Utf8; sibling: &[u8] in Utf8; }
 
-machine store(text: &[u8] in Utf8) {
-    let mut slot: Slot = Slot { out: "" };
+machine store(text: &[u8] in Utf8) -> bool {
+    let mut slot: Slot = Slot { out: "old", sibling: "keep" };
+    let previous: &[u8] in Utf8 = slot.out;
     slot.out = text;
+    let installed: &[u8] in Utf8 = slot.out;
+    slot.out = "";
+    previous == "old" && installed == text && text == installed
+        && previous != installed && slot.sibling != text
+        && slot.out.len == 0 && slot.sibling == "keep"
 }
 
-machine Main::main() {
-    store("Gate");
+machine Main::main() crashes Trap {
+    let populated: bool = store("new");
+    let empty: bool = store("");
+    transition populated && empty {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
 }

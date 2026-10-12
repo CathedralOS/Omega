@@ -361,7 +361,10 @@ fn append_direct_structural_leaf_equality(
             if left > right {
                 std::mem::swap(&mut left, &mut right);
             }
-            comparisons.push(CheckedBooleanExpression::ByteSequenceEqual { left, right });
+            comparisons.push(CheckedBooleanExpression::ByteSequenceEqual {
+                left: left.into(),
+                right: right.into(),
+            });
         }
         None => return None,
     }

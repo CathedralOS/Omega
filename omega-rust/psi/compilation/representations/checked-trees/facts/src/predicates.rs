@@ -409,8 +409,8 @@ pub enum CheckedBooleanExpression {
     },
     /// Content equality between exact byte-sequence structural leaves.
     ByteSequenceEqual {
-        left: CheckedStructuralParameterField,
-        right: CheckedStructuralParameterField,
+        left: CheckedByteSequenceOperand,
+        right: CheckedByteSequenceOperand,
     },
     /// Evaluate one declared byte predicate over an exact byte-sequence operand.
     /// The root and projection path name existing storage or a prepared view;
@@ -480,6 +480,37 @@ pub use semantic_vocabulary::IeeeFloatComparisonKind as CheckedIeeeFloatComparis
 pub struct CheckedStructuralParameterField {
     pub parameter_position: u32,
     pub path: Vec<CheckedStructuralPredicatePathSegment>,
+}
+
+/// A content observation names current descriptor storage, independently of
+/// whether a parameter, local record or local view supplies that storage.
+/// Entry-contract facts can project this to a parameter field; local runtime
+/// observations cannot acquire entry provenance through that conversion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedByteSequenceOperand {
+    pub root: CheckedStorageRoot,
+    pub path: Vec<CheckedStructuralPredicatePathSegment>,
+}
+
+impl From<CheckedStructuralParameterField> for CheckedByteSequenceOperand {
+    fn from(field: CheckedStructuralParameterField) -> Self {
+        Self {
+            root: CheckedStorageRoot::Parameter {
+                index: field.parameter_position,
+            },
+            path: field.path,
+        }
+    }
+}
+
+impl CheckedByteSequenceOperand {
+    /// Only entry-backed observations can participate in exported contracts.
+    pub fn parameter_field(&self) -> Option<CheckedStructuralParameterField> {
+        Some(CheckedStructuralParameterField {
+            parameter_position: self.root.parameter()?,
+            path: self.path.clone(),
+        })
+    }
 }
 
 /// Case facts name storage, not a dense scalar operand. A normal-return result

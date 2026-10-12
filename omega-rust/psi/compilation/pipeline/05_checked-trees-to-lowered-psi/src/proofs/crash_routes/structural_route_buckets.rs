@@ -396,15 +396,21 @@ impl RouteTerms<'_> {
             });
         }
         if let CheckedBooleanExpression::ByteSequenceEqual { left, right } = expression {
+            let left = left.parameter_field().ok_or(LoweringError::Unsupported(
+                "byte equality entry fact requires a parameter source",
+            ))?;
+            let right = right.parameter_field().ok_or(LoweringError::Unsupported(
+                "byte equality entry fact requires a parameter source",
+            ))?;
             let mut left = lower_byte_sequence_field(
                 identities,
-                left,
+                &left,
                 self.parameters,
                 self.structural_types,
             )?;
             let mut right = lower_byte_sequence_field(
                 identities,
-                right,
+                &right,
                 self.parameters,
                 self.structural_types,
             )?;

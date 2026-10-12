@@ -166,12 +166,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             if let Some(bindings) = scalar_bindings
                 && let Some((home, structural_type)) = bindings.captured_storage_home(*root)?
             {
-                return captured_sequence_length(
-                    bindings,
-                    &home,
-                    structural_type,
-                    count_type,
-                );
+                return captured_sequence_length(bindings, &home, structural_type, count_type);
             }
             let (source, carrier) = match *root {
                 checked_trees::CheckedStorageRoot::Parameter {
@@ -919,79 +914,37 @@ fn lower_checked_boolean_expression_with_parameters(
             root,
             path,
         } => {
-            if !path.is_empty() {
-                let (source, path, field) = byte_field_observation(
-                    identities,
-                    structural_fields,
-                    structural_locals,
-                    view_locals,
-                    scalar_bindings,
-                    *root,
-                    path,
-                )?
-                .ok_or(LoweringError::Unsupported(
-                    "byte predicate requires a live byte descriptor",
-                ))?;
-                return Ok(LoweredBooleanReturnExpression::ByteSequencePredicate {
-                    predicate: *predicate,
-                    source,
-                    path,
-                    field: Some(field),
-                });
-            }
-            let source = match *root {
-                checked_trees::CheckedStorageRoot::Parameter {
-                    index: parameter_position,
-                } => readable_sequence_parameter(parameter_position, structural_parameters)?.place,
-                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
-                    view_local_observation(view_locals, symbol, path)?.0
-                }
-                checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
-                    let source = owned_local_observation(structural_locals, symbol)?;
-                    let local = crate::expression_preparation::bindings::view_locals::resolve(
-                        view_locals,
-                        symbol,
-                    )?;
-                    if local.place != source || local.carrier != ViewCarrier::Bytes {
-                        return unsupported(
-                            "byte predicate operand lost its established byte carrier",
-                        );
-                    }
-                    source
-                }
-            };
+            let operand = byte_sequence_observation(
+                identities,
+                structural_parameters,
+                structural_fields,
+                structural_locals,
+                view_locals,
+                scalar_bindings,
+                *root,
+                path,
+            )?;
             LoweredBooleanReturnExpression::ByteSequencePredicate {
                 predicate: *predicate,
-                source,
-                path: Vec::new(),
-                field: None,
+                source: operand.source,
+                path: operand.path,
+                field: operand.field,
             }
         }
         CheckedBooleanExpression::ByteSequenceEqual { left, right } => {
             let operand =
                 |builder: &mut terminal_psi::TerminalIdentityTableBuilder,
-                 field: &checked_trees::CheckedStructuralParameterField| {
-                    byte_field_observation(
+                 operand: &checked_trees::CheckedByteSequenceOperand| {
+                    byte_sequence_observation(
                         builder,
+                        structural_parameters,
                         structural_fields,
                         structural_locals,
                         view_locals,
                         scalar_bindings,
-                        checked_trees::CheckedStorageRoot::Parameter {
-                            index: field.parameter_position,
-                        },
-                        &field.path,
-                    )?
-                    .map(|(source, path, field)| {
-                        crate::emission::operation_emission::boolean::LoweredByteSequenceOperand {
-                            source,
-                            path,
-                            field: Some(field),
-                        }
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "byte sequence equality requires a live byte descriptor",
-                    ))
+                        operand.root,
+                        &operand.path,
+                    )
                 };
             LoweredBooleanReturnExpression::ByteSequenceEqual {
                 left: operand(identities, left)?,
@@ -1163,6 +1116,63 @@ fn captured_sequence_length(
             .collect(),
         field: field.id,
         scalar_type,
+    })
+}
+
+/// Predicates and comparisons observe the same completed descriptor. The
+/// storage root selects its live home; the projection selects the byte carrier.
+/// A local observation is never re-rooted onto an entry parameter.
+fn byte_sequence_observation(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    parameters: &[(u32, StructuralParameterDeclaration)],
+    fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
+    structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
+    view_locals: &[ViewLocalBinding],
+    bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
+    root: checked_trees::CheckedStorageRoot,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+) -> Result<crate::emission::operation_emission::boolean::LoweredByteSequenceOperand, LoweringError>
+{
+    use crate::emission::operation_emission::boolean::LoweredByteSequenceOperand;
+    if !path.is_empty() {
+        let (source, path, field) = byte_field_observation(
+            identities,
+            fields,
+            structural_locals,
+            view_locals,
+            bindings,
+            root,
+            path,
+        )?
+        .ok_or(LoweringError::Unsupported(
+            "byte observation requires a live byte descriptor",
+        ))?;
+        return Ok(LoweredByteSequenceOperand {
+            source,
+            path,
+            field: Some(field),
+        });
+    }
+    let source = match root {
+        checked_trees::CheckedStorageRoot::Parameter { index } => {
+            readable_sequence_parameter(index, parameters)?.place
+        }
+        checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
+            view_local_observation(view_locals, symbol, path)?.0
+        }
+        checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
+            let source = owned_local_observation(structural_locals, symbol)?;
+            let local = view_locals::resolve(view_locals, symbol)?;
+            if local.place != source || local.carrier != ViewCarrier::Bytes {
+                return unsupported("byte observation lost its established byte carrier");
+            }
+            source
+        }
+    };
+    Ok(LoweredByteSequenceOperand {
+        source,
+        path: Vec::new(),
+        field: None,
     })
 }
 

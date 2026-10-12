@@ -118,8 +118,8 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
         }
         CheckedBooleanExpression::ByteSequenceEqual { left, right } => {
             PackageReviewBooleanExpression::ByteSequenceEqual {
-                left: project_structural_field(left),
-                right: project_structural_field(right),
+                left: project_structural_field(&left.parameter_field()?),
+                right: project_structural_field(&right.parameter_field()?),
             }
         }
         CheckedBooleanExpression::PayloadlessSumEqual { left, right, cases } => {

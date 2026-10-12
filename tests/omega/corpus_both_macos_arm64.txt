@@ -341,7 +341,7 @@ pass/domains/runtime_constructor_ensured_membership_exit built 1736ms exit:0 int
 pass/domains/runtime_nested_record_membership_transport_exit built 1646ms exit:0 interpreter-exit:0 interpreter:agrees @7b3ac815c2b7
 pass/domains/runtime_qualified_borrowed_gated_input_exit built 1513ms exit:0 interpreter-exit:0 interpreter:agrees @f20b8ea3bb8d
 pass/domains/runtime_qualified_view_field_parameter_store_exit built 2494ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @f76d8aa42d2a
-pass/domains/utf8_field_write_from_param built 469ms @6949147699f7
+pass/domains/utf8_field_write_from_param built 42270ms exit:0 interpreter-exit:0 interpreter:agrees @99a0bb84e93a+wt
 pass/drops/conditional_structural_return_cleanup_exit built 1549ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
 pass/drops/contextual_cleanup_exit built 1075ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db0816c5dcd4+wt
 pass/drops/contextual_core_drop_exit built 1453ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @bf12cd0f89bb+wt

@@ -25,11 +25,12 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
 pub use facts::{
-    CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
-    CheckedIntegerComparisonKind, CheckedIntegerMathExpression, CheckedIntegerMathTerm,
-    CheckedScalarExpression, CheckedScalarReadProjection, CheckedScalarSelector,
-    CheckedStorageRoot, CheckedStructuralCaseRoot, CheckedStructuralCaseSubject,
-    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
+    CheckedBooleanExpression, CheckedByteSequenceOperand, CheckedIeeeFloatComparisonKind,
+    CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,
+    CheckedIntegerMathTerm, CheckedScalarExpression, CheckedScalarReadProjection,
+    CheckedScalarSelector, CheckedStorageRoot, CheckedStructuralCaseRoot,
+    CheckedStructuralCaseSubject, CheckedStructuralParameterField,
+    CheckedStructuralPredicatePathSegment,
 };
 
 mod computations;

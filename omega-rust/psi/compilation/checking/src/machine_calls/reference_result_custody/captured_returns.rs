@@ -538,7 +538,7 @@ impl Captures<'_> {
         let mut present = false;
         for source in stored_carrier_sources(self.program, self.facts, root, path)? {
             let supplied = match source {
-                StoredCarrierSource::Borrow { .. } => true,
+                StoredCarrierSource::Borrow { .. } | StoredCarrierSource::Image => true,
                 StoredCarrierSource::Place(source) => match source.source {
                     CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                         let (_, local) = self.program.state_local_declaration(state, symbol)?;

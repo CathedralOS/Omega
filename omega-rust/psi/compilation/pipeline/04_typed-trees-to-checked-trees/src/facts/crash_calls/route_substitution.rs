@@ -537,8 +537,10 @@ pub(crate) fn substitute_checked_boolean_expression(
         // atomic proposition.
         CheckedBooleanExpression::ByteSequenceEqual { left, right } => {
             CheckedBooleanExpression::ByteSequenceEqual {
-                left: substitute_structural_parameter_field(left, fields)?,
-                right: substitute_structural_parameter_field(right, fields)?,
+                left: substitute_structural_parameter_field(&left.parameter_field()?, fields)?
+                    .into(),
+                right: substitute_structural_parameter_field(&right.parameter_field()?, fields)?
+                    .into(),
             }
         }
         // A sum case-membership test is atomic over the same structural

@@ -1089,8 +1089,7 @@ pass/domains/user_authored_predicate_machine checked 1852ms @a9ae30e1c334+wt
 pass/domains/utf8_equals_literal_exit checked 13670ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/utf8_equals_literal_mismatch_exit checked 12608ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/utf8_field_read_carries_domain_exit checked 12813ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/domains/utf8_field_write_from_param incomplete 11643ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	`Main::main` calls `store`; `store` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment)
+pass/domains/utf8_field_write_from_param checked 45516ms check-target:macos_arm64 @99a0bb84e93a+wt
 pass/domains/vacuous_domain_qualification checked 1751ms @a9ae30e1c334+wt
 pass/domains/view_field_literal_store_reads_exit checked 12827ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/cleanup_machine_drop_shape checked 2087ms @a9ae30e1c334+wt

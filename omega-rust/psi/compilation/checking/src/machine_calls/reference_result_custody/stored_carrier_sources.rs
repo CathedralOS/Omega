@@ -16,6 +16,9 @@ use typed_trees::data::DataMember;
 /// independently of its eventual local, field or store consumer.
 pub enum StoredCarrierSource {
     Place(CheckedUnitStructuralArgumentPlan),
+    /// A present descriptor over immutable image storage. It has no supplying
+    /// activation-local holder to retire, but is not an inactive case slot.
+    Image,
     /// A fresh loan formed in this receiving descriptor slot. Its source
     /// holder is an immediate disposal dependency, not a transported ancestor.
     Borrow {
@@ -99,6 +102,15 @@ fn select(
                 value,
                 source: source.clone(),
             });
+        }
+        CheckedStructuralValueKind::ByteLiteralView { .. } => {
+            if !selection.is_empty() {
+                return None;
+            }
+            // The value producer already admitted the literal's carrier and
+            // predicates. Retirement needs its storage duration, not another
+            // loan of a local holder or an absent-source fallback.
+            output.push(StoredCarrierSource::Image);
         }
         CheckedStructuralValueKind::Place(source)
         | CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
