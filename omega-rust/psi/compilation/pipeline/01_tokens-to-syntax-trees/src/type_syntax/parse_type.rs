@@ -13,7 +13,7 @@ use crate::expressions::parse_expression::{
 use crate::input::token_cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionNode};
+use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::types::{
     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -334,6 +334,83 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
 /// Type/Const/Machine/evidence telescope; syntax cannot admit a binder's kind.
 /// The const parser leaves `>` to the enclosing application and keeps semantic
 /// operations for later carrier, formation and selected-operation checking.
+// Angle packs own comma/greater delimiters; the ordinary const-expression
+// owner remains delimiter-independent. Whole postfix packs are bounded at
+// their actual call-opening parenthesis before this argument transaction.
+fn parse_static_const_expression_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    // `>>` is either an operator or two generic closers. Trial the ordinary
+    // expression grammar first, then complete delimiter-bounded prefixes in
+    // scratch. Earlier shifts remain operators; only the actual trailing
+    // separator is withheld. Failed trials publish no source graphs.
+    let mut scratch = SyntaxTrees::new(input.source_id);
+    let ordinary = parse_const_integer_expression_handle(&mut scratch, input);
+    if let Ok((expression, rest)) = &ordinary
+        && is_static_argument_separator(*rest)
+    {
+        let expression = syntax_trees.copy_expression_from(&scratch, *expression);
+        return Ok((expression, *rest));
+    }
+    let error = ordinary
+        .err()
+        .unwrap_or_else(|| input.error_here("expected a complete static argument"));
+    for index in static_argument_separator_positions(input).into_iter().rev() {
+        let (prefix, rest) = input.split_at_token_index(index);
+        if !is_static_argument_separator(rest) {
+            continue;
+        }
+        let mut scratch = SyntaxTrees::new(input.source_id);
+        if let Ok((expression, remaining)) =
+            parse_const_integer_expression_handle(&mut scratch, prefix)
+            && remaining.tokens.is_empty()
+            && !remaining.at_punctuation(PunctuationKind::Greater)
+        {
+            let expression = syntax_trees.copy_expression_from(&scratch, expression);
+            return Ok((expression, rest));
+        }
+    }
+    Err(error)
+}
+
+/// Delimiters inside ordinary grouping, indexing or literals belong to those
+/// expressions. Angle punctuation remains a candidate until complete grammar
+/// parsing decides whether it closed a nested application or was a shift.
+fn static_argument_separator_positions(input: Input<'_, '_>) -> Vec<usize> {
+    let mut delimiters = Vec::new();
+    let mut positions = Vec::new();
+    for (index, token) in input.tokens.iter().enumerate() {
+        let Some(punctuation) = token.punctuation() else {
+            continue;
+        };
+        match punctuation {
+            PunctuationKind::LeftParen => delimiters.push(PunctuationKind::RightParen),
+            PunctuationKind::LeftBracket => delimiters.push(PunctuationKind::RightBracket),
+            PunctuationKind::LeftBrace => delimiters.push(PunctuationKind::RightBrace),
+            PunctuationKind::RightParen
+            | PunctuationKind::RightBracket
+            | PunctuationKind::RightBrace => {
+                if delimiters.pop() != Some(punctuation) {
+                    break;
+                }
+            }
+            PunctuationKind::Semicolon if delimiters.is_empty() => break,
+            PunctuationKind::Comma | PunctuationKind::Greater | PunctuationKind::GreaterGreater
+                if delimiters.is_empty() && index != 0 =>
+            {
+                positions.push(index)
+            }
+            _ => {}
+        }
+    }
+    positions
+}
+
+fn is_static_argument_separator(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::Comma) || input.at_punctuation(PunctuationKind::Greater)
+}
+
 pub(crate) fn parse_static_argument_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -351,7 +428,7 @@ pub(crate) fn parse_static_argument_handle<'tokens, 'source>(
                 .take_punctuation(PunctuationKind::LeftParen, "(")
                 .is_ok_and(|rest| !rest.at_punctuation(PunctuationKind::RightParen)))
     {
-        let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
+        let (expression, rest) = parse_static_const_expression_handle(syntax_trees, input)?;
         // Anonymous values also need their original producer receipt. A folded
         // decimal name cannot distinguish them from an older missing landing.
         Ok((
@@ -368,7 +445,7 @@ pub(crate) fn parse_static_argument_handle<'tokens, 'source>(
         // A lone name may be any static binder kind. Retain unmistakable
         // operator/call expressions; nested type or machine applications keep
         // the ordinary type-reference graph and their complete child spans.
-        let const_expression = parse_const_integer_expression_handle(syntax_trees, input).ok();
+        let const_expression = parse_static_const_expression_handle(syntax_trees, input).ok();
         if let Some((expression, rest)) = const_expression
             && matches!(
                 syntax_trees.expressions.expression(expression),
@@ -617,7 +694,7 @@ pub(crate) fn parse_domain_argument_handles<'tokens, 'source>(
         // exact symbols. This also keeps `>` as the argument-pack delimiter:
         // the dedicated const-expression parser deliberately stops before the
         // comparison layer.
-        let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
+        let (expression, rest) = parse_static_const_expression_handle(syntax_trees, input)?;
         input = rest;
         let argument = match syntax_trees.expressions.expression(expression) {
             ExpressionNode::Boolean(value) => {

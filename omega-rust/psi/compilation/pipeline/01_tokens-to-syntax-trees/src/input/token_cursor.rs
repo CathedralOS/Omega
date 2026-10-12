@@ -506,6 +506,13 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
+    /// Trial parsing uses a bounded token prefix while retaining this exact
+    /// source, nesting budget and contextual split-`>` cursor state.
+    pub(crate) fn split_at_token_index(self, index: usize) -> (Self, Self) {
+        let (prefix, rest) = self.tokens.split_at(index);
+        (self.advanced(prefix), self.advanced(rest))
+    }
+
     pub(crate) fn split_at_top_level_punctuation(
         self,
         delimiter: PunctuationKind,
