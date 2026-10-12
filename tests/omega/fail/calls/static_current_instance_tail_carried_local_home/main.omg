@@ -1,0 +1,19 @@
+// A fresh ordinary invocation may borrow the parent's backing. Reusing the
+// current frame must reject re-establishing that home while the next input
+// still carries it; a strict natural decrease does not extend storage.
+machine countdown<'data, const Flag: bool>(remaining: u64, value: &'data [u64; 1]) -> u64
+where Flag == true
+terminates by remaining -> Nat::Descending;
+{
+    let backing: [u64; 1] = [remaining];
+    let carried: &[u64; 1] = &backing;
+    let observed: u64 = value[0];
+    transition remaining > 0 {
+        true -> (countdown<true>(remaining - 1, carried))
+        false -> observed
+    }
+}
+machine main() -> u64 {
+    let seed: [u64; 1] = [111u64];
+    countdown<true>(2, &seed)
+}
