@@ -264,73 +264,20 @@ pub(super) fn build_traced(
         // qualifications. Authored scalar `requires` expressions lower into
         // the state's proof-only contract roster; any other shape stays
         // outside the state graph's admitted custody.
-        let Some(contract_predicates) =
-            validation::structural_state_contract_scalar_predicates(program, state)
+        let Some(predicates) =
+            super::state_contracts::arrival_predicates(program, facts, owner, state)
         else {
-            trace.phase("state graph: state signature: contract shape unadmitted");
+            trace.phase("state graph: state signature: arrival predicate lowering unavailable");
             return None;
         };
-        let mut requires = Vec::with_capacity(contract_predicates.len());
-        for row in contract_predicates {
-            let predicate = match row {
-                validation::StateScalarContractRow::Expression(expression) => {
-                    crate::values::lower_state_scalar_contract_predicate(
-                        program,
-                        &facts.operators,
-                        owner,
-                        state,
-                        expression,
-                        &mut 4096,
-                    )
-                }
-                validation::StateScalarContractRow::DeclaredRange {
-                    parameter,
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } => crate::values::lower_state_declared_range_predicate(
-                    program,
-                    &facts.operators,
-                    owner,
-                    state,
-                    parameter,
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                ),
-                validation::StateScalarContractRow::Interval {
-                    parameter,
-                    minimum,
-                    maximum,
-                } => crate::values::lower_state_interval_predicate(
-                    program, state, parameter, minimum, maximum,
-                ),
-                validation::StateScalarContractRow::Finite { parameter } => {
-                    validation::state_finite_predicate(program, state, parameter)
-                }
-            };
-            let Some(predicate) = predicate else {
-                trace.phase("state graph: state signature: predicate lowering failed");
-                return None;
-            };
-            requires.push(Some(checked_trees::ClosedScalarContractValue::Predicate(
-                predicate,
-            )));
-        }
-        // An authored state transition closes the declared-domain window of
-        // each readable argument. These are destination arrival obligations,
-        // not facts inherited from the machine's first invocation or a loop's
-        // previous iteration. Synthetic expression continuations are not
-        // authored state boundaries and receive no such rows here.
-        requires.extend(
-            validation::state_declaration_predicates(program, &facts.operators, state)
-                .into_iter()
-                .map(|row| {
-                    Some(checked_trees::ClosedScalarContractValue::Predicate(
-                        row.predicate,
-                    ))
-                }),
-        );
+        let requires = predicates
+            .into_iter()
+            .map(|predicate| {
+                Some(checked_trees::ClosedScalarContractValue::Predicate(
+                    predicate,
+                ))
+            })
+            .collect();
         state_requires.push(requires);
         trace.phase("state graph: state signature: parameter signature");
         let (structural, scalar) = if owner.attached_data.is_some() {

@@ -83,8 +83,8 @@ pub use carry::{
 };
 pub use checked_crash_operator_site::{CheckedCrashOperatorSite, OperatorSiteLocation};
 pub use collection::{
-    CheckFacts, DecidedCallRequires, ProvenAssignmentIndex, ScalarIndexAdmission,
-    ScalarIndexExitPreservation,
+    CallExitPreservation, CheckFacts, DecidedCallRequires, ErasedExitObservation,
+    ProvenAssignmentIndex, ScalarIndexAdmission, ScalarIndexExitPreservation,
 };
 pub use content::{
     ContentIdentityReshuffleFact, ContentPartitionCompositionFact,

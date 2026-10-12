@@ -48,6 +48,11 @@ pub struct CheckFacts {
     pub scalar_index_admissions: arena::Arena<ScalarIndexAdmission>,
     /// Original source bounds retained across one exact selected cleanup exit.
     pub scalar_index_exit_preservations: arena::Arena<ScalarIndexExitPreservation>,
+    /// Original call predicates and erased terms retained across their exact
+    /// selected cleanup exit. Issuance uses caller-relative read/write facts;
+    /// lowering still joins every actually emitted hook to that same exit.
+    pub call_exit_preservations: arena::Arena<CallExitPreservation>,
+    pub erased_exit_observations: arena::Arena<ErasedExitObservation>,
     pub scalar_index_dependency_places: arena::Arena<facts::Place>,
     pub scalar_index_dependency_segments: arena::Arena<facts::PlaceSegment>,
     /// Indexed byte assignments whose live bound and declared byte predicates
@@ -198,6 +203,26 @@ pub struct ScalarIndexExitPreservation {
     pub occurrence: typed_trees::expression::ExpressionHandle,
     pub machine: symbols::SymbolHandle,
     pub exit: crate::FlowClaimJoinExit,
+}
+
+/// A post-cleanup correspondence, never a second Requires judgment.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CallExitPreservation {
+    pub machine: symbols::SymbolHandle,
+    pub exit: crate::FlowClaimJoinExit,
+    /// The exact original Flow invocation, independently of display names.
+    pub call: arena::Handle<crate::FlowCallFact>,
+    pub target_state: symbols::SymbolHandle,
+    pub requires_preserved: bool,
+    pub erased_observations: arena::HandleSpan<ErasedExitObservation>,
+}
+
+/// One original erased argument's mathematical reads, at its actual call slot.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ErasedExitObservation {
+    pub argument_ordinal: u32,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub preserved: bool,
 }
 
 impl CheckFacts {

@@ -62,60 +62,26 @@ pub(super) fn record(program: &dyn validation::CheckingInput, facts: &mut CheckF
                 else {
                     return false;
                 };
-                facts
-                    .contextual_cleanup
-                    .hook_effects
-                    .iter()
-                    .all(|(_, effect)| {
-                        let disposition = facts
-                            .contextual_cleanup
-                            .dispositions
-                            .get(effect.disposition);
-                        if disposition.machine != admission.machine || disposition.exit != exit {
-                            return true;
-                        }
-                        if dependencies.is_empty() {
-                            return true;
-                        }
-                        if !effect.complete {
-                            return false;
-                        }
-                        let Some(writes) = facts
-                            .contextual_cleanup
-                            .hook_write_places
-                            .span(effect.writes)
-                        else {
-                            return false;
-                        };
-                        dependencies.iter().all(|dependency| {
-                            writes.iter().all(|write| {
-                                if !matches!(dependency.root, facts::PlaceRoot::Symbol(_))
-                                    || !matches!(write.root, facts::PlaceRoot::Symbol(_))
-                                {
-                                    return false;
-                                }
-                                if dependency.root != write.root {
-                                    return true;
-                                }
-                                let Some(read_path) = facts
-                                    .scalar_index_dependency_segments
-                                    .span(dependency.segments)
-                                else {
-                                    return false;
-                                };
-                                let Some(write_path) = facts
-                                    .contextual_cleanup
-                                    .hook_write_segments
-                                    .span(write.segments)
-                                else {
-                                    return false;
-                                };
-                                !crate::flow::canonical_place_segments_may_overlap(
-                                    program, read_path, write_path,
-                                )
-                            })
-                        })
-                    })
+                let mut reads = Vec::with_capacity(dependencies.len());
+                for dependency in dependencies {
+                    let Some(segments) = facts
+                        .scalar_index_dependency_segments
+                        .span(dependency.segments)
+                    else {
+                        return false;
+                    };
+                    reads.push(validation::CanonicalPlace {
+                        root: dependency.root,
+                        segments: segments.to_vec(),
+                    });
+                }
+                super::cleanup_preservation::reads_survive(
+                    program,
+                    facts,
+                    admission.machine,
+                    exit,
+                    &reads,
+                )
             });
             if preserved
                 && !rows.iter().any(|(_, row)| {

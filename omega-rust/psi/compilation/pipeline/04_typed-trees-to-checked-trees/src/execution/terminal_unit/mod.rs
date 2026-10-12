@@ -160,6 +160,7 @@ use validation::reference_result_custody as reference_results;
 mod scalar_locals;
 pub(crate) mod scalar_return_expressions;
 mod scalar_targets;
+pub(crate) mod state_contracts;
 pub(crate) mod state_graph;
 mod storage_transfers;
 mod structural_scalar_store;
