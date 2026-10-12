@@ -8,6 +8,7 @@ use package_evidence::record::{
 };
 use std::fmt::{self, Write};
 
+mod assumed_bindings;
 mod callables;
 
 pub(super) fn render(
@@ -124,6 +125,7 @@ pub(super) fn render(
         writeln!(output, "    binding {:?}", supply.binding())?;
     }
     names.providers(output, policy.selected_providers())?;
+    assumed_bindings::render(output, policy.assumed_binding_contracts())?;
     writeln!(
         output,
         "  terminal-permission-services {}",
