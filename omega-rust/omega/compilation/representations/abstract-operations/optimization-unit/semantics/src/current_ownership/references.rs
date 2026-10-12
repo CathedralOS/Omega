@@ -2124,16 +2124,28 @@ pub(super) fn transfer_return(
                     "returned reference carrier is not live",
                 )
             })?;
+        // Formation keeps its captured selector. The return interface names
+        // the finite backing family independently reconstructed from that
+        // formation's declared storage, never by replaying its selector.
+        let origins = return_origin_family(function, structural_types, &reference.root)
+            .ok_or_else(|| {
+                invalid(
+                    function,
+                    block,
+                    None,
+                    "reference return origin family is unavailable",
+                )
+            })?;
         let sources = mapping
             .sources
             .iter()
             .filter(|source| {
                 formal_origin(function, source)
-                    .is_some_and(|origin| contains_origin(&reference.root, &origin))
+                    .is_some_and(|origin| contains_origin(&origins, &origin))
             })
             .cloned()
             .collect::<Vec<_>>();
-        let origin_count = match &reference.root {
+        let origin_count = match &origins {
             ReferenceOrigin::Alternatives { paths, .. } => paths.len(),
             _ => 1,
         };
@@ -2159,6 +2171,64 @@ pub(super) fn transfer_return(
         reference.carrier != source || !owned_resident(&reference.carrier_path, &[])
     });
     Ok(true)
+}
+
+/// Materialize only the signature-bound origin family. Live custody keeps
+/// symbolic selectors so formation identity and parent lineage stay unchanged.
+fn return_origin_family(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    origin: &ReferenceOrigin,
+) -> Option<ReferenceOrigin> {
+    let (place, paths) = match origin {
+        ReferenceOrigin::IngressLeaf(identity) => {
+            (identity.place, std::slice::from_ref(&identity.path))
+        }
+        ReferenceOrigin::Alternatives { place, paths } => (*place, paths.as_slice()),
+        ReferenceOrigin::Primitive(_) => return Some(origin.clone()),
+    };
+    let mut expanded = Vec::new();
+    for path in paths {
+        if path.iter().any(|segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+            )
+        }) {
+            let root = structural_source_contract(function, place)?.structural_type;
+            for path in terminal_semantics::stored_descriptor_paths(
+                types.values().copied(),
+                root,
+                path,
+                MAX_INCOMING_REFERENCE_LEAVES,
+            )? {
+                if !expanded.contains(&path) {
+                    if expanded.len() == MAX_INCOMING_REFERENCE_LEAVES {
+                        return None;
+                    }
+                    expanded.push(path);
+                }
+            }
+        } else if !expanded.contains(path) {
+            if expanded.len() == MAX_INCOMING_REFERENCE_LEAVES {
+                return None;
+            }
+            expanded.push(path.clone());
+        }
+    }
+    expanded.sort();
+    expanded.dedup();
+    if expanded.len() == 1 {
+        Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+            place,
+            path: expanded.remove(0),
+        }))
+    } else {
+        Some(ReferenceOrigin::Alternatives {
+            place,
+            paths: expanded,
+        })
+    }
 }
 
 /// Individual exits prove membership; their union proves that no declared

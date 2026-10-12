@@ -2110,12 +2110,44 @@ pub(in crate::legalization) fn return_custody(
             .iter()
             .find(|mapping| mapping.path == *path)
             .ok_or_else(|| invalid())?;
-        let declared = |root: &Root| {
-            mapping
-                .sources
-                .iter()
-                .any(|formal| formal_origin(function, types, formal).as_ref() == Some(root))
-        };
+        let declared =
+            |root: &Root| {
+                // The runtime address retains its captured index. Independently
+                // enumerate the finite storage family for this interface audit;
+                // every possible backing still needs an exact declared origin.
+                if !root.origins().iter().any(|origin| {
+                    origin.path.iter().any(|segment| {
+                        matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
+                    })
+                }) {
+                    return mapping.sources.iter().any(|formal| {
+                        formal_origin(function, types, formal).as_ref() == Some(root)
+                    });
+                }
+                root.origins().iter().all(|origin| {
+                    let Some(contract) = source_contract(function, custody, origin.root) else {
+                        return false;
+                    };
+                    let Some(paths) = terminal_semantics::stored_descriptor_paths(
+                        types.iter(),
+                        contract,
+                        &origin.path,
+                        mapping.sources.len(),
+                    ) else {
+                        return false;
+                    };
+                    paths.iter().all(|path| {
+                        let selected = if path.is_empty() {
+                            Root::Place(origin.root)
+                        } else {
+                            Root::Ingress(origin.root, path.clone())
+                        };
+                        mapping.sources.iter().any(|formal| {
+                            formal_origin(function, types, formal).as_ref() == Some(&selected)
+                        })
+                    })
+                })
+            };
         let admitted = match &leaf.root {
             Root::Alternatives(origins) => origins.iter().all(|origin| {
                 let root = if origin.path.is_empty() {

@@ -199,7 +199,7 @@ impl Captures<'_> {
     ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
         let segments = self.facts.borrow.access_segments.span(loan.segments)?;
         if let Some(source) = self.return_origin(state, loan, leaf, segments) {
-            return Some(vec![source]);
+            return Some(source);
         }
         // Incoming stored descriptors have a separate opaque origin identity.
         // A root address alone cannot replace their exact owner-path relation.
@@ -250,9 +250,10 @@ impl Captures<'_> {
                 return None;
             }
             if referent.root == loan.root && captured_address_refines(segments, captured) {
-                let origin = self.return_origin(state, loan, leaf, captured)?;
-                if !output.contains(&origin) {
-                    output.push(origin);
+                for origin in self.return_origin(state, loan, leaf, captured)? {
+                    if !output.contains(&origin) {
+                        output.push(origin);
+                    }
                 }
             }
         }
@@ -318,7 +319,7 @@ impl Captures<'_> {
         loan: &checked_trees::BorrowReturnedLoanFact,
         leaf: &CheckedReferenceResultSourcePlan,
         segments: &[facts::PlaceSegment],
-    ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
         let incoming = if loan.incoming_reference.is_valid() {
             if !self
                 .facts
@@ -398,19 +399,24 @@ impl Captures<'_> {
         // structural projections; a window offset is not an array dimension.
         let mut segments = segments.to_vec();
         facts::compose_captured_view_segments(&mut segments)?;
-        let (suffix, selected) = self.structural_path(selected, &segments)?;
-        path.extend(suffix);
-        if self.program.normalized_type_identity(selected) != leaf.source.type_identity {
-            return None;
-        }
-        Some(CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(parameter_index).ok()?,
-            },
-            path,
-            type_identity: leaf.source.type_identity,
-            access: leaf.source.access,
-        })
+        let parameter_index = u32::try_from(parameter_index).ok()?;
+        super::origin_paths::fixed_backing_paths(self.program, selected, &segments)?
+            .into_iter()
+            .map(|segments| {
+                let (suffix, selected) = self.structural_path(selected, &segments)?;
+                if self.program.normalized_type_identity(selected) != leaf.source.type_identity {
+                    return None;
+                }
+                let mut path = path.clone();
+                path.extend(suffix);
+                Some(CheckedUnitStructuralArgumentPlan {
+                    source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+                    path,
+                    type_identity: leaf.source.type_identity,
+                    access: leaf.source.access,
+                })
+            })
+            .collect()
     }
 
     fn call_paths(

@@ -452,6 +452,10 @@ fail/borrows/direct_reference_array_range_narrowing rejected 857ms expected @a9a
 	machine `Main::read` state `read` local `observed` stores a value not provably within its declared range: the range is a store-enforced invariant every read trusts (indexes, exact arithmetic), so the stored value must be proven to honor it. Narrow the value with a dominating guard, a dependent bound, or a requires coupling -- or widen/remove the range
 fail/borrows/duplicate_retained_subject_arguments rejected 1702ms expected @a9ae30e1c334+wt
 	state `take` receives `main` as mutable more than once
+fail/borrows/dynamic_reference_result_holds_input_loan rejected 446ms expected @5e5835ccaddc+wt
+	statement 3 mutates `grid.cursor` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `grid.cursor` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `grid.cursor` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/evidence_bound_record_result_keeps_loan rejected 1543ms expected @a9ae30e1c334+wt
 	statement 3 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/fixed_array_slice_state_immutable_rejected rejected 805ms expected @a9ae30e1c334+wt
@@ -3870,6 +3874,7 @@ pass/borrows/runtime_direct_immutable_scalar_loan_exit checked 10347ms check-tar
 pass/borrows/runtime_discarded_reference_release_exit checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_disjoint_child_loans_restore_parent_exit checked 10390ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_fixed_byte_view_forwarding_exit checked 10292ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_forwarded_indexed_reference_exit checked 3820ms check-target:macos_arm64 @5e5835ccaddc+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 11194ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit checked 11052ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_forwarded_view_field_domain_exit checked 11335ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -3924,6 +3929,7 @@ pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 1
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 11224ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_returned_reference_array_restoration_exit checked 11147ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 11094ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_selected_indexed_reference_exit checked 3820ms check-target:macos_arm64 @5e5835ccaddc+wt
 pass/borrows/runtime_selected_reference_child_retirement_exit checked 11137ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_selected_reference_nested_restoration_exit checked 10335ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_selected_reference_record_helper_exit checked 13143ms check-target:macos_arm64 @a9ae30e1c334+wt

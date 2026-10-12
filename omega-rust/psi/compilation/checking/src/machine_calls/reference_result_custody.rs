@@ -29,6 +29,7 @@ pub use stored_carrier_sources::{StoredCarrierSource, stored_carrier_sources};
 mod call_reception;
 pub use call_reception::{RecordCallReception, record_call_reception};
 mod captured_returns;
+mod origin_paths;
 pub use captured_returns::returned_sources as captured_return_sources;
 
 // An owned formal has a compact type DAG but its returned-origin roster is
@@ -1074,17 +1075,78 @@ fn whole_reference_sources(
             .filter(|parameter| is_mutable_structural_parameter(program, parameter))
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == origin.root)?;
-        let mut selected = parameter.type_reference;
-        let mut borrowed = false;
-        let mut path = Vec::with_capacity(origin.segments.len() + 1);
-        if let Some((referee, parameter_access)) = stored_loan_parts(program, selected) {
-            if !reference_access_can_supply(parameter_access, access) {
-                return None;
+        for segments in
+            origin_paths::fixed_backing_paths(program, parameter.type_reference, &origin.segments)?
+        {
+            let mut selected = parameter.type_reference;
+            let mut borrowed = false;
+            let mut path = Vec::with_capacity(origin.segments.len() + 1);
+            if let Some((referee, parameter_access)) = stored_loan_parts(program, selected) {
+                if !reference_access_can_supply(parameter_access, access) {
+                    return None;
+                }
+                selected = referee;
+                borrowed = true;
             }
-            selected = referee;
-            borrowed = true;
-        }
-        for segment in &origin.segments {
+            for segment in &segments {
+                if let Some((referee, leaf_access)) = stored_loan_parts(program, selected) {
+                    if !reference_access_can_supply(leaf_access, access) {
+                        return None;
+                    }
+                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                    selected = referee;
+                    borrowed = true;
+                }
+                match segment {
+                    facts::PlaceSegment::Field { symbol } => {
+                        // The nominal lookup also peels reference shells. Every
+                        // crossing here must instead be admitted explicitly above
+                        // so an unsupported nested carrier cannot lose its access
+                        // check or its Referent step during field lookup.
+                        if crate::reference_shell(program, selected).is_some() {
+                            return None;
+                        }
+                        let data = nominal_member_owner_type(program, selected)?;
+                        let field =
+                            program
+                                .data_members(data)
+                                .iter()
+                                .find_map(|member| match member {
+                                    typed_trees::data::DataMember::Field(field)
+                                        if field.symbol == *symbol
+                                            && !field.relevance.is_erased() =>
+                                    {
+                                        Some(field)
+                                    }
+                                    _ => None,
+                                })?;
+                        path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                            checked_trees::CheckedMemberIdentity::of_member(
+                                field.identity,
+                                field.name.clone(),
+                            ),
+                        ));
+                        selected = field.type_reference;
+                    }
+                    facts::PlaceSegment::FixedIndex { index } => {
+                        selected = loop {
+                            match program.type_reference_table.type_reference(selected) {
+                                TypeReferenceNode::Constrained { base_type, .. } => {
+                                    selected = *base_type
+                                }
+                                TypeReferenceNode::FixedArray { element_type, .. } => {
+                                    break *element_type;
+                                }
+                                _ => return None,
+                            }
+                        };
+                        path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                            u64::try_from(*index).ok()?,
+                        ));
+                    }
+                    _ => return None,
+                }
+            }
             if let Some((referee, leaf_access)) = stored_loan_parts(program, selected) {
                 if !reference_access_can_supply(leaf_access, access) {
                     return None;
@@ -1093,81 +1155,31 @@ fn whole_reference_sources(
                 selected = referee;
                 borrowed = true;
             }
-            match segment {
-                facts::PlaceSegment::Field { symbol } => {
-                    // The nominal lookup also peels reference shells. Every
-                    // crossing here must instead be admitted explicitly above
-                    // so an unsupported nested carrier cannot lose its access
-                    // check or its Referent step during field lookup.
-                    if crate::reference_shell(program, selected).is_some() {
-                        return None;
-                    }
-                    let data = nominal_member_owner_type(program, selected)?;
-                    let field =
-                        program
-                            .data_members(data)
-                            .iter()
-                            .find_map(|member| match member {
-                                typed_trees::data::DataMember::Field(field)
-                                    if field.symbol == *symbol && !field.relevance.is_erased() =>
-                                {
-                                    Some(field)
-                                }
-                                _ => None,
-                            })?;
-                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            field.identity,
-                            field.name.clone(),
-                        ),
-                    ));
-                    selected = field.type_reference;
-                }
-                facts::PlaceSegment::FixedIndex { index } => {
-                    selected = loop {
-                        match program.type_reference_table.type_reference(selected) {
-                            TypeReferenceNode::Constrained { base_type, .. } => {
-                                selected = *base_type
-                            }
-                            TypeReferenceNode::FixedArray { element_type, .. } => {
-                                break *element_type;
-                            }
-                            _ => return None,
-                        }
-                    };
-                    path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                        u64::try_from(*index).ok()?,
-                    ));
-                }
-                _ => return None,
-            }
-        }
-        if let Some((referee, leaf_access)) = stored_loan_parts(program, selected) {
-            if !reference_access_can_supply(leaf_access, access) {
+            if !borrowed
+                || program.normalized_type_identity(selected)
+                    != program.normalized_type_identity(referent)
+            {
                 return None;
             }
-            path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
-            selected = referee;
-            borrowed = true;
+            let source = checked_trees::CheckedUnitStructuralArgumentPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: u32::try_from(parameter_index).ok()?,
+                },
+                path,
+                type_identity: program.normalized_type_identity(referent),
+                access,
+            };
+            let source = checked_trees::CheckedReferenceResultSourcePlan {
+                path: Vec::new(),
+                source,
+            };
+            if !sources.contains(&source) {
+                if sources.len() == MAX_REFERENCE_ORIGIN_LEAVES {
+                    return None;
+                }
+                sources.push(source);
+            }
         }
-        if !borrowed
-            || program.normalized_type_identity(selected)
-                != program.normalized_type_identity(referent)
-        {
-            return None;
-        }
-        let source = checked_trees::CheckedUnitStructuralArgumentPlan {
-            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(parameter_index).ok()?,
-            },
-            path,
-            type_identity: program.normalized_type_identity(referent),
-            access,
-        };
-        sources.push(checked_trees::CheckedReferenceResultSourcePlan {
-            path: Vec::new(),
-            source,
-        });
     }
     Some(sources)
 }
