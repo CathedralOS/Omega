@@ -2566,22 +2566,30 @@ crash and native exit behavior.
     result-origin identity, so shared `&` operands never acquire receiver
     custody and unselected same-lifetime inputs stay writable.
     `view_subslice` admits `&mut` views over immutable owned locals as
-    collection storage, and the view-descriptor edge gate accepts backing
-    storage proved by `storage_backs_view_parameter`. Every named control
+    collection storage, the view-descriptor edge gate accepts backing
+    storage proved by `storage_backs_view_parameter`, and
+    `lends_collection` spells a range initializer's lent place through the
+    same in-state canonicalization the borrow ledger uses, so a
+    whole-collection window (`coll[0..N]` over the declared extent) matches
+    its backing loan instead of falling through to the scalar route;
+    element-spelling view lets on receiver fields lower natively
+    (`runtime_boundary_receiver_disjoint_loan_exit` holds 70).
+    Every named control
     below holds its authored exit natively and
     `samples/cli/systems/descriptor_walk` returns 50 in both engines after
     `omega update` local review.
+    The current-occurrence refill and leaf-only retirement controls
+    (whole-local refill installs a new carrier without reviving the consumed
+    one; consumed-source RHS, partial-child refill and early-new-backing
+    write reject; receiving-holder correspondence across replacement,
+    copied suppliers and anonymous complements; nested borrowed call
+    results keep receiving leaf groups) hold their authored oracles on
+    this base.
     Remaining: runtime-indexed shared constrained-field reads still require
     cross-host execution coverage
     under **PLACED-ACCESS-NATIVE-OPS**; preserve the
-    [unchanged authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md).
-    The current-occurrence refill and leaf-only retirement conditions
-    (whole-local refill installs a new carrier without reviving the consumed
-    one; consumed-source RHS, partial-child refill and early-new-backing write
-    must reject; receiving-holder correspondence across replacement, copied
-    suppliers and anonymous complements; nested borrowed call results keep
-    receiving leaf groups) stay as frontier until their controls are
-    re-exercised on this base, and the whole item needs Ubuntu and Windows
+    [unchanged authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md),
+    and the whole item needs Ubuntu and Windows
     host coverage before deletion.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
