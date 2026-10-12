@@ -114,14 +114,30 @@ pub fn exact_data_member_field<'program>(
         return fields.next().is_none().then_some(field);
     }
 
-    let mut fields = program.data_members(data).iter().filter_map(|member| {
-        let field = member.as_field()?;
-        (field.name.as_str() == member_name
-            && (!member_symbol.is_valid() || field.symbol == member_symbol)
-            && field.symbol.is_valid()
-            && field.type_reference.is_valid())
-        .then_some(field)
-    });
-    let field = fields.next()?;
-    fields.next().is_none().then_some(field)
+    // An authored payload read can omit its case qualifier when ordinary
+    // checking establishes membership. Recover its declaration, not that
+    // membership: a retained selector must match exactly, and an unresolved
+    // selector must identify one field under this receiver. Repeated payload
+    // names cannot choose a case by declaration order.
+    let mut selected = None;
+    for member in program.data_members(data) {
+        let fields = match member {
+            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+            typed_trees::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
+        };
+        for field in fields {
+            if field.name.as_str() != member_name
+                || (member_symbol.is_valid() && field.symbol != member_symbol)
+                || !field.symbol.is_valid()
+                || !field.type_reference.is_valid()
+            {
+                continue;
+            }
+            if selected.is_some() {
+                return None;
+            }
+            selected = Some(field);
+        }
+    }
+    selected
 }

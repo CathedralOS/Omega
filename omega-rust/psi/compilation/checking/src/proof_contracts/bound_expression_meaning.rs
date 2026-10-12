@@ -271,7 +271,7 @@ pub(super) fn builtin_boolean_equality(
 /// lookalike, or more than one matching candidate all fail closed and leave
 /// the builtin-meaning gate authoritative. This grants only the comparison
 /// relation; the float fact readers still owe their own operand checks.
-pub(crate) fn sealed_float_comparison(
+pub fn sealed_float_comparison(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,

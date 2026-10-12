@@ -563,14 +563,21 @@ fn pure_guard_or_calls(
             inert(member.receiver)
         }
         ExpressionNode::Binary(binary) => {
-            // An authored operator application can hide a write the
-            // direct-store frame does not see; only a builtin spelling is inert.
-            validation::has_builtin_binary_expression_meaning(
+            // Only builtin operations and exact sealed IEEE comparisons
+            // establish inert evaluation here. Arbitrary selected operators
+            // can hide writes; admitting a float guard grants no integer fact.
+            (validation::has_builtin_binary_expression_meaning(
                 program,
                 machine,
                 Some(state),
                 expression,
-            ) && inert(binary.left)
+            ) || validation::sealed_float_comparison(
+                program,
+                machine,
+                Some(state),
+                expression,
+                binary,
+            )) && inert(binary.left)
                 && inert(binary.right)
         }
         ExpressionNode::Borrow(borrow) => {

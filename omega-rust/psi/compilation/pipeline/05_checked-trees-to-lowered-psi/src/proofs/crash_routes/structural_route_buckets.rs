@@ -13,7 +13,7 @@ use crate::proofs::{
     CanonicalStructuralPathSegment, CheckedBooleanExpression, CheckedScalarExpression,
     IeeeFloatFormat, LoweringError, PlaceId, PrimitiveType, Proposition, ScalarTerm, ScalarType,
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalCrashCause, ValueDeclaration, integer_scalar_type, unsupported,
+    TerminalCrashCause, ValueDeclaration, unsupported,
 };
 
 pub(crate) fn lower_structural_crash_route_buckets(
@@ -93,6 +93,37 @@ pub(crate) fn lower_structural_crash_route_buckets(
         .collect()
 }
 
+/// Site guards and published routes observe the same invocation namespace.
+/// A later state's current parameters are not the values captured by its
+/// machine's published predicate.
+pub(crate) fn lower_structural_crash_predicates(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    predicates: &[CheckedBooleanExpression],
+    scalar_parameters: &[ValueDeclaration],
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+    runtime_requirements: &[Proposition],
+) -> Result<Vec<terminal_psi::CrashPredicateTerm>, LoweringError> {
+    let terms = RouteTerms {
+        scalar_parameters,
+        parameters,
+        structural_types,
+        runtime_requirements,
+    };
+    let mut lowered = predicates
+        .iter()
+        .map(|predicate| {
+            let mut remaining = boolean_input_budget(predicate)?;
+            terms
+                .lower_proposition(identities, predicate, &mut remaining, 0)
+                .map(terminal_psi::CrashPredicateTerm::new)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    lowered.sort();
+    lowered.dedup();
+    Ok(lowered)
+}
+
 /// The four rosters every structural crash-route term resolves against.
 struct RouteTerms<'a> {
     scalar_parameters: &'a [ValueDeclaration],
@@ -139,8 +170,8 @@ impl RouteTerms<'_> {
                 unsupported("mathematical comparison is a proof proposition, not a scalar term")
             }
             CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
-                let left = self.lower_integer_term(identities, left)?;
-                let right = self.lower_integer_term(identities, right)?;
+                let left = self.lower_scalar_term(identities, left)?;
+                let right = self.lower_scalar_term(identities, right)?;
                 let Some(integer_type) = left.scalar_type().as_integer() else {
                     return unsupported("structural crash comparison operand is not an integer");
                 };
@@ -174,7 +205,7 @@ impl RouteTerms<'_> {
         }
     }
 
-    fn lower_integer_term(
+    fn lower_scalar_term(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedScalarExpression,
@@ -196,22 +227,14 @@ impl RouteTerms<'_> {
                     parameter_position,
                     path,
                     primitive_type,
-                } => {
-                    let Some(integer_type) = integer_scalar_type(*primitive_type)?.as_integer()
-                    else {
-                        return unsupported(
-                            "structural crash integer member has a non-integer type",
-                        );
-                    };
-                    lower_structural_member_term(
-                        identities,
-                        *parameter_position,
-                        path,
-                        ScalarType::Integer(integer_type),
-                        self.parameters,
-                        self.structural_types,
-                    )
-                }
+                } => lower_structural_member_term(
+                    identities,
+                    *parameter_position,
+                    path,
+                    crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
+                    self.parameters,
+                    self.structural_types,
+                ),
                 _ => unsupported(
                     "structural crash integer predicate contains an unsupported operand",
                 ),
@@ -275,20 +298,16 @@ impl RouteTerms<'_> {
         remaining: &mut usize,
         depth: usize,
     ) -> Result<Proposition, LoweringError> {
-        if matches!(
-            expression,
-            CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
-        ) {
-            return super::crash_predicates::checked_boolean_atom_polarity(
-                identities,
-                expression,
-                self.scalar_parameters,
-                positive,
-                remaining,
-                depth,
+        charge_boolean_expansion(remaining, depth)?;
+        if let CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } =
+            expression
+        {
+            return crate::proofs::contract_predicates::ieee_float_proposition(
+                if positive { *kind } else { kind.negated() },
+                self.lower_scalar_term(identities, left)?,
+                self.lower_scalar_term(identities, right)?,
             );
         }
-        charge_boolean_expansion(remaining, depth)?;
         if positive || contains_structural_atomic_proposition(expression) {
             let proposition =
                 self.lower_proposition(identities, expression, remaining, depth + 1)?;
@@ -316,22 +335,23 @@ impl RouteTerms<'_> {
         remaining: &mut usize,
         depth: usize,
     ) -> Result<Proposition, LoweringError> {
-        // Scalar IEEE atoms keep the scalar owner's negation and NaN policy,
-        // including when another formal or conjunct observes structural storage.
-        // Share the guard's expansion budget rather than restarting it here.
+        // IEEE negation includes unordered inputs. Resolve every operand in
+        // this route's scalar/structural namespace, then share the comparison
+        // meaning with other contracts instead of delegating field leaves to
+        // the scalar-only crash reader.
         if matches!(
             expression,
             CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
-        ) || matches!(expression, CheckedBooleanExpression::Not(operand)
-                if matches!(operand.as_ref(), CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }))
+        ) {
+            return self.lower_atom_polarity(identities, expression, true, remaining, depth);
+        }
+        if let CheckedBooleanExpression::Not(operand) = expression
+            && matches!(
+                operand.as_ref(),
+                CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
+            )
         {
-            return super::crash_predicates::checked_boolean_proposition_with_budget(
-                identities,
-                expression,
-                self.scalar_parameters,
-                remaining,
-                depth,
-            );
+            return self.lower_atom_polarity(identities, operand, false, remaining, depth);
         }
         charge_boolean_expansion(remaining, depth)?;
         // Existing atomic denotations, including proposition-only negation,
@@ -707,6 +727,20 @@ pub(crate) fn substitute_structural_crash_route_roots(
             Proposition::Equal(left, right) => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
+            }
+            Proposition::ScalarIeeeFloatComparison {
+                kind, left, right, ..
+            } => {
+                substitute_term(left, substitutions)?;
+                substitute_term(right, substitutions)?;
+                if matches!(
+                    kind,
+                    semantic_vocabulary::IeeeFloatComparisonKind::Equal
+                        | semantic_vocabulary::IeeeFloatComparisonKind::NotEqual
+                ) && right < left
+                {
+                    std::mem::swap(left, right);
+                }
             }
             Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
                 for proposition in propositions.iter_mut() {

@@ -82,9 +82,7 @@ fn expression_type_reference_in_state(
             statement_index,
             member.receiver,
         )
-        .and_then(|receiver| {
-            field_type_reference(program, receiver, member.member_symbol, &member.member)
-        })
+        .and_then(|receiver| field_type_reference(program, receiver, member))
         .or_else(|| data_binding_field_type_reference(program, state_symbol, member)),
         ExpressionNode::Indexed(_) => program
             .machine_holding_state(state_symbol)
@@ -335,25 +333,39 @@ fn data_binding_field_type_reference(
     }
 
     let data = program.data_definition_by_symbol(machine.attached_data_symbol)?;
-    program.data_members(data).iter().find_map(|data_member| {
-        let field = data_member.as_field()?;
-        ((member.member_symbol.is_valid() && field.symbol == member.member_symbol)
-            || field.name == member.member)
-            .then_some(field.type_reference)
-    })
+    data_field_type_reference(program, data, member)
 }
 
 fn field_type_reference(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
-    field_symbol: SymbolHandle,
-    field_name: &typed_trees::name::Identifier,
+    member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<TypeReferenceHandle> {
+    // A prepared application owns substituted field types. Retained template
+    // selectors translate only through that exact receiver's correspondence;
+    // another instance or a same-named declaration cannot replace them.
+    if let Some(data) = program.closed_data_definition(type_reference) {
+        let selected = if member.member_symbol.is_valid() {
+            program
+                .closed_data_constructor_field(type_reference, data.symbol, member.member_symbol)?
+                .symbol
+        } else {
+            member.member_symbol
+        };
+        return crate::value_custody::places::exact_data_member_field(
+            program,
+            data,
+            selected,
+            member.member.as_str(),
+            member.case_variant.as_ref().map(|variant| variant.as_str()),
+        )
+        .map(|field| field.type_reference);
+    }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..
-        } => field_type_reference(program, *referee, field_symbol, field_name),
+        } => field_type_reference(program, *referee, member),
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,
@@ -365,7 +377,7 @@ fn field_type_reference(
                 *base_symbol,
                 base_name,
             )?;
-            let field = data_field_type_reference(program, data, field_symbol, field_name)?;
+            let field = data_field_type_reference(program, data, member)?;
             let parameters = program.data_type_parameters(data);
             let arguments = program
                 .type_reference_table
@@ -397,7 +409,7 @@ fn field_type_reference(
             .find(|data| {
                 (base_symbol.is_valid() && data.symbol == *base_symbol) || data.name == *base_name
             })
-            .and_then(|data| data_field_type_reference(program, data, field_symbol, field_name)),
+            .and_then(|data| data_field_type_reference(program, data, member)),
         TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::DynamicTrait { .. }
@@ -409,13 +421,14 @@ fn field_type_reference(
 fn data_field_type_reference(
     program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
-    field_symbol: SymbolHandle,
-    field_name: &typed_trees::name::Identifier,
+    member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<TypeReferenceHandle> {
-    let field = if field_symbol.is_valid() {
-        program.data_field(data, field_symbol)
-    } else {
-        program.data_field_named(data, field_name.as_str())
-    };
-    field.map(|field| field.type_reference)
+    crate::value_custody::places::exact_data_member_field(
+        program,
+        data,
+        member.member_symbol,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|variant| variant.as_str()),
+    )
+    .map(|field| field.type_reference)
 }

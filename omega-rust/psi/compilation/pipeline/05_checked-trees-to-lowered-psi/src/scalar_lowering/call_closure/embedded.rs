@@ -7,6 +7,7 @@ mod discovery;
 pub(crate) use discovery::checked_scalar_call_closure_with_structural_roots;
 
 pub(crate) struct EmbeddedScalarCalls {
+    terminal_machine: MachineId,
     signatures: Vec<crate::unit::attached_unit::signatures::MachineSignature>,
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
     domain_ids: Vec<crate::terminal_identities::StructuralDomainBinding>,
@@ -27,11 +28,13 @@ pub(crate) struct EmbeddedScalarCalls {
 
 impl EmbeddedScalarCalls {
     pub(crate) fn from_shared(
+        terminal_machine: MachineId,
         machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
         requirement_counts: Vec<(symbols::SymbolHandle, usize)>,
         next_call_obligation: u64,
     ) -> Self {
         Self {
+            terminal_machine,
             signatures: Vec::new(),
             structural_types: Vec::new(),
             domain_ids: Vec::new(),
@@ -64,6 +67,7 @@ impl EmbeddedScalarCalls {
 
     pub(crate) fn emission_context(&self) -> CallEmissionContext<'_> {
         CallEmissionContext {
+            terminal_machine: self.terminal_machine,
             domain_ids: &self.domain_ids,
             claims: crate::emission::claim_bindings::ClaimBindings::Fixed(
                 crate::emission::claim_bindings::PublishedClaims {

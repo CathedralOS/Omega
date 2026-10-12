@@ -29,6 +29,7 @@
 //! `receiver.Case::field` — same-named payload fields of different cases stay
 //! distinct. This is source provenance, not a Terminal certificate.
 
+use super::crash_calls::{field_entry_name, member_entry_name};
 use checked_trees::CrashPredicateExpression;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
@@ -463,37 +464,6 @@ fn member_hop_path(
     }
     path.push(PlaceSegment::Field(symbol));
     Some((symbol, path))
-}
-
-/// The member name a produced entry operand carries. A case payload field
-/// keeps its `Variant::field` qualification — the retained `case_variant`
-/// spelling when present, else the field's declaring variant — so two
-/// same-named payload fields of different cases cannot collide in the caller
-/// namespace.
-fn member_entry_name(
-    program: &dyn ::validation::CheckingInput,
-    member: &typed_trees::expression::TableMemberExpression,
-    field_symbol: SymbolHandle,
-) -> String {
-    field_entry_name(
-        program,
-        field_symbol,
-        member.member.as_str(),
-        member.case_variant.as_ref().map(|case| case.as_str()),
-    )
-}
-
-fn field_entry_name(
-    program: &dyn ::validation::CheckingInput,
-    field_symbol: SymbolHandle,
-    field_name: &str,
-    authored_case: Option<&str>,
-) -> String {
-    let Some(variant) = facts::payload_variant_for_field(program, field_symbol) else {
-        return field_name.to_owned();
-    };
-    let case = authored_case.unwrap_or_else(|| program.symbols.name(variant));
-    format!("{case}::{field_name}")
 }
 
 /// The `PlaceSegment` projection `members` spells below a formal's declared

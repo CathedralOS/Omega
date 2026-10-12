@@ -1,6 +1,6 @@
 //! Entry-parameter predicates that read structural parameters: Boolean
-//! fields, case membership, structural equality, IEEE field equality, and
-//! integer comparisons whose operands read structural fields. Structural
+//! fields, case membership, structural equality, and numeric comparisons
+//! whose operands read structural fields. Structural
 //! places keep authored parameter positions; scalar parameters use the dense
 //! scalar namespace.
 
@@ -11,8 +11,7 @@ use crate::values::scalar::expression_facts::{operator_is_builtin, scalar_expres
 use crate::values::scalar::scalar_lowering::lower_scalar_operands;
 use crate::values::scalar::structural_fields::{structural_data, structural_parameter_field_path};
 use checked_trees::{
-    CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedOperatorFacts,
-    CheckedStructuralParameterField,
+    CheckedBooleanExpression, CheckedOperatorFacts, CheckedStructuralParameterField,
 };
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
@@ -119,32 +118,7 @@ pub(crate) fn lower(
         ExpressionNode::Binary(binary)
             if binary.operator.is_comparison() && operator_is_builtin(operators, expression) =>
         {
-            if matches!(
-                binary.operator,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) && let Some((primitive_type, left)) =
-                lower_structural_float_field(program, parameters, binary.left)
-                && let Some((right_type, right)) =
-                    lower_structural_float_field(program, parameters, binary.right)
-                && primitive_type == right_type
-            {
-                let (mut left, mut right) = (left, right);
-                if left > right {
-                    std::mem::swap(&mut left, &mut right);
-                }
-                let comparison = CheckedBooleanExpression::IeeeFloatComparison {
-                    kind: if binary.operator == BinaryOperator::Equal {
-                        CheckedIeeeFloatComparisonKind::Equal
-                    } else {
-                        CheckedIeeeFloatComparisonKind::NotEqual
-                    },
-                    primitive_type,
-                    left,
-                    right,
-                };
-                return Some(comparison);
-            }
-            let integer_comparison = (|| {
+            let numeric_comparison = (|| {
                 // Structural reads and scalar operations share operand landing
                 // and arithmetic policy. Keep the dense scalar roster separate
                 // from authored structural positions; entry admission and
@@ -175,14 +149,33 @@ pub(crate) fn lower(
                 {
                     return None;
                 }
+                if matches!(
+                    scalar_expression_type(&left),
+                    Some(PrimitiveType::F32 | PrimitiveType::F64)
+                ) {
+                    let references = [binary.left, binary.right].map(|operand| {
+                        validation::parameter_expression_result_type_reference(
+                            program,
+                            machine.symbol,
+                            parameters,
+                            operand,
+                        )
+                    });
+                    return crate::values::scalar::result_contract::lower_float_contract_comparison(
+                        program,
+                        machine.symbol,
+                        expression,
+                        [Some((left, references[0]?)), Some((right, references[1]?))],
+                    );
+                }
                 construct_integer_comparison(binary.operator, left, right)
             })();
             if !matches!(
                 binary.operator,
                 BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) || integer_comparison.is_some()
+            ) || numeric_comparison.is_some()
             {
-                return integer_comparison;
+                return numeric_comparison;
             }
             let equality = CheckedBooleanExpression::Equal {
                 left: Box::new(lower(program, machine, operators, parameters, binary.left)?),
@@ -220,27 +213,6 @@ pub(crate) fn lower(
         }
         _ => None,
     }
-}
-
-fn lower_structural_float_field(
-    program: &dyn ::validation::CheckingInput,
-    parameters: &[StateParameter],
-    expression: ExpressionHandle,
-) -> Option<(PrimitiveType, CheckedStructuralParameterField)> {
-    let mut path = Vec::new();
-    let parameter_position =
-        structural_parameter_field_path(program, parameters, expression, &mut path)?;
-    if path.is_empty() {
-        return None;
-    }
-    let primitive_type = path_primitive_type(program, parameters, parameter_position, &path)?;
-    matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64).then_some((
-        primitive_type,
-        CheckedStructuralParameterField {
-            parameter_position,
-            path,
-        },
-    ))
 }
 
 fn lower_structural_case_membership(

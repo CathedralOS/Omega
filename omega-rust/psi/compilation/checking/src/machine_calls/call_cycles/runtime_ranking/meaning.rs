@@ -1,11 +1,12 @@
 //! The early validator may use intrinsic arithmetic only when the existing
 //! operator owner rules out authored and selected-trait interpretations.
+//! Sealed IEEE comparisons are also inert, without becoming integer arithmetic.
 
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableBinaryExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
-pub(super) fn binary_is_builtin(
+pub(super) fn binary_is_inert(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -41,5 +42,11 @@ pub(super) fn binary_is_builtin(
         expression,
         spelling,
         &operand_types,
+    ) || crate::proof_contracts::bound_expression_meaning::sealed_float_comparison(
+        program,
+        machine,
+        Some(state),
+        expression,
+        binary,
     )
 }

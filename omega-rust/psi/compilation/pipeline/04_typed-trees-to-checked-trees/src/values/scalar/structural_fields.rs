@@ -396,8 +396,96 @@ pub(crate) fn resolve_structural_parameter_path(
         parameter.type_reference,
         parameter.is_mutable,
         path,
+        &mut |_, _| Some(()),
     )?;
     Some((parameter.symbol, segments, selected_type, frozen))
+}
+
+/// Admit total entry observations through the ordinary declaration walk.
+/// Geometry alone can peel references or select a view element; an entry
+/// predicate must retain readable root custody and cannot hide dereferences or
+/// a dynamic bounds obligation inside its static path. Case validity remains
+/// the ordinary contract checker's obligation.
+pub(crate) fn readable_entry_parameter_path(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[StateParameter],
+    position: u32,
+    path: &[CheckedStructuralPredicatePathSegment],
+    remaining: &mut usize,
+) -> Option<TypeReferenceHandle> {
+    let parameter = parameters.get(usize::try_from(position).ok()?)?;
+    if parameter.is_const || parameter.relevance.is_erased() || path.len() >= 64 {
+        return None;
+    }
+    let mut at_root = true;
+    let (_, selected_type, _) = resolve_structural_path(
+        program,
+        parameter.type_reference,
+        parameter.is_mutable,
+        path,
+        &mut |mut receiver, segment| {
+            for _ in 0..64 {
+                *remaining = remaining.checked_sub(1)?;
+                if !program
+                    .type_reference_table
+                    .contains_type_reference(receiver)
+                {
+                    return None;
+                }
+                match program.type_reference_table.type_reference(receiver) {
+                    TypeReferenceNode::Constrained { base_type, .. } => receiver = *base_type,
+                    TypeReferenceNode::Reference {
+                        referee, access, ..
+                    } if at_root && *access != language_core::ReferenceAccess::WriteOnly => {
+                        receiver = *referee
+                    }
+                    TypeReferenceNode::Reference { .. } => return None,
+                    node => {
+                        if matches!(
+                            segment,
+                            Some(CheckedStructuralPredicatePathSegment::FixedIndex(_))
+                        ) && !matches!(
+                            node,
+                            TypeReferenceNode::FixedArray {
+                                length: typed_trees::types::FixedArrayLength::Literal(_),
+                                ..
+                            }
+                        ) {
+                            return None;
+                        }
+                        if matches!(
+                            segment,
+                            Some(
+                                CheckedStructuralPredicatePathSegment::Field(_)
+                                    | CheckedStructuralPredicatePathSegment::Case(_)
+                            )
+                        ) {
+                            // A concrete declaration must own these members;
+                            // open generic templates supply no executable shape.
+                            let definition = program.closed_data_definition(receiver)?;
+                            if program.symbols.get(definition.symbol).kind
+                                != symbols::SymbolKind::Data
+                            {
+                                return None;
+                            }
+                        }
+                        if matches!(
+                            segment,
+                            Some(
+                                CheckedStructuralPredicatePathSegment::Field(_)
+                                    | CheckedStructuralPredicatePathSegment::FixedIndex(_)
+                            )
+                        ) {
+                            at_root = false;
+                        }
+                        return Some(());
+                    }
+                }
+            }
+            None
+        },
+    )?;
+    Some(selected_type)
 }
 
 /// Resolve each projection against the declaration reached by its predecessor,
@@ -408,12 +496,17 @@ fn resolve_structural_path(
     declared_type: TypeReferenceHandle,
     is_mutable: bool,
     path: &[CheckedStructuralPredicatePathSegment],
+    observe_receiver: &mut impl FnMut(
+        TypeReferenceHandle,
+        Option<&CheckedStructuralPredicatePathSegment>,
+    ) -> Option<()>,
 ) -> Option<(Vec<facts::PlaceSegment>, TypeReferenceHandle, bool)> {
     let mut receiver = declared_type;
     let mut frozen = !is_mutable && !exclusive_reference(program, receiver);
     let mut segments = Vec::new();
     let mut selected_case = None;
     for segment in path {
+        observe_receiver(receiver, Some(segment))?;
         match segment {
             CheckedStructuralPredicatePathSegment::FixedIndex(element_index) => {
                 if selected_case.is_some() {
@@ -483,6 +576,7 @@ fn resolve_structural_path(
             frozen = false;
         }
     }
+    observe_receiver(receiver, None)?;
     selected_case
         .is_none()
         .then_some((segments, receiver, frozen))
@@ -854,7 +948,9 @@ pub(crate) fn structural_storage_place(
         });
     }
     let (segments, type_reference, _) =
-        resolve_structural_path(program, declared_type, is_mutable, &path)?;
+        resolve_structural_path(program, declared_type, is_mutable, &path, &mut |_, _| {
+            Some(())
+        })?;
     if segments != place.segments {
         return None;
     }

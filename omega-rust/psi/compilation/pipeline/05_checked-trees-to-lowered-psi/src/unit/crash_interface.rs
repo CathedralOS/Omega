@@ -112,7 +112,7 @@ fn contribute(
 
 /// Whether a checked Boolean guard can be written over the machine's contract
 /// parameters. Scalar parameter positions and structural parameter paths are
-/// contract terms; body locals, mutable storage reads, literal floats, and
+/// contract terms; body locals, mutable storage reads, and
 /// runtime-policy casts have no contract namespace, so their cause widens to
 /// the unconditional route instead of lowering a partial contract.
 fn contract_scoped(expression: &CheckedBooleanExpression) -> bool {
@@ -162,14 +162,14 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
     match expression {
         CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::Local { .. }
-        | CheckedScalarExpression::IeeeFloatLiteral { .. }
         | CheckedScalarExpression::ImplementationSelection { .. }
         | CheckedScalarExpression::RepresentationView { .. } => false,
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::ErasedParameter { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
-        | CheckedScalarExpression::IntegerLiteral { .. } => true,
+        | CheckedScalarExpression::IntegerLiteral { .. }
+        | CheckedScalarExpression::IeeeFloatLiteral { .. } => true,
         CheckedScalarExpression::StructuralParameterIndexedRead {
             index,
             element_path,

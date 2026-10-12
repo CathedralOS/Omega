@@ -51,6 +51,7 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     entry_reentered: bool,
     state_ids: Vec<BlockId>,
     state_views: Vec<Vec<StructuralParameterDeclaration>>,
+    state_contract_rosters: &'a [Vec<(u32, StructuralParameterDeclaration)>],
     state_values: Vec<Vec<ValueDeclaration>>,
     /// Each emitted state's erased-formal roster: the machine contract
     /// formals for a plain entry, fresh block-level declarations otherwise.
@@ -559,6 +560,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         entry_reentered,
         state_ids,
         state_views,
+        state_contract_rosters: &state_contract_rosters,
         state_values,
         state_erased,
         state_erased_proof,
@@ -888,11 +890,29 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &mut machine.blocks,
         &catalogs.structural_types,
     )?;
-    machine.contract.crash_routes = lower_checked_crash_route_buckets(
-        identities,
-        &catalogs.root_crash_routes,
-        &machine.parameters,
-    )?;
+    // Crash ceilings live in the invocation signature, independent of the
+    // state's block-local value roster. Predicate parameters retain authored
+    // structural positions and scalar formals retain their dense coordinates.
+    // Publishing the graph must use that complete namespace just as ordinary
+    // machine emission does.
+    let signature =
+        crate::unit::attached_unit::signatures::find(&catalogs.signatures, plan.machine)?;
+    machine.contract.crash_routes = if signature.predicate_parameters.is_empty() {
+        lower_checked_crash_route_buckets(
+            identities,
+            &catalogs.root_crash_routes,
+            &signature.scalar_parameters,
+        )?
+    } else {
+        crate::proofs::crash_routes::lower_structural_crash_route_buckets(
+            identities,
+            &catalogs.root_crash_routes,
+            &signature.scalar_parameters,
+            &signature.predicate_parameters,
+            &catalogs.structural_types,
+            &signature.runtime_requirements,
+        )?
+    };
     ranking::retain(&mut machine, &block_ranks, &rank_edges)?;
     Ok((
         machine,

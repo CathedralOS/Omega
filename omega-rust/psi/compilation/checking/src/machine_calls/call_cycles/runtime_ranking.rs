@@ -344,7 +344,7 @@ pub(super) fn project_component(
                         guard
                     }
                     TransitionGuardNode::When(_) => {
-                        return Err("a guard has effects or non-builtin operator meaning");
+                        return Err("a guard has effects or unproven operator meaning");
                     }
                 };
                 let mut site_guards = guards.clone();
@@ -764,7 +764,7 @@ fn expression_is_inert_or_calls(
         typed_trees::literal_expression_pattern!() => true,
         ExpressionNode::Member(member) => inert(member.receiver),
         ExpressionNode::Binary(binary) => {
-            meaning::binary_is_builtin(program, machine, state, expression, binary)
+            meaning::binary_is_inert(program, machine, state, expression, binary)
                 && inert(binary.left)
                 && inert(binary.right)
         }

@@ -21,7 +21,7 @@ use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::{CollectionLengthObservations, OperationBuffer};
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
-use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_checked_crash_predicates};
+use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_structural_crash_predicates};
 
 impl StateGraphEmission<'_, '_> {
     /// Standalone and selected crash exits share the exact authored crash site.
@@ -44,13 +44,87 @@ impl StateGraphEmission<'_, '_> {
         Ok(Terminator::Crash {
             edge: edge_id(allocate_dense(next_edge)?),
             cause: crash.cause,
-            site_guard: lower_checked_crash_predicates(
-                identities,
-                &crash.site_guard,
-                &self.state_values[position],
-            )?,
+            site_guard: self.crash_site_guards(identities, position, &crash.site_guard)?,
             frontier_lower_bound: crash.frontier_lower_bound,
         })
+    }
+
+    fn crash_site_guards(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        position: usize,
+        predicates: &[checked_trees::CheckedBooleanExpression],
+    ) -> Result<Vec<terminal_psi::CrashPredicateTerm>, LoweringError> {
+        if predicates.is_empty() {
+            return Ok(Vec::new());
+        }
+        let owner = self.admitted.authored[position].0;
+        if owner.symbol == self.plan.machine {
+            let signature = crate::unit::attached_unit::signatures::find(
+                &self.catalogs.signatures,
+                owner.symbol,
+            )?;
+            return lower_structural_crash_predicates(
+                identities,
+                predicates,
+                &signature.scalar_parameters,
+                &signature.predicate_parameters,
+                &self.catalogs.structural_types,
+                &signature.runtime_requirements,
+            );
+        }
+
+        // A fused owner has no separate machine formals. Its exact entry block
+        // supplies the invocation actuals; ordinary Terminal dominance and
+        // guard checking must still prove their availability at this exit.
+        // Keep the immutable contract roster: sealing a state drains its views.
+        let entry =
+            self.checked
+                .machine_states(owner)
+                .first()
+                .ok_or(LoweringError::Unsupported(
+                    "fused crash owner has no invocation entry",
+                ))?;
+        let entry_position = self
+            .admitted
+            .authored
+            .iter()
+            .position(|(candidate, state)| {
+                candidate.symbol == owner.symbol && state.symbol == entry.symbol
+            })
+            .filter(|position| self.admitted.live[*position])
+            .ok_or(LoweringError::Unsupported(
+                "fused crash predicate has no live invocation entry namespace",
+            ))?;
+        let actual_values = &self.state_values[entry_position];
+        let actual_places = self.state_contract_rosters[entry_position]
+            .iter()
+            .map(|(position, declaration)| {
+                let mut parameter = declaration.clone();
+                parameter.position = *position;
+                parameter
+            })
+            .collect::<Vec<_>>();
+        // Fused edges need not allocate a standalone callee signature. Lower
+        // premises and guards directly into the retained entry-block roster,
+        // so no declaration-local value or place leaks into the graph.
+        let requirements = crate::unit::attached_unit::entry_requirements::lower(
+            identities,
+            self.checked,
+            owner.symbol,
+            actual_values,
+            &self.state_erased[entry_position],
+            &actual_places,
+            &self.catalogs.structural_types,
+        )?;
+        lower_structural_crash_predicates(
+            identities,
+            predicates,
+            actual_values,
+            &actual_places,
+            &self.catalogs.structural_types,
+            &requirements.runtime_requirements,
+        )
     }
 
     /// Emit the state at `position` in authored order.

@@ -10,23 +10,6 @@ use crate::proofs::{
 };
 use checked_trees::CheckedIeeeFloatComparisonKind;
 
-pub(crate) fn lower_checked_crash_predicates(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    predicates: &[CheckedBooleanExpression],
-    values: &[ValueDeclaration],
-) -> Result<Vec<terminal_psi::CrashPredicateTerm>, LoweringError> {
-    let mut predicates = predicates
-        .iter()
-        .map(|predicate| {
-            checked_boolean_proposition(identities, predicate, values)
-                .map(terminal_psi::CrashPredicateTerm::new)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    predicates.sort();
-    predicates.dedup();
-    Ok(predicates)
-}
-
 pub(crate) fn flatten_checked_boolean_connective<'expression>(
     expression: &'expression CheckedBooleanExpression,
     conjunction: bool,

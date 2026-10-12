@@ -68,6 +68,7 @@ pub(in crate::unit::attached_unit) fn emit(
     ),
     LoweringError,
 > {
+    let identity = lookup_machine_id(shared.machine_ids, plan.machine)?;
     let mut catalogs = catalogs::ComposedCatalogs {
         cleanup_control: &checked.facts.flow.terminal_unit_effects.cleanup_control,
         temporary_places: Vec::new(),
@@ -82,6 +83,7 @@ pub(in crate::unit::attached_unit) fn emit(
         prepared_scalar_qualifications: Some(shared.prepared_scalar_qualifications),
         service_ids: Cow::Borrowed(shared.service_ids),
         scalar_calls: scalar_calls::ComposedScalarCalls::from_shared(
+            identity,
             shared.machine_ids.to_vec(),
             shared.scalar_requirement_counts.to_vec(),
             *counters.call_obligation,
@@ -108,7 +110,6 @@ pub(in crate::unit::attached_unit) fn emit(
         next_operation: *counters.operation,
         next_edge: *counters.edge,
     };
-    let identity = lookup_machine_id(shared.machine_ids, plan.machine)?;
     // The signature's erased formals are the single namespace the published
     // contract's `requires` and erased call lanes both cite; the emitted
     // contract reuses them rather than minting parallel declarations.

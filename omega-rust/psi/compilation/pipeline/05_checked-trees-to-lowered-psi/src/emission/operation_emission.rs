@@ -32,7 +32,6 @@ use terminal_psi::{Operation, OperationKind, ValueDeclaration};
 pub(crate) enum LoweredScalarBinding {
     SelectedComparison {
         occurrence: crate::emission::selected_comparison::SelectedComparison,
-        source_machine: symbols::SymbolHandle,
         left: LoweredDirectExpression,
         right: LoweredDirectExpression,
     },
@@ -81,7 +80,6 @@ pub(crate) fn emit_scalar_binding(
     let result = match binding {
         LoweredScalarBinding::SelectedComparison {
             occurrence,
-            source_machine,
             left,
             right,
         } => {
@@ -95,11 +93,10 @@ pub(crate) fn emit_scalar_binding(
                         "comparison value identity overflow",
                     ))?;
             let operation = operations.allocate();
-            let terminal_machine = crate::terminal_identities::lookup_machine_id_with(
-                call_emission.machine_ids,
-                *source_machine,
-                "comparison source machine has no Terminal identity",
-            )?;
+            // Operator-use and application-site identities retain the authored
+            // owner; this coordinate names the machine receiving the operation.
+            // A fused sibling need not have a standalone Terminal machine.
+            let terminal_machine = call_emission.terminal_machine;
             // The occurrence row is recorded beside the exact operation it
             // names: a selected use that reached emission without one would
             // be indistinguishable from a builtin comparison downstream.

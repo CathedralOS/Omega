@@ -6385,3 +6385,20 @@ fail/dependent/case_where_zero_wide_arithmetic_not_saturated rejected 148ms expe
 	construction of `Context` omits gated field `choice`: its zero-filled representation is not an established value -- initialize it explicitly
 pass/dependent/zero_case_predicate_entry_exit checked 5863ms check-target:macos_arm64 @2b888a3f0e32
 pass/providers/calling_application_region_scopes_exit checked 5401ms check-target:macos_arm64 @c03720bf6cb3
+fail/contracts/float_field_crash_false_guard rejected 1023ms expected @c294657097ec+wt
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/contracts/float_field_crash_stale_write rejected 1013ms expected @c294657097ec+wt
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/contracts/float_field_crash_wrong_field rejected 1014ms expected @c294657097ec+wt
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/contracts/float_field_crash_wrong_order rejected 1015ms expected @c294657097ec+wt
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/contracts/float_indexed_crash_wrong_element rejected 1028ms expected @c294657097ec+wt
+	machine `read` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+pass/contracts/runtime_float_case_crash_guard_exit checked 6891ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_entry_relations_exit checked 6892ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_field_crash_guard_exit checked 6888ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_fused_crash_guard_exit checked 6888ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_indexed_crash_guard_exit checked 6679ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_nested_crash_guard_exit checked 6671ms check-target:macos_arm64 @c294657097ec+wt
+pass/contracts/runtime_float_unordered_crash_guard_exit checked 6668ms check-target:macos_arm64 @c294657097ec+wt

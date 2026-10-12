@@ -1509,7 +1509,10 @@ defines the complete product bar.
   `external_result_ranked_arrival_compile` with missing-guarantee, unguarded
   and stale-prefix controls.
 
-  Remaining: external execution needs **ASSUMED-BINDING-CONTRACTS**' Build/root
+  Remaining: float `requires` still reaches integer-only rank hypothesis
+  admission; admit its exact evaluation without treating IEEE facts as integer
+  bounds. Sealed float guards on rankless finishing paths already execute.
+  External execution needs **ASSUMED-BINDING-CONTRACTS**' Build/root
   trust-to-installation join; source acceptance and provider selection supply
   no admission receipt. Re-run the external-result and std-loop execution
   controls through the completed provider route before closing this item.
@@ -1788,12 +1791,15 @@ defines the complete product bar.
   emitted `BoundaryCall` through one source-occurrence relation.
   `pass/contracts/ensures_{fact_list,wrapping_field_arithmetic,borrowed_parameter_field,named_parameter_arithmetic,saturating_field_arithmetic}_exit`
   and `pass/collections/runtime_fixed_vec_round_trip_exit` execute.
+  `pass/contracts/runtime_float_{field,nested,indexed,case,fused}_crash_guard_exit`
+  executes entry guards across structural inputs and mutual calls; preserve
+  signed-zero equality, NaN unordered outcomes and stale-write refusals.
 
   - Selected-use joins beyond IEEE/integer comparisons: structural telescopes
     and call carriers need exact operand mapping and provider commitment;
     other intrinsic spellings and structural signatures still hit the custody
-    gate's refusals; float ordering and remaining generic/structural-formal
-    routes need portable predicates and execution, keeping the original guard.
+    gate's refusals. Extend remaining generic/structural-formal routes through
+    portable predicates and execution, keeping the original guard.
     Preserve authored public ceilings independently of executable applications;
     `pass/providers/finite_requirement_boolean_const_exit` and
     `pass/providers/calling_application_region_scopes_exit` constrain package
@@ -1809,8 +1815,8 @@ defines the complete product bar.
     (`src/values/scalar/contract_entry.rs`) declines indexed reads,
     nonempty-path lengths, policy casts and representation views; keep exact
     entry coordinates and recursive operand meaning, no source-arrangement
-    exceptions, and private/local roots never become public parameters. Verify
-    generic-field and case-payload composition.
+    exceptions, and private/local roots never become public parameters.
+    Fixed-array field paths already work for crash-entry float operands.
   - Entry provenance for opaque/content leaves, dynamic indices and
     whole-collection reads after writes with proven origins; divergent
     arrivals and unknown cycles stay conservative. Share snapshots with

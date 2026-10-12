@@ -107,7 +107,11 @@ pub(super) fn crash_predicate_from_expression(
                 parameter_names,
                 content_conservation,
             )),
-            member: member.member.as_str().to_owned(),
+            member: member_entry_name(
+                program,
+                member,
+                validation::effective_member_symbol(program, member.receiver, member),
+            ),
         },
         // A `collection[index]` read keeps both children structured: either
         // may carry a formal, and substitution must reach each rather than
@@ -501,4 +505,35 @@ pub(crate) fn infer_checked_crash_causes(
             (machine, causes)
         })
         .collect()
+}
+
+/// The member name a produced entry operand carries. A case payload field
+/// keeps its `Variant::field` qualification — the retained `case_variant`
+/// spelling when present, else the field's declaring variant — so two
+/// same-named payload fields of different cases cannot collide in the caller
+/// namespace.
+pub(super) fn member_entry_name(
+    program: &dyn ::validation::CheckingInput,
+    member: &typed_trees::expression::TableMemberExpression,
+    field_symbol: symbols::SymbolHandle,
+) -> String {
+    field_entry_name(
+        program,
+        field_symbol,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|case| case.as_str()),
+    )
+}
+
+pub(super) fn field_entry_name(
+    program: &dyn ::validation::CheckingInput,
+    field_symbol: symbols::SymbolHandle,
+    field_name: &str,
+    authored_case: Option<&str>,
+) -> String {
+    let Some(variant) = facts::payload_variant_for_field(program, field_symbol) else {
+        return field_name.to_owned();
+    };
+    let case = authored_case.unwrap_or_else(|| program.symbols.name(variant));
+    format!("{case}::{field_name}")
 }

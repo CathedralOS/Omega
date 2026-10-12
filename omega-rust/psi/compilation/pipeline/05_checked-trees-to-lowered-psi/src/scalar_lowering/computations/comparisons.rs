@@ -25,7 +25,6 @@ impl Expansion<'_> {
         }
         Ok(LoweredScalarBinding::SelectedComparison {
             occurrence,
-            source_machine: self.machine,
             left,
             right,
         })

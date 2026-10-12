@@ -419,6 +419,7 @@ pub(super) fn emit(
         subslice_places,
         retained_scalar_prefix,
         scalar_calls: CallEmissionContext {
+            terminal_machine,
             domain_ids,
             claims: crate::emission::claim_bindings::ClaimBindings::new(
                 claim_bindings.clone(),

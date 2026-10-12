@@ -1,13 +1,12 @@
 //! Exact invocation predicates over Boolean fields, total integer
-//! comparisons, and scalar IEEE comparisons with exact literal endpoints.
+//! comparisons, and IEEE comparisons with exact literal endpoints.
 use crate::values::operator_is_builtin;
 
 use checked_trees::{
     CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
     CheckedStructuralPredicatePathSegment,
 };
-use symbols::{BuiltinTypeAtom, SymbolKind};
-use typed_trees::data::{DataDefinition, DataMember};
+use symbols::BuiltinTypeAtom;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -124,11 +123,12 @@ pub(crate) fn lower_entry_scalar(
             if parameter.is_const || parameter.relevance.is_erased() {
                 return None;
             }
-            let (_, _, type_reference, _) = crate::values::resolve_structural_parameter_path(
+            let type_reference = super::super::structural_fields::readable_entry_parameter_path(
                 program,
                 reader.parameters,
                 position,
                 &path,
+                &mut reader.remaining,
             )?;
             if reader.primitive(type_reference, 0)??.0 != primitive {
                 return None;
@@ -165,7 +165,8 @@ struct Reader<'program> {
 }
 
 /// Bodyless requirements have an exact signature namespace, not a synthetic
-/// machine body. Structural guards remain outside this scalar contract slice.
+/// machine body. Scalar and structural leaves retain that signature's exact
+/// authored formal namespace.
 pub(crate) fn lower_signature_crash_contract_expression(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
@@ -204,10 +205,9 @@ pub(crate) fn lower_signature_crash_contract_expression(
 /// An operator declaration publishes its crash routes over its own formal
 /// parameters, exactly as a bodyless signature does: the structured form
 /// binds scalar formals by dense scalar position, which the Terminal
-/// operation-contract telescope reads as formal `k + 1`. A generic operator
-/// has no closed scalar telescope yet, and a structural formal keeps its
-/// route identity-only (the machine-rooted field reader does not apply), so
-/// both leave the route without a form rather than guess one.
+/// operation-contract telescope reads as formal `k + 1`. Structural leaves
+/// retain authored formal positions. A generic operator has no closed
+/// telescope yet, so it keeps identity without inventing executable operands.
 pub(crate) fn lower_operator_crash_contract_expression(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
@@ -439,19 +439,7 @@ impl<'program> Reader<'program> {
                     if !fixed_integer_atom(atom) {
                         return None;
                     }
-                    let value = if subject.path.is_empty() {
-                        CheckedScalarExpression::Parameter {
-                            position: self
-                                .scalar_position(subject.parameter_position, depth + 1)?,
-                            primitive_type,
-                        }
-                    } else {
-                        CheckedScalarExpression::StructuralParameterField {
-                            parameter_position: u32::try_from(subject.parameter_position).ok()?,
-                            path: subject.path,
-                            primitive_type,
-                        }
-                    };
+                    let value = self.subject_scalar(&subject, primitive_type, depth + 1)?;
                     subjects[position] = Some((value, subject.type_reference));
                 }
                 ExpressionNode::Integer(_) => {}
@@ -514,32 +502,14 @@ impl<'program> Reader<'program> {
                 ));
                 continue;
             }
-            let _ = self.program.expression_table.name_path_node(operand)?;
             let subject = self.subject(operand, depth + 1)?;
-            if !subject.path.is_empty() {
-                return None;
-            }
-            let parameter_position = subject.parameter_position;
-            let type_reference = subject.type_reference;
-            let (primitive_type, atom) = self.primitive(type_reference, depth + 1)??;
+            let (primitive_type, atom) = self.primitive(subject.type_reference, depth + 1)??;
             if !ieee_float_atom(atom) {
                 return None;
             }
-            let mut scalar_position = 0;
-            for parameter in &self.parameters[..parameter_position] {
-                if self
-                    .primitive(parameter.type_reference, depth + 1)?
-                    .is_some()
-                {
-                    scalar_position += 1;
-                }
-            }
             subjects[position] = Some((
-                CheckedScalarExpression::Parameter {
-                    position: scalar_position,
-                    primitive_type,
-                },
-                type_reference,
+                self.subject_scalar(&subject, primitive_type, depth + 1)?,
+                subject.type_reference,
             ));
         }
         super::super::result_contract::lower_float_contract_comparison(
@@ -562,7 +532,10 @@ impl<'program> Reader<'program> {
             ) {
                 return Some(true);
             }
-            if let Some(_) = self.program.expression_table.name_path_node(operand) {
+            if matches!(
+                self.program.expression_table.expression(operand),
+                ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+            ) {
                 let subject = self.subject(operand, depth + 1)?;
                 if self
                     .primitive(subject.type_reference, depth + 1)?
@@ -575,13 +548,33 @@ impl<'program> Reader<'program> {
         Some(false)
     }
 
+    // Scalar positions are dense; structural roots retain the authored formal
+    // position. Both integer and IEEE leaves use this same entry namespace.
+    fn subject_scalar(
+        &mut self,
+        subject: &FieldPath,
+        primitive_type: PrimitiveType,
+        depth: usize,
+    ) -> Option<CheckedScalarExpression> {
+        Some(if subject.path.is_empty() {
+            CheckedScalarExpression::Parameter {
+                position: self.scalar_position(subject.parameter_position, depth + 1)?,
+                primitive_type,
+            }
+        } else {
+            CheckedScalarExpression::StructuralParameterField {
+                parameter_position: u32::try_from(subject.parameter_position).ok()?,
+                path: subject.path.clone(),
+                primitive_type,
+            }
+        })
+    }
+
     fn scalar_position(&mut self, position: usize, depth: usize) -> Option<usize> {
         let mut scalar_position = 0;
         for parameter in &self.parameters[..position] {
-            if self
-                .primitive(parameter.type_reference, depth + 1)?
-                .is_some()
-            {
+            self.primitive(parameter.type_reference, depth + 1)?;
+            if super::super::occupies_scalar_position(self.program, parameter) {
                 scalar_position += 1;
             }
         }
@@ -595,11 +588,12 @@ impl<'program> Reader<'program> {
             if parameter.is_const {
                 return None;
             }
-            let (_, _, type_reference, _) = crate::values::resolve_structural_parameter_path(
+            let type_reference = super::super::structural_fields::readable_entry_parameter_path(
                 self.program,
                 self.parameters,
                 position,
                 &path,
+                &mut self.remaining,
             )?;
             return Some(FieldPath {
                 parameter_position: usize::try_from(position).ok()?,
@@ -623,9 +617,7 @@ impl<'program> Reader<'program> {
     }
 
     fn parameter(&self, expression: ExpressionHandle, _allow_self: bool) -> Option<usize> {
-        let Some(name) = self.program.expression_table.name_path_node(expression) else {
-            return None;
-        };
+        let name = self.program.expression_table.name_path_node(expression)?;
         let [spelling] = self
             .program
             .expression_table
@@ -642,125 +634,42 @@ impl<'program> Reader<'program> {
     }
 
     fn field_path(&mut self, expression: ExpressionHandle, depth: usize) -> Option<FieldPath> {
-        self.machine?;
-        self.charge(depth)?;
-        if !self
-            .program
-            .expression_table
-            .expression_is_valid(expression)
-        {
-            return None;
-        }
-        let Some(member) = self.program.expression_table.member_node(expression) else {
-            let position = self.parameter(expression, true)?;
-            return Some(FieldPath {
-                parameter_position: position,
-                path: Vec::new(),
-                type_reference: self.parameters[position].type_reference,
-            });
-        };
-        if member.case_variant.is_some() || !member.member_symbol.is_valid() {
-            return None;
-        }
-        let mut receiver = self.field_path(member.receiver, depth + 1)?;
-        let owner = self.nominal(receiver.type_reference, receiver.path.is_empty(), depth + 1)?;
-        let field = {
-            let mut fields = self
-                .program
-                .data_members(owner)
-                .iter()
-                .filter_map(|member_kind| {
-                    let field = member_kind.as_field()?;
-                    (field.symbol == member.member_symbol).then_some(field)
-                });
-            let field = fields.next()?;
-            if fields.next().is_some() {
-                return None;
-            }
-            field
-        };
-        if field.name.as_str() != member.member.as_str()
-            || field.relevance.is_erased()
-            || self.program.symbols.get(field.symbol).kind != SymbolKind::Field
-            || self.program.symbols.get(field.symbol).parent != owner.symbol
-            || self.program.symbols.name(field.symbol) != field.name.as_str()
-        {
-            return None;
-        }
-        // Canonical paths carry field identity (or its declaration-local name),
-        // so a malformed duplicate cannot collapse two different selections.
-        if self
-            .program
-            .data_members(owner)
-            .iter()
-            .filter(|candidate| {
-                matches!(candidate, DataMember::Field(candidate)
-                if candidate.name == field.name
-                    || field.identity.is_some() && candidate.identity == field.identity)
-            })
-            .count()
-            != 1
-        {
-            return None;
-        }
-        receiver
-            .path
-            .push(CheckedStructuralPredicatePathSegment::Field(
-                checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
-            ));
-        receiver.type_reference = field.type_reference;
-        Some(receiver)
-    }
-
-    fn nominal(
-        &mut self,
-        mut type_reference: TypeReferenceHandle,
-        root: bool,
-        mut depth: usize,
-    ) -> Option<&'program DataDefinition> {
+        // Bound the authored place before the shared canonical walk. Body
+        // observations use the authenticated subject callback above instead,
+        // so writes cannot turn current storage into an entry observation.
+        let mut current = expression;
+        let mut depth = depth;
         loop {
             self.charge(depth)?;
-            if !self
-                .program
-                .type_reference_table
-                .contains_type_reference(type_reference)
-            {
+            if !self.program.expression_table.expression_is_valid(current) {
                 return None;
             }
-            match self
-                .program
-                .type_reference_table
-                .type_reference(type_reference)
-            {
-                // Only the root signature carries borrow/access custody. A
-                // reference-valued intermediate field requires a dereference
-                // path that this plain-field representation does not retain.
-                TypeReferenceNode::Reference {
-                    referee, access, ..
-                } if root && *access != language_core::ReferenceAccess::WriteOnly => {
-                    type_reference = *referee;
-                }
-                TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-                TypeReferenceNode::Named { symbol, name } => {
-                    let data_symbol = *symbol;
-                    let mut owners = self
-                        .program
-                        .data_definitions()
-                        .iter()
-                        .filter(|owner| owner.symbol == data_symbol);
-                    let owner = owners.next()?;
-                    return (owners.next().is_none()
-                        && self.program.symbols.get(data_symbol).kind == SymbolKind::Data
-                        && owner.name.as_str() == name.as_str()
-                        && self.program.symbols.name(data_symbol) == owner.name.as_str()
-                        && self.program.data_type_parameters(owner).is_empty()
-                        && owner.lifetime_parameters.is_empty())
-                    .then_some(owner);
-                }
+            match self.program.expression_table.expression(current) {
+                ExpressionNode::Member(member) => current = member.receiver,
+                ExpressionNode::Indexed(indexed) => current = indexed.collection,
+                ExpressionNode::Name(_) => break,
                 _ => return None,
             }
             depth += 1;
         }
+        let (position, path, selected_type) =
+            super::super::structural_fields::structural_parameter_place(
+                self.program,
+                self.parameters,
+                expression,
+            )?;
+        let type_reference = super::super::structural_fields::readable_entry_parameter_path(
+            self.program,
+            self.parameters,
+            position,
+            &path,
+            &mut self.remaining,
+        )?;
+        (type_reference == selected_type).then_some(FieldPath {
+            parameter_position: usize::try_from(position).ok()?,
+            path,
+            type_reference,
+        })
     }
 
     fn primitive(

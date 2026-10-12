@@ -943,3 +943,9 @@ pass/entry/nested_where_record_binding_field_exit built 4394ms exit:70 interpret
 pass/dependent/zero_case_predicate_entry_exit built 5876ms exit:65 interpreter-exit:65 interpreter:agrees @2b888a3f0e32
 pass/providers/calling_application_region_scopes_exit built 4804ms exit:0 interpreter-exit:0 interpreter:agrees @c03720bf6cb3
 pass/traits/runtime_qualified_byte_crash_equality_exit built 5628ms exit:70 interpreter-exit:70 interpreter:agrees @c03720bf6cb3
+pass/contracts/runtime_float_case_crash_guard_exit built 7188ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
+pass/contracts/runtime_float_entry_relations_exit built 7101ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
+pass/contracts/runtime_float_field_crash_guard_exit built 6915ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
+pass/contracts/runtime_float_fused_crash_guard_exit built 7013ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
+pass/contracts/runtime_float_indexed_crash_guard_exit built 6643ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
+pass/contracts/runtime_float_nested_crash_guard_exit built 6620ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
