@@ -395,7 +395,7 @@ pub(crate) fn runtime_bound_occurrence_in(
     crate::monomorphization::for_each_type_reference(
         program,
         roots,
-        |program, node| match node {
+        |program, _, node| match node {
             TypeReferenceNode::Named { symbol, .. }
             | TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol == parameter_symbol,
             TypeReferenceNode::FixedArray { length, .. } => matches!(
