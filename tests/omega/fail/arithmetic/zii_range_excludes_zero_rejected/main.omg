@@ -1,9 +1,15 @@
-// FAIL canary: a range that excludes zero now gates machine-attached storage.
-// Reading m before establishment cannot exploit its declared nonzero bound.
-use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; m: i32 [1..=100]; q: i32; }
-machine Main::main(main: &mut Main) reaches Console {
-    main.q = 10 % main.m;
-    main.console.exit_process(0);
+// A declared nonzero bound cannot establish an observation of zeroed storage.
+// A readable parameter would already carry that establishment obligation;
+// this local deliberately has no initializer to discharge it.
+data Divisor
+where
+    value >= 1,
+    value <= 100,
+{
+    value: i32;
+}
+
+machine main() {
+    let divisor: Divisor;
+    let remainder: i32 = 10 % divisor.value;
 }

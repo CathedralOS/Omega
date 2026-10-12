@@ -1,3 +1,2 @@
-cannot prove requires contract for call private_value from read
-input == 2
-1 == 2
+machine `read` state `entry` value call to `private_value` violates required fact `input == 2`
+the instantiated fact is structurally false

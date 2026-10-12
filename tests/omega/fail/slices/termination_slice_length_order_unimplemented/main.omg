@@ -1,13 +1,5 @@
-// FAIL canary. Despite this fixture's name, `Slice::Length` is NOT
-// unimplemented -- it is a first-class builtin ranking view
-// (`RankingOrder::SliceLength`, named in the checker's own diagnostic beside
-// `Nat::Descending` and `Nat::BoundedDistance`, with relational lowering and an
-// in-crate acceptance test).
-//
-// This rejects for an ordinary reason: the recursive edge `walk(entries, ...)`
-// forwards the SAME slice, so only `index` moves and the declared measure never
-// strictly decreases. `expected.txt` pins `cannot prove the `terminates by`
-// ranking`. The supported shape re-slices the subject on each edge.
+// Slice::Length is supported, but forwarding the same slice does not decrease
+// that measure. Moving only the index cannot justify the recurrent arrival.
 
 data Entry {
     value: i32;
@@ -21,16 +13,16 @@ machine Main::main(main: &mut Main) -> u64 {
     let view: &[Entry] = &main.entries[..];
 
     transition {
-        _ -> Main::walk(main, view, 0)
+        _ -> Main::walk(view, 0)
     }
 }
 
-machine Main::walk(main: &mut Main, entries: &[Entry], index: u64)
+machine Main::walk(entries: &[Entry], index: u64)
 terminates by entries -> Slice::Length;
 -> u64
 {
     transition index < entries.len {
-        true -> walk(main, entries, index + 1)
+        true -> walk(entries, index + 1)
         false -> index
     }
 }

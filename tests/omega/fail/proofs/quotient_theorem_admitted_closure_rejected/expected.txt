@@ -1,1 +1,2 @@
-a selected theorem's transitive call closure reaches an admitted or boundary proof machine
+specification call `observe` has no observation-free, reach-free, crash-free value denotation
+the selected closure contains runtime observations or mutable storage

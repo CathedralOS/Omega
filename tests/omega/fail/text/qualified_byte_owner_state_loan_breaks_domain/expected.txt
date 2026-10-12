@@ -1,1 +1,3 @@
-cannot prove requires contract for call step from main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[position]
+cannot prove requires contract for call step from main: output in [u8; N]::Utf8
+invalidated by prior mutation of output[
+output is part of [u8; N]::Utf8

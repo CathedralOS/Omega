@@ -1,1 +1,2 @@
-cannot prove the `terminates by` ranking for machine console_write_bytes
+the zeroed representation is not yet
+reading `divisor.value`

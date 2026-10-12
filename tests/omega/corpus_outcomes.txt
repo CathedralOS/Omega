@@ -263,8 +263,8 @@ fail/arithmetic/zero_product_operand_division_rejected rejected 827ms expected @
 	partial exact division in machine `product` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/zero_product_operand_overflow_rejected rejected 882ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `product` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/arithmetic/zii_range_excludes_zero_rejected rejected 23154ms unexpected @a9ae30e1c334+wt
-	terminal-artifact production requires one exact selected program entry
+fail/arithmetic/zii_range_excludes_zero_rejected rejected 758ms expected @dca1c7cd7e6f+wt
+	reading `divisor.value` crosses an open default-domain invariant window before data `Divisor` is established: the zeroed representation is not yet a `Divisor` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/arrays/borrowed_array_call_argument_wrong_extent rejected 826ms expected @a9ae30e1c334+wt
 	machine `main` state `entry` assigns an array literal with 1 element(s) to a `[_; 2]` place; a fixed-array literal must supply exactly 2 element(s)
 	argument `receipts` for state `entry` expects `&[Receipt; 2]`, got `array literal`
@@ -907,7 +907,7 @@ fail/calls/copied_argument_routed_ensures_cannot_restore_mutated_source rejected
 	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued)
 fail/calls/copied_constructor_child_ensures_cannot_restore_mutated_source rejected 1697ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued)
-fail/calls/copied_nominal_argument_precedes_field_repair rejected 863ms unexpected @a9ae30e1c334+wt
+fail/calls/copied_nominal_argument_precedes_field_repair rejected 195ms expected @dca1c7cd7e6f+wt
 	reading `gauge.<whole value>` crosses an open default-domain invariant window before data `Gauge` is established: the zeroed representation is not yet a `Gauge` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 	reading `gauge.level` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `i32[in Positive]`
 	reading `gauge.level` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `i32[in Positive]`
@@ -1541,7 +1541,7 @@ fail/domains/exit_ensures_unproven rejected 1682ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from Main::main at statement 0: main.player in Player::Alive
 fail/domains/implicit_semantic_domain_local_weakening rejected 828ms expected @a9ae30e1c334+wt
 	implicit domain weakening in machine `Main::main` state `main` local `raw` drops `Degrees`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 1491ms unexpected @a9ae30e1c334+wt
+fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 332ms expected @dca1c7cd7e6f+wt
 	cannot prove requires contract for call accept from Main::main: main.items[0] in Item::Valid (invalidated by prior mutation of main.items[__hoist_14].value; main.items[0].value is part of Item::Valid)
 fail/domains/module_domain_broad_import_hides_leaf rejected 853ms expected @a9ae30e1c334+wt
 	data `Main` field `span` uses `in Distance`, but no `domain` named `Distance` is declared for `u64` (domains are bound to their storage type)
@@ -1557,7 +1557,7 @@ fail/domains/offset_borrow_return_unestablished_field rejected 411ms expected @1
 	cannot prove default-domain field requirement for return from pick at statement 2: bag.rows[2].labels[1].text requires [u8; N]::NonEmpty
 	cannot prove default-domain field requirement for return from pick at statement 3: bag.rows[2].labels[1].text requires [u8; N]::NonEmpty
 	cannot prove index `0` is within unknown slice length of `bag.rows[2].labels[1].text` in pick::entry
-fail/domains/qualified_mutable_invalid_field rejected 824ms unexpected @a9ae30e1c334+wt
+fail/domains/qualified_mutable_invalid_field rejected 106ms expected @dca1c7cd7e6f+wt
 	reading `packet.<whole value>` crosses an open default-domain invariant window before data `Packet` is established: the zeroed representation is not yet a `Packet` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/domains/qualified_scalar_record_call_unestablished rejected 1496ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call make_gauge from invalid: 5 in i32::NotFive
@@ -2375,8 +2375,8 @@ fail/multiplicity/computed_subject_separate_affine_call rejected 1200ms expected
 	cannot use `choice` in machine `choose` state `entry` (statement 0) after `choice` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `choice` first
 fail/operators/constructed_operand_wrong_nominal_type rejected 833ms expected @a9ae30e1c334+wt
 	machine `invalid` state `entry` applies `Add` to a `Input` value, but no such operator is declared for these operand types; declare a matching token-bearing machine or select its declared trait meaning
-fail/operators/declared_index_named_call_requires_explicit_borrow rejected 814ms expected @a9ae30e1c334+wt
-	argument `frame` for state `at` expects `&mut Frame`, got `member access`
+fail/operators/declared_index_named_call_requires_explicit_borrow rejected 107ms expected @dca1c7cd7e6f+wt
+	argument `frame` for state `at` is declared `&mut` (`&mut Frame`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/operators/declared_index_shared_collection_cannot_mutate rejected 898ms expected @a9ae30e1c334+wt
 	mutable argument `main` for state `at` is not writable in this state; the source cannot lend the requested exclusive access
 fail/operators/declared_open_range_shared_collection_cannot_mutate rejected 830ms expected @a9ae30e1c334+wt
@@ -2742,7 +2742,7 @@ fail/proofs/quotient_runtime_equality_rejected rejected 44ms expected @a9ae30e1c
 	cannot compare quotient `EquivalenceClass` values with `==`/`!=`: retained representatives are opaque and have no synthesized structural equality; call a named lifted equality operation
 fail/proofs/quotient_struct_literal_rejected rejected 934ms expected @a9ae30e1c334+wt
 	cannot construct quotient `EquivalenceClass` with a struct or case literal: retained representatives are opaque and quotient values may be minted only from the exact carrier with `as EquivalenceClass`
-fail/proofs/quotient_theorem_admitted_closure_rejected rejected 1306ms unexpected @a9ae30e1c334+wt
+fail/proofs/quotient_theorem_admitted_closure_rejected rejected 230ms expected @dca1c7cd7e6f+wt
 	specification call `observe` has no observation-free, reach-free, crash-free value denotation: the selected closure contains runtime observations or mutable storage
 fail/proofs/quotient_theorem_boundary_rejected rejected 1418ms expected @a9ae30e1c334+wt
 	`Quotient::define` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (the selected theorem must be one bodyful checked machine; boundary, accepted, and external proof sources cannot license quotient substitution); executable quotient operations are not admitted
@@ -3041,7 +3041,7 @@ fail/slices/mutable_subslice_state_out_of_bounds rejected 1504ms expected @a9ae3
 fail/slices/mutable_subslice_state_requires_nonempty rejected 1583ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call forwarded from write: items[1..1].len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	cannot prove index `0` is within length 0
-fail/slices/mutable_subslice_state_uses_wrong_source_extent rejected 1638ms unexpected @a9ae30e1c334+wt
+fail/slices/mutable_subslice_state_uses_wrong_source_extent rejected 285ms expected @dca1c7cd7e6f+wt
 	cannot prove subslice range end bound `1..2` is within unknown slice length
 fail/slices/namespace_range_keeps_bounds rejected 806ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` value call to `Views::middle` violates required fact `start <= end && end <= bytes.len`: the instantiated fact is structurally false
@@ -3095,8 +3095,7 @@ fail/slices/signed_slice_range_upper_only rejected 1708ms expected @a9ae30e1c334
 	cannot prove every subslice range endpoint of `__hoist_14..__hoist_15` is non-negative
 fail/slices/subslice_range_operator_contract_unproven rejected 1808ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` value call to `Slice::range` violates required fact `start <= end && end <= items.len`: the instantiated fact is structurally false
-fail/slices/termination_slice_length_order_unimplemented rejected 1751ms unexpected @a9ae30e1c334+wt
-	state `walk` receives `main` while local borrow `view` is still active
+fail/slices/termination_slice_length_order_unimplemented rejected 310ms expected @dca1c7cd7e6f+wt
 	terminating machine Main::walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `walk` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/slices/unbounded_length_increment_requires_fit rejected 879ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `increment` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -3187,7 +3186,7 @@ fail/targets/single_target_internal_statement_caller_rejected rejected 17532ms e
 	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
 fail/targets/target_body_call_to_unimported_std_leaf_named rejected 26883ms expected @379893891e38
 	cannot publish target-family crash envelope for `pace`: retained member `pace::macos_arm64` calls `darwin_poll`, which selects no declaration
-fail/targets/target_local_precondition_rejected rejected 3680ms unexpected @a9ae30e1c334+wt
+fail/targets/target_local_precondition_rejected rejected 658ms expected @dca1c7cd7e6f+wt
 	machine `read` state `entry` value call to `private_value` violates required fact `input == 2`: the instantiated fact is structurally false
 fail/targets/target_machine_duplicate_rejected rejected 53ms expected @a9ae30e1c334+wt
 	machine `Helper::pick` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
@@ -3243,7 +3242,7 @@ fail/termination/distance_constant_bound_past_bound rejected 1612ms expected @a9
 	cannot prove the `terminates by` ranking for machine Main::walk
 fail/termination/endpoint_folded_into_payload rejected 1738ms expected @a9ae30e1c334+wt
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
-fail/termination/explicit_self_without_descent rejected 1655ms unexpected @a9ae30e1c334+wt
+fail/termination/explicit_self_without_descent rejected 284ms expected @dca1c7cd7e6f+wt
 	terminating machine spin: cannot prove strict rank decrease on a recurrent arrival: the transition from `spin` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
 	terminating machine argmax: cannot prove strict rank decrease on a recurrent arrival: the transition from `argmax` to `step` is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -3387,7 +3386,7 @@ fail/text/local_record_byte_field_replacement_breaks_domain rejected 5052ms expe
 	cannot prove the value assigned to `row.text` in main is in domain `[u8; N]::Ascii`; a place declared `in [u8; N]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/text/owned_byte_parameter_write_breaks_domain rejected 1660ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call observe from corrupt: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii)
-fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 5248ms unexpected @a9ae30e1c334+wt
+fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 1659ms expected @dca1c7cd7e6f+wt
 	cannot prove requires contract for call step from main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[__hoist_32]; output is part of [u8; N]::Utf8)
 fail/text/qualified_byte_state_domain_widening rejected 4955ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call narrowed from relay: value in [u8; N]::Ascii

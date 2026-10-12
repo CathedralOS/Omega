@@ -3464,17 +3464,20 @@ of a check the same flow already performed, not the check itself.
 
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
-  corpus and focused native cohort. Attribute the full 4,035-fixture check at
-  fixed producer `327898162b6`: 19 wrong-reason controls, five accepted negatives
-  and 124 unsatisfied success obligations (including pinned debt, not 124 new
-  regressions). Revalidate `zii_range_excludes_zero_rejected`,
-  `method_view_receiver_unrelated_field_write`, `local_record_view_result_holds_loan`
-  and `artifact_only_rollback_overlay_refused` on the repaired producer before
-  attributing their acceptance. The fifth is
-  `shared_subslice_state_cannot_lend_mutable`. Attribute
-  contextual slice formation here: its bare-range access rule is OWNER-BLOCKED
-  on `bare-range-reference-access` in `OWNER_QUESTIONS.md`, not the remaining
-  qualification.
+  corpus and focused native cohort. Attribute the 124 unsatisfied success
+  obligations in the full 4,035-fixture check at fixed producer `327898162b6`
+  (including pinned debt, not 124 new regressions). The remaining wrong-reason
+  controls on `dca1c7cd7e6` are `callback_synchronous_registration_cycle`,
+  `cyclic_synchronous_invocation`,
+  `bag_view_false_twin`, `kernel_integer_subtract_order_false_twin`,
+  `checked_boundary_operator_const_application_unselected`,
+  `runtime_non_tail_joint_machine_cycle` and
+  `returned_preserving_remainder_input_write`. Earlier reach, structural-proof,
+  rank-range, constant-recipe, arithmetic and returned-lifetime failures still
+  mask their intended obligations; resolve them without repinning to those
+  failures. The accepted `shared_subslice_state_cannot_lend_mutable` depends on
+  `bare-range-reference-access` in `OWNER_QUESTIONS.md`; only that language rule
+  is OWNER-BLOCKED, not the remaining qualification.
   Keep portable callback refinement with
   **PSI-TARGET-FAMILIES**. Full qualification must retain the portable callback's
   first-member-only guarantee refusal and the inverted-distance

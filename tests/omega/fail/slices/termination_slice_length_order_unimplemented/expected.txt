@@ -1,1 +1,2 @@
-cannot prove the `terminates by` ranking
+terminating machine Main::walk: cannot prove strict rank decrease on a recurrent arrival
+the transition from `walk` back to itself is not shown to strictly decrease the rank
