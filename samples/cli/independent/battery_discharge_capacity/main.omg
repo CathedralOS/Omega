@@ -1,0 +1,147 @@
+use domain::cell;
+use domain::discharge;
+use io::protocol;
+use omega_language_std::console;
+use omega::language::core::float_operations;
+
+data Main {
+    protocol: Protocol;
+    cell: Cell;
+    run: Run;
+    step_seconds: f64;
+    step_elapsed: i32 in Wrapping;
+    budget: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let valid: bool = block Protocol::read(&mut main.protocol);
+    transition valid { true -> validate(main) false -> bad_syntax(main) }
+    state bad_syntax(main: &mut Main) {
+        main.protocol.console.write_line("ERROR syntax: expected eight integers, maximum 160 bytes");
+        main.protocol.console.exit_process(64);
+    }
+    state validate(main: &mut Main) {
+        transition main.protocol.fields[0] >= 2000 && main.protocol.fields[0] <= 15000
+            && main.protocol.fields[1] >= 0 && main.protocol.fields[1] <= 14999
+            && main.protocol.fields[1] < main.protocol.fields[0]
+            && main.protocol.fields[2] >= 1 && main.protocol.fields[2] <= 100000
+            && main.protocol.fields[3] >= 1 && main.protocol.fields[3] <= 10000
+            && main.protocol.fields[4] >= 1 && main.protocol.fields[4] <= 1000000
+            && main.protocol.fields[5] >= 0 && main.protocol.fields[5] <= 14999
+            && main.protocol.fields[5] < main.protocol.fields[0]
+            && main.protocol.fields[6] >= 1 && main.protocol.fields[6] <= 600
+            && main.protocol.fields[7] >= 1 && main.protocol.fields[7] <= 10000 {
+            true -> configure(main)
+            false -> bad_range(main)
+        }
+    }
+    state bad_range(main: &mut Main) {
+        main.protocol.console.write_line("ERROR range: invalid cell, load or discharge schedule parameters");
+        main.protocol.console.exit_process(65);
+    }
+    state configure(main: &mut Main) {
+        let full: f64 = main.protocol.fields[0] as f64;
+        let empty: f64 = main.protocol.fields[1] as f64;
+        let capacity: f64 = main.protocol.fields[2] as f64;
+        let internal: f64 = main.protocol.fields[3] as f64;
+        let load: f64 = main.protocol.fields[4] as f64;
+        let cutoff: f64 = main.protocol.fields[5] as f64;
+        main.cell.full = full / 1000.0;
+        main.cell.empty = empty / 1000.0;
+        main.cell.capacity = capacity / 1000.0;
+        main.cell.internal = internal / 1000.0;
+        main.cell.load = load / 1000.0;
+        main.cell.cutoff = cutoff / 1000.0;
+        main.step_elapsed = main.protocol.fields[6] as i32 in Wrapping;
+        main.step_seconds = main.protocol.fields[6] as f64;
+        main.budget = main.protocol.fields[7] as i32 in Wrapping;
+        main.run.time = 0.0;
+        main.run.elapsed = 0;
+        main.run.charge = 0.0;
+        main.run.energy = 0.0;
+        main.run.ocv = 0.0;
+        main.run.terminal = 0.0;
+        main.run.current = 0.0;
+        main.run.steps = 0;
+        main.run.delivered = false;
+        main.run.status = 1;
+        main.protocol.console.write_line("step,time_s,ocv_V,terminal_V,current_A,delivered_mAh,delivered_Wh");
+        transition { _ -> loop_main(main) }
+    }
+    state loop_main(main: &mut Main) {
+        advance(&main.cell, &mut main.run, main.step_seconds, main.step_elapsed, main.budget);
+        transition main.run.delivered {
+            true -> row(main)
+            false -> finish(main)
+        }
+    }
+    state row(main: &mut Main) {
+        let index: i32 in Wrapping = main.run.steps - 1;
+        let delivered_mah: f64 = main.run.charge * 1000.0;
+        Protocol::integer(&mut main.protocol, index);
+        main.protocol.console.write(",");
+        Protocol::integer(&mut main.protocol, main.run.elapsed);
+        main.protocol.console.write(",");
+        Protocol::number(&mut main.protocol, main.run.ocv);
+        main.protocol.console.write(",");
+        Protocol::number(&mut main.protocol, main.run.terminal);
+        main.protocol.console.write(",");
+        Protocol::number(&mut main.protocol, main.run.current);
+        main.protocol.console.write(",");
+        Protocol::number(&mut main.protocol, delivered_mah);
+        main.protocol.console.write(",");
+        Protocol::number(&mut main.protocol, main.run.energy);
+        main.protocol.console.write_line("");
+        transition main.run.status == 1 {
+            true -> loop_main(main)
+            false -> finish(main)
+        }
+    }
+    state finish(main: &mut Main) {
+        main.protocol.console.write("stop,");
+        transition main.run.status == 2 {
+            true -> stopped_cutoff(main)
+            false -> stopped_reason(main)
+        }
+    }
+    state stopped_cutoff(main: &mut Main) {
+        main.protocol.console.write("cutoff,");
+        transition { _ -> blocked(main) }
+    }
+    state stopped_reason(main: &mut Main) {
+        transition main.run.status == 3 {
+            true -> stopped_depleted(main)
+            false -> stopped_budget(main)
+        }
+    }
+    state stopped_depleted(main: &mut Main) {
+        main.protocol.console.write("depleted,");
+        transition { _ -> blocked(main) }
+    }
+    state stopped_budget(main: &mut Main) {
+        main.protocol.console.write("budget,");
+        transition { _ -> blocked(main) }
+    }
+    state blocked(main: &mut Main) {
+        Protocol::number(&mut main.protocol, main.run.ocv);
+        main.protocol.console.write(",");
+        Protocol::number(&mut main.protocol, main.run.terminal);
+        main.protocol.console.write(",");
+        Protocol::number(&mut main.protocol, main.run.current);
+        main.protocol.console.write_line("");
+        transition { _ -> summary(main) }
+    }
+    state summary(main: &mut Main) {
+        let total_mah: f64 = main.run.charge * 1000.0;
+        main.protocol.console.write("summary,");
+        Protocol::integer(&mut main.protocol, main.run.steps);
+        main.protocol.console.write(",");
+        Protocol::integer(&mut main.protocol, main.run.elapsed);
+        main.protocol.console.write(",");
+        Protocol::number(&mut main.protocol, total_mah);
+        main.protocol.console.write(",");
+        Protocol::number(&mut main.protocol, main.run.energy);
+        main.protocol.console.write_line("");
+        main.protocol.console.exit_process(0);
+    }
+}

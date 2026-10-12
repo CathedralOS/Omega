@@ -1,0 +1,62 @@
+use domain::cell;
+use omega::language::core::float_operations;
+
+// status: 1 running, 2 cutoff (terminal voltage reached the cutoff before
+// this step delivered charge), 3 depleted (delivered charge reached nominal
+// capacity), 4 budget (step budget exhausted).
+data Run {
+    time: f64;
+    elapsed: i32 in Wrapping;
+    charge: f64;
+    energy: f64;
+    ocv: f64;
+    terminal: f64;
+    current: f64;
+    steps: i32 in Wrapping;
+    delivered: bool;
+    status: i32;
+}
+
+// One fixed-step integration: evaluate the operating point at the beginning of
+// the interval, then deliver that interval's charge and energy.
+machine advance(cell: &Cell, run: &mut Run, step_seconds: f64,
+    step_elapsed: i32 in Wrapping, budget: i32 in Wrapping) {
+    let ocv: f64 = cell.full - (cell.full - cell.empty)
+        * run.charge / cell.capacity;
+    let current: f64 = ocv / (cell.load + cell.internal);
+    let terminal: f64 = ocv - current * cell.internal;
+    run.ocv = ocv;
+    run.current = current;
+    run.terminal = terminal;
+    run.delivered = false;
+    transition run.terminal <= cell.cutoff {
+        true -> cutoff(run)
+        false -> deliver(cell, run, step_seconds, step_elapsed, budget)
+    }
+    state cutoff(run: &mut Run) {
+        run.status = 2;
+    }
+    state deliver(cell: &Cell, run: &mut Run, step_seconds: f64,
+        step_elapsed: i32 in Wrapping, budget: i32 in Wrapping) {
+        run.charge = run.charge + run.current * step_seconds / 3600.0;
+        run.energy = run.energy + run.terminal * run.current
+            * step_seconds / 3600.0;
+        run.time = run.time + step_seconds;
+        run.elapsed = run.elapsed + step_elapsed;
+        run.steps = run.steps + 1;
+        run.delivered = true;
+        transition run.charge >= cell.capacity {
+            true -> depleted(run)
+            false -> limit(run, budget)
+        }
+    }
+    state depleted(run: &mut Run) { run.status = 3; }
+    state limit(run: &mut Run, budget: i32 in Wrapping) {
+        transition run.steps >= budget {
+            true -> spent(run)
+            false -> running(run)
+        }
+    }
+    state spent(run: &mut Run) { run.status = 4; }
+    state running(run: &mut Run) { run.status = 1; }
+}

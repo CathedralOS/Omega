@@ -1,0 +1,165 @@
+{
+  "cases": {
+    "budget_limited": {
+      "delivered_Wh": "2.66020065",
+      "delivered_mAh": "665.857725",
+      "elapsed": 600,
+      "exit": 0,
+      "rows": 10,
+      "stdin_sha256": "006207b930a2145e5b869ecac004a17c26ab723a69effff5bee5da6881dcdaac",
+      "steps": 10,
+      "stop": "budget"
+    },
+    "crlf_record": {
+      "delivered_Wh": "9.17620616",
+      "delivered_mAh": "2820.33221",
+      "elapsed": 3180,
+      "exit": 0,
+      "rows": 53,
+      "stdin_sha256": "26f7e06bb005a51bacab0aae75ceaaa1e64fd4a4aaaf3224fddb2119d24b9ee0",
+      "steps": 53,
+      "stop": "cutoff"
+    },
+    "eof_record": {
+      "delivered_Wh": "9.17620616",
+      "delivered_mAh": "2820.33221",
+      "elapsed": 3180,
+      "exit": 0,
+      "rows": 53,
+      "stdin_sha256": "6807df383f9d9a1abc1a1e783a0f05dd3c8ed1ecd279687b04f2f84a8f6e10e4",
+      "steps": 53,
+      "stop": "cutoff"
+    },
+    "heavy_load": {
+      "delivered_Wh": "2.45397018",
+      "delivered_mAh": "903.950617",
+      "elapsed": 120,
+      "exit": 0,
+      "rows": 2,
+      "stdin_sha256": "be964e25789c674e20982e16ce41fde72a2bd54a82725feb8fdd8f4a4097de18",
+      "steps": 2,
+      "stop": "cutoff"
+    },
+    "high_voltage": {
+      "delivered_Wh": "490.534483",
+      "delivered_mAh": "50003.6303",
+      "elapsed": 100800,
+      "exit": 0,
+      "rows": 840,
+      "stdin_sha256": "ea6ec657f03b210ea6b6416dc3e7093ac3aa52fc03839b554cbb263d9bf59308",
+      "steps": 840,
+      "stop": "depleted"
+    },
+    "instant_cutoff": {
+      "delivered_Wh": "0",
+      "delivered_mAh": "0",
+      "elapsed": 0,
+      "exit": 0,
+      "rows": 0,
+      "stdin_sha256": "5f06d8b7ff206c5a4d68d236cc026eb1f90059e7b6bc261256c120bcc7a59cb8",
+      "steps": 0,
+      "stop": "cutoff"
+    },
+    "invalid_budget": {
+      "error": "range",
+      "exit": 65,
+      "stdin_sha256": "e15ea00ac4df073d67891f97877798e5f1878820611e1b23683da55f5f25881b"
+    },
+    "invalid_cutoff": {
+      "error": "range",
+      "exit": 65,
+      "stdin_sha256": "e8295a3f5140c9e8344eb174426ea37f5b7ca386040ec6e2f328879a2fa94c00"
+    },
+    "invalid_empty": {
+      "error": "syntax",
+      "exit": 64,
+      "stdin_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    "invalid_extra": {
+      "error": "syntax",
+      "exit": 64,
+      "stdin_sha256": "89ad11ddd86b400427b945d7b89a2ce7f6fccaff6a1b741a4235f4b58797549b"
+    },
+    "invalid_inverted": {
+      "error": "range",
+      "exit": 65,
+      "stdin_sha256": "7f6847c0ee61a12793d472c5885f9854af17019177392ce42f251f83152afa34"
+    },
+    "invalid_length": {
+      "error": "syntax",
+      "exit": 64,
+      "stdin_sha256": "cd8fbb3b82ef17bd6706d801415b3ed4e758e2d536a0d4ea70afef90967f1fff"
+    },
+    "invalid_low_full": {
+      "error": "range",
+      "exit": 65,
+      "stdin_sha256": "082f8a95c11758c34cebeca9b31096d405b96f3675a840f746be4809bfb8a992"
+    },
+    "invalid_missing": {
+      "error": "syntax",
+      "exit": 64,
+      "stdin_sha256": "099479fd9dc353f1ef2e2653959ea435bc12b569e21273d8d33314a7ab138e56"
+    },
+    "invalid_number": {
+      "error": "syntax",
+      "exit": 64,
+      "stdin_sha256": "4c87ea1841a667cf6fab6e9fb12e65bc0e38aae636da8ab9abd6c21379eb5c86"
+    },
+    "invalid_overflow": {
+      "error": "syntax",
+      "exit": 64,
+      "stdin_sha256": "e5e511bca341973d654df455b155b0f689177543ed2de34e1fd531f0a4e62ef6"
+    },
+    "invalid_range_sign": {
+      "error": "range",
+      "exit": 65,
+      "stdin_sha256": "24828c77c98f5f516f84732e0596b015f7a93f2eb010707bbc36a6f8c4c0e8c7"
+    },
+    "invalid_zero_load": {
+      "error": "range",
+      "exit": 65,
+      "stdin_sha256": "58d3f0c23b585b2b57be4fe0320028e1574cf48db3e793021fd2285bf483f213"
+    },
+    "light_load_depletion": {
+      "delivered_Wh": "10.0458700",
+      "delivered_mAh": "3000.16745",
+      "elapsed": 329760,
+      "exit": 0,
+      "rows": 5496,
+      "stdin_sha256": "ddc28bc5b8afca9b788644bc3acb0574bf0fa79c3dde771ca5993be8728c93bd",
+      "steps": 5496,
+      "stop": "depleted"
+    },
+    "nominal_discharge": {
+      "delivered_Wh": "9.17620616",
+      "delivered_mAh": "2820.33221",
+      "elapsed": 3180,
+      "exit": 0,
+      "rows": 53,
+      "stdin_sha256": "8e9c6f3b11e078ef7cbcc83487b393228ad7135918f9b9ca22efbd94a4cf802f",
+      "steps": 53,
+      "stop": "cutoff"
+    },
+    "small_capacity": {
+      "delivered_Wh": "0.266666666",
+      "delivered_mAh": "66.6666666",
+      "elapsed": 60,
+      "exit": 0,
+      "rows": 1,
+      "stdin_sha256": "cc43bcb63d45fabe25053e81723933adc237922a02ba43828d96aa0862412633",
+      "steps": 1,
+      "stop": "depleted"
+    }
+  },
+  "tolerances": {
+    "charge_absolute_mAh": "1e-6",
+    "charge_relative": "3e-8",
+    "current_absolute_A": "5e-12",
+    "current_relative": "3e-8",
+    "energy_absolute_Wh": "1e-9",
+    "energy_relative": "3e-8",
+    "steps_slack": 0,
+    "voltage_absolute_V": "2e-9",
+    "voltage_relative": "2e-8"
+  }
+}

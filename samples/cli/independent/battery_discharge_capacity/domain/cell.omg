@@ -1,0 +1,14 @@
+// Constant-resistance discharge model for a single cell.
+// Open-circuit voltage declines linearly with delivered charge from `full` at
+// zero delivered amp-hours to `empty` at `capacity` delivered amp-hours.
+// Under load, terminal voltage loses `current * internal` to the internal
+// resistance. This is a sample model: it excludes Peukert rate dependence,
+// temperature feedback, and diffusion overpotentials.
+data Cell {
+    full: f64;
+    empty: f64;
+    capacity: f64;
+    internal: f64;
+    load: f64;
+    cutoff: f64;
+}
