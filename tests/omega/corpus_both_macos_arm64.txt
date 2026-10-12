@@ -873,3 +873,4 @@ pass/calling/calling_count_boundaries_exit built 7768ms exit:70 interpreter-exit
 pass/control_flow/runtime_owned_state_parallel_swap_exit built 6282ms exit:70 interpreter-exit:70 interpreter:agrees @a14ec34a59ab+wt
 pass/arithmetic/runtime_widened_result_predicates_exit built 6400ms exit:70 interpreter-exit:70 interpreter:agrees @44e66b7d2fb4+wt
 pass/host/runtime_console_byte_payload_bounds_exit built 5280ms exit:70 interpreter-exit:70 interpreter:agrees @afccbf17d92b+wt
+pass/calls/runtime_dispatch_binary_call_argument_exit built 5355ms exit:70 interpreter-exit:70 interpreter:agrees @a0a35c7bbb43+wt

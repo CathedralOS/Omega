@@ -1618,8 +1618,8 @@ defines the complete product bar.
     plus follow-ups. Reconcile the audited library declaration groups beside
     their runtime witnesses; inventory the remaining original/current spelling,
     owning position and restoration or reason for retention, including bare
-    fields whose bounds were removed because inferred loop bounds made execution pass. A suffix
-    grep or passing replacement does not establish preservation.
+    fields whose bounds were removed because inferred loop bounds made execution pass.
+    A suffix grep or passing replacement does not establish preservation.
   - Field/case propositions through construction, nonliteral and indexed
     writes, reads, calls, state joins, mutable recasts (the
     [representation judgment](omega-rust/psi/compilation/checking/recasts.md))
@@ -1643,7 +1643,6 @@ defines the complete product bar.
   - Guarded immutable-local, guarded-field, nested-call-result and
     destructured-payload facts into `requires`; entry premises into `ensures`
     formation; state results into enclosing postconditions. Customers:
-    `pass/calls/runtime_dispatch_binary_call_argument_exit`,
     `pass/calls/nested_value_call_arg_compile`,
     `pass/arithmetic/anonymous_rational_arguments`,
     `pass/proofs/accumulator_guarantee_exit`,
@@ -1655,6 +1654,10 @@ defines the complete product bar.
     and `fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`
     as controls for captured state arguments and invalidated bound observations.
   Canonical controls to keep: `pass/collections/runtime_argmax_index_exit`,
+  `pass/calls/runtime_dispatch_binary_call_argument_exit` and
+  `fail/calls/state_arrival_call_result_above_bound` (guarded re-entry satisfies
+  the ordinary state arrival requirement; a guaranteed call result above the
+  bound does not),
   `pass/host/runtime_console_bounded_line_{lf,full,partial_eof,middle_window}_exit`
   and `pass/host/runtime_console_byte_payload_bounds_exit`
   and `fail/host/console_byte_payload_{negative,above_byte}` (active i32 payload
