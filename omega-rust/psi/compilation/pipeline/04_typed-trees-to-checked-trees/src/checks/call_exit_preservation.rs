@@ -134,6 +134,8 @@ pub(super) fn record(
                     call: call_handle,
                     target_state: target.symbol,
                     requires_preserved,
+                    rank_observation: arena::Handle::invalid(),
+                    rank_preserved: false,
                     erased_observations: erased.insert_many(observed),
                 });
             }

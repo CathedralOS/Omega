@@ -1168,6 +1168,15 @@ impl StateGraphEmission<'_, '_> {
         let mut arriving_rank = if current_rank.is_some()
             && let Some(root) = ranking::observation(checked, plan, target_state)?
         {
+            // This exact target metric is evaluated before cleanup. Capturing
+            // its scalar result does not freeze fields behind its descriptors.
+            if has_nominal_cleanup
+                && !(cleanup_coverage
+                    && preservation
+                        .is_some_and(|row| row.rank_observation == root.root && row.rank_preserved))
+            {
+                return unsupported("cleanup does not preserve the arriving rank observation");
+            }
             // Scalar and structural operands are already complete. Rejoin the
             // exact target telescope here, before projected transfer or cleanup.
             let mut scalar_slots = Vec::with_capacity(arguments.len());

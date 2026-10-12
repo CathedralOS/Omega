@@ -58,6 +58,8 @@ pub(crate) use cleanup_admission::validate_selected_cleanup_guarantees;
 
 // Operator resolution, indexed access bounds, and machine termination.
 mod call_exit_preservation;
+mod rank_exit_preservation;
+pub(crate) use rank_exit_preservation::record_rank_preservation;
 mod cleanup_preservation;
 mod index_preservation;
 mod indexed_writes;
