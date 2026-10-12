@@ -29,14 +29,15 @@ mod source_parsing;
 mod terminal_production;
 
 pub use source_checking::{
-    CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductSelections, RetainedCheck,
-    SelectedCheckedSource, SourceAdmission, SourceConstantRequest,
+    CheckRequest, CheckedBuildMachineProgram, CheckedSource, CheckedTreeProductSelection,
+    CheckingProgram, ProductSelections, RetainedCheck, SelectedCheckedSource, SourceAdmission,
+    SourceConstantRequest,
 };
 pub use source_parsing::{ParsedText, SourceInput, SourceParseError, parse_text};
 
 pub use source_compilation::{
-    BuildSourceInput, CompletedSource, PreparedSource, SourceCompilationRequest,
-    SourceContinuation, SourceExtensionRequest,
+    BuildSourceInput, BuildSourceInputIdentity, BuildSourceProjection, CompletedSource,
+    PreparedSource, SourceCompilationRequest, SourceContinuation, SourceExtensionRequest,
 };
 
 pub use checked_trees_to_lowered_psi::TerminalMachineSelection;

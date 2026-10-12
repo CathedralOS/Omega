@@ -15,6 +15,7 @@ use std::sync::{Arc, Mutex};
 pub(crate) struct CompletedPureBuildInputs {
     checked: build_time_evaluation::CheckedBuildProgram,
     measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
+    selected_root: package_compilation::SelectedBuildRootDeclaration,
     selected_entry: symbols::SymbolHandle,
     initial_build: build_time_evaluation::BuildTimeValue,
     source: package_compilation::SourceAssemblyInputs,
@@ -43,7 +44,7 @@ impl CompletedPureBuildInputs {
     /// completed carrier prevents an admitted-but-unexecuted value from reuse.
     pub(crate) fn from_admitted(
         checked: build_time_evaluation::CheckedBuildProgram,
-        selected_entry: symbols::SymbolHandle,
+        selected_root: package_compilation::SelectedBuildRootDeclaration,
         initial_build: build_time_evaluation::BuildTimeValue,
         packages: &package_compilation::PackageCompilationInputs,
         snapshot: Option<&package_compilation::BuildSnapshotRequest>,
@@ -61,10 +62,12 @@ impl CompletedPureBuildInputs {
         {
             return None;
         }
+        let selected_entry = selected_root.symbol();
         let activation = scope.activation();
         Some(Self {
             checked,
             measurement_identity,
+            selected_root,
             selected_entry,
             initial_build,
             source: package_compilation::SourceAssemblyInputs::new(
@@ -90,7 +93,8 @@ impl CompletedPureBuildInputs {
     }
 
     fn matches(&self, other: &Self) -> bool {
-        self.checked == other.checked
+        self.selected_root == other.selected_root
+            && self.checked == other.checked
             && self.measurement_identity == other.measurement_identity
             && self.selected_entry == other.selected_entry
             && same_initial_value(&self.initial_build, &other.initial_build)
@@ -210,7 +214,17 @@ impl CompletedPureBuild {
                 .staged_output_tree()
                 .is_none_or(|tree| tree.entry_count() != 0)
             || !configuration.generated_sources.is_empty()
-            || configuration.selected_build_machine_symbol != Some(inputs.selected_entry)
+            || configuration
+                .executed_build_root
+                .as_ref()
+                .is_none_or(|root| !root.matches_selected_root(&inputs.selected_root))
+            || configuration
+                .executed_build_root
+                .as_ref()
+                .is_none_or(|root| {
+                    root.execution_profile() != inputs.activation.build_execution_profile()
+                })
+            || configuration.selected_build_machine_symbol() != Some(inputs.selected_entry)
             || observations.activation() != inputs.activation
             || observations.captured_source_inventory() != inputs.captured_inventory
         {

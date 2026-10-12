@@ -4,7 +4,7 @@ mod machine_evaluation;
 use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig};
 use build_time_evaluation::harvest_wire_compatibility_demands;
 use diagnostics::Diagnostic;
-use package_compilation::{CapturedBuildObservations, SelectedBuildMachine};
+use package_compilation::CapturedBuildObservations;
 use provider_planning::program_entry::collect_root_bindings;
 use trust_model::{
     harvest_behavior_exclusions, harvest_component_assumption_acceptances, harvest_root_grants,
@@ -22,33 +22,29 @@ pub(crate) fn execute_admitted_build_program(
         evaluation_sponsor,
         artifact_only,
     } = admitted;
-    let SelectedBuildMachine {
-        entry: machine_entry,
-        symbol: machine_symbol,
-        name: machine_name,
-        normalized_callable_identity: _,
-        value_admission,
-        filesystem_reachable,
-        execution_mode,
-        initial_build,
-    } = machine;
+    let selected_root = machine.selected_root().clone();
+    let admitted_root = machine.admitted_root().clone();
+    let machine_name = machine.name.clone();
+    let value_admission = machine.value_admission;
+    let filesystem_reachable = machine.filesystem_reachable;
+    let activation = machine.into_activation();
+    let machine_symbol = selected_root.symbol();
     let typed = prepared.typed();
     let machine = typed
         .machine(machine_symbol)
         .expect("admitted build entry remains in its owned prepared program");
-    let initial_arguments = vec![initial_build];
     let evaluation_sponsor = evaluation_sponsor.as_ref();
 
     // Phase 1: run the admitted machine once in its admitted execution mode.
     artifacts::compile_timings::counters::record_build_execution();
-    let measured = machine_evaluation::evaluate_admitted_machine(
+    let completed = machine_evaluation::evaluate_admitted_machine(
         &prepared,
-        &machine_entry,
-        initial_arguments,
-        execution_mode,
+        &activation,
         evaluation_sponsor,
         &machine_name,
     )?;
+    let (measured, executed_build_root) = completed.into_parts();
+    let executed_build_root = admitted_root.complete_execution(executed_build_root)?;
     let usage = measured.usage();
 
     // Phase 2: project the retained observations into their durable rows.
@@ -139,7 +135,7 @@ pub(crate) fn execute_admitted_build_program(
         optimization_report_request: optimization_report,
         evaluation_usage: Some(evaluation_usage),
         observation_summary: Some(observation_summary),
-        selected_build_machine_symbol: Some(machine.symbol),
+        executed_build_root: Some(executed_build_root),
         generated_sources,
     })
 }

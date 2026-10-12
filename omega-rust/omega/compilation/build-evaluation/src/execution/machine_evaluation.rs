@@ -1,23 +1,21 @@
 //! Runs the admitted machine once and reports its measured result or failure.
 
 use build_time_evaluation::BuildMachineInvocation;
+use build_time_evaluation::ExecutedBuildMachineEvaluation;
 use build_time_evaluation::{
-    BuildEvaluationSponsor, BuildMachineExecutionMode, BuildTimeValue, PreparedBuildMachineEntry,
+    BuildEvaluationSponsor, BuildTimeValue, PreparedBuildMachineActivation,
     PreparedBuildMachineProgram,
 };
-use checked_interpreter::MeasuredBuildMachineEvaluation;
 use diagnostics::Diagnostic;
 
 /// One measured run of the admitted build machine over its initial `Build`.
-pub(super) type MeasuredBuildMachine = MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>;
+pub(super) type MeasuredBuildMachine = ExecutedBuildMachineEvaluation<Vec<BuildTimeValue>>;
 
 /// Run the admitted machine once in its admitted execution mode. A failed run
 /// reports the partial filesystem evidence the evaluator retained.
 pub(super) fn evaluate_admitted_machine(
     prepared: &PreparedBuildMachineProgram,
-    machine_entry: &PreparedBuildMachineEntry,
-    arguments: Vec<BuildTimeValue>,
-    mode: BuildMachineExecutionMode,
+    activation: &PreparedBuildMachineActivation,
     sponsor: Option<&BuildEvaluationSponsor>,
     machine_name: &str,
 ) -> Result<MeasuredBuildMachine, Vec<Diagnostic>> {
@@ -28,9 +26,7 @@ pub(super) fn evaluate_admitted_machine(
     build_time_evaluation::evaluate_build_machine_measured(
         prepared,
         BuildMachineInvocation {
-            entry: machine_entry,
-            arguments,
-            mode,
+            activation,
             sponsor,
             product_entry_compatibility: Some(&product_entry_compatibility),
         },

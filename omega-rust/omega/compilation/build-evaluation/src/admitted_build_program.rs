@@ -4,19 +4,20 @@
 
 use crate::ComputedBuildConfig;
 use crate::execute_admitted_build_program;
-use build_time_evaluation::{BuildEvaluationSponsor, PreparedBuildMachineProgram};
+use build_time_evaluation::BuildEvaluationSponsor;
 use diagnostics::Diagnostic;
 use package_compilation::BuildMachineFilesystemScope;
+use package_compilation::SelectedBuildRootDeclaration;
 use package_compilation::build_execution::RestrictedBuildRequest;
 use package_compilation::build_execution::{SelectedBuildMachine, admit_build_machine};
-use symbols::SymbolHandle;
+use psi_compiler::CheckedBuildMachineProgram;
 
 /// Private activation-local checkpoint. Entry selection and authority bind to
 /// the prepared program; only the complete evaluation protocol can issue and
 /// consume this value.
 #[must_use = "an admitted build program must be consumed by execute"]
 pub(crate) struct AdmittedBuildProgram {
-    pub(crate) prepared: PreparedBuildMachineProgram,
+    pub(crate) prepared: CheckedBuildMachineProgram,
     pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
     pub(crate) evaluation_sponsor: Option<BuildEvaluationSponsor>,
@@ -50,16 +51,20 @@ impl AdmittedBuildProgram {
         snapshot: Option<&package_compilation::BuildSnapshotRequest>,
     ) -> Option<crate::completed_pure_build::CompletedPureBuildInputs> {
         if self.machine.filesystem_reachable
-            || self.machine.execution_mode != build_time_evaluation::BuildMachineExecutionMode::Pure
+            || self.machine.activation().mode()
+                != &build_time_evaluation::BuildMachineExecutionMode::Pure
             || !self.restricted_build_requests().is_empty()
             || self.evaluation_sponsor.is_none()
         {
             return None;
         }
+        let [initial_build] = self.machine.activation().arguments() else {
+            return None;
+        };
         crate::completed_pure_build::CompletedPureBuildInputs::from_admitted(
             self.prepared.checked_program()?,
-            self.machine.symbol,
-            self.machine.initial_build.clone(),
+            self.machine.selected_root().clone(),
+            initial_build.clone(),
             packages?,
             snapshot,
             &self.filesystem_scope,
@@ -81,8 +86,8 @@ impl AdmittedBuildProgram {
 /// host grants without executing authored code. The returned carrier owns the
 /// only entry token accepted by its prepared program.
 pub(crate) fn admit_build_program(
-    prepared: PreparedBuildMachineProgram,
-    machine_symbol: SymbolHandle,
+    prepared: CheckedBuildMachineProgram,
+    selected_root: SelectedBuildRootDeclaration,
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
     artifact_only: bool,
@@ -93,7 +98,7 @@ pub(crate) fn admit_build_program(
 
     let machine = admit_build_machine(
         &prepared,
-        machine_symbol,
+        selected_root,
         &operational_plan,
         &service_reach_plan,
         filesystem_scope,

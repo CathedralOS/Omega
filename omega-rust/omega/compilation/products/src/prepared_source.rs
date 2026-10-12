@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone)]
 pub struct TypedCompilationFrontier {
     pub source: psi_compiler::SourceContinuation,
-    pub build_source_id: Option<source::SourceId>,
+    pub selected_build_source: Option<package_compilation::source_assembly::SelectedBuildSource>,
     pub source_file_count: usize,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     pub base_sources: Arc<source::SourceMap>,

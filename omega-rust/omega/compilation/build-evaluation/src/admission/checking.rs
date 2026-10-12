@@ -13,13 +13,12 @@
 //! dependency context goes through ordinary checking, including helper bodies;
 //! a declaration's visibility never substitutes for its contract proof.
 
-use build_time_evaluation::PreparedBuildMachineProgram;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
+use psi_compiler::CheckedBuildMachineProgram;
 
 pub(crate) fn prepare_checked_build(
-    typed: &mut typed_trees::TypedTrees,
-    pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
+    input: &mut psi_compiler::BuildSourceInput<'_>,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     execution_profile: Option<target::TargetProfile>,
@@ -28,7 +27,7 @@ pub(crate) fn prepare_checked_build(
     retain: bool,
 ) -> Result<
     (
-        PreparedBuildMachineProgram,
+        CheckedBuildMachineProgram,
         Option<psi_compiler::RetainedCheck>,
     ),
     Vec<Diagnostic>,
@@ -43,17 +42,20 @@ pub(crate) fn prepare_checked_build(
     // would leave the continuation's Build types unresolved and make Product
     // repeat their evaluation under unrelated provider selections. Projection
     // selects work and later the executable judgment; it is not a copyback API.
-    let projection = validation::execution_projection::project_build_program(typed, entry)?;
+    let projection = input.project(entry)?;
     let mut pending = Vec::new();
-    for continuation in pre_checks.iter() {
-        let continuation = continuation.project(typed, &projection)?;
-        if let Some(continuation) = continuation.evaluate_or_defer(typed)? {
-            pending.push(continuation);
+    {
+        let (typed, pre_checks) = input.parts_mut();
+        for continuation in pre_checks.iter() {
+            let continuation = continuation.project(typed, projection.program())?;
+            if let Some(continuation) = continuation.evaluate_or_defer(typed)? {
+                pending.push(continuation);
+            }
         }
     }
-    let provisional = validation::execution_projection::project_build_program(typed, entry)?;
+    let provisional = input.project(entry)?;
     let context = provider_planning::ProviderPlanningContext::new(
-        &provisional,
+        provisional.program(),
         source::DependencyScope::Build,
     );
     let defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
@@ -95,7 +97,7 @@ pub(crate) fn prepare_checked_build(
             provider_planning::selected_provider_plan_facts(context, selected)?
         };
     if !pending.is_empty() {
-        let operator_selections = validation::derive_pre_flow_operator_selections(typed);
+        let operator_selections = validation::derive_pre_flow_operator_selections(input.typed());
         selected_dispatch::SelectedConstantEvaluation::prepare(
             context,
             execution_profile
@@ -107,7 +109,7 @@ pub(crate) fn prepare_checked_build(
             &provenance,
             execution_profile,
         )?
-        .evaluate_pending(typed, pending)?;
+        .evaluate_pending(input.parts_mut().0, pending)?;
     }
     // Carry the invocation's earlier language judgments only for the exact
     // settled Build program this activation projects: its own slot's chain
@@ -118,9 +120,9 @@ pub(crate) fn prepare_checked_build(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {
             let started = std::time::Instant::now();
-            let program = validation::execution_projection::project_build_program(typed, entry)?;
+            let program = input.project(entry)?;
             let result = psi_compiler::CheckRequest {
-                program,
+                program: program.into(),
                 constants: Default::default(),
                 admission: psi_compiler::SourceAdmission {
                     declarations: packages
@@ -140,26 +142,26 @@ pub(crate) fn prepare_checked_build(
             result
         },
     )?;
-    let psi_compiler::CheckedSource {
-        program: checked,
-        retained,
-        ..
-    } = outcome;
-    // Build installs execution-specific comparison facts in its own view;
-    // the shared language judgment stays unchanged for other activations.
-    let mut checked =
-        std::sync::Arc::try_unwrap(checked).unwrap_or_else(|shared| (*shared).clone());
-    selected_dispatch::settle_selected_comparison_execution(
-        &mut checked,
+    let (prepared, retained) = outcome.into_prepared_build()?;
+    let checked = prepared.checked_program().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "checked Build projection lost its checked owner",
+        )]
+    })?;
+    let executions = selected_dispatch::derive_selected_comparison_execution(
+        checked.checked(),
         source::DependencyScope::Build,
         &provenance,
         execution_profile,
     )?;
+    drop(checked);
+    let prepared = prepared.with_selected_comparison_executions(executions);
     // Only successful Build admission discharges this continuation's Build
     // work. Product keeps its exact complement, not a second full evaluation.
+    let (typed, pre_checks) = input.parts_mut();
     *pre_checks = pre_checks
         .iter()
-        .map(|continuation| continuation.exclude_projection(typed, &checked))
+        .map(|continuation| continuation.exclude_projection(typed, prepared.typed()))
         .collect::<Result<_, _>>()?;
-    Ok((PreparedBuildMachineProgram::from_checked(checked), retained))
+    Ok((prepared, retained))
 }
