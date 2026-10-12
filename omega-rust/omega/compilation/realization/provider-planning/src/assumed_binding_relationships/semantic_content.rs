@@ -60,7 +60,7 @@ pub(super) fn capture(
     Some(AssumedBindingSemanticContent(encoder.finish()))
 }
 
-fn encode_claim(
+pub(super) fn encode_claim(
     encoder: &mut DomainDigestEncoder,
     program: &CheckedTrees,
     required: &DeclaredRequirement<'_>,
