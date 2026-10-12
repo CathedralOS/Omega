@@ -1,0 +1,13 @@
+// This ordinary Build length folds before the selected Build is executed.
+// Its successful checked evaluation must remain with that Build's original
+// facade judgment, rather than being reconstructed from the Product literal.
+machine early_count() -> u64 { transition { _ -> 4 } }
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_build_early_constant_input");
+    let bytes: [u8; early_count()] = [0, 0, 0, 0];
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}
