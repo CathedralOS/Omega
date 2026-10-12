@@ -192,7 +192,7 @@ impl TerminalExecution<'_> {
                 .ok_or(malformed())?;
             let actuals = family_actuals
                 .iter()
-                .map(|actual| self.family_actual_integer(*actual))
+                .map(|actual| self.family_actual_value(*actual))
                 .collect::<Result<Vec<_>, _>>()?;
             let mut matched = None;
             for (index, candidate) in interface_slots
@@ -211,9 +211,7 @@ impl TerminalExecution<'_> {
                         .family_tuple
                         .iter()
                         .zip(&actuals)
-                        .all(|(identity, actual)| {
-                            family_tuple_member_value(identity) == Some(*actual)
-                        })
+                        .all(|(member, actual)| member.value == *actual)
                 {
                     matched = Some(u32::try_from(index).map_err(|_| malformed())?);
                     break;
@@ -670,34 +668,29 @@ impl TerminalExecution<'_> {
 }
 
 impl TerminalExecution<'_> {
-    /// The integer one evaluated family actual carries, for tuple matching.
-    /// A roster member is a landed integer literal; any other value shape is
-    /// malformed admission input, not a miss.
-    fn family_actual_integer(
+    /// Compare evaluated scalar values with the checked roster directly.
+    /// Canonical identity text remains opaque throughout execution.
+    fn family_actual_value(
         &self,
         actual: semantic_vocabulary::ValueId,
-    ) -> Result<i128, TerminalInterpretError> {
+    ) -> Result<terminal_psi::TerminalDynamicFamilyValue, TerminalInterpretError> {
+        use terminal_psi::TerminalDynamicFamilyValue;
         match self.values.get(&actual).copied() {
+            Some(crate::values::TerminalScalarValue::Boolean(value)) => {
+                Ok(TerminalDynamicFamilyValue::Boolean(value))
+            }
             Some(crate::values::TerminalScalarValue::Integer {
                 value: semantic_vocabulary::IntegerValue::Signed(value),
                 ..
-            }) => Ok(value),
+            }) => Ok(TerminalDynamicFamilyValue::Integer(value)),
             Some(crate::values::TerminalScalarValue::Integer {
                 value: semantic_vocabulary::IntegerValue::Unsigned(value),
                 ..
-            }) => i128::try_from(value).map_err(|_| malformed()),
+            }) => i128::try_from(value)
+                .map(TerminalDynamicFamilyValue::Integer)
+                .map_err(|_| malformed()),
             Some(_) => Err(malformed()),
             None => Err(TerminalInterpretError::VerifiedValueMissing(actual)),
         }
     }
-}
-
-/// The integer one canonical tuple identity declares:
-/// `named(integer-const(v))`. Any other canonical member shape does not
-/// participate in runtime row matching yet.
-fn family_tuple_member_value(identity: &str) -> Option<i128> {
-    identity
-        .strip_prefix("named(integer-const(")
-        .and_then(|inner| inner.strip_suffix("))"))
-        .and_then(|inner| inner.parse::<i128>().ok())
 }
