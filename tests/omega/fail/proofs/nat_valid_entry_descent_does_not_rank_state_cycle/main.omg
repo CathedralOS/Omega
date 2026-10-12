@@ -10,7 +10,7 @@ terminates by n;
         Nat::Succ { prev } -> (descend_or_loop(prev))
     }
     state spin(n: Nat) -> Nat {
-        spin(n)
+        transition { _ -> spin(n) }
     }
 }
 
