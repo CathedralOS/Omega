@@ -182,12 +182,6 @@ fn result_type(
             )
         }
         ExpressionNode::Call(call) => (|| {
-            let retained = program
-                .expression_table
-                .constructed_value_type_reference(expression);
-            if retained.is_valid() {
-                return Some(retained);
-            }
             if let Some(reference) =
                 crate::mathematical_applications::result_type_reference(program, call)
             {
@@ -227,6 +221,9 @@ fn result_type(
             let retained = program
                 .expression_table
                 .constructed_value_type_reference(expression);
+            // Preparation owns the instantiated declared carrier. A selected
+            // operation still owns its result adapter: returning this row
+            // before the shared call join would erase operand-driven policy.
             let declared_result = retained
                 .is_valid()
                 .then_some(retained)
